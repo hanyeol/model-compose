@@ -1,0 +1,39 @@
+[project]
+name = "model-compose"
+version = "0.1.0"
+description = "model-compose: Declarative AI Model and Workflow Orchestrator (part of the Mindor project)"
+authors = [
+    { name = "Hanyeol Cho", email = "hanyeol.cho@gmail.com" }
+]
+readme = "README.md"
+license = "MIT"
+dependencies = [
+    "click", 
+    "pyyaml", 
+    "pydantic", 
+    "python-dotenv", 
+    "aiohttp", 
+    "requests", 
+    "fastapi", 
+    "uvicorn",
+    "pyngrok", 
+    "ulid", 
+    "gradio",
+    "Pillow"
+]
+
+[project.scripts]
+model-compose = "mindor.cli.compose:compose_command"
+
+[project.urls]
+"Homepage" = "https://github.com/hanyeol/model-compose"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

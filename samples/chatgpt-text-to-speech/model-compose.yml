@@ -1,0 +1,32 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api/v1
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  openai-text-to-speech:
+    type: http-client
+    endpoint: https://api.openai.com/v1/audio/speech
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: tts-1
+      input: ${input.text}
+      voice: nova
+      response_format: mp3
+    response_type: buffer
+    output: ${response}
+
+workflow:
+  title: Generate Speech with OpenAI TTS
+  description: Convert input text into natural-sounding speech using OpenAI's text-to-speech model (tts-1).
+  jobs:
+    speak:
+      component: openai-text-to-speech
+      input: ${input}
+      output: ${output as audio}

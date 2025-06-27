@@ -1,0 +1,29 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+component: 
+  type: http-client
+  base_url: https://api.openai.com/v1
+  path: /images/generations
+  method: POST
+  headers:
+    Authorization: Bearer ${env.OPENAI_API_KEY}
+    Content-Type: application/json
+  body:
+    prompt: ${input.prompt}
+    n: 1
+    size: 1024x1024
+    response_format: b64_json
+  output:
+    image_data: ${response.data[0].b64_json}
+
+workflow:
+  title: Generate Images with OpenAI DALL·E
+  description: Create AI-generated images from text prompts using OpenAI’s DALL·E image generation model.
+  input: ${input}
+  output: ${output.image_data as image;base64}

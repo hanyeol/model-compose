@@ -1,0 +1,26 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  elevenlabs-text-to-speech:
+    type: http-client
+    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id | JBFqnCBsd6RMkjVDRZzb}?output_format=mp3_44100_128
+    method: POST
+    headers:
+      Content-Type: application/json
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+    body:
+      text: ${input.text}
+      model_id: eleven_multilingual_v2
+    output: ${response}
+
+workflow:
+  title: Generate Speech with ElevenLabs AI
+  description: Convert input text into realistic speech using ElevenLabs' multilingual voice model.
+  input: ${input}
+  output: ${output as audio}

@@ -1,0 +1,60 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  write-inspiring-quote:
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: |
+            Write an inspiring quote similar to the example below.  
+            Don't say anything else—just give me the quote.  
+            Aim for around 30 words.  
+            Example – Never give up. If there’s something you want to become, be proud of it. Give yourself a chance.  
+            Don’t think you’re worthless—there’s nothing to gain from that. Aim high. That’s how life should be lived.
+    output:
+      quote: ${response.choices[0].message.content}
+
+  text-to-speech:
+    type: http-client
+    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
+    method: POST
+    headers:
+      Content-Type: application/json
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+    body:
+      text: ${input.text}
+      model_id: eleven_multilingual_v2
+    output: ${response as base64}
+
+workflow:
+  title: Inspire with Voice
+  description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
+  jobs:
+    job-quote:
+      component: write-inspiring-quote
+      input: ${input}
+      output: ${output}
+
+    job-voice:
+      component: text-to-speech
+      input:
+        text: ${jobs.job-quote.output.quote}
+        voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
+      output:
+        quote: ${jobs.job-quote.output.quote}
+        audio: ${output as audio/mp3;base64}
+      depends_on: [ job-quote ]

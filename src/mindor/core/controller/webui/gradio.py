@@ -5,6 +5,7 @@ from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.streaming import Base64StreamResource, save_stream_to_temporary_file
 from .schema import WorkflowSchema
 import gradio as gr
+import json
 
 class GradioWebUIBuilder:
     def build(self, schema: Dict[str, WorkflowSchema], runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
@@ -114,5 +115,10 @@ class GradioWebUIBuilder:
             if isinstance(value, HttpStreamResource):
                 return await save_stream_to_temporary_file(value, subtype)
             return None
+
+        if type == "string":
+            if isinstance(value, (dict, list)):
+                return json.dumps(value)
+            return str(value)
 
         return value

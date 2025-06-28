@@ -26,7 +26,7 @@ class WorkflowVariableResolver:
                 key, path, type, subtype, format, default = match.group(1, 2, 3, 4, 5, 6)
 
                 if type and default:
-                    default = self._convert_type(default, type, subtype, format)
+                    default = self._parse_as_type(default, type)
 
                 if key == wanted_key:
                     variables.append((path, type or "string", subtype, format, default))
@@ -52,7 +52,7 @@ class WorkflowVariableResolver:
                 type, subtype, format, default = match.group(3, 4, 5, 6)
 
                 if type and default:
-                    default = self._convert_type(default, type, subtype, format)
+                    default = self._parse_as_type(default, type)
 
                 variables.append((key, type or "string", subtype, format, default))
             
@@ -67,12 +67,12 @@ class WorkflowVariableResolver:
         if isinstance(value, list):
             return sum([ self._enumerate_output_variables(f"{key}[{i}]" if key else f"[{i}]", v) for i, v in enumerate(value) ], [])
         
-        return []        
+        return []
 
-    def _convert_type(self, value: Any, type: str, subtype: str, format: Optional[str]) -> Any:
+    def _parse_as_type(self, value: Any, type: str) -> Any:
         if type == "number":
             return float(value)
-        
+
         if type == "integer":
             return int(value)
         

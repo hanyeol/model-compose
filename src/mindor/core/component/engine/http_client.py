@@ -67,8 +67,9 @@ class HttpClientCallbackCompletion:
         return await future
 
 class HttpClientAction:
-    def __init__(self, base_url: Optional[str], config: HttpClientActionConfig):
+    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientActionConfig):
         self.base_url: Optional[str] = base_url
+        self.headers: Optional[Dict[str, str]] = headers
         self.config: HttpClientActionConfig = config
         self.client: HttpClient = HttpClient()
 
@@ -77,7 +78,7 @@ class HttpClientAction:
         method  = await context.render_template(self.config.method)
         params  = await context.render_template(self.config.params)
         body    = await context.render_template(self.config.body)
-        headers = await context.render_template(self.config.headers)
+        headers = await context.render_template({ **self.headers, **self.config.headers })
 
         response, result = await self.client.request(url, method, params, body, headers), None
 
@@ -118,6 +119,6 @@ class HttpClientComponent(ComponentEngine):
         pass
 
     async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
-        return await HttpClientAction(self.config.base_url, action).run(context)
+        return await HttpClientAction(self.config.base_url, self.config.headers, action).run(context)
 
 ComponentEngineMap[ComponentType.HTTP_CLIENT] = HttpClientComponent

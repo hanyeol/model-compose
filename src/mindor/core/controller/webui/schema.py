@@ -18,9 +18,9 @@ class WorkflowVariableResolver:
             )
         }
 
-    def _enumerate_input_variables(self, value: Any, wanted_key: str) -> List[Tuple[str, str, str, Optional[Any]]]:
+    def _enumerate_input_variables(self, value: Any, wanted_key: str) -> List[Tuple[str, str, Optional[str], Optional[str], Optional[Any]]]:
         if isinstance(value, str):
-            variables: List[Tuple[str, str, str, str, Optional[Any]]] = []
+            variables: List[Tuple[str, str, Optional[str], Optional[str], Optional[Any]]] = []
 
             for match in self.patterns["variable"].finditer(value):
                 key, path, type, subtype, format, default = match.group(1, 2, 3, 4, 5, 6)
@@ -44,8 +44,8 @@ class WorkflowVariableResolver:
         
         return []
 
-    def _enumerate_output_variables(self, key: str, value: Any) -> List[Tuple[str, str, str, Optional[Any]]]:
-        variables: List[Tuple[str, str, str, str, Optional[Any]]] = []
+    def _enumerate_output_variables(self, key: str, value: Any) -> List[Tuple[str, str, Optional[str], Optional[str], Optional[Any]]]:
+        variables: List[Tuple[str, str, Optional[str], Optional[str], Optional[Any]]] = []
         
         if isinstance(value, str):
             for match in self.patterns["variable"].finditer(value):
@@ -99,6 +99,8 @@ class WorkflowInputResolver(WorkflowVariableResolver):
                     variables.extend(self._enumerate_input_variables(job.component.actions[action_id], "input"))
             else:
                 variables.extend(self._enumerate_input_variables(job.input, "input"))
+
+            variables.extend(self._enumerate_input_variables([ job.repeats ], "input"))
 
         return [ WorkflowVariableConfig(name=name, type=type, subtype=subtype, format=format, default=default) for name, type, subtype, format, default in set(variables) ]
 

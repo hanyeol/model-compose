@@ -20,7 +20,8 @@ class Job:
         input = (await context.render_template(self.config.input)) if self.config.input else context.input
         outputs = []
 
-        for _ in range(self.config.repeats):
+        repeats = (await context.render_template(self.config.repeats)) if self.config.repeats else None
+        for _ in range(int(repeats or 1)):
             call_id = ulid.ulid()
             output = await component.run(self.config.action, call_id, input)
             

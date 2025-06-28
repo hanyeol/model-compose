@@ -100,7 +100,8 @@ class WorkflowInputResolver(WorkflowVariableResolver):
             else:
                 variables.extend(self._enumerate_input_variables(job.input, "input"))
 
-            variables.extend(self._enumerate_input_variables([ job.repeats ], "input"))
+            for value in [ job.repeats ]:
+                variables.extend(self._enumerate_input_variables(value, "input"))
 
         return [ WorkflowVariableConfig(name=name, type=type, subtype=subtype, format=format, default=default) for name, type, subtype, format, default in set(variables) ]
 

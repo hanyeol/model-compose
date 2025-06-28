@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-**model-compose** is an open-source, declarative workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services or run local AI models, all within powerful, composable workflows.
-
 ![Screenshots](docs/images/screenshots.png)
+
+**model-compose** is an open-source, declarative workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services or run local AI models, all within powerful, composable workflows.
 
 ---
 
@@ -193,14 +193,14 @@ listener:
   port: 8090
   base_path: /callbacks
   callbacks:
-    - path: /chatgpt
+    - path: /chat-ai
       method: POST
       item: ${body.data}
       identify_by: ${item.task_id}
       result: ${item.choices[0].message.content}
 ```
 
-This listener sets up an HTTP callback endpoint at `http://localhost:8090/callbacks/chatgpt` to receive asynchronous responses from a remote ChatGPT-compatible service. It extracts the incoming data from the request body, identifies the task using `task_id`, and stores the final message content from the first choice in the response.
+This listener sets up an HTTP callback endpoint at http://localhost:8090/callbacks/chat-ai to handle asynchronous responses from an external service that behaves like ChatGPT but supports delayed or push-based results. This is useful when integrating with services that notify results via webhook-style callbacks.
 
 #### 🌐 Gateway Example
 

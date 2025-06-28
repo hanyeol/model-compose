@@ -1,8 +1,10 @@
-# model-compose: Declarative AI Model and Workflow Orchestrator (_part of the Mindor project_)
+# model-compose: Declarative AI Model and Workflow Orchestrator
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
+![Screenshots](docs/images/screenshots.png)
 
 **model-compose** is an open-source, declarative workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services or run local AI models, all within powerful, composable workflows.
 
@@ -10,29 +12,14 @@
 
 ## ✨ Features
 
-#### 🔧 Declarative by Design
-Define complete AI workflows using simple YAML files — no complex scripting required.
-
-#### 🔗 Compose Anything
-Combine multiple AI models, APIs, and tools into a single, unified pipeline.
-
-#### 🧠 Built for Orchestration
-Orchestrate multi-step model interactions with ease. Turn individual API calls into maintainable, end-to-end systems using **model-compose**.
-
-#### 🛠️ Multi-Workflow Support
-Define multiple named workflows in one project. Run them by name or set a default for quick execution.
-
-#### 🧩 Modular Components
-Break down logic into reusable components and jobs. Easily plug, swap, and extend them across workflows.
-
-#### ⚙️ Flexible I/O Routing
-Connect inputs and outputs between jobs using clean, scoped variables - no glue code needed.
-
-#### 🧪 Run Locally, Serve Remotely
-Execute workflows from the CLI or expose them as HTTP or MCP endpoints with an optional Web UI.
-
-#### 📦 Works with Environment Variables
-Easily inject secrets and configuration via `.env` files or environment variables to keep your YAML clean and secure.
+- **Declarative by Design:** Define complete AI workflows using simple YAML files—no complex scripting required.
+- **Compose Anything:** Combine multiple AI models, APIs, and tools into a single, unified pipeline.
+- **Built for Orchestration:**  Orchestrate multi-step model interactions with ease. Transform individual API calls into maintainable, end-to-end systems.
+- **Multi-Workflow Support:** Define multiple named workflows in one project. Run them by name or set a default for quick execution.
+- **Modular Components:** Break down logic into reusable components and jobs. Easily plug, swap, and extend them across workflows.
+- **Flexible I/O Routing:** Connect inputs and outputs between jobs using clean, scoped variables—no glue code needed.
+- **Run Locally, Serve Remotely:** Execute workflows from the CLI or expose them as HTTP or MCP endpoints with an optional Web UI.
+- **Environment Variable Support:** Easily inject secrets and configuration via `.env` files or environment variables to keep your YAML clean and secure.
 
 ---
 
@@ -191,14 +178,14 @@ listener:
   port: 8090
   base_path: /callbacks
   callbacks:
-    - path: /chatgpt
+    - path: /chat-ai
       method: POST
       item: ${body.data}
       identify_by: ${item.task_id}
       result: ${item.choices[0].message.content}
 ```
 
-This listener sets up an HTTP callback endpoint at `http://localhost:8090/callbacks/chatgpt` to receive asynchronous responses from a remote ChatGPT-compatible service. It extracts the incoming data from the request body, identifies the task using `task_id`, and stores the final message content from the first choice in the response.
+This listener sets up an HTTP callback endpoint at http://localhost:8090/callbacks/chat-ai to handle asynchronous responses from an external service that behaves like ChatGPT but supports delayed or push-based results. This is useful when integrating with services that notify results via webhook-style callbacks.
 
 #### 🌐 Gateway Example
 
@@ -211,7 +198,12 @@ gateway:
 
 This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
-> 📁 For more example model-compose.yml configurations, check the samples directory in the source code.
+> 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
+
+---
+## 🏗 Architecture
+
+![Archtecture Diagram](docs/images/architecture-diagram.png)
 
 ---
 

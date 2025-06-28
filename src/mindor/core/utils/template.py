@@ -46,7 +46,7 @@ class TemplateRenderer:
             except Exception:
                 value = None
 
-            value = default if not value else value
+            value = default if value is None else value
 
             if type and value:
                 value = await self._convert_type(value, type, subtype, format)

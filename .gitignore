@@ -178,3 +178,6 @@ cython_debug/
 
 # Gradio
 .gradio
+
+# Mac OS
+.DS_Store

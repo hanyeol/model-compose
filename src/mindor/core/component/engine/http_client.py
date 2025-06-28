@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 import asyncio
 
 class HttpClientPollingCompletion:
-    def __init__(self, base_url: Optional[str], config: HttpClientCompletionConfig):
+    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientCompletionConfig):
         self.base_url: Optional[str] = base_url
+        self.headers: Optional[Dict[str, str]] = headers
         self.config: HttpClientCompletionConfig = config
         self.client: HttpClient = HttpClient()
 
@@ -20,7 +21,7 @@ class HttpClientPollingCompletion:
         method  = await context.render_template(self.config.method)
         params  = await context.render_template(self.config.params)
         body    = await context.render_template(self.config.body)
-        headers = await context.render_template(self.config.headers)
+        headers = await context.render_template({ **self.headers, **self.config.headers })
 
         interval = parse_duration(self.config.interval) if self.config.interval else 5.0
         timeout  = parse_duration(self.config.timeout) if self.config.timeout else 300
@@ -101,7 +102,7 @@ class HttpClientAction:
 
     async def _handle_completion(self, completion: HttpClientCompletionConfig, context: ComponentContext) -> Any:
         if completion.type == "polling":
-            return await HttpClientPollingCompletion(self.base_url, completion).run(context)
+            return await HttpClientPollingCompletion(self.base_url, self.headers, completion).run(context)
         
         if completion.type == "callback":
             return await HttpClientCallbackCompletion(completion).run(context)

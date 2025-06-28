@@ -54,7 +54,8 @@ class ControllerWebUI(AsyncService):
         await self.server.serve()
     
     async def _shutdown(self) -> None:
-        self.server.should_exit = True
+        if self.server:
+            self.server.should_exit = True
     
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         return await self.runner.run_workflow(workflow_id, input)

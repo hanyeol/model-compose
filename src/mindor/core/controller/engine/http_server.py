@@ -109,7 +109,8 @@ class HttpServerController(ControllerEngine):
         await self.server.serve()
  
     async def _shutdown(self) -> None:
-        self.server.should_exit = True
+        if self.server:
+            self.server.should_exit = True
 
     async def _parse_workflow_body(self, request: Request) -> WorkflowTaskRequestBody:
         content_type, _ = parse_options_header(request.headers, "Content-Type")

@@ -109,7 +109,8 @@ class HttpCallbackListener(ListenerEngine):
         await self.server.serve()
  
     async def _shutdown(self) -> None:
-        self.server.should_exit = True
+        if self.server:
+            self.server.should_exit = True
 
     def _get_pending_future(self, id: str) -> Optional[asyncio.Future]:
         with _pending_futures_lock:

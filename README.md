@@ -12,29 +12,14 @@
 
 ## ✨ Features
 
-#### 🔧 Declarative by Design
-Define complete AI workflows using simple YAML files — no complex scripting required.
-
-#### 🔗 Compose Anything
-Combine multiple AI models, APIs, and tools into a single, unified pipeline.
-
-#### 🧠 Built for Orchestration
-Orchestrate multi-step model interactions with ease. Turn individual API calls into maintainable, end-to-end systems using **model-compose**.
-
-#### 🛠️ Multi-Workflow Support
-Define multiple named workflows in one project. Run them by name or set a default for quick execution.
-
-#### 🧩 Modular Components
-Break down logic into reusable components and jobs. Easily plug, swap, and extend them across workflows.
-
-#### ⚙️ Flexible I/O Routing
-Connect inputs and outputs between jobs using clean, scoped variables - no glue code needed.
-
-#### 🧪 Run Locally, Serve Remotely
-Execute workflows from the CLI or expose them as HTTP or MCP endpoints with an optional Web UI.
-
-#### 📦 Works with Environment Variables
-Easily inject secrets and configuration via `.env` files or environment variables to keep your YAML clean and secure.
+- **Declarative by Design:** Define complete AI workflows using simple YAML files — no complex scripting required.
+- **Compose Anything:** Combine multiple AI models, APIs, and tools into a single, unified pipeline.
+- **Built for Orchestration:** Orchestrate multi-step model interactions with ease. Turn individual API calls into maintainable, end-to-end systems using **model-compose**.
+- **Multi-Workflow Support:** Define multiple named workflows in one project. Run them by name or set a default for quick execution.
+- **Modular Components:** Break down logic into reusable components and jobs. Easily plug, swap, and extend them across workflows.
+- **Flexible I/O Routing:** Connect inputs and outputs between jobs using clean, scoped variables - no glue code needed.
+- **Run Locally, Serve Remotely:** Execute workflows from the CLI or expose them as HTTP or MCP endpoints with an optional Web UI.
+- **Works with Environment Variables:** Easily inject secrets and configuration via `.env` files or environment variables to keep your YAML clean and secure.
 
 ---
 
@@ -213,7 +198,7 @@ gateway:
 
 This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
-> 📁 For more example model-compose.yml configurations, check the examples directory in the source code.
+> 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
 
 ---
 ## 🏗 Architecture

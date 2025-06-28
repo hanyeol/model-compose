@@ -45,8 +45,11 @@ class GradioWebUIBuilder:
 
                 if workflow.output:
                     if isinstance(output, dict):
-                        output = [ await self._convert_type(output[variable.name] if variable.name else output, variable.type, variable.subtype, variable.format) for variable in workflow.output ]
-                        output = output[0] if len(output) == 1 else output
+                        outputs = []
+                        for variable in workflow.output:
+                            value = output[variable.name] if variable.name else output
+                            outputs.append(await self._convert_type(value, variable.type, variable.subtype, variable.format))
+                        output = outputs[0] if len(outputs) == 1 else outputs
                     else:
                         variable = workflow.output[0]
                         output = await self._convert_type(output, variable.type, variable.subtype, variable.format)

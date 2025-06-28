@@ -74,9 +74,9 @@ class WorkflowResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class WorkflowRunner:
-    def __init__(self, jobs: Dict[str, JobConfig], component_provider: Callable[[Union[str, ComponentConfig, str]], ComponentEngine]):
+    def __init__(self, jobs: Dict[str, JobConfig], component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine]):
         self.jobs: Dict[str, JobConfig] = jobs
-        self.component_provider: Callable[[Union[str, ComponentConfig, str]], ComponentEngine] = component_provider
+        self.component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine] = component_provider
 
     async def run(self, context: WorkflowContext) -> Any:
         pending_jobs: Dict[str, Job] = { job_id: Job(job_id, job, self.component_provider) for job_id, job in self.jobs.items() }

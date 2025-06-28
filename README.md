@@ -213,7 +213,7 @@ gateway:
 
 This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
-> 📁 For more example model-compose.yml configurations, check the samples directory in the source code.
+> 📁 For more example model-compose.yml configurations, check the examples directory in the source code.
 
 ---
 ## 🏗 Architecture

@@ -1,4 +1,4 @@
-# model-compose: Declarative AI Model and Workflow Orchestrator (_part of the Mindor project_)
+# model-compose: Declarative AI Model and Workflow Orchestrator
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

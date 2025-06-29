@@ -118,7 +118,6 @@ class GradioWebUIBuilder:
         return flattened
     
     async def _flatten_output(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
-        print(variables)
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):

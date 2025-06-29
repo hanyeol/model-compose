@@ -23,16 +23,15 @@ class Job:
         async def _run_once():
             call_id = ulid.ulid()
             output = await component.run(self.config.action, call_id, input)
+            context.register_source("output", output)
 
-            if output:
-                outputs.append(output)
+            output = (await context.render_template(self.config.output)) if self.config.output else output
+            outputs.append(output)
 
         repeat_count = (await context.render_template(self.config.repeat_count)) if self.config.repeat_count else None
         await asyncio.gather(*[ _run_once() for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None
+        context.register_source("output", output)
 
-        if output:
-            context.register_source("output", output)
-
-        return (await context.render_template(self.config.output)) if self.config.output else output
+        return output

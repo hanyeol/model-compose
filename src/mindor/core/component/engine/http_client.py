@@ -31,8 +31,8 @@ class HttpClientPollingCompletion:
 
         while datetime.now(timezone.utc) < deadline:
             response = await self.client.request(url, method, params, body, headers)
-
             context.register_source("result", response)
+
             status = (await context.render_template(self.config.status)) if self.config.status else response["status"]
 
             if not status:
@@ -82,15 +82,11 @@ class HttpClientAction:
         headers = await context.render_template({ **self.headers, **self.config.headers })
 
         response, result = await self.client.request(url, method, params, body, headers), None
-
-        if response:
-            context.register_source("response", response)
+        context.register_source("response", response)
 
         if self.config.completion:
             result = await self._handle_completion(self.config.completion, context)
-
-            if result:
-                context.register_source("result", result)
+            context.register_source("result", result)
 
         return (await context.render_template(self.config.output)) if self.config.output else (result or response)
 

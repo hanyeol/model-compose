@@ -39,10 +39,10 @@ class HttpClient:
                 headers=headers
             )
 
-            if response.status >= 400:
-                raise ValueError(f"Request failed with status {response.status}")
-
             content = await self._parse_response_content(session, response)
+
+            if response.status >= 400:
+                raise ValueError(f"Request failed with status {response.status}: {content}")
 
             if not isinstance(content, HttpStreamResource):
                 await session.close()

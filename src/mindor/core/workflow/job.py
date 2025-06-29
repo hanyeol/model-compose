@@ -27,8 +27,8 @@ class Job:
             if output:
                 outputs.append(output)
 
-        repeats = (await context.render_template(self.config.repeats)) if self.config.repeats else None
-        await asyncio.gather(*[ _run_once() for _ in range(int(repeats or 1)) ])
+        repeat_count = (await context.render_template(self.config.repeat_count)) if self.config.repeat_count else None
+        await asyncio.gather(*[ _run_once() for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None
 

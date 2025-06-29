@@ -1,11 +1,16 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from mindor.dsl.schema.workflow import WorkflowVariableConfig
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_client import HttpStreamResource
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.streaming import Base64StreamResource, save_stream_to_temporary_file
 from .schema import WorkflowSchema
 import gradio as gr
 import json
+
+class ComponentGroup:
+    def __init__(self, group: gr.Component, components: List[gr.Component]):
+        self.group: gr.Component = group
+        self.components: List[gr.Component] = components
 
 class GradioWebUIBuilder:
     def build(self, schema: Dict[str, WorkflowSchema], runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
@@ -42,24 +47,13 @@ class GradioWebUIBuilder:
             async def _run_workflow(*args):
                 input = { variable.name: value if value != "" else None for variable, value in zip(workflow.input, args) }
                 output = await runner(input)
-
-                if workflow.output:
-                    if isinstance(output, dict):
-                        outputs = []
-                        for variable in workflow.output:
-                            value = output[variable.name] if variable.name else output
-                            outputs.append(await self._convert_type(value, variable.type, variable.subtype, variable.format))
-                        output = outputs[0] if len(outputs) == 1 else outputs
-                    else:
-                        variable = workflow.output[0]
-                        output = await self._convert_type(output, variable.type, variable.subtype, variable.format)
-
-                return output
+                output = await self._flatten_output(output, workflow.output)
+                return output[0] if len(output) == 1 else output
 
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=output_components
+                outputs=self._flatten_output_components(output_components)
             )
 
         return section
@@ -89,7 +83,16 @@ class GradioWebUIBuilder:
         
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
 
-    def _build_output_component(self, variable: WorkflowVariableConfig) -> gr.Component:
+    def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
+        if isinstance(variable, WorkflowVariableGroupConfig):
+            groups: List[ComponentGroup] = []
+            for index in range(variable.repeat_count if variable.repeat_count != 0 else 100):
+                visible = True if variable.repeat_count != 0 or index == 0 else False
+                with gr.Column(visible=visible) as group:
+                    components = [ self._build_output_component(v) for v in variable.variables ]
+                groups.append(ComponentGroup(group, components))
+            return groups
+
         label = variable.name or ""
         info = variable.description or ""
 
@@ -104,7 +107,35 @@ class GradioWebUIBuilder:
     
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
 
+    def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
+        flattened = []
+        for item in components:
+            if isinstance(item, list):
+                for group in item:
+                    flattened.extend(group.components)
+            else:
+                flattened.append(item)
+        return flattened
+    
+    async def _flatten_output(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+        print(variables)
+        flattened = []
+        for variable in variables:
+            if isinstance(variable, WorkflowVariableGroupConfig):
+                group = output[variable.name] if variable.name else output
+                for value in group:
+                    flattened.extend(await self._flatten_output(value, variable.variables))
+            else:
+                value = output[variable.name] if variable.name else output
+                flattened.append(await self._convert_type(value, variable.type, variable.subtype, variable.format))
+        return flattened
+
     async def _convert_type(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str]) -> Any:
+        if type == "string":
+            if isinstance(value, (dict, list)):
+                return json.dumps(value)
+            return str(value)
+        
         if type == "image":
             if format == "base64" and isinstance(value, str):
                 return await load_image_from_stream(Base64StreamResource(value), subtype)
@@ -118,10 +149,5 @@ class GradioWebUIBuilder:
             if isinstance(value, HttpStreamResource):
                 return await save_stream_to_temporary_file(value, subtype)
             return None
-
-        if type == "string":
-            if isinstance(value, (dict, list)):
-                return json.dumps(value)
-            return str(value)
 
         return value

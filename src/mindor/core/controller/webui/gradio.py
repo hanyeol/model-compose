@@ -11,14 +11,14 @@ class GradioWebUIBuilder:
     def build(self, schema: Dict[str, WorkflowSchema], runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
         with gr.Blocks() as blocks:
             for workflow_id, workflow in schema.items():
-                async def run_workflow(input: Any, workflow_id=workflow_id) -> Any:
+                async def _run_workflow(input: Any, workflow_id=workflow_id) -> Any:
                     return await runner(workflow_id, input)
 
                 if len(schema) > 1:
                     with gr.Tab(label=workflow.name or workflow_id):
-                        self._build_workflow_section(workflow, run_workflow)
+                        self._build_workflow_section(workflow, _run_workflow)
                 else:
-                    self._build_workflow_section(workflow, run_workflow)
+                    self._build_workflow_section(workflow, _run_workflow)
 
         return blocks
 
@@ -39,8 +39,8 @@ class GradioWebUIBuilder:
             if not output_components:
                 output_components = gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True)
 
-            async def run_workflow(*args):
-                input = { variable.name: value for variable, value in zip(workflow.input, args) }
+            async def _run_workflow(*args):
+                input = { variable.name: value if value != "" else None for variable, value in zip(workflow.input, args) }
                 output = await runner(input)
 
                 if workflow.output:
@@ -57,7 +57,7 @@ class GradioWebUIBuilder:
                 return output
 
             run_button.click(
-                fn=run_workflow,
+                fn=_run_workflow,
                 inputs=input_components,
                 outputs=output_components
             )

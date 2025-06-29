@@ -48,7 +48,7 @@ class TemplateRenderer:
 
             value = default if value is None else value
 
-            if type and value:
+            if type and value is not None:
                 value = await self._convert_type(value, type, subtype, format)
 
             if variable == text:
@@ -85,7 +85,7 @@ class TemplateRenderer:
 
         if type == "integer":
             return int(value)
-        
+
         if type == "json":
             return json.loads(value)
         

@@ -66,7 +66,7 @@ class HttpCallbackListener(ListenerEngine):
             )
 
     def _make_callback_handler(self, callback: HttpCallbackConfig) -> Callable:
-        async def handler(request: Request) -> Response:
+        async def _handler(request: Request) -> Response:
             content_type, _ = parse_options_header(request.headers, "Content-Type")
             body, query = await parse_request_body(request, content_type), request.query_params
             context: HttpCallbackContext = HttpCallbackContext(body, query, callback.bulk, callback.item)
@@ -85,7 +85,7 @@ class HttpCallbackListener(ListenerEngine):
 
             return Response()
 
-        return handler
+        return _handler
 
     async def _is_callback_succeeded(self, callback: HttpCallbackConfig, context: HttpCallbackContext) -> bool:
         status = (await context.render_template(callback.status)) if callback.status else None

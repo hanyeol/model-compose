@@ -1,10 +1,17 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
-from .http_request import serialize_request_body, parse_options_header
+from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
+from requests.structures import CaseInsensitiveDict
 import aiohttp
 
 class HttpStreamResource(StreamResource):
-    def __init__(self, session: aiohttp.ClientSession, stream: aiohttp.StreamReader, content_type: Optional[str] = None, filename: Optional[str] = None):
+    def __init__(
+        self, 
+        session: aiohttp.ClientSession, 
+        stream: aiohttp.StreamReader, 
+        content_type: Optional[str] = None, 
+        filename: Optional[str] = None
+    ):
         super().__init__(content_type, filename)
 
         self.session: aiohttp.ClientSession = session
@@ -26,17 +33,17 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpClient:
-    async def request(self, url: str, method: Optional[str] = "GET", params: Optional[Dict[str, Any]] = None, body: Optional[Any] = None, headers: Optional[Dict[str, str]] = None) -> Any:
+    async def request(
+        self,
+        url: str,
+        method: Optional[str] = "GET",
+        params: Optional[Dict[str, Any]] = None,
+        body: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None
+    ) -> Any:
         session = aiohttp.ClientSession()
         try:
-            response = await session.request(
-                method,
-                url,
-                params=params,
-                data=await self._serialize_request_body(body, headers),
-                headers=headers
-            )
-
+            response = await self._request_with_session(session, url, method, params, body, headers)
             content = await self._parse_response_content(session, response)
 
             if response.status >= 400:
@@ -50,11 +57,28 @@ class HttpClient:
             await session.close()
             raise
 
-    async def _serialize_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Any:
+    async def _request_with_session(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        method: str,
+        params: Optional[Dict[str, Any]],
+        body: Optional[Any],
+        headers: Optional[Dict[str, str]]
+    ) -> aiohttp.ClientResponse:
+        data = self._build_request_body(body, headers)
+
+        if isinstance(data, aiohttp.FormData):
+            headers = CaseInsensitiveDict(headers or {})
+            headers.pop("Content-Type", None)
+
+        return await session.request(method, url, params=params, data=data, headers=headers)
+
+    def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Any:
         content_type, _ = parse_options_header(headers, "Content-Type")
 
         if content_type and body:
-            return await serialize_request_body(body, content_type)
+            return build_request_body(body, content_type)
 
         return body
 

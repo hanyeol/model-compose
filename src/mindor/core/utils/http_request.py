@@ -1,9 +1,9 @@
 from typing import Dict, List, Tuple, Optional, Any
 from requests.structures import CaseInsensitiveDict
-from starlette.datastructures import FormData
+from starlette.datastructures import FormData, UploadFile
 from urllib.parse import urlencode
 from fastapi import Request
-import re, json
+import aiohttp, re, json
 
 _token_pattern = r"([\w!#$%&'*+\-.^_`|~]+)"
 _quoted_pattern = r'"([^"]*)"'
@@ -37,12 +37,12 @@ class NestedFormParser:
         
         return parts
 
-async def serialize_request_body(body: Any, content_type: Optional[str]) -> Any:
+def build_request_body(body: Any, content_type: Optional[str]) -> Any:
     if content_type == "application/json":
         return json.dumps(body)
     
     if content_type == "multipart/form-data":
-        return urlencode(body)
+        return build_request_form(body)
 
     if content_type == "application/x-www-form-urlencoded":
         return urlencode(body)
@@ -51,6 +51,22 @@ async def serialize_request_body(body: Any, content_type: Optional[str]) -> Any:
         return body
 
     return body
+
+def build_request_form(body: Any) -> aiohttp.FormData:
+    form = aiohttp.FormData()
+
+    for key, value in body.items() if isinstance(body, dict) else {}:
+        if isinstance(value, UploadFile):
+            form.add_field(
+                name=key,
+                value=value.file,
+                filename=value.filename,
+                content_type=value.content_type or "application/octet-stream"
+            )
+        else:
+            form.add_field(name=key, value=str(value))
+
+    return form
 
 async def parse_request_body(request: Request, content_type: str, nested: bool = False) -> Any:
     if content_type in [ "multipart/form-data", "application/x-www-form-urlencoded" ]:

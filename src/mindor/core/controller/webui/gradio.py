@@ -78,6 +78,9 @@ class GradioWebUIBuilder:
         if variable.type == "image":
             return gr.Image(label=label, type="filepath")
 
+        if variable.type == "audio":
+            return gr.Audio(label=label)
+
         if variable.type == "video":
             return gr.Video(label=label)
 

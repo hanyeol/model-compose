@@ -111,17 +111,26 @@ class WorkflowVariableResolver:
             if isinstance(item, WorkflowVariableGroup):
                 group: List[WorkflowVariableConfig] = []
                 seen_in_group: Set[WorkflowVariable] = set()
-                for v in item.variables:
-                    if v not in seen_in_group:
-                        seen_in_group.add(v)
-                        group.append(WorkflowVariableConfig(**v.to_dict()))
+                for variable in item.variables:
+                    if variable not in seen_in_group:
+                        group.append(self._to_variable_config(variable))
+                        seen_in_group.add(variable)
                 configs.append(WorkflowVariableGroupConfig(name=item.name, variables=group, repeat_count=item.repeat_count))
             else:
                 if item not in seen_single:
+                    configs.append(self._to_variable_config(item))
                     seen_single.add(item)
-                    configs.append(WorkflowVariableConfig(**item.to_dict()))
 
         return configs
+    
+    def _to_variable_config(self, variable: WorkflowVariable) -> WorkflowVariableConfig:
+        config_dict = variable.to_dict()
+
+        if variable.type == "select" and variable.format:
+            config_dict["options"] = variable.format.split(",")
+            config_dict.pop("format")
+
+        return WorkflowVariableConfig(**config_dict)
 
     def _parse_as_type(self, value: Any, type: str) -> Any:
         if type == "number":

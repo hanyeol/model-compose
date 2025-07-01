@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.core.utils.http_client import HttpStreamResource
+from mindor.core.utils.http_client import HttpClient, HttpStreamResource
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.streaming import Base64StreamResource, save_stream_to_temporary_file
 from .schema import WorkflowSchema
@@ -74,13 +74,19 @@ class GradioWebUIBuilder:
         
         if variable.type == "boolean":
             return gr.Checkbox(label=label, value=default or False, info=info)
+        
+        if variable.type == "image":
+            return gr.Image(label=label, type="filepath")
+
+        if variable.type == "video":
+            return gr.Video(label=label)
 
         if variable.type == "file":
-            return gr.File(label=label, file_types=["*"], info=info)
+            return gr.File(label=label)
 
         if variable.type == "select":
             return gr.Dropdown(choices=variable.options or [], label=label, value=default, info=info)
-        
+
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
@@ -105,6 +111,9 @@ class GradioWebUIBuilder:
         if variable.type == "audio":
             return gr.Audio(label=label)
     
+        if variable.type == "video":
+            return gr.Video(label=label)
+
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
 
     def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
@@ -136,13 +145,17 @@ class GradioWebUIBuilder:
             return str(value)
         
         if type == "image":
+            if format == "url" and isinstance(value, str):
+                return await load_image_from_stream(await HttpClient().request(value), subtype)
             if format == "base64" and isinstance(value, str):
                 return await load_image_from_stream(Base64StreamResource(value), subtype)
             if isinstance(value, HttpStreamResource):
                 return await load_image_from_stream(value, subtype)
             return None
 
-        if type == "audio":
+        if type in [ "audio", "video" ]:
+            if format == "url" and isinstance(value, str):
+                return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
             if format == "base64" and isinstance(value, str):
                 return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
             if isinstance(value, HttpStreamResource):

@@ -31,6 +31,7 @@ class WorkflowVariableType(str, Enum):
     # Media and files
     IMAGE   = "image"
     AUDIO   = "audio"
+    VIDEO   = "video"
     FILE    = "file"
     # UI-related types
     SELECT  = "select"
@@ -39,16 +40,17 @@ class WorkflowVariableFormat(str, Enum):
     BASE64 = "base64"
     URL    = "url"
     PATH   = "path"
+    STREAM = "stream"
 
 class WorkflowVariableConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the variable")
     type: WorkflowVariableType = Field(..., description="Type of the variable")
     subtype: Optional[str] = Field(default=None, description="Subtype of the variable")
     format: Optional[WorkflowVariableFormat] = Field(default=None, description="Format of the variable")
+    options: Optional[List[str]] = Field(default=None, description="List of valid options for select type")
     required: bool = Field(default=False, description="Whether this variable is required")
     default: Optional[Any] = Field(default=None, description="Default value if not provided")
     description: Optional[str] = Field(default=None, description="Description of the variable")
-    options: Optional[List[Any]] = Field(default=None, description="List of valid options for select type")
 
 class WorkflowVariableGroupConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the group of variables")

@@ -1,9 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
 from .http_request import serialize_request_body, parse_options_header
 from .streaming import StreamResource
-
-from urllib.parse import urlencode
-import aiohttp, json
+import aiohttp
 
 class HttpStreamResource(StreamResource):
     def __init__(self, session: aiohttp.ClientSession, stream: aiohttp.StreamReader, content_type: Optional[str] = None, filename: Optional[str] = None):
@@ -28,7 +26,7 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpClient:
-    async def request(self, url: str, method: str, params: Optional[Dict[str, Any]], body: Optional[Any], headers: Optional[Dict[str, str]]) -> Any:
+    async def request(self, url: str, method: Optional[str] = "GET", params: Optional[Dict[str, Any]] = None, body: Optional[Any] = None, headers: Optional[Dict[str, str]] = None) -> Any:
         session = aiohttp.ClientSession()
         try:
             response = await session.request(
@@ -57,7 +55,7 @@ class HttpClient:
 
         if content_type and body:
             return await serialize_request_body(body, content_type)
-        
+
         return body
 
     async def _parse_response_content(self, session: aiohttp.ClientSession, response: aiohttp.ClientResponse) -> Any:

@@ -15,7 +15,7 @@ from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
-import asyncio, uvicorn
+import uvicorn
 
 class WorkflowTaskRequestBody(BaseModel):
     workflow_id: Optional[str] = None
@@ -50,7 +50,7 @@ class HttpServerController(ControllerEngine):
         daemon: bool
     ):
         super().__init__(config, components, listeners, gateways, workflows, env, daemon)
-        
+
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.router: APIRouter = APIRouter()

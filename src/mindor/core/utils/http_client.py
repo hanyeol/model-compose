@@ -44,7 +44,7 @@ class HttpClient:
         session = aiohttp.ClientSession()
         try:
             response = await self._request_with_session(session, url, method, params, body, headers)
-            content = await self._parse_response_content(session, response)
+            content, _ = await self._parse_response_content(session, response)
 
             if response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
@@ -66,32 +66,32 @@ class HttpClient:
         body: Optional[Any],
         headers: Optional[Dict[str, str]]
     ) -> aiohttp.ClientResponse:
-        data = self._build_request_body(body, headers)
-
-        if isinstance(data, aiohttp.FormData):
+        data, content_type = self._build_request_body(body, headers)
+ 
+        if content_type == "multipart/form-data":
             headers = CaseInsensitiveDict(headers or {})
             headers.pop("Content-Type", None)
 
         return await session.request(method, url, params=params, data=data, headers=headers)
 
-    def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Any:
+    def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(headers, "Content-Type")
 
-        if content_type and body:
-            return build_request_body(body, content_type)
+        if content_type and body is not None:
+            return (build_request_body(body, content_type), content_type)
 
-        return body
+        return (body, content_type)
 
-    async def _parse_response_content(self, session: aiohttp.ClientSession, response: aiohttp.ClientResponse) -> Any:
+    async def _parse_response_content(self, session: aiohttp.ClientSession, response: aiohttp.ClientResponse) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(response.headers, "Content-Type")
 
         if content_type == "application/json":
-            return await response.json()
+            return (await response.json(), content_type)
 
         if content_type.startswith("text/"):
-            return await response.text()
+            return (await response.text(), content_type)
 
         _, disposition = parse_options_header(response.headers, "Content-Disposition")
         filename = disposition.get("filename")
 
-        return HttpStreamResource(session, response.content, content_type, filename)
+        return (HttpStreamResource(session, response.content, content_type, filename), content_type)

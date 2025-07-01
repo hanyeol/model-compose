@@ -91,6 +91,7 @@ async def parse_request_form(request: Request, nested: bool = False) -> Any:
 def parse_options_header(headers: Dict[str, str], header_name: str) -> Tuple[str, Dict[str, str]]:
     value = CaseInsensitiveDict(headers or {}).get(header_name, "")
     pos = _firefox_escape_fix_regex.sub("%22", value).find(";")
+    
     if pos >= 0:
         options = { 
             m.group(1).lower(): m.group(2) or m.group(3).replace("%22", "") for m in _option_regex.finditer(value[pos:])

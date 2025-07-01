@@ -69,7 +69,7 @@ class HttpClient:
         data, content_type = self._build_request_body(body, headers)
  
         if content_type == "multipart/form-data":
-            headers = CaseInsensitiveDict(headers or {})
+            headers = CaseInsensitiveDict(headers)
             headers.pop("Content-Type", None)
 
         return await session.request(method, url, params=params, data=data, headers=headers)

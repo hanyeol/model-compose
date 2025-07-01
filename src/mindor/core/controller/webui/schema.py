@@ -128,7 +128,6 @@ class WorkflowVariableResolver:
 
         if variable.type == "select" and variable.subtype:
             config_dict["options"] = variable.subtype.split(",")
-            config_dict.pop("subtype")
 
         return WorkflowVariableConfig(**config_dict)
 

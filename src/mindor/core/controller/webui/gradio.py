@@ -29,8 +29,8 @@ class GradioWebUIBuilder:
 
     def _build_workflow_section(self, workflow: WorkflowSchema, runner: Callable[[Any], Awaitable[Any]]) -> gr.Column:
         with gr.Column() as section:
-            gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")  
-
+            gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")
+ 
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
 

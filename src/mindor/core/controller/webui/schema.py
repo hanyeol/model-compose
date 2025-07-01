@@ -146,7 +146,7 @@ class WorkflowVariableResolver:
  
         return value
 
-class WorkflowInputResolver(WorkflowVariableResolver):
+class WorkflowInputVariableResolver(WorkflowVariableResolver):
     def resolve(self, workflow: WorkflowConfig, components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
         variables: List[WorkflowVariable] = []
 
@@ -162,12 +162,12 @@ class WorkflowInputResolver(WorkflowVariableResolver):
             else:
                 variables.extend(self._enumerate_input_variables(job.input, "input"))
 
-            for value in [ job.repeat_count ]:
+            for value in [ job.component, job.action, job.repeat_count ]:
                 variables.extend(self._enumerate_input_variables(value, "input"))
 
         return self._to_variable_config_list(variables)
 
-class WorkflowOutputResolver(WorkflowVariableResolver):
+class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     def resolve(self, workflow: WorkflowConfig, components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 

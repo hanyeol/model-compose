@@ -12,7 +12,7 @@ class Job:
         self.component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine] = component_provider
 
     async def run(self, context: WorkflowContext) -> Any:
-        component: ComponentEngine = self.component_provider(self.id, self.config.component)
+        component: ComponentEngine = self.component_provider(self.id, await context.render_template(self.config.component))
 
         if not component.started:
             await component.start()
@@ -22,7 +22,7 @@ class Job:
 
         async def _run_once():
             call_id = ulid.ulid()
-            output = await component.run(self.config.action, call_id, input)
+            output = await component.run(await context.render_template(self.config.action), call_id, input)
             context.register_source("output", output)
 
             output = (await context.render_template(self.config.output)) if self.config.output else output

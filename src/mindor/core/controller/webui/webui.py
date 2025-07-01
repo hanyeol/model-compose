@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
 from mindor.core.services import AsyncService
-from .schema import WorkflowSchema, WorkflowInputResolver, WorkflowOutputResolver
+from .schema import WorkflowSchema, WorkflowInputVariableResolver, WorkflowOutputVariableResolver
 from .gradio import GradioWebUIBuilder
 
 from fastapi import FastAPI, APIRouter, Body, HTTPException
@@ -68,8 +68,8 @@ class ControllerWebUI(AsyncService):
                 name=workflow.name,
                 title=workflow.title, 
                 description=workflow.description,
-                input=WorkflowInputResolver().resolve(workflow, self.components),
-                output=WorkflowOutputResolver().resolve(workflow, self.components)
+                input=WorkflowInputVariableResolver().resolve(workflow, self.components),
+                output=WorkflowOutputVariableResolver().resolve(workflow, self.components)
             )
 
         return schema

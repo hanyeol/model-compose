@@ -1,0 +1,51 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+component: 
+  type: http-client
+  base_url: https://api.openai.com/v1
+  headers:
+    Authorization: Bearer ${env.OPENAI_API_KEY}
+    Content-Type: application/json
+  actions:
+    dall-e:
+      path: /images/generations
+      method: POST
+      body:
+        model: ${input.model as select/dall-e-2,dall-e-3 | dall-e-2}
+        prompt: ${input.prompt}
+        n: 1
+        size: 1024x1024
+        response_format: url
+      output:
+        image_url: ${response.data[0].url}
+    gpt-image-1:
+      path: /images/generations
+      method: POST
+      body:
+        model: gpt-image-1
+        prompt: ${input.prompt}
+        n: 1
+        size: 1024x1024
+      output:
+        image_data: ${response.data[0].b64_json}      
+
+workflows:
+  dall-e:
+    title: Generate Images with OpenAI DALL·E
+    description: Generate images from text prompts using OpenAI’s DALL·E.
+    action: dall-e
+    input: ${input}
+    output: ${output.image_url as image;url}
+    default: true
+  gpt-image-1:
+    title: Generate Images with OpenAI GPT
+    description: Generate images from text prompts using OpenAI’s GPT.
+    action: gpt-image-1
+    input: ${input}
+    output: ${output.image_data as image;base64}

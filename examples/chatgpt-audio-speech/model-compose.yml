@@ -15,16 +15,16 @@ components:
       Authorization: Bearer ${env.OPENAI_API_KEY}
       Content-Type: application/json
     body:
-      model: tts-1
+      model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
       input: ${input.text}
-      voice: nova
+      voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
       response_format: mp3
     response_type: buffer
     output: ${response}
 
 workflow:
   title: Generate Speech with OpenAI TTS
-  description: Convert input text into natural-sounding speech using OpenAI's text-to-speech model (tts-1).
+  description: Convert input text into natural-sounding speech using OpenAI's TTS models.
   jobs:
     speak:
       component: openai-text-to-speech

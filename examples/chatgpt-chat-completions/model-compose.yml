@@ -24,7 +24,7 @@ component:
     message: ${response.choices[0].message.content}
 
 workflow:
-  title: OpenAI GPT-4o Chatbot
-  description: Generate natural language responses from OpenAI's GPT-4o model using a prompt and optional temperature setting.
+  title: Chat with OpenAI GPT-4o
+  description: Generate text responses using OpenAI’s GPT-4o
   input: ${input}
   output: ${output}

@@ -9,13 +9,13 @@ controller:
 component: 
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /images/generations
+  path: /images/variations
   method: POST
   headers:
     Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
+    Content-Type: multipart/form-data
   body:
-    prompt: ${input.prompt}
+    image: ${input.image as image}
     n: 1
     size: 1024x1024
     response_format: b64_json
@@ -23,7 +23,7 @@ component:
     image_data: ${response.data[0].b64_json}
 
 workflow:
-  title: Generate Images with OpenAI DALL·E
-  description: Create AI-generated images from text prompts using OpenAI’s DALL·E image generation model.
+  title: Generate Image Variations with OpenAI DALL·E
+  description: Generate image variations using an input image and OpenAI’s DALL·E.
   input: ${input}
   output: ${output.image_data as image;base64}

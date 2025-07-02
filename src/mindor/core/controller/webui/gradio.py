@@ -108,7 +108,7 @@ class GradioWebUIBuilder:
 
     async def _convert_input_value(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
         if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
-            if internal and format != "path":
+            if internal and format and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
             return create_upload_file(value, type, subtype)
 

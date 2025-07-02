@@ -62,7 +62,7 @@ class GradioWebUIBuilder:
         return section
 
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
-        label = variable.name + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default else "")
+        label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default else "")
         info = variable.description or ""
         default = variable.default
 

@@ -3,7 +3,7 @@ from requests.structures import CaseInsensitiveDict
 from starlette.datastructures import FormData, UploadFile
 from urllib.parse import urlencode
 from fastapi import Request
-import aiohttp, re, json
+import aiohttp, re, json, os
 
 _token_pattern = r"([\w!#$%&'*+\-.^_`|~]+)"
 _quoted_pattern = r'"([^"]*)"'
@@ -101,3 +101,21 @@ def parse_options_header(headers: Dict[str, str], header_name: str) -> Tuple[str
         options = {}
 
     return value.strip().lower(), options
+
+def create_upload_file(path: str, type: Optional[str], subtype: Optional[str]) -> UploadFile:
+    file, filename = open(path, "rb"), os.path.basename(path)
+    content_type = guess_file_content_type(filename, type, subtype)
+    headers = { 
+        "Content-Type": content_type,
+        "Content-Disposition": f'form-data; filename="{filename}"'
+    }
+
+    return UploadFile(file=file, filename=filename, headers=headers)
+
+def guess_file_content_type(filename: str, type: Optional[str], subtype: Optional[str]) -> str:
+    subtype = filename.split(".")[-1] if not subtype else subtype
+    
+    if type in [ "image", "audio", "video" ] and subtype:
+        return f"{type}/{subtype}"
+
+    return "application/octet-stream"

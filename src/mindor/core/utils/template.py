@@ -1,6 +1,7 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
 from .streaming import StreamResource, Base64StreamResource
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
+from .http_request import create_upload_file
 from .http_client import HttpClient
 from starlette.datastructures import UploadFile
 import re, json, base64, os
@@ -102,25 +103,12 @@ class TemplateRenderer:
 
         if type in [ "image", "audio", "video", "file" ]:
             if not isinstance(value, UploadFile):
-                value = await self._save_value_to_temporary_file(value, subtype, format)
-                file, filename = open(value, "rb"), os.path.basename(value)
-                content_type = self._guess_file_content_type(filename, type, subtype)
-                headers = {
-                    "Content-Type": content_type,
-                    "Content-Disposition": f'form-data; filename="{filename}"'
-                }
-                return UploadFile(file=file, filename=filename, headers=headers)
+                if format != "path":
+                    value = await self._save_value_to_temporary_file(value, subtype, format)
+                return create_upload_file(value, type, subtype)
             return value
 
         return value
-
-    def _guess_file_content_type(self, filename: str, type: Optional[str], subtype: Optional[str]) -> str:
-        subtype = filename.split(".")[-1] if not subtype else subtype
-        
-        if type in [ "image", "audio", "video" ] and subtype:
-            return f"{type}/{subtype}"
-
-        return "application/octet-stream"
 
     async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
         if format == "base64" and isinstance(value, str):

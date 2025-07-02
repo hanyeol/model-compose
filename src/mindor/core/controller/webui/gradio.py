@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
+from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.image import load_image_from_stream
 from .schema import WorkflowSchema
@@ -109,23 +110,9 @@ class GradioWebUIBuilder:
         if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
             if internal and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
-            file, filename = open(value, "rb"), os.path.basename(value)
-            content_type = self._guess_file_content_type(filename, type, subtype)
-            headers = { 
-                "Content-Type": content_type,
-                "Content-Disposition": f'form-data; filename="{filename}"'
-            }
-            return UploadFile(file=file, filename=filename, headers=headers)
+            return create_upload_file(value, type, subtype)
 
         return value if value != "" else None
-
-    def _guess_file_content_type(self, filename: str, type: Optional[str], subtype: Optional[str]) -> str:
-        subtype = filename.split(".")[-1] if not subtype else subtype
-        
-        if type in [ "image", "audio", "video" ] and subtype:
-            return f"{type}/{subtype}"
-
-        return "application/octet-stream"
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):

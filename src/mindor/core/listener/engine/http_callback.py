@@ -25,8 +25,8 @@ class HttpCallbackContext:
         async for item in self._items():
             yield HttpCallbackContext(item, self.query, False, None)
 
-    async def render_template(self, template: str, convert_types: bool = True) -> Any:
-        return await self.renderer.render(template, convert_types)
+    async def render_template(self, template: str, ignore_files: bool = True) -> Any:
+        return await self.renderer.render(template, ignore_files)
 
     async def _items(self) -> List[Any]:
         item = await self.renderer.render(self.item) if self.item else self.body
@@ -78,7 +78,7 @@ class HttpCallbackListener(ListenerEngine):
 
                 if future:
                     if succeeded:
-                        future.set_result((await item.render_template(callback.result, convert_types=False)) if callback.result else item.body)
+                        future.set_result((await item.render_template(callback.result, ignore_files=True)) if callback.result else item.body)
                     else:
                         future.set_exception(RuntimeError(f"Task failed for '{callback_id}'"))
                     self._remove_pending_future(callback_id)

@@ -14,8 +14,8 @@ class ComponentContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_template(self, data: Dict[str, Any], convert_types: bool = True) -> Any:
-        return await self.renderer.render(data, convert_types)
+    async def render_template(self, data: Dict[str, Any], ignore_files: bool = False) -> Any:
+        return await self.renderer.render(data, ignore_files)
 
     async def _resolve_source(self, key: str) -> Any:
         if key in self.sources:

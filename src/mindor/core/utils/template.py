@@ -22,22 +22,22 @@ class TemplateRenderer:
             "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
         }
 
-    async def render(self, data: Any, convert_types: bool = True) -> Any:
-        return await self._render_element(data, convert_types)
+    async def render(self, data: Any, ignore_files: bool = True) -> Any:
+        return await self._render_element(data, ignore_files)
 
-    async def _render_element(self, element: Any, convert_types: bool) -> Any:
+    async def _render_element(self, element: Any, ignore_files: bool) -> Any:
         if isinstance(element, str):
-            return await self._render_text(element, convert_types)
+            return await self._render_text(element, ignore_files)
         
         if isinstance(element, dict):
-            return { key: await self._render_element(value, convert_types) for key, value in element.items() }
+            return { key: await self._render_element(value, ignore_files) for key, value in element.items() }
         
         if isinstance(element, list):
-            return [ await self._render_element(item, convert_types) for item in element ]
+            return [ await self._render_element(item, ignore_files) for item in element ]
         
         return element
 
-    async def _render_text(self, text: str, convert_types: bool) -> Any:
+    async def _render_text(self, text: str, ignore_files: bool) -> Any:
         while True:
             match = self.patterns["variable"].search(text)
             
@@ -52,8 +52,8 @@ class TemplateRenderer:
 
             value = default if value is None else value
 
-            if convert_types and type and value is not None:
-                value = await self._convert_value_to_type(value, type, subtype, format)
+            if type and value is not None:
+                value = await self._convert_value_to_type(value, type, subtype, format, ignore_files)
 
             if variable == text:
                 return value
@@ -83,7 +83,7 @@ class TemplateRenderer:
         
         return current
 
-    async def _convert_value_to_type(self, value: Any, type: str, subtype: str, format: Optional[str]) -> Any:
+    async def _convert_value_to_type(self, value: Any, type: str, subtype: str, format: Optional[str], ignore_files: bool) -> Any:
         if type == "number":
             return float(value)
 
@@ -102,7 +102,7 @@ class TemplateRenderer:
             return base64.b64encode(value)
 
         if type in [ "image", "audio", "video", "file" ]:
-            if not isinstance(value, UploadFile):
+            if not ignore_files and not isinstance(value, UploadFile):
                 if format != "path":
                     value = await self._save_value_to_temporary_file(value, subtype, format)
                 return create_upload_file(value, type, subtype)

@@ -88,7 +88,7 @@ class HttpClientAction:
             result = await self._handle_completion(self.config.completion, context)
             context.register_source("result", result)
 
-        return (await context.render_template(self.config.output, convert_types=False)) if self.config.output else (result or response)
+        return (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else (result or response)
 
     async def _resolve_request_url(self, context: ComponentContext) -> str:
         if self.base_url and self.config.path:

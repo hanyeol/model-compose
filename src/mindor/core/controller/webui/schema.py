@@ -126,7 +126,7 @@ class WorkflowVariableResolver:
     def _to_variable_config(self, variable: WorkflowVariable) -> WorkflowVariableConfig:
         config_dict = variable.to_dict()
 
-        if variable.type == "select" and variable.subtype:
+        if variable.type in [ "image", "audio", "video", "file", "select" ] and variable.subtype:
             config_dict["options"] = variable.subtype.split(",")
 
         return WorkflowVariableConfig(**config_dict)

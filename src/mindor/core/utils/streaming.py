@@ -1,7 +1,8 @@
 from typing import Optional, AsyncIterator
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
-import io, base64
+from aiofiles.threadpool.binary import AsyncBufferedReader
+import aiofiles, io, base64
 
 class StreamResource(ABC):
     def __init__(self, content_type: Optional[str], filename: Optional[str]):
@@ -29,7 +30,12 @@ class Base64StreamResource(StreamResource):
     def __init__(self, encoded: str, content_type: Optional[str] = None, filename: Optional[str] = None):
         super().__init__(content_type, filename)
 
-        self.stream: Optional[io.BytesIO] = io.BytesIO(base64.b64decode(encoded))
+        self.encoded: str = encoded
+        self.stream: Optional[io.BytesIO] = None
+
+    async def __aenter__(self):
+        self.stream = io.BytesIO(base64.b64decode(self.encoded))
+        return self
 
     async def close(self):
         self.stream.close()

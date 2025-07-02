@@ -5,12 +5,13 @@ from mindor.dsl.schema.component import ComponentConfig
 import re, json
 
 class WorkflowVariable:
-    def __init__(self, name: Optional[str], type: str, subtype: Optional[str], format: Optional[str], default: Optional[Any]):
+    def __init__(self, name: Optional[str], type: str, subtype: Optional[str], format: Optional[str], default: Optional[Any], internal: bool = False):
         self.name: Optional[str] = name
         self.type: str = type
         self.subtype: Optional[str] = subtype
         self.format: Optional[str] = format
         self.default: Optional[Any] = default
+        self.internal: bool = internal
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -18,7 +19,8 @@ class WorkflowVariable:
             "type": self.type,
             "subtype": self.subtype,
             "format": self.format,
-            "default": self.default
+            "default": self.default,
+            "internal": self.internal
         }
 
     def __eq__(self, other):
@@ -52,7 +54,7 @@ class WorkflowVariableResolver:
             "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
         }
 
-    def _enumerate_input_variables(self, value: Any, wanted_key: str) -> List[WorkflowVariable]:
+    def _enumerate_input_variables(self, value: Any, wanted_key: str, internal: bool = False) -> List[WorkflowVariable]:
         if isinstance(value, str):
             variables: List[WorkflowVariable] = []
 
@@ -63,22 +65,22 @@ class WorkflowVariableResolver:
                     default = self._parse_as_type(default, type)
 
                 if key == wanted_key:
-                    variables.append(WorkflowVariable(path, type or "string", subtype, format, default))
+                    variables.append(WorkflowVariable(path, type or "string", subtype, format, default, internal))
 
             return variables
 
         if isinstance(value, BaseModel):
-            return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key)
+            return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key, internal)
         
         if isinstance(value, dict):
-            return sum([ self._enumerate_input_variables(v, wanted_key) for v in value.values() ], [])
+            return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value.values() ], [])
 
         if isinstance(value, list):
-            return sum([ self._enumerate_input_variables(v, wanted_key) for v in value ], [])
+            return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value ], [])
         
         return []
 
-    def _enumerate_output_variables(self, name: Optional[str], value: Any) -> List[WorkflowVariable]:
+    def _enumerate_output_variables(self, name: Optional[str], value: Any, internal: bool = False) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
         
         if isinstance(value, str):
@@ -88,18 +90,18 @@ class WorkflowVariableResolver:
                 if type and default:
                     default = self._parse_as_type(default, type)
 
-                variables.append(WorkflowVariable(name, type or "string", subtype, format, default))
+                variables.append(WorkflowVariable(name, type or "string", subtype, format, default, internal))
             
             return variables
         
         if isinstance(value, BaseModel):
-            return self._enumerate_output_variables(name, value.model_dump(exclude_none=True))
+            return self._enumerate_output_variables(name, value.model_dump(exclude_none=True), internal)
         
         if isinstance(value, dict):
-            return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v) for k, v in value.items() ], [])
+            return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v, internal) for k, v in value.items() ], [])
 
         if isinstance(value, list):
-            return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v) for i, v in enumerate(value) ], [])
+            return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v, internal) for i, v in enumerate(value) ], [])
         
         return []
 
@@ -156,9 +158,13 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
                     if component:
-                        variables.extend(self._enumerate_input_variables(component.actions[action_id], "input"))
+                        action = component.actions[action_id] if action_id in component.actions else None
+                        if action:
+                            variables.extend(self._enumerate_input_variables(action, "input", internal=True))
                 else:
-                    variables.extend(self._enumerate_input_variables(job.component.actions[action_id], "input"))
+                    action = job.component.actions[action_id] if action_id in job.component.actions else None
+                    if action:
+                        variables.extend(self._enumerate_input_variables(action, "input", internal=True))
             else:
                 variables.extend(self._enumerate_input_variables(job.input, "input"))
 
@@ -186,9 +192,13 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
                     if component:
-                        job_variables.extend(self._enumerate_output_variables(None, component.actions[action_id].output))
+                        action = component.actions[action_id] if action_id in component.actions else None
+                        if action:
+                            job_variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
                 else:
-                    job_variables.extend(self._enumerate_output_variables(None, job.component.actions[action_id].output))
+                    action = job.component.actions[action_id] if action_id in job.component.actions else None
+                    if action:
+                        job_variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
             else:
                 job_variables.extend(self._enumerate_output_variables(None, job.output))
 

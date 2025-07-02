@@ -1,8 +1,9 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.core.utils.http_client import HttpClient, HttpStreamResource
+from mindor.core.utils.streaming import StreamResource, Base64StreamResource
+from mindor.core.utils.streaming import save_stream_to_temporary_file
+from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.image import load_image_from_stream
-from mindor.core.utils.streaming import Base64StreamResource, save_stream_to_temporary_file
 from .schema import WorkflowSchema
 from starlette.datastructures import UploadFile
 import gradio as gr
@@ -46,7 +47,7 @@ class GradioWebUIBuilder:
                 output_components = gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True)
 
             async def _run_workflow(*args):
-                input = self._build_input_values(args, workflow.input)
+                input = await self._build_input_values(args, workflow.input)
                 output = await runner(input)
                 output = await self._flatten_output_values(output, workflow.output)
                 return output[0] if len(output) == 1 else output
@@ -64,7 +65,7 @@ class GradioWebUIBuilder:
         info = variable.description or ""
         default = variable.default
 
-        if variable.type == "string":
+        if variable.type == "string" or variable.format in [ "base64", "url" ]:
             return gr.Textbox(label=label, value="", info=info)
 
         if variable.type == "number":
@@ -93,29 +94,37 @@ class GradioWebUIBuilder:
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
     
-    def _build_input_values(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
+    async def _build_input_values(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
             return arguments[0]
 
         input: Dict[str, Any] = {}
         
         for value, variable in zip(arguments, variables):
-            input[variable.name] = self._convert_input_value(value, variable)
+            input[variable.name] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
 
         return input
-    
-    def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if variable.type in [ "image", "audio", "video", "file" ]:
+
+    async def _convert_input_value(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
+        if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
+            if internal and format != "path":
+                value = await self._save_value_to_temporary_file(value, subtype, format)
             file, filename = open(value, "rb"), os.path.basename(value)
+            content_type = self._guess_file_content_type(filename, type, subtype)
             headers = { 
-                "Content-Type": self._guess_file_content_type(filename, variable),
+                "Content-Type": content_type,
                 "Content-Disposition": f'form-data; filename="{filename}"'
             }
             return UploadFile(file=file, filename=filename, headers=headers)
 
         return value if value != "" else None
-    
-    def _guess_file_content_type(self, filename: str, variable: WorkflowVariableConfig) -> str:
+
+    def _guess_file_content_type(self, filename: str, type: Optional[str], subtype: Optional[str]) -> str:
+        subtype = filename.split(".")[-1] if not subtype else subtype
+        
+        if type in [ "image", "audio", "video" ] and subtype:
+            return f"{type}/{subtype}"
+
         return "application/octet-stream"
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
@@ -131,15 +140,15 @@ class GradioWebUIBuilder:
         label = variable.name or ""
         info = variable.description or ""
 
-        if variable.type == "string":
+        if variable.type in [ "string", "base64" ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
         if variable.type == "image":
             return gr.Image(label=label, interactive=False)
-        
+
         if variable.type == "audio":
             return gr.Audio(label=label)
-    
+
         if variable.type == "video":
             return gr.Video(label=label)
 
@@ -164,31 +173,41 @@ class GradioWebUIBuilder:
                     flattened.extend(await self._flatten_output_values(value, variable.variables))
             else:
                 value = output[variable.name] if variable.name else output
-                flattened.append(await self._convert_type(value, variable.type, variable.subtype, variable.format))
+                flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 
-    async def _convert_type(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str]) -> Any:
+    async def _convert_output_value(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
         if type == "string":
-            if isinstance(value, (dict, list)):
-                return json.dumps(value)
-            return str(value)
+            return json.dumps(value) if isinstance(value, (dict, list)) else str(value)
 
         if type == "image":
-            if format == "url" and isinstance(value, str):
-                return await load_image_from_stream(await HttpClient().request(value), subtype)
-            if format == "base64" and isinstance(value, str):
-                return await load_image_from_stream(Base64StreamResource(value), subtype)
-            if isinstance(value, HttpStreamResource):
-                return await load_image_from_stream(value, subtype)
-            return None
+            return await self._load_image_from_value(value, subtype, format)
 
         if type in [ "audio", "video" ]:
-            if format == "url" and isinstance(value, str):
-                return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
-            if format == "base64" and isinstance(value, str):
-                return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
-            if isinstance(value, HttpStreamResource):
-                return await save_stream_to_temporary_file(value, subtype)
-            return None
+            return await self._save_value_to_temporary_file(value, subtype, format)
 
         return value
+
+    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
+        if format == "base64" and isinstance(value, str):
+            return await load_image_from_stream(Base64StreamResource(value), subtype)
+
+        if format == "url" and isinstance(value, str):
+            return await load_image_from_stream(await HttpClient().request(value), subtype)
+
+        if isinstance(value, StreamResource):
+            return await load_image_from_stream(value, subtype)
+
+        return None
+
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
+        if format == "base64" and isinstance(value, str):
+            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
+
+        if format == "url" and isinstance(value, str):
+            return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
+
+        if isinstance(value, StreamResource):
+            return await save_stream_to_temporary_file(value, subtype)
+
+        return None

@@ -25,7 +25,7 @@ class Job:
             output = await component.run(await context.render_template(self.config.action), call_id, input)
             context.register_source("output", output)
 
-            output = (await context.render_template(self.config.output)) if self.config.output else output
+            output = (await context.render_template(self.config.output, convert_types=False)) if self.config.output else output
             outputs.append(output)
 
         repeat_count = (await context.render_template(self.config.repeat_count)) if self.config.repeat_count else None

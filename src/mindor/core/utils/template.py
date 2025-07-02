@@ -1,6 +1,9 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
-from .streaming import StreamResource, encode_stream_to_base64
-import re, json, base64
+from .streaming import StreamResource, Base64StreamResource
+from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
+from .http_client import HttpClient
+from starlette.datastructures import UploadFile
+import re, json, base64, os
 
 class TemplateRenderer:
     def __init__(self, source_resolver: Callable[[str], Awaitable[Any]]):
@@ -18,22 +21,22 @@ class TemplateRenderer:
             "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
         }
 
-    async def render(self, data: Any) -> Any:
-        return await self._render_element(data)
+    async def render(self, data: Any, convert_types: bool = True) -> Any:
+        return await self._render_element(data, convert_types)
 
-    async def _render_element(self, element: Any) -> Any:
+    async def _render_element(self, element: Any, convert_types: bool) -> Any:
         if isinstance(element, str):
-            return await self._render_text(element)
+            return await self._render_text(element, convert_types)
         
         if isinstance(element, dict):
-            return { key: await self._render_element(value) for key, value in element.items() }
+            return { key: await self._render_element(value, convert_types) for key, value in element.items() }
         
         if isinstance(element, list):
-            return [ await self._render_element(item) for item in element ]
+            return [ await self._render_element(item, convert_types) for item in element ]
         
         return element
 
-    async def _render_text(self, text: str) -> Any:
+    async def _render_text(self, text: str, convert_types: bool) -> Any:
         while True:
             match = self.patterns["variable"].search(text)
             
@@ -48,8 +51,8 @@ class TemplateRenderer:
 
             value = default if value is None else value
 
-            if type and value is not None:
-                value = await self._convert_type(value, type, subtype, format)
+            if convert_types and type and value is not None:
+                value = await self._convert_value_to_type(value, type, subtype, format)
 
             if variable == text:
                 return value
@@ -79,7 +82,7 @@ class TemplateRenderer:
         
         return current
 
-    async def _convert_type(self, value: Any, type: str, subtype: str, format: Optional[str]) -> Any:
+    async def _convert_value_to_type(self, value: Any, type: str, subtype: str, format: Optional[str]) -> Any:
         if type == "number":
             return float(value)
 
@@ -97,4 +100,36 @@ class TemplateRenderer:
                 return await encode_stream_to_base64(value)
             return base64.b64encode(value)
 
+        if type in [ "image", "audio", "video", "file" ]:
+            if not isinstance(value, UploadFile):
+                value = await self._save_value_to_temporary_file(value, subtype, format)
+                file, filename = open(value, "rb"), os.path.basename(value)
+                content_type = self._guess_file_content_type(filename, type, subtype)
+                headers = {
+                    "Content-Type": content_type,
+                    "Content-Disposition": f'form-data; filename="{filename}"'
+                }
+                return UploadFile(file=file, filename=filename, headers=headers)
+            return value
+
         return value
+
+    def _guess_file_content_type(self, filename: str, type: Optional[str], subtype: Optional[str]) -> str:
+        subtype = filename.split(".")[-1] if not subtype else subtype
+        
+        if type in [ "image", "audio", "video" ] and subtype:
+            return f"{type}/{subtype}"
+
+        return "application/octet-stream"
+
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
+        if format == "base64" and isinstance(value, str):
+            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
+
+        if format == "url" and isinstance(value, str):
+            return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
+
+        if isinstance(value, StreamResource):
+            return await save_stream_to_temporary_file(value, subtype)
+
+        return None

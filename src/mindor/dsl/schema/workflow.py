@@ -51,6 +51,7 @@ class WorkflowVariableConfig(BaseModel):
     required: bool = Field(default=False, description="Whether this variable is required")
     default: Optional[Any] = Field(default=None, description="Default value if not provided")
     description: Optional[str] = Field(default=None, description="Description of the variable")
+    internal: bool = Field(default=False, description="Whether this variable is for internal use")
 
 class WorkflowVariableGroupConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the group of variables")

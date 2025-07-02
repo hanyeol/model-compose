@@ -4,8 +4,9 @@ from mindor.core.utils.http_client import HttpClient, HttpStreamResource
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.streaming import Base64StreamResource, save_stream_to_temporary_file
 from .schema import WorkflowSchema
+from starlette.datastructures import UploadFile
 import gradio as gr
-import json
+import json, os
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
@@ -45,9 +46,9 @@ class GradioWebUIBuilder:
                 output_components = gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True)
 
             async def _run_workflow(*args):
-                input = { variable.name: value if value != "" else None for variable, value in zip(workflow.input, args) }
+                input = self._build_input_values(args, workflow.input)
                 output = await runner(input)
-                output = await self._flatten_output(output, workflow.output)
+                output = await self._flatten_output_values(output, workflow.output)
                 return output[0] if len(output) == 1 else output
 
             run_button.click(
@@ -79,10 +80,10 @@ class GradioWebUIBuilder:
             return gr.Image(label=label, type="filepath")
 
         if variable.type == "audio":
-            return gr.Audio(label=label)
+            return gr.Audio(label=label, type="filepath")
 
         if variable.type == "video":
-            return gr.Video(label=label)
+            return gr.Video(label=label, type="filepath")
 
         if variable.type == "file":
             return gr.File(label=label)
@@ -91,6 +92,31 @@ class GradioWebUIBuilder:
             return gr.Dropdown(choices=variable.options or [], label=label, value=default, info=info)
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
+    
+    def _build_input_values(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
+        if len(variables) == 1 and not variables[0].name:
+            return arguments[0]
+
+        input: Dict[str, Any] = {}
+        
+        for value, variable in zip(arguments, variables):
+            input[variable.name] = self._convert_input_value(value, variable)
+
+        return input
+    
+    def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
+        if variable.type in [ "image", "audio", "video", "file" ]:
+            file, filename = open(value, "rb"), os.path.basename(value)
+            headers = { 
+                "Content-Type": self._guess_file_content_type(filename, variable),
+                "Content-Disposition": f'form-data; filename="{filename}"'
+            }
+            return UploadFile(file=file, filename=filename, headers=headers)
+
+        return value if value != "" else None
+    
+    def _guess_file_content_type(self, filename: str, variable: WorkflowVariableConfig) -> str:
+        return "application/octet-stream"
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):
@@ -107,7 +133,7 @@ class GradioWebUIBuilder:
 
         if variable.type == "string":
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
-        
+
         if variable.type == "image":
             return gr.Image(label=label, interactive=False)
         
@@ -129,13 +155,13 @@ class GradioWebUIBuilder:
                 flattened.append(item)
         return flattened
     
-    async def _flatten_output(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+    async def _flatten_output_values(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
                 group = output[variable.name] if variable.name else output
                 for value in group:
-                    flattened.extend(await self._flatten_output(value, variable.variables))
+                    flattened.extend(await self._flatten_output_values(value, variable.variables))
             else:
                 value = output[variable.name] if variable.name else output
                 flattened.append(await self._convert_type(value, variable.type, variable.subtype, variable.format))
@@ -146,7 +172,7 @@ class GradioWebUIBuilder:
             if isinstance(value, (dict, list)):
                 return json.dumps(value)
             return str(value)
-        
+
         if type == "image":
             if format == "url" and isinstance(value, str):
                 return await load_image_from_stream(await HttpClient().request(value), subtype)

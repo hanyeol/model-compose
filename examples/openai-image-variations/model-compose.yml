@@ -15,7 +15,7 @@ component:
     Authorization: Bearer ${env.OPENAI_API_KEY}
     Content-Type: multipart/form-data
   body:
-    image: ${input.image as image}
+    image: ${input.image as image/png}
     n: 1
     size: 1024x1024
     response_format: b64_json

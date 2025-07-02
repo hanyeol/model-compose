@@ -1,0 +1,32 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  openai-speech-to-text:
+    type: http-client
+    endpoint: https://api.openai.com/v1/audio/transcriptions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type:  multipart/form-data
+    body:
+      model: ${input.model as select/gpt-4o-transcribe,gpt-4o-mini-transcribe,whisper-1 | whisper-1}
+      file: ${input.file as audio}
+    response_type: buffer
+    output: ${response}
+
+workflow:
+  title: Generate Transciptions with OpenAI STT
+  description: 
+  jobs:
+    speak:
+      component: openai-speech-to-text
+      input: ${input}
+      output: 
+        text: ${output.text}
+        seconds: ${output.usage.seconds}

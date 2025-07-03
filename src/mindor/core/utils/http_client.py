@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from typing import Optional, Dict, Tuple, AsyncIterator, Any
 from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
 from requests.structures import CaseInsensitiveDict

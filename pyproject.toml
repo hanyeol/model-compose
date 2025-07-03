@@ -16,6 +16,7 @@ dependencies = [
     "requests", 
     "fastapi", 
     "uvicorn",
+    "mcp",
     "pyngrok", 
     "ulid", 
     "gradio",

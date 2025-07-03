@@ -5,7 +5,7 @@ from pydantic import model_validator, field_validator
 from .component import ComponentConfig
 
 class JobConfig(BaseModel):
-    component: Optional[Union[str, 'ComponentConfig']] = Field(default="__default__", description="The component to execute. Can be a string identifier or a ComponentConfig object.")
+    component: Optional[Union[str, ComponentConfig]] = Field(default="__default__", description="The component to execute. Can be a string identifier or a ComponentConfig object.")
     action: Optional[str] = Field(default="__default__", description="The action to invoke within the component. Defaults to '__default__'.")
     input: Optional[Any] = Field(default=None, description="The input data passed to the component. Can be of any type.")
     output: Optional[Any] = Field(default=None, description="The expected output data from the component. Can be of any type.")

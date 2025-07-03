@@ -102,11 +102,12 @@ class GradioWebUIBuilder:
         input: Dict[str, Any] = {}
         
         for value, variable in zip(arguments, variables):
-            input[variable.name] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
+            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
+            input[variable.name] = await self._convert_input_value(value, type, subtype, format, variable.internal)
 
         return input
 
-    async def _convert_input_value(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
+    async def _convert_input_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
         if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
             if internal and format and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
@@ -160,10 +161,11 @@ class GradioWebUIBuilder:
                     flattened.extend(await self._flatten_output_values(value, variable.variables))
             else:
                 value = output[variable.name] if variable.name else output
-                flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
+                type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
+                flattened.append(await self._convert_output_value(value, type, subtype, format, variable.internal))
         return flattened
 
-    async def _convert_output_value(self, value: Any, type: Optional[str], subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
+    async def _convert_output_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
         if type == "string":
             return json.dumps(value) if isinstance(value, (dict, list)) else str(value)
 

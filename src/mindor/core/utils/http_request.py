@@ -57,11 +57,12 @@ def build_request_form(body: Any) -> aiohttp.FormData:
 
     for key, value in body.items() if isinstance(body, dict) else {}:
         if isinstance(value, UploadFile):
+            content_type, _ = parse_options_header(value.headers, "Content-Type")
             form.add_field(
                 name=key,
                 value=value.file,
                 filename=value.filename,
-                content_type=value.content_type or "application/octet-stream"
+                content_type=content_type or "application/octet-stream"
             )
         else:
             form.add_field(name=key, value=str(value))

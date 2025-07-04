@@ -215,7 +215,7 @@ class WorkflowSchema:
         self.input: List[WorkflowVariableConfig] = input
         self.output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = output
 
-def resolve_workflow_schema(workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> Dict[str, WorkflowSchema]:
+def create_workflow_schema(workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> Dict[str, WorkflowSchema]:
     schema: Dict[str, WorkflowSchema] = {}
 
     for workflow_id, workflow in workflows.items():

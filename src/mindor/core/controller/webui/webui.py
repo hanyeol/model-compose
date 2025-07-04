@@ -3,7 +3,7 @@ from mindor.dsl.schema.controller import ControllerWebUIConfig, ControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
-from mindor.core.workflow.schema import resolve_workflow_schema
+from mindor.core.workflow.schema import create_workflow_schema
 from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
 
@@ -37,7 +37,7 @@ class ControllerWebUI(AsyncService):
     def _configure_driver(self) -> None:
         if self.config.driver == "gradio":
             blocks: gradio.Blocks = GradioWebUIBuilder().build(
-                schema=resolve_workflow_schema(self.workflows, self.components),
+                schema=create_workflow_schema(self.workflows, self.components),
                 runner=self._run_workflow
             )
             self.app = mount_gradio_app(self.app, blocks, path="")

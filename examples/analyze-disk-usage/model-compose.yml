@@ -38,7 +38,7 @@ workflow:
       input: ${input}
       output: ${output}
     
-    analize-disk-usage:
+    analyze-disk-usage:
       component: gpt-4o
       input:
         system-prompt: |

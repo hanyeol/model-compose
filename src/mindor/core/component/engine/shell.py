@@ -3,6 +3,7 @@ from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from .base import ComponentEngine, ComponentType, ComponentEngineMap, ActionConfig
 from .context import ComponentContext
+from asyncio.subprocess import Process
 import asyncio, os
 
 class ShellAction:
@@ -32,15 +33,25 @@ class ShellAction:
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            raise RuntimeError(f"Command timed out: {' '.join(command)}")
+            if await self._kill_process(process):
+                raise RuntimeError(f"Command timed out: {' '.join(command)}")
 
         return { 
-            "exit_code": process.returncode, 
             "stdout": stdout.decode().strip(), 
-            "stderr": stderr.decode().strip() 
+            "stderr": stderr.decode().strip(),
+            "exit_code": process.returncode
         }
+
+    async def _kill_process(self, process: Process) -> bool:
+        if process.returncode is None:
+            process.kill()
+            try:
+                await process.wait()
+            except Exception as e:
+                pass
+            return True
+        else:
+            return False
 
     def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir

@@ -4,20 +4,6 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from .component import ComponentConfig
 
-class JobConfig(BaseModel):
-    component: Optional[Union[str, ComponentConfig]] = Field(default="__default__", description="The component to execute. Can be a string identifier or a ComponentConfig object.")
-    action: Optional[str] = Field(default="__default__", description="The action to invoke within the component. Defaults to '__default__'.")
-    input: Optional[Any] = Field(default=None, description="The input data passed to the component. Can be of any type.")
-    output: Optional[Any] = Field(default=None, description="The expected output data from the component. Can be of any type.")
-    repeat_count: Optional[Union[int, str]] = Field(default=1, description="Number of times to repeat the component execution. Must be at least 1.")
-    depends_on: Optional[List[str]] = Field(default_factory=list, description="List of job names that this job depends on. Ensures execution order.")
-
-    @field_validator("repeat_count")
-    def validate_repeat_count(cls, value):
-        if isinstance(value, int) and value < 1:
-            raise ValueError("'repeat_count' must be at least 1")
-        return value
-
 class WorkflowVariableType(str, Enum):
     # Primitive data types
     STRING  = "string"
@@ -57,6 +43,20 @@ class WorkflowVariableGroupConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the group of variables")
     variables: List[WorkflowVariableConfig] = Field(default_factory=list, description="List of variables included in this group")
     repeat_count: int = Field(default=1, description="The number of times this group of variables should be repeated")
+
+class JobConfig(BaseModel):
+    component: Optional[Union[str, ComponentConfig]] = Field(default="__default__", description="The component to execute. Can be a string identifier or a ComponentConfig object.")
+    action: Optional[str] = Field(default="__default__", description="The action to invoke within the component. Defaults to '__default__'.")
+    input: Optional[Any] = Field(default=None, description="The input data passed to the component. Can be of any type.")
+    output: Optional[Any] = Field(default=None, description="The expected output data from the component. Can be of any type.")
+    repeat_count: Optional[Union[int, str]] = Field(default=1, description="Number of times to repeat the component execution. Must be at least 1.")
+    depends_on: Optional[List[str]] = Field(default_factory=list, description="List of job names that this job depends on. Ensures execution order.")
+
+    @field_validator("repeat_count")
+    def validate_repeat_count(cls, value):
+        if isinstance(value, int) and value < 1:
+            raise ValueError("'repeat_count' must be at least 1")
+        return value
 
 class WorkflowConfig(BaseModel):
     name: Optional[str] = None

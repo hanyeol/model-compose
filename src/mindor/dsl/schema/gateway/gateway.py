@@ -4,7 +4,8 @@ from .impl import *
 
 GatewayConfig = Annotated[
     Union[ 
-        HttpTunnelGatewayConfig
+        HttpTunnelGatewayConfig,
+        SshTunnelGatewayConfig
     ],
     Field(discriminator="type")
 ]

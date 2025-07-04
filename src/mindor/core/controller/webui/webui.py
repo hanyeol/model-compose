@@ -3,14 +3,13 @@ from mindor.dsl.schema.controller import ControllerWebUIConfig, ControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
+from mindor.core.workflow.schema import WorkflowSchema, WorkflowInputVariableResolver, WorkflowOutputVariableResolver
 from mindor.core.services import AsyncService
-from .schema import WorkflowSchema, WorkflowInputVariableResolver, WorkflowOutputVariableResolver
 from .gradio import GradioWebUIBuilder
 
-from fastapi import FastAPI, APIRouter, Body, HTTPException
-import asyncio, uvicorn
+from fastapi import FastAPI
 from gradio import mount_gradio_app
-import gradio
+import uvicorn, gradio
 
 class ControllerWebUI(AsyncService):
     def __init__(

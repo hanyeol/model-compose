@@ -1,14 +1,13 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.image import load_image_from_stream
-from .schema import WorkflowSchema
-from starlette.datastructures import UploadFile
 import gradio as gr
-import json, os
+import json
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):

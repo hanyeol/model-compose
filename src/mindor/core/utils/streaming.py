@@ -2,7 +2,7 @@ from typing import Optional, AsyncIterator
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
 from aiofiles.threadpool.binary import AsyncBufferedReader
-import aiofiles, io, base64
+import io, base64
 
 class StreamResource(ABC):
     def __init__(self, content_type: Optional[str], filename: Optional[str]):

@@ -6,21 +6,22 @@ from .component import ComponentConfig
 
 class WorkflowVariableType(str, Enum):
     # Primitive data types
-    STRING  = "string"
-    TEXT    = "text"
-    INTEGER = "integer"
-    NUMBER  = "number"
-    BOOLEAN = "boolean"
-    JSON    = "json"
+    STRING   = "string"
+    TEXT     = "text"
+    INTEGER  = "integer"
+    NUMBER   = "number"
+    BOOLEAN  = "boolean"
+    JSON     = "json"
     # Encoded data
-    BASE64  = "base64"
+    BASE64   = "base64"
+    MARKDOWN = "markdown"
     # Media and files
-    IMAGE   = "image"
-    AUDIO   = "audio"
-    VIDEO   = "video"
-    FILE    = "file"
+    IMAGE    = "image"
+    AUDIO    = "audio"
+    VIDEO    = "video"
+    FILE     = "file"
     # UI-related types
-    SELECT  = "select"
+    SELECT   = "select"
 
 class WorkflowVariableFormat(str, Enum):
     BASE64 = "base64"

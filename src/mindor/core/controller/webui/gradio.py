@@ -130,6 +130,9 @@ class GradioWebUIBuilder:
         if variable.type in [ "string", "base64" ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
+        if variable.type == "markdown":
+            return gr.Markdown(label=label)
+
         if variable.type == "image":
             return gr.Image(label=label, interactive=False)
 

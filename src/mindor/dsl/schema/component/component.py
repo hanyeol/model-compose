@@ -7,7 +7,8 @@ ComponentConfig = Annotated[
         HttpServerComponentConfig, 
         HttpClientComponentConfig,
         McpServerComponentConfig,
-        McpClientComponentConfig
+        McpClientComponentConfig,
+        ShellComponentConfig
     ],
     Field(discriminator="type")
 ]

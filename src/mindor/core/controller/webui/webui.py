@@ -3,7 +3,7 @@ from mindor.dsl.schema.controller import ControllerWebUIConfig, ControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
-from mindor.core.workflow.schema import WorkflowSchema, WorkflowInputVariableResolver, WorkflowOutputVariableResolver
+from mindor.core.workflow.schema import resolve_workflow_schema
 from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
 
@@ -37,7 +37,7 @@ class ControllerWebUI(AsyncService):
     def _configure_driver(self) -> None:
         if self.config.driver == "gradio":
             blocks: gradio.Blocks = GradioWebUIBuilder().build(
-                schema=self._resolve_workflow_schema(),
+                schema=resolve_workflow_schema(self.workflows, self.components),
                 runner=self._run_workflow
             )
             self.app = mount_gradio_app(self.app, blocks, path="")
@@ -58,17 +58,3 @@ class ControllerWebUI(AsyncService):
     
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         return await self.runner.run_workflow(workflow_id, input)
-
-    def _resolve_workflow_schema(self) -> Dict[str, WorkflowSchema]:
-        schema: Dict[str, WorkflowSchema] = {}
-
-        for workflow_id, workflow in self.workflows.items():
-            schema[workflow_id] = WorkflowSchema(
-                name=workflow.name,
-                title=workflow.title, 
-                description=workflow.description,
-                input=WorkflowInputVariableResolver().resolve(workflow, self.components),
-                output=WorkflowOutputVariableResolver().resolve(workflow, self.components)
-            )
-
-        return schema

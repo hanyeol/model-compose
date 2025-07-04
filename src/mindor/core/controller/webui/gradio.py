@@ -47,9 +47,9 @@ class GradioWebUIBuilder:
                 output_components = gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True)
 
             async def _run_workflow(*args):
-                input = await self._build_input_values(args, workflow.input)
+                input = await self._build_input_value(args, workflow.input)
                 output = await runner(input)
-                output = await self._flatten_output_values(output, workflow.output)
+                output = await self._flatten_output_value(output, workflow.output)
                 return output[0] if len(output) == 1 else output
 
             run_button.click(
@@ -94,7 +94,7 @@ class GradioWebUIBuilder:
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
     
-    async def _build_input_values(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
+    async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
             return arguments[0]
 
@@ -151,13 +151,13 @@ class GradioWebUIBuilder:
                 flattened.append(item)
         return flattened
     
-    async def _flatten_output_values(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+    async def _flatten_output_value(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
                 group = output[variable.name] if variable.name else output
                 for value in group:
-                    flattened.extend(await self._flatten_output_values(value, variable.variables))
+                    flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
                 value = output[variable.name] if variable.name else output
                 type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None

@@ -208,7 +208,14 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         return all(job_id not in job.depends_on for other_id, job in workflow.jobs.items() if other_id != job_id)
 
 class WorkflowSchema:
-    def __init__(self, name: str, title: str, description: Optional[str], input: List[WorkflowVariableConfig], output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]):
+    def __init__(
+        self, 
+        name: Optional[str], 
+        title: Optional[str], 
+        description: Optional[str], 
+        input: List[WorkflowVariableConfig], 
+        output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
+    ):
         self.name: str = name
         self.title: str = title
         self.description: Optional[str] = description

@@ -7,5 +7,5 @@ from .common import ComponentType, CommonComponentConfig
 class HttpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_SERVER]
     port: Optional[int] = Field(None, ge=1, le=65535)
-    base_path: Optional[str]
+    base_path: Optional[str] = None
     actions: Optional[Dict[str, HttpServerActionConfig]] = Field(default_factory=dict)

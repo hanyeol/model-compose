@@ -1,0 +1,50 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  get-disk-usage:
+    type: shell
+    command: [ "df", "-h" ]
+    output: ${result.stdout}
+
+  gpt-4o:
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: system
+          content: ${input.system-prompt}
+        - role: user
+          content: ${input.user-prompt}
+    output: ${response.choices[0].message.content}
+
+workflow:
+  title: Analyze Disk Usage with GPT-4o
+  description: Automatically retrieve df -h output from the system and generate a detailed disk usage analysis using OpenAI’s GPT-4o.
+  jobs:
+    get-disk-usage:
+      component: get-disk-usage
+      input: ${input}
+      output: ${output}
+    
+    analize-disk-usage:
+      component: gpt-4o
+      input:
+        system-prompt: |
+          You are a Unix system expert. When given the output of df -h, provide a detailed analysis of disk usage, highlight any volumes with critically high usage, and recommend specific actions to free up space.
+        user-prompt: ${jobs.get-disk-usage.output}
+      output: 
+        usage: ${jobs.get-disk-usage.output}
+        advice: ${output as markdown}
+      depends_on: [ get-disk-usage ]

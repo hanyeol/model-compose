@@ -132,6 +132,9 @@ class GradioWebUIBuilder:
 
         if variable.type == "markdown":
             return gr.Markdown(label=label)
+        
+        if variable.type == "json":
+            return gr.JSON(label=label)
 
         if variable.type == "image":
             return gr.Image(label=label, interactive=False)

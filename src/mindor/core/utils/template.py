@@ -89,12 +89,14 @@ class TemplateRenderer:
 
         if type == "integer":
             return int(value)
-
-        if type == "json":
-            return json.loads(value)
         
         if type == "boolean":
             return str(value).lower() in [ "true", "1" ]
+
+        if type == "json":
+            if isinstance(value, str):
+                return json.loads(value)
+            return value
         
         if type == "base64":
             if isinstance(value, StreamResource):

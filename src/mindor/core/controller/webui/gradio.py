@@ -96,7 +96,9 @@ class GradioWebUIBuilder:
     
     async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
-            return arguments[0]
+            value, variable = arguments[0], variables[0]
+            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
+            return await self._convert_input_value(value, type, subtype, format, variable.internal)
 
         input: Dict[str, Any] = {}
         

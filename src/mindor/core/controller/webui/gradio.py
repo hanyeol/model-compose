@@ -101,11 +101,9 @@ class GradioWebUIBuilder:
             return await self._convert_input_value(value, type, subtype, format, variable.internal)
 
         input: Dict[str, Any] = {}
-        
         for value, variable in zip(arguments, variables):
             type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
             input[variable.name] = await self._convert_input_value(value, type, subtype, format, variable.internal)
-
         return input
 
     async def _convert_input_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:

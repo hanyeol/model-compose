@@ -29,6 +29,10 @@ class WorkflowVariableFormat(str, Enum):
     PATH   = "path"
     STREAM = "stream"
 
+class WorkflowVariableAnnotationConfig(BaseModel):
+    name: str = Field(..., description="The name of the annotation")
+    value: str = Field(..., description="Description of the annotation")
+
 class WorkflowVariableConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the variable")
     type: WorkflowVariableType = Field(..., description="Type of the variable")
@@ -37,8 +41,13 @@ class WorkflowVariableConfig(BaseModel):
     options: Optional[List[str]] = Field(default=None, description="List of valid options for file or select type")
     required: bool = Field(default=False, description="Whether this variable is required")
     default: Optional[Any] = Field(default=None, description="Default value if not provided")
-    description: Optional[str] = Field(default=None, description="Description of the variable")
+    annotations: Optional[List[WorkflowVariableAnnotationConfig]] = Field(default_factory=list, description="Annotations of the variable")
     internal: bool = Field(default=False, description="Whether this variable is for internal use")
+
+    def get_annotation_value(self, name: str) -> Optional[str]:
+        if self.annotations:
+            return next((annotation.value for annotation in self.annotations if annotation.name == name), None)
+        return None
 
 class WorkflowVariableGroupConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the group of variables")

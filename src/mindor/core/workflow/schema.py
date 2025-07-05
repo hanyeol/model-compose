@@ -4,13 +4,34 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.dsl.schema.component import ComponentConfig
 import re, json
 
+class WorkflowVariableAnnotation:
+    def __init__(self, name: str, value: str):
+        self.name: str = name
+        self.value: str = value
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "value": self.value
+        }
+
 class WorkflowVariable:
-    def __init__(self, name: Optional[str], type: str, subtype: Optional[str], format: Optional[str], default: Optional[Any], internal: bool = False):
+    def __init__(
+        self,
+        name: Optional[str],
+        type: str,
+        subtype: Optional[str],
+        format: Optional[str],
+        default: Optional[Any],
+        annotations: Optional[List[WorkflowVariableAnnotation]],
+        internal: bool = False
+    ):
         self.name: Optional[str] = name
         self.type: str = type
         self.subtype: Optional[str] = subtype
         self.format: Optional[str] = format
         self.default: Optional[Any] = default
+        self.annotations: Optional[List[WorkflowVariableAnnotation]] = annotations
         self.internal: bool = internal
 
     def to_dict(self) -> Dict[str, Any]:
@@ -20,6 +41,7 @@ class WorkflowVariable:
             "subtype": self.subtype,
             "format": self.format,
             "default": self.default,
+            "annotations": [ annotation.to_dict() for annotation in self.annotations ] if self.annotations else None,
             "internal": self.internal
         }
 
@@ -32,7 +54,7 @@ class WorkflowVariable:
 
     def __hash__(self):
         return hash(self.name) if self.name is not None else id(self)
-    
+
 class WorkflowVariableGroup:
     def __init__(self, name: Optional[str], variables: List[WorkflowVariable], repeat_count: int):
         self.name: Optional[str] = name
@@ -43,29 +65,37 @@ class WorkflowVariableResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                             # ${ 
-                    ([a-zA-Z_][^.\s]*)                                               # key: input, env, etc.
-                    (?:\.([^\s\|\}]+))?                                              # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s\|\}/;]+)(?:/([^\s\|\};]+))?(?:;([^\s\|\}]+))?)? # type/subtype;format
-                    (?:\s*\|\s*([^\}]+))?                                            # default value after `|`
-                \}""",                                                               # }
+                r"""\$\{                                                    # ${ 
+                    (?:\s*([a-zA-Z_][^.\s]*))                               # key: input, env, etc.
+                    (?:\.([^\s|}]+))?                                       # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)? # type/subtype;format
+                    (?:\s*\|\s*((?:\\[\s}@]|(?!\s*@\()[^}])+))?             # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+.*\)))?                            # annotations
+                \s*\}""",                                                   # }
                 re.VERBOSE,
             ),
-            "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
+            "annotation": {
+                "outer": re.compile(r"^@\(|\)$"),
+                "delimiter": re.compile(r"\)\s+@\("),
+                "inner": re.compile(r"([\w]+)\s+(.+)"),
+            }
         }
 
     def _enumerate_input_variables(self, value: Any, wanted_key: str, internal: bool = False) -> List[WorkflowVariable]:
         if isinstance(value, str):
             variables: List[WorkflowVariable] = []
 
-            for match in self.patterns["variable"].finditer(value):
-                key, path, type, subtype, format, default = match.group(1, 2, 3, 4, 5, 6)
+            for m in self.patterns["variable"].finditer(value):
+                key, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7)
 
                 if type and default:
-                    default = self._parse_as_type(default, type)
+                    default = self._parse_value_as_type(default, type)
+
+                if annotations:
+                    annotations = self._parse_annotations(annotations)
 
                 if key == wanted_key:
-                    variables.append(WorkflowVariable(path, type or "string", subtype, format, default, internal))
+                    variables.append(WorkflowVariable(path, type or "string", subtype, format, default, annotations, internal))
 
             return variables
 
@@ -84,13 +114,16 @@ class WorkflowVariableResolver:
         variables: List[WorkflowVariable] = []
         
         if isinstance(value, str):
-            for match in self.patterns["variable"].finditer(value):
-                key, path, type, subtype, format, default = match.group(1, 2, 3, 4, 5, 6)
+            for m in self.patterns["variable"].finditer(value):
+                key, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7)
 
                 if type and default:
-                    default = self._parse_as_type(default, type)
+                    default = self._parse_value_as_type(default, type)
 
-                variables.append(WorkflowVariable(name, type or "string", subtype, format, default, internal))
+                if annotations:
+                    annotations = self._parse_annotations(annotations)
+
+                variables.append(WorkflowVariable(name, type or "string", subtype, format, default, annotations, internal))
             
             return variables
         
@@ -133,7 +166,7 @@ class WorkflowVariableResolver:
 
         return WorkflowVariableConfig(**config_dict)
 
-    def _parse_as_type(self, value: Any, type: str) -> Any:
+    def _parse_value_as_type(self, value: Any, type: str) -> Any:
         if type == "number":
             return float(value)
 
@@ -147,6 +180,21 @@ class WorkflowVariableResolver:
             return json.loads(value)
  
         return value
+    
+    def _parse_annotations(self, value: str) -> List[WorkflowVariableAnnotation]:
+        parts: List[str] = re.split(self.patterns["annotation"]["delimiter"], re.sub(self.patterns["annotation"]["outer"], "", value))
+        annotations: List[WorkflowVariableAnnotation] = []
+
+        for part in parts:
+            m = re.match(self.patterns["annotation"]["inner"], part.strip())
+            
+            if not m:
+                continue
+
+            name, value = m.group(1, 2)
+            annotations.append(WorkflowVariableAnnotation(name=name, value=value))
+
+        return annotations
 
 class WorkflowInputVariableResolver(WorkflowVariableResolver):
     def resolve(self, workflow: WorkflowConfig, components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:

@@ -22,9 +22,7 @@ class WorkflowToolGenerator():
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }
         exec(compile(code, f"<string>", "exec"), context)
 
-        description = ""
-
-        return (context[f"_run_workflow_{workflow_id}"], description)
+        return (context[f"_run_workflow_{workflow_id}"], self._generate_description(workflow))
 
     async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
@@ -40,9 +38,18 @@ class WorkflowToolGenerator():
 
     async def _convert_input_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
         if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
-            pass
+            if internal and format and format != "path":
+                pass
 
         return value if value != "" else None
+
+    def _generate_description(self, workflow: WorkflowSchema) -> str:
+        args = ""
+        for variable in workflow.input:
+            args += f"    {variable.name or 'input'}(str): "
+            args += "\n"
+
+        return ""
 
 class McpServerController(ControllerEngine):
     def __init__(
@@ -72,9 +79,9 @@ class McpServerController(ControllerEngine):
             self.app.add_tool(
                 fn=fn,
                 name=workflow.name or workflow_id,
-                annotations=None,
                 title=workflow.title,
-                description=description
+                description=description,
+                annotations=None
             )
     
     async def _serve(self) -> None:

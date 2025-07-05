@@ -11,12 +11,13 @@ class TemplateRenderer:
         self.source_resolver: Callable[[str], Awaitable[Any]] = source_resolver
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                             # ${ 
-                    ([a-zA-Z_][^.\s]*)                                               # key: input, env, etc.
-                    (?:\.([^\s\|\}]+))?                                              # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s\|\}/;]+)(?:/([^\s\|\};]+))?(?:;([^\s\|\}]+))?)? # type/subtype;format
-                    (?:\s*\|\s*([^\}]+))?                                            # default value after `|`
-                \}""",                                                               # }
+                r"""\$\{                                                    # ${ 
+                    (?:\s*([a-zA-Z_][^.\s]*))                               # key: input, env, etc.
+                    (?:\.([^\s|}]+))?                                       # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)? # type/subtype;format
+                    (?:\s*\|\s*((?:\\[\s}@]|(?!\s*@\()[^}])+))?             # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+.*\)))?                            # annotations
+                \s*\}""",                                                   # }
                 re.VERBOSE,
             ),
             "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
@@ -39,12 +40,12 @@ class TemplateRenderer:
 
     async def _render_text(self, text: str, ignore_files: bool) -> Any:
         while True:
-            match = self.patterns["variable"].search(text)
+            m = self.patterns["variable"].search(text)
             
-            if not match:
+            if not m:
                 break
 
-            key, path, type, subtype, format, default, variable = (*match.group(1, 2, 3, 4, 5, 6), match.group(0))
+            key, path, type, subtype, format, default, variable = (*m.group(1, 2, 3, 4, 5, 6), m.group(0))
             try:
                 value = self._resolve_by_path(await self.source_resolver(key), path)
             except Exception:

@@ -62,7 +62,7 @@ class GradioWebUIBuilder:
 
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
         label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default else "")
-        info = variable.description or ""
+        info = variable.get_annotation_value("description") or ""
         default = variable.default
 
         if variable.type == "string" or variable.format in [ "base64", "url" ]:
@@ -125,7 +125,7 @@ class GradioWebUIBuilder:
             return groups
 
         label = variable.name or ""
-        info = variable.description or ""
+        info = variable.get_annotation_value("description") or ""
 
         if variable.type in [ "string", "base64" ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)

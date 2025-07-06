@@ -1,49 +1,24 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.dsl.schema.component import ComponentConfig
 import re, json
 
+@dataclass
 class WorkflowVariableAnnotation:
-    def __init__(self, name: str, value: str):
-        self.name: str = name
-        self.value: str = value
+    name: str
+    value: str
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "value": self.value
-        }
-
+@dataclass
 class WorkflowVariable:
-    def __init__(
-        self,
-        name: Optional[str],
-        type: str,
-        subtype: Optional[str],
-        format: Optional[str],
-        default: Optional[Any],
-        annotations: Optional[List[WorkflowVariableAnnotation]],
-        internal: bool = False
-    ):
-        self.name: Optional[str] = name
-        self.type: str = type
-        self.subtype: Optional[str] = subtype
-        self.format: Optional[str] = format
-        self.default: Optional[Any] = default
-        self.annotations: Optional[List[WorkflowVariableAnnotation]] = annotations
-        self.internal: bool = internal
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "type": self.type,
-            "subtype": self.subtype,
-            "format": self.format,
-            "default": self.default,
-            "annotations": [ annotation.to_dict() for annotation in self.annotations ] if self.annotations else None,
-            "internal": self.internal
-        }
+    name: Optional[str]
+    type: str
+    subtype: Optional[str]
+    format: Optional[str]
+    default: Optional[Any]
+    annotations: Optional[List[WorkflowVariableAnnotation]]
+    internal: bool
 
     def __eq__(self, other):
         if not isinstance(other, WorkflowVariable):
@@ -55,11 +30,11 @@ class WorkflowVariable:
     def __hash__(self):
         return hash(self.name) if self.name is not None else id(self)
 
+@dataclass
 class WorkflowVariableGroup:
-    def __init__(self, name: Optional[str], variables: List[WorkflowVariable], repeat_count: int):
-        self.name: Optional[str] = name
-        self.variables: List[WorkflowVariable] = variables
-        self.repeat_count: int = repeat_count
+    name: Optional[str]
+    variables: List[WorkflowVariable]
+    repeat_count: int
 
 class WorkflowVariableResolver:
     def __init__(self):
@@ -95,7 +70,15 @@ class WorkflowVariableResolver:
                     annotations = self._parse_annotations(annotations)
 
                 if key == wanted_key:
-                    variables.append(WorkflowVariable(path, type or "string", subtype, format, default, annotations, internal))
+                    variables.append(WorkflowVariable(
+                        name=path, 
+                        type=type or "string", 
+                        subtype=subtype,
+                        format=format,
+                        default=default,
+                        annotations=annotations,
+                        internal=internal
+                    ))
 
             return variables
 
@@ -123,7 +106,15 @@ class WorkflowVariableResolver:
                 if annotations:
                     annotations = self._parse_annotations(annotations)
 
-                variables.append(WorkflowVariable(name, type or "string", subtype, format, default, annotations, internal))
+                variables.append(WorkflowVariable(
+                    name=name,
+                    type=type or "string",
+                    subtype=subtype,
+                    format=format,
+                    default=default,
+                    annotations=annotations,
+                    internal=internal
+                ))
             
             return variables
         
@@ -159,7 +150,7 @@ class WorkflowVariableResolver:
         return configs
     
     def _to_variable_config(self, variable: WorkflowVariable) -> WorkflowVariableConfig:
-        config_dict = variable.to_dict()
+        config_dict = asdict(variable)
 
         if variable.type in [ "image", "audio", "video", "file", "select" ] and variable.subtype:
             config_dict["options"] = variable.subtype.split(",")
@@ -233,7 +224,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             repeat_count: int = job.repeat_count if isinstance(job.repeat_count, int) else 0
 
             if repeat_count != 1:
-                variables.append(WorkflowVariableGroup(None, job_variables := [], repeat_count))
+                variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
             if not job.output or job.output == "${output}":
                 action_id = job.action or "__default__"

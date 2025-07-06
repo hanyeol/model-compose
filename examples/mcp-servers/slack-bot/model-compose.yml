@@ -1,0 +1,60 @@
+controller:
+  type: mcp-server
+  base_path: /mcp
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+component:
+  type: http-client
+  base_url: https://slack.com/api
+  headers:
+    Authorization: Bearer ${env.SLACK_APP_TOKEN}
+  actions:
+    chat-post-message:
+      path: /chat.postMessage
+      method: POST
+      body:
+        channel: ${input.channel}
+        text: ${input.text}
+        attachments: ${input.attachments}
+      headers:
+        Content-Type: application/json
+      output: ${response}
+    
+    conversations-list:
+      path: /conversations.list
+      method: GET
+      params:
+        limit: ${input.limit as integer | 200 @(description Maximum number of channels to retrieve)}
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      output: ${response.channels as object[]/id,name}
+
+    conversations-join:
+      path: /conversations.join
+      method: POST
+      body:
+        channel: ${input.channel}
+      headers:
+        Content-Type: application/json
+      output: ${response}
+
+workflows:
+  send-message:
+    action: chat-post-message
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
+      text: ${input.messsage @(description Message to send to Slack)}
+    output: ${output as json}
+
+  list-channels:
+    action: conversations-list
+    output: ${output as object[]}
+
+  join-channel:
+    action: conversations-join
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
+    output: ${output as json}

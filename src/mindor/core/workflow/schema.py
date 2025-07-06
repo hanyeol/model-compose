@@ -65,13 +65,13 @@ class WorkflowVariableResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                    # ${ 
-                    (?:\s*([a-zA-Z_][^.\s]*))                               # key: input, env, etc.
-                    (?:\.([^\s|}]+))?                                       # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)? # type/subtype;format
-                    (?:\s*\|\s*((?:\\[\s}@]|(?!\s*@\()[^}])+))?             # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+.*\)))?                            # annotations
-                \s*\}""",                                                   # }
+                r"""\$\{                                                          # ${ 
+                    (?:\s*([a-zA-Z_][^.\s]*))                                     # key: input, env, etc.
+                    (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?          # annotations
+                \s*\}""",                                                         # }
                 re.VERBOSE,
             ),
             "annotation": {
@@ -167,12 +167,12 @@ class WorkflowVariableResolver:
         return WorkflowVariableConfig(**config_dict)
 
     def _parse_value_as_type(self, value: Any, type: str) -> Any:
-        if type == "number":
-            return float(value)
-
         if type == "integer":
             return int(value)
         
+        if type == "number":
+            return float(value)
+
         if type == "boolean":
             return str(value).lower() in [ "true", "1" ]
         

@@ -68,12 +68,9 @@ class GradioWebUIBuilder:
         if variable.type == "string" or variable.format in [ "base64", "url" ]:
             return gr.Textbox(label=label, value="", info=info)
 
-        if variable.type == "number":
-            return gr.Number(label=label, value="", precision=None, info=info)
-        
-        if variable.type == "integer":
-            return gr.Number(label=label, value="", precision=0, info=info)
-        
+        if variable.type in [ "integer", "number" ]:
+            return gr.Number(label=label, value="", info=info)
+
         if variable.type == "boolean":
             return gr.Checkbox(label=label, value=default or False, info=info)
         
@@ -133,7 +130,7 @@ class GradioWebUIBuilder:
         if variable.type == "markdown":
             return gr.Markdown(label=label)
         
-        if variable.type == "json":
+        if variable.type in [ "json", "object[]" ]:
             return gr.JSON(label=label)
 
         if variable.type == "image":

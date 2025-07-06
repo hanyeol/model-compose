@@ -11,13 +11,13 @@ class TemplateRenderer:
         self.source_resolver: Callable[[str], Awaitable[Any]] = source_resolver
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                    # ${ 
-                    (?:\s*([a-zA-Z_][^.\s]*))                               # key: input, env, etc.
-                    (?:\.([^\s|}]+))?                                       # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)? # type/subtype;format
-                    (?:\s*\|\s*((?:\\[\s}@]|(?!\s*@\()[^}])+))?             # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+.*\)))?                            # annotations
-                \s*\}""",                                                   # }
+                r"""\$\{                                                          # ${ 
+                    (?:\s*([a-zA-Z_][^.\s]*))                                     # key: input, env, etc.
+                    (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?          # annotations
+                \s*\}""",                                                         # }
                 re.VERBOSE,
             ),
             "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
@@ -51,7 +51,8 @@ class TemplateRenderer:
             except Exception:
                 value = None
 
-            value = default if value is None else value
+            if value is None and default is not None:
+                value = await self._render_text(default, ignore_files)
 
             if type and value is not None:
                 value = await self._convert_value_to_type(value, type, subtype, format, ignore_files)
@@ -99,6 +100,15 @@ class TemplateRenderer:
                 return json.loads(value)
             return value
         
+        if type == "object[]":
+            if isinstance(value, list):
+                objects = [ v for v in value if isinstance(v, dict) ]
+                if subtype:
+                    paths = [ (path, path.split(".")[-1]) for path in subtype.split(",") ]
+                    return [ { key: self._resolve_by_path(obj, path) for path, key in paths } for obj in objects ]
+                return objects
+            return []
+
         if type == "base64":
             if isinstance(value, StreamResource):
                 return await encode_stream_to_base64(value)

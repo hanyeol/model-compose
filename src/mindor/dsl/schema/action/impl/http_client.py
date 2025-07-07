@@ -15,8 +15,8 @@ class PollingCompletionConfig(CommonCompletionConfig):
     body: Optional[Dict[str, Any]] = Field(default_factory=dict)
     params: Optional[Dict[str, str]] = Field(default_factory=dict)
     status: Optional[str] = None
-    success_when: Optional[List[str]] = None
-    fail_when: Optional[List[str]] = None
+    success_when: Optional[List[Union[int, str]]] = None
+    fail_when: Optional[List[Union[int, str]]] = None
     interval: Optional[str] = None
     timeout: Optional[str] = None
 
@@ -28,8 +28,8 @@ class PollingCompletionConfig(CommonCompletionConfig):
 
     @model_validator(mode="before")
     def normalize_status_fields(cls, values: Dict[str, Any]):
-        for key in ("success_when", "fail_when"):
-            if isinstance(values.get(key), str):
+        for key in [ "success_when", "fail_when" ]:
+            if isinstance(values.get(key), (int, str)):
                 values[key] = [ values[key] ]
         return values
 

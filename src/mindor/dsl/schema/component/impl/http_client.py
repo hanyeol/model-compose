@@ -9,7 +9,7 @@ class HttpClientComponentConfig(CommonComponentConfig):
     base_url: Optional[str] = None
     headers: Optional[Dict[str, Any]] = Field(default_factory=dict)
     actions: Optional[Dict[str, HttpClientActionConfig]] = Field(default_factory=dict)
-    
+
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:

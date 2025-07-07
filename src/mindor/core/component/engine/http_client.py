@@ -3,6 +3,7 @@ from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionConfig
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
+from mindor.core.utils.http_status import is_status_code_matched
 from mindor.core.utils.time import parse_duration
 from .base import ComponentEngine, ComponentType, ComponentEngineMap
 from .context import ComponentContext
@@ -30,21 +31,23 @@ class HttpClientPollingCompletion:
         await asyncio.sleep(interval.total_seconds())
 
         while datetime.now(timezone.utc) < deadline:
-            response = await self.client.request(url, method, params, body, headers)
+            response, status_code = await self.client.request(url, method, params, body, headers, raise_on_error=False)
             context.register_source("result", response)
 
-            status = (await context.render_template(self.config.status)) if self.config.status else response["status"]
-
-            if not status:
+            status = (await context.render_template(self.config.status)) if self.config.status else None
+            if self.config.status and not status:
                 raise RuntimeError(f"Polling failed: no status found in response.")
 
-            for success_when in self.config.success_when if self.config.success_when else [ "completed" ]:
-                if status == await context.render_template(success_when):
+            if status:
+                if status in self.config.success_when or []:
                     return response
-
-            for fail_when in self.config.fail_when if self.config.fail_when else [ "failed" ]:
-                if status == await context.render_template(fail_when):
+                if status in self.config.fail_when or []:
                     raise RuntimeError(f"Polling failed: status '{status}' matched a failure condition.")
+            else: # use status code
+                if is_status_code_matched(status_code, self.config.success_when or []):
+                    return response
+                if is_status_code_matched(status_code, self.config.fail_when or []):
+                    raise RuntimeError(f"Polling failed: status code '{status_code}' matched a failure condition.")
 
             await asyncio.sleep(interval.total_seconds())
 

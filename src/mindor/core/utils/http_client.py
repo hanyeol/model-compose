@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Tuple, AsyncIterator, Any
+from typing import Union, Optional, Dict, Tuple, AsyncIterator, Any
 from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
 from requests.structures import CaseInsensitiveDict
@@ -39,20 +39,21 @@ class HttpClient:
         method: Optional[str] = "GET",
         params: Optional[Dict[str, Any]] = None,
         body: Optional[Any] = None,
-        headers: Optional[Dict[str, str]] = None
-    ) -> Any:
+        headers: Optional[Dict[str, str]] = None,
+        raise_on_error: bool = True
+    ) -> Union[Any, Tuple[Any, int]]:
         session = aiohttp.ClientSession()
         try:
             response = await self._request_with_session(session, url, method, params, body, headers)
             content, _ = await self._parse_response_content(session, response)
 
-            if response.status >= 400:
+            if raise_on_error and response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
 
             if not isinstance(content, HttpStreamResource):
                 await session.close()
 
-            return content
+            return content if raise_on_error else (content, response.status)
         except:
             await session.close()
             raise

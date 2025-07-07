@@ -91,13 +91,12 @@ class HttpCallbackListener(ListenerEngine):
         status = (await context.render_template(callback.status)) if callback.status else None
 
         if status:
-            if callback.success_when and status == await context.render_template(callback.success_when):
+            if status in callback.success_when or []:
                 return True
-
-            if callback.fail_when and status == await context.render_template(callback.fail_when):
+            if status in callback.fail_when or []:
                 return False
 
-        return True       
+        return True
 
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(

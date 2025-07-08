@@ -12,5 +12,5 @@ class McpControllerClient(ControllerClient):
     async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         pass
 
-    async def close(self):
+    async def close(self) -> None:
         pass

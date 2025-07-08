@@ -16,7 +16,7 @@ class HttpStreamResource(StreamResource):
         self.response: aiohttp.ClientResponse = response
         self.stream: aiohttp.StreamReader = response.content
 
-    async def close(self):
+    async def close(self) -> None:
         self.response.close()
         self.response = None
         self.stream = None
@@ -69,7 +69,7 @@ class HttpClient:
                 response.close()
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         if self.session:
             await self.session.close()
             self.session = None

@@ -19,7 +19,7 @@ class StreamResource(ABC):
         return self._iterate_stream()
 
     @abstractmethod
-    async def close(self):
+    async def close(self) -> None:
         pass
 
     @abstractmethod
@@ -37,7 +37,7 @@ class Base64StreamResource(StreamResource):
         self.stream = io.BytesIO(base64.b64decode(self.encoded))
         return self
 
-    async def close(self):
+    async def close(self) -> None:
         self.stream.close()
         self.stream = None
         

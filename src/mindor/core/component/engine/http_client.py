@@ -17,7 +17,7 @@ class HttpClientCompletion(ABC):
         pass
 
     @abstractmethod
-    async def close(self):
+    async def close(self) -> None:
         pass
 
 class HttpClientPollingCompletion(HttpClientCompletion):
@@ -63,7 +63,7 @@ class HttpClientPollingCompletion(HttpClientCompletion):
 
         raise TimeoutError(f"Polling timed out after {timeout}.")
 
-    async def close(self):
+    async def close(self) -> None:
         await self.client.close()
 
     async def _resolve_request_url(self, context: ComponentContext) -> str:
@@ -120,7 +120,7 @@ class HttpClientAction:
 
         return (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else (result or response)
 
-    async def close(self):
+    async def close(self) -> None:
         if self.completion:
             await self.completion.close()
 

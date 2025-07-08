@@ -14,7 +14,7 @@ class ControllerClient(ABC):
         pass
 
     @abstractmethod
-    async def close(self):
+    async def close(self) -> None:
         pass
 
 class ControllerRunner:
@@ -38,5 +38,5 @@ class ControllerRunner:
     async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         return await self.client.run_workflow(workflow_id, input)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.client.close()

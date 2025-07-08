@@ -32,8 +32,8 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpClient:
-    def __init__(self):
-        self.session = aiohttp.ClientSession()
+    def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
+        self.session = aiohttp.ClientSession(base_url=base_url, headers=headers)
 
     async def __aenter__(self):
         if self.session is not None:

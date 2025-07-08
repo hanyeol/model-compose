@@ -13,6 +13,10 @@ class ControllerClient(ABC):
     async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         pass
 
+    @abstractmethod
+    async def close(self):
+        pass
+
 class ControllerRunner:
     def __init__(self, config: ControllerConfig):
         self.config: ControllerConfig = config
@@ -24,10 +28,15 @@ class ControllerRunner:
         if self.config.type == "http-server":
             self.client = HttpControllerClient(self.config)
             return
-        
+
         if self.config.type == "mcp-server":
             self.client = McpControllerClient(self.config)
             return
+
+        raise ValueError(f"Unsupported controller type: {self.config.type}")
     
     async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         return await self.client.run_workflow(workflow_id, input)
+
+    async def close(self):
+        await self.client.close()

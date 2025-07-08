@@ -59,7 +59,7 @@ class HttpServerController(ControllerEngine):
         self._configure_routes()
         self.app.include_router(self.router, prefix=self.config.base_path)
 
-    def _configure_server(self):
+    def _configure_server(self) -> None:
         self.app.add_middleware(
             CORSMiddleware, 
             allow_origins=[self.config.origins], 
@@ -68,7 +68,7 @@ class HttpServerController(ControllerEngine):
             allow_headers=["*"],
         )
 
-    def _configure_routes(self):
+    def _configure_routes(self) -> None:
         @self.router.post("/workflows")
         async def run_workflow(
             request: Request
@@ -107,6 +107,7 @@ class HttpServerController(ControllerEngine):
             log_level="info"
         ))
         await self.server.serve()
+        self.server = None
  
     async def _shutdown(self) -> None:
         if self.server:

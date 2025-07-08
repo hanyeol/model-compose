@@ -128,7 +128,7 @@ class TemplateRenderer:
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
+            return await save_stream_to_temporary_file(await HttpClient.request_once(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

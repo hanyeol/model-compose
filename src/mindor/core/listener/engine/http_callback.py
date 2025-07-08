@@ -56,7 +56,7 @@ class HttpCallbackListener(ListenerEngine):
         self._configure_routes()
         self.app.include_router(self.router, prefix=self.config.base_path)
 
-    def _configure_routes(self):
+    def _configure_routes(self) -> None:
         for callback in self.config.callbacks:
             self.router.add_api_route(
                 path=callback.path,
@@ -106,6 +106,7 @@ class HttpCallbackListener(ListenerEngine):
             log_level="info"
         ))
         await self.server.serve()
+        self.server = None
  
     async def _shutdown(self) -> None:
         if self.server:

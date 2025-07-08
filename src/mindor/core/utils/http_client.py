@@ -7,20 +7,19 @@ import aiohttp
 class HttpStreamResource(StreamResource):
     def __init__(
         self, 
-        session: aiohttp.ClientSession, 
-        stream: aiohttp.StreamReader, 
+        response: aiohttp.ClientResponse,
         content_type: Optional[str] = None, 
         filename: Optional[str] = None
     ):
         super().__init__(content_type, filename)
 
-        self.session: aiohttp.ClientSession = session
-        self.stream: aiohttp.StreamReader = stream
+        self.response: aiohttp.ClientResponse = response
+        self.stream: aiohttp.StreamReader = response.content
 
     async def close(self):
-        await self.session.close()
-        self.session = None
-        self.stream  = None
+        self.response.close()
+        self.response = None
+        self.stream = None
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         _, buffer_size = self.stream.get_read_buffer_limits()
@@ -33,35 +32,60 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpClient:
+    def __init__(self):
+        self.session = aiohttp.ClientSession()
+
+    async def __aenter__(self):
+        if self.session is not None:
+            self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def request(
         self,
-        url: str,
+        url_or_path: str,
         method: Optional[str] = "GET",
         params: Optional[Dict[str, Any]] = None,
         body: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
         raise_on_error: bool = True
     ) -> Union[Any, Tuple[Any, int]]:
-        session = aiohttp.ClientSession()
+        response: aiohttp.ClientResponse = None
         try:
-            response = await self._request_with_session(session, url, method, params, body, headers)
-            content, _ = await self._parse_response_content(session, response)
+            response = await self._request_with_session(self.session, url_or_path, method, params, body, headers)
+            content, _ = await self._parse_response_content(response)
 
             if raise_on_error and response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
 
             if not isinstance(content, HttpStreamResource):
-                await session.close()
+                response.close()
 
             return content if raise_on_error else (content, response.status)
         except:
-            await session.close()
+            if response:
+                response.close()
             raise
 
+    async def close(self):
+        if self.session:
+            await self.session.close()
+            self.session = None
+
+    @classmethod
+    async def request_once(cls, *args, **kwargs):
+        instance = cls()
+        try:
+            return await instance.request(*args, **kwargs)
+        finally:
+            await instance.close()
+    
     async def _request_with_session(
         self,
         session: aiohttp.ClientSession,
-        url: str,
+        url_or_path: str,
         method: str,
         params: Optional[Dict[str, Any]],
         body: Optional[Any],
@@ -73,7 +97,7 @@ class HttpClient:
             headers = CaseInsensitiveDict(headers)
             headers.pop("Content-Type", None)
 
-        return await session.request(method, url, params=params, data=data, headers=headers)
+        return await session.request(method, url_or_path, params=params, data=data, headers=headers)
 
     def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(headers, "Content-Type")
@@ -83,7 +107,7 @@ class HttpClient:
 
         return (body, content_type)
 
-    async def _parse_response_content(self, session: aiohttp.ClientSession, response: aiohttp.ClientResponse) -> Tuple[Any, str]:
+    async def _parse_response_content(self, response: aiohttp.ClientResponse) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(response.headers, "Content-Type")
 
         if content_type == "application/json":
@@ -95,4 +119,4 @@ class HttpClient:
         _, disposition = parse_options_header(response.headers, "Content-Disposition")
         filename = disposition.get("filename")
 
-        return (HttpStreamResource(session, response.content, content_type, filename), content_type)
+        return (HttpStreamResource(response, content_type, filename), content_type)

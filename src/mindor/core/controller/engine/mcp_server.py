@@ -150,6 +150,7 @@ class McpServerController(ControllerEngine):
             log_level="info"
         ))
         await self.server.serve()
+        self.server = None
 
     async def _shutdown(self) -> None:
         if self.server:

@@ -1,4 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionConfig
 from mindor.core.listener import HttpCallbackListener
@@ -10,7 +11,16 @@ from .context import ComponentContext
 from datetime import datetime, timezone
 import asyncio
 
-class HttpClientPollingCompletion:
+class HttpClientCompletion(ABC):
+    @abstractmethod
+    async def run(self, context: ComponentContext) -> Any:
+        pass
+
+    @abstractmethod
+    async def close(self):
+        pass
+
+class HttpClientPollingCompletion(HttpClientCompletion):
     def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientCompletionConfig):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
@@ -53,13 +63,16 @@ class HttpClientPollingCompletion:
 
         raise TimeoutError(f"Polling timed out after {timeout}.")
 
+    async def close(self):
+        await self.client.close()
+
     async def _resolve_request_url(self, context: ComponentContext) -> str:
         if self.base_url and self.config.path:
             return await context.render_template(self.base_url) + await context.render_template(self.config.path)
 
         return await context.render_template(self.config.endpoint)
 
-class HttpClientCallbackCompletion:
+class HttpClientCallbackCompletion(HttpClientCompletion):
     def __init__(self, config: HttpClientCompletionConfig):
         self.config: HttpClientCompletionConfig = config
 
@@ -71,11 +84,26 @@ class HttpClientCallbackCompletion:
         return await future
 
 class HttpClientAction:
-    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientActionConfig):
+    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientActionConfig, client: HttpClient):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
         self.config: HttpClientActionConfig = config
-        self.client: HttpClient = HttpClient()
+        self.client: HttpClient = client
+        self.completion: HttpClientCompletion = None
+
+        if self.config.completion:
+            self._configure_completion()
+
+    def _configure_completion(self) -> None:
+        if self.config.completion.type == "polling":
+            self.completion = HttpClientPollingCompletion(self.base_url, self.headers, self.config.completion)
+            return
+        
+        if self.config.completion.type == "callback":
+            self.completion = HttpClientCallbackCompletion(self.config.completion)
+            return
+        
+        raise ValueError(f"Unsupported http completion type: {self.config.completion.type}")
 
     async def run(self, context: ComponentContext) -> Any:
         url     = await self._resolve_request_url(context)
@@ -87,11 +115,17 @@ class HttpClientAction:
         response, result = await self.client.request(url, method, params, body, headers), None
         context.register_source("response", response)
 
-        if self.config.completion:
-            result = await self._handle_completion(self.config.completion, context)
+        if self.completion:
+            result = await self.completion.run(context)
             context.register_source("result", result)
 
         return (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else (result or response)
+
+    async def close(self):
+        await self.client.close()
+
+        if self.completion:
+            await self.completion.close()
 
     async def _resolve_request_url(self, context: ComponentContext) -> str:
         if self.base_url and self.config.path:
@@ -99,26 +133,20 @@ class HttpClientAction:
 
         return await context.render_template(self.config.endpoint)
 
-    async def _handle_completion(self, completion: HttpClientCompletionConfig, context: ComponentContext) -> Any:
-        if completion.type == "polling":
-            return await HttpClientPollingCompletion(self.base_url, self.headers, completion).run(context)
-        
-        if completion.type == "callback":
-            return await HttpClientCallbackCompletion(completion).run(context)
-
-        return None
-
 class HttpClientComponent(ComponentEngine):
     def __init__(self, id: str, config: HttpClientComponentConfig, env: Dict[str, str], daemon: bool):
         super().__init__(id, config, env, daemon)
 
+        self.client: HttpClient = None
+
     async def _serve(self) -> None:
-        pass
+        self.client = HttpClient()
 
     async def _shutdown(self) -> None:
-        pass
+        await self.client.close()
+        self.client = None
 
     async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
-        return await HttpClientAction(self.config.base_url, self.config.headers, action).run(context)
+        return await HttpClientAction(self.config.base_url, self.config.headers, action, self.client).run(context)
 
 ComponentEngineMap[ComponentType.HTTP_CLIENT] = HttpClientComponent

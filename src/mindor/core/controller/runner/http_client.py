@@ -32,6 +32,9 @@ class HttpControllerClient(ControllerClient):
 
         return await self.client.request(url, method, None, body, headers)
 
+    async def close(self):
+        await self.client.close()
+
     def _flatten_for_multipart(self, body: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
         flattened = []
 

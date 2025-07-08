@@ -184,7 +184,7 @@ class GradioWebUIBuilder:
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await load_image_from_stream(await HttpClient().request(value), subtype)
+            return await load_image_from_stream(await HttpClient.request_once(value), subtype)
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value, subtype)
@@ -196,7 +196,7 @@ class GradioWebUIBuilder:
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await HttpClient().request(value), subtype)
+            return await save_stream_to_temporary_file(await HttpClient.request_once(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

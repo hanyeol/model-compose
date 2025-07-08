@@ -30,7 +30,7 @@ class ControllerWebUI(AsyncService):
         self.env: Dict[str, str] = env
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
-        self.runner: ControllerRunner = ControllerRunner(controller)
+        self.runner: ControllerRunner = None
 
         self._configure_driver()
 
@@ -44,6 +44,7 @@ class ControllerWebUI(AsyncService):
             return
 
     async def _serve(self) -> None:
+        self.runner = ControllerRunner(self.controller)
         self.server = uvicorn.Server(uvicorn.Config(
             self.app,
             host=self.config.host,
@@ -51,10 +52,15 @@ class ControllerWebUI(AsyncService):
             log_level="info"
         ))
         await self.server.serve()
+        await self.runner.close()
+        self.server = None
+        self.runner = None
     
     async def _shutdown(self) -> None:
         if self.server:
             self.server.should_exit = True
-    
+
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        return await self.runner.run_workflow(workflow_id, input)
+        if self.runner:
+            return await self.runner.run_workflow(workflow_id, input)
+        return None

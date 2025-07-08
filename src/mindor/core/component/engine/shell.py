@@ -25,7 +25,7 @@ class ShellAction:
         process = await asyncio.create_subprocess_exec(
             *command,
             cwd=working_dir,
-            env={**os.environ, **env},
+            env={ **os.environ, **env },
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )

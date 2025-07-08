@@ -7,14 +7,14 @@ from asyncio.subprocess import Process
 import asyncio, os
 
 class ShellAction:
-    def __init__(self, base_dir: Optional[str], env: Optional[Dict[str, str]], config: ShellActionConfig):
+    def __init__(self, config: ShellActionConfig, base_dir: Optional[str], env: Optional[Dict[str, str]]):
+        self.config: ShellActionConfig = config
         self.base_dir: Optional[str] = base_dir
         self.env: Optional[Dict[str, str]] = env
-        self.config: ShellActionConfig = config
 
     async def run(self, context: ComponentContext) -> Any:
-        working_dir = self._resolve_working_directory()
-        env = { **(self.env or {}), **(self.config.env or {}) }
+        working_dir = await self._resolve_working_directory()
+        env = await context.render_template({ **(self.env or {}), **(self.config.env or {}) })
 
         result = await self._run_command(self.config.command, working_dir, env, self.config.timeout)
         context.register_source("result", result)
@@ -53,7 +53,7 @@ class ShellAction:
         else:
             return False
 
-    def _resolve_working_directory(self) -> str:
+    async def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir
         if working_dir:
             if self.base_dir:
@@ -75,6 +75,6 @@ class ShellComponent(ComponentEngine):
         pass
 
     async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
-        return await ShellAction(self.config.base_dir, self.config.env, action).run(context)
+        return await ShellAction(action, self.config.base_dir, self.config.env).run(context)
 
 ComponentEngineMap[ComponentType.SHELL] = ShellComponent

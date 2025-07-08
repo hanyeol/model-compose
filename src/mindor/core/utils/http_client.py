@@ -33,11 +33,13 @@ class HttpStreamResource(StreamResource):
 
 class HttpClient:
     def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
-        self.session = aiohttp.ClientSession(base_url=base_url, headers=headers)
+        self.base_url: Optional[str] = base_url
+        self.headers: Optional[Dict[str, str]] = headers
+        self.session = aiohttp.ClientSession(self.base_url, headers=self.headers)
 
     async def __aenter__(self):
         if self.session is not None:
-            self.session = aiohttp.ClientSession()
+            self.session = aiohttp.ClientSession(self.base_url, headers=self.headers)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

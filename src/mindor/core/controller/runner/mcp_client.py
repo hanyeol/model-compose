@@ -7,8 +7,6 @@ class McpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
         super().__init__(config)
 
-        self.client: McpClient = McpClient()
-
     async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         pass
 

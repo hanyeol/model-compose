@@ -22,7 +22,7 @@ class HttpCallbackContext:
         self.renderer: TemplateRenderer = TemplateRenderer(self._resolve_source)
 
     async def items(self) -> AsyncIterator["HttpCallbackContext"]:
-        async for item in self._items():
+        for item in await self._items():
             yield HttpCallbackContext(item, self.query, False, None)
 
     async def render_template(self, template: str, ignore_files: bool = True) -> Any:

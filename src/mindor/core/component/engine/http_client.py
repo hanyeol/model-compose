@@ -82,6 +82,9 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
         HttpCallbackListener.register_pending_future(callback_id, future)
 
         return await future
+    
+    async def close(self) -> None:
+        pass
 
 class HttpClientAction:
     def __init__(self, config: HttpClientActionConfig, base_url: Optional[str], headers: Optional[Dict[str, str]]):

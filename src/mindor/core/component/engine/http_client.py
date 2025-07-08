@@ -21,10 +21,10 @@ class HttpClientCompletion(ABC):
         pass
 
 class HttpClientPollingCompletion(HttpClientCompletion):
-    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientCompletionConfig):
+    def __init__(self, config: HttpClientCompletionConfig, base_url: Optional[str], headers: Optional[Dict[str, str]]):
+        self.config: HttpClientCompletionConfig = config
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
-        self.config: HttpClientCompletionConfig = config
         self.client: HttpClient = HttpClient()
 
     async def run(self, context: ComponentContext) -> Any:
@@ -84,11 +84,10 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
         return await future
 
 class HttpClientAction:
-    def __init__(self, base_url: Optional[str], headers: Optional[Dict[str, str]], config: HttpClientActionConfig, client: HttpClient):
+    def __init__(self, config: HttpClientActionConfig, base_url: Optional[str], headers: Optional[Dict[str, str]]):
+        self.config: HttpClientActionConfig = config
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
-        self.config: HttpClientActionConfig = config
-        self.client: HttpClient = client
         self.completion: HttpClientCompletion = None
 
         if self.config.completion:
@@ -96,7 +95,7 @@ class HttpClientAction:
 
     def _configure_completion(self) -> None:
         if self.config.completion.type == "polling":
-            self.completion = HttpClientPollingCompletion(self.base_url, self.headers, self.config.completion)
+            self.completion = HttpClientPollingCompletion(self.config.completion, self.base_url, self.headers)
             return
         
         if self.config.completion.type == "callback":
@@ -105,14 +104,14 @@ class HttpClientAction:
         
         raise ValueError(f"Unsupported http completion type: {self.config.completion.type}")
 
-    async def run(self, context: ComponentContext) -> Any:
+    async def run(self, context: ComponentContext, client: HttpClient) -> Any:
         url     = await self._resolve_request_url(context)
         method  = await context.render_template(self.config.method)
         params  = await context.render_template(self.config.params)
         body    = await context.render_template(self.config.body)
         headers = await context.render_template({ **self.headers, **self.config.headers })
 
-        response, result = await self.client.request(url, method, params, body, headers), None
+        response, result = await client.request(url, method, params, body, headers), None
         context.register_source("response", response)
 
         if self.completion:
@@ -122,8 +121,6 @@ class HttpClientAction:
         return (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else (result or response)
 
     async def close(self):
-        await self.client.close()
-
         if self.completion:
             await self.completion.close()
 
@@ -147,6 +144,6 @@ class HttpClientComponent(ComponentEngine):
         self.client = None
 
     async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
-        return await HttpClientAction(self.config.base_url, self.config.headers, action, self.client).run(context)
+        return await HttpClientAction(action, self.config.base_url, self.config.headers).run(context, self.client)
 
 ComponentEngineMap[ComponentType.HTTP_CLIENT] = HttpClientComponent

@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from .client import ControllerClient
 from .http_client import HttpControllerClient
 from .mcp_client import McpControllerClient
@@ -35,8 +36,8 @@ class ControllerRunner:
 
         raise ValueError(f"Unsupported controller type: {self.config.type}")
     
-    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        return await self.client.run_workflow(workflow_id, input)
+    async def run_workflow(self, workflow_id: Optional[str], input: Any, outspec: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+        return await self.client.run_workflow(workflow_id, input, outspec)
 
     async def close(self) -> None:
         await self.client.close()

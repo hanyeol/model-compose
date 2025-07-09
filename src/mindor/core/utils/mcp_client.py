@@ -1,24 +1,23 @@
-from typing import Optional, Dict, Tuple, AsyncIterator, Any
+from typing import Union, Optional, Dict, List, Tuple, AsyncIterator, Any
 from mcp.client.streamable_http import streamablehttp_client
-from mcp import ClientSession
+from mcp.types import ContentBlock, TextContent, TextResourceContents, BlobResourceContents, Resource, GetPromptResult, Prompt
+from mcp import ClientSession, Tool
 
 class McpClient:
     def __init__(self, url: str, headers: Optional[Dict[str, str]] = None):
         self.url: str = url
         self.headers: Optional[Dict[str, str]] = headers
-        self.session: Optional[ClientSession] = ClientSession(streamablehttp_client(self.url, headers=self.headers))
-        self._initialized = False
+        self.session: Optional[ClientSession] = None
+        self.client: Optional[Any] = None
 
     async def __aenter__(self):
-        if self.session is None:
-            self.session = ClientSession(streamablehttp_client(self.url, headers=self.headers))
         await self._ensure_initialized()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        await self._cleanup()
 
-    async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None, raise_on_error: bool = True) -> Any:
+    async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None, raise_on_error: bool = True) -> List[ContentBlock]:
         """
         Call a specific tool on the MCP server
         
@@ -31,65 +30,60 @@ class McpClient:
             The tool execution result
         """
         await self._ensure_initialized()
-        try:
-            return await self.session.call_tool(name, arguments)
-        except:
-            pass
+        result = await self.session.call_tool(name, arguments)
+        if result.isError:
+            if raise_on_error:
+                raise RuntimeError(f"Tool '{name}' failed with: {result.result}")
+            else:
+                return None
+        return result.content
 
-    async def list_tools(self) -> Any:
+    async def list_tools(self) -> List[Tool]:
         """List all available tools from the MCP server"""
         await self._ensure_initialized()
-        try:
-            return await self.session.list_tools()
-        except:
-            pass
+        result = await self.session.list_tools()
+        return result.tools
 
-    async def read_resource(self, uri: str, raise_on_error: bool = True) -> Any:
+    async def read_resource(self, uri: str) -> List[Union[TextResourceContents, BlobResourceContents]]:
         """
         Read a specific resource from the MCP server
         
         Args:
             uri: The URI of the resource to read
-            raise_on_error: Whether to raise exceptions on error responses
             
         Returns:
             The resource content
         """
         await self._ensure_initialized()
-        try:
-            return await self.session.read_resource(uri)
-        except:
-            pass
+        result = await self.session.read_resource(uri)
+        return result.contents
 
-    async def list_resources(self) -> Any:
+    async def list_resources(self) -> List[Resource]:
         """List all available resources from the MCP server"""
-        return await self.session.list_resources()
+        await self._ensure_initialized()
+        result = await self.session.list_resources()
+        return result.resources
 
-    async def get_prompt(self, name: str, arguments: Optional[Dict[str, Any]] = None, raise_on_error: bool = True) -> Any:
+    async def get_prompt(self, name: str, arguments: Optional[Dict[str, Any]] = None) -> GetPromptResult:
         """
         Get a specific prompt from the MCP server
         
         Args:
             name: The name of the prompt to get
             arguments: Arguments to pass to the prompt
-            raise_on_error: Whether to raise exceptions on error responses
             
         Returns:
             The prompt content
         """
         await self._ensure_initialized()
-        try:
-            return await self.session.get_prompt(name, arguments)
-        except:
-            pass
+        result = await self.session.get_prompt(name, arguments)
+        return result
 
-    async def list_prompts(self) -> Any:
+    async def list_prompts(self) -> List[Prompt]:
         """List all available prompts from the MCP server"""
         await self._ensure_initialized()
-        try:
-            return await self.session.list_prompts()
-        except:
-            pass
+        result = await self.session.list_prompts()
+        return result.prompts
 
     async def ping(self) -> bool:
         """
@@ -98,8 +92,8 @@ class McpClient:
         Returns:
             True if the server is reachable, False otherwise
         """
-        await self._ensure_initialized()
         try:
+            await self._ensure_initialized()
             await self.session.send_ping()
             return True
         except:
@@ -107,16 +101,19 @@ class McpClient:
 
     async def close(self) -> None:
         """Close the MCP client session"""
-        await self._close()
+        await self._cleanup()
 
     async def _ensure_initialized(self):
-        if not self._initialized:
+        if not self.session:
+            self.client = streamablehttp_client(self.url, headers=self.headers)
+            read_stream, write_stream, _ = await self.client.__aenter__()
+            self.session = ClientSession(read_stream, write_stream)
             await self.session.__aenter__()
             await self.session.initialize()
-            self._initialized = True
 
-    async def _close(self) -> None:
+    async def _cleanup(self) -> None:
         if self.session:
+            await self.client.__aexit__(None, None, None)
             await self.session.__aexit__(None, None, None)
+            self.client = None
             self.session = None
-            self._initialized = False

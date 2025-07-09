@@ -66,10 +66,10 @@ class HttpClient:
                 response.close()
 
             return content if raise_on_error else (content, response.status)
-        except:
+        except Exception as e:
             if response:
                 response.close()
-            raise
+            raise e
 
     async def close(self) -> None:
         if self.session:

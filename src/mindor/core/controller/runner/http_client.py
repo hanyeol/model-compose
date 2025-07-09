@@ -1,5 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_client import HttpClient
 from .runner import ControllerClient
 from starlette.datastructures import UploadFile
@@ -10,9 +11,8 @@ class HttpControllerClient(ControllerClient):
 
         self.client: HttpClient = HttpClient()
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        base_path = self.config.base_path if self.config.base_path else ""
-        url = f"http://localhost:{self.config.port}{base_path}/workflows"
+    async def run_workflow(self, workflow_id: Optional[str], input: Any, outspec: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+        url = f"http://localhost:{self.config.port}{self.config.base_path or ''}/workflows"
         method = "POST"
         body = {
             "workflow_id": workflow_id,

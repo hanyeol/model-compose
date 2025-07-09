@@ -1,14 +1,40 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.core.utils.mcp_client import McpClient
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent
 from .runner import ControllerClient
+import json
 
 class McpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
         super().__init__(config)
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        pass
+        url = f"http://localhost:{self.config.port}{self.config.base_path or ''}"
+        self.client: McpClient = McpClient(url)
+
+    async def run_workflow(self, workflow_id: Optional[str], input: Any, outspec: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+        return await self._call_tool(workflow_id, input, outspec)
 
     async def close(self) -> None:
-        pass
+        await self.client.close()
+
+    async def _call_tool(self, name: str, arguments: Optional[Dict[str, Any]], outspec: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+        contents = await self.client.call_tool(name, arguments)
+
+        if len(outspec) == 1 and not outspec[0].name:
+            content, variable = contents[0], outspec[0]
+            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
+            return await self._convert_output_value(content, type, subtype, format)
+        
+        output = []
+        for content, variable in zip(contents, outspec):
+            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
+            output.append(await self._convert_output_value(content, type, subtype, format))
+        return output
+
+    async def _convert_output_value(self, content: ContentBlock, type: str, subtype: Optional[str], format: Optional[str]) -> Any:
+        if isinstance(content, TextContent):
+            if type in [ "json", "object[]" ]:
+                return json.loads(content.text)
+            return content.text
+        return None

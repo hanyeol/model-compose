@@ -28,6 +28,8 @@ class ControllerWebUI(AsyncService):
         self.components: Dict[str, ComponentConfig] = components
         self.workflows: Dict[str, WorkflowConfig] = workflows
         self.env: Dict[str, str] = env
+        self.schema = create_workflow_schema(self.workflows, self.components)
+
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.runner: ControllerRunner = None
@@ -37,7 +39,7 @@ class ControllerWebUI(AsyncService):
     def _configure_driver(self) -> None:
         if self.config.driver == "gradio":
             blocks: gradio.Blocks = GradioWebUIBuilder().build(
-                schema=create_workflow_schema(self.workflows, self.components),
+                schema=self.schema,
                 runner=self._run_workflow
             )
             self.app = mount_gradio_app(self.app, blocks, path="")
@@ -62,5 +64,5 @@ class ControllerWebUI(AsyncService):
 
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         if self.runner:
-            return await self.runner.run_workflow(workflow_id, input)
+            return await self.runner.run_workflow(workflow_id, input, self.schema[workflow_id].output)
         return None

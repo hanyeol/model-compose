@@ -26,10 +26,10 @@ class McpControllerClient(ControllerClient):
             type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
             return await self._convert_output_value(content, type, subtype, format)
         
-        output = []
+        output = {}
         for content, variable in zip(contents, outspec):
             type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            output.append(await self._convert_output_value(content, type, subtype, format))
+            output[variable.name or "output"] = await self._convert_output_value(content, type, subtype, format)
         return output
 
     async def _convert_output_value(self, content: ContentBlock, type: str, subtype: Optional[str], format: Optional[str]) -> Any:

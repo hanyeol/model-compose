@@ -1,6 +1,7 @@
 from typing import Union, Optional, Dict, List, Tuple, AsyncIterator, Any
 from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import ContentBlock, TextContent, TextResourceContents, BlobResourceContents, Resource, GetPromptResult, Prompt
+from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent
+from mcp.types import Resource, TextResourceContents, BlobResourceContents, GetPromptResult, Prompt
 from mcp import ClientSession, Tool
 
 class McpClient:
@@ -33,7 +34,7 @@ class McpClient:
         result = await self.session.call_tool(name, arguments)
         if result.isError:
             if raise_on_error:
-                raise RuntimeError(f"Tool '{name}' failed with: {result.result}")
+                raise RuntimeError(f"Tool '{name}' failed with: {result.content}")
             else:
                 return None
         return result.content

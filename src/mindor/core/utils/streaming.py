@@ -2,7 +2,7 @@ from typing import Optional, AsyncIterator
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
 from aiofiles.threadpool.binary import AsyncBufferedReader
-import io, base64
+import aiofiles, os, io, base64
 
 class StreamResource(ABC):
     def __init__(self, content_type: Optional[str], filename: Optional[str]):
@@ -26,6 +26,29 @@ class StreamResource(ABC):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         pass
 
+class FileStreamResource(StreamResource):
+    def __init__(self, path: str, content_type: Optional[str] = None, filename: Optional[str] = None):
+        super().__init__(content_type, filename or os.path.basename(path))
+
+        self.path = path
+        self.stream: Optional[aiofiles.threadpool.text.AsyncTextIOWrapper] = None
+
+    async def __aenter__(self):
+        self.stream = await aiofiles.open(self.path, "rb")
+        return self
+
+    async def close(self) -> None:
+        if self.stream:
+            await self.stream.close()
+            self.stream = None
+        
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        while True:
+            chunk = await self.stream.read(8192)
+            if not chunk:
+                break
+            yield chunk
+
 class Base64StreamResource(StreamResource):
     def __init__(self, encoded: str, content_type: Optional[str] = None, filename: Optional[str] = None):
         super().__init__(content_type, filename)
@@ -38,9 +61,10 @@ class Base64StreamResource(StreamResource):
         return self
 
     async def close(self) -> None:
-        self.stream.close()
-        self.stream = None
-        
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         while True:
             chunk = self.stream.read(8192)

@@ -64,5 +64,5 @@ class ControllerWebUI(AsyncService):
 
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         if self.runner:
-            return await self.runner.run_workflow(workflow_id, input, self.schema[workflow_id].output)
+            return await self.runner.run_workflow(workflow_id, input, self.schema[workflow_id])
         return None

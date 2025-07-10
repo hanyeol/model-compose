@@ -4,12 +4,11 @@ from mindor.dsl.schema.gateway import GatewayConfig, GatewayType
 from mindor.core.services import AsyncService
 
 class GatewayEngine(AsyncService):
-    def __init__(self, id: str, config: GatewayConfig, env: Dict[str, str], daemon: bool):
+    def __init__(self, id: str, config: GatewayConfig, daemon: bool):
         super().__init__(daemon)
 
         self.id: str = id
         self.config: GatewayConfig = config
-        self.env: Dict[str, str] = env
 
     @abstractmethod
     def get_context(self) -> Dict[str, Any]:

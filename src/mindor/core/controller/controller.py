@@ -8,14 +8,13 @@ from .engine import ControllerEngine, ControllerEngineMap
 
 def create_controller(
     config: ControllerConfig, 
-    components: Dict[str, ComponentConfig], 
-    listeners: List[ListenerConfig], 
-    gateways: List[GatewayConfig], 
-    workflows: Dict[str, WorkflowConfig], 
-    env: Dict[str, str], 
+    components: Dict[str, ComponentConfig],
+    listeners: List[ListenerConfig],
+    gateways: List[GatewayConfig],
+    workflows: Dict[str, WorkflowConfig],
     daemon: bool
 ) -> ControllerEngine:
     try:
-        return ControllerEngineMap[config.type](config, components, listeners, gateways, workflows, env, daemon)
+        return ControllerEngineMap[config.type](config, components, listeners, gateways, workflows, daemon)
     except KeyError:
         raise ValueError(f"Unsupported controller type: {config.type}")

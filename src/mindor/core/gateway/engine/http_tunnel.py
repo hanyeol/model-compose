@@ -4,8 +4,8 @@ from .base import GatewayEngine, GatewayType, GatewayEngineMap
 from pyngrok import ngrok
 
 class HttpTunnelGateway(GatewayEngine):
-    def __init__(self, id: str, config: HttpTunnelGatewayConfig, env: Dict[str, str], daemon: bool):
-        super().__init__(id, config, env, daemon)
+    def __init__(self, id: str, config: HttpTunnelGatewayConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
         self.tunnel: Optional[ngrok.NgrokTunnel] = None
         self.public_url: Optional[str] = None

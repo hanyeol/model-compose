@@ -31,12 +31,11 @@ class ActionResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class ComponentEngine(AsyncService):
-    def __init__(self, id: str, config: ComponentConfig, env: Dict[str, str], daemon: bool):
+    def __init__(self, id: str, config: ComponentConfig, daemon: bool):
         super().__init__(daemon)
 
         self.id: str = id
         self.config: ComponentConfig = config
-        self.env: Dict[str, str] = env
         self.queue: Optional[WorkQueue] = None
 
         if self.config.max_concurrent_count > 0:
@@ -44,7 +43,7 @@ class ComponentEngine(AsyncService):
 
     async def run(self, action_id: Union[str, None], call_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentContext(call_id, input, self.env)
+        context = ComponentContext(call_id, input)
 
         if self.queue:
             return await (await self.queue.schedule(action, context))

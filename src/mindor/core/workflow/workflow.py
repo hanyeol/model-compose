@@ -124,14 +124,13 @@ class WorkflowRunner:
         return all(job_id not in job.depends_on for other_id, job in self.jobs.items() if other_id != job_id)
 
 class Workflow:
-    def __init__(self, id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig], env: Dict[str, str]):
+    def __init__(self, id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig]):
         self.id: str = id
         self.config: WorkflowConfig = config
         self.components: Dict[str, ComponentConfig] = components
-        self.env: Dict[str, str] = env
 
     async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
-        context = WorkflowContext(task_id, input, self.env)
+        context = WorkflowContext(task_id, input)
         runner = WorkflowRunner(self.config.jobs, self._create_component)
 
         return await runner.run(context)
@@ -140,7 +139,7 @@ class Workflow:
         JobGraphValidator(self.config.jobs).validate()
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentEngine:
-        return create_component(*self._resolve_component(id, component), env=self.env, daemon=False)
+        return create_component(*self._resolve_component(id, component), daemon=False)
 
     def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
         if isinstance(component, str):
@@ -148,5 +147,5 @@ class Workflow:
     
         return id, component
 
-def create_workflow(id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig], env: Dict[str, str]) -> Workflow:
-    return Workflow(id, config, components, env)
+def create_workflow(id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig]) -> Workflow:
+    return Workflow(id, config, components)

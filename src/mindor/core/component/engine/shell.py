@@ -14,12 +14,12 @@ class ShellAction:
 
     async def run(self, context: ComponentContext) -> Any:
         working_dir = await self._resolve_working_directory()
-        env = await context.render_template({ **(self.env or {}), **(self.config.env or {}) })
+        env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
         result = await self._run_command(self.config.command, working_dir, env, self.config.timeout)
         context.register_source("result", result)
 
-        return (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
     
     async def _run_command(self, command: List[str], working_dir: str, env: Dict[str, str], timeout: Optional[float]) -> Dict[str, Any]:
         process = await asyncio.create_subprocess_exec(

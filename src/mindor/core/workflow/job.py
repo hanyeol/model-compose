@@ -12,23 +12,23 @@ class Job:
         self.component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine] = component_provider
 
     async def run(self, context: WorkflowContext) -> Any:
-        component: ComponentEngine = self.component_provider(self.id, await context.render_template(self.config.component))
+        component: ComponentEngine = self.component_provider(self.id, await context.render_variable(self.config.component))
 
         if not component.started:
             await component.start()
 
-        input = (await context.render_template(self.config.input)) if self.config.input else context.input
+        input = (await context.render_variable(self.config.input)) if self.config.input else context.input
         outputs = []
 
         async def _run_once():
             call_id = ulid.ulid()
-            output = await component.run(await context.render_template(self.config.action), call_id, input)
+            output = await component.run(await context.render_variable(self.config.action), call_id, input)
             context.register_source("output", output)
 
-            output = (await context.render_template(self.config.output, ignore_files=True)) if self.config.output else output
+            output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
             outputs.append(output)
 
-        repeat_count = (await context.render_template(self.config.repeat_count)) if self.config.repeat_count else None
+        repeat_count = (await context.render_variable(self.config.repeat_count)) if self.config.repeat_count else None
         await asyncio.gather(*[ _run_once() for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None

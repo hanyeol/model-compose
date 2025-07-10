@@ -4,12 +4,12 @@ from .engine import GatewayEngine, GatewayEngineMap
 
 GatewayInstances: Dict[str, GatewayEngine] = {}
 
-def create_gateway(id: str, config: GatewayConfig, env: Dict[str, str], daemon: bool) -> GatewayEngine:
+def create_gateway(id: str, config: GatewayConfig, daemon: bool) -> GatewayEngine:
     try:
         gateway = GatewayInstances[id] if id in GatewayInstances else None
 
         if not gateway:
-            gateway = GatewayEngineMap[config.type](id, config, env, daemon)
+            gateway = GatewayEngineMap[config.type](id, config, daemon)
             GatewayInstances[id] = gateway
 
         return gateway

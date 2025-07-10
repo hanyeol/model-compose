@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 
 from mindor.dsl.schema.listener import HttpCallbackListenerConfig, HttpCallbackConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
-from mindor.core.utils.template import TemplateRenderer
+from mindor.core.utils.renderer import VariableRenderer
 from .base import ListenerEngine, ListenerType, ListenerEngineMap
 
 from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
@@ -19,13 +19,13 @@ class HttpCallbackContext:
         self.query: Optional[Dict[str, str]] = query
         self.bulk: bool = bulk
         self.item: Optional[str] = item
-        self.renderer: TemplateRenderer = TemplateRenderer(self._resolve_source)
+        self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
 
     async def items(self) -> AsyncIterator["HttpCallbackContext"]:
         for item in await self._items():
             yield HttpCallbackContext(item, self.query, False, None)
 
-    async def render_template(self, template: str, ignore_files: bool = True) -> Any:
+    async def render_variable(self, template: str, ignore_files: bool = True) -> Any:
         return await self.renderer.render(template, ignore_files)
 
     async def _items(self) -> List[Any]:
@@ -46,8 +46,8 @@ class HttpCallbackContext:
         raise KeyError(f"Unknown source: {key}")
 
 class HttpCallbackListener(ListenerEngine):
-    def __init__(self, id: str, config: HttpCallbackListenerConfig, env: Dict[str, str], daemon: bool):
-        super().__init__(id, config, env, daemon)
+    def __init__(self, id: str, config: HttpCallbackListenerConfig, daemon: bool):
+        super().__init__(id, config, daemon)
         
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
@@ -73,12 +73,12 @@ class HttpCallbackListener(ListenerEngine):
             succeeded = await self._is_callback_succeeded(callback, context)
 
             async for item in context.items():
-                callback_id = await item.render_template(callback.identify_by)
+                callback_id = await item.render_variable(callback.identify_by)
                 future: asyncio.Future = self._get_pending_future(callback_id)
 
                 if future:
                     if succeeded:
-                        future.set_result((await item.render_template(callback.result, ignore_files=True)) if callback.result else item.body)
+                        future.set_result((await item.render_variable(callback.result, ignore_files=True)) if callback.result else item.body)
                     else:
                         future.set_exception(RuntimeError(f"Task failed for '{callback_id}'"))
                     self._remove_pending_future(callback_id)
@@ -88,7 +88,7 @@ class HttpCallbackListener(ListenerEngine):
         return _handler
 
     async def _is_callback_succeeded(self, callback: HttpCallbackConfig, context: HttpCallbackContext) -> bool:
-        status = (await context.render_template(callback.status)) if callback.status else None
+        status = (await context.render_variable(callback.status)) if callback.status else None
 
         if status:
             if status in callback.success_when or []:

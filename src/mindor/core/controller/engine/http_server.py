@@ -46,10 +46,9 @@ class HttpServerController(ControllerEngine):
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig],
-        env: Dict[str, str],
         daemon: bool
     ):
-        super().__init__(config, components, listeners, gateways, workflows, env, daemon)
+        super().__init__(config, components, listeners, gateways, workflows, daemon)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)

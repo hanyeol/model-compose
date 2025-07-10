@@ -41,9 +41,9 @@ def up_command(
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            config = load_compose_config(".", config_files)
             env = load_env_files(".", env_files or [])
-            await launch_services(config, detach, env)
+            config = load_compose_config(".", config_files, env)
+            await launch_services(config, detach)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -68,9 +68,9 @@ def down_command(
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            config = load_compose_config(".", config_files)
             env = load_env_files(".", env_files or [])
-            await shutdown_services(config, env)
+            config = load_compose_config(".", config_files, env)
+            await shutdown_services(config)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -95,9 +95,9 @@ def start_command(
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            config = load_compose_config(".", config_files)
             env = load_env_files(".", env_files or [])
-            await start_services(config, env)
+            config = load_compose_config(".", config_files, env)
+            await start_services(config)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -122,9 +122,9 @@ def stop_command(
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            config = load_compose_config(".", config_files)
             env = load_env_files(".", env_files or [])
-            await stop_services(config, env)
+            config = load_compose_config(".", config_files, env)
+            await stop_services(config)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -158,10 +158,10 @@ def run_command(
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            config = load_compose_config(".", config_files)
             env = load_env_files(".", env_files or [])
+            config = load_compose_config(".", config_files, env)
             input = json.loads(input_json) if input_json else {}
-            state = await run_workflow(config, workflow, input, env)
+            state = await run_workflow(config, workflow, input)
             click.echo(json.dumps(
                 state.error if state.error else state.output, 
                 indent=2, 

@@ -4,8 +4,8 @@ from .base import ComponentEngine, ComponentType, ComponentEngineMap, ActionConf
 from .context import ComponentContext
 
 class McpServerComponent(ComponentEngine):
-    def __init__(self, id: str, config: McpServerComponentConfig, env: Dict[str, str], daemon: bool):
-        super().__init__(id, config, env, daemon)
+    def __init__(self, id: str, config: McpServerComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
     async def _serve(self) -> None:
         pass

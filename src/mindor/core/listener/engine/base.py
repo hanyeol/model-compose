@@ -4,12 +4,11 @@ from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
 
 class ListenerEngine(AsyncService):
-    def __init__(self, id: str, config: ListenerConfig, env: Dict[str, str], daemon: bool):
+    def __init__(self, id: str, config: ListenerConfig, daemon: bool):
         super().__init__(daemon)
 
         self.id: str = id
         self.config: ListenerConfig = config
-        self.env: Dict[str, str] = env
         self.queue: Optional[WorkQueue] = None
 
         # if self.config.max_concurrent_count > 0:

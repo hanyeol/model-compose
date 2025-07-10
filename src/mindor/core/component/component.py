@@ -27,12 +27,12 @@ class ComponentResolver:
 
         return default_ids[0] if default_ids else "__default__"
 
-def create_component(id: str, config: ComponentConfig, env: Dict[str, str], daemon: bool) -> ComponentEngine:
+def create_component(id: str, config: ComponentConfig, daemon: bool) -> ComponentEngine:
     try:
         component = ComponentInstances[id] if id in ComponentInstances else None
 
         if not component:
-            component = ComponentEngineMap[config.type](id, config, env, daemon)
+            component = ComponentEngineMap[config.type](id, config, daemon)
             ComponentInstances[id] = component
 
         return component

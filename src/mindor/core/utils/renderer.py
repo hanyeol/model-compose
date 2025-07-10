@@ -4,9 +4,9 @@ from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
 from .http_client import HttpClient
 from starlette.datastructures import UploadFile
-import re, json, base64, os
+import re, json, base64
 
-class TemplateRenderer:
+class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str], Awaitable[Any]]):
         self.source_resolver: Callable[[str], Awaitable[Any]] = source_resolver
         self.patterns: Dict[str, re.Pattern] = {
@@ -39,13 +39,10 @@ class TemplateRenderer:
         return element
 
     async def _render_text(self, text: str, ignore_files: bool) -> Any:
-        while True:
-            m = self.patterns["variable"].search(text)
-            
-            if not m:
-                break
+        matches = list(self.patterns["variable"].finditer(text))
 
-            key, path, type, subtype, format, default, variable = (*m.group(1, 2, 3, 4, 5, 6), m.group(0))
+        for m in reversed(matches):
+            key, path, type, subtype, format, default, matched_text = (*m.group(1, 2, 3, 4, 5, 6), m.group(0))
             try:
                 value = self._resolve_by_path(await self.source_resolver(key), path)
             except Exception:
@@ -57,10 +54,11 @@ class TemplateRenderer:
             if type and value is not None:
                 value = await self._convert_value_to_type(value, type, subtype, format, ignore_files)
 
-            if variable == text:
+            if matched_text == text:
                 return value
 
-            text = text.replace(variable, str(value))
+            start, end = m.span()
+            text = text[:start] + str(value) + text[end:]
 
         return text
 

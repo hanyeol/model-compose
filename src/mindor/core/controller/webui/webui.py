@@ -18,7 +18,6 @@ class ControllerWebUI(AsyncService):
         controller: ControllerConfig,
         components: Dict[str, ComponentConfig],
         workflows: Dict[str, WorkflowConfig],
-        env: Dict[str, str],
         daemon: bool
     ):
         super().__init__(daemon)
@@ -27,7 +26,6 @@ class ControllerWebUI(AsyncService):
         self.controller: ControllerConfig = controller
         self.components: Dict[str, ComponentConfig] = components
         self.workflows: Dict[str, WorkflowConfig] = workflows
-        self.env: Dict[str, str] = env
         self.schema = create_workflow_schema(self.workflows, self.components)
 
         self.server: Optional[uvicorn.Server] = None

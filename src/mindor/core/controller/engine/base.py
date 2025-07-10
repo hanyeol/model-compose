@@ -33,7 +33,6 @@ class ControllerEngine(AsyncService):
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig],
-        env: Dict[str, str],
         daemon: bool
     ):
         super().__init__(daemon)
@@ -43,7 +42,6 @@ class ControllerEngine(AsyncService):
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.workflows: Dict[str, WorkflowConfig] = workflows
-        self.env: Dict[str, str] = env
         self.queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
@@ -129,7 +127,7 @@ class ControllerEngine(AsyncService):
             self.task_states.set(task_id, state)
         
         try:
-            workflow = create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components, self.env)
+            workflow = create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
             output = await workflow.run(task_id, input)
             state = TaskState(task_id=task_id, status="completed", output=output)
         except Exception as e:
@@ -141,18 +139,18 @@ class ControllerEngine(AsyncService):
         return state
 
     def _create_components(self) -> List[ComponentEngine]:
-        return [ create_component(component_id, config, self.env, self.daemon) for component_id, config in self.components.items() ]
+        return [ create_component(component_id, config, self.daemon) for component_id, config in self.components.items() ]
     
     def _create_listeners(self) -> List[ListenerEngine]:
-        return [ create_listener(f"listener-{index}", config, self.env, self.daemon) for index, config in enumerate(self.listeners) ]
+        return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
     
     def _create_gateways(self) -> List[GatewayEngine]:
-        return [ create_gateway(f"gateway-{index}", config, self.env, self.daemon) for index, config in enumerate(self.gateways) ]
+        return [ create_gateway(f"gateway-{index}", config, self.daemon) for index, config in enumerate(self.gateways) ]
     
     def _create_webui(self) -> ControllerWebUI:
-        return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.env, self.daemon)
+        return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
     def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
-        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components, self.env)
+        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
 
 ControllerEngineMap: Dict[ControllerType, Type[ControllerEngine]] = {}

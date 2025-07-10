@@ -4,12 +4,12 @@ from .engine import ListenerEngine, ListenerEngineMap
 
 ListenerInstances: Dict[str, ListenerEngine] = {}
 
-def create_listener(id: str, config: ListenerConfig, env: Dict[str, str], daemon: bool) -> ListenerEngine:
+def create_listener(id: str, config: ListenerConfig, daemon: bool) -> ListenerEngine:
     try:
         listener = ListenerInstances[id] if id in ListenerInstances else None
 
         if not listener:
-            listener = ListenerEngineMap[config.type](id, config, env, daemon)
+            listener = ListenerEngineMap[config.type](id, config, daemon)
             ListenerInstances[id] = listener
 
         return listener

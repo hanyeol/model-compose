@@ -7,13 +7,16 @@ from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
 from mindor.core.utils.time import parse_duration
 from .base import ComponentEngine, ComponentType, ComponentEngineMap
-from .context import ComponentContext
+from .context import ComponentActionContext
 from datetime import datetime, timezone
 import asyncio
 
 class HttpClientCompletion(ABC):
+    def __init__(self, config: HttpClientCompletionConfig):
+        self.config: HttpClientCompletionConfig = config
+
     @abstractmethod
-    async def run(self, context: ComponentContext) -> Any:
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         pass
 
     @abstractmethod
@@ -21,18 +24,12 @@ class HttpClientCompletion(ABC):
         pass
 
 class HttpClientPollingCompletion(HttpClientCompletion):
-    def __init__(self, config: HttpClientCompletionConfig, base_url: Optional[str], headers: Optional[Dict[str, str]]):
-        self.config: HttpClientCompletionConfig = config
-        self.base_url: Optional[str] = base_url
-        self.headers: Optional[Dict[str, str]] = headers
-        self.client: HttpClient = HttpClient()
-
-    async def run(self, context: ComponentContext) -> Any:
-        url     = await self._resolve_request_url(context)
-        method  = await context.render_variable(self.config.method)
-        params  = await context.render_variable(self.config.params)
-        body    = await context.render_variable(self.config.body)
-        headers = await context.render_variable({ **self.headers, **self.config.headers })
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
+        url_or_path = await self._resolve_url_or_path(context)
+        method      = await context.render_variable(self.config.method)
+        params      = await context.render_variable(self.config.params)
+        body        = await context.render_variable(self.config.body)
+        headers     = await context.render_variable(self.config.headers)
 
         interval = parse_duration(self.config.interval) if self.config.interval else 5.0
         timeout  = parse_duration(self.config.timeout) if self.config.timeout else 300
@@ -41,7 +38,7 @@ class HttpClientPollingCompletion(HttpClientCompletion):
         await asyncio.sleep(interval.total_seconds())
 
         while datetime.now(timezone.utc) < deadline:
-            response, status_code = await self.client.request(url, method, params, body, headers, raise_on_error=False)
+            response, status_code = await client.request(url_or_path, method, params, body, headers, raise_on_error=False)
             context.register_source("result", response)
 
             status = (await context.render_variable(self.config.status)) if self.config.status else None
@@ -63,20 +60,14 @@ class HttpClientPollingCompletion(HttpClientCompletion):
 
         raise TimeoutError(f"Polling timed out after {timeout}.")
 
-    async def close(self) -> None:
-        await self.client.close()
-
-    async def _resolve_request_url(self, context: ComponentContext) -> str:
-        if self.base_url and self.config.path:
-            return await context.render_variable(self.base_url) + await context.render_variable(self.config.path)
+    async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
+        if self.config.path:
+            return await context.render_variable(self.config.path)
 
         return await context.render_variable(self.config.endpoint)
 
 class HttpClientCallbackCompletion(HttpClientCompletion):
-    def __init__(self, config: HttpClientCompletionConfig):
-        self.config: HttpClientCompletionConfig = config
-
-    async def run(self, context: ComponentContext) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         callback_id = await context.render_variable(self.config.wait_for)
         future: asyncio.Future = asyncio.get_event_loop().create_future()
         HttpCallbackListener.register_pending_future(callback_id, future)
@@ -87,10 +78,8 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
         pass
 
 class HttpClientAction:
-    def __init__(self, config: HttpClientActionConfig, base_url: Optional[str], headers: Optional[Dict[str, str]]):
+    def __init__(self, config: HttpClientActionConfig):
         self.config: HttpClientActionConfig = config
-        self.base_url: Optional[str] = base_url
-        self.headers: Optional[Dict[str, str]] = headers
         self.completion: HttpClientCompletion = None
 
         if self.config.completion:
@@ -98,7 +87,7 @@ class HttpClientAction:
 
     def _configure_completion(self) -> None:
         if self.config.completion.type == "polling":
-            self.completion = HttpClientPollingCompletion(self.config.completion, self.base_url, self.headers)
+            self.completion = HttpClientPollingCompletion(self.config.completion)
             return
         
         if self.config.completion.type == "callback":
@@ -107,18 +96,18 @@ class HttpClientAction:
         
         raise ValueError(f"Unsupported http completion type: {self.config.completion.type}")
 
-    async def run(self, context: ComponentContext, client: HttpClient) -> Any:
-        url     = await self._resolve_request_url(context)
-        method  = await context.render_variable(self.config.method)
-        params  = await context.render_variable(self.config.params)
-        body    = await context.render_variable(self.config.body)
-        headers = await context.render_variable({ **self.headers, **self.config.headers })
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
+        url_or_path = await self._resolve_url_or_path(context)
+        method      = await context.render_variable(self.config.method)
+        params      = await context.render_variable(self.config.params)
+        body        = await context.render_variable(self.config.body)
+        headers     = await context.render_variable(self.config.headers)
 
-        response, result = await client.request(url, method, params, body, headers), None
+        response, result = await client.request(url_or_path, method, params, body, headers), None
         context.register_source("response", response)
 
         if self.completion:
-            result = await self.completion.run(context)
+            result = await self.completion.run(context, client)
             context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else (result or response)
@@ -127,9 +116,9 @@ class HttpClientAction:
         if self.completion:
             await self.completion.close()
 
-    async def _resolve_request_url(self, context: ComponentContext) -> str:
-        if self.base_url and self.config.path:
-            return await context.render_variable(self.base_url) + await context.render_variable(self.config.path)
+    async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
+        if self.config.path:
+            return await context.render_variable(self.config.path)
 
         return await context.render_variable(self.config.endpoint)
 
@@ -140,13 +129,13 @@ class HttpClientComponent(ComponentEngine):
         self.client: HttpClient = None
 
     async def _serve(self) -> None:
-        self.client = HttpClient()
+        self.client = HttpClient(self.config.base_url, self.config.headers)
 
     async def _shutdown(self) -> None:
         await self.client.close()
         self.client = None
 
-    async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
-        return await HttpClientAction(action, self.config.base_url, self.config.headers).run(context, self.client)
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        return await HttpClientAction(action).run(context, self.client)
 
 ComponentEngineMap[ComponentType.HTTP_CLIENT] = HttpClientComponent

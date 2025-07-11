@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
-from .context import ComponentContext
+from .context import ComponentActionContext
 
 class ActionResolver:
     def __init__(self, actions: Dict[str, ActionConfig]):
@@ -43,7 +43,7 @@ class ComponentEngine(AsyncService):
 
     async def run(self, action_id: Union[str, None], call_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentContext(call_id, input)
+        context = ComponentActionContext(call_id, input)
 
         if self.queue:
             return await (await self.queue.schedule(action, context))
@@ -63,7 +63,7 @@ class ComponentEngine(AsyncService):
         await super()._stop()
 
     @abstractmethod
-    async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 ComponentEngineMap: Dict[ComponentType, Type[ComponentEngine]] = {}

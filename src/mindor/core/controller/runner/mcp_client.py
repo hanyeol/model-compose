@@ -13,14 +13,16 @@ class McpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
         super().__init__(config)
 
-        url = f"http://localhost:{self.config.port}{self.config.base_path or ''}"
-        self.client: McpClient = McpClient(url)
+        self.client: McpClient = McpClient(self._resolve_controller_url())
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
         return await self._call_tool(workflow_id, input, workflow)
 
     async def close(self) -> None:
         await self.client.close()
+
+    def _resolve_controller_url(self) -> str:
+        return f"http://localhost:{self.config.port}{self.config.base_path or ''}"
 
     async def _call_tool(self, name: str, arguments: Optional[Dict[str, Any]], workflow: WorkflowSchema) -> Any:
         contents = await self.client.call_tool(name, arguments)

@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from .base import ComponentEngine, ComponentType, ComponentEngineMap, ActionConfig
-from .context import ComponentContext
+from .context import ComponentActionContext
 from asyncio.subprocess import Process
 import asyncio, os
 
@@ -12,7 +12,7 @@ class ShellAction:
         self.base_dir: Optional[str] = base_dir
         self.env: Optional[Dict[str, str]] = env
 
-    async def run(self, context: ComponentContext) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         working_dir = await self._resolve_working_directory()
         env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
@@ -74,7 +74,7 @@ class ShellComponent(ComponentEngine):
     async def _shutdown(self) -> None:
         pass
 
-    async def _run(self, action: ActionConfig, context: ComponentContext) -> Any:
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ShellAction(action, self.config.base_dir, self.config.env).run(context)
 
 ComponentEngineMap[ComponentType.SHELL] = ShellComponent

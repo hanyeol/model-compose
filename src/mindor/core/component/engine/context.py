@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.core.utils.renderer import VariableRenderer
 from mindor.core.gateway import find_gateway_by_port
 
-class ComponentContext:
+class ComponentActionContext:
     def __init__(self, call_id: str, input: Dict[str, Any]):
         self.call_id: str = call_id
         self.input: Dict[str, Any] = input
@@ -16,9 +16,9 @@ class ComponentContext:
     async def render_variable(self, data: Dict[str, Any], ignore_files: bool = False) -> Any:
         return await self.renderer.render(data, ignore_files)
 
-    async def _resolve_source(self, key: str) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:
-            return self.sources[key]
+            return self.sources[key][index] if index is not None else self.sources[key]
         if key == "input":
             return self.input
         if key == "context":

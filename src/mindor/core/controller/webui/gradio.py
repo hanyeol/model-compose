@@ -44,7 +44,7 @@ class GradioWebUIBuilder:
             output_components = [ self._build_output_component(variable) for variable in workflow.output ]
 
             if not output_components:
-                output_components = gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True)
+                output_components = [ gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True) ]
 
             async def _run_workflow(*args):
                 input = await self._build_input_value(args, workflow.input)

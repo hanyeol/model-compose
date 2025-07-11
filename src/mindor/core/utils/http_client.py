@@ -35,11 +35,11 @@ class HttpClient:
     def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
-        self.session = aiohttp.ClientSession(self.base_url, headers=self.headers)
+        self.session = aiohttp.ClientSession(self.base_url.rstrip("/") + "/" if self.base_url else None, headers=self.headers)
 
     async def __aenter__(self):
-        if self.session is not None:
-            self.session = aiohttp.ClientSession(self.base_url, headers=self.headers)
+        if not self.session:
+            self.session = aiohttp.ClientSession(self.base_url.rstrip("/") + "/" if self.base_url else None, headers=self.headers)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -99,7 +99,7 @@ class HttpClient:
             headers = CaseInsensitiveDict(headers)
             headers.pop("Content-Type", None)
 
-        return await session.request(method, url_or_path, params=params, data=data, headers=headers)
+        return await session.request(method, url_or_path.lstrip("/"), params=params, data=data, headers=headers)
 
     def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(headers, "Content-Type")

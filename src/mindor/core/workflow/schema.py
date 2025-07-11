@@ -41,7 +41,7 @@ class WorkflowVariableResolver:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\s]*))                                     # key: input, env, etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*))(?:\[([0-9]+)\])?                  # key: input, result[0], etc.
                     (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
@@ -61,7 +61,7 @@ class WorkflowVariableResolver:
             variables: List[WorkflowVariable] = []
 
             for m in self.patterns["variable"].finditer(value):
-                key, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7)
+                key, index, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8)
 
                 if type and default:
                     default = self._parse_value_as_type(default, type)
@@ -98,7 +98,7 @@ class WorkflowVariableResolver:
         
         if isinstance(value, str):
             for m in self.patterns["variable"].finditer(value):
-                key, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7)
+                key, index, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8)
 
                 if type and default:
                     default = self._parse_value_as_type(default, type)

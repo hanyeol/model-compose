@@ -38,7 +38,7 @@ class HttpCallbackContext:
 
         return [ item ]
 
-    async def _resolve_source(self, key: str) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key == "body" or key == "item":
             return self.body
         if key == "query":

@@ -7,12 +7,12 @@ from starlette.datastructures import UploadFile
 import re, json, base64
 
 class VariableRenderer:
-    def __init__(self, source_resolver: Callable[[str], Awaitable[Any]]):
-        self.source_resolver: Callable[[str], Awaitable[Any]] = source_resolver
+    def __init__(self, source_resolver: Callable[[str, Optional[int]], Awaitable[Any]]):
+        self.source_resolver: Callable[[str, Optional[int]], Awaitable[Any]] = source_resolver
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\s]*))                                     # key: input, env, etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*))(?:\[([0-9]+)\])?                  # key: input, result[0], etc.
                     (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
@@ -42,9 +42,11 @@ class VariableRenderer:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
-            key, path, type, subtype, format, default, matched_text = (*m.group(1, 2, 3, 4, 5, 6), m.group(0))
+            key, index, path, type, subtype, format, default, matched_text = (*m.group(1, 2, 3, 4, 5, 6, 7), m.group(0))
+            index = int(index) if index else None
+
             try:
-                value = self._resolve_by_path(await self.source_resolver(key), path)
+                value = self._resolve_by_path(await self.source_resolver(key, index), path)
             except Exception:
                 value = None
 

@@ -9,11 +9,9 @@ class HttpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
         super().__init__(config)
 
-        self.client: HttpClient = HttpClient()
+        self.client: HttpClient = HttpClient(self._resolve_controller_url())
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
-        url = f"http://localhost:{self.config.port}{self.config.base_path or ''}/workflows"
-        method = "POST"
         body = {
             "workflow_id": workflow_id,
             "input": input,
@@ -30,11 +28,14 @@ class HttpControllerClient(ControllerClient):
                 "Content-Type": "multipart/form-data"
             }
 
-        return await self.client.request(url, method, None, body, headers)
+        return await self.client.request("/workflows", "POST", None, body, headers)
 
     async def close(self) -> None:
         await self.client.close()
 
+    def _resolve_controller_url(self) -> str:
+        return f"http://localhost:{self.config.port}{self.config.base_path or ''}"
+    
     def _flatten_for_multipart(self, body: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
         flattened = []
 

@@ -13,10 +13,10 @@ class McpClientAction():
         tool      = await context.render_variable(self.config.tool)
         arguments = await context.render_variable(self.config.arguments)
 
-        result = [ await self._convert_output_value(content) for content in await client.call_tool(tool, arguments) ]
-        context.register_source("result", result)
+        response = [ await self._convert_output_value(content) for content in await client.call_tool(tool, arguments) ]
+        context.register_source("response", response)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else response
     
     async def close(self) -> None:
         pass

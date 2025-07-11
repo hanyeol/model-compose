@@ -36,10 +36,10 @@ class HttpControllerClient(ControllerClient):
     def _resolve_controller_url(self) -> str:
         return f"http://localhost:{self.config.port}{self.config.base_path or ''}"
     
-    def _flatten_for_multipart(self, body: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
+    def _flatten_for_multipart(self, data: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
         flattened = []
 
-        for subkey, value in body.items():
+        for subkey, value in data.items():
             full_key = f"{key}[{subkey}]" if key else subkey
 
             if isinstance(value, dict):

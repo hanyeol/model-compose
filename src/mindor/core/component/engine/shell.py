@@ -65,8 +65,8 @@ class ShellAction:
         return working_dir
 
 class ShellComponent(ComponentEngine):
-    def __init__(self, id: str, config: ShellComponentConfig, env: Dict[str, str], daemon: bool):
-        super().__init__(id, config, env, daemon)
+    def __init__(self, id: str, config: ShellComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
     async def _serve(self) -> None:
         pass

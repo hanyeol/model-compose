@@ -35,11 +35,11 @@ class HttpClient:
     def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
-        self.session = aiohttp.ClientSession(self.base_url.rstrip("/") + "/" if self.base_url else None, headers=self.headers)
+        self.session: aiohttp.ClientSession = self._create_session(self.base_url)
 
     async def __aenter__(self):
         if not self.session:
-            self.session = aiohttp.ClientSession(self.base_url.rstrip("/") + "/" if self.base_url else None, headers=self.headers)
+            self.session = self._create_session(self.base_url)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -56,7 +56,7 @@ class HttpClient:
     ) -> Union[Any, Tuple[Any, int]]:
         response: aiohttp.ClientResponse = None
         try:
-            response = await self._request_with_session(self.session, url_or_path, method, params, body, headers)
+            response = await self._request_with_session(self.session, url_or_path, method, params, body, { **(self.headers or {}), **(headers or {})})
             content, _ = await self._parse_response_content(response)
 
             if raise_on_error and response.status >= 400:
@@ -84,6 +84,9 @@ class HttpClient:
         finally:
             await instance.close()
     
+    def _create_session(self, base_url: Optional[str]) -> aiohttp.ClientSession:
+        return aiohttp.ClientSession(base_url.rstrip("/") + "/" if base_url else None)
+
     async def _request_with_session(
         self,
         session: aiohttp.ClientSession,

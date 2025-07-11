@@ -19,10 +19,6 @@ class HttpClientCompletion(ABC):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         pass
 
-    @abstractmethod
-    async def close(self) -> None:
-        pass
-
 class HttpClientPollingCompletion(HttpClientCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         url_or_path = await self._resolve_url_or_path(context)
@@ -73,9 +69,6 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
         HttpCallbackListener.register_pending_future(callback_id, future)
 
         return await future
-    
-    async def close(self) -> None:
-        pass
 
 class HttpClientAction:
     def __init__(self, config: HttpClientActionConfig):
@@ -111,10 +104,6 @@ class HttpClientAction:
             context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else (result or response)
-
-    async def close(self) -> None:
-        if self.completion:
-            await self.completion.close()
 
     async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
         if self.config.path:

@@ -17,9 +17,6 @@ class McpClientAction():
         context.register_source("response", response)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else response
-    
-    async def close(self) -> None:
-        pass
 
     async def _convert_output_value(self, content: ContentBlock) -> Any:
         if isinstance(content, TextContent):

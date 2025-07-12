@@ -4,7 +4,7 @@ from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
-from mindor.core.utils.http_client import HttpClient
+from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
 import gradio as gr
 import json
@@ -184,7 +184,7 @@ class GradioWebUIBuilder:
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await load_image_from_stream(await HttpClient.request_once(value), subtype)
+            return await load_image_from_stream(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value, subtype)
@@ -196,7 +196,7 @@ class GradioWebUIBuilder:
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await HttpClient.request_once(value), subtype)
+            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

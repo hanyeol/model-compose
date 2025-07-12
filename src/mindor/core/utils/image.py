@@ -10,5 +10,5 @@ async def load_image_from_stream(stream: StreamResource, extension: Optional[str
             async for chunk in stream:
                 data.extend(chunk)
             return PILImage.open(io.BytesIO(data))
-    except Exception:
+    except Exception as e:
         return None

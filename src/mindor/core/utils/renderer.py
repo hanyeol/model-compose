@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Optional, Awaitable, Any
 from .streaming import StreamResource, Base64StreamResource
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
-from .http_client import HttpClient
+from .http_client import create_stream_with_url
 from starlette.datastructures import UploadFile
 import re, json, base64
 
@@ -128,7 +128,7 @@ class VariableRenderer:
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await HttpClient.request_once(value), subtype)
+            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

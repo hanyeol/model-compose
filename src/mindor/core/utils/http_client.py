@@ -32,6 +32,8 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpClient:
+    shared_instance: Optional["HttpClient"] = None
+
     def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
@@ -77,13 +79,19 @@ class HttpClient:
             self.session = None
 
     @classmethod
+    def get_shared_instance(cls) -> "HttpClient":
+        if not cls.shared_instance:
+            cls.shared_instance = HttpClient()
+        return cls.shared_instance
+    
+    @classmethod
     async def request_once(cls, *args, **kwargs):
         instance = cls()
         try:
             return await instance.request(*args, **kwargs)
         finally:
             await instance.close()
-    
+
     def _create_session(self, base_url: Optional[str]) -> aiohttp.ClientSession:
         return aiohttp.ClientSession(base_url.rstrip("/") + "/" if base_url else None)
 
@@ -125,3 +133,6 @@ class HttpClient:
         filename = disposition.get("filename")
 
         return (HttpStreamResource(response, content_type, filename), content_type)
+
+async def create_stream_with_url(url: str):
+    return await HttpClient.get_shared_instance().request(url)

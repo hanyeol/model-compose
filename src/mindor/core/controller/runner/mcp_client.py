@@ -4,7 +4,7 @@ from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
 from mindor.core.utils.streaming import StreamResource, FileStreamResource, Base64StreamResource
 from mindor.core.utils.streaming import encode_stream_to_base64
-from mindor.core.utils.http_client import HttpClient
+from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
 from .runner import ControllerClient
 import json, os
@@ -59,7 +59,7 @@ class McpControllerClient(ControllerClient):
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await load_image_from_stream(await HttpClient.request_once(value), subtype)
+            return await load_image_from_stream(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value, subtype)

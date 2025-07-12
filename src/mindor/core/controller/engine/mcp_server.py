@@ -7,7 +7,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
-from mindor.core.utils.http_client import HttpClient
+from mindor.core.utils.http_client import create_stream_with_url
 from .base import ControllerEngine, ControllerType, ControllerEngineMap, TaskState
 from mcp.server.fastmcp.server import FastMCP
 from mcp.types import TextContent, ImageContent, AudioContent
@@ -83,7 +83,7 @@ class WorkflowToolGenerator():
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await HttpClient.request_once(value), subtype)
+            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

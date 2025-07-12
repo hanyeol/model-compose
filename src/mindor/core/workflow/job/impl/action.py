@@ -1,18 +1,16 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.workflow import JobConfig
+from mindor.dsl.schema.job import ActionJobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
-from mindor.core.component import ComponentEngine
-from .context import WorkflowContext
+from mindor.core.component import ComponentEngine, ComponentResolver, create_component
+from .base import Job, JobMap, WorkflowContext
 import asyncio, ulid
 
-class Job:
-    def __init__(self, id: str, config: JobConfig, component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine]):
-        self.id: str = id
-        self.config: JobConfig = config
-        self.component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine] = component_provider
+class ActionJob(Job):
+    def __init__(self, id: str, config: ActionJobConfig, components: Dict[str, ComponentConfig]):
+        super().__init__(id, config, components)
 
     async def run(self, context: WorkflowContext) -> Any:
-        component: ComponentEngine = self.component_provider(self.id, await context.render_variable(self.config.component))
+        component: ComponentEngine = self._create_component(self.id, await context.render_variable(self.config.component))
 
         if not component.started:
             await component.start()
@@ -35,3 +33,14 @@ class Job:
         context.register_source("output", output)
 
         return output
+
+    def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentEngine:
+        return create_component(*self._resolve_component(id, component), daemon=False)
+
+    def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
+        if isinstance(component, str):
+            return ComponentResolver(self.components).resolve(component)
+    
+        return id, component
+
+JobMap[JobType.ACTION] = ActionJob

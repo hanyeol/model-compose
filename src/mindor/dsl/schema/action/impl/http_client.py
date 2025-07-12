@@ -11,9 +11,9 @@ class PollingCompletionConfig(CommonCompletionConfig):
     endpoint: Optional[str] = None
     path: Optional[str] = None
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = "GET"
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict)
-    body: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    params: Optional[Dict[str, str]] = Field(default_factory=dict)
+    headers: Dict[str, str] = Field(default_factory=dict)
+    body: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, str] = Field(default_factory=dict)
     status: Optional[str] = None
     success_when: Optional[List[Union[int, str]]] = None
     fail_when: Optional[List[Union[int, str]]] = None
@@ -49,9 +49,9 @@ class HttpClientActionConfig(CommonActionConfig):
     endpoint: Optional[str] = None
     path: Optional[str] = None
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = "POST"
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict)
-    body: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    params: Optional[Dict[str, str]] = Field(default_factory=dict)
+    headers: Dict[str, str] = Field(default_factory=dict)
+    body: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, str] = Field(default_factory=dict)
     completion: Optional[HttpClientCompletionConfig] = None
 
     @model_validator(mode="before")

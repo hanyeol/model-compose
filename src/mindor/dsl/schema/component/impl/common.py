@@ -5,7 +5,7 @@ from .types import ComponentType
 
 class CommonComponentConfig(BaseModel):
     type: ComponentType
-    runtime: Literal[ "docker", "native" ] = "native"
-    max_concurrent_count: int = 1
-    default: bool = False
-    actions: Optional[Dict[str, CommonActionConfig]] = Field(default_factory=dict)
+    runtime: Literal[ "docker", "native" ] = Field(default="native")
+    max_concurrent_count: int = Field(default=1)
+    default: bool = Field(default=False)
+    actions: Dict[str, CommonActionConfig] = Field(default_factory=dict)

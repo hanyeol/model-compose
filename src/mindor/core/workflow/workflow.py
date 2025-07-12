@@ -3,7 +3,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentEngine, ComponentResolver, create_component
 from .context import WorkflowContext
-from .job import Job
+from .job import Job, create_job
 import asyncio
 
 class JobGraphValidator:
@@ -74,12 +74,12 @@ class WorkflowResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class WorkflowRunner:
-    def __init__(self, jobs: Dict[str, JobConfig], component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine]):
+    def __init__(self, jobs: Dict[str, JobConfig], components: Dict[str, ComponentConfig]):
         self.jobs: Dict[str, JobConfig] = jobs
-        self.component_provider: Callable[[str, Union[ComponentConfig, str]], ComponentEngine] = component_provider
+        self.components: Dict[str, ComponentConfig] = components
 
     async def run(self, context: WorkflowContext) -> Any:
-        pending_jobs: Dict[str, Job] = { job_id: Job(job_id, job, self.component_provider) for job_id, job in self.jobs.items() }
+        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.components) for job_id, job in self.jobs.items() }
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
@@ -131,21 +131,12 @@ class Workflow:
 
     async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
         context = WorkflowContext(task_id, input)
-        runner = WorkflowRunner(self.config.jobs, self._create_component)
+        runner = WorkflowRunner(self.config.jobs, self.components)
 
         return await runner.run(context)
 
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()
-
-    def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentEngine:
-        return create_component(*self._resolve_component(id, component), daemon=False)
-
-    def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
-        if isinstance(component, str):
-            return ComponentResolver(self.components).resolve(component)
-    
-        return id, component
 
 def create_workflow(id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig]) -> Workflow:
     return Workflow(id, config, components)

@@ -27,8 +27,8 @@ class HttpClientPollingCompletion(HttpClientCompletion):
         body        = await context.render_variable(self.config.body)
         headers     = await context.render_variable(self.config.headers)
 
-        interval = parse_duration(self.config.interval) if self.config.interval else 5.0
-        timeout  = parse_duration(self.config.timeout) if self.config.timeout else 300
+        interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
+        timeout  = parse_duration((await context.render_variable(self.config.timeout)) or 300.0)
         deadline = datetime.now(timezone.utc) + timeout
 
         await asyncio.sleep(interval.total_seconds())

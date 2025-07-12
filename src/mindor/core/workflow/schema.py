@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.dsl.schema.job import ActionJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 import re, json
 
@@ -154,6 +155,9 @@ class WorkflowVariableResolver:
 
         if variable.type in [ "image", "audio", "video", "file", "select" ] and variable.subtype:
             config_dict["options"] = variable.subtype.split(",")
+        
+        if variable.annotations is None:
+            config_dict["annotations"] = []
 
         return WorkflowVariableConfig(**config_dict)
 
@@ -192,7 +196,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
         variables: List[WorkflowVariable] = []
 
         for job in workflow.jobs.values():
-            if not job.input or job.input == "${input}":
+            if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
                 action_id = job.action or "__default__"
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
@@ -205,10 +209,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                     if action:
                         variables.extend(self._enumerate_input_variables(action, "input", internal=True))
             else:
-                variables.extend(self._enumerate_input_variables(job.input, "input"))
-
-            for value in [ job.component, job.action, job.repeat_count ]:
-                variables.extend(self._enumerate_input_variables(value, "input"))
+                variables.extend(self._enumerate_input_variables(job, "input"))
 
         return self._to_variable_config_list(variables)
 
@@ -226,7 +227,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             if repeat_count != 1:
                 variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
-            if not job.output or job.output == "${output}":
+            if isinstance(job, ActionJobConfig) and (not job.output or job.output == "${output}"):
                 action_id = job.action or "__default__"
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None

@@ -23,10 +23,10 @@ class HttpCallbackConfig(BaseModel):
 
 class HttpCallbackListenerConfig(CommonListenerConfig):
     type: Literal[ListenerType.HTTP_CALLBACK]
-    host: Optional[str] = "0.0.0.0"
-    port: Optional[int] = 8090
-    base_path: Optional[str] = None
-    callbacks: Optional[List[HttpCallbackConfig]] = Field(default_factory=list)
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=8090)
+    base_path: Optional[str] = Field(default=None)
+    callbacks: List[HttpCallbackConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_callback(cls, values: Dict[str, Any]):

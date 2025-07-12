@@ -6,4 +6,4 @@ from .common import ComponentType, CommonComponentConfig
 
 class McpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_SERVER]
-    actions: Optional[Dict[str, McpServerActionConfig]] = Field(default_factory=dict)
+    actions: Dict[str, McpServerActionConfig] = Field(default_factory=dict)

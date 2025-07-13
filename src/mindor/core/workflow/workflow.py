@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
-from mindor.core.component import ComponentEngine, ComponentResolver, create_component
 from .context import WorkflowContext
 from .job import Job, create_job
 import asyncio
@@ -130,8 +129,8 @@ class Workflow:
         self.components: Dict[str, ComponentConfig] = components
 
     async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
-        context = WorkflowContext(task_id, input)
         runner = WorkflowRunner(self.config.jobs, self.components)
+        context = WorkflowContext(task_id, input)
 
         return await runner.run(context)
 

@@ -5,4 +5,5 @@ class ComponentType(str, Enum):
     HTTP_CLIENT = "http-client"
     MCP_SERVER  = "mcp-server"
     MCP_CLIENT  = "mcp-client"
+    WORKFLOW    = "workflow"
     SHELL       = "shell"

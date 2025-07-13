@@ -150,7 +150,4 @@ class ControllerEngine(AsyncService):
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
-    def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
-        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
-
 ControllerEngineMap: Dict[ControllerType, Type[ControllerEngine]] = {}

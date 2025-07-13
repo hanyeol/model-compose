@@ -7,7 +7,9 @@ ActionConfig = Annotated[
         HttpServerActionConfig,
         HttpClientActionConfig,
         McpServerActionConfig,
-        McpClientActionConfig
+        McpClientActionConfig,
+        WorkflowActionConfig,
+        ShellActionConfig
     ],
     Field(discriminator="type")
 ]

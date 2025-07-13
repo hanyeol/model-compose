@@ -5,27 +5,27 @@ from pydantic import model_validator, field_validator
 from .common import JobType, CommonJobConfig
 from datetime import datetime
 
-class WaitJobType(str, Enum):
+class DelayJobMode(str, Enum):
     TIME_INTERVAL = "time-interval"
     SPECIFIC_TIME = "specific-time"
 
-class CommonWaitJobConfig(CommonJobConfig):
-    type: Literal[JobType.WAIT]
-    mode: WaitJobType
+class CommonDelayJobConfig(CommonJobConfig):
+    type: Literal[JobType.DELAY]
+    mode: DelayJobMode
 
-class TimeIntervalWaitJobConfig(CommonWaitJobConfig):
-    mode: Literal[WaitJobType.TIME_INTERVAL]
+class TimeIntervalDelayJobConfig(CommonDelayJobConfig):
+    mode: Literal[DelayJobMode.TIME_INTERVAL]
     duration: Union[str, float, int] = Field(..., description="Time to wait before continuing.")
 
-class SpecificTimeWaitJobConfig(CommonWaitJobConfig):
-    mode: Literal[WaitJobType.SPECIFIC_TIME]
+class SpecificTimeDelayJobConfig(CommonDelayJobConfig):
+    mode: Literal[DelayJobMode.SPECIFIC_TIME]
     time: Union[datetime, str] = Field(..., description="Specific date and time to wait until.")
     timezone: Optional[str] = Field(default=None, description="")
 
-WaitJobConfig = Annotated[
+DelayJobConfig = Annotated[
     Union[ 
-        TimeIntervalWaitJobConfig,
-        SpecificTimeWaitJobConfig
+        TimeIntervalDelayJobConfig,
+        SpecificTimeDelayJobConfig
     ],
     Field(discriminator="mode")
 ]

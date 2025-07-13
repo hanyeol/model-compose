@@ -5,7 +5,7 @@ from .impl import *
 JobConfig = Annotated[
     Union[ 
         ActionJobConfig,
-        WaitJobConfig
+        DelayJobConfig
     ],
     Field(discriminator="type")
 ]

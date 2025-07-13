@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.gateway import GatewayConfig
-from .engine import GatewayEngine, GatewayEngineMap
+from .base import GatewayEngine, GatewayRegistry
 
 GatewayInstances: Dict[str, GatewayEngine] = {}
 
@@ -9,7 +9,9 @@ def create_gateway(id: str, config: GatewayConfig, daemon: bool) -> GatewayEngin
         gateway = GatewayInstances[id] if id in GatewayInstances else None
 
         if not gateway:
-            gateway = GatewayEngineMap[config.type](id, config, daemon)
+            if not GatewayRegistry:
+                from . import engine
+            gateway = GatewayRegistry[config.type](id, config, daemon)
             GatewayInstances[id] = gateway
 
         return gateway

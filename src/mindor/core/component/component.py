@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ComponentConfig
-from .engine import ComponentEngine, ComponentEngineMap
+from .base import ComponentEngine, ComponentRegistry
 
 ComponentInstances: Dict[str, ComponentEngine] = {}
 
@@ -32,7 +32,9 @@ def create_component(id: str, config: ComponentConfig, daemon: bool) -> Componen
         component = ComponentInstances[id] if id in ComponentInstances else None
 
         if not component:
-            component = ComponentEngineMap[config.type](id, config, daemon)
+            if not ComponentRegistry:
+                from . import engine
+            component = ComponentRegistry[config.type](id, config, daemon)
             ComponentInstances[id] = component
 
         return component

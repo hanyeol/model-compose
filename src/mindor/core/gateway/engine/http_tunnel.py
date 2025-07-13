@@ -1,8 +1,9 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig
-from .base import GatewayEngine, GatewayType, GatewayEngineMap
+from ..base import GatewayEngine, GatewayType, register_gateway
 from pyngrok import ngrok
 
+@register_gateway(GatewayType.HTTP_TUNNEL)
 class HttpTunnelGateway(GatewayEngine):
     def __init__(self, id: str, config: HttpTunnelGatewayConfig, daemon: bool):
         super().__init__(id, config, daemon)
@@ -29,5 +30,3 @@ class HttpTunnelGateway(GatewayEngine):
                 self.tunnel = None
                 self.public_url = None
             return
-  
-GatewayEngineMap[GatewayType.HTTP_TUNNEL] = HttpTunnelGateway

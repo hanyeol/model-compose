@@ -1,2 +1,2 @@
 from .gateway import *
-from .engine import HttpTunnelGateway
+from .engine import HttpTunnelGateway, SshTunnelGateway

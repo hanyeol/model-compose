@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
-from .base import ComponentEngine, ComponentType, ComponentEngineMap, ActionConfig
-from .context import ComponentActionContext
+from ..base import ComponentEngine, ComponentType, ActionConfig, register_component
+from ..context import ComponentActionContext
 from asyncio.subprocess import Process
 import asyncio, os
 
@@ -64,6 +64,7 @@ class ShellAction:
             working_dir = self.base_dir or os.getcwd()
         return working_dir
 
+@register_component(ComponentType.SHELL)
 class ShellComponent(ComponentEngine):
     def __init__(self, id: str, config: ShellComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
@@ -76,5 +77,3 @@ class ShellComponent(ComponentEngine):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ShellAction(action, self.config.base_dir, self.config.env).run(context)
-
-ComponentEngineMap[ComponentType.SHELL] = ShellComponent

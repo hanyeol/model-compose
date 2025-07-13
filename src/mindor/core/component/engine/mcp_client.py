@@ -2,8 +2,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import McpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpClientActionConfig
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
-from .base import ComponentEngine, ComponentType, ComponentEngineMap, ActionConfig
-from .context import ComponentActionContext
+from ..base import ComponentEngine, ComponentType, ActionConfig, register_component
+from ..context import ComponentActionContext
 
 class McpClientAction():
     def __init__(self, config: McpClientActionConfig):
@@ -27,6 +27,7 @@ class McpClientAction():
 
         return None
 
+@register_component(ComponentType.MCP_CLIENT)
 class McpClientComponent(ComponentEngine):
     def __init__(self, id: str, config: McpClientComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
@@ -40,5 +41,3 @@ class McpClientComponent(ComponentEngine):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await McpClientAction(action).run(context, self.client)
-
-ComponentEngineMap[ComponentType.MCP_CLIENT] = McpClientComponent

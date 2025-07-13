@@ -1,6 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.services import AsyncService
@@ -66,4 +65,10 @@ class ComponentEngine(AsyncService):
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-ComponentEngineMap: Dict[ComponentType, Type[ComponentEngine]] = {}
+def register_component(type: ComponentType):
+    def decorator(cls: Type[ComponentEngine]) -> Type[ComponentEngine]:
+        ComponentRegistry[type] = cls
+        return cls
+    return decorator
+
+ComponentRegistry: Dict[ComponentType, Type[ComponentEngine]] = {}

@@ -8,7 +8,7 @@ from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_client import create_stream_with_url
-from .base import ControllerEngine, ControllerType, ControllerEngineMap, TaskState
+from ..base import ControllerEngine, ControllerType, TaskState, register_controller
 from mcp.server.fastmcp.server import FastMCP
 from mcp.types import TextContent, ImageContent, AudioContent
 import uvicorn, re, json
@@ -132,6 +132,7 @@ class WorkflowToolGenerator():
 
         return "str"
 
+@register_controller(ControllerType.MCP_SERVER)
 class McpServerController(ControllerEngine):
     def __init__(
         self,
@@ -180,5 +181,3 @@ class McpServerController(ControllerEngine):
     async def _shutdown(self) -> None:
         if self.server:
             self.server.should_exit = True
-
-ControllerEngineMap[ControllerType.MCP_SERVER] = McpServerController

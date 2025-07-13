@@ -127,7 +127,7 @@ class ControllerEngine(AsyncService):
             self.task_states.set(task_id, state)
         
         try:
-            workflow = create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
+            workflow = self._create_workflow(workflow_id)
             output = await workflow.run(task_id, input)
             state = TaskState(task_id=task_id, status="completed", output=output)
         except Exception as e:
@@ -150,4 +150,13 @@ class ControllerEngine(AsyncService):
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
-ControllerEngineMap: Dict[ControllerType, Type[ControllerEngine]] = {}
+    def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
+        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
+
+def register_controller(type: ControllerType):
+    def decorator(cls: Type[ControllerEngine]) -> Type[ControllerEngine]:
+        ControllerRegistry[type] = cls
+        return cls
+    return decorator
+
+ControllerRegistry: Dict[ControllerType, Type[ControllerEngine]] = {}

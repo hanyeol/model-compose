@@ -2,10 +2,11 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.job import DelayJobConfig, DelayJobMode
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.utils.time import parse_duration, parse_datetime
-from .base import Job, JobType, JobMap, WorkflowContext
+from ..base import Job, JobType, WorkflowContext, register_job
 from datetime import datetime
 import asyncio
 
+@register_job(JobType.DELAY)
 class DelayJob(Job):
     def __init__(self, id: str, config: DelayJobConfig, components: Dict[str, ComponentConfig]):
         super().__init__(id, config, components)
@@ -39,5 +40,3 @@ class DelayJob(Job):
             await asyncio.sleep(duration)
 
         return None
-
-JobMap[JobType.DELAY] = DelayJob

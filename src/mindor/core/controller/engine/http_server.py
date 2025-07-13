@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from typing_extensions import Self
 from pydantic import BaseModel
-
 from mindor.dsl.schema.controller import HttpServerControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
@@ -9,8 +8,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.streaming import StreamResource
-from .base import ControllerEngine, ControllerType, ControllerEngineMap, TaskState
-
+from ..base import ControllerEngine, ControllerType, TaskState, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -38,6 +36,7 @@ class TaskResult(BaseModel):
             error=instance.error
         )
 
+@register_controller(ControllerType.HTTP_SERVER)
 class HttpServerController(ControllerEngine):
     def __init__(
         self,
@@ -160,5 +159,3 @@ class HttpServerController(ControllerEngine):
             headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
         return headers
-
-ControllerEngineMap[ControllerType.HTTP_SERVER] = HttpServerController

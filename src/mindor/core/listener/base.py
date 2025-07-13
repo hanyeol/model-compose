@@ -26,4 +26,10 @@ class ListenerEngine(AsyncService):
 
         await super()._stop()
 
-ListenerEngineMap: Dict[ListenerType, Type[ListenerEngine]] = {}
+def register_listener(type: ListenerType):
+    def decorator(cls: Type[ListenerEngine]) -> Type[ListenerEngine]:
+        ListenerRegistry[type] = cls
+        return cls
+    return decorator
+
+ListenerRegistry: Dict[ListenerType, Type[ListenerEngine]] = {}

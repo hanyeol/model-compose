@@ -2,9 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.job import ActionJobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentEngine, ComponentResolver, create_component
-from .base import Job, JobMap, WorkflowContext
+from ..base import Job, JobType, WorkflowContext, register_job
 import asyncio, ulid
 
+@register_job(JobType.ACTION)
 class ActionJob(Job):
     def __init__(self, id: str, config: ActionJobConfig, components: Dict[str, ComponentConfig]):
         super().__init__(id, config, components)
@@ -42,5 +43,3 @@ class ActionJob(Job):
             return ComponentResolver(self.components).resolve(component)
     
         return id, component
-
-JobMap[JobType.ACTION] = ActionJob

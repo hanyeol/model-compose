@@ -14,4 +14,10 @@ class Job(ABC):
     async def run(self, context: WorkflowContext) -> Any:
         pass
 
-JobMap: Dict[JobType, Type[Job]] = {}
+def register_job(type: JobType):
+    def decorator(cls: Type[Job]) -> Type[Job]:
+        JobRegistry[type] = cls
+        return cls
+    return decorator
+
+JobRegistry: Dict[JobType, Type[Job]] = {}

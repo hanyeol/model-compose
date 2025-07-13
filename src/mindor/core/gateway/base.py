@@ -14,4 +14,10 @@ class GatewayEngine(AsyncService):
     def get_context(self) -> Dict[str, Any]:
         pass
 
-GatewayEngineMap: Dict[GatewayType, Type[GatewayEngine]] = {}
+def register_gateway(type: GatewayType):
+    def decorator(cls: Type[GatewayEngine]) -> Type[GatewayEngine]:
+        GatewayRegistry[type] = cls
+        return cls
+    return decorator
+
+GatewayRegistry: Dict[GatewayType, Type[GatewayEngine]] = {}

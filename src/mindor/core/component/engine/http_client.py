@@ -39,9 +39,9 @@ class HttpClientPollingCompletion(HttpClientCompletion):
 
             status = (await context.render_variable(self.config.status)) if self.config.status else None
             if status:
-                if status in self.config.success_when or []:
+                if status in (self.config.success_when or []):
                     return response
-                if status in self.config.fail_when or []:
+                if status in (self.config.fail_when or []):
                     raise RuntimeError(f"Polling failed: status '{status}' matched a failure condition.")
             else: # use status code
                 if is_status_code_matched(status_code, self.config.success_when or []):

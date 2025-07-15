@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
-from ..base import ComponentEngine, ComponentType, ActionConfig, register_component
+from ..base import ComponentEngine, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from asyncio.subprocess import Process
 import asyncio, os
@@ -66,8 +66,8 @@ class ShellAction:
 
 @register_component(ComponentType.SHELL)
 class ShellComponent(ComponentEngine):
-    def __init__(self, id: str, config: ShellComponentConfig, daemon: bool):
-        super().__init__(id, config, daemon)
+    def __init__(self, id: str, config: ShellComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+        super().__init__(id, config, global_configs, daemon)
 
     async def _serve(self) -> None:
         pass

@@ -1,14 +1,14 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.job import ActionJobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
-from mindor.core.component import ComponentEngine, ComponentResolver, create_component
+from mindor.core.component import ComponentEngine, ComponentGlobalConfigs, ComponentResolver, create_component
 from ..base import Job, JobType, WorkflowContext, register_job
 import asyncio, ulid
 
 @register_job(JobType.ACTION)
 class ActionJob(Job):
-    def __init__(self, id: str, config: ActionJobConfig, components: Dict[str, ComponentConfig]):
-        super().__init__(id, config, components)
+    def __init__(self, id: str, config: ActionJobConfig, global_configs: ComponentGlobalConfigs):
+        super().__init__(id, config, global_configs)
 
     async def run(self, context: WorkflowContext) -> Any:
         component: ComponentEngine = self._create_component(self.id, await context.render_variable(self.config.component))
@@ -36,10 +36,10 @@ class ActionJob(Job):
         return output
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentEngine:
-        return create_component(*self._resolve_component(id, component), daemon=False)
+        return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)
 
     def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
         if isinstance(component, str):
-            return ComponentResolver(self.components).resolve(component)
+            return ComponentResolver(self.global_configs.components).resolve(component)
     
         return id, component

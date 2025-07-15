@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ComponentConfig
-from .base import ComponentEngine, ComponentRegistry
+from .base import ComponentEngine, ComponentGlobalConfigs, ComponentRegistry
 
 ComponentInstances: Dict[str, ComponentEngine] = {}
 
@@ -27,14 +27,14 @@ class ComponentResolver:
 
         return default_ids[0] if default_ids else "__default__"
 
-def create_component(id: str, config: ComponentConfig, daemon: bool) -> ComponentEngine:
+def create_component(id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool) -> ComponentEngine:
     try:
         component = ComponentInstances[id] if id in ComponentInstances else None
 
         if not component:
             if not ComponentRegistry:
                 from . import engine
-            component = ComponentRegistry[config.type](id, config, daemon)
+            component = ComponentRegistry[config.type](id, config, global_configs, daemon)
             ComponentInstances[id] = component
 
         return component

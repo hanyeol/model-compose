@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import McpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpClientActionConfig
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
-from ..base import ComponentEngine, ComponentType, ActionConfig, register_component
+from ..base import ComponentEngine, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 
 class McpClientAction():
@@ -29,8 +29,8 @@ class McpClientAction():
 
 @register_component(ComponentType.MCP_CLIENT)
 class McpClientComponent(ComponentEngine):
-    def __init__(self, id: str, config: McpClientComponentConfig, daemon: bool):
-        super().__init__(id, config, daemon)
+    def __init__(self, id: str, config: McpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+        super().__init__(id, config, global_configs, daemon)
 
     async def _serve(self) -> None:
         self.client = McpClient(self.config.url, self.config.headers)

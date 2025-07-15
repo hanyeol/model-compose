@@ -2,6 +2,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
+from mindor.dsl.schema.listener import ListenerConfig
+from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
 from .context import ComponentActionContext
@@ -29,12 +32,26 @@ class ActionResolver:
 
         return default_ids[0] if default_ids else "__default__"
 
+class ComponentGlobalConfigs:
+    def __init__(
+        self, 
+        components: Dict[str, ComponentConfig],
+        listeners: List[ListenerConfig],
+        gateways: List[GatewayConfig],
+        workflows: Dict[str, WorkflowConfig]
+    ):
+        self.components: Dict[str, ComponentConfig] = components
+        self.listeners: List[ListenerConfig] = listeners
+        self.gateways: List[GatewayConfig] = gateways
+        self.workflows: Dict[str, WorkflowConfig] = workflows
+
 class ComponentEngine(AsyncService):
-    def __init__(self, id: str, config: ComponentConfig, daemon: bool):
+    def __init__(self, id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(daemon)
 
         self.id: str = id
         self.config: ComponentConfig = config
+        self.global_configs: ComponentGlobalConfigs = global_configs
         self.queue: Optional[WorkQueue] = None
 
         if self.config.max_concurrent_count > 0:

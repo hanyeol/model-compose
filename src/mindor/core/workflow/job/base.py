@@ -2,13 +2,14 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.job import JobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
+from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.workflow.context import WorkflowContext
 
 class Job(ABC):
-    def __init__(self, id: str, config: JobConfig, components: Dict[str, ComponentConfig]):
+    def __init__(self, id: str, config: JobConfig, global_configs: ComponentGlobalConfigs):
         self.id: str = id
         self.config: JobConfig = config
-        self.components: Dict[str, ComponentConfig] = components
+        self.global_configs: ComponentGlobalConfigs = global_configs
 
     @abstractmethod
     async def run(self, context: WorkflowContext) -> Any:

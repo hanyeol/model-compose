@@ -7,7 +7,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
-from mindor.core.component import ComponentEngine, create_component
+from mindor.core.component import ComponentEngine, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerEngine, create_listener
 from mindor.core.gateway import GatewayEngine, create_gateway
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
@@ -144,7 +144,8 @@ class ControllerEngine(AsyncService):
         return state
 
     def _create_components(self) -> List[ComponentEngine]:
-        return [ create_component(component_id, config, self.daemon) for component_id, config in self.components.items() ]
+        global_configs = self._get_component_global_configs()
+        return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
     
     def _create_listeners(self) -> List[ListenerEngine]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
@@ -156,7 +157,11 @@ class ControllerEngine(AsyncService):
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
     def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
-        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), self.components)
+        global_configs = self._get_component_global_configs()
+        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
+
+    def _get_component_global_configs(self) -> ComponentGlobalConfigs:
+        return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)
 
 def register_controller(type: ControllerType):
     def decorator(cls: Type[ControllerEngine]) -> Type[ControllerEngine]:

@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
+from mindor.core.component import ComponentGlobalConfigs
 from .context import WorkflowContext
 from .job import Job, create_job
 import asyncio
@@ -73,12 +74,12 @@ class WorkflowResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class WorkflowRunner:
-    def __init__(self, jobs: Dict[str, JobConfig], components: Dict[str, ComponentConfig]):
+    def __init__(self, jobs: Dict[str, JobConfig], global_configs: ComponentGlobalConfigs):
         self.jobs: Dict[str, JobConfig] = jobs
-        self.components: Dict[str, ComponentConfig] = components
+        self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: WorkflowContext) -> Any:
-        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.components) for job_id, job in self.jobs.items() }
+        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() }
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
@@ -123,13 +124,13 @@ class WorkflowRunner:
         return all(job_id not in job.depends_on for other_id, job in self.jobs.items() if other_id != job_id)
 
 class Workflow:
-    def __init__(self, id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig]):
+    def __init__(self, id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs):
         self.id: str = id
         self.config: WorkflowConfig = config
-        self.components: Dict[str, ComponentConfig] = components
+        self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
-        runner = WorkflowRunner(self.config.jobs, self.components)
+        runner = WorkflowRunner(self.config.jobs, self.global_configs)
         context = WorkflowContext(task_id, input)
 
         return await runner.run(context)
@@ -137,5 +138,5 @@ class Workflow:
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()
 
-def create_workflow(id: str, config: WorkflowConfig, components: Dict[str, ComponentConfig]) -> Workflow:
-    return Workflow(id, config, components)
+def create_workflow(id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs) -> Workflow:
+    return Workflow(id, config, global_configs)

@@ -38,9 +38,6 @@ class HttpClientPollingCompletion(HttpClientCompletion):
             context.register_source("result", response)
 
             status = (await context.render_variable(self.config.status)) if self.config.status else None
-            if self.config.status and not status:
-                raise RuntimeError(f"Polling failed: no status found in response.")
-
             if status:
                 if status in self.config.success_when or []:
                     return response

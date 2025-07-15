@@ -1,5 +1,5 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
-from .streaming import StreamResource, Base64StreamResource
+from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
@@ -110,6 +110,8 @@ class VariableRenderer:
             return []
 
         if type == "base64":
+            if isinstance(value, UploadFile):
+                return await encode_stream_to_base64(UploadFileStreamResource(value))
             if isinstance(value, StreamResource):
                 return await encode_stream_to_base64(value)
             return base64.b64encode(value)

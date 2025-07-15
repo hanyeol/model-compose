@@ -134,5 +134,5 @@ class HttpClient:
 
         return (HttpStreamResource(response, content_type, filename), content_type)
 
-async def create_stream_with_url(url: str):
+async def create_stream_with_url(url: str) -> HttpStreamResource:
     return await HttpClient.get_shared_instance().request(url)

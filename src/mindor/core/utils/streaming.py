@@ -1,7 +1,7 @@
 from typing import Optional, AsyncIterator
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
-from aiofiles.threadpool.binary import AsyncBufferedReader
+from starlette.datastructures import UploadFile
 import aiofiles, os, io, base64
 
 class StreamResource(ABC):
@@ -45,6 +45,25 @@ class FileStreamResource(StreamResource):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         while True:
             chunk = await self.stream.read(8192)
+            if not chunk:
+                break
+            yield chunk
+
+class UploadFileStreamResource(StreamResource):
+    def __init__(self, file: UploadFile):
+        super().__init__(file.content_type, file.filename)
+
+        self.file: UploadFile = file
+
+    async def __aenter__(self):
+        return self
+
+    async def close(self) -> None:
+        await self.file.close()
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        while True:
+            chunk = await self.file.read(8192)
             if not chunk:
                 break
             yield chunk

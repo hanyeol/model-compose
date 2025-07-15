@@ -63,7 +63,7 @@ class HttpClientPollingCompletion(HttpClientCompletion):
         return await context.render_variable(self.config.endpoint)
 
 class HttpClientCallbackCompletion(HttpClientCompletion):
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         callback_id = await context.render_variable(self.config.wait_for)
         future: asyncio.Future = asyncio.get_event_loop().create_future()
         HttpCallbackListener.register_pending_future(callback_id, future)

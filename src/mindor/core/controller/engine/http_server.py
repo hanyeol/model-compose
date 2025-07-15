@@ -75,7 +75,7 @@ class HttpServerController(ControllerEngine):
             state = await self.run_workflow(body.workflow_id, body.input, body.wait_for_completion)
 
             if body.output_only and not body.wait_for_completion:
-                raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=True.")
+                raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
             
             if body.output_only:
                 return self._render_task_output(state)

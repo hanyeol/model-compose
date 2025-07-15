@@ -92,9 +92,9 @@ class HttpCallbackListener(ListenerEngine):
         status = (await context.render_variable(callback.status)) if callback.status else None
 
         if status:
-            if status in callback.success_when or []:
+            if status in (callback.success_when or []):
                 return True
-            if status in callback.fail_when or []:
+            if status in (callback.fail_when or []):
                 return False
 
         return True

@@ -11,7 +11,7 @@ class DelayJobMode(str, Enum):
 
 class CommonDelayJobConfig(CommonJobConfig):
     type: Literal[JobType.DELAY]
-    mode: DelayJobMode
+    mode: DelayJobMode = Field(..., description="")
 
 class TimeIntervalDelayJobConfig(CommonDelayJobConfig):
     mode: Literal[DelayJobMode.TIME_INTERVAL]

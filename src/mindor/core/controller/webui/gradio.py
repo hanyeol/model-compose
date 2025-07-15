@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
@@ -65,28 +65,28 @@ class GradioWebUIBuilder:
         info = variable.get_annotation_value("description") or ""
         default = variable.default
 
-        if variable.type == "string" or variable.format in [ "base64", "url" ]:
+        if variable.type == WorkflowVariableType.STRING or variable.format in [ WorkflowVariableFormat.BASE64, WorkflowVariableFormat.URL ]:
             return gr.Textbox(label=label, value="", info=info)
 
-        if variable.type in [ "integer", "number" ]:
+        if variable.type in [ WorkflowVariableType.INTEGER, WorkflowVariableType.NUMBER ]:
             return gr.Number(label=label, value="", info=info)
 
-        if variable.type == "boolean":
+        if variable.type == WorkflowVariableType.BOOLEAN:
             return gr.Checkbox(label=label, value=default or False, info=info)
         
-        if variable.type == "image":
+        if variable.type == WorkflowVariableType.IMAGE:
             return gr.Image(label=label, type="filepath")
 
-        if variable.type == "audio":
+        if variable.type == WorkflowVariableType.AUDIO:
             return gr.Audio(label=label, type="filepath")
 
-        if variable.type == "video":
+        if variable.type == WorkflowVariableType.VIDEO:
             return gr.Video(label=label, type="filepath")
 
-        if variable.type == "file":
+        if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label)
 
-        if variable.type == "select":
+        if variable.type == WorkflowVariableType.SELECT:
             return gr.Dropdown(choices=variable.options or [], label=label, value=default, info=info)
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
@@ -94,20 +94,18 @@ class GradioWebUIBuilder:
     async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
             value, variable = arguments[0], variables[0]
-            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            return await self._convert_input_value(value, type, subtype, format, variable.internal)
+            return await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
 
         input: Dict[str, Any] = {}
         for value, variable in zip(arguments, variables):
-            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            input[variable.name] = await self._convert_input_value(value, type, subtype, format, variable.internal)
+            input[variable.name] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
         return input
 
-    async def _convert_input_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
-        if type in [ "image", "audio", "video", "file" ] and (not internal or not format):
+    async def _convert_input_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
+        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not internal or not format):
             if internal and format and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
-            return create_upload_file(value, type, subtype)
+            return create_upload_file(value, type.value, subtype)
 
         return value if value != "" else None
 
@@ -124,22 +122,22 @@ class GradioWebUIBuilder:
         label = variable.name or ""
         info = variable.get_annotation_value("description") or ""
 
-        if variable.type in [ "string", "base64" ]:
+        if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.BASE64 ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
-        if variable.type == "markdown":
+        if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)
         
-        if variable.type in [ "json", "object[]" ]:
+        if variable.type in [ WorkflowVariableType.JSON, WorkflowVariableType.OBJECTS ]:
             return gr.JSON(label=label)
 
-        if variable.type == "image":
+        if variable.type == WorkflowVariableType.IMAGE:
             return gr.Image(label=label, interactive=False)
 
-        if variable.type == "audio":
+        if variable.type == WorkflowVariableType.AUDIO:
             return gr.Audio(label=label)
 
-        if variable.type == "video":
+        if variable.type == WorkflowVariableType.VIDEO:
             return gr.Video(label=label)
 
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
@@ -163,27 +161,26 @@ class GradioWebUIBuilder:
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
                 value = output[variable.name] if variable.name else output
-                type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-                flattened.append(await self._convert_output_value(value, type, subtype, format, variable.internal))
+                flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 
-    async def _convert_output_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], internal: bool) -> Any:
-        if type == "string":
+    async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
+        if type == WorkflowVariableType.STRING:
             return json.dumps(value) if isinstance(value, (dict, list)) else str(value)
 
-        if type == "image":
+        if type == WorkflowVariableType.IMAGE:
             return await self._load_image_from_value(value, subtype, format)
 
-        if type in [ "audio", "video" ]:
+        if type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO ]:
             return await self._save_value_to_temporary_file(value, subtype, format)
 
         return value
 
-    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
-        if format == "base64" and isinstance(value, str):
+    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 
-        if format == "url" and isinstance(value, str):
+        if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await load_image_from_stream(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
@@ -191,11 +188,11 @@ class GradioWebUIBuilder:
 
         return None
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
-        if format == "base64" and isinstance(value, str):
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
-        if format == "url" and isinstance(value, str):
+        if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):

@@ -3,7 +3,7 @@ from mindor.dsl.schema.controller import McpServerControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
-from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig
+from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
@@ -35,13 +35,12 @@ class WorkflowToolGenerator():
         input: Dict[str, Any] = {}
 
         for value, variable in zip(arguments, workflow.input):
-            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            input[variable.name or "input"] = await self._convert_input_value(value, type, subtype, format, variable.default)
+            input[variable.name or "input"] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.default)
 
         return input
 
-    async def _convert_input_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str], default: Optional[Any]) -> Any:
-        if type in [ "image", "audio", "video", "file" ]:
+    async def _convert_input_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], default: Optional[Any]) -> Any:
+        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
             if format and format != "path":
                 pass
 
@@ -53,23 +52,21 @@ class WorkflowToolGenerator():
         if state.output:
             if len(workflow.output) == 1 and not workflow.output[0].name:
                 variable = workflow.output[0]
-                type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-                output.append(await self._convert_output_value(state.output, type, subtype, format))
+                output.append(await self._convert_output_value(state.output, variable.type, variable.subtype, variable.format))
             else:
                 for variable in workflow.output:
-                    type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-                    output.append(await self._convert_output_value(state.output[variable.name], type, subtype, format))
+                    output.append(await self._convert_output_value(state.output[variable.name], variable.type, variable.subtype, variable.format))
 
         return output
 
-    async def _convert_output_value(self, value: Any, type: str, subtype: Optional[str], format: Optional[str]) -> Union[TextContent, ImageContent, AudioContent]:
-        if type in [ "image", "audio", "video", "file" ]:
-            if format == "base64" and len(value) < 1024 * 1024: # at most 1MB
-                if type == "image":
+    async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Union[TextContent, ImageContent, AudioContent]:
+        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
+            if format == WorkflowVariableFormat.BASE64 and len(value) < 1024 * 1024: # at most 1MB
+                if type == WorkflowVariableType.IMAGE:
                     return ImageContent(type="image", data=value, mimeType=f"{type}/{subtype}")
-                if type == "audio":
+                if type == WorkflowVariableType.AUDIO:
                     return AudioContent(type="audio", data=value, mimeType=f"{type}/{subtype}")
-            if not format or format not in [ "path", "url" ]:
+            if not format or format not in [ WorkflowVariableFormat.PATH, WorkflowVariableFormat.URL ]:
                 value = await self._save_value_to_temporary_file(value, subtype, format)
             return TextContent(type="text", text=value)
 
@@ -78,11 +75,11 @@ class WorkflowToolGenerator():
 
         return TextContent(type="text", text=str(value))
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
-        if format == "base64" and isinstance(value, str):
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
-        if format == "url" and isinstance(value, str):
+        if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):
@@ -119,15 +116,13 @@ class WorkflowToolGenerator():
         return "\n".join(lines)
 
     def _get_docstring_type(self, variable: WorkflowVariableConfig) -> str:
-        type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-
-        if type == "object[]":
+        if variable.type == WorkflowVariableType.OBJECTS:
             return "list[dict]"
 
-        if type == "number":
+        if variable.type == WorkflowVariableType.NUMBER:
             return "float"
 
-        if type == "integer":
+        if variable.type == WorkflowVariableType.INTEGER:
             return "int"
 
         return "str"

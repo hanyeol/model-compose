@@ -3,4 +3,4 @@ from pydantic import BaseModel, Field
 from .types import RuntimeType
 
 class CommonRumtimeConfig(BaseModel):
-    type: RuntimeType
+    type: RuntimeType = Field(..., description="")

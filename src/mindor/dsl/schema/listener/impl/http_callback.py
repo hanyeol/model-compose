@@ -5,14 +5,14 @@ from .common import ListenerType, CommonListenerConfig
 
 class HttpCallbackConfig(BaseModel):
     path: str
-    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = "POST"
-    bulk: bool = False
-    item: Optional[str] = None
-    identify_by: str
-    status: Optional[str] = None
-    success_when: Optional[List[str]] = None
-    fail_when: Optional[List[str]] = None
-    result: Optional[Any] = None
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST")
+    bulk: bool = Field(default=False)
+    item: Optional[str] = Field(default=None)
+    identify_by: str = Field(..., description="")
+    status: Optional[str] = Field(default=None)
+    success_when: Optional[List[str]] = Field(default=None)
+    fail_when: Optional[List[str]] = Field(default=None)
+    result: Optional[Any] = Field(default=None)
 
     @model_validator(mode="before")
     def normalize_status_fields(cls, values: Dict[str, Any]):

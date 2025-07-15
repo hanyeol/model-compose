@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.controller import ControllerConfig
-from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.core.workflow.schema import WorkflowSchema
 from .client import ControllerClient
 from .http_client import HttpControllerClient
@@ -27,11 +26,11 @@ class ControllerRunner:
         self._configure_client()
 
     def _configure_client(self) -> None:
-        if self.config.type == "http-server":
+        if self.config.type == ControllerType.HTTP_SERVER:
             self.client = HttpControllerClient(self.config)
             return
 
-        if self.config.type == "mcp-server":
+        if self.config.type == ControllerType.MCP_SERVER:
             self.client = McpControllerClient(self.config)
             return
 

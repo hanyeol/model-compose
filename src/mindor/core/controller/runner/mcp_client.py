@@ -1,5 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
 from mindor.core.utils.streaming import StreamResource, FileStreamResource, Base64StreamResource
@@ -29,23 +30,21 @@ class McpControllerClient(ControllerClient):
 
         if len(workflow.output) == 1 and not workflow.output[0].name:
             content, variable = contents[0], workflow.output[0]
-            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            return await self._convert_output_value(content, type, subtype, format)
+            return await self._convert_output_value(content, variable.type, variable.subtype, variable.format)
         
         output = {}
         for content, variable in zip(contents, workflow.output):
-            type, subtype, format = variable.type.value, variable.subtype, variable.format.value if variable.format else None
-            output[variable.name or "output"] = await self._convert_output_value(content, type, subtype, format)
+            output[variable.name or "output"] = await self._convert_output_value(content, variable.type, variable.subtype, variable.format)
         return output
 
-    async def _convert_output_value(self, content: ContentBlock, type: str, subtype: Optional[str], format: Optional[str]) -> Any:
+    async def _convert_output_value(self, content: ContentBlock, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Any:
         if isinstance(content, TextContent):
-            if type in [ "json", "object[]" ]:
+            if type in [ WorkflowVariableType.JSON, WorkflowVariableType.OBJECTS ]:
                 return json.loads(content.text)
-            if type in [ "image", "audio", "video", "file" ]:
+            if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
                 if not format and os.path.exists(content.text):
                     return FileStreamResource(content.text)
-                if format == "base64": # content.text is path
+                if format == WorkflowVariableFormat.BASE64: # content.text is path
                     return await encode_stream_to_base64(FileStreamResource(content.text))
             return content.text
 
@@ -54,11 +53,11 @@ class McpControllerClient(ControllerClient):
 
         return None
 
-    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
-        if format == "base64" and isinstance(value, str):
+    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 
-        if format == "url" and isinstance(value, str):
+        if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await load_image_from_stream(await create_stream_with_url(value), subtype)
 
         if isinstance(value, StreamResource):

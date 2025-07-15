@@ -4,5 +4,5 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class HttpServerActionConfig(CommonActionConfig):
-    path: Optional[str] = None
-    method: Literal["GET", "POST", "PUT", "DELETE", "PATCH"] = "POST"
+    path: Optional[str] = Field(default=None)
+    method: Literal["GET", "POST", "PUT", "DELETE", "PATCH"] = Field(default="POST")

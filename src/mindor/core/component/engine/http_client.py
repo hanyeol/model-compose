@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import HttpClientComponentConfig
-from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionConfig
+from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionType, HttpClientCompletionConfig
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
@@ -79,11 +79,11 @@ class HttpClientAction:
             self._configure_completion()
 
     def _configure_completion(self) -> None:
-        if self.config.completion.type == "polling":
+        if self.config.completion.type == HttpClientCompletionType.POLLING:
             self.completion = HttpClientPollingCompletion(self.config.completion)
             return
         
-        if self.config.completion.type == "callback":
+        if self.config.completion.type == HttpClientCompletionType.CALLBACK:
             self.completion = HttpClientCallbackCompletion(self.config.completion)
             return
         

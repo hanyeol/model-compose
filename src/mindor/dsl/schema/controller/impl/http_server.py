@@ -5,7 +5,7 @@ from .common import ControllerType, CommonControllerConfig
 
 class HttpServerControllerConfig(CommonControllerConfig):
     type: Literal[ControllerType.HTTP_SERVER]
-    host: Optional[str] = "0.0.0.0"
-    port: Optional[int] = 8080
-    base_path: Optional[str] = None
-    origins: Optional[str] = "*"
+    host: Optional[str] = Field(default="0.0.0.0")
+    port: Optional[int] = Field(default=8080)
+    base_path: Optional[str] = Field(default=None)
+    origins: Optional[str] = Field(default="*")

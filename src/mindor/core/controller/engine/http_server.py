@@ -8,7 +8,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.streaming import StreamResource
-from ..base import ControllerEngine, ControllerType, TaskState, register_controller
+from ..base import ControllerEngine, ControllerType, TaskState, TaskStatus, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -129,10 +129,10 @@ class HttpServerController(ControllerEngine):
         return JSONResponse(content=TaskResult.from_instance(state).model_dump(exclude_none=True))
 
     def _render_task_output(self, state: TaskState) -> Response:
-        if state.status in [ "pending", "processing" ]:
+        if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING ]:
             raise HTTPException(status_code=202, detail="Task is still in progress.")
 
-        if state.status == "failed":
+        if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
         if isinstance(state.output, StreamResource):

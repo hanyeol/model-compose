@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from enum import Enum
 from dataclasses import dataclass
-
 from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
@@ -14,14 +14,19 @@ from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.expiring import ExpiringDict
-
 from threading import Lock
 import asyncio, ulid
+
+class TaskStatus(str, Enum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    FAILED     = "failed" 
 
 @dataclass
 class TaskState:
     task_id: str
-    status: Literal[ "pending", "processing", "completed", "failed" ]
+    status: TaskStatus
     output: Optional[Any] = None
     error: Optional[Any] = None
 
@@ -51,7 +56,7 @@ class ControllerEngine(AsyncService):
 
     async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
         task_id = ulid.ulid()
-        state = TaskState(task_id=task_id, status="pending")
+        state = TaskState(task_id=task_id, status=TaskStatus.PENDING)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
 
@@ -122,16 +127,16 @@ class ControllerEngine(AsyncService):
         await asyncio.gather(*[ self._create_webui().stop() ])
 
     async def _run_workflow(self, task_id: str, workflow_id: Optional[str], input: Dict[str, Any]) -> TaskState:
-        state = TaskState(task_id=task_id, status="processing")
+        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
         
         try:
             workflow = self._create_workflow(workflow_id)
             output = await workflow.run(task_id, input)
-            state = TaskState(task_id=task_id, status="completed", output=output)
+            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, output=output)
         except Exception as e:
-            state = TaskState(task_id=task_id, status="failed", error=str(e))
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
 
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)

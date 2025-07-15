@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
-from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig
+from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig, HttpTunnelGatewayDriver
 from ..base import GatewayEngine, GatewayType, register_gateway
 from pyngrok import ngrok
 
@@ -18,13 +18,13 @@ class HttpTunnelGateway(GatewayEngine):
         }
 
     async def _serve(self) -> None:
-        if self.config.driver == "ngrok":
+        if self.config.driver == HttpTunnelGatewayDriver.NGROK:
             self.tunnel = ngrok.connect(addr=self.config.port, bind_tls=True)
             self.public_url = self.tunnel.public_url
             return
 
     async def _shutdown(self) -> None:
-        if self.config.driver == "ngrok":
+        if self.config.driver == HttpTunnelGatewayDriver.NGROK:
             if self.tunnel:
                 ngrok.disconnect(self.tunnel.public_url)
                 self.tunnel = None

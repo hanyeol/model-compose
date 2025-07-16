@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.dsl.schema.job import ActionJobConfig
-from mindor.dsl.schema.component import ComponentConfig
+from mindor.dsl.schema.component import ComponentConfig, ComponentType
 import re, json
 
 @dataclass
@@ -192,8 +192,11 @@ class WorkflowVariableResolver:
         return annotations
 
 class WorkflowInputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
-        variables: List[WorkflowVariable] = []
+    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
+        return self._to_variable_config_list(self._resolve(workflow, workflows, components))
+    
+    def _resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
+        variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         for job in workflow.jobs.values():
             if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
@@ -203,7 +206,13 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                     if component:
                         action = component.actions[action_id] if action_id in component.actions else None
                         if action:
-                            variables.extend(self._enumerate_input_variables(action, "input", internal=True))
+                            if component.type == ComponentType.WORKFLOW:
+                                sub_workflow_id = action.workflow or "__default__"
+                                sub_workflow = workflows[sub_workflow_id] if sub_workflow_id in workflows else None
+                                if sub_workflow:
+                                    variables.extend(self._resolve(sub_workflow, workflows, components))
+                            else:
+                                variables.extend(self._enumerate_input_variables(action, "input", internal=True))
                 else:
                     action = job.component.actions[action_id] if action_id in job.component.actions else None
                     if action:
@@ -211,10 +220,13 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
             else:
                 variables.extend(self._enumerate_input_variables(job, "input"))
 
-        return self._to_variable_config_list(variables)
+        return variables
 
 class WorkflowOutputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
+    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
+        return self._to_variable_config_list(self._resolve(workflow, workflows, components))
+
+    def _resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         for job_id, job in workflow.jobs.items():
@@ -234,7 +246,13 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                     if component:
                         action = component.actions[action_id] if action_id in component.actions else None
                         if action:
-                            job_variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
+                            if component.type == ComponentType.WORKFLOW:
+                                sub_workflow_id = action.workflow or "__default__"
+                                sub_workflow = workflows[sub_workflow_id] if sub_workflow_id in workflows else None
+                                if sub_workflow:
+                                    variables.extend(self._resolve(sub_workflow, workflows, components))
+                            else:
+                                job_variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
                 else:
                     action = job.component.actions[action_id] if action_id in job.component.actions else None
                     if action:
@@ -242,7 +260,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             else:
                 job_variables.extend(self._enumerate_output_variables(None, job.output))
 
-        return self._to_variable_config_list(variables)
+        return variables
 
     def _is_terminal_job(self, workflow: WorkflowConfig, job_id: str) -> bool:
         return all(job_id not in job.depends_on for other_id, job in workflow.jobs.items() if other_id != job_id)
@@ -270,8 +288,8 @@ def create_workflow_schema(workflows: Dict[str, WorkflowConfig], components: Dic
             name=workflow.name,
             title=workflow.title, 
             description=workflow.description,
-            input=WorkflowInputVariableResolver().resolve(workflow, components),
-            output=WorkflowOutputVariableResolver().resolve(workflow, components)
+            input=WorkflowInputVariableResolver().resolve(workflow, workflows, components),
+            output=WorkflowOutputVariableResolver().resolve(workflow, workflows, components)
         )
 
     return schema

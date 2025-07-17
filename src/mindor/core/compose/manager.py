@@ -3,7 +3,7 @@ from mindor.dsl.schema.compose import ComposeConfig
 from mindor.core.controller import ControllerEngine, TaskState, create_controller
 
 class ComposeManager:
-    def __init__(self, config: ComposeConfig, daemon: bool = True):
+    def __init__(self, config: ComposeConfig, daemon: bool):
         self.config: ComposeConfig = config
         self.controller: ControllerEngine = create_controller(
             self.config.controller,
@@ -14,21 +14,21 @@ class ComposeManager:
             daemon
         )
 
-    async def launch_services(self, detach: bool, background: bool = False):
-        await self.controller.start(background=background)
+    async def launch_services(self, detach: bool, verbose: bool):
+        await self.controller.start()
         await self.controller.wait_until_stopped()
 
     async def shutdown_services(self):
         await self.controller.stop()
 
-    async def start_services(self, background: bool = False):
-        await self.controller.start(background=background)
+    async def start_services(self, verbose: bool):
+        await self.controller.start()
         await self.controller.wait_until_stopped()
 
     async def stop_services(self):
         await self.controller.stop()
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any]) -> TaskState:
+    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], verbose: bool) -> TaskState:
         if not self.controller.started:
             await self.controller.start()
 

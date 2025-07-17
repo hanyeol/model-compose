@@ -31,19 +31,21 @@ def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable.",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def up_command(
     ctx: click.Context, 
     detach: bool,
     env_files: List[Path],
-    env_data: List[str]
+    env_data: List[str],
+    verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
-            await launch_services(config, detach)
+            await launch_services(config, detach, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -86,18 +88,20 @@ def down_command(
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable.",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def start_command(
     ctx: click.Context,
     env_files: List[Path],
     env_data: List[str],
+    verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
-            await start_services(config)
+            await start_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -147,6 +151,7 @@ def stop_command(
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable.",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def run_command(
     ctx: click.Context,
@@ -154,6 +159,7 @@ def run_command(
     input_json: Optional[str],
     env_files: List[Path],
     env_data: List[str],
+    verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
@@ -161,7 +167,7 @@ def run_command(
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
             input = json.loads(input_json) if input_json else {}
-            state = await run_workflow(config, workflow, input)
+            state = await run_workflow(config, workflow, input, verbose)
             click.echo(json.dumps(
                 state.error if state.error else state.output, 
                 indent=2, 

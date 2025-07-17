@@ -211,7 +211,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                 else:
                     action = job.component.actions[action_id] if action_id in job.component.actions else None
                     if action:
-                        variables.extend(self._resolve_component(component, action, workflows, components))
+                        variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
                 variables.extend(self._enumerate_input_variables(job, "input"))
 

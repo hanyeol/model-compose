@@ -10,7 +10,7 @@ def create_gateway(id: str, config: GatewayConfig, daemon: bool) -> GatewayServi
 
         if not gateway:
             if not GatewayRegistry:
-                from . import engine
+                from . import services
             gateway = GatewayRegistry[config.type](id, config, daemon)
             GatewayInstances[id] = gateway
 

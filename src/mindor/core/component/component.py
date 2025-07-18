@@ -33,7 +33,7 @@ def create_component(id: str, config: ComponentConfig, global_configs: Component
 
         if not component:
             if not ComponentRegistry:
-                from . import engine
+                from . import services
             component = ComponentRegistry[config.type](id, config, global_configs, daemon)
             ComponentInstances[id] = component
 

@@ -10,7 +10,7 @@ def create_listener(id: str, config: ListenerConfig, daemon: bool) -> ListenerSe
 
         if not listener:
             if not ListenerService:
-                from . import engine
+                from . import services
             listener = ListenerRegistry[config.type](id, config, daemon)
             ListenerInstances[id] = listener
 

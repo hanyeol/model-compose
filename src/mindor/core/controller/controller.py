@@ -16,7 +16,7 @@ def create_controller(
 ) -> ControllerService:
     try:
         if not ControllerRegistry:
-            from . import engine
+            from . import services
         return ControllerRegistry[config.type](config, components, listeners, gateways, workflows, daemon)
     except KeyError:
         raise ValueError(f"Unsupported controller type: {config.type}")

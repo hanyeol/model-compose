@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ComponentConfig
-from .base import ComponentEngine, ComponentGlobalConfigs, ComponentRegistry
+from .base import ComponentService, ComponentGlobalConfigs, ComponentRegistry
 
-ComponentInstances: Dict[str, ComponentEngine] = {}
+ComponentInstances: Dict[str, ComponentService] = {}
 
 class ComponentResolver:
     def __init__(self, components: Dict[str, ComponentConfig]):
@@ -27,7 +27,7 @@ class ComponentResolver:
 
         return default_ids[0] if default_ids else "__default__"
 
-def create_component(id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool) -> ComponentEngine:
+def create_component(id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool) -> ComponentService:
     try:
         component = ComponentInstances[id] if id in ComponentInstances else None
 

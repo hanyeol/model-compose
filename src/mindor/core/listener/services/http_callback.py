@@ -3,7 +3,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.listener import HttpCallbackListenerConfig, HttpCallbackConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.renderer import VariableRenderer
-from ..base import ListenerEngine, ListenerType, register_listener
+from ..base import ListenerService, ListenerType, register_listener
 
 from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
 from fastapi.responses import Response, JSONResponse
@@ -46,7 +46,7 @@ class HttpCallbackContext:
         raise KeyError(f"Unknown source: {key}")
 
 @register_listener(ListenerType.HTTP_CALLBACK)
-class HttpCallbackListener(ListenerEngine):
+class HttpCallbackListener(ListenerService):
     def __init__(self, id: str, config: HttpCallbackListenerConfig, daemon: bool):
         super().__init__(id, config, daemon)
         

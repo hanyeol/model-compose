@@ -3,7 +3,7 @@ from mindor.dsl.schema.listener import ListenerConfig, ListenerType
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
 
-class ListenerEngine(AsyncService):
+class ListenerService(AsyncService):
     def __init__(self, id: str, config: ListenerConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -27,9 +27,9 @@ class ListenerEngine(AsyncService):
         await super()._stop()
 
 def register_listener(type: ListenerType):
-    def decorator(cls: Type[ListenerEngine]) -> Type[ListenerEngine]:
+    def decorator(cls: Type[ListenerService]) -> Type[ListenerService]:
         ListenerRegistry[type] = cls
         return cls
     return decorator
 
-ListenerRegistry: Dict[ListenerType, Type[ListenerEngine]] = {}
+ListenerRegistry: Dict[ListenerType, Type[ListenerService]] = {}

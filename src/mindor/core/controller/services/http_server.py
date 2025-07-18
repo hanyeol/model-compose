@@ -8,7 +8,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.streaming import StreamResource
-from ..base import ControllerEngine, ControllerType, TaskState, TaskStatus, register_controller
+from ..base import ControllerService, ControllerType, TaskState, TaskStatus, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -37,7 +37,7 @@ class TaskResult(BaseModel):
         )
 
 @register_controller(ControllerType.HTTP_SERVER)
-class HttpServerController(ControllerEngine):
+class HttpServerController(ControllerService):
     def __init__(
         self,
         config: HttpServerControllerConfig,

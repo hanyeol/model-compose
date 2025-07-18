@@ -1,10 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig, HttpTunnelGatewayDriver
-from ..base import GatewayEngine, GatewayType, register_gateway
+from ..base import GatewayService, GatewayType, register_gateway
 from pyngrok import ngrok
 
 @register_gateway(GatewayType.HTTP_TUNNEL)
-class HttpTunnelGateway(GatewayEngine):
+class HttpTunnelGateway(GatewayService):
     def __init__(self, id: str, config: HttpTunnelGatewayConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

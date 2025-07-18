@@ -1,15 +1,15 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.listener import ListenerConfig
-from .base import ListenerEngine, ListenerRegistry
+from .base import ListenerService, ListenerRegistry
 
-ListenerInstances: Dict[str, ListenerEngine] = {}
+ListenerInstances: Dict[str, ListenerService] = {}
 
-def create_listener(id: str, config: ListenerConfig, daemon: bool) -> ListenerEngine:
+def create_listener(id: str, config: ListenerConfig, daemon: bool) -> ListenerService:
     try:
         listener = ListenerInstances[id] if id in ListenerInstances else None
 
         if not listener:
-            if not ListenerEngine:
+            if not ListenerService:
                 from . import engine
             listener = ListenerRegistry[config.type](id, config, daemon)
             ListenerInstances[id] = listener

@@ -7,9 +7,9 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
-from mindor.core.component import ComponentEngine, ComponentGlobalConfigs, create_component
-from mindor.core.listener import ListenerEngine, create_listener
-from mindor.core.gateway import GatewayEngine, create_gateway
+from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
+from mindor.core.listener import ListenerService, create_listener
+from mindor.core.gateway import GatewayService, create_gateway
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
@@ -30,7 +30,7 @@ class TaskState:
     output: Optional[Any] = None
     error: Optional[Any] = None
 
-class ControllerEngine(AsyncService):
+class ControllerService(AsyncService):
     def __init__(
         self,
         config: ControllerConfig,
@@ -143,14 +143,14 @@ class ControllerEngine(AsyncService):
 
         return state
 
-    def _create_components(self) -> List[ComponentEngine]:
+    def _create_components(self) -> List[ComponentService]:
         global_configs = self._get_component_global_configs()
         return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
     
-    def _create_listeners(self) -> List[ListenerEngine]:
+    def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
     
-    def _create_gateways(self) -> List[GatewayEngine]:
+    def _create_gateways(self) -> List[GatewayService]:
         return [ create_gateway(f"gateway-{index}", config, self.daemon) for index, config in enumerate(self.gateways) ]
     
     def _create_webui(self) -> ControllerWebUI:
@@ -164,9 +164,9 @@ class ControllerEngine(AsyncService):
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)
 
 def register_controller(type: ControllerType):
-    def decorator(cls: Type[ControllerEngine]) -> Type[ControllerEngine]:
+    def decorator(cls: Type[ControllerService]) -> Type[ControllerService]:
         ControllerRegistry[type] = cls
         return cls
     return decorator
 
-ControllerRegistry: Dict[ControllerType, Type[ControllerEngine]] = {}
+ControllerRegistry: Dict[ControllerType, Type[ControllerService]] = {}

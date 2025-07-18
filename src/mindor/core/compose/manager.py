@@ -1,11 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.compose import ComposeConfig
-from mindor.core.controller import ControllerEngine, TaskState, create_controller
+from mindor.core.controller import ControllerService, TaskState, create_controller
 
 class ComposeManager:
     def __init__(self, config: ComposeConfig, daemon: bool):
         self.config: ComposeConfig = config
-        self.controller: ControllerEngine = create_controller(
+        self.controller: ControllerService = create_controller(
             self.config.controller,
             self.config.components,
             self.config.listeners,

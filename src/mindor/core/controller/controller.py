@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
-from .base import ControllerEngine, ControllerRegistry
+from .base import ControllerService, ControllerRegistry
 
 def create_controller(
     config: ControllerConfig, 
@@ -13,7 +13,7 @@ def create_controller(
     gateways: List[GatewayConfig],
     workflows: Dict[str, WorkflowConfig],
     daemon: bool
-) -> ControllerEngine:
+) -> ControllerService:
     try:
         if not ControllerRegistry:
             from . import engine

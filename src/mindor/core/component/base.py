@@ -45,7 +45,7 @@ class ComponentGlobalConfigs:
         self.gateways: List[GatewayConfig] = gateways
         self.workflows: Dict[str, WorkflowConfig] = workflows
 
-class ComponentEngine(AsyncService):
+class ComponentService(AsyncService):
     def __init__(self, id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(daemon)
 
@@ -83,9 +83,9 @@ class ComponentEngine(AsyncService):
         pass
 
 def register_component(type: ComponentType):
-    def decorator(cls: Type[ComponentEngine]) -> Type[ComponentEngine]:
+    def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:
         ComponentRegistry[type] = cls
         return cls
     return decorator
 
-ComponentRegistry: Dict[ComponentType, Type[ComponentEngine]] = {}
+ComponentRegistry: Dict[ComponentType, Type[ComponentService]] = {}

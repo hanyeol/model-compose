@@ -3,7 +3,7 @@ from mindor.dsl.schema.component import ComponentConfig, WorkflowComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WorkflowActionConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
-from ..base import ComponentEngine, ComponentType, ComponentGlobalConfigs, register_component
+from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio, os
 
@@ -26,7 +26,7 @@ class WorkflowAction:
         return create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
 
 @register_component(ComponentType.WORKFLOW)
-class WorkflowComponent(ComponentEngine):
+class WorkflowComponent(ComponentService):
     def __init__(self, id: str, config: WorkflowComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 

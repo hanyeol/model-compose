@@ -1,10 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig
-from ..base import GatewayEngine, GatewayType, register_gateway
+from ..base import GatewayService, GatewayType, register_gateway
 from pyngrok import ngrok
 
 @register_gateway(GatewayType.SSH_TUNNEL)
-class SshTunnelGateway(GatewayEngine):
+class SshTunnelGateway(GatewayService):
     def __init__(self, id: str, config: SshTunnelGatewayConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

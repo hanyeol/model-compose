@@ -6,7 +6,7 @@ from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
 from mindor.core.utils.time import parse_duration
-from ..base import ComponentEngine, ComponentType, ComponentGlobalConfigs, register_component
+from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone
 import asyncio
@@ -109,7 +109,7 @@ class HttpClientAction:
         return await context.render_variable(self.config.endpoint)
 
 @register_component(ComponentType.HTTP_CLIENT)
-class HttpClientComponent(ComponentEngine):
+class HttpClientComponent(ComponentService):
     def __init__(self, id: str, config: HttpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 

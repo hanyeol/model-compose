@@ -3,7 +3,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.gateway import GatewayConfig, GatewayType
 from mindor.core.services import AsyncService
 
-class GatewayEngine(AsyncService):
+class GatewayService(AsyncService):
     def __init__(self, id: str, config: GatewayConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -15,9 +15,9 @@ class GatewayEngine(AsyncService):
         pass
 
 def register_gateway(type: GatewayType):
-    def decorator(cls: Type[GatewayEngine]) -> Type[GatewayEngine]:
+    def decorator(cls: Type[GatewayService]) -> Type[GatewayService]:
         GatewayRegistry[type] = cls
         return cls
     return decorator
 
-GatewayRegistry: Dict[GatewayType, Type[GatewayEngine]] = {}
+GatewayRegistry: Dict[GatewayType, Type[GatewayService]] = {}

@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.http_client import HttpClient
-from .runner import ControllerClient
+from .client import ControllerClient
 from starlette.datastructures import UploadFile
 
 class HttpControllerClient(ControllerClient):

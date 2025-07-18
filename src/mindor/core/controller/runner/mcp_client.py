@@ -7,7 +7,7 @@ from mindor.core.utils.streaming import StreamResource, FileStreamResource, Base
 from mindor.core.utils.streaming import encode_stream_to_base64
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
-from .runner import ControllerClient
+from .client import ControllerClient
 import json, os
 
 class McpControllerClient(ControllerClient):

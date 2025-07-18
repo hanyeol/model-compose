@@ -8,5 +8,9 @@ class ControllerClient(ABC):
         self.config: ControllerConfig = config
 
     @abstractmethod
-    async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
+    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
         pass

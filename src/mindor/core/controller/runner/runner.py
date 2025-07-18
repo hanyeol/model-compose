@@ -6,18 +6,6 @@ from .client import ControllerClient
 from .http_client import HttpControllerClient
 from .mcp_client import McpControllerClient
 
-class ControllerClient(ABC):
-    def __init__(self, config: ControllerConfig):
-        self.config: ControllerConfig = config
-
-    @abstractmethod
-    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        pass
-
-    @abstractmethod
-    async def close(self) -> None:
-        pass
-
 class ControllerRunner:
     def __init__(self, config: ControllerConfig):
         self.config: ControllerConfig = config

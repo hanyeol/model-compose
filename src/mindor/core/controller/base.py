@@ -5,7 +5,7 @@ from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
-from mindor.dsl.schema.logger import LoggerConfig
+from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
@@ -166,7 +166,7 @@ class ControllerService(AsyncService):
         return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
     
     def _create_loggers(self) -> List[LoggerService]:
-        return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers) ]
+        return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
 
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
@@ -177,6 +177,9 @@ class ControllerService(AsyncService):
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)
+
+    def _get_default_logger_config(self) -> LoggerConfig:
+        return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
 
 def register_controller(type: ControllerType):
     def decorator(cls: Type[ControllerService]) -> Type[ControllerService]:

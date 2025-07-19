@@ -17,7 +17,7 @@ class WorkflowAction:
         input = await context.render_variable(self.config.input)
 
         workflow = self._create_workflow(workflow_id)
-        output = await workflow.run(context.call_id, input)
+        output = await workflow.run(context.run_id, input)
         context.register_source("output", output)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output

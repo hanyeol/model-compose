@@ -3,10 +3,10 @@ from mindor.core.utils.renderer import VariableRenderer
 from mindor.core.gateway import find_gateway_by_port
 
 class ComponentActionContext:
-    def __init__(self, call_id: str, input: Dict[str, Any]):
-        self.call_id: str = call_id
+    def __init__(self, run_id: str, input: Dict[str, Any]):
+        self.run_id: str = run_id
         self.input: Dict[str, Any] = input
-        self.context: Dict[str, Any] = { "call_id": call_id }
+        self.context: Dict[str, Any] = { "run_id": run_id }
         self.sources: Dict[str, Any] = {}
         self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
 

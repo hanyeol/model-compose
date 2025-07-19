@@ -57,9 +57,9 @@ class ComponentService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
-    async def run(self, action_id: Union[str, None], call_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentActionContext(call_id, input)
+        context = ComponentActionContext(run_id, input)
 
         if self.queue:
             return await (await self.queue.schedule(action, context))

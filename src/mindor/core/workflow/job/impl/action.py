@@ -20,8 +20,8 @@ class ActionJob(Job):
         outputs = []
 
         async def _run_once():
-            call_id = ulid.ulid()
-            output = await component.run(await context.render_variable(self.config.action), call_id, input)
+            run_id = ulid.ulid()
+            output = await component.run(await context.render_variable(self.config.action), run_id, input)
             context.register_source("output", output)
 
             output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output

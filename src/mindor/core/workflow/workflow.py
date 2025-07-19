@@ -75,7 +75,8 @@ class WorkflowResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class WorkflowRunner:
-    def __init__(self, jobs: Dict[str, JobConfig], global_configs: ComponentGlobalConfigs):
+    def __init__(self, id: str, jobs: Dict[str, JobConfig], global_configs: ComponentGlobalConfigs):
+        self.id: str = id
         self.jobs: Dict[str, JobConfig] = jobs
         self.global_configs: ComponentGlobalConfigs = global_configs
 
@@ -86,11 +87,14 @@ class WorkflowRunner:
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
         output: Any = None
 
+        logging.debug("[task-%s] Workflow '%s' started.", context.task_id, self.id)
+
         while pending_jobs:
             runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids) ]
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
+                    logging.debug("[task-%s] Scheduling job: '%s'", context.task_id, job.id)
                     scheduled_job_tasks[job.id] = asyncio.create_task(job.run(context))
                     running_job_ids.add(job.id)
 
@@ -105,6 +109,8 @@ class WorkflowRunner:
                 completed_job_output = await completed_job_task
                 context.complete_job(completed_job_id, completed_job_output)
 
+                logging.debug("[task-%s] Job completed: '%s'", context.task_id, completed_job_id)
+
                 if self._is_terminal_job(completed_job_id):
                     if isinstance(output, dict) and isinstance(completed_job_output, dict):
                         output.update(completed_job_output)
@@ -115,6 +121,8 @@ class WorkflowRunner:
                 completed_job_ids.add(completed_job_id)
                 del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
+
+        logging.debug("[task-%s] Workflow '%s' run completed.", context.task_id, self.id)
 
         return output
 
@@ -131,7 +139,7 @@ class Workflow:
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
-        runner = WorkflowRunner(self.config.jobs, self.global_configs)
+        runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
         context = WorkflowContext(task_id, input)
 
         return await runner.run(context)

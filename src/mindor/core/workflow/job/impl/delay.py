@@ -2,8 +2,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.job import DelayJobConfig, DelayJobMode
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.utils.time import parse_duration, parse_datetime
+from mindor.core.logger import logging
 from ..base import Job, JobType, WorkflowContext, register_job
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 @register_job(JobType.DELAY)
@@ -24,8 +25,14 @@ class DelayJob(Job):
         duration = parse_duration((await context.render_variable(self.config.duration)) or 0.0)
         duration = duration.total_seconds()
         
+        started_at = datetime.now()
+        logging.debug("[task-%s] Delay started for time interval: %d seconds.", context.task_id, int(duration))
+
         if duration > 0.0:
             await asyncio.sleep(duration)
+
+        elapsed = (datetime.now() - started_at).total_seconds()
+        logging.debug("[task-%s] Delay completed in %.2f seconds.", context.task_id, elapsed)
 
         return None
 
@@ -34,9 +41,15 @@ class DelayJob(Job):
         time = parse_datetime((await context.render_variable(self.config.time)) or datetime(2000, 1, 1, 0, 0, 0), timezone)
         
         now = datetime.now(tz=time.tzinfo)
-        duration = (time - now).total_seconds()
+        duration = max((time - now).total_seconds(), 0.0)
+
+        started_at = datetime.now()
+        logging.debug("[task-%s] Delay started, waiting until %s", context.task_id, time)
 
         if duration > 0.0:
             await asyncio.sleep(duration)
+
+        elapsed = (datetime.now() - started_at).total_seconds()
+        logging.debug("[task-%s] Delay completed in %.2f seconds.", context.task_id, elapsed)
 
         return None

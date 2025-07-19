@@ -2,7 +2,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.job import ActionJobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
+from mindor.core.logger import logging
 from ..base import Job, JobType, WorkflowContext, register_job
+from datetime import datetime
 import asyncio, ulid
 
 @register_job(JobType.ACTION)
@@ -20,9 +22,16 @@ class ActionJob(Job):
         outputs = []
 
         async def _run_once():
-            run_id = ulid.ulid()
+            run_id: str = ulid.ulid()
+
+            started_at = datetime.now()
+            logging.debug("[task-%s] Action 'run-%s' started for job '%s'", context.task_id, run_id, self.id)
+
             output = await component.run(await context.render_variable(self.config.action), run_id, input)
             context.register_source("output", output)
+
+            elapsed = (datetime.now() - started_at).total_seconds()
+            logging.debug("[task-%s] Action 'run-%s' completed in %.2f seconds.", context.task_id, run_id, elapsed)
 
             output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
             outputs.append(output)

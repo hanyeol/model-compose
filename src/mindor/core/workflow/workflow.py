@@ -5,6 +5,7 @@ from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.logger import logging
 from .context import WorkflowContext
 from .job import Job, create_job
+from datetime import datetime
 import asyncio
 
 class JobGraphValidator:
@@ -87,7 +88,8 @@ class WorkflowRunner:
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
         output: Any = None
 
-        logging.debug("[task-%s] Workflow '%s' started.", context.task_id, self.id)
+        started_at = datetime.now()
+        logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
 
         while pending_jobs:
             runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids) ]
@@ -109,7 +111,7 @@ class WorkflowRunner:
                 completed_job_output = await completed_job_task
                 context.complete_job(completed_job_id, completed_job_output)
 
-                logging.debug("[task-%s] Job completed: '%s'", context.task_id, completed_job_id)
+                logging.debug("[task-%s] Job '%s' completed.", context.task_id, completed_job_id)
 
                 if self._is_terminal_job(completed_job_id):
                     if isinstance(output, dict) and isinstance(completed_job_output, dict):
@@ -122,7 +124,8 @@ class WorkflowRunner:
                 del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
 
-        logging.debug("[task-%s] Workflow '%s' run completed.", context.task_id, self.id)
+        elapsed = (datetime.now() - started_at).total_seconds()
+        logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
 
         return output
 

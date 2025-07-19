@@ -7,6 +7,7 @@ from .component import ComponentConfig
 from .listener import ListenerConfig
 from .gateway import GatewayConfig
 from .workflow import WorkflowConfig
+from .logger import LoggerConfig
 
 class ComposeConfig(BaseModel):
     controller: ControllerConfig
@@ -14,6 +15,7 @@ class ComposeConfig(BaseModel):
     listeners: List[ListenerConfig] = Field(default_factory=list)
     gateways: List[GatewayConfig] = Field(default_factory=list)
     workflows: Dict[str, WorkflowConfig] = Field(default_factory=dict)
+    loggers: List[LoggerConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):
@@ -45,4 +47,12 @@ class ComposeConfig(BaseModel):
             workflow_values = values.pop("workflow", None)
             if workflow_values: 
                 values["workflows"] = { "__default__": workflow_values }
+        return values
+
+    @model_validator(mode="before")
+    def inflate_single_logger(cls, values: Dict[str, Any]):
+        if "loggers" not in values:
+            loggers_values = values.pop("logger", None)
+            if loggers_values:
+                values["loggers"] = [ loggers_values ]
         return values

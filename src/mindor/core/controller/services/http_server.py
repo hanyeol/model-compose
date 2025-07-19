@@ -5,6 +5,7 @@ from mindor.dsl.schema.controller import HttpServerControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.streaming import StreamResource
@@ -45,9 +46,10 @@ class HttpServerController(ControllerService):
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig],
+        loggers: List[LoggerConfig],
         daemon: bool
     ):
-        super().__init__(config, components, listeners, gateways, workflows, daemon)
+        super().__init__(config, components, listeners, gateways, workflows, loggers, daemon)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)

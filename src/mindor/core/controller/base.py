@@ -5,12 +5,14 @@ from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
+from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.expiring import ExpiringDict
@@ -34,19 +36,21 @@ class ControllerService(AsyncService):
     def __init__(
         self,
         config: ControllerConfig,
+        workflows: Dict[str, WorkflowConfig],
         components: Dict[str, ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        workflows: Dict[str, WorkflowConfig],
+        loggers: List[LoggerConfig],
         daemon: bool
     ):
         super().__init__(daemon)
 
         self.config: ControllerConfig = config
+        self.workflows: Dict[str, WorkflowConfig] = workflows
         self.components: Dict[str, ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
-        self.workflows: Dict[str, WorkflowConfig] = workflows
+        self.loggers: List[LoggerConfig] = loggers
         self.queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
@@ -79,9 +83,10 @@ class ControllerService(AsyncService):
             await self.queue.start()
 
         if self.daemon:
-            await self._start_components()
-            await self._start_listeners()
+            await self._start_loggers()
             await self._start_gateways()
+            await self._start_listeners()
+            await self._start_components()
 
             if self.config.webui:
                 await self._start_webui()
@@ -93,20 +98,15 @@ class ControllerService(AsyncService):
             await self.queue.stop()
 
         if self.daemon:
-            await self._stop_gateways()
-            await self._stop_listeners()
             await self._stop_components()
+            await self._stop_listeners()
+            await self._stop_gateways()
+            await self._stop_loggers()
 
             if self.config.webui:
                 await self._stop_webui()
 
         await super()._stop()
-
-    async def _start_components(self) -> None:
-        await asyncio.gather(*[ component.start() for component in self._create_components() ])
-
-    async def _stop_components(self) -> None:
-        await asyncio.gather(*[ component.stop() for component in self._create_components() ])
 
     async def _start_listeners(self) -> None:
         await asyncio.gather(*[ listener.start() for listener in self._create_listeners() ])
@@ -119,6 +119,18 @@ class ControllerService(AsyncService):
 
     async def _stop_gateways(self) -> None:
         await asyncio.gather(*[ gateway.stop() for gateway in self._create_gateways() ])
+
+    async def _start_components(self) -> None:
+        await asyncio.gather(*[ component.start() for component in self._create_components() ])
+
+    async def _stop_components(self) -> None:
+        await asyncio.gather(*[ component.stop() for component in self._create_components() ])
+
+    async def _start_loggers(self) -> None:
+        await asyncio.gather(*[ logger.start() for logger in self._create_loggers() ])
+
+    async def _stop_loggers(self) -> None:
+        await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
 
     async def _start_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().start() ])
@@ -143,16 +155,19 @@ class ControllerService(AsyncService):
 
         return state
 
-    def _create_components(self) -> List[ComponentService]:
-        global_configs = self._get_component_global_configs()
-        return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
-    
     def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
     
     def _create_gateways(self) -> List[GatewayService]:
         return [ create_gateway(f"gateway-{index}", config, self.daemon) for index, config in enumerate(self.gateways) ]
+
+    def _create_components(self) -> List[ComponentService]:
+        global_configs = self._get_component_global_configs()
+        return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
     
+    def _create_loggers(self) -> List[LoggerService]:
+        return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers) ]
+
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 

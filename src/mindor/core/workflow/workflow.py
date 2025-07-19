@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
+from mindor.core.logger import logging
 from .context import WorkflowContext
 from .job import Job, create_job
 import asyncio

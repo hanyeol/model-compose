@@ -7,10 +7,11 @@ class ComposeManager:
         self.config: ComposeConfig = config
         self.controller: ControllerService = create_controller(
             self.config.controller,
+            self.config.workflows,
             self.config.components,
             self.config.listeners,
             self.config.gateways,
-            self.config.workflows,
+            self.config.loggers,
             daemon
         )
 

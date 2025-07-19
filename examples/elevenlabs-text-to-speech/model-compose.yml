@@ -6,6 +6,13 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Generate Speech with ElevenLabs AI
+  description: Convert input text into realistic speech using ElevenLabs' multilingual voice model.
+  component: elevenlabs-text-to-speech
+  input: ${input}
+  output: ${output as audio}
+
 components:
   elevenlabs-text-to-speech:
     type: http-client
@@ -18,10 +25,3 @@ components:
       text: ${input.text}
       model_id: eleven_multilingual_v2
     output: ${response}
-
-workflow:
-  title: Generate Speech with ElevenLabs AI
-  description: Convert input text into realistic speech using ElevenLabs' multilingual voice model.
-  component: elevenlabs-text-to-speech
-  input: ${input}
-  output: ${output as audio}

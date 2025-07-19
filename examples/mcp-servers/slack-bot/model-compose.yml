@@ -6,6 +6,24 @@ controller:
     driver: gradio
     port: 8081
 
+workflows:
+  send-message:
+    action: chat-post-message
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
+      text: ${input.messsage @(description Message to send to Slack)}
+    output: ${output as json}
+
+  list-channels:
+    action: conversations-list
+    output: ${output as object[]}
+
+  join-channel:
+    action: conversations-join
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
+    output: ${output as json}
+
 component:
   type: http-client
   base_url: https://slack.com/api
@@ -40,21 +58,3 @@ component:
       headers:
         Content-Type: application/json
       output: ${response}
-
-workflows:
-  send-message:
-    action: chat-post-message
-    input:
-      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
-      text: ${input.messsage @(description Message to send to Slack)}
-    output: ${output as json}
-
-  list-channels:
-    action: conversations-list
-    output: ${output as object[]}
-
-  join-channel:
-    action: conversations-join
-    input:
-      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
-    output: ${output as json}

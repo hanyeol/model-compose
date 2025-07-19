@@ -6,6 +6,25 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Inspire with Voice
+  description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
+  jobs:
+    job-quote:
+      component: write-inspiring-quote
+      input: ${input}
+      output: ${output}
+
+    job-voice:
+      component: text-to-speech
+      input:
+        text: ${jobs.job-quote.output.quote}
+        voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
+      output:
+        quote: ${jobs.job-quote.output.quote}
+        audio: ${output as audio/mp3;base64}
+      depends_on: [ job-quote ]
+
 components:
   write-inspiring-quote:
     type: http-client
@@ -39,22 +58,3 @@ components:
       text: ${input.text}
       model_id: eleven_multilingual_v2
     output: ${response as base64}
-
-workflow:
-  title: Inspire with Voice
-  description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
-  jobs:
-    job-quote:
-      component: write-inspiring-quote
-      input: ${input}
-      output: ${output}
-
-    job-voice:
-      component: text-to-speech
-      input:
-        text: ${jobs.job-quote.output.quote}
-        voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
-      output:
-        quote: ${jobs.job-quote.output.quote}
-        audio: ${output as audio/mp3;base64}
-      depends_on: [ job-quote ]

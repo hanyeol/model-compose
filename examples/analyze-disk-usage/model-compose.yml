@@ -6,6 +6,26 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Analyze Disk Usage with GPT-4o
+  description: Automatically retrieve df -h output from the system and generate a detailed disk usage analysis using OpenAI’s GPT-4o.
+  jobs:
+    get-disk-usage:
+      component: get-disk-usage
+      input: ${input}
+      output: ${output}
+    
+    analyze-disk-usage:
+      component: gpt-4o
+      input:
+        system-prompt: |
+          You are a Unix system expert. When given the output of df -h, provide a detailed analysis of disk usage, highlight any volumes with critically high usage, and recommend specific actions to free up space.
+        user-prompt: ${jobs.get-disk-usage.output}
+      output: 
+        usage: ${jobs.get-disk-usage.output}
+        advice: ${output as markdown}
+      depends_on: [ get-disk-usage ]
+
 components:
   get-disk-usage:
     type: shell
@@ -28,23 +48,3 @@ components:
         - role: user
           content: ${input.user-prompt}
     output: ${response.choices[0].message.content}
-
-workflow:
-  title: Analyze Disk Usage with GPT-4o
-  description: Automatically retrieve df -h output from the system and generate a detailed disk usage analysis using OpenAI’s GPT-4o.
-  jobs:
-    get-disk-usage:
-      component: get-disk-usage
-      input: ${input}
-      output: ${output}
-    
-    analyze-disk-usage:
-      component: gpt-4o
-      input:
-        system-prompt: |
-          You are a Unix system expert. When given the output of df -h, provide a detailed analysis of disk usage, highlight any volumes with critically high usage, and recommend specific actions to free up space.
-        user-prompt: ${jobs.get-disk-usage.output}
-      output: 
-        usage: ${jobs.get-disk-usage.output}
-        advice: ${output as markdown}
-      depends_on: [ get-disk-usage ]

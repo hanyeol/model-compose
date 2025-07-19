@@ -6,6 +6,12 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Generate Image Variations with OpenAI DALL·E
+  description: Generate image variations using an input image and OpenAI’s DALL·E.
+  input: ${input}
+  output: ${output.image_data as image;base64}
+
 component: 
   type: http-client
   base_url: https://api.openai.com/v1
@@ -21,9 +27,3 @@ component:
     response_format: b64_json
   output:
     image_data: ${response.data[0].b64_json}
-
-workflow:
-  title: Generate Image Variations with OpenAI DALL·E
-  description: Generate image variations using an input image and OpenAI’s DALL·E.
-  input: ${input}
-  output: ${output.image_data as image;base64}

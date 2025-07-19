@@ -6,6 +6,17 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Generate Transciptions with OpenAI STT
+  description: 
+  jobs:
+    speak:
+      component: openai-speech-to-text
+      input: ${input}
+      output: 
+        text: ${output.text}
+        seconds: ${output.usage.seconds}
+
 components:
   openai-speech-to-text:
     type: http-client
@@ -19,14 +30,3 @@ components:
       file: ${input.file as audio}
     response_type: buffer
     output: ${response}
-
-workflow:
-  title: Generate Transciptions with OpenAI STT
-  description: 
-  jobs:
-    speak:
-      component: openai-speech-to-text
-      input: ${input}
-      output: 
-        text: ${output.text}
-        seconds: ${output.usage.seconds}

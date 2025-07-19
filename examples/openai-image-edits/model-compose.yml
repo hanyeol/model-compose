@@ -6,6 +6,12 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Edit Images with OpenAI GPT
+  description: Modify images using a prompt, input image, and optional mask with OpenAI’s GPT.
+  input: ${input}
+  output: ${output.image_data as image;base64}
+
 component: 
   type: http-client
   endpoint: https://api.openai.com/v1/images/edits
@@ -22,9 +28,3 @@ component:
     output_format: png
   output:
     image_data: ${response.data[0].b64_json}
-
-workflow:
-  title: Edit Images with OpenAI GPT
-  description: Modify images using a prompt, input image, and optional mask with OpenAI’s GPT.
-  input: ${input}
-  output: ${output.image_data as image;base64}

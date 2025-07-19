@@ -6,6 +6,12 @@ controller:
     driver: gradio
     port: 8081
 
+workflow:
+  title: Chat with OpenAI GPT-4o
+  description: Generate text responses using OpenAI’s GPT-4o
+  input: ${input}
+  output: ${output}
+
 component: 
   type: http-client
   base_url: https://api.openai.com/v1
@@ -22,9 +28,3 @@ component:
     temperature: ${input.temperature as number | 0.7}
   output:
     message: ${response.choices[0].message.content}
-
-workflow:
-  title: Chat with OpenAI GPT-4o
-  description: Generate text responses using OpenAI’s GPT-4o
-  input: ${input}
-  output: ${output}

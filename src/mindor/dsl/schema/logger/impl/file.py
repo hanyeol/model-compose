@@ -5,3 +5,4 @@ from .common import LoggerType, CommonLoggerConfig
 
 class FileLoggerConfig(CommonLoggerConfig):
     type: Literal[LoggerType.FILE]
+    path: str = Field(default="./logs/run.log", description="")

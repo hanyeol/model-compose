@@ -16,7 +16,7 @@ class ConsoleLogger(LoggerService):
     def __init__(self, id: str, config: ConsoleLoggerConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.logger: logging.Logger = logging.getLogger(f"console.{id(self)}")
+        self.logger: logging.Logger = logging.getLogger(id)
         self.formatter: logging.Formatter = logging.Formatter("%(levelname)s: %(message)s")
         self.handler: logging.StreamHandler = None
 

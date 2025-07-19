@@ -111,7 +111,7 @@ class WorkflowRunner:
                 completed_job_output = await completed_job_task
                 context.complete_job(completed_job_id, completed_job_output)
 
-                logging.debug("[task-%s] Job '%s' completed.", context.task_id, completed_job_id)
+                logging.info("[task-%s] Job '%s' completed.", context.task_id, completed_job_id)
 
                 if self._is_terminal_job(completed_job_id):
                     if isinstance(output, dict) and isinstance(completed_job_output, dict):

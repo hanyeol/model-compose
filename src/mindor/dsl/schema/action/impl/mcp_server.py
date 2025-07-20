@@ -4,5 +4,4 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class McpServerActionConfig(CommonActionConfig):
-    def __init__(self):
-        super().__init__()
+    pass

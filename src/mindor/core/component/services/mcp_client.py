@@ -5,7 +5,7 @@ from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, I
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 
-class McpClientAction():
+class McpClientAction:
     def __init__(self, config: McpClientActionConfig):
         self.config: McpClientActionConfig = config
 

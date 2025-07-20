@@ -2,6 +2,16 @@ from typing import Union, Optional
 from datetime import timedelta, datetime
 import zoneinfo
 
+class TimeTracker:
+    def __init__(self):
+        self._start = datetime.now()
+
+    def elapsed(self) -> float:
+        return (datetime.now() - self._start).total_seconds()
+
+    def reset(self) -> None:
+        self._start = datetime.now()
+
 def parse_duration(value: Union[str, float, int]) -> timedelta:
     if isinstance(value, (float, int)):
         return timedelta(seconds=value)

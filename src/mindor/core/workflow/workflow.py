@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
+from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from .context import WorkflowContext
 from .job import Job, create_job
@@ -86,9 +87,10 @@ class WorkflowRunner:
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
+        job_time_trackers: Dict[str, TimeTracker] = {}
         output: Any = None
 
-        started_at = datetime.now()
+        workflow_time_tracker = TimeTracker()
         logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
 
         while pending_jobs:
@@ -96,9 +98,11 @@ class WorkflowRunner:
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
-                    logging.debug("[task-%s] Scheduling job: '%s'", context.task_id, job.id)
                     scheduled_job_tasks[job.id] = asyncio.create_task(job.run(context))
                     running_job_ids.add(job.id)
+
+                    job_time_trackers[job.id] = TimeTracker()
+                    logging.info("[task-%s] Job '%s' started.", context.task_id, job.id)
 
             if not scheduled_job_tasks:
                 raise RuntimeError("No runnable jobs but pending jobs remain.")
@@ -111,7 +115,7 @@ class WorkflowRunner:
                 completed_job_output = await completed_job_task
                 context.complete_job(completed_job_id, completed_job_output)
 
-                logging.info("[task-%s] Job '%s' completed.", context.task_id, completed_job_id)
+                logging.info("[task-%s] Job '%s' completed in %.2f seconds.", context.task_id, completed_job_id, job_time_trackers[completed_job_id].elapsed())
 
                 if self._is_terminal_job(completed_job_id):
                     if isinstance(output, dict) and isinstance(completed_job_output, dict):
@@ -124,8 +128,7 @@ class WorkflowRunner:
                 del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
 
-        elapsed = (datetime.now() - started_at).total_seconds()
-        logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
+        logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_time_tracker.elapsed())
 
         return output
 

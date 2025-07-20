@@ -6,9 +6,8 @@ from mindor.core.controller.runner import ControllerRunner
 from mindor.core.workflow.schema import create_workflow_schema
 from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
-
-from fastapi import FastAPI
 from gradio import mount_gradio_app
+from fastapi import FastAPI
 import uvicorn, gradio
 
 class ControllerWebUI(AsyncService):

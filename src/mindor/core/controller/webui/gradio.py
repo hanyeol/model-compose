@@ -49,7 +49,8 @@ class GradioWebUIBuilder:
             async def _run_workflow(*args):
                 input = await self._build_input_value(args, workflow.input)
                 output = await runner(input)
-                output = await self._flatten_output_value(output, workflow.output)
+                if workflow.output:
+                    output = await self._flatten_output_value(output, workflow.output)
                 return output[0] if len(output) == 1 else output
 
             run_button.click(

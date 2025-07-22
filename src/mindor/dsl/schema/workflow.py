@@ -2,8 +2,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
+from mindor.dsl.utils.annotation import get_model_union_keys
 from .job import JobConfig, JobType
-from .utils.annotation import get_model_union_keys
 
 class WorkflowVariableType(str, Enum):
     # Primitive data types

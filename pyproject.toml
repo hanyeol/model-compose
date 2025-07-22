@@ -20,7 +20,9 @@ dependencies = [
     "pyngrok", 
     "ulid", 
     "gradio",
-    "Pillow"
+    "Pillow",
+    "transformers",
+    "torch"
 ]
 
 [project.scripts]

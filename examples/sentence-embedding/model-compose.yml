@@ -1,0 +1,20 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text Embedding
+  description: Generate a text embedding vector using a sentence transformers model.
+  input: ${input}
+  output: 
+    embedding: ${output as json}
+
+component:
+  type: model
+  task: text-embedding
+  model: sentence-transformers/all-MiniLM-L6-v2
+  text: ${input.text}

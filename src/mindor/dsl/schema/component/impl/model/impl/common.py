@@ -12,7 +12,6 @@ class CommonModelComponentConfig(CommonComponentConfig):
     model: str = Field(..., description="")
     device: str = Field(default="cpu", description="Computation device to use.")
     cache_dir: Optional[str] = Field(default=None, description="")
-    actions: Dict[str, ModelActionConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

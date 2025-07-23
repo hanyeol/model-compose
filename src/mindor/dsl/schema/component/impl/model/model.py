@@ -4,7 +4,8 @@ from .impl import *
 
 ModelComponentConfig = Annotated[
     Union[ 
-        TextGenerationModelComponentConfig, 
+        TextGenerationModelComponentConfig,
+        SummarizationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
     ],
     Field(discriminator="task")

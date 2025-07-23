@@ -18,12 +18,12 @@ class TextEmbeddingTaskAction:
         text = await context.render_variable(self.config.text)
 
         # Model parameters
-        max_length = await context.render_variable(self.config.params.max_length)
-        pooling    = await context.render_variable(self.config.params.pooling)
-        normalize  = await context.render_variable(self.config.params.normalize)
+        max_input_length = await context.render_variable(self.config.params.max_input_length)
+        pooling          = await context.render_variable(self.config.params.pooling)
+        normalize        = await context.render_variable(self.config.params.normalize)
 
         # Tokenizing
-        inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=max_length).to(self.model.device)
+        inputs = self.tokenizer(text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
         attention_mask: Tensor = inputs.get("attention_mask", None)
 
         # Forward pass through the model

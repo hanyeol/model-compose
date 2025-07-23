@@ -13,10 +13,10 @@ class TextGenerationTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
 
     async def run(self, context: ComponentActionContext) -> Any:
-        prompt: str = await context.render_variable(self.config.prompt)
+        prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
 
         # Model parameters
-        max_length           = await context.render_variable(self.config.params.max_length)
+        max_output_length    = await context.render_variable(self.config.params.max_output_length)
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
         temperature          = await context.render_variable(self.config.params.temperature)
         top_k                = await context.render_variable(self.config.params.top_k)
@@ -29,7 +29,7 @@ class TextGenerationTaskAction:
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
-                max_length=max_length,
+                max_length=max_output_length,
                 num_return_sequences=num_return_sequences,
                 temperature=temperature,
                 top_k=top_k,
@@ -38,7 +38,9 @@ class TextGenerationTaskAction:
             )
 
         # Decoding output
-        result = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        
+        result = outputs if isinstance(prompt, list) else outputs[0] 
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

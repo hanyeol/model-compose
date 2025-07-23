@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SummarizationModelActionConfig
+from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin
@@ -58,8 +59,13 @@ class SummarizationTaskService(ModelTaskService):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
 
     async def _serve(self) -> None:
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model).to(torch.device(self.config.device))
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model)
+        try:
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model).to(torch.device(self.config.device))
+            self.tokenizer = AutoTokenizer.from_pretrained(self.config.model, use_fast=self.config.fast_tokenizer)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.config.device}': {self.config.model}")
+        except Exception as e:
+            logging.error(f"Failed to load model '{self.config.model}': {e}")
+            raise e
 
     async def _shutdown(self) -> None:
         self.model = None

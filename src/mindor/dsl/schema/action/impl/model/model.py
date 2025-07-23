@@ -5,5 +5,6 @@ from .impl import *
 ModelActionConfig = Union[
     TextGenerationModelActionConfig,
     SummarizationModelActionConfig,
+    TranslationModelActionConfig,
     TextEmbeddingModelActionConfig,
 ]

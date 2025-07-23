@@ -6,6 +6,7 @@ ModelComponentConfig = Annotated[
     Union[ 
         TextGenerationModelComponentConfig,
         SummarizationModelComponentConfig,
+        TranslationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
     ],
     Field(discriminator="task")

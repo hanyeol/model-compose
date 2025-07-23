@@ -8,10 +8,11 @@ from .types import ModelTaskType
 
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
-    task: ModelTaskType = Field(..., description="")
-    model: str = Field(..., description="")
+    task: ModelTaskType = Field(..., description="Type of task the model performs.")
+    model: str = Field(..., description="Model name or path.")
     device: str = Field(default="cpu", description="Computation device to use.")
-    cache_dir: Optional[str] = Field(default=None, description="")
+    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model and tokenizer files.")
+    fast_tokenizer: bool = Field(default=True, description="Whether to use the fast tokenizer if available.")
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

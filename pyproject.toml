@@ -23,8 +23,8 @@ dependencies = [
     "Pillow",
     "transformers",
     "torch",
-    "sentencepiece",
-    "accelerate"
+    "accelerate",
+    "sentencepiece"
 ]
 
 [project.scripts]

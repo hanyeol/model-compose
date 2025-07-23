@@ -22,7 +22,9 @@ dependencies = [
     "gradio",
     "Pillow",
     "transformers",
-    "torch"
+    "torch",
+    "sentencepiece",
+    "accelerate"
 ]
 
 [project.scripts]

@@ -1,0 +1,20 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Summarize Text
+  description: Generate a concise and informative summary from a longer input text using a pretrained language model.
+  input: ${input}
+  output:
+    summary: ${output}
+
+component:
+  type: model
+  task: summarization
+  model: facebook/bart-large-cnn
+  text: ${input.text}

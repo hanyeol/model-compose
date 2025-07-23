@@ -1,0 +1,20 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  input: ${input}
+  output:
+    generated: ${output}
+
+component:
+  type: model
+  task: text-generation
+  model: HuggingFaceTB/SmolLM3-3B
+  prompt: ${input.prompt}
+  params:
+    max_output_length: 32768

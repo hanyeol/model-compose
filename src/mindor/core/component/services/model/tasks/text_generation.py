@@ -61,7 +61,7 @@ class TextGenerationTaskService(ModelTaskService):
             logging.info(f"Model and tokenizer loaded successfully on device '{self.config.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise e
+            raise
 
     async def _shutdown(self) -> None:
         self.model = None

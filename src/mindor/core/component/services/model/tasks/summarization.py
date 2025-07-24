@@ -16,7 +16,6 @@ class SummarizationTaskAction:
     async def run(self, context: ComponentActionContext) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
-        # Model parameters
         max_input_length  = await context.render_variable(self.config.params.max_input_length)
         max_output_length = await context.render_variable(self.config.params.max_output_length)
         min_output_length = await context.render_variable(self.config.params.min_output_length)
@@ -24,28 +23,32 @@ class SummarizationTaskAction:
         length_penalty    = await context.render_variable(self.config.params.length_penalty)
         early_stopping    = await context.render_variable(self.config.params.early_stopping)
         do_sample         = await context.render_variable(self.config.params.do_sample)
+        batch_size        = await context.render_variable(self.config.params.batch_size)
 
-        # Tokenizing
-        inputs = self.tokenizer(text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
+        texts: List[str] = [ text ] if isinstance(text, str) else text
+        outputs = []
 
-        # Text Summarization
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_length=max_output_length,
-                min_length=min_output_length,
-                num_beams=num_beams,
-                length_penalty=length_penalty,
-                early_stopping=early_stopping,
-                do_sample=do_sample,
-                pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
-                eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
-            )
+        for index in range(0, len(texts), batch_size):
+            batch_text = texts[index:index + batch_size]
+            input = self.tokenizer(batch_text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
 
-        # Decoding output
-        outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            with torch.no_grad():
+                output = self.model.generate(
+                    **input,
+                    max_length=max_output_length,
+                    min_length=min_output_length,
+                    num_beams=num_beams,
+                    length_penalty=length_penalty,
+                    early_stopping=early_stopping,
+                    do_sample=do_sample,
+                    pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
+                    eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
+                )
+
+            output = self.tokenizer.batch_decode(output, skip_special_tokens=True)
+            outputs.extend(output)
         
-        result = outputs if isinstance(text, list) else outputs[0] 
+        result = outputs if len(outputs) > 1 else outputs[0]
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

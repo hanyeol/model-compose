@@ -4,11 +4,12 @@ from pydantic import model_validator
 from .common import CommonModelActionConfig
 
 class TextGenerationParamsConfig(BaseModel):
-    max_output_length: int = Field(default=1024, description="The maximum number of tokens to generate.")
-    num_return_sequences: int = Field(default=1, description="The number of generated sequences to return.")
-    temperature: float = Field(default=1.0, description="Sampling temperature; higher values produce more random results.")
-    top_k: int = Field(default=50, description="Top-K sampling; restricts sampling to the top K tokens.")
-    top_p: float = Field(default=1.0, description="Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.")
+    max_output_length: Union[int, str] = Field(default=1024, description="The maximum number of tokens to generate.")
+    num_return_sequences: Union[int, str] = Field(default=1, description="The number of generated sequences to return.")
+    temperature: Union[float, str] = Field(default=1.0, description="Sampling temperature; higher values produce more random results.")
+    top_k: Union[int, str] = Field(default=50, description="Top-K sampling; restricts sampling to the top K tokens.")
+    top_p: Union[int, str] = Field(default=0.9, description="Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.")
+    batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TextGenerationModelActionConfig(CommonModelActionConfig):
     prompt: str = Field(..., description="")

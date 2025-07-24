@@ -16,29 +16,33 @@ class TextEmbeddingTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
 
     async def run(self, context: ComponentActionContext) -> Any:
-        text = await context.render_variable(self.config.text)
+        text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
-        # Model parameters
         max_input_length = await context.render_variable(self.config.params.max_input_length)
         pooling          = await context.render_variable(self.config.params.pooling)
         normalize        = await context.render_variable(self.config.params.normalize)
+        batch_size       = await context.render_variable(self.config.params.batch_size)
 
-        # Tokenizing
-        inputs = self.tokenizer(text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
-        attention_mask: Tensor = inputs.get("attention_mask", None)
+        texts: List[str] = [ text ] if isinstance(text, str) else text
+        embeddings = []
 
-        # Forward pass through the model
-        with torch.no_grad():
-            outputs: BaseModelOutput = self.model(**inputs)
-            last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
+        for index in range(0, len(texts), batch_size):
+            batch_text = texts[index:index + batch_size]
+            input = self.tokenizer(batch_text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
+            attention_mask: Tensor = input.get("attention_mask", None)
 
-        # Apply pooling strategy (mean, cls, max)
-        embedding = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
+            with torch.no_grad():
+                output: BaseModelOutput = self.model(**input)
+                last_hidden_state = output.last_hidden_state  # (batch_size, seq_len, hidden_size)
 
-        if normalize:
-            embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
+            embedding = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
-        result = embedding.squeeze().tolist()
+            if normalize:
+                embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
+
+            embeddings.extend(embedding.cpu().tolist())
+
+        result = embeddings if len(embeddings) > 1 else embeddings[0]
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

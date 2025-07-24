@@ -16,32 +16,35 @@ class TextGenerationTaskAction:
     async def run(self, context: ComponentActionContext) -> Any:
         prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
 
-        # Model parameters
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
         temperature          = await context.render_variable(self.config.params.temperature)
         top_k                = await context.render_variable(self.config.params.top_k)
         top_p                = await context.render_variable(self.config.params.top_p)
+        batch_size           = await context.render_variable(self.config.params.batch_size)
 
-        # Tokenizing
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        prompts: List[str] = [ prompt ] if isinstance(prompt, str) else prompt
+        outputs = []
 
-        # Text generation
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_length=max_output_length,
-                num_return_sequences=num_return_sequences,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                do_sample=True
-            )
+        for index in range(0, len(prompts), batch_size):
+            batch_prompt = prompts[index:index + batch_size]
+            input = self.tokenizer(batch_prompt, return_tensors="pt").to(self.model.device)
 
-        # Decoding output
-        outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        
-        result = outputs if isinstance(prompt, list) else outputs[0] 
+            with torch.no_grad():
+                output = self.model.generate(
+                    **input,
+                    max_new_tokens=max_output_length,
+                    num_return_sequences=num_return_sequences,
+                    temperature=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
+                    do_sample=True
+                )
+
+            output = self.tokenizer.batch_decode(output, skip_special_tokens=True)
+            outputs.extend(output)
+
+        result = output if isinstance(prompt, list) else output[0] 
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

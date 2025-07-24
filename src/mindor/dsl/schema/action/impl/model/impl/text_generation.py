@@ -12,5 +12,5 @@ class TextGenerationParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TextGenerationModelActionConfig(CommonModelActionConfig):
-    prompt: str = Field(..., description="")
+    prompt: str = Field(..., description="Input prompt to generate text from.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Text generation configuration parameters.")

@@ -7,6 +7,8 @@ controller:
     port: 8081
 
 workflow:
+  title: Generate Text from Prompt
+  description: Generate text based on a given prompt using a pretrained language model.
   input: ${input}
   output:
     generated: ${output}

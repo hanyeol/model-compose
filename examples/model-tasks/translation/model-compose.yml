@@ -18,5 +18,4 @@ component:
   type: model
   task: translation
   model: seongs/ke-t5-base-aihub-koen-translation-integrated-10m-en-to-ko
-  fast_tokenizer: false
   text: ${input.text}

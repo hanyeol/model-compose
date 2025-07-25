@@ -32,7 +32,7 @@ class WorkflowVariableFormat(str, Enum):
     STREAM = "stream"
 
 class WorkflowVariableAnnotationConfig(BaseModel):
-    name: str = Field(..., description="The name of the annotation.")
+    name: str = Field(..., description="Name of the annotation.")
     value: str = Field(..., description="Description of the annotation.")
 
 class WorkflowVariableConfig(BaseModel):
@@ -77,7 +77,7 @@ class WorkflowConfig(BaseModel):
             if any(k in values for k in job_keys):
                 values["jobs"] = { "__default__": { k: values.pop(k) for k in job_keys if k in values } }
         return values
-    
+
     @classmethod
     def set_default_job_type(cls, jobs: Dict[str, Any]):
         for job in jobs.values():

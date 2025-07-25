@@ -7,5 +7,5 @@ class ControllerWebUIDriver(str, Enum):
 
 class ControllerWebUIConfig(BaseModel):
     driver: ControllerWebUIDriver = Field(default=ControllerWebUIDriver.GRADIO)
-    host: Optional[str] = Field(default="0.0.0.0")
-    port: Optional[int] = Field(default=8081)
+    host: Optional[str] = Field(default="0.0.0.0", description="")
+    port: Optional[int] = Field(default=8081, description="")

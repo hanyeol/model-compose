@@ -16,15 +16,13 @@ class ComposeManager:
         )
 
     async def launch_services(self, detach: bool, verbose: bool):
-        await self.controller.start()
-        await self.controller.wait_until_stopped()
+        await self.controller.launch(detach, verbose)
 
-    async def shutdown_services(self):
-        await self.controller.stop()
+    async def terminate_services(self):
+        await self.controller.terminate()
 
     async def start_services(self, verbose: bool):
         await self.controller.start()
-        await self.controller.wait_until_stopped()
 
     async def stop_services(self):
         await self.controller.stop()

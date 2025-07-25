@@ -5,8 +5,8 @@ from .manager import ComposeManager, TaskState
 async def launch_services(config: ComposeConfig, detach: bool, verbose: bool):
     await ComposeManager(config, daemon=True).launch_services(detach, verbose)
 
-async def shutdown_services(config: ComposeConfig):
-    await ComposeManager(config, daemon=False).shutdown_services()
+async def terminate_services(config: ComposeConfig):
+    await ComposeManager(config, daemon=False).terminate_services()
 
 async def start_services(config: ComposeConfig, verbose: bool):
     await ComposeManager(config, daemon=False).start_services(verbose)

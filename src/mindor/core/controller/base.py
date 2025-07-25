@@ -5,13 +5,15 @@ from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
-from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
+from mindor.dsl.schema.runtime import RuntimeType, DockerBuildConfig
+from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.services import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
+from mindor.core.runtime.docker import DockerRuntimeManager
 from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
@@ -58,6 +60,20 @@ class ControllerService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
+    async def launch(self, detach: bool, verbose: bool) -> None:
+        await self._launch(detach, verbose)
+        await self.start()
+
+    async def terminate(self) -> None:
+        await self.stop()
+        await self._terminate()
+
+    async def start(self) -> None:
+        await super().start()
+
+        if self.daemon:
+            await self.wait_until_stopped()
+
     async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
         task_id = ulid.ulid()
         state = TaskState(task_id=task_id, status=TaskStatus.PENDING)
@@ -77,6 +93,45 @@ class ControllerService(AsyncService):
     def get_task_state(self, task_id: str) -> Optional[TaskState]:
         with self.task_states_lock:
             return self.task_states.get(task_id)
+
+    async def _launch(self, detach: bool, verbose: bool) -> None:
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            if detach:
+                await self._launch_process(verbose)
+            return
+        
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._launch_docker(verbose)
+            return
+
+    async def _launch_process(self, verbose: bool) -> None:
+        pass
+
+    async def _launch_docker(self, verbose: bool) -> None:
+        if not self.config.runtime.image:
+            if not self.config.runtime.build:
+                self.config.runtime.build = DockerBuildConfig(context=".", dockerfile="Dockerfile")
+            self.config.runtime.image = f"model-compose-{self.config.port}:latest"
+
+        if not self.config.runtime.container_name:
+            self.config.runtime.container_name = f"model-compose-{self.config.port}"
+
+        if not self.config.runtime.ports:
+            self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
+        
+        manager = DockerRuntimeManager(self.config.runtime, verbose)
+
+        if not await manager.exists_image():
+            await manager.build_image()
+
+        await manager.start_container(verbose)
+
+    async def _terminate(self) -> None:
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            return
+        
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            return
 
     async def _start(self) -> None:
         if self.queue:
@@ -138,23 +193,6 @@ class ControllerService(AsyncService):
     async def _stop_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().stop() ])
 
-    async def _run_workflow(self, task_id: str, workflow_id: Optional[str], input: Dict[str, Any]) -> TaskState:
-        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING)
-        with self.task_states_lock:
-            self.task_states.set(task_id, state)
-        
-        try:
-            workflow = self._create_workflow(workflow_id)
-            output = await workflow.run(task_id, input)
-            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, output=output)
-        except Exception as e:
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
-
-        with self.task_states_lock:
-            self.task_states.set(task_id, state, 1 * 3600)
-
-        return state
-
     def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
     
@@ -175,11 +213,36 @@ class ControllerService(AsyncService):
         global_configs = self._get_component_global_configs()
         return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
 
+    def _get_ports_for_controller(self) -> List[int]:
+        ports = []
+        if self.config.port:
+            ports.append(self.config.port)
+        if self.config.webui and self.config.webui.port:
+            ports.append(self.config.webui.port)
+        return ports
+
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)
 
     def _get_default_logger_config(self) -> LoggerConfig:
         return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
+
+    async def _run_workflow(self, task_id: str, workflow_id: Optional[str], input: Dict[str, Any]) -> TaskState:
+        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING)
+        with self.task_states_lock:
+            self.task_states.set(task_id, state)
+        
+        try:
+            workflow = self._create_workflow(workflow_id)
+            output = await workflow.run(task_id, input)
+            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, output=output)
+        except Exception as e:
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
+
+        with self.task_states_lock:
+            self.task_states.set(task_id, state, 1 * 3600)
+
+        return state
 
 def register_controller(type: ControllerType):
     def decorator(cls: Type[ControllerService]) -> Type[ControllerService]:

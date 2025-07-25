@@ -72,7 +72,7 @@ def down_command(
         try:
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
-            await shutdown_services(config)
+            await terminate_services(config)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())

@@ -34,14 +34,16 @@ class TextClassificationTaskAction:
                 
                 predicted = []
                 if return_probabilities:
-                    for prob in F.softmax(logits, dim=-1).cpu():
+                    probs = F.softmax(logits, dim=-1).cpu()
+                    for prob in probs:
                         predicted_index = torch.argmax(prob).item()
                         predicted.append({
                             "label": labels[predicted_index] if labels else predicted_index,
                             "probabilities": prob.tolist()
                         })
                 else:
-                    for predicted_index in torch.argmax(logits, dim=-1).tolist():
+                    predicted_indices = torch.argmax(logits, dim=-1).tolist()
+                    for predicted_index in predicted_indices:
                         predicted.append(labels[predicted_index] if labels else predicted_index)
 
             results.extend(predicted)

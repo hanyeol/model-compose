@@ -7,6 +7,7 @@ ModelComponentConfig = Annotated[
         TextGenerationModelComponentConfig,
         SummarizationModelComponentConfig,
         TranslationModelComponentConfig,
+        TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
     ],
     Field(discriminator="task")

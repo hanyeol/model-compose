@@ -24,15 +24,15 @@ class TextGenerationTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
 
         prompts: List[str] = [ prompt ] if isinstance(prompt, str) else prompt
-        outputs = []
+        results = []
 
         for index in range(0, len(prompts), batch_size):
-            batch_prompt = prompts[index:index + batch_size]
-            input = self.tokenizer(batch_prompt, return_tensors="pt").to(self.model.device)
+            batch_prompts = prompts[index:index + batch_size]
+            inputs = self.tokenizer(batch_prompts, return_tensors="pt").to(self.model.device)
 
             with torch.no_grad():
-                output = self.model.generate(
-                    **input,
+                outputs = self.model.generate(
+                    **inputs,
                     max_new_tokens=max_output_length,
                     num_return_sequences=num_return_sequences,
                     temperature=temperature,
@@ -41,10 +41,10 @@ class TextGenerationTaskAction:
                     do_sample=True
                 )
 
-            output = self.tokenizer.batch_decode(output, skip_special_tokens=True)
-            outputs.extend(output)
+            outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            results.extend(outputs)
 
-        result = output if isinstance(prompt, list) else output[0] 
+        result = results if len(results) > 1 else results[0] 
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

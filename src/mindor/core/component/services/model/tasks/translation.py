@@ -24,15 +24,15 @@ class TranslationTaskAction:
         batch_size        = await context.render_variable(self.config.params.batch_size)
 
         texts: List[str] = [ text ] if isinstance(text, str) else text
-        outputs = []
+        results = []
 
         for index in range(0, len(texts), batch_size):
-            batch_text = texts[index:index + batch_size]
-            input = self.tokenizer(batch_text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
+            batch_texts = texts[index:index + batch_size]
+            inputs = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
 
             with torch.no_grad():
-                output = self.model.generate(
-                    **input,
+                outputs = self.model.generate(
+                    **inputs,
                     max_length=max_output_length,
                     min_length=min_output_length,
                     num_beams=num_beams,
@@ -42,10 +42,10 @@ class TranslationTaskAction:
                     eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
                 )
 
-            output = self.tokenizer.batch_decode(output, skip_special_tokens=True)
-            outputs.extend(output)
+            outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            results.extend(outputs)
         
-        result = outputs if len(outputs) > 1 else outputs[0]
+        result = results if len(results) > 1 else results[0]
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

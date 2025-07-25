@@ -21,3 +21,6 @@ class CommonModelComponentConfig(CommonComponentConfig):
             if any(k in values for k in action_keys):
                 values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
         return values
+
+class ClassificationModelComponentConfig(CommonModelComponentConfig):
+    labels: Optional[List[str]] = Field(default=None, description="List of class labels for classification tasks.")

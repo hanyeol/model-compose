@@ -10,7 +10,6 @@ workflow:
   title: Translate Text
   description: Translate the input text into another language using a pretrained translation model.
   input: ${input}
-  output: ${output}
   output:
     translated: ${output}
 

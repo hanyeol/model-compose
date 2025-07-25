@@ -24,25 +24,25 @@ class TextEmbeddingTaskAction:
         batch_size       = await context.render_variable(self.config.params.batch_size)
 
         texts: List[str] = [ text ] if isinstance(text, str) else text
-        embeddings = []
+        results = []
 
         for index in range(0, len(texts), batch_size):
-            batch_text = texts[index:index + batch_size]
-            input = self.tokenizer(batch_text, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
-            attention_mask: Tensor = input.get("attention_mask", None)
+            batch_texts = texts[index:index + batch_size]
+            inputs = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True).to(self.model.device)
+            attention_mask: Tensor = inputs.get("attention_mask", None)
 
             with torch.no_grad():
-                output: BaseModelOutput = self.model(**input)
-                last_hidden_state = output.last_hidden_state  # (batch_size, seq_len, hidden_size)
+                outputs: BaseModelOutput = self.model(**inputs)
+                last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
 
-            embedding = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
+            embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
             if normalize:
-                embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
+                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
-            embeddings.extend(embedding.cpu().tolist())
+            results.extend(embeddings.cpu().tolist())
 
-        result = embeddings if len(embeddings) > 1 else embeddings[0]
+        result = results if len(results) > 1 else results[0]
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

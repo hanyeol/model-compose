@@ -6,5 +6,6 @@ ModelActionConfig = Union[
     TextGenerationModelActionConfig,
     SummarizationModelActionConfig,
     TranslationModelActionConfig,
+    TextClassificationModelActionConfig,
     TextEmbeddingModelActionConfig,
 ]

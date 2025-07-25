@@ -1,0 +1,24 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Classify Text
+  description: Classifies input text into predefined labels using a text classification model.
+  description: 
+  input: ${input}
+  output:
+    predicted: ${output}
+
+component:
+  type: model
+  task: text-classification
+  model: martin-ha/toxic-comment-model
+  labels: [ non-toxic, toxic ]
+  text: ${input.text}
+  params:
+    return_probabilities: true

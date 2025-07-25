@@ -16,5 +16,5 @@ workflow:
 component:
   type: model
   task: translation
-  model: seongs/ke-t5-base-aihub-koen-translation-integrated-10m-en-to-ko
+  model: alirezamsh/small100
   text: ${input.text}

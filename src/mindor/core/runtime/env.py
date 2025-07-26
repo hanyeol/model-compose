@@ -7,8 +7,6 @@ def load_env_files(work_dir: Union[ str, Path ], env_files: List[Union[ str, Pat
         env_file = Path(work_dir) / ".env"
         if env_file.exists():
             env_files.append(env_file)
-        else:
-            raise FileNotFoundError(".env not found.")
     
     env_dicts = []
     for env_file in env_files:

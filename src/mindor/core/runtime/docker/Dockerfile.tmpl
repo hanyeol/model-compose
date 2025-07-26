@@ -28,7 +28,4 @@ COPY ./src /app/
 COPY ./model-compose.yml /app/
 COPY ./.env /app/
 
-EXPOSE 8080
-EXPOSE 8081
-
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]

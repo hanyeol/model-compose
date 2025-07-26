@@ -63,18 +63,25 @@ class ControllerService(AsyncService):
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
     async def launch(self, specs: Dict[str, Any], detach: bool, verbose: bool) -> None:
-        await self._launch(specs, detach, verbose)
-        await self.start()
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            if detach:
+                pass
+            await self.start()
+            await self.wait_until_stopped()
+            return
+
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await DockerRuntimeLauncher(self.config, verbose).launch(specs, detach)
+            return
 
     async def terminate(self, verbose: bool) -> None:
-        await self.stop()
-        await self._terminate(verbose)
-
-    async def start(self) -> None:
-        await super().start()
-
-        if self.daemon:
-            await self.wait_until_stopped()
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            await self.stop()
+            return
+        
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await DockerRuntimeLauncher(self.config, verbose).terminate()
+            return
 
     async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
         task_id = ulid.ulid()
@@ -95,24 +102,6 @@ class ControllerService(AsyncService):
     def get_task_state(self, task_id: str) -> Optional[TaskState]:
         with self.task_states_lock:
             return self.task_states.get(task_id)
-
-    async def _launch(self, specs: Dict[str, Any], detach: bool, verbose: bool) -> None:
-        if self.config.runtime.type == RuntimeType.NATIVE:
-            if detach:
-                pass
-            return
-        
-        if self.config.runtime.type == RuntimeType.DOCKER:
-            await DockerRuntimeLauncher(self.config, verbose).launch(specs, detach)
-            return
-
-    async def _terminate(self, verbose: bool) -> None:
-        if self.config.runtime.type == RuntimeType.NATIVE:
-            return
-        
-        if self.config.runtime.type == RuntimeType.DOCKER:
-            await DockerRuntimeLauncher(self.config, verbose).terminate()
-            return
 
     async def _start(self) -> None:
         if self.queue:

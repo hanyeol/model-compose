@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from docker.types import Mount
 from docker.errors import DockerException, NotFound
-import asyncio, docker, sys
+import docker, sys
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -112,9 +112,6 @@ class DockerRuntimeManager:
                 exit_status = container.wait()
                 if exit_status.get("StatusCode", 0) != 0:
                     raise RuntimeError(f"Container exited with status {exit_status}")
-            else:
-                pass
-
         except DockerException as e:
             raise RuntimeError(f"Failed to start container: {e}")
 
@@ -155,7 +152,7 @@ class DockerRuntimeManager:
 
     async def build_image(self) -> None:
         try:
-            self.client.images.build(
+            response = self.client.api.build(
                 path=self.config.build.context,
                 dockerfile=self.config.build.dockerfile,
                 tag=self.config.image,
@@ -165,7 +162,17 @@ class DockerRuntimeManager:
                 labels=self.config.build.labels or {},
                 network_mode=self.config.build.network,
                 pull=self.config.build.pull,
+                rm=True,
+                forcerm=True,
+                decode=True
             )
+
+            for chunk in response:
+                if "stream" in chunk:
+                    sys.stdout.write(chunk["stream"])
+                    sys.stdout.flush()
+                elif "errorDetail" in chunk:
+                    raise RuntimeError(chunk["errorDetail"]["message"])
         except DockerException as e:
             raise RuntimeError(f"Failed to build image: {e}")
 
@@ -175,9 +182,9 @@ class DockerRuntimeManager:
         except DockerException as e:
             raise RuntimeError(f"Failed to pull image: {e}")
 
-    async def remove_image(self) -> None:
+    async def remove_image(self, force: bool = False) -> None:
         try:
-            self.client.images.remove(image=self.config.image, force=True)
+            self.client.images.remove(image=self.config.image, force=force)
         except NotFound:
             pass
         except DockerException as e:

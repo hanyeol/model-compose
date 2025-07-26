@@ -155,7 +155,7 @@ class DockerRuntimeManager:
 
     async def build_image(self) -> None:
         try:
-            image = self.client.images.create(
+            self.client.images.build(
                 path=self.config.build.context,
                 dockerfile=self.config.build.dockerfile,
                 tag=self.config.image,
@@ -166,14 +166,6 @@ class DockerRuntimeManager:
                 network_mode=self.config.build.network,
                 pull=self.config.build.pull,
             )
-            image.start()
-
-            for line in image.logs(stream=True, follow=True):
-                sys.stdout.buffer.write(line)
-                sys.stdout.flush()
-            exit_status = image.wait()
-            if exit_status.get("StatusCode", 0) != 0:
-                raise RuntimeError(f"Container exited with status {exit_status}")
         except DockerException as e:
             raise RuntimeError(f"Failed to build image: {e}")
 

@@ -24,7 +24,7 @@ class DockerRuntimeLauncher:
         if not self.config.runtime.ports:
             self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
 
-    async def launch(self, specs: Dict[str, Any], detach: bool):
+    async def launch(self, detach: bool):
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 
         await self._prepare_docker_context()

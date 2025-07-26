@@ -62,7 +62,7 @@ class ControllerService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
-    async def launch(self, specs: Dict[str, Any], detach: bool, verbose: bool) -> None:
+    async def launch(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
                 pass
@@ -71,7 +71,7 @@ class ControllerService(AsyncService):
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
-            await DockerRuntimeLauncher(self.config, verbose).launch(specs, detach)
+            await DockerRuntimeLauncher(self.config, verbose).launch(detach)
             return
 
     async def terminate(self, verbose: bool) -> None:

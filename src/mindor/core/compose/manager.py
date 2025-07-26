@@ -16,7 +16,7 @@ class ComposeManager:
         )
 
     async def launch_services(self, detach: bool, verbose: bool):
-        await self.controller.launch(self.config.model_dump(), detach, verbose)
+        await self.controller.launch(detach, verbose)
 
     async def terminate_services(self, verbose: bool):
         await self.controller.terminate(verbose)

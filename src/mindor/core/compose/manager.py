@@ -16,15 +16,15 @@ class ComposeManager:
         )
 
     async def launch_services(self, detach: bool, verbose: bool):
-        await self.controller.launch(detach, verbose)
+        await self.controller.launch(self.config.model_dump(), detach, verbose)
 
-    async def terminate_services(self):
-        await self.controller.terminate()
+    async def terminate_services(self, verbose: bool):
+        await self.controller.terminate(verbose)
 
     async def start_services(self, verbose: bool):
         await self.controller.start()
 
-    async def stop_services(self):
+    async def stop_services(self, verbose: bool):
         await self.controller.stop()
 
     async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], verbose: bool) -> TaskState:

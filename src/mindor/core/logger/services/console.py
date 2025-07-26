@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.logger import ConsoleLoggerConfig
 from ..base import LoggerService, LoggerType, LoggingLevel, register_logger
 from uvicorn.logging import ColourizedFormatter
-import logging
+import logging, sys
 
 _level_map = {
     LoggingLevel.DEBUG:    logging.DEBUG,

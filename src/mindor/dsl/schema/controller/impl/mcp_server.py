@@ -5,6 +5,6 @@ from .common import ControllerType, CommonControllerConfig
 
 class McpServerControllerConfig(CommonControllerConfig):
     type: Literal[ControllerType.MCP_SERVER]
-    host: Optional[str] = Field(default="0.0.0.0")
-    port: Optional[int] = Field(default=8080)
-    base_path: Optional[str] = Field(default= None)
+    host: Optional[str] = Field(default="0.0.0.0", description="")
+    port: Optional[int] = Field(default=8080, description="")
+    base_path: Optional[str] = Field(default=None, description="")

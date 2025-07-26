@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from docker.types import Mount
 from docker.errors import DockerException, NotFound
-import docker
+import asyncio, docker, sys
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -80,7 +80,7 @@ class DockerRuntimeManager:
 
     async def start_container(self, detach: bool) -> None:
         try:
-            self.client.containers.run(
+            container = self.client.containers.create(
                 image=self.config.image,
                 name=self.config.container_name,
                 hostname=self.config.hostname,
@@ -103,6 +103,18 @@ class DockerRuntimeManager:
                 stdin_open=not detach,
                 restart_policy={ "Name": self.config.restart }
             )
+            container.start()
+
+            if not detach:
+                for line in container.logs(stream=True, follow=True):
+                    sys.stdout.buffer.write(line)
+                    sys.stdout.flush()
+                exit_status = container.wait()
+                if exit_status.get("StatusCode", 0) != 0:
+                    raise RuntimeError(f"Container exited with status {exit_status}")
+            else:
+                pass
+
         except DockerException as e:
             raise RuntimeError(f"Failed to start container: {e}")
 
@@ -115,18 +127,35 @@ class DockerRuntimeManager:
         except DockerException as e:
             raise RuntimeError(f"Failed to stop container: {e}")
 
-    async def remove_container(self) -> None:
+    async def remove_container(self, force: bool = False) -> None:
         try:
             container = self.client.containers.get(self.config.container_name)
-            container.remove(force=True)
+            container.remove(force=force)
         except NotFound:
             pass
         except DockerException as e:
             raise RuntimeError(f"Failed to remove container: {e}")
 
+    async def is_container_running(self) -> bool:
+        try:
+            container = self.client.containers.get(self.config.container_name)
+            return container.status == "running"
+        except NotFound:
+            return False
+        except DockerException as e:
+            raise RuntimeError(f"Failed to check container: {e}")
+
+    async def exists_container(self) -> bool:
+        try:
+            return True if self.client.containers.get(self.config.container_name) else False
+        except NotFound:
+            return False
+        except DockerException as e:
+            raise RuntimeError(f"Failed to check container: {e}")
+
     async def build_image(self) -> None:
         try:
-            self.client.images.build(
+            image = self.client.images.create(
                 path=self.config.build.context,
                 dockerfile=self.config.build.dockerfile,
                 tag=self.config.image,
@@ -137,8 +166,22 @@ class DockerRuntimeManager:
                 network_mode=self.config.build.network,
                 pull=self.config.build.pull,
             )
+            image.start()
+
+            for line in image.logs(stream=True, follow=True):
+                sys.stdout.buffer.write(line)
+                sys.stdout.flush()
+            exit_status = image.wait()
+            if exit_status.get("StatusCode", 0) != 0:
+                raise RuntimeError(f"Container exited with status {exit_status}")
         except DockerException as e:
             raise RuntimeError(f"Failed to build image: {e}")
+
+    async def pull_image(self) -> None:
+        try:
+            self.client.images.pull(self.config.image)
+        except DockerException as e:
+            raise RuntimeError(f"Failed to pull image: {e}")
 
     async def remove_image(self) -> None:
         try:

@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
 from dataclasses import dataclass
+from pydantic import BaseModel
 from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
@@ -18,6 +19,7 @@ from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.expiring import ExpiringDict
+from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
 import asyncio, ulid
 
@@ -60,13 +62,13 @@ class ControllerService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
-    async def launch(self, detach: bool, verbose: bool) -> None:
-        await self._launch(detach, verbose)
+    async def launch(self, specs: Dict[str, Any], detach: bool, verbose: bool) -> None:
+        await self._launch(specs, detach, verbose)
         await self.start()
 
-    async def terminate(self) -> None:
+    async def terminate(self, verbose: bool) -> None:
         await self.stop()
-        await self._terminate()
+        await self._terminate(verbose)
 
     async def start(self) -> None:
         await super().start()
@@ -94,43 +96,22 @@ class ControllerService(AsyncService):
         with self.task_states_lock:
             return self.task_states.get(task_id)
 
-    async def _launch(self, detach: bool, verbose: bool) -> None:
+    async def _launch(self, specs: Dict[str, Any], detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
-                await self._launch_process(verbose)
+                pass
             return
         
         if self.config.runtime.type == RuntimeType.DOCKER:
-            await self._launch_docker(verbose)
+            await DockerRuntimeLauncher(self.config, verbose).launch(specs, detach)
             return
 
-    async def _launch_process(self, verbose: bool) -> None:
-        pass
-
-    async def _launch_docker(self, verbose: bool) -> None:
-        if not self.config.runtime.image:
-            if not self.config.runtime.build:
-                self.config.runtime.build = DockerBuildConfig(context=".", dockerfile="Dockerfile")
-            self.config.runtime.image = f"model-compose-{self.config.port}:latest"
-
-        if not self.config.runtime.container_name:
-            self.config.runtime.container_name = f"model-compose-{self.config.port}"
-
-        if not self.config.runtime.ports:
-            self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
-        
-        manager = DockerRuntimeManager(self.config.runtime, verbose)
-
-        if not await manager.exists_image():
-            await manager.build_image()
-
-        await manager.start_container(verbose)
-
-    async def _terminate(self) -> None:
+    async def _terminate(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             return
         
         if self.config.runtime.type == RuntimeType.DOCKER:
+            await DockerRuntimeLauncher(self.config, verbose).terminate()
             return
 
     async def _start(self) -> None:
@@ -212,14 +193,6 @@ class ControllerService(AsyncService):
     def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
         global_configs = self._get_component_global_configs()
         return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
-
-    def _get_ports_for_controller(self) -> List[int]:
-        ports = []
-        if self.config.port:
-            ports.append(self.config.port)
-        if self.config.webui and self.config.webui.port:
-            ports.append(self.config.webui.port)
-        return ports
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)

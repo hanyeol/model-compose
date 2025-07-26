@@ -61,18 +61,20 @@ def up_command(
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable.",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def down_command(
     ctx: click.Context,
     env_files: List[Path],
     env_data: List[str],
+    verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
-            await terminate_services(config)
+            await terminate_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -117,18 +119,20 @@ def start_command(
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable.",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def stop_command(
     ctx: click.Context,
     env_files: List[Path],
     env_data: List[str],
+    verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
-            await stop_services(config)
+            await stop_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
@@ -184,3 +188,6 @@ compose_command.add_command(down_command)
 compose_command.add_command(start_command)
 compose_command.add_command(stop_command)
 compose_command.add_command(run_command)
+
+if __name__ == "__main__":
+    compose_command()

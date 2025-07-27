@@ -109,24 +109,7 @@ class DockerRuntimeManager:
             container.start()
 
             if not detach:
-                self._register_shutdown_signals()
-
-                logs_task = asyncio.create_task(self._stream_container_logs(container))
-                wait_task = asyncio.create_task(self._wait_container_exit(container))
-
-                await self._shutdown_event.wait()
-
-                logging.info("Stopping container '%s' gracefully...", container.name)
-                container.stop(timeout=10)
-
-                logs_task.cancel()
-                try:
-                    await logs_task
-                except asyncio.CancelledError:
-                    pass
-
-                if not wait_task.done():
-                    await wait_task
+                await self._run_foreground_container(container)
         except DockerException as e:
             raise RuntimeError(f"Failed to start container: {e}")
 
@@ -212,6 +195,26 @@ class DockerRuntimeManager:
             return False
         except DockerException as e:
             raise RuntimeError(f"Failed to check image: {e}")
+
+    async def _run_foreground_container(self, container: Container) -> None:
+        self._register_shutdown_signals()
+
+        logs_task = asyncio.create_task(self._stream_container_logs(container))
+        wait_task = asyncio.create_task(self._wait_container_exit(container))
+
+        await self._shutdown_event.wait()
+
+        logging.info("Stopping container '%s' gracefully...", container.name)
+        container.stop(timeout=10)
+
+        logs_task.cancel()
+        try:
+            await logs_task
+        except asyncio.CancelledError:
+            pass
+
+        if not wait_task.done():
+            await wait_task
 
     async def _wait_container_exit(self, container: Container) -> None:
         try:

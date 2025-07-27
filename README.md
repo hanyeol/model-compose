@@ -118,12 +118,12 @@ The `model-compose.yml` file is the central configuration file that defines how 
 
 It includes:
 
-- **Controller** – configures the HTTP/MCP server, API endpoints, and optional Web UI
-- **Components** – reusable definitions for calling APIs, running local AI models, or executing commands
-- **Workflows** – named sets of jobs that define the flow of data
-- **Jobs** – steps that execute specific components, with support for inputs, outputs, and dependencies
-- **Listeners** – optional callback listeners that handle asynchronous responses from external services
-- **Gateways** - optional tunneling services that expose your local controller to the public internet
+- **Controller**: configures the HTTP/MCP server, API endpoints, and optional Web UI
+- **Components**: reusable definitions for calling APIs, running local AI models, or executing commands
+- **Workflows**: named sets of jobs that define the flow of data
+- **Jobs**: steps that execute specific components, with support for inputs, outputs, and dependencies
+- **Listeners**: optional callback listeners that handle asynchronous responses from external services
+- **Gateways**: optional tunneling services that expose your local controller to the public internet
 
 By default, `model-compose` automatically looks for a file named `model-compose.yml` in the current working directory when running commands like `up` or `run`.
 
@@ -133,6 +133,7 @@ By default, `model-compose` automatically looks for a file named `model-compose.
 controller:
   type: http-server
   port: 8080
+  base_path: /api
   webui:
     port: 8081
 
@@ -199,6 +200,121 @@ gateway:
 This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
 > 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
+
+---
+## 🛰 MCP Server Support
+You can also expose your workflows via the **Model Context Protocol (MCP)** server to enable remote execution, automation, or system integration using a lightweight JSON-RPC interface.
+
+#### ✅ Minimal MCP Server Example
+
+```
+controller:
+  type: mcp-server
+  port: 8080
+  base_path: /mcp
+
+components:
+  chatgpt:
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: "Write an inspiring quote."
+    output:
+      quote: ${response.choices[0].message.content}
+
+workflows:
+  generate-quote:
+    default: true
+    jobs:
+      get-quote:
+        component: chatgpt
+```
+This configuration launches the controller as an **MCP server**, which listens on port 8080 and exposes your workflows over a **JSON-RPC API**.
+
+Once running, you can invoke workflows remotely using a standard MCP request:
+
+```
+{
+  "jsonrpc": "2.0",
+  "method": "generate-quote",
+  "params": {
+    "input": {
+      "prompt": "Give me a haiku about the ocean"
+    }
+  },
+  "id": 1
+}
+```
+
+You can send this request via any HTTP client to:
+```
+POST http://localhost:8080/mcp
+```
+
+---
+## 🐳 Docker Runtime Support
+You can run the workflow controller inside a Docker container by specifying the runtime option in your `model-compose.yml` file.
+
+#### ✅ Minimal Docker Runtime Example
+
+```
+controller:
+  type: http-server
+  port: 8080
+  runtime: docker
+```
+
+This configuration will launch the controller inside a lightweight Docker container automatically managed by **model-compose**. It uses default settings such as container name, image, and volume mappings.
+
+#### ⚙️ Advanced Docker Runtime Options
+You can fully configure the Docker runtime by using an object under the `runtime` key:
+
+```
+controller:
+  type: http-server
+  port: 8080
+  runtime:
+    type: docker
+    image: 192.168.0.23/custom-image:latest
+    container_name: my-controller
+    volumes:
+      - ./models:/models
+      - ./cache:/cache
+    ports:
+      - "5000:8080"
+      - "5001:8081"
+    env:
+      MODEL_STORAGE_PATH: /models
+    command: [ "python", "-m", "mindor.cli.compose", "up" ]
+    ...
+```
+
+This gives you full control over:
+
+- **container_name**: Custom name for the container
+- **image**: Docker image to use
+- **volumes**: Bind mounts for sharing files between host and container
+- **ports**: Port mappings for host ↔ container communication
+- **env**: Environment variables to inject
+- **command**: Override the default entrypoint
+- *and many more*
+
+All of these are optional, allowing you to start simple and customize only what you need.
+
+#### 🐳 Benefits of Docker Runtime
+
+- Run your controller in a clean, isolated environment
+- Avoid dependency conflicts with your host Python setup
+- Easily deploy your project to remote servers or CI pipelines
+- Share reproducible workflows with others
 
 ---
 ## 🏗 Architecture

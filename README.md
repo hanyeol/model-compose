@@ -246,9 +246,7 @@ Once running, you can invoke workflows remotely using a standard MCP request:
   "jsonrpc": "2.0",
   "method": "generate-quote",
   "params": {
-    "input": {
-      "prompt": "Give me a haiku about the ocean"
-    }
+    "input": {}
   },
   "id": 1
 }

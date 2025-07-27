@@ -24,7 +24,8 @@ dependencies = [
     "transformers>=4.21.0",
     "torch",
     "sentencepiece",
-    "accelerate"
+    "accelerate",
+    "docker"
 ]
 
 [project.scripts]
@@ -39,6 +40,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"mindor.core.controller.runtime.docker" = ["context/*"]

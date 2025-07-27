@@ -1,9 +1,18 @@
-FROM python:3.11-slim
+FROM ubuntu:22.04
 
 WORKDIR /app
 
-RUN apt update && apt install -y gcc
+RUN apt update && apt install -y \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir \
     click \
     pyyaml \
@@ -24,10 +33,10 @@ RUN pip install --no-cache-dir \
     accelerate \
     docker
 
-COPY requirements.txt ./
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./src /app/
-COPY ./model-compose.yml /app/
+COPY src .
+COPY model-compose.yml .
 
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]

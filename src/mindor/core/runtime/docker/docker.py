@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.logger import logging
 from docker.models.containers import Container
-from docker.types import Mount
+from docker.types import Mount, DeviceRequest
 from docker.errors import DockerException, NotFound
 import docker, sys, asyncio, signal, time
 

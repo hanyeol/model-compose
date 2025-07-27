@@ -1,8 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
+from mindor.core.logger import logging
+from docker.models.containers import Container
 from docker.types import Mount
 from docker.errors import DockerException, NotFound
-import docker, sys
+import docker, sys, asyncio, signal
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -77,6 +79,7 @@ class DockerRuntimeManager:
         self.config: DockerRuntimeConfig = config
         self.verbose: bool = verbose
         self.client = docker.from_env()
+        self._shutdown_event = asyncio.Event()
 
     async def start_container(self, detach: bool) -> None:
         try:
@@ -106,12 +109,24 @@ class DockerRuntimeManager:
             container.start()
 
             if not detach:
-                for line in container.logs(stream=True, follow=True):
-                    sys.stdout.buffer.write(line)
-                    sys.stdout.flush()
-                exit_status = container.wait()
-                if exit_status.get("StatusCode", 0) != 0:
-                    raise RuntimeError(f"Container exited with status {exit_status}")
+                self._register_shutdown_signals()
+
+                logs_task = asyncio.create_task(self._stream_container_logs(container))
+                wait_task = asyncio.create_task(self._wait_container_exit(container))
+
+                await self._shutdown_event.wait()
+
+                logging.info("Stopping container '%s' gracefully...", container.name)
+                container.stop(timeout=10)
+
+                logs_task.cancel()
+                try:
+                    await logs_task
+                except asyncio.CancelledError:
+                    pass
+
+                if not wait_task.done():
+                    await wait_task
         except DockerException as e:
             raise RuntimeError(f"Failed to start container: {e}")
 
@@ -197,3 +212,27 @@ class DockerRuntimeManager:
             return False
         except DockerException as e:
             raise RuntimeError(f"Failed to check image: {e}")
+
+    async def _wait_container_exit(self, container: Container) -> None:
+        try:
+            exit_status = container.wait()
+            logging.info("Container '%s' exited with status %s", container.name, exit_status)
+            self._shutdown_event.set()
+        except Exception as e:
+            logging.error("Error while waiting for container '%s' to exit: %s", container.name, e)
+            self._shutdown_event.set()
+
+    async def _stream_container_logs(self, container: Container) -> None:
+        try:
+            for line in container.logs(stream=True, follow=True):
+                sys.stdout.buffer.write(line)
+                sys.stdout.flush()
+        except Exception as e:
+            logging.error("Error while streaming logs from container '%s': %s", container.name, e)
+
+    def _register_shutdown_signals(self) -> None:
+        signal.signal(signal.SIGINT,  self._handle_shutdown_signal)
+        signal.signal(signal.SIGTERM, self._handle_shutdown_signal)
+
+    def _handle_shutdown_signal(self, signum, frame) -> None:
+        self._shutdown_event.set()

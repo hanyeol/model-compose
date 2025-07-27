@@ -232,10 +232,14 @@ class DockerRuntimeManager:
 
     async def _wait_container_exit(self, container: Container) -> None:
         try:
-            loop = asyncio.get_event_loop()
-            exit_status = await loop.run_in_executor(None, container.wait)
-            self._shutdown_event.set()
-            logging.info("Container '%s' exited with exit code: %d", container.name, exit_status.get("StatusCode"))
+            while not self._shutdown_event.is_set():
+                container.reload()
+                if container.status != "running":
+                    exit_code = container.attrs.get("State", {}).get("ExitCode", 0)
+                    logging.info("Container '%s' exited with exit code: %d", container.name, exit_code)
+                    self._shutdown_event.set()
+                    break
+                await asyncio.sleep(0.5)
         except Exception as e:
             logging.error("Error while waiting for container '%s' to exit: %s", container.name, e)
             self._shutdown_event.set()

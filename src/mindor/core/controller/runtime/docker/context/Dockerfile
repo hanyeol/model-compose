@@ -24,8 +24,10 @@ RUN pip install --no-cache-dir \
     accelerate \
     docker
 
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY ./src /app/
 COPY ./model-compose.yml /app/
-COPY ./.env /app/
 
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]

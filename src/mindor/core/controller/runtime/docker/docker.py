@@ -2,8 +2,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.runtime.docker import DockerRuntimeManager
+from ..specs import ControllerRuntimeSpecs
 from pathlib import Path
-import mindor, shutil
+import mindor, shutil, yaml
 
 class DockerRuntimeLauncher:
     def __init__(self, config: ControllerConfig, verbose: bool):
@@ -24,10 +25,10 @@ class DockerRuntimeLauncher:
         if not self.config.runtime.ports:
             self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
 
-    async def launch(self, detach: bool):
+    async def launch(self, specs: ControllerRuntimeSpecs, detach: bool):
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 
-        await self._prepare_docker_context()
+        await self._prepare_docker_context(specs)
 
         if not await docker.exists_image():
             try:
@@ -39,7 +40,7 @@ class DockerRuntimeLauncher:
             try:
                 await docker.build_image()
             except Exception as e:
-                print(e)
+                pass
 
         if await docker.exists_container():
             await docker.remove_container(force=True)
@@ -57,17 +58,36 @@ class DockerRuntimeLauncher:
 
         shutil.rmtree(".docker")
 
-    async def _prepare_docker_context(self) -> None:
-        # Copy source tree
-        source_root = Path(mindor.__file__).resolve().parent
-        target_dir = Path.cwd() / ".docker" / "src"
+    async def _prepare_docker_context(self, specs: ControllerRuntimeSpecs) -> None:
+        # Prepare context directory
+        context_dir = Path.cwd() / ".docker"
+        if context_dir.exists():
+            shutil.rmtree(context_dir)
 
-        def _ignore_filter(directory: str, contents: list[str]) -> list[str]:
-            return [ name for name in contents if name in [ "__pycache__" ] ]
+        # Copy context files
+        context_files_root = Path(__file__).resolve().parent / "context"
+        shutil.copytree(
+            src=str(context_files_root), 
+            dst=context_dir
+        )
 
-        if target_dir.exists():
-            shutil.rmtree(target_dir)
-        shutil.copytree(src=str(source_root), dst=target_dir / source_root.name, ignore=_ignore_filter)
+        # Copy source files
+        source_files_root = Path(mindor.__file__).resolve().parent
+        target_dir = context_dir / "src" / source_files_root.name
+        shutil.copytree(
+            src=str(source_files_root), 
+            dst=target_dir, 
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+        )
 
         # Generate model-compose.yml
-        # Generate .env file
+        with open(context_dir / "model-compose.yml", "w") as f:
+            yaml.dump(specs.generate_native_runtime_specs(), f, sort_keys=False)
+
+        # Copy or generate requirements.txt
+        file_path = Path.cwd() / "requirements.txt"
+        target_path = Path(context_dir) / file_path.name
+        if file_path.exists():
+            shutil.copy(file_path, target_path)
+        else:
+            target_path.touch()

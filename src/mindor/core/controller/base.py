@@ -19,6 +19,7 @@ from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.expiring import ExpiringDict
+from .runtime.specs import ControllerRuntimeSpecs
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
 import asyncio, ulid
@@ -71,7 +72,7 @@ class ControllerService(AsyncService):
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
-            await DockerRuntimeLauncher(self.config, verbose).launch(detach)
+            await DockerRuntimeLauncher(self.config, verbose).launch(self._get_runtime_specs(), detach)
             return
 
     async def terminate(self, verbose: bool) -> None:
@@ -182,6 +183,9 @@ class ControllerService(AsyncService):
     def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
         global_configs = self._get_component_global_configs()
         return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
+
+    def _get_runtime_specs(self) -> ControllerRuntimeSpecs:
+        return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows)
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)

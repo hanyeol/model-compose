@@ -202,14 +202,22 @@ class DockerRuntimeManager:
     async def _run_foreground_container(self, container: Container) -> None:
         self._register_shutdown_signals()
 
-        logs_task = asyncio.create_task(self._stream_container_logs(container))
-        wait_task = asyncio.create_task(self._wait_container_exit(container))
+        stream_logs_task       = asyncio.create_task(self._stream_container_logs(container))
+        container_exit_waiter  = asyncio.create_task(self._wait_container_exit(container))
+        shutdown_signal_waiter = asyncio.create_task(self._shutdown_event.wait())
 
         try:
             _, pending = await asyncio.wait(
-                [ asyncio.create_task(self._shutdown_event.wait()), wait_task ],
+                [ shutdown_signal_waiter, container_exit_waiter ], 
                 return_when=asyncio.FIRST_COMPLETED
             )
+
+            if shutdown_signal_waiter.done():
+                logging.info("Stopping container '%s' gracefully...", container.name)
+                try:
+                    container.stop(timeout=10)
+                except DockerException:
+                    pass
 
             for task in pending:
                 task.cancel()
@@ -218,15 +226,9 @@ class DockerRuntimeManager:
                 except asyncio.CancelledError:
                     pass
         finally:
-            logging.info("Stopping container '%s' gracefully...", container.name)
+            stream_logs_task.cancel()
             try:
-                container.stop(timeout=10)
-            except DockerException:
-                pass
-
-            logs_task.cancel()
-            try:
-                await logs_task
+                await stream_logs_task
             except asyncio.CancelledError:
                 pass
 
@@ -237,12 +239,10 @@ class DockerRuntimeManager:
                 if container.status != "running":
                     exit_code = container.attrs.get("State", {}).get("ExitCode", 0)
                     logging.info("Container '%s' exited with exit code: %d", container.name, exit_code)
-                    self._shutdown_event.set()
                     break
                 await asyncio.sleep(0.5)
         except Exception as e:
             logging.error("Error while waiting for container '%s' to exit: %s", container.name, e)
-            self._shutdown_event.set()
 
     async def _stream_container_logs(self, container: Container) -> None:
         try:

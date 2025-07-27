@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.runtime.docker import DockerRuntimeManager
+from mindor.core.logger import logging
 from ..specs import ControllerRuntimeSpecs
 from pathlib import Path
 import mindor, shutil, yaml
@@ -31,20 +32,30 @@ class DockerRuntimeLauncher:
         await self._prepare_docker_context(specs)
 
         if not await docker.exists_image():
+            logging.debug("Checking if Docker image can be pulled...")
             try:
                 await docker.pull_image()
-            except:
-                pass
-
+            except Exception as e:
+                logging.debug("Docker image pull failed: %s — will try building instead.", e)
+            else:
+                if not await docker.exists_image():
+                    raise RuntimeError("Docker image pull completed, but image is still missing.")
+                logging.info("Docker image pulled successfully.")
+ 
         if not await docker.exists_image():
+            logging.debug("Building Docker image locally. This may take a few minutes...")
             try:
                 await docker.build_image()
+                logging.info("Docker image build completed successfully.")
             except Exception as e:
-                pass
+                logging.error("Docker image build failed: %s", e)
+                raise
 
-        if await docker.exists_container():
-            await docker.remove_container(force=True)
+        if await docker.is_container_running():
+            logging.info("Stopping running Docker container before relaunching...")
+            await docker.stop_container()
 
+        logging.info("Starting Docker container (%s mode)...", "detached" if detach else "foreground")
         await docker.start_container(detach)
 
     async def terminate(self):
@@ -55,8 +66,6 @@ class DockerRuntimeLauncher:
 
         if await docker.exists_image():
             await docker.remove_image()
-
-        shutil.rmtree(".docker")
 
     async def _prepare_docker_context(self, specs: ControllerRuntimeSpecs) -> None:
         # Prepare context directory

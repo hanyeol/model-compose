@@ -4,7 +4,7 @@ from mindor.core.logger import logging
 from docker.models.containers import Container
 from docker.types import Mount
 from docker.errors import DockerException, NotFound
-import docker, sys, asyncio, signal
+import docker, sys, asyncio, signal, time
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -79,33 +79,36 @@ class DockerRuntimeManager:
         self.config: DockerRuntimeConfig = config
         self.verbose: bool = verbose
         self.client = docker.from_env()
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: asyncio.Event = asyncio.Event()
 
     async def start_container(self, detach: bool) -> None:
         try:
-            container = self.client.containers.create(
-                image=self.config.image,
-                name=self.config.container_name,
-                hostname=self.config.hostname,
-                environment=self.config.environment,
-                ports=DockerPortsResolver(self.config.ports).resolve(),
-                mounts=DockerMountsResolver(self.config.volumes).resolve(),
-                command=self.config.command,
-                entrypoint=self.config.entrypoint,
-                working_dir=self.config.working_dir,
-                user=self.config.user,
-                mem_limit=self.config.mem_limit,
-                memswap_limit=self.config.memswap_limit,
-                cpu_shares=self.config.cpu_shares,
-                detach=detach,
-                labels=self.config.labels,
-                network=self.config.networks[0] if self.config.networks else None,
-                privileged=self.config.privileged,
-                security_opt=self.config.security_opt,
-                tty=not detach,
-                stdin_open=not detach,
-                restart_policy={ "Name": self.config.restart }
-            )
+            try:
+                container = self.client.containers.get(self.config.container_name)
+            except NotFound:
+                container = self.client.containers.create(
+                    image=self.config.image,
+                    name=self.config.container_name,
+                    hostname=self.config.hostname,
+                    environment=self.config.environment,
+                    ports=DockerPortsResolver(self.config.ports).resolve(),
+                    mounts=DockerMountsResolver(self.config.volumes).resolve(),
+                    command=self.config.command,
+                    entrypoint=self.config.entrypoint,
+                    working_dir=self.config.working_dir,
+                    user=self.config.user,
+                    mem_limit=self.config.mem_limit,
+                    memswap_limit=self.config.memswap_limit,
+                    cpu_shares=self.config.cpu_shares,
+                    detach=detach,
+                    labels=self.config.labels,
+                    network=self.config.networks[0] if self.config.networks else None,
+                    privileged=self.config.privileged,
+                    security_opt=self.config.security_opt,
+                    tty=not detach,
+                    stdin_open=not detach,
+                    restart_policy={ "Name": self.config.restart }
+                )
             container.start()
 
             if not detach:
@@ -219,15 +222,15 @@ class DockerRuntimeManager:
     async def _wait_container_exit(self, container: Container) -> None:
         try:
             exit_status = container.wait()
-            logging.info("Container '%s' exited with status %s", container.name, exit_status)
             self._shutdown_event.set()
+            logging.info("Container '%s' exited with exit code: %d", container.name, exit_status.get("StatusCode"))
         except Exception as e:
             logging.error("Error while waiting for container '%s' to exit: %s", container.name, e)
             self._shutdown_event.set()
 
     async def _stream_container_logs(self, container: Container) -> None:
         try:
-            for line in container.logs(stream=True, follow=True):
+            for line in container.logs(stream=True, follow=True, since=int(time.time())):
                 sys.stdout.buffer.write(line)
                 sys.stdout.flush()
         except Exception as e:

@@ -71,6 +71,7 @@ class ControllerService(AsyncService):
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._start_loggers()
             await DockerRuntimeLauncher(self.config, verbose).launch(self._get_runtime_specs(), detach)
             return
 
@@ -80,6 +81,7 @@ class ControllerService(AsyncService):
             return
         
         if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._start_loggers()
             await DockerRuntimeLauncher(self.config, verbose).terminate()
             return
 

@@ -86,7 +86,7 @@ model-compose up --env OPENAI_API_KEY=... --env ELEVENLABS_API_KEY=...
 
 > 💡 Once the controller is running, you can trigger workflows via the REST API or, if using MCP, via JSON-RPC. You can also access them through the Web UI.
 
-#### 📉 Shutting Down the Server (`down`)
+#### 🔽 Shutting Down the Server (`down`)
 To gracefully stop and remove the workflow controller and all associated services:
 
 ```

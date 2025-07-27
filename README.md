@@ -112,7 +112,6 @@ This is useful for testing, automation, or scripting.
 | `model-compose stop` | Temporarily pause the currently running controller |
 
 ---
-
 ## 🧾 `model-compose.yml`
 
 The `model-compose.yml` file is the central configuration file that defines how your workflows are composed and executed.
@@ -201,6 +200,26 @@ gateway:
 This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
 > 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
+
+---
+## 🖥 Web UI
+**model-compose** optionally provides a lightweight **Web UI** to help you visually trigger workflows, inspect inputs and outputs, and monitor execution logs.
+
+#### ✅ Enabling the Web UI
+To enable the Web UI, simply add the `webui` section under your `controller` in the `model-compose.yml` file:
+```
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    port: 8081
+```
+
+Once enabled, the Web UI will be available at:
+```
+http://localhost:8081
+```
+> By default, the Web UI is powered by Gradio, but support for other drivers may be added in the future.
 
 ---
 ## 🛰 MCP Server Support

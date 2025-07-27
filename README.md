@@ -55,8 +55,8 @@ By default, this command will:
 
 - Look for a file named `model-compose.yml` in the **current working directory**
 - Automatically load environment variables from a `.env` file in the **same directory**, if it exists
-- Start the workflow controller (default: http://localhost:8080)
-- Optionally launch the Web UI (default: http://localhost:8081, if configured)
+- Start the workflow controller (default: `http://localhost:8080`)
+- Optionally launch the Web UI (default: `http://localhost:8081`, if configured)
 
 To run in the background (detached mode):
 
@@ -184,7 +184,7 @@ listener:
       result: ${item.choices[0].message.content}
 ```
 
-This listener sets up an HTTP callback endpoint at http://localhost:8090/callbacks/chat-ai to handle asynchronous responses from an external service that behaves like ChatGPT but supports delayed or push-based results. This is useful when integrating with services that notify results via webhook-style callbacks.
+This listener sets up an HTTP callback endpoint at `http://localhost:8090/callbacks/chat-ai` to handle asynchronous responses from an external service that behaves like ChatGPT but supports delayed or push-based results. This is useful when integrating with services that notify results via webhook-style callbacks.
 
 #### 🌐 Gateway Example
 
@@ -195,7 +195,7 @@ gateway:
   port: 8090
 ```
 
-This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., https://abc123.ngrok.io) directly to your local callback endpoint at http://localhost:8090. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
+This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., `https://abc123.ngrok.io`) directly to your local callback endpoint at `http://localhost:8090`. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
 
 > 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
 

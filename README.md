@@ -264,11 +264,12 @@ Once running, you can invoke workflows remotely using a standard MCP request:
 ```
 {
   "jsonrpc": "2.0",
-  "method": "generate-quote",
+  "id": 1,
+  "method": "callTool",
   "params": {
-    "input": {}
-  },
-  "id": 1
+    "name": "generate-quote",
+    "arguments": {}
+  }
 }
 ```
 

@@ -219,7 +219,7 @@ Once enabled, the Web UI will be available at:
 ```
 http://localhost:8081
 ```
-> By default, the Web UI is powered by Gradio, but support for other drivers may be added in the future.
+> By default, the Web UI is powered by [Gradio](https://www.gradio.app), but support for other drivers may be added in the future.
 
 ---
 ## 🛰 MCP Server Support

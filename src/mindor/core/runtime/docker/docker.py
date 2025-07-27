@@ -100,14 +100,14 @@ class DockerRuntimeManager:
                     mem_limit=self.config.mem_limit,
                     memswap_limit=self.config.memswap_limit,
                     cpu_shares=self.config.cpu_shares,
-                    detach=detach,
                     labels=self.config.labels,
                     network=self.config.networks[0] if self.config.networks else None,
                     privileged=self.config.privileged,
                     security_opt=self.config.security_opt,
-                    tty=not detach,
-                    stdin_open=not detach,
-                    restart_policy={ "Name": self.config.restart }
+                    restart_policy={ "Name": self.config.restart },
+                    tty=True,
+                    stdin_open=True,
+                    detach=True
                 )
             container.start()
 
@@ -205,23 +205,35 @@ class DockerRuntimeManager:
         logs_task = asyncio.create_task(self._stream_container_logs(container))
         wait_task = asyncio.create_task(self._wait_container_exit(container))
 
-        await self._shutdown_event.wait()
-
-        logging.info("Stopping container '%s' gracefully...", container.name)
-        container.stop(timeout=10)
-
-        logs_task.cancel()
         try:
-            await logs_task
-        except asyncio.CancelledError:
-            pass
+            _, pending = await asyncio.wait(
+                [ asyncio.create_task(self._shutdown_event.wait()), wait_task ],
+                return_when=asyncio.FIRST_COMPLETED
+            )
 
-        if not wait_task.done():
-            await wait_task
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        finally:
+            logging.info("Stopping container '%s' gracefully...", container.name)
+            try:
+                container.stop(timeout=10)
+            except DockerException:
+                pass
+
+            logs_task.cancel()
+            try:
+                await logs_task
+            except asyncio.CancelledError:
+                pass
 
     async def _wait_container_exit(self, container: Container) -> None:
         try:
-            exit_status = container.wait()
+            loop = asyncio.get_event_loop()
+            exit_status = await loop.run_in_executor(None, container.wait)
             self._shutdown_event.set()
             logging.info("Container '%s' exited with exit code: %d", container.name, exit_status.get("StatusCode"))
         except Exception as e:
@@ -230,9 +242,12 @@ class DockerRuntimeManager:
 
     async def _stream_container_logs(self, container: Container) -> None:
         try:
-            for line in container.logs(stream=True, follow=True, since=int(time.time())):
-                sys.stdout.buffer.write(line)
-                sys.stdout.flush()
+            def _stream_logs_sync(container: Container) -> None:
+                for line in container.logs(stream=True, follow=True, since=int(time.time())):
+                    sys.stdout.buffer.write(line)
+                    sys.stdout.flush()
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _stream_logs_sync, container)
         except Exception as e:
             logging.error("Error while streaming logs from container '%s': %s", container.name, e)
 

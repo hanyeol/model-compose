@@ -52,7 +52,7 @@ class DockerRuntimeLauncher:
                 raise
 
         if await docker.is_container_running():
-            logging.info("Stopping running Docker container before relaunching...")
+            logging.info("Stopping running Docker container before restarting...")
             await docker.stop_container()
 
         logging.info("Starting Docker container (%s mode)...", "detached" if detach else "foreground")

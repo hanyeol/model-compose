@@ -4,8 +4,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-![Screenshots](docs/images/screenshots.png)
-
 **model-compose** is an open-source, declarative workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services or run local AI models, all within powerful, composable workflows.
 
 ---
@@ -204,6 +202,8 @@ This gateway configuration exposes the local listener defined above to the publi
 ---
 ## 🖥 Web UI
 **model-compose** optionally provides a lightweight **Web UI** to help you visually trigger workflows, inspect inputs and outputs, and monitor execution logs.
+
+![Screenshots](docs/images/webui.png)
 
 #### ✅ Enabling the Web UI
 To enable the Web UI, simply add the `webui` section under your `controller` in the `model-compose.yml` file:

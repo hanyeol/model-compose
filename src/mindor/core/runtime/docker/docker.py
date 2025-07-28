@@ -105,9 +105,7 @@ class DockerRuntimeManager:
                     privileged=self.config.privileged,
                     security_opt=self.config.security_opt,
                     restart_policy={ "Name": self.config.restart },
-                    tty=True,
-                    stdin_open=True,
-                    detach=True
+                    tty=True, stdin_open=True, detach=True
                 )
             container.start()
 
@@ -163,9 +161,7 @@ class DockerRuntimeManager:
                 labels=self.config.build.labels or {},
                 network_mode=self.config.build.network,
                 pull=self.config.build.pull,
-                rm=True,
-                forcerm=True,
-                decode=True
+                rm=True, forcerm=True, decode=True
             )
 
             for chunk in response:

@@ -11,11 +11,11 @@ from .logger import LoggerConfig
 
 class ComposeConfig(BaseModel):
     controller: ControllerConfig
-    components: Dict[str, ComponentConfig] = Field(default_factory=dict)
-    listeners: List[ListenerConfig] = Field(default_factory=list)
-    gateways: List[GatewayConfig] = Field(default_factory=list)
-    workflows: Dict[str, WorkflowConfig] = Field(default_factory=dict)
-    loggers: List[LoggerConfig] = Field(default_factory=list)
+    components: Dict[str, ComponentConfig] = Field(default_factory=dict, description="")
+    listeners: List[ListenerConfig] = Field(default_factory=list, description="")
+    gateways: List[GatewayConfig] = Field(default_factory=list, description="")
+    workflows: Dict[str, WorkflowConfig] = Field(default_factory=dict, description="")
+    loggers: List[LoggerConfig] = Field(default_factory=list, description="")
 
     @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):

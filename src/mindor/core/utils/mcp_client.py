@@ -23,12 +23,12 @@ class McpClient:
         Call a specific tool on the MCP server
         
         Args:
-            name: The name of the tool to call
+            name: Name of the tool to call
             arguments: Arguments to pass to the tool
             raise_on_error: Whether to raise exceptions on error responses
             
         Returns:
-            The tool execution result
+            Tool execution result
         """
         await self._ensure_initialized()
         result = await self.session.call_tool(name, arguments)
@@ -50,10 +50,10 @@ class McpClient:
         Read a specific resource from the MCP server
         
         Args:
-            uri: The URI of the resource to read
+            uri: URI of the resource to read
             
         Returns:
-            The resource content
+            Resource content
         """
         await self._ensure_initialized()
         result = await self.session.read_resource(uri)
@@ -70,11 +70,11 @@ class McpClient:
         Get a specific prompt from the MCP server
         
         Args:
-            name: The name of the prompt to get
+            name: Name of the prompt to get
             arguments: Arguments to pass to the prompt
             
         Returns:
-            The prompt content
+            Prompt content
         """
         await self._ensure_initialized()
         result = await self.session.get_prompt(name, arguments)

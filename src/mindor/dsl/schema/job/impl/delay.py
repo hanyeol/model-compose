@@ -20,7 +20,7 @@ class TimeIntervalDelayJobConfig(CommonDelayJobConfig):
 class SpecificTimeDelayJobConfig(CommonDelayJobConfig):
     mode: Literal[DelayJobMode.SPECIFIC_TIME]
     time: Union[datetime, str] = Field(..., description="Specific date and time to wait until.")
-    timezone: Optional[str] = Field(default=None, description="")
+    timezone: Optional[str] = Field(default=None, description="Timezone identifier used to interpret the 'time' field.")
 
 DelayJobConfig = Annotated[
     Union[ 

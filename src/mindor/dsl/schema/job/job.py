@@ -7,7 +7,8 @@ JobConfig = Annotated[
         ActionJobConfig,
         DelayJobConfig,
         IfJobConfig,
-        SwitchJobConfig
+        SwitchJobConfig,
+        RandomRouterJobConfig
     ],
     Field(discriminator="type")
 ]

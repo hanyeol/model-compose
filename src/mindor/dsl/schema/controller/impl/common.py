@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.runtime import RuntimeConfig
 from .types import ControllerType
-from .webui import ControllerWebUIConfig
+from ..webui import ControllerWebUIConfig
 
 class CommonControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None)

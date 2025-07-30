@@ -9,7 +9,6 @@ from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import uvicorn, gradio

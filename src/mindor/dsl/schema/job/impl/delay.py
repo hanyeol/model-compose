@@ -2,16 +2,16 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
-from .common import JobType, CommonJobConfig
+from .common import JobType, OutputJobConfig
 from datetime import datetime
 
 class DelayJobMode(str, Enum):
     TIME_INTERVAL = "time-interval"
     SPECIFIC_TIME = "specific-time"
 
-class CommonDelayJobConfig(CommonJobConfig):
+class CommonDelayJobConfig(OutputJobConfig):
     type: Literal[JobType.DELAY]
-    mode: DelayJobMode = Field(..., description="")
+    mode: DelayJobMode = Field(..., description="Delay mode.")
 
 class TimeIntervalDelayJobConfig(CommonDelayJobConfig):
     mode: Literal[DelayJobMode.TIME_INTERVAL]

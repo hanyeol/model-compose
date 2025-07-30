@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
-from ..base import Job, JobType, WorkflowContext, register_job
+from ..base import Job, JobType, WorkflowContext, RoutingTarget, register_job
 from datetime import datetime
 import asyncio, ulid
 
@@ -13,7 +13,7 @@ class ActionJob(Job):
     def __init__(self, id: str, config: ActionJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: WorkflowContext) -> Any:
+    async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
         component: ComponentService = self._create_component(self.id, await context.render_variable(self.config.component))
 
         if not component.started:

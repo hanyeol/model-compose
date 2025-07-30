@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.dsl.schema.job import ActionJobConfig
+from mindor.dsl.schema.job import ActionJobConfig, OutputJobConfig
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 import re, json
@@ -234,7 +234,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
         return self._to_variable_config_list(self._resolve_workflow(workflow, workflows, components))
 
-    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
+    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         for job_id, job in workflow.jobs.items():
@@ -242,9 +242,9 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 continue
 
             job_variables: List[WorkflowVariable] = variables
-            repeat_count: int = job.repeat_count if isinstance(job.repeat_count, int) else 0
+            repeat_count: int = job.repeat_count if isinstance(job, ActionJobConfig) and isinstance(job.repeat_count, int) else 0
 
-            if repeat_count != 1:
+            if repeat_count > 1:
                 variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
             if isinstance(job, ActionJobConfig) and (not job.output or job.output == "${output}"):
@@ -260,7 +260,8 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                     if action:
                         job_variables.extend(self._resolve_component(component, action, workflows, components))           
             else:
-                job_variables.extend(self._enumerate_output_variables(None, job.output))
+                if isinstance(job, OutputJobConfig):
+                    job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))
 
         return variables
 
@@ -271,7 +272,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             workflow_id = action.workflow or "__default__"
             workflow = workflows[workflow_id] if workflow_id in workflows else None
             if workflow:
-                variables.extend(self._resolve_workflow(workflow, workflows, components))
+                variables.extend(self._resolve_workflow(workflow, workflows, components, internal=True))
         else:
             variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
 
@@ -282,7 +283,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
 
 class WorkflowSchema:
     def __init__(
-        self, 
+        self,
         name: Optional[str], 
         title: Optional[str], 
         description: Optional[str], 

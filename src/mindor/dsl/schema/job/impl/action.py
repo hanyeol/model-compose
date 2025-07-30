@@ -2,9 +2,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.component import ComponentConfig
-from .common import JobType, CommonJobConfig
+from .common import JobType, OutputJobConfig
 
-class ActionJobConfig(CommonJobConfig):
+class ActionJobConfig(OutputJobConfig):
     type: Literal[JobType.ACTION]
     component: Union[str, ComponentConfig] = Field(default="__default__", description="The component to run. May be either a string identifier or a full config object.")
     action: str = Field(default="__default__", description="The action to invoke on the component. Defaults to '__default__'.")

@@ -106,7 +106,7 @@ class GradioWebUIBuilder:
         if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not internal or not format):
             if internal and format and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
-            return create_upload_file(value, type.value, subtype)
+            return create_upload_file(value, type.value, subtype) if value is not None else None
 
         return value if value != "" else None
 
@@ -157,17 +157,17 @@ class GradioWebUIBuilder:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
-                group = output[variable.name] if variable.name else output
-                for value in group:
+                group = output[variable.name] if variable.name in output else None if variable.name else output
+                for value in group or ():
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
-                value = output[variable.name] if variable.name else output
+                value = output[variable.name] if variable.name in output else None if variable.name else output
                 flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 
     async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
         if type == WorkflowVariableType.STRING:
-            return json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+            return json.dumps(value) if isinstance(value, (dict, list)) else str(value) if value is not None else None
 
         if type == WorkflowVariableType.IMAGE:
             return await self._load_image_from_value(value, subtype, format)

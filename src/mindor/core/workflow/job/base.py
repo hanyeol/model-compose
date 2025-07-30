@@ -5,6 +5,10 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.workflow.context import WorkflowContext
 
+class RoutingTarget:
+    def __init__(self, job_id):
+        self.job_id = job_id
+
 class Job(ABC):
     def __init__(self, id: str, config: JobConfig, global_configs: ComponentGlobalConfigs):
         self.id: str = id
@@ -12,7 +16,7 @@ class Job(ABC):
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     @abstractmethod
-    async def run(self, context: WorkflowContext) -> Any:
+    async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
         pass
 
 def register_job(type: JobType):

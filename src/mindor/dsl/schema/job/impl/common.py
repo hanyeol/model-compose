@@ -6,5 +6,10 @@ from .types import JobType
 
 class CommonJobConfig(BaseModel):
     type: JobType = Field(..., description="")
-    output: Optional[Any] = Field(default=None, description="The output data returned from this job. Accepts any type.")
     depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
+
+    def get_routing_jobs(self) -> List[str]:
+        return []
+
+class OutputJobConfig(CommonJobConfig):
+    output: Optional[Any] = Field(default=None, description="The output data returned from this job. Accepts any type.")

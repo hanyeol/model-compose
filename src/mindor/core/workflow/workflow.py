@@ -5,7 +5,7 @@ from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from .context import WorkflowContext
-from .job import Job, create_job
+from .job import Job, RoutingTarget, create_job
 import asyncio
 
 class JobGraphValidator:
@@ -82,7 +82,8 @@ class WorkflowRunner:
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: WorkflowContext) -> Any:
-        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() }
+        routing_jobs: Dict[str, Job] = { job_id: create_job(job_id, self.jobs[job_id], self.global_configs) for job in self.jobs.values() for job_id in job.get_routing_jobs() }
+        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() if job_id not in routing_jobs }
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
@@ -110,17 +111,29 @@ class WorkflowRunner:
 
             for completed_job_task in completed_job_tasks:
                 completed_job_id = next(job_id for job_id, job_task in scheduled_job_tasks.items() if job_task == completed_job_task)
-
                 completed_job_output = await completed_job_task
-                context.complete_job(completed_job_id, completed_job_output)
 
-                logging.info("[task-%s] Job '%s' completed in %.2f seconds.", context.task_id, completed_job_id, job_time_trackers[completed_job_id].elapsed())
+                if isinstance(completed_job_output, RoutingTarget):
+                    next_job_id = completed_job_output.job_id
 
-                if self._is_terminal_job(completed_job_id):
-                    if isinstance(output, dict) and isinstance(completed_job_output, dict):
-                        output.update(completed_job_output)
+                    if next_job_id in routing_jobs:
+                        logging.info("[task-%s] Routing to job '%s' from job '%s'.", context.task_id, next_job_id, completed_job_id)
+                        pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
+                        scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(context))
+                        running_job_ids.add(next_job_id)
+                        job_time_trackers[next_job_id] = TimeTracker()
                     else:
-                        output = completed_job_output
+                        context.complete_job(completed_job_id, completed_job_output)
+                        logging.info("[task-%s] Job '%s' completed without routing.", context.task_id, completed_job_id)
+                else:
+                    context.complete_job(completed_job_id, completed_job_output)
+                    logging.info("[task-%s] Job '%s' completed in %.2f seconds.", context.task_id, completed_job_id, job_time_trackers[completed_job_id].elapsed())
+
+                    if self._is_terminal_job(completed_job_id):
+                        if isinstance(output, dict) and isinstance(completed_job_output, dict):
+                            output.update(completed_job_output)
+                        else:
+                            output = completed_job_output
 
                 running_job_ids.remove(completed_job_id)
                 completed_job_ids.add(completed_job_id)

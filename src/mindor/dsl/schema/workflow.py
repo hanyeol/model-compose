@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.utils.annotation import get_model_union_keys
-from .job import JobConfig, JobType
+from .job import JobConfig, JobType, DelayJobMode
 
 class WorkflowVariableType(str, Enum):
     # Primitive data types
@@ -67,7 +67,8 @@ class WorkflowConfig(BaseModel):
     def normalize_jobs(cls, values: Dict[str, Any]):
         values = cls.inflate_single_job(values)
         if "jobs" in values:
-           cls.set_default_job_type(values["jobs"])
+           cls.fill_missing_job_type(values["jobs"])
+           cls.fill_missing_delay_job_mode(values["jobs"])
         return values
 
     @classmethod
@@ -79,7 +80,13 @@ class WorkflowConfig(BaseModel):
         return values
 
     @classmethod
-    def set_default_job_type(cls, jobs: Dict[str, Any]):
+    def fill_missing_job_type(cls, jobs: Dict[str, Any]):
         for job in jobs.values():
             if "type" not in job:
                 job["type"] = JobType.ACTION
+
+    @classmethod
+    def fill_missing_delay_job_mode(cls, jobs: Dict[str, Any]):
+        for job in [ job for job in jobs.values() if job["type"] == "delay" ]:
+            if "mode" not in job:
+                job["mode"] = DelayJobMode.TIME_INTERVAL

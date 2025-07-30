@@ -1,5 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.controller import ControllerWebUIConfig, ControllerConfig
+from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriver
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
@@ -8,6 +9,9 @@ from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import uvicorn, gradio
 
 class ControllerWebUI(AsyncService):
@@ -32,12 +36,20 @@ class ControllerWebUI(AsyncService):
         self._configure_driver()
 
     def _configure_driver(self) -> None:
-        if self.config.driver == "gradio":
+        if self.config.driver == ControllerWebUIDriver.GRADIO:
             blocks: gradio.Blocks = GradioWebUIBuilder().build(
                 schema=self.schema,
                 runner=self._run_workflow
             )
             self.app = mount_gradio_app(self.app, blocks, path="")
+            return
+        
+        if self.config.driver == ControllerWebUIDriver.STATIC:
+            static_files = StaticFiles(
+                directory=Path(self.config.static_dir).resolve(), 
+                html=True
+            )
+            self.app.mount("/", static_files, name="static")
             return
 
     async def _serve(self) -> None:

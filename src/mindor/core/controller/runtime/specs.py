@@ -28,6 +28,12 @@ class ControllerRuntimeSpecs:
         specs["controller"] = self.controller.model_dump()
         specs["controller"]["runtime"] = "native"
 
+        if getattr(self.controller.webui, "server_dir", None):
+            specs["controller"]["webui"]["server_dir"] = "webui/server"
+
+        if getattr(self.controller.webui, "static_dir", None):
+            specs["controller"]["webui"]["static_dir"] = "webui/static"
+
         specs["components"] = {}
         for id, component in self.components.items():
             specs["components"][id] = component.model_dump()

@@ -9,4 +9,4 @@ class HttpTunnelGatewayDriver(str, Enum):
 
 class HttpTunnelGatewayConfig(CommonGatewayConfig):
     type: Literal[GatewayType.HTTP_TUNNEL]
-    driver: HttpTunnelGatewayDriver = Field(default=HttpTunnelGatewayDriver.NGROK)
+    driver: HttpTunnelGatewayDriver = Field(default=HttpTunnelGatewayDriver.NGROK, description="")

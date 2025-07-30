@@ -37,6 +37,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src .
+COPY webui ./webui
 COPY model-compose.yml .
 
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]

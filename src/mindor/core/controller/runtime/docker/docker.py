@@ -1,11 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.controller import ControllerConfig, ControllerWebUIDriver
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.runtime.docker import DockerRuntimeManager
 from mindor.core.logger import logging
 from ..specs import ControllerRuntimeSpecs
 from pathlib import Path
-import mindor, shutil, yaml
+import mindor, shutil, yaml, os
 
 class DockerRuntimeLauncher:
     def __init__(self, config: ControllerConfig, verbose: bool):
@@ -76,7 +76,7 @@ class DockerRuntimeLauncher:
         # Copy context files
         context_files_root = Path(__file__).resolve().parent / "context"
         shutil.copytree(
-            src=str(context_files_root), 
+            src=context_files_root, 
             dst=context_dir
         )
 
@@ -84,14 +84,10 @@ class DockerRuntimeLauncher:
         source_files_root = Path(mindor.__file__).resolve().parent
         target_dir = context_dir / "src" / source_files_root.name
         shutil.copytree(
-            src=str(source_files_root), 
+            src=source_files_root, 
             dst=target_dir, 
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
         )
-
-        # Generate model-compose.yml
-        with open(context_dir / "model-compose.yml", "w") as f:
-            yaml.dump(specs.generate_native_runtime_specs(), f, sort_keys=False)
 
         # Copy or generate requirements.txt
         file_path = Path.cwd() / "requirements.txt"
@@ -100,3 +96,26 @@ class DockerRuntimeLauncher:
             shutil.copy(file_path, target_path)
         else:
             target_path.touch()
+
+        # Copy or generate webui directory
+        Path(context_dir / "webui").mkdir(parents=True, exist_ok=True)
+
+        if getattr(self.config.webui, "server_dir", None):
+            server_dir = Path.cwd() / self.config.webui.server_dir
+            target_dir = context_dir / "webui" / "server"
+            shutil.copytree(
+                src=server_dir,
+                dst=target_dir
+            )
+
+        if getattr(self.config.webui, "static_dir", None):
+            static_dir = Path.cwd() / self.config.webui.static_dir
+            target_dir = context_dir / "webui" / "static"
+            shutil.copytree(
+                src=static_dir,
+                dst=target_dir
+            )
+
+        # Generate model-compose.yml
+        with open(context_dir / "model-compose.yml", "w") as f:
+            yaml.dump(specs.generate_native_runtime_specs(), f, sort_keys=False)

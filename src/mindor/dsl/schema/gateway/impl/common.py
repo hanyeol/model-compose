@@ -5,5 +5,5 @@ from .types import GatewayType
 
 class CommonGatewayConfig(BaseModel):
     type: GatewayType = Field(..., description="")
-    runtime: RuntimeType = Field(default=RuntimeType.NATIVE)
-    port: Optional[int] = Field(default=8090)
+    runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="")
+    port: Optional[int] = Field(default=8090, description="")

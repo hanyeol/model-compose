@@ -237,6 +237,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
+        routing_job_ids: Set[str] = { job_id for job in workflow.jobs.values() for job_id in job.get_routing_jobs() }
         for job_id, job in workflow.jobs.items():
             if not self._is_terminal_job(workflow, job_id):
                 continue

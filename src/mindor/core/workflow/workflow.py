@@ -82,8 +82,10 @@ class WorkflowRunner:
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: WorkflowContext) -> Any:
-        routing_jobs: Dict[str, Job] = { job_id: create_job(job_id, self.jobs[job_id], self.global_configs) for job in self.jobs.values() for job_id in job.get_routing_jobs() }
-        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() if job_id not in routing_jobs }
+        routing_job_ids: Set[str] = { job_id for job in self.jobs.values() for job_id in job.get_routing_jobs() }
+        routing_jobs: Dict[str, Job] = { job_id: create_job(job_id, self.jobs[job_id], self.global_configs) for job_id in routing_job_ids }
+        pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() if job_id not in routing_job_ids }
+        routable_job_ids: Set[str] = { job_id for job_id in self.jobs if self._is_routable_job(job_id, routing_job_ids) }
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
@@ -94,7 +96,7 @@ class WorkflowRunner:
         logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
 
         while pending_jobs:
-            runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids) ]
+            runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids, routable_job_ids) ]
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
@@ -144,11 +146,23 @@ class WorkflowRunner:
 
         return output
 
-    def _can_run_job(self, job: Job, running_job_ids: Set[str], completed_job_ids: Set[str]) -> bool:
-        return job.id not in running_job_ids and all(job_id in completed_job_ids for job_id in job.config.depends_on)
+    def _can_run_job(self, job: Job, running_job_ids: Set[str], completed_job_ids: Set[str], routable_job_ids: Set[str]) -> bool:
+        if job.id in running_job_ids:
+            return False
+        
+        if all(job_id in completed_job_ids for job_id in job.config.depends_on):
+            return True
+
+        completed = [ job_id for job_id in job.config.depends_on if job_id in completed_job_ids ]
+        remaining = [ job_id for job_id in job.config.depends_on if job_id not in completed_job_ids ]
+
+        return bool(completed) and all(job_id in routable_job_ids for job_id in remaining)
     
     def _is_terminal_job(self, job_id: str) -> bool:
         return all(job_id not in job.depends_on for other_id, job in self.jobs.items() if other_id != job_id)
+    
+    def _is_routable_job(self, job_id: str, routing_job_ids: Set[str]) -> bool:
+        return job_id in routing_job_ids or any(self._is_routable_job(depend_job_id, routing_job_ids) for depend_job_id in self.jobs[job_id].depends_on)
 
 class Workflow:
     def __init__(self, id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs):

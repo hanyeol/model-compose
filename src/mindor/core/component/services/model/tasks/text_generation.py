@@ -5,13 +5,15 @@ from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin
+from torch import Tensor
 import torch
 
 class TextGenerationTaskAction:
-    def __init__(self, config: TextGenerationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer):
+    def __init__(self, config: TextGenerationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TextGenerationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
+        self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext) -> Any:
         prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
@@ -28,7 +30,8 @@ class TextGenerationTaskAction:
 
         for index in range(0, len(prompts), batch_size):
             batch_prompts = prompts[index:index + batch_size]
-            inputs = self.tokenizer(batch_prompts, return_tensors="pt").to(self.model.device)
+            inputs: Dict[str, Tensor] = self.tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
             with torch.no_grad():
                 outputs = self.model.generate(
@@ -56,12 +59,14 @@ class TextGenerationTaskService(ModelTaskService):
 
         self.model: Optional[Union[PreTrainedModel, GenerationMixin]] = None
         self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.device: Optional[torch.device] = None
 
     async def _serve(self) -> None:
         try:
             self.model = self._load_pretrained_model()
             self.tokenizer = self._load_pretrained_tokenizer()
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.config.device}': {self.config.model}")
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
             raise
@@ -69,9 +74,10 @@ class TextGenerationTaskService(ModelTaskService):
     async def _shutdown(self) -> None:
         self.model = None
         self.tokenizer = None
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await TextGenerationTaskAction(action, self.model, self.tokenizer).run(context)
+        return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModelForCausalLM

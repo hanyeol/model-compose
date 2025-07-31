@@ -81,6 +81,9 @@ class ModelTaskService(AsyncService):
             params["local_files_only"] = True
 
         return params
+    
+    def _get_model_device(self, model: PreTrainedModel) -> torch.device:
+        return next(model.parameters()).device
 
     @abstractmethod
     def _get_model_class(self) -> Type[PreTrainedModel]:

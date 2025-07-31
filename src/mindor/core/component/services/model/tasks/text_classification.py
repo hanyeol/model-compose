@@ -7,13 +7,15 @@ from ..base import ComponentActionContext
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 from transformers.modeling_outputs import SequenceClassifierOutput
 import torch.nn.functional as F
+from torch import Tensor
 import torch
 
 class TextClassificationTaskAction:
-    def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
+    def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TextClassificationModelActionConfig = config
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
+        self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
@@ -26,7 +28,8 @@ class TextClassificationTaskAction:
 
         for index in range(0, len(texts), batch_size):
             batch_texts = texts[index:index + batch_size]
-            inputs = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True).to(self.model.device)
+            inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
             with torch.no_grad():
                 outputs: SequenceClassifierOutput = self.model(**inputs)
@@ -60,12 +63,14 @@ class TextClassificationTaskService(ModelTaskService):
 
         self.model: Optional[PreTrainedModel] = None
         self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.device: Optional[torch.device] = None
 
     async def _serve(self) -> None:
         try:
             self.model = self._load_pretrained_model()
             self.tokenizer = self._load_pretrained_tokenizer()
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.config.device}': {self.config.model}")
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
             raise
@@ -73,9 +78,10 @@ class TextClassificationTaskService(ModelTaskService):
     async def _shutdown(self) -> None:
         self.model = None
         self.tokenizer = None
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await TextClassificationTaskAction(action, self.model, self.tokenizer).run(context, self.config.labels)
+        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModelForSequenceClassification

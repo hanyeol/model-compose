@@ -31,12 +31,12 @@ class TextEmbeddingTaskAction:
             batch_texts = texts[index:index + batch_size]
             inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
-            attention_mask: Tensor = inputs.get("attention_mask", None)
 
             with torch.no_grad():
                 outputs: BaseModelOutput = self.model(**inputs)
                 last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
 
+            attention_mask = inputs.get("attention_mask", None)
             embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
             if normalize:

@@ -1,7 +1,7 @@
 from typing import Optional
 from .streaming import StreamResource
 from PIL import Image as PILImage
-import io, base64
+import io
 
 async def load_image_from_stream(stream: StreamResource, extension: Optional[str]) -> Optional[PILImage.Image]:
     try:

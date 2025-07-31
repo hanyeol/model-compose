@@ -6,6 +6,7 @@ from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
+from PIL import Image as PILImage
 import gradio as gr
 import json
 
@@ -177,7 +178,7 @@ class GradioWebUIBuilder:
 
         return value
 
-    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await load_image_from_stream(Base64StreamResource(value), subtype)
 

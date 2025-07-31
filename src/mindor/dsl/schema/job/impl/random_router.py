@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from .common import JobType, CommonJobConfig
 
-class RandomRoutingMode(Enum, str):
+class RandomRoutingMode(str, Enum):
     UNIFORM  = "uniform"
     WEIGHTED = "weighted"
 

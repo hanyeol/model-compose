@@ -6,4 +6,4 @@ from .common import CommonModelComponentConfig, ModelTaskType
 
 class TranslationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TRANSLATION]
-    actions: Dict[str, TranslationModelActionConfig] = Field(default_factory=dict)
+    actions: Dict[str, TranslationModelActionConfig] = Field(default_factory=dict, description="")

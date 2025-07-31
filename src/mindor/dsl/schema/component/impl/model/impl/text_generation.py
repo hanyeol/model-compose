@@ -6,4 +6,4 @@ from .common import CommonModelComponentConfig, ModelTaskType
 
 class TextGenerationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_GENERATION]
-    actions: Dict[str, TextGenerationModelActionConfig] = Field(default_factory=dict)
+    actions: Dict[str, TextGenerationModelActionConfig] = Field(default_factory=dict, description="")

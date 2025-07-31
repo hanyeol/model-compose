@@ -25,7 +25,7 @@ class ModelComponent(ComponentService):
                 from . import tasks
             return ModelTaskServiceRegistry[type](self.id, self.config, self.daemon)
         except KeyError:
-            raise ValueError(f"Unsupported component type: {type}")
+            raise ValueError(f"Unsupported model task type: {type}")
 
     async def _serve(self) -> None:
         await self.task_service.start()

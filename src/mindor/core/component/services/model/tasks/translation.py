@@ -60,8 +60,8 @@ class TranslationTaskService(ModelTaskService):
 
     async def _serve(self) -> None:
         try:
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model).to(torch.device(self.config.device))
-            self.tokenizer = AutoTokenizer.from_pretrained(self.config.model, use_fast=self.config.fast_tokenizer)
+            self.model = self._load_pretrained_model()
+            self.tokenizer = self._load_pretrained_tokenizer()
             logging.info(f"Model and tokenizer loaded successfully on device '{self.config.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
@@ -73,3 +73,9 @@ class TranslationTaskService(ModelTaskService):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await TranslationTaskAction(action, self.model, self.tokenizer).run(context)
+
+    def _get_model_class(self) -> Type[PreTrainedModel]:
+        return AutoModelForSeq2SeqLM
+
+    def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        return AutoTokenizer

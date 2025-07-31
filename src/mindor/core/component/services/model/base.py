@@ -1,9 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, DeviceMode
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
+from transformers import PreTrainedModel, PreTrainedTokenizer
+import torch
 
 class ModelTaskService(AsyncService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -17,6 +19,57 @@ class ModelTaskService(AsyncService):
 
     @abstractmethod
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        pass
+
+    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:
+        params = self._get_common_model_params()
+
+        if extra_params:
+            params.update(extra_params)
+
+        model = self._get_model_class().from_pretrained(self.config.model, **params)
+
+        if self.config.device_mode == DeviceMode.SINGLE:
+            model = model.to(torch.device(self.config.device))
+
+        return model
+
+    def _get_common_model_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+    
+        if self.config.device_mode != DeviceMode.SINGLE:
+            params["device_map"] = self.config.device_mode.value
+    
+        if self.config.precision is not None:
+            params["torch_dtype"] = getattr(torch, self.config.precision.value)
+    
+        if self.config.cache_dir:
+            params["cache_dir"] = self.config.cache_dir
+
+        return params
+    
+    def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedTokenizer:
+        params = self._get_common_tokenizer_params()
+ 
+        if extra_params:
+            params.update(extra_params)
+
+        return self._get_tokenizer_class().from_pretrained(self.config.model, **params)
+
+    def _get_common_tokenizer_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+    
+        if not self.config.fast_tokenizer:
+            params["use_fast"] = False
+    
+        return params
+
+    @abstractmethod
+    def _get_model_class(self) -> Type[PreTrainedModel]:
+        pass
+
+    @abstractmethod
+    def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         pass
 
 def register_model_task_service(type: ModelTaskType):

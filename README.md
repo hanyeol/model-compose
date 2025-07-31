@@ -255,6 +255,11 @@ project/
 
 Support for additional drivers (e.g., `dynamic`) may be added in future versions.
 
+Once configured, the Web UI will be available at:
+```
+http://localhost:8081
+```
+
 ---
 ## 🛰 MCP Server Support
 You can also expose your workflows via the **Model Context Protocol (MCP)** server to enable remote execution, automation, or system integration using a lightweight JSON-RPC interface.

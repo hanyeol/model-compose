@@ -27,10 +27,13 @@ class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
     model: str = Field(..., description="Model name or path.")
+    revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
+    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model and tokenizer files.")
+    local_files_only: bool = Field(default=False, description="Force loading from local files only.")
     device_mode: DeviceMode = Field(default=DeviceMode.SINGLE, description="")
     device: str = Field(default="cpu", description="Computation device to use.")
-    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model and tokenizer files.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
+    low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")
     fast_tokenizer: bool = Field(default=True, description="Whether to use the fast tokenizer if available.")
 
     @model_validator(mode="before")

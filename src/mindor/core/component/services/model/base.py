@@ -43,8 +43,17 @@ class ModelTaskService(AsyncService):
         if self.config.precision is not None:
             params["torch_dtype"] = getattr(torch, self.config.precision.value)
     
+        if self.config.low_cpu_mem_usage:
+            params["low_cpu_mem_usage"] = True
+
+        if self.config.revision:
+            params["revision"] = self.config.revision
+
         if self.config.cache_dir:
             params["cache_dir"] = self.config.cache_dir
+
+        if self.config.local_files_only:
+            params["local_files_only"] = True
 
         return params
     
@@ -62,6 +71,15 @@ class ModelTaskService(AsyncService):
         if not self.config.fast_tokenizer:
             params["use_fast"] = False
     
+        if self.config.revision:
+            params["revision"] = self.config.revision
+
+        if self.config.cache_dir:
+            params["cache_dir"] = self.config.cache_dir
+
+        if self.config.local_files_only:
+            params["local_files_only"] = True
+
         return params
 
     @abstractmethod

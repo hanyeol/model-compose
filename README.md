@@ -219,7 +219,41 @@ Once enabled, the Web UI will be available at:
 ```
 http://localhost:8081
 ```
-> By default, the Web UI is powered by [Gradio](https://www.gradio.app), but support for other drivers may be added in the future.
+
+## 🎨 Custom Web UI
+You can fully customize the Web UI experience by specifying a different driver or serving your own frontend.
+
+By default, `model-compose` uses [Gradio](https://www.gradio.app) as the interactive UI. However, if you prefer to use your own static frontend (e.g., a custom React/Vite app), you can switch to the `static` driver.
+
+Here’s how you can do it:
+
+```
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    driver: static
+    static_dir: webui
+    port: 8081
+```
+Your frontend should be a prebuilt static site (e.g., using `vite build`, `next export`, or `react-scripts` build) and placed in the specified `static_dir`.
+Make sure `index.html` exists in that directory.
+
+#### 📁 Example Directory Structure
+```
+project/
+├── model-compose.yml
+├── webui/
+│   ├── index.html
+│   ├── assets/
+│   └── ...
+```
+
+#### 🔧 Notes
+* Ensure the `static_dir` path is relative to the project root or an absolute path.
+* You can use environment variables inside `model-compose.yml` to make this path configurable.
+
+Support for additional drivers (e.g., `dynamic`) may be added in future versions.
 
 ---
 ## 🛰 MCP Server Support

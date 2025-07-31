@@ -11,7 +11,7 @@ from mindor.core.compose import *
 @click.option(
     "--file", "-f", "config_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Compose configuration files",
+    help="Compose configuration files"
 )
 @click.pass_context
 def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
@@ -25,11 +25,11 @@ def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
     "--env-file", "env_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Path to a .env file containing environment variables.",
+    help="Path to a .env file containing environment variables."
 )
 @click.option(
     "--env", "-e", "env_data", multiple=True,
-    help="Environment variable in the form KEY=VALUE. Repeatable.",
+    help="Environment variable in the form KEY=VALUE. Repeatable."
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
@@ -55,11 +55,11 @@ def up_command(
     "--env-file", "env_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Path to a .env file containing environment variables.",
+    help="Path to a .env file containing environment variables."
 )
 @click.option(
     "--env", "-e", "env_data", multiple=True,
-    help="Environment variable in the form KEY=VALUE. Repeatable.",
+    help="Environment variable in the form KEY=VALUE. Repeatable."
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
@@ -84,7 +84,7 @@ def down_command(
     "--env-file", "env_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Path to a .env file containing environment variables.",
+    help="Path to a .env file containing environment variables."
 )
 @click.option(
     "--env", "-e", "env_data", multiple=True,
@@ -113,11 +113,11 @@ def start_command(
     "--env-file", "env_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Path to a .env file containing environment variables.",
+    help="Path to a .env file containing environment variables."
 )
 @click.option(
     "--env", "-e", "env_data", multiple=True,
-    help="Environment variable in the form KEY=VALUE. Repeatable.",
+    help="Environment variable in the form KEY=VALUE. Repeatable."
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
@@ -149,11 +149,11 @@ def stop_command(
     "--env-file", "env_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=False,
-    help="Path to a .env file containing environment variables.",
+    help="Path to a .env file containing environment variables."
 )
 @click.option(
     "--env", "-e", "env_data", multiple=True,
-    help="Environment variable in the form KEY=VALUE. Repeatable.",
+    help="Environment variable in the form KEY=VALUE. Repeatable."
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context

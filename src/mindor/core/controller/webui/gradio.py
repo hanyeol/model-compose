@@ -211,7 +211,10 @@ class GradioWebUIBuilder:
         if isinstance(value, (dict, list)):
             return json.dumps(value)
 
-        return str(value) if value is not None else None
+        if value is not None:
+            return str(value)
+        
+        return None
 
     async def _resolve_json_field_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
         try:

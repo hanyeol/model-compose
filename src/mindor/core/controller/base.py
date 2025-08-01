@@ -17,7 +17,7 @@ from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.utils.workqueue import WorkQueue
-from mindor.core.utils.expiring import ExpiringDict
+from mindor.core.utils.caching import ExpiringDict
 from .runtime.specs import ControllerRuntimeSpecs
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock

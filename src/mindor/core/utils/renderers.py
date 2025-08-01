@@ -3,12 +3,14 @@ from .streaming import StreamResource, UploadFileStreamResource, Base64StreamRes
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
+from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
 import re, json, base64
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int]], Awaitable[Any]]):
         self.source_resolver: Callable[[str, Optional[int]], Awaitable[Any]] = source_resolver
+        self.field_resolver: FieldResolver = FieldResolver()
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
@@ -19,8 +21,7 @@ class VariableRenderer:
                     (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?          # annotations
                 \s*\}""",                                                         # }
                 re.VERBOSE,
-            ),
-            "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
+            )
         }
 
     async def render(self, data: Any, ignore_files: bool = True) -> Any:
@@ -46,7 +47,7 @@ class VariableRenderer:
             index = int(index) if index else None
 
             try:
-                value = self._resolve_by_path(await self.source_resolver(key, index), path)
+                value = self.field_resolver.resolve(await self.source_resolver(key, index), path)
             except Exception:
                 value = None
 
@@ -63,27 +64,6 @@ class VariableRenderer:
             text = text[:start] + str(value) + text[end:]
 
         return text
-
-    def _resolve_by_path(self, source: Any, path: Optional[str]) -> Any:
-        parts: List[str] = self.patterns["keypath"].findall(path) if path else []
-        current = source
-
-        for part in parts:
-            if isinstance(current, dict) and not part.startswith("["):
-                if part in current:
-                    current = current[part]
-                else:
-                    return None
-            elif isinstance(current, list) and part.startswith("["):
-                index = int(part[1:-1])
-                if 0 <= index < len(current):
-                    current = current[index]
-                else:
-                    return None
-            else:
-                return None
-        
-        return current
 
     async def _convert_value_to_type(self, value: Any, type: str, subtype: str, format: Optional[str], ignore_files: bool) -> Any:
         if type == "number":
@@ -104,8 +84,8 @@ class VariableRenderer:
             if isinstance(value, list):
                 objects = [ v for v in value if isinstance(v, dict) ]
                 if subtype:
-                    paths = [ (path, path.split(".")[-1]) for path in subtype.split(",") ]
-                    return [ { key: self._resolve_by_path(obj, path) for path, key in paths } for obj in objects ]
+                    paths = [ ( path, path.split(".")[-1] ) for path in subtype.split(",") ]
+                    return [ { key: self.field_resolver.resolve(object, path) for path, key in paths } for object in objects ]
                 return objects
             return []
 

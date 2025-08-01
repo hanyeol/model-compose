@@ -6,6 +6,7 @@ from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
+from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
 import gradio as gr
 import json
@@ -16,6 +17,9 @@ class ComponentGroup:
         self.components: List[gr.Component] = components
 
 class GradioWebUIBuilder:
+    def __init__(self):
+        self.field_resolver: FieldResolver = FieldResolver()
+
     def build(self, schema: Dict[str, WorkflowSchema], runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
         with gr.Blocks() as blocks:
             for workflow_id, workflow in schema.items():
@@ -43,16 +47,27 @@ class GradioWebUIBuilder:
 
             gr.Markdown("#### 📤 Output Values")
             output_components = [ self._build_output_component(variable) for variable in workflow.output ]
-
+            
             if not output_components:
-                output_components = [ gr.Textbox(label="", lines=8, interactive=False, show_copy_button=True) ]
+                output_components = [ gr.Textbox(label="", lines=10, interactive=False, show_copy_button=True) ]
 
             async def _run_workflow(*args):
                 input = await self._build_input_value(args, workflow.input)
                 output = await runner(input)
-                if workflow.output:
-                    output = await self._flatten_output_value(output, workflow.output)
-                return output[0] if len(output) == 1 else output
+                
+                if len(workflow.output) == 1 and self._is_streaming_variable(workflow.output[0]):
+                    text = ""
+                    async for chunk in output:
+                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
+                        if workflow.output[0].type == WorkflowVariableType.TEXT:
+                            text += chunk[0] or ""
+                            yield text
+                        else:
+                            yield chunk[0]
+                else:
+                    if workflow.output:
+                        output = await self._flatten_output_value(output, workflow.output)
+                    yield output[0] if len(output) == 1 else output
 
             run_button.click(
                 fn=_run_workflow,
@@ -62,6 +77,11 @@ class GradioWebUIBuilder:
 
         return section
 
+    def _is_streaming_variable(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> bool:
+        if isinstance(variable, WorkflowVariableConfig):
+            return variable.format in [ WorkflowVariableFormat.SSE_JSON, WorkflowVariableFormat.SSE_TEXT ]
+        return False
+        
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
         label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default else "")
         info = variable.get_annotation_value("description") or ""
@@ -71,7 +91,7 @@ class GradioWebUIBuilder:
             return gr.Textbox(label=label, value="", info=info)
         
         if variable.type == WorkflowVariableType.TEXT:
-            return gr.Textbox(label=label, value="", lines=5, max_lines=10, info=info)
+            return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
         if variable.type in [ WorkflowVariableType.INTEGER, WorkflowVariableType.NUMBER ]:
             return gr.Number(label=label, value="", info=info)
@@ -131,7 +151,7 @@ class GradioWebUIBuilder:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
         if variable.type == WorkflowVariableType.TEXT:
-            return gr.Textbox(label=label, lines=5, max_lines=10, interactive=False, show_copy_button=True, info=info)
+            return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, show_copy_button=True, info=info)
 
         if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)
@@ -173,8 +193,11 @@ class GradioWebUIBuilder:
         return flattened
 
     async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
-        if type == WorkflowVariableType.STRING:
-            return json.dumps(value) if isinstance(value, (dict, list)) else str(value) if value is not None else None
+        if format == WorkflowVariableFormat.SSE_JSON:
+            return await self._resolve_json_field_from_value(value, subtype, format)
+
+        if type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
+            return await self._convert_value_to_string(value, subtype, format)
 
         if type == WorkflowVariableType.IMAGE:
             return await self._load_image_from_value(value, subtype, format)
@@ -183,6 +206,18 @@ class GradioWebUIBuilder:
             return await self._save_value_to_temporary_file(value, subtype, format)
 
         return value
+
+    async def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+        if isinstance(value, (dict, list)):
+            return json.dumps(value)
+
+        return str(value) if value is not None else None
+
+    async def _resolve_json_field_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
+        try:
+            return self.field_resolver.resolve(json.loads(value), subtype)
+        except Exception:
+            return None
 
     async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):

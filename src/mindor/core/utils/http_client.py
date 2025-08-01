@@ -58,7 +58,7 @@ class HttpEventStreamResource(StreamResource):
                     lines = [ line[5:].lstrip() for line in message.splitlines() if line.startswith("data:") ]
                     if lines and any(line.strip() for line in lines):
                         yield "\n".join(lines).encode("utf-8")
-        except Exception:
+        except Exception as e:
             return
 
 class HttpClient:
@@ -94,7 +94,7 @@ class HttpClient:
             if raise_on_error and response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
 
-            if not isinstance(content, HttpStreamResource):
+            if not isinstance(content, StreamResource):
                 response.close()
 
             return content if raise_on_error else (content, response.status)

@@ -5,4 +5,4 @@ from .common import CommonActionConfig
 
 class HttpServerActionConfig(CommonActionConfig):
     path: Optional[str] = Field(default=None)
-    method: Literal["GET", "POST", "PUT", "DELETE", "PATCH"] = Field(default="POST")
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST")

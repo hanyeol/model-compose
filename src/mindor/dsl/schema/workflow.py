@@ -26,10 +26,12 @@ class WorkflowVariableType(str, Enum):
     SELECT   = "select"
 
 class WorkflowVariableFormat(str, Enum):
-    BASE64 = "base64"
-    URL    = "url"
-    PATH   = "path"
-    STREAM = "stream"
+    BASE64   = "base64"
+    URL      = "url"
+    PATH     = "path"
+    STREAM   = "stream"
+    SSE_TEXT = "sse-text"
+    SSE_JSON = "sse-json"
 
 class WorkflowVariableAnnotationConfig(BaseModel):
     name: str = Field(..., description="Name of the annotation.")

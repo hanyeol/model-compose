@@ -69,6 +69,9 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.STRING or variable.format in [ WorkflowVariableFormat.BASE64, WorkflowVariableFormat.URL ]:
             return gr.Textbox(label=label, value="", info=info)
+        
+        if variable.type == WorkflowVariableType.TEXT:
+            return gr.Textbox(label=label, value="", lines=5, max_lines=10, info=info)
 
         if variable.type in [ WorkflowVariableType.INTEGER, WorkflowVariableType.NUMBER ]:
             return gr.Number(label=label, value="", info=info)
@@ -127,6 +130,9 @@ class GradioWebUIBuilder:
         if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.BASE64 ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
+        if variable.type == WorkflowVariableType.TEXT:
+            return gr.Textbox(label=label, lines=5, max_lines=10, interactive=False, show_copy_button=True, info=info)
+
         if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)
         
@@ -158,11 +164,11 @@ class GradioWebUIBuilder:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
-                group = output[variable.name] if variable.name in output else None if variable.name else output
+                group = output[variable.name] if isinstance(output, dict) and variable.name in output else None if variable.name else output
                 for value in group or ():
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
-                value = output[variable.name] if variable.name in output else None if variable.name else output
+                value = output[variable.name] if isinstance(output, dict) and variable.name in output else None if variable.name else output
                 flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 

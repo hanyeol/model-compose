@@ -31,6 +31,36 @@ class HttpStreamResource(StreamResource):
                 break
             yield chunk
 
+class HttpEventStreamResource(StreamResource):
+    def __init__(
+        self,
+        response: aiohttp.ClientResponse
+    ):
+        super().__init__("text/event-stream", None)
+
+        self.response: aiohttp.ClientResponse = response
+        self.stream: aiohttp.StreamReader = response.content
+        self._buffer: str = ""
+
+    async def close(self) -> None:
+        self.response.close()
+        self.response = None
+        self.stream = None
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        try:
+            async for chunk in self.stream:
+                text = chunk.decode("utf-8", errors="ignore")
+                self._buffer += text
+
+                while "\n\n" in self._buffer:
+                    message, self._buffer = self._buffer.split("\n\n", 1)
+                    lines = [ line[5:].lstrip() for line in message.splitlines() if line.startswith("data:") ]
+                    if lines and any(line.strip() for line in lines):
+                        yield "\n".join(lines).encode("utf-8")
+        except Exception:
+            return
+
 class HttpClient:
     shared_instance: Optional["HttpClient"] = None
 
@@ -125,6 +155,9 @@ class HttpClient:
 
         if content_type == "application/json":
             return (await response.json(), content_type)
+        
+        if content_type == "text/event-stream":
+            return (HttpEventStreamResource(response), content_type)
 
         if content_type.startswith("text/"):
             return (await response.text(), content_type)

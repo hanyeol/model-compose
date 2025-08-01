@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerConfig
@@ -8,6 +8,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.streaming import StreamResource
 from ..base import ControllerService, ControllerType, TaskState, TaskStatus, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
@@ -137,6 +138,9 @@ class HttpServerController(ControllerService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
+        if isinstance(state.output, HttpEventStreamResource):
+            return self._render_event_stream_resource(state.output)
+
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
         
@@ -161,3 +165,18 @@ class HttpServerController(ControllerService):
             headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
         return headers
+
+    def _render_event_stream_resource(self, resource: HttpEventStreamResource) -> Response:
+        async def _event_generator() -> AsyncIterator[bytes]:
+            async for chunk in resource:
+                yield b"data: " + chunk + b"\n\n"
+
+        async def _close_stream():
+            await resource.close()
+
+        return StreamingResponse(
+            _event_generator(),
+            media_type="text/event-stream",
+            headers={ "Cache-Control": "no-cache" },
+            background=BackgroundTask(_close_stream)
+        )

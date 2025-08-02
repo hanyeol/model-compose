@@ -78,6 +78,12 @@ class ComponentService(AsyncService):
 
         await super()._stop()
 
+    async def _serve(self) -> None:
+        pass
+
+    async def _shutdown(self) -> None:
+        pass
+
     @abstractmethod
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass

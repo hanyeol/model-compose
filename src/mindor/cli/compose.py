@@ -15,7 +15,7 @@ from mindor.core.compose import *
 )
 @click.pass_context
 def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
-    """model-compose (from Mindor)"""
+    """model-compose"""
     ctx.ensure_object(dict)
     ctx.obj["config_files"] = list(config_files)
 
@@ -138,7 +138,7 @@ def stop_command(
     asyncio.run(_async_command())
 
 @click.command(name="run")
-@click.argument("workflow", required=False)
+@click.argument("workflow_id", required=False)
 @click.option(
     "--input", "-i", "input_json",
     type=str,
@@ -155,14 +155,21 @@ def stop_command(
     "--env", "-e", "env_data", multiple=True,
     help="Environment variable in the form KEY=VALUE. Repeatable."
 )
+@click.option(
+    "--output", "-o", "output_path",
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    required=False,
+    help="Path to save the output result as a file."
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def run_command(
     ctx: click.Context,
-    workflow: Optional[str],
+    workflow_id: Optional[str],
     input_json: Optional[str],
     env_files: List[Path],
     env_data: List[str],
+    output_path: Optional[Path],
     verbose: bool
 ) -> None:
     config_files = ctx.obj.get("config_files", [])
@@ -171,12 +178,16 @@ def run_command(
             env = load_env_files(".", env_files or [])
             config = load_compose_config(".", config_files, env)
             input = json.loads(input_json) if input_json else {}
-            state = await run_workflow(config, workflow, input, verbose)
-            click.echo(json.dumps(
-                state.error if state.error else state.output, 
-                indent=2, 
-                ensure_ascii=False
-            ))
+            state = await run_workflow(config, workflow_id, input, output_path, verbose)
+            if isinstance(state.output, (dict, list)) or state.error:
+                click.echo(json.dumps(
+                    state.output or state.error,
+                    indent=2,
+                    ensure_ascii=False
+                ))
+            else:
+                if state.output is not None:
+                    click.echo(state.output)
         except json.JSONDecodeError:
             click.echo("❌ Invalid JSON provided for --input", err=True)
         except Exception as e:

@@ -6,3 +6,4 @@ from .mcp_client import *
 from .model import *
 from .workflow import *
 from .shell import *
+from .text_splitter import *

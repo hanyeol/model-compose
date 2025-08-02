@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.compose import ComposeConfig
-from mindor.core.controller import ControllerService, TaskState, create_controller
+from mindor.core.controller import ControllerService, TaskState, TaskStatus, create_controller
 
 class ComposeManager:
     def __init__(self, config: ComposeConfig, daemon: bool):
@@ -27,8 +27,17 @@ class ComposeManager:
     async def stop_services(self, verbose: bool):
         await self.controller.stop()
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], verbose: bool) -> TaskState:
+    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], output_path: Optional[str], verbose: bool) -> TaskState:
         if not self.controller.started:
             await self.controller.start()
 
-        return await self.controller.run_workflow(workflow_id, input)
+        state = await self.controller.run_workflow(workflow_id, input)
+
+        if output_path and state.status == TaskStatus.COMPLETED:
+            await self._save_output(state.output, output_path)
+            state.output = None
+
+        return state
+
+    async def _save_output(self, output: Any, path: str) -> None:
+        pass

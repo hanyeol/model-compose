@@ -9,5 +9,6 @@ ActionConfig = Union[
     McpClientActionConfig,
     ModelActionConfig,
     WorkflowActionConfig,
-    ShellActionConfig
+    ShellActionConfig,
+    TextSplitterActionConfig
 ]

@@ -5,7 +5,6 @@ from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-import asyncio, os
 
 class WorkflowAction:
     def __init__(self, config: WorkflowActionConfig, global_configs: ComponentGlobalConfigs):
@@ -29,12 +28,6 @@ class WorkflowAction:
 class WorkflowComponent(ComponentService):
     def __init__(self, id: str, config: WorkflowComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
-
-    async def _serve(self) -> None:
-        pass
-
-    async def _shutdown(self) -> None:
-        pass
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await WorkflowAction(action, self.global_configs).run(context)

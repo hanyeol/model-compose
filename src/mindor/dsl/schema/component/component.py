@@ -10,7 +10,8 @@ ComponentConfig = Annotated[
         McpClientComponentConfig,
         ModelComponentConfig,
         WorkflowComponentConfig,
-        ShellComponentConfig
+        ShellComponentConfig,
+        TextSplitterComponentConfig
     ],
     Field(discriminator="type")
 ]

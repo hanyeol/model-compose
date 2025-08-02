@@ -69,11 +69,5 @@ class ShellComponent(ComponentService):
     def __init__(self, id: str, config: ShellComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-    async def _serve(self) -> None:
-        pass
-
-    async def _shutdown(self) -> None:
-        pass
-
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ShellAction(action, self.config.base_dir, self.config.env).run(context)

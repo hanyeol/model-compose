@@ -113,12 +113,14 @@ class HttpClientComponent(ComponentService):
     def __init__(self, id: str, config: HttpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-        self.client: HttpClient = None
+        self.client: Optional[HttpClient] = None
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.client = HttpClient(self.config.base_url, self.config.headers)
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         await self.client.close()
         self.client = None
 

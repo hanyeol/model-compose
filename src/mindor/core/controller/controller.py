@@ -5,7 +5,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.logger import LoggerConfig
-from .base import ControllerService, ControllerRegistry
+from .base import ControllerService, ControllerRegistry, TaskStatus
 
 def create_controller(
     config: ControllerConfig,

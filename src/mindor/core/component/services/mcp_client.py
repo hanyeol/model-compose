@@ -32,10 +32,14 @@ class McpClientComponent(ComponentService):
     def __init__(self, id: str, config: McpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-    async def _serve(self) -> None:
-        self.client = McpClient(self.config.url, self.config.headers)
+        self.client: Optional[McpClient] = None 
 
-    async def _shutdown(self) -> None:
+    async def _start(self) -> None:
+        self.client = McpClient(self.config.url, self.config.headers)
+        await super()._start()
+
+    async def _stop(self) -> None:
+        await super()._stop()
         await self.client.close()
         self.client = None
 

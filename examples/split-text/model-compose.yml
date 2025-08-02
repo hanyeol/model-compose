@@ -1,0 +1,20 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text Chunk Splitter
+  description: Splits input text into smaller chunks based on separators, with optional overlap and chunk maximization.
+  input: ${input}
+  output: ${output as json}
+
+component:
+  type: text-splitter
+  text: ${input.text as text}
+  chunk_size: ${input.chunk_size as integer | 1000}
+  chunk_overlap: ${input.chunk_overlap as integer | 200}
+  maximize_chunk: ${input.maximize_chunk as boolean | true}

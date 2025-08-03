@@ -5,7 +5,8 @@ from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
 from transformers import PreTrainedModel, PreTrainedTokenizer
-import torch
+from threading import Thread
+import torch, asyncio
 
 class ModelTaskService(AsyncService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -15,7 +16,26 @@ class ModelTaskService(AsyncService):
         self.config: ModelComponentConfig = config
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await self._run(action, context)
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+
+        def _start_in_thread():
+            self.thread_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.thread_loop)
+
+            async def _run():
+                try:
+                    result = await self._run(action, context)
+                    loop.call_soon_threadsafe(future.set_result, result)
+                except Exception as e:
+                    loop.call_soon_threadsafe(future.set_exception, e)
+
+            self.thread_loop.run_until_complete(_run())
+
+        self.thread = Thread(target=_start_in_thread)
+        self.thread.start()
+
+        return await future
 
     @abstractmethod
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:

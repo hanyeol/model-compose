@@ -246,7 +246,7 @@ class DockerRuntimeManager:
                 for line in container.logs(stream=True, follow=True, since=int(time.time())):
                     sys.stdout.buffer.write(line)
                     sys.stdout.flush()
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _stream_logs_sync, container)
         except Exception as e:
             logging.error("Error while streaming logs from container '%s': %s", container.name, e)

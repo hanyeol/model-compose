@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable, Awaitable, Any
 from abc import ABC, abstractmethod
 from threading import Thread
 import asyncio
@@ -41,6 +41,28 @@ class AsyncService(ABC):
 
         if self.daemon_task:
             await self.daemon_task
+
+    def run_in_thread(self, runner: Callable[[], Awaitable[Any]]) -> asyncio.Future:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+
+        def _start_in_thread():
+            thread_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(thread_loop)
+
+            async def _run_and_set_result():
+                try:
+                    result = await runner()
+                    loop.call_soon_threadsafe(future.set_result, result)
+                except Exception as e:
+                    loop.call_soon_threadsafe(future.set_exception, e)
+
+            thread_loop.run_until_complete(_run_and_set_result())
+
+        thread = Thread(target=_start_in_thread)
+        thread.start()
+
+        return future
 
     async def _start(self) -> None:
         self.started = True

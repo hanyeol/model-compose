@@ -16,26 +16,10 @@ class ModelTaskService(AsyncService):
         self.config: ModelComponentConfig = config
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future = loop.create_future()
+        async def _run():
+            return await self._run(action, context)
 
-        def _start_in_thread():
-            self.thread_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.thread_loop)
-
-            async def _run():
-                try:
-                    result = await self._run(action, context)
-                    loop.call_soon_threadsafe(future.set_result, result)
-                except Exception as e:
-                    loop.call_soon_threadsafe(future.set_exception, e)
-
-            self.thread_loop.run_until_complete(_run())
-
-        self.thread = Thread(target=_start_in_thread)
-        self.thread.start()
-
-        return await future
+        return await self.run_in_thread(_run)
 
     @abstractmethod
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:

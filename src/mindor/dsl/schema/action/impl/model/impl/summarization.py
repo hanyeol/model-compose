@@ -10,7 +10,7 @@ class SummarizationParamsConfig(BaseModel):
     num_beams: Union[int, str] = Field(default=4, description="Number of beams to use for beam search.")
     length_penalty: Union[float, str] = Field(default=2.0, description="Length penalty applied during beam search.")
     early_stopping: bool = Field(default=True, description="Whether to stop the beam search when all beams finish generating.")
-    do_sample: bool = Field(default=True, description="Whether to use sampling.")
+    do_sample: bool = Field(default=True, description="Whether to use sampling to generate diverse summaries.")
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class SummarizationModelActionConfig(CommonModelInferenceActionConfig):

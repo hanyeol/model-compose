@@ -9,6 +9,8 @@ class TranslationParamsConfig(BaseModel):
     min_output_length: Union[int, str] = Field(default=10, description="Minimum number of tokens to generate.")
     num_beams: Union[int, str] = Field(default=4, description="Number of beams to use for beam search.")
     length_penalty: Union[float, str] = Field(default=1.0, description="Length penalty applied during beam search.")
+    early_stopping: bool = Field(default=True, description="Whether to stop the beam search when all beams finish generating.")
+    do_sample: bool = Field(default=False, description="Whether to use sampling to generate diverse translations.")
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TranslationModelActionConfig(CommonModelInferenceActionConfig):

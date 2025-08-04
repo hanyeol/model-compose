@@ -24,6 +24,8 @@ class TranslationTaskAction:
         min_output_length = await context.render_variable(self.config.params.min_output_length)
         num_beams         = await context.render_variable(self.config.params.num_beams)
         length_penalty    = await context.render_variable(self.config.params.length_penalty)
+        early_stopping    = await context.render_variable(self.config.params.early_stopping)
+        do_sample         = await context.render_variable(self.config.params.do_sample)
         batch_size        = await context.render_variable(self.config.params.batch_size)
         stream            = await context.render_variable(self.config.stream)
 
@@ -47,7 +49,8 @@ class TranslationTaskAction:
                         min_length=min_output_length,
                         num_beams=num_beams,
                         length_penalty=length_penalty,
-                        do_sample=False,
+                        early_stopping=early_stopping,
+                        do_sample=do_sample,
                         pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
                         eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
                     )

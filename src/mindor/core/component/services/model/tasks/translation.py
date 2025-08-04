@@ -23,9 +23,11 @@ class TranslationTaskAction:
         max_output_length = await context.render_variable(self.config.params.max_output_length)
         min_output_length = await context.render_variable(self.config.params.min_output_length)
         num_beams         = await context.render_variable(self.config.params.num_beams)
-        length_penalty    = await context.render_variable(self.config.params.length_penalty)
-        early_stopping    = await context.render_variable(self.config.params.early_stopping)
+        length_penalty    = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping    = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else None
         do_sample         = await context.render_variable(self.config.params.do_sample)
+        top_k             = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p             = await context.render_variable(self.config.params.top_p) if do_sample else None
         batch_size        = await context.render_variable(self.config.params.batch_size)
         stream            = await context.render_variable(self.config.stream)
 
@@ -51,8 +53,11 @@ class TranslationTaskAction:
                         length_penalty=length_penalty,
                         early_stopping=early_stopping,
                         do_sample=do_sample,
+                        top_k=top_k,
+                        top_p=top_p,
                         pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
-                        eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
+                        eos_token_id=getattr(self.tokenizer, "eos_token_id", None),
+                        streamer=streamer
                     )
 
                 outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)

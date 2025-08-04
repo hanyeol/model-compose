@@ -11,6 +11,8 @@ class TranslationParamsConfig(BaseModel):
     length_penalty: Union[float, str] = Field(default=1.0, description="Length penalty applied during beam search.")
     early_stopping: bool = Field(default=True, description="Whether to stop the beam search when all beams finish generating.")
     do_sample: bool = Field(default=False, description="Whether to use sampling to generate diverse translations.")
+    top_k: Union[int, str] = Field(default=50, description="Top-K sampling; restricts sampling to the top K tokens.")
+    top_p: Union[int, str] = Field(default=1.0, description="Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.")
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TranslationModelActionConfig(CommonModelInferenceActionConfig):

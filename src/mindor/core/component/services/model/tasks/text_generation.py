@@ -46,9 +46,10 @@ class TextGenerationTaskAction:
                         max_new_tokens=max_output_length,
                         num_return_sequences=num_return_sequences,
                         temperature=temperature,
+                        do_sample=True,
                         top_k=top_k,
                         top_p=top_p,
-                        do_sample=True
+                        streamer=streamer
                     )
 
                 outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)

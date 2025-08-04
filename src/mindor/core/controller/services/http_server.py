@@ -1,4 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from types import AsyncGeneratorType
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerConfig
@@ -15,7 +16,7 @@ from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
-import uvicorn
+import uvicorn, json
 
 class WorkflowTaskRequestBody(BaseModel):
     workflow_id: Optional[str] = None
@@ -80,6 +81,9 @@ class HttpServerController(ControllerService):
             if body.output_only and not body.wait_for_completion:
                 raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
             
+            if not body.output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
+                raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
+
             if body.output_only:
                 return self._render_task_output(state)
             
@@ -95,6 +99,9 @@ class HttpServerController(ControllerService):
             if not state:
                 raise HTTPException(status_code=404, detail="Task not found.")
             
+            if not output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
+                raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
+
             if output_only:
                 return self._render_task_output(state)
 
@@ -138,33 +145,29 @@ class HttpServerController(ControllerService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
+        if isinstance(state.output, AsyncGeneratorType):
+            return self._render_async_generator(state.output)
+        
         if isinstance(state.output, HttpEventStreamResource):
             return self._render_event_stream_resource(state.output)
 
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
-        
-        return JSONResponse(content=state.output)
 
-    def _render_stream_resource(self, resource: StreamResource) -> Response:
-        async def _close_stream():
-            await resource.close() 
+        return JSONResponse(content=state.output)
+    
+    def _render_async_generator(self, generator: AsyncGeneratorType) -> Response:
+        async def _event_generator() -> AsyncIterator[bytes]:
+            async for chunk in generator:
+                if not isinstance(chunk, str):
+                    chunk = json.dumps()
+                yield b"data: " + chunk.encode("utf-8") + b"\n\n"
 
         return StreamingResponse(
-            resource,
-            media_type=resource.content_type, 
-            headers=self._build_stream_resource_headers(resource), 
-            background=BackgroundTask(_close_stream)
+            _event_generator(),
+            media_type="text/event-stream",
+            headers={ "Cache-Control": "no-cache" }
         )
-    
-    def _build_stream_resource_headers(self, resource: StreamResource) -> Dict[str, str]:
-        headers: Dict[str, str] = { "Cache-Control": "no-cache" }
-
-        if resource.filename:
-            filename = resource.filename.replace('"', '\\"')
-            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-
-        return headers
 
     def _render_event_stream_resource(self, resource: HttpEventStreamResource) -> Response:
         async def _event_generator() -> AsyncIterator[bytes]:
@@ -180,3 +183,23 @@ class HttpServerController(ControllerService):
             headers={ "Cache-Control": "no-cache" },
             background=BackgroundTask(_close_stream)
         )
+
+    def _render_stream_resource(self, resource: StreamResource) -> Response:
+        async def _close_stream():
+            await resource.close() 
+
+        return StreamingResponse(
+            resource,
+            media_type=resource.content_type, 
+            headers=self._build_stream_resource_headers(resource), 
+            background=BackgroundTask(_close_stream)
+        )
+
+    def _build_stream_resource_headers(self, resource: StreamResource) -> Dict[str, str]:
+        headers: Dict[str, str] = { "Cache-Control": "no-cache" }
+
+        if resource.filename:
+            filename = resource.filename.replace('"', '\\"')
+            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        return headers

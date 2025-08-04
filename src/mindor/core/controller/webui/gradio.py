@@ -194,7 +194,7 @@ class GradioWebUIBuilder:
 
     async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
         if format == WorkflowVariableFormat.SSE_JSON:
-            return await self._resolve_json_field_from_value(value, subtype, format)
+            return await self._resolve_json_field_from_bytes(value, subtype, format)
 
         if type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
             return await self._convert_value_to_string(value, subtype, format)
@@ -210,13 +210,16 @@ class GradioWebUIBuilder:
     async def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
         if isinstance(value, (dict, list)):
             return json.dumps(value)
+        
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
 
         if value is not None:
             return str(value)
-        
-        return None
 
-    async def _resolve_json_field_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
+        return None
+    
+    async def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
         try:
             return self.field_resolver.resolve(json.loads(value), subtype)
         except Exception:

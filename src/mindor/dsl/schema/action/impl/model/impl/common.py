@@ -11,8 +11,8 @@ class CommonModelActionConfig(CommonActionConfig):
     mode: ModelTaskMode = Field(..., description="Mode for model task execution.")
 
 class CommonModelInferenceActionConfig(CommonModelActionConfig):
-    mode: ModelTaskMode = Literal[ModelTaskMode.INFERENCE]
+    mode: ModelTaskMode = Field(default=ModelTaskMode.INFERENCE)
     stream: bool = Field(default=False, description="Whether to enable streaming responses for inference.")
 
 class CommonModelTrainingActionConfig(CommonModelActionConfig):
-    mode: ModelTaskMode = Literal[ModelTaskMode.TRAINING]
+    mode: ModelTaskMode = Field(default=ModelTaskMode.TRAINING)

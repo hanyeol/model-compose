@@ -1,4 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from types import GeneratorType
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
@@ -142,7 +143,8 @@ class WorkflowRunner:
                 del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
 
-        logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_time_tracker.elapsed())
+        if not isinstance(output, GeneratorType):
+            logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_time_tracker.elapsed())
 
         return output
 

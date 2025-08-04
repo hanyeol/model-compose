@@ -4,7 +4,8 @@ from mindor.dsl.schema.action import ModelActionConfig, SummarizationModelAction
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer
+from threading import Thread
 from torch import Tensor
 import torch
 
@@ -26,35 +27,56 @@ class SummarizationTaskAction:
         early_stopping    = await context.render_variable(self.config.params.early_stopping)
         do_sample         = await context.render_variable(self.config.params.do_sample)
         batch_size        = await context.render_variable(self.config.params.batch_size)
+        stream            = await context.render_variable(self.config.stream)
 
         texts: List[str] = [ text ] if isinstance(text, str) else text
         results = []
 
+        if stream and (batch_size != 1 or len(texts) != 1):
+            raise ValueError("Streaming mode only supports a single input text with batch size of 1.")
+
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
         for index in range(0, len(texts), batch_size):
             batch_texts = texts[index:index + batch_size]
             inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_length=max_output_length,
-                    min_length=min_output_length,
-                    num_beams=num_beams,
-                    length_penalty=length_penalty,
-                    early_stopping=early_stopping,
-                    do_sample=do_sample,
-                    pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
-                    eos_token_id=getattr(self.tokenizer, "eos_token_id", None)
-                )
+            def _generate():
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_length=max_output_length,
+                        min_length=min_output_length,
+                        num_beams=num_beams,
+                        length_penalty=length_penalty,
+                        early_stopping=early_stopping,
+                        do_sample=do_sample,
+                        pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
+                        eos_token_id=getattr(self.tokenizer, "eos_token_id", None), 
+                        streamer=streamer
+                    )
 
-            outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            results.extend(outputs)
-        
-        result = results if len(results) > 1 else results[0]
-        context.register_source("result", result)
+                outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                results.extend(outputs)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            if stream:
+                thread = Thread(target=_generate)
+                thread.start()
+            else:
+                _generate()
+
+        if stream:        
+            async def _stream_generator():
+                for result in streamer:
+                    context.register_source("result", result)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+            return _stream_generator()
+        else:
+            result = results if len(results) > 1 else results[0]
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
 @register_model_task_service(ModelTaskType.SUMMARIZATION)
 class SummarizationTaskService(ModelTaskService):

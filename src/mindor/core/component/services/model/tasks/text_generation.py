@@ -4,7 +4,8 @@ from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActio
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer
+from threading import Thread
 from torch import Tensor
 import torch
 
@@ -24,33 +25,53 @@ class TextGenerationTaskAction:
         top_k                = await context.render_variable(self.config.params.top_k)
         top_p                = await context.render_variable(self.config.params.top_p)
         batch_size           = await context.render_variable(self.config.params.batch_size)
+        stream               = await context.render_variable(self.config.stream)
 
         prompts: List[str] = [ prompt ] if isinstance(prompt, str) else prompt
         results = []
 
+        if stream and (batch_size != 1 or len(prompts) != 1):
+            raise ValueError("Streaming mode only supports a single input prompt with batch size of 1.")
+
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
         for index in range(0, len(prompts), batch_size):
             batch_prompts = prompts[index:index + batch_size]
             inputs: Dict[str, Tensor] = self.tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_output_length,
-                    num_return_sequences=num_return_sequences,
-                    temperature=temperature,
-                    top_k=top_k,
-                    top_p=top_p,
-                    do_sample=True
-                )
+            def _generate():
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=max_output_length,
+                        num_return_sequences=num_return_sequences,
+                        temperature=temperature,
+                        top_k=top_k,
+                        top_p=top_p,
+                        do_sample=True
+                    )
 
-            outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            results.extend(outputs)
+                outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                results.extend(outputs)
 
-        result = results if len(results) > 1 else results[0] 
-        context.register_source("result", result)
+            if stream:
+                thread = Thread(target=_generate)
+                thread.start()
+            else:
+                _generate()
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        if stream:        
+            async def _stream_generator():
+                for result in streamer:
+                    context.register_source("result", result)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+            return _stream_generator()
+        else:
+            result = results if len(results) > 1 else results[0] 
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION)
 class TextGenerationTaskService(ModelTaskService):

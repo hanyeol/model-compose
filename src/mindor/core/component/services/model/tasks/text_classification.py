@@ -8,7 +8,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, PreT
 from transformers.modeling_outputs import SequenceClassifierOutput
 import torch.nn.functional as F
 from torch import Tensor
-import torch
+import torch, asyncio
 
 class TextClassificationTaskAction:
     def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
@@ -80,7 +80,7 @@ class TextClassificationTaskService(ModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

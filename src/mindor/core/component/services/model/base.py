@@ -5,7 +5,6 @@ from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
 from transformers import PreTrainedModel, PreTrainedTokenizer
-from threading import Thread
 import torch, asyncio
 
 class ModelTaskService(AsyncService):
@@ -16,13 +15,15 @@ class ModelTaskService(AsyncService):
         self.config: ModelComponentConfig = config
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+
         async def _run():
-            return await self._run(action, context)
+            return await self._run(action, context, loop)
 
         return await self.run_in_thread(_run)
 
     @abstractmethod
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         pass
 
     def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:

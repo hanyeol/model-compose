@@ -7,7 +7,7 @@ from ..base import ComponentActionContext
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 from transformers.modeling_outputs import BaseModelOutput
 from torch import Tensor
-import torch
+import torch, asyncio
 
 class TextEmbeddingTaskAction:
     def __init__(self, config: TextEmbeddingModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
@@ -94,7 +94,7 @@ class TextEmbeddingTaskService(ModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

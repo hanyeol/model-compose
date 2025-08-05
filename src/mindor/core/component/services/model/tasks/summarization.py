@@ -1,13 +1,14 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SummarizationModelActionConfig
+from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer
 from threading import Thread
 from torch import Tensor
-import torch
+import torch, asyncio
 
 class SummarizationTaskAction:
     def __init__(self, config: SummarizationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer, device: torch.device):
@@ -16,7 +17,7 @@ class SummarizationTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         max_input_length  = await context.render_variable(self.config.params.max_input_length)
@@ -71,7 +72,7 @@ class SummarizationTaskAction:
 
         if stream:        
             async def _stream_generator():
-                for result in streamer:
+                async for result in AsyncStreamer(streamer, loop):
                     context.register_source("result", result)
                     yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
@@ -106,8 +107,8 @@ class SummarizationTaskService(ModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await SummarizationTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        return await SummarizationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModelForSeq2SeqLM

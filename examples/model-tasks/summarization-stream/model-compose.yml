@@ -10,11 +10,14 @@ workflow:
   title: Summarize Text
   description: Generate a concise and informative summary from a longer input text using a pretrained language model.
   input: ${input}
-  output:
-    summary: ${output}
+  output: ${output as text;sse-text}
 
 component:
   type: model
   task: summarization
   model: facebook/bart-large-cnn
   text: ${input.text as text}
+  stream: true
+  params:
+    num_beams: 1
+    batch_size: 1

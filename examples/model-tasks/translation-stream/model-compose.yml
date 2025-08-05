@@ -10,11 +10,14 @@ workflow:
   title: Translate Text
   description: Translate the input text into another language using a pretrained translation model.
   input: ${input}
-  output:
-    translated: ${output}
+  output: ${output as text;sse-text}
 
 component:
   type: model
   task: translation
   model: alirezamsh/small100
   text: ${input.text as text}
+  stream: true
+  params:
+    num_beams: 1
+    batch_size: 1

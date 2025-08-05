@@ -21,8 +21,11 @@ class WorkflowContext:
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:
             return self.sources[key][index] if index is not None else self.sources[key]
+
         if key == "input":
             return self.input
+
         if key == "context":
             return self.context
+
         raise KeyError(f"Unknown source: {key}")

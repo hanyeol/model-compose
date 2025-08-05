@@ -55,6 +55,7 @@ class ShellAction:
 
     async def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir
+
         if working_dir:
             if self.base_dir:
                 working_dir = os.path.abspath(os.path.join(self.base_dir, working_dir))
@@ -62,6 +63,7 @@ class ShellAction:
                 working_dir = os.path.abspath(working_dir)
         else:
             working_dir = self.base_dir or os.getcwd()
+
         return working_dir
 
 @register_component(ComponentType.SHELL)

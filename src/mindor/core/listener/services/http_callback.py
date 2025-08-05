@@ -41,8 +41,10 @@ class HttpCallbackContext:
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key == "body" or key == "item":
             return self.body
+
         if key == "query":
             return self.query
+
         raise KeyError(f"Unknown source: {key}")
 
 @register_listener(ListenerType.HTTP_CALLBACK)

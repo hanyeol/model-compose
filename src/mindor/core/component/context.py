@@ -19,17 +19,23 @@ class ComponentActionContext:
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:
             return self.sources[key][index] if index is not None else self.sources[key]
+
         if key == "input":
             return self.input
+
         if key == "context":
             return self.context
+
         if key.startswith("gateway:"):
             return self._resolve_gateway(key)
+
         raise KeyError(f"Unknown source: {key}")
 
     def _resolve_gateway(self, key: str) -> Any:
         _, port = key.split(":")
         gateway = find_gateway_by_port(int(port)) if port else None
+
         if gateway:
             return gateway.get_context()
+
         return None

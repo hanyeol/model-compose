@@ -17,3 +17,13 @@ def load_env_files(work_dir: Union[ str, Path ], env_files: List[Union[ str, Pat
         merged_env.update({k: v for k, v in env_dict.items() if v is not None})
 
     return merged_env
+
+def merge_env_data(env: Dict[str, str], env_data: List[str]) -> Dict[str, str]:
+    for env_entry in env_data:
+        if "=" not in env_entry:
+            raise ValueError(f"Invalid env entry: {env_entry}")
+        
+        key, value = env_entry.split("=", 1)
+        env[key] = value
+
+    return env

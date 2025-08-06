@@ -4,14 +4,14 @@ from pathlib import Path
 import asyncio
 
 from mindor.dsl.loader import load_compose_config
-from mindor.core.runtime.env import load_env_files
+from mindor.core.runtime.env import load_env_files, merge_env_data
 from mindor.core.compose import *
 
 @click.group()
 @click.option(
     "--file", "-f", "config_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Compose configuration files"
+    help="Compose configuration files."
 )
 @click.pass_context
 def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
@@ -44,6 +44,7 @@ def up_command(
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
+            env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             await launch_services(config, detach, verbose)
         except Exception as e:
@@ -73,6 +74,7 @@ def down_command(
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
+            env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             await terminate_services(config, verbose)
         except Exception as e:
@@ -102,6 +104,7 @@ def start_command(
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
+            env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             await start_services(config, verbose)
         except Exception as e:
@@ -131,6 +134,7 @@ def stop_command(
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
+            env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             await stop_services(config, verbose)
         except Exception as e:
@@ -176,6 +180,7 @@ def run_command(
     async def _async_command():
         try:
             env = load_env_files(".", env_files or [])
+            env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             input = json.loads(input_json) if input_json else {}
             state = await run_workflow(config, workflow_id, input, output_path, verbose)

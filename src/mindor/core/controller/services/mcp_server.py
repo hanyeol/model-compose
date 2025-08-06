@@ -5,7 +5,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schema
+from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_client import create_stream_with_url
@@ -150,9 +150,7 @@ class McpServerController(ControllerService):
         self._configure_tools()
 
     def _configure_tools(self) -> None:
-        schema = create_workflow_schema(self.workflows, self.components)
-
-        for workflow_id, workflow in schema.items():
+        for workflow_id, workflow in self.workflow_schemas.items():
             fn, description = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
             self.app.add_tool(
                 fn=fn,

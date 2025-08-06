@@ -7,11 +7,11 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.logger import LoggerConfig
-from mindor.dsl.schema.workflow import WorkflowConfig
+from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.streaming import StreamResource
-from ..base import ControllerService, ControllerType, TaskState, TaskStatus, register_controller
+from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -38,6 +38,57 @@ class TaskResult(BaseModel):
             output=instance.output,
             error=instance.error
         )
+
+class WorkflowVariableResult(BaseModel):
+    name: Optional[str]
+    type: str
+    subtype: Optional[str]
+    format: Optional[str]
+    default: Optional[str]
+
+    @classmethod
+    def from_instance(cls, instance: WorkflowVariableConfig) -> Self:
+        return cls(
+            name=instance.name,
+            type=instance.type,
+            subtype=instance.subtype,
+            format=instance.format,
+            default=instance.default
+        )
+
+class WorkflowVariableGroupResult(BaseModel):
+    name: Optional[str]
+    variables: List[WorkflowVariableResult]
+
+    @classmethod
+    def from_instance(cls, instance: WorkflowVariableGroupConfig) -> Self:
+        return cls(
+            name=instance.name,
+            variables=[ WorkflowVariableResult.from_instance(variable) for variable in instance.variables ]
+        )
+
+class WorkflowSchemaResult(BaseModel):
+    workflow_id: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    input: List[WorkflowVariableResult]
+    output: List[Union[WorkflowVariableResult, WorkflowVariableGroupResult]]
+
+    @classmethod
+    def from_instance(cls, instance: WorkflowSchema) -> Self:
+        return cls(
+            workflow_id=instance.workflow_id,
+            title=instance.title,
+            description=instance.description,
+            input=[ cls._to_variable_result(variable) for variable in instance.input ],
+            output=[ cls._to_variable_result(variable) for variable in instance.output ],
+        )
+    
+    @classmethod
+    def _to_variable_result(cls, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig ]) -> Union[WorkflowVariableResult, WorkflowVariableGroupResult]:
+        if isinstance(variable, WorkflowVariableGroupConfig):
+            return WorkflowVariableGroupResult.from_instance(variable)
+        return WorkflowVariableResult.from_instance(variable)
 
 @register_controller(ControllerType.HTTP_SERVER)
 class HttpServerController(ControllerService):
@@ -106,6 +157,27 @@ class HttpServerController(ControllerService):
                 return self._render_task_output(state)
 
             return self._render_task_state(state)
+
+        @self.router.get("/tasks/{task_id}/jobs")
+        async def get_task_jobs(
+            task_id: str
+        ):
+            return None
+
+        @self.router.get("/workflows")
+        async def get_workflow_schemas():
+            return self._render_workflow_schemas(self.workflow_schemas)
+
+        @self.router.get("/workflows/{workflow_id}")
+        async def get_workflow_schema(
+            workflow_id: str,
+        ):
+            workflow = self.workflow_schemas[workflow_id] if workflow_id in self.workflow_schemas else None
+
+            if not workflow:
+                raise HTTPException(status_code=404, detail="Workflow not found.")
+
+            return self._render_workflow_schema(workflow)
 
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(
@@ -203,3 +275,11 @@ class HttpServerController(ControllerService):
             headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
         return headers
+
+    def _render_workflow_schemas(self, workflows: Dict[str, WorkflowSchema]) -> Response:
+        return JSONResponse(content={
+            workflow_id: WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True) for workflow_id, workflow in workflows.items()
+        })
+
+    def _render_workflow_schema(self, workflow: WorkflowSchema) -> Response:
+        return JSONResponse(content=WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True))

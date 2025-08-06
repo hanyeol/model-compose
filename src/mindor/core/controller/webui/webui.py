@@ -4,14 +4,14 @@ from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, Controller
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
-from mindor.core.workflow.schema import create_workflow_schema
+from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.services import AsyncService
 from .gradio import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-import uvicorn, gradio
+import uvicorn
 
 class ControllerWebUI(AsyncService):
     def __init__(
@@ -26,7 +26,7 @@ class ControllerWebUI(AsyncService):
 
         self.config: ControllerWebUIConfig = config
         self.controller: ControllerConfig = controller
-        self.schema = create_workflow_schema(workflows, components)
+        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(workflows, components)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
@@ -36,13 +36,13 @@ class ControllerWebUI(AsyncService):
 
     def _configure_driver(self) -> None:
         if self.config.driver == ControllerWebUIDriver.GRADIO:
-            blocks: gradio.Blocks = GradioWebUIBuilder().build(
-                schema=self.schema,
-                runner=self._run_workflow
+            blocks = GradioWebUIBuilder().build(
+                workflow_schemas=self.workflow_schemas,
+                workflow_runner=self._run_workflow
             )
             self.app = mount_gradio_app(self.app, blocks, path="")
             return
-        
+
         if self.config.driver == ControllerWebUIDriver.STATIC:
             static_files = StaticFiles(
                 directory=Path(self.config.static_dir).resolve(), 
@@ -70,5 +70,5 @@ class ControllerWebUI(AsyncService):
 
     async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
         if self.runner:
-            return await self.runner.run_workflow(workflow_id, input, self.schema[workflow_id])
+            return await self.runner.run_workflow(workflow_id, input, self.workflow_schemas[workflow_id])
         return None

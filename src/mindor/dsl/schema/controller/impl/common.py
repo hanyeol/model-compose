@@ -6,11 +6,11 @@ from .types import ControllerType
 from ..webui import ControllerWebUIConfig, ControllerWebUIDriver
 
 class CommonControllerConfig(BaseModel):
-    name: Optional[str] = Field(default=None, description="Name used to identify this controller instance.")
+    name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
     type: ControllerType = Field(..., description="Type of controller to run.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=1, description="Maximum number of jobs that can be executed concurrently.")
-    threaded: bool = Field(default=False, description="Whether to run jobs in separate threads.")
+    max_concurrent_count: int = Field(default=1, description="Maximum number of tasks that can be executed concurrently.")
+    threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
     webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")
 
     @model_validator(mode="before")

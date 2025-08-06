@@ -20,13 +20,13 @@ class GradioWebUIBuilder:
     def __init__(self):
         self.field_resolver: FieldResolver = FieldResolver()
 
-    def build(self, schema: Dict[str, WorkflowSchema], runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
+    def build(self, workflow_schemas: Dict[str, WorkflowSchema], workflow_runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
         with gr.Blocks() as blocks:
-            for workflow_id, workflow in schema.items():
+            for workflow_id, workflow in workflow_schemas.items():
                 async def _run_workflow(input: Any, workflow_id=workflow_id) -> Any:
-                    return await runner(workflow_id, input)
+                    return await workflow_runner(workflow_id, input)
 
-                if len(schema) > 1:
+                if len(workflow_schemas) > 1:
                     with gr.Tab(label=workflow.name or workflow_id):
                         self._build_workflow_section(workflow, _run_workflow)
                 else:
@@ -37,7 +37,7 @@ class GradioWebUIBuilder:
     def _build_workflow_section(self, workflow: WorkflowSchema, runner: Callable[[Any], Awaitable[Any]]) -> gr.Column:
         with gr.Column() as section:
             gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")
- 
+
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
 
@@ -47,14 +47,14 @@ class GradioWebUIBuilder:
 
             gr.Markdown("#### 📤 Output Values")
             output_components = [ self._build_output_component(variable) for variable in workflow.output ]
-            
+
             if not output_components:
                 output_components = [ gr.Textbox(label="", lines=10, interactive=False, show_copy_button=True) ]
 
             async def _run_workflow(*args):
                 input = await self._build_input_value(args, workflow.input)
                 output = await runner(input)
-                
+
                 if len(workflow.output) == 1 and self._is_streaming_variable(workflow.output[0]):
                     text = ""
                     async for chunk in output:

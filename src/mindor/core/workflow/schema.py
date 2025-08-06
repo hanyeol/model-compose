@@ -285,23 +285,26 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
 class WorkflowSchema:
     def __init__(
         self,
+        workflow_id: str,
         name: Optional[str], 
         title: Optional[str], 
         description: Optional[str], 
         input: List[WorkflowVariableConfig], 
         output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
     ):
-        self.name: str = name
-        self.title: str = title
+        self.workflow_id: str = workflow_id
+        self.name: Optional[str] = name
+        self.title: Optional[str] = title
         self.description: Optional[str] = description
         self.input: List[WorkflowVariableConfig] = input
         self.output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = output
 
-def create_workflow_schema(workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> Dict[str, WorkflowSchema]:
+def create_workflow_schemas(workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> Dict[str, WorkflowSchema]:
     schema: Dict[str, WorkflowSchema] = {}
 
     for workflow_id, workflow in workflows.items():
         schema[workflow_id] = WorkflowSchema(
+            workflow_id=workflow_id,
             name=workflow.name,
             title=workflow.title, 
             description=workflow.description,

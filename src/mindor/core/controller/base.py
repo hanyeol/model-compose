@@ -16,6 +16,7 @@ from mindor.core.gateway import GatewayService, create_gateway
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
+from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from .runtime.specs import ControllerRuntimeSpecs
@@ -55,12 +56,13 @@ class ControllerService(AsyncService):
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.loggers: List[LoggerConfig] = loggers
-        self.queue: Optional[WorkQueue] = None
+        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components)
+        self.task_queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
-        
+
         if self.config.max_concurrent_count > 0:
-            self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
+            self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
     async def launch(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
@@ -92,8 +94,8 @@ class ControllerService(AsyncService):
             self.task_states.set(task_id, state)
 
         if wait_for_completion:
-            if self.queue:
-                state = await (await self.queue.schedule(task_id, workflow_id, input))
+            if self.task_queue:
+                state = await (await self.task_queue.schedule(task_id, workflow_id, input))
             else:
                 state = await self._run_workflow(task_id, workflow_id, input)
         else:
@@ -106,8 +108,8 @@ class ControllerService(AsyncService):
             return self.task_states.get(task_id)
 
     async def _start(self) -> None:
-        if self.queue:
-            await self.queue.start()
+        if self.task_queue:
+            await self.task_queue.start()
 
         if self.daemon:
             await self._start_loggers()
@@ -121,8 +123,8 @@ class ControllerService(AsyncService):
         await super()._start()
 
     async def _stop(self) -> None:
-        if self.queue:
-            await self.queue.stop()
+        if self.task_queue:
+            await self.task_queue.stop()
 
         if self.daemon:
             await self._stop_components()

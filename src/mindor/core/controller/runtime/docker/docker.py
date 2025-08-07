@@ -14,7 +14,7 @@ class DockerRuntimeLauncher:
 
         self._configure_runtime_config()
 
-    def _configure_runtime_config(self):
+    def _configure_runtime_config(self) -> None:
         if not self.config.runtime.image:
             if not self.config.runtime.build:
                 self.config.runtime.build = DockerBuildConfig(context=".docker", dockerfile="Dockerfile")
@@ -26,7 +26,7 @@ class DockerRuntimeLauncher:
         if not self.config.runtime.ports:
             self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
 
-    async def launch(self, specs: ControllerRuntimeSpecs, detach: bool):
+    async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 
         await self._prepare_docker_context(specs)
@@ -58,7 +58,7 @@ class DockerRuntimeLauncher:
         logging.info("Starting Docker container (%s mode)...", "detached" if detach else "foreground")
         await docker.start_container(detach)
 
-    async def terminate(self):
+    async def terminate(self) -> None:
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 
         if await docker.exists_container():

@@ -57,12 +57,6 @@ class ComponentService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
-    async def install(self) -> None:
-        await self._install()
-
-    async def build(self) -> None:
-        await self._build()
-
     async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
@@ -71,12 +65,6 @@ class ComponentService(AsyncService):
             return await (await self.queue.schedule(action, context))
 
         return await self._run(action, context)
-
-    async def _install(self) -> None:
-        pass
-
-    async def _build(self) -> None:
-        pass
 
     async def _start(self) -> None:
         if self.queue:

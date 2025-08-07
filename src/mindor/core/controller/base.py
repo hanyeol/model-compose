@@ -7,7 +7,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
-from mindor.dsl.schema.runtime import RuntimeType, DockerBuildConfig
+from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.services import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
@@ -20,6 +20,7 @@ from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from .runtime.specs import ControllerRuntimeSpecs
+from .runtime.native import DetachedNativeRuntimeLauncher
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
 import asyncio, ulid
@@ -67,7 +68,10 @@ class ControllerService(AsyncService):
     async def launch(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
-                pass
+                await self._start_loggers()
+                await DetachedNativeRuntimeLauncher().launch()
+                return
+    
             await self.start()
             await self.wait_until_stopped()
             return

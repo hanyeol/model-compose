@@ -10,7 +10,7 @@ from mindor.core.utils.shell import run_command_streaming
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone
-import asyncio, os
+import asyncio
 
 class HttpServerCompletion(ABC):
     def __init__(self, config: HttpServerCompletionConfig):
@@ -103,14 +103,6 @@ class HttpServerComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[HttpClient] = None
-
-    async def _install(self) -> None:
-        if self.config.commands.install:
-            await run_command_streaming(self.config.commands.install, self.config.working_dir, self.config.env)
-
-    async def _build(self) -> None:
-        if self.config.commands.build:
-            await run_command_streaming(self.config.commands.build, self.config.working_dir, self.config.env)
 
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")

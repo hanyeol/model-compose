@@ -140,35 +140,45 @@ class ControllerService(AsyncService):
 
         await super()._stop()
 
-    async def _start_listeners(self) -> None:
-        await asyncio.gather(*[ listener.start() for listener in self._create_listeners() ])
+    async def _start_listeners(self, listeners: Optional[List[ListenerService]] = None) -> None:
+        listeners = self._create_listeners() if listeners is None else listeners
+        await asyncio.gather(*(listener.start() for listener in listeners))
 
-    async def _stop_listeners(self) -> None:
-        await asyncio.gather(*[ listener.stop() for listener in self._create_listeners() ])
+    async def _stop_listeners(self, listeners: Optional[List[ListenerService]] = None) -> None:
+        listeners = self._create_listeners() if listeners is None else listeners
+        await asyncio.gather(*[ listener.stop() for listener in listeners ])
 
-    async def _start_gateways(self) -> None:
-        await asyncio.gather(*[ gateway.start() for gateway in self._create_gateways() ])
+    async def _start_gateways(self, gateways: Optional[List[GatewayService]] = None) -> None:
+        gateways = self._create_gateways() if gateways is None else gateways
+        await asyncio.gather(*[ gateway.start() for gateway in gateways ])
 
-    async def _stop_gateways(self) -> None:
-        await asyncio.gather(*[ gateway.stop() for gateway in self._create_gateways() ])
+    async def _stop_gateways(self, gateways: Optional[List[GatewayService]] = None) -> None:
+        gateways = self._create_gateways() if gateways is None else gateways
+        await asyncio.gather(*[ gateway.stop() for gateway in gateways ])
 
-    async def _start_components(self) -> None:
-        await asyncio.gather(*[ component.start() for component in self._create_components() ])
+    async def _start_components(self, components: Optional[List[ComponentService]] = None) -> None:
+        components = self._create_components() if components is None else components
+        await asyncio.gather(*[ component.start() for component in components ])
 
-    async def _stop_components(self) -> None:
-        await asyncio.gather(*[ component.stop() for component in self._create_components() ])
+    async def _stop_components(self, components: Optional[List[ComponentService]] = None) -> None:
+        components = self._create_components() if components is None else components
+        await asyncio.gather(*[ component.stop() for component in components ])
 
-    async def _start_loggers(self) -> None:
-        await asyncio.gather(*[ logger.start() for logger in self._create_loggers() ])
+    async def _start_loggers(self, loggers: Optional[List[LoggerService]] = None) -> None:
+        loggers = self._create_loggers() if loggers is None else loggers
+        await asyncio.gather(*[ logger.start() for logger in loggers ])
 
-    async def _stop_loggers(self) -> None:
-        await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
+    async def _stop_loggers(self, loggers: Optional[List[LoggerService]] = None) -> None:
+        loggers = self._create_loggers() if loggers is None else loggers
+        await asyncio.gather(*[ logger.stop() for logger in loggers ])
 
-    async def _start_webui(self) -> None:
-        await asyncio.gather(*[ self._create_webui().start() ])
+    async def _start_webui(self, webui: Optional[ControllerWebUI] = None) -> None:
+        webui = self._create_webui() if webui is None else webui
+        await asyncio.gather(*[ webui.start() ])
 
-    async def _stop_webui(self) -> None:
-        await asyncio.gather(*[ self._create_webui().stop() ])
+    async def _stop_webui(self, webui: Optional[ControllerWebUI] = None) -> None:
+        webui = self._create_webui() if webui is None else webui
+        await asyncio.gather(*[ webui.stop() ])
 
     def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
@@ -203,7 +213,7 @@ class ControllerService(AsyncService):
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
-        
+
         try:
             workflow = self._create_workflow(workflow_id)
             output = await workflow.run(task_id, input)

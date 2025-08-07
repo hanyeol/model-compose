@@ -34,7 +34,7 @@ class HttpControllerClient(ControllerClient):
         await self.client.close()
 
     def _resolve_controller_url(self) -> str:
-        return f"http://localhost:{self.config.port}{self.config.base_path or ''}"
+        return f"http://localhost:{self.config.port}" + (self.config.base_path or "")
     
     def _flatten_for_multipart(self, data: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
         flattened = []

@@ -13,17 +13,17 @@ class HttpClientCommonCompletionConfig(BaseModel):
 
 class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.POLLING]
-    endpoint: Optional[str] = Field(default=None)
-    path: Optional[str] = Field(default=None)
-    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="GET")
-    headers: Dict[str, str] = Field(default_factory=dict)
-    body: Dict[str, Any] = Field(default_factory=dict)
-    params: Dict[str, str] = Field(default_factory=dict)
-    status: Optional[str] = Field(default=None)
-    success_when: Optional[List[Union[int, str]]] = Field(default=None)
-    fail_when: Optional[List[Union[int, str]]] = Field(default=None)
-    interval: Optional[str] = Field(default=None)
-    timeout: Optional[str] = Field(default=None)
+    endpoint: Optional[str] = Field(default=None, description="")
+    path: Optional[str] = Field(default=None, description="")
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="GET", description="")
+    headers: Dict[str, str] = Field(default_factory=dict, description="")
+    body: Dict[str, Any] = Field(default_factory=dict, description="")
+    params: Dict[str, str] = Field(default_factory=dict, description="")
+    status: Optional[str] = Field(default=None, description="")
+    success_when: Optional[List[Union[int, str]]] = Field(default=None, description="")
+    fail_when: Optional[List[Union[int, str]]] = Field(default=None, description="")
+    interval: Optional[str] = Field(default=None, description="")
+    timeout: Optional[str] = Field(default=None, description="")
 
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):
@@ -51,13 +51,13 @@ HttpClientCompletionConfig = Annotated[
 ]
 
 class HttpClientActionConfig(CommonActionConfig):
-    endpoint: Optional[str] = Field(default=None)
-    path: Optional[str] = Field(default=None)
-    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST")
-    headers: Dict[str, str] = Field(default_factory=dict)
-    body: Dict[str, Any] = Field(default_factory=dict)
-    params: Dict[str, str] = Field(default_factory=dict)
-    completion: Optional[HttpClientCompletionConfig] = Field(default=None)
+    endpoint: Optional[str] = Field(default=None, description="")
+    path: Optional[str] = Field(default=None, description="")
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="")
+    headers: Dict[str, str] = Field(default_factory=dict, description="")
+    body: Dict[str, Any] = Field(default_factory=dict, description="")
+    params: Dict[str, str] = Field(default_factory=dict, description="")
+    completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="")
 
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):

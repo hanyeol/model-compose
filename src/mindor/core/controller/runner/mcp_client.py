@@ -23,7 +23,7 @@ class McpControllerClient(ControllerClient):
         await self.client.close()
 
     def _resolve_controller_url(self) -> str:
-        return f"http://localhost:{self.config.port}{self.config.base_path or ''}"
+        return f"http://localhost:{self.config.port}" + (self.config.base_path or "")
 
     async def _call_tool(self, name: str, arguments: Optional[Dict[str, Any]], workflow: WorkflowSchema) -> Any:
         contents = await self.client.call_tool(name, arguments)

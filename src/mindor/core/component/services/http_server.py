@@ -20,7 +20,7 @@ class HttpServerCompletion(ABC):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         pass
 
-class HttpServerPollingCompletion(HttpServerCompletionConfig):
+class HttpServerPollingCompletion(HttpServerCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         path    = await context.render_variable(self.config.path)
         method  = await context.render_variable(self.config.method)

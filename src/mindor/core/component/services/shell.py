@@ -25,7 +25,7 @@ class ShellAction:
     async def _run_command(self, command: List[str], working_dir: str, env: Dict[str, str], timeout: Optional[float]) -> Dict[str, Any]:
         stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
 
-        return { 
+        return {
             "stdout": stdout.decode().strip(), 
             "stderr": stderr.decode().strip(),
             "exit_code": exit_code

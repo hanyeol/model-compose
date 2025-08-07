@@ -7,8 +7,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Echo
-  description:
+  title: Echo Server
+  description: Sends user input to an HTTP server and returns the echoed response.
   input: ${input}
   output: ${output}
 

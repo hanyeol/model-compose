@@ -65,6 +65,7 @@ class HttpServerCallbackCompletion(HttpServerCompletion):
 class HttpServerAction:
     def __init__(self, config: HttpServerActionConfig):
         self.config: HttpServerActionConfig = config
+        self.completion: HttpServerCompletion = None
 
         if self.config.completion:
             self._configure_completion()

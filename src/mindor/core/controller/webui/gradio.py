@@ -81,7 +81,7 @@ class GradioWebUIBuilder:
         if isinstance(variable, WorkflowVariableConfig):
             return variable.format in [ WorkflowVariableFormat.SSE_JSON, WorkflowVariableFormat.SSE_TEXT ]
         return False
-        
+
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
         label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default else "")
         info = variable.get_annotation_value("description") or ""

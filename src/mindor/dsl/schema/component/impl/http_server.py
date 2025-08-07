@@ -14,8 +14,9 @@ class HttpServerComponentConfig(CommonComponentConfig):
     commands: HttpServerCommands = Field(..., description="")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the commands.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the commands.")
-    port: int = Field(default=None, ge=1, le=65535, description="")
+    port: int = Field(default=8000, ge=1, le=65535, description="")
     base_path: Optional[str] = Field(default=None, description="")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="")
     actions: Dict[str, HttpServerActionConfig] = Field(default_factory=dict, description="")
 
     @model_validator(mode="before")
@@ -23,4 +24,12 @@ class HttpServerComponentConfig(CommonComponentConfig):
         if "commands" not in values:
             if "command" in values:
                 values["commands"] = { "start": values.pop("command") }
+        return values
+
+    @model_validator(mode="before")
+    def inflate_single_action(cls, values: Dict[str, Any]):
+        if "actions" not in values:
+            action_keys = set(HttpServerActionConfig.model_fields.keys())
+            if any(k in values for k in action_keys):
+                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
         return values

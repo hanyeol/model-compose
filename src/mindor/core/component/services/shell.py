@@ -4,7 +4,8 @@ from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.shell import run_command
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-import os
+from asyncio.subprocess import Process
+import asyncio, os
 
 class ShellAction:
     def __init__(self, config: ShellActionConfig, base_dir: Optional[str], env: Optional[Dict[str, str]]):
@@ -16,10 +17,30 @@ class ShellAction:
         working_dir = await self._resolve_working_directory()
         env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
-        result = await run_command(self.config.command, working_dir, env, self.config.timeout)
+        result = await self._run_command(self.config.command, working_dir, env, self.config.timeout)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+    
+    async def _run_command(self, command: List[str], working_dir: str, env: Dict[str, str], timeout: Optional[float]) -> Dict[str, Any]:
+        stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
+
+        return { 
+            "stdout": stdout.decode().strip(), 
+            "stderr": stderr.decode().strip(),
+            "exit_code": exit_code
+        }
+
+    async def _kill_process(self, process: Process) -> bool:
+        if process.returncode is None:
+            process.kill()
+            try:
+                await process.wait()
+            except Exception as e:
+                pass
+            return True
+        else:
+            return False
 
     async def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir
@@ -30,7 +51,7 @@ class ShellAction:
             else:
                 working_dir = os.path.abspath(working_dir)
         else:
-            working_dir = self.base_dir
+            working_dir = self.base_dir or os.getcwd()
 
         return working_dir
 

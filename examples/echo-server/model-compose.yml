@@ -1,0 +1,26 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Echo
+  description:
+  input: ${input}
+  output: ${output}
+
+component:
+  type: http-server
+  command: [ uvicorn, main:app, --reload ]
+  port: 8000
+  method: POST
+  path: /echo
+  headers:
+    Content-Type: application/json
+  body:
+    text: ${input.text}
+  output: 
+    text: ${response.echo.text}

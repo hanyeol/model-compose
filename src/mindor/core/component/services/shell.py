@@ -4,8 +4,7 @@ from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.shell import run_command
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-from asyncio.subprocess import Process
-import asyncio, os
+import os
 
 class ShellAction:
     def __init__(self, config: ShellActionConfig, base_dir: Optional[str], env: Optional[Dict[str, str]]):
@@ -30,17 +29,6 @@ class ShellAction:
             "stderr": stderr.decode().strip(),
             "exit_code": exit_code
         }
-
-    async def _kill_process(self, process: Process) -> bool:
-        if process.returncode is None:
-            process.kill()
-            try:
-                await process.wait()
-            except Exception as e:
-                pass
-            return True
-        else:
-            return False
 
     async def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir

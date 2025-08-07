@@ -25,7 +25,7 @@ class ShellAction:
         stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
 
         return {
-            "stdout": stdout.decode().strip(), 
+            "stdout": stdout.decode().strip(),
             "stderr": stderr.decode().strip(),
             "exit_code": exit_code
         }

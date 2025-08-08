@@ -36,18 +36,18 @@ class McpServerComponent(ComponentService):
         self.client: Optional[McpClient] = None 
 
     async def _setup(self) -> None:
-        if self.config.commands.install:
-            for command in self.config.commands.install:
-                await run_command_streaming(command, self.config.working_dir, self.config.env)
+        if self.config.manage.scripts.install:
+            for command in self.config.manage.scripts.install:
+                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
 
-        if self.config.commands.build:
-            for command in self.config.commands.build:
-                await run_command_streaming(command, self.config.working_dir, self.config.env)
+        if self.config.manage.scripts.build:
+            for command in self.config.manage.scripts.build:
+                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _teardown(self):
-        if self.config.commands.clean:
-            for command in self.config.commands.clean:
-                await run_command_streaming(command, self.config.working_dir, self.config.env)
+        if self.config.manage.scripts.clean:
+            for command in self.config.manage.scripts.clean:
+                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")
@@ -60,8 +60,8 @@ class McpServerComponent(ComponentService):
         self.client = None
 
     async def _serve(self) -> None:
-        if self.config.commands.start:
-            await run_command_streaming(self.config.commands.start, self.config.working_dir, self.config.env, block=False)
+        if self.config.manage.scripts.start:
+            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env, block=False)
 
     async def _shutdown(self) -> None:
         pass

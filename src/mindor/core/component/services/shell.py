@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
-from mindor.core.utils.shell import run_command
+from mindor.core.utils.shell import run_command_streaming, run_command
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import os
@@ -47,6 +47,16 @@ class ShellAction:
 class ShellComponent(ComponentService):
     def __init__(self, id: str, config: ShellComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
+
+    async def _setup(self) -> None:
+        if self.config.manage.scripts.install:
+            for command in self.config.manage.scripts.install:
+                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+
+    async def _teardown(self):
+        if self.config.manage.scripts.clean:
+            for command in self.config.manage.scripts.clean:
+                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ShellAction(action, self.config.base_dir, self.config.env).run(context)

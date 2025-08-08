@@ -4,25 +4,48 @@ from pydantic import model_validator
 from mindor.dsl.schema.action import McpServerActionConfig
 from .common import ComponentType, CommonComponentConfig
 
-class McpServerCommands(BaseModel):
-    install: Optional[List[List[str]]] = Field(default=None, description="One or more commands to install dependencies.")
-    build: Optional[List[List[str]]] = Field(default=None, description="One or more commands to build the server.")
-    clean: Optional[List[List[str]]] = Field(default=None, description="One or more commands to clean the server environment.")
-    start: Optional[List[str]] = Field(default=None, description="Command to start the server.")
+class McpServerManageScripts(BaseModel):
+    install: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to install dependencies.")
+    build: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to build the server.")
+    clean: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to clean the server environment.")
+    start: Optional[List[str]] = Field(default=None, description="Script to start the server.")
 
     @model_validator(mode="before")
-    def normalize_commands(cls, values):
-        for key in [ "install", "build" ]:
-            command = values.get(key)
-            if command and isinstance(command, list) and all(isinstance(token, str) for token in command):
-                values[key] = [ command ]
+    def normalize_scripts(cls, values):
+        for key in [ "install", "build", "clean" ]:
+            script = values.get(key)
+            if script and isinstance(script, list) and all(isinstance(token, str) for token in script):
+                values[key] = [ script ]
+        return values
+
+class McpServerManageConfig(BaseModel):
+    scripts: McpServerManageScripts = Field(..., description="Shell scripts used to install, build, clean, and start the server.")
+    working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
+
+    @model_validator(mode="before")
+    def inflate_single_script(cls, values: Dict[str, Any]):
+        if "scripts" not in values:
+            values["scripts"] = { key: values.pop(key) for key in McpServerManageScripts.model_fields.keys() if key in values }
         return values
 
 class McpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_SERVER]
-    commands: McpServerCommands = Field(..., description="")
-    working_dir: Optional[str] = Field(default=None, description="Working directory for the commands.")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the commands.")
-    port: int = Field(default=8000, ge=1, le=65535, description="")
-    base_path: Optional[str] = Field(default=None, description="")
+    manage: McpServerManageConfig = Field(default_factory=McpServerManageConfig, description="Configuration used to manage the MCP server lifecycle.")
+    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the MCP server will listen for incoming requests.")
+    base_path: Optional[str] = Field(default=None, description="Base path to prefix all MCP routes exposed by this component.")
     actions: Dict[str, McpServerActionConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    def inflate_single_script(cls, values: Dict[str, Any]):
+        if "manage" not in values:
+            values["manage"] = { key: values.pop(key) for key in McpServerManageScripts.model_fields.keys() if key in values }
+        return values
+
+    @model_validator(mode="before")
+    def inflate_single_action(cls, values: Dict[str, Any]):
+        if "actions" not in values:
+            action_keys = set(McpServerActionConfig.model_fields.keys())
+            if any(k in values for k in action_keys):
+                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
+        return values

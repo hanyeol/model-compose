@@ -35,6 +35,18 @@ class McpServerComponent(ComponentService):
 
         self.client: Optional[McpClient] = None 
 
+    async def _setup(self) -> None:
+        if self.config.commands.install:
+            for command in self.config.commands.install:
+                await run_command_streaming(command, self.config.working_dir, self.config.env)
+
+        if self.config.commands.build:
+            for command in self.config.commands.build:
+                await run_command_streaming(command, self.config.working_dir, self.config.env)
+
+    async def _teardown(self):
+        pass
+
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")
         self.client = McpClient(base_url, self.config.headers)

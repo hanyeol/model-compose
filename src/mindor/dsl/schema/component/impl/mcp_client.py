@@ -8,7 +8,7 @@ class McpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_CLIENT]
     url: str = Field(..., description="URL of the MCP server to invoke tools.")
     headers: Dict[str, Any] = Field(default_factory=dict, description="")
-    actions: Dict[str, McpClientActionConfig] = Field(default_factory=dict, description="")
+    actions: Dict[str, McpClientActionConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

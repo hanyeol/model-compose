@@ -8,7 +8,7 @@ class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]
     base_url: Optional[str] = Field(default=None, description="")
     headers: Dict[str, Any] = Field(default_factory=dict, description="")
-    actions: Dict[str, HttpClientActionConfig] = Field(default_factory=dict, description="")
+    actions: Dict[str, HttpClientActionConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

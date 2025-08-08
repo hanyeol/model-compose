@@ -19,10 +19,11 @@ from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.utils.workqueue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from .runtime.specs import ControllerRuntimeSpecs
-from .runtime.native import DetachedNativeRuntimeLauncher
+from .runtime.native import NativeRuntimeLauncher
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
-import asyncio, ulid
+from pathlib import Path
+import asyncio, ulid, os
 
 class TaskStatus(str, Enum):
     PENDING    = "pending"
@@ -64,13 +65,15 @@ class ControllerService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
-    async def launch(self, detach: bool, verbose: bool) -> None:
+    async def launch_services(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
                 await self._start_loggers()
-                await DetachedNativeRuntimeLauncher().launch()
+                await NativeRuntimeLauncher().launch_detached()
+                await self._stop_loggers()
                 return
-    
+
+            await self._setup_components()
             await self.start()
             await self.wait_until_stopped()
             return
@@ -78,16 +81,46 @@ class ControllerService(AsyncService):
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
             await DockerRuntimeLauncher(self.config, verbose).launch(self._get_runtime_specs(), detach)
+            await self._stop_loggers()
             return
 
-    async def terminate(self, verbose: bool) -> None:
+    async def terminate_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
-            await self.stop()
+            await self._start_loggers()
+            await NativeRuntimeLauncher().stop()
+            await self._teardown_components()
+            await self._stop_loggers()
             return
-        
+
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
             await DockerRuntimeLauncher(self.config, verbose).terminate()
+            await self._stop_loggers()
+            return
+
+    async def start_services(self, verbose: bool) -> None:
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            await self.start()
+            await self.wait_until_stopped()
+            return
+
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._start_loggers()
+            await DockerRuntimeLauncher(self.config, verbose).start()
+            await self._stop_loggers()
+            return
+
+    async def stop_services(self, verbose: bool) -> None:
+        if self.config.runtime.type == RuntimeType.NATIVE:
+            await self._start_loggers()
+            await NativeRuntimeLauncher().stop()
+            await self._stop_loggers()
+            return
+
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._start_loggers()
+            await DockerRuntimeLauncher(self.config, verbose).stop()
+            await self._stop_loggers()
             return
 
     async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
@@ -114,14 +147,17 @@ class ControllerService(AsyncService):
         if self.task_queue:
             await self.task_queue.start()
 
+        await self._start_loggers()
+
         if self.daemon:
-            await self._start_loggers()
             await self._start_gateways()
             await self._start_listeners()
             await self._start_components()
 
             if self.config.webui:
                 await self._start_webui()
+
+            asyncio.create_task(self._watch_stop_request())
 
         await super()._start()
 
@@ -133,52 +169,61 @@ class ControllerService(AsyncService):
             await self._stop_components()
             await self._stop_listeners()
             await self._stop_gateways()
-            await self._stop_loggers()
 
             if self.config.webui:
                 await self._stop_webui()
 
         await super()._stop()
 
-    async def _start_listeners(self, listeners: Optional[List[ListenerService]] = None) -> None:
-        listeners = self._create_listeners() if listeners is None else listeners
-        await asyncio.gather(*(listener.start() for listener in listeners))
+    async def _on_stop(self) -> None:
+        await self._stop_loggers()
 
-    async def _stop_listeners(self, listeners: Optional[List[ListenerService]] = None) -> None:
-        listeners = self._create_listeners() if listeners is None else listeners
-        await asyncio.gather(*[ listener.stop() for listener in listeners ])
+    async def _watch_stop_request(self, interval: float = 1.0) -> None:
+        stop_file = Path.cwd() / ".stop"
 
-    async def _start_gateways(self, gateways: Optional[List[GatewayService]] = None) -> None:
-        gateways = self._create_gateways() if gateways is None else gateways
-        await asyncio.gather(*[ gateway.start() for gateway in gateways ])
+        while self.started:
+            if stop_file.exists():
+                await self.stop()
+                break
+            await asyncio.sleep(interval)
 
-    async def _stop_gateways(self, gateways: Optional[List[GatewayService]] = None) -> None:
-        gateways = self._create_gateways() if gateways is None else gateways
-        await asyncio.gather(*[ gateway.stop() for gateway in gateways ])
+        os.unlink(stop_file)
 
-    async def _start_components(self, components: Optional[List[ComponentService]] = None) -> None:
-        components = self._create_components() if components is None else components
-        await asyncio.gather(*[ component.start() for component in components ])
+    async def _start_listeners(self) -> None:
+        await asyncio.gather(*[ listener.start() for listener in self._create_listeners() ])
 
-    async def _stop_components(self, components: Optional[List[ComponentService]] = None) -> None:
-        components = self._create_components() if components is None else components
-        await asyncio.gather(*[ component.stop() for component in components ])
+    async def _stop_listeners(self) -> None:
+        await asyncio.gather(*[ listener.stop() for listener in self._create_listeners() ])
 
-    async def _start_loggers(self, loggers: Optional[List[LoggerService]] = None) -> None:
-        loggers = self._create_loggers() if loggers is None else loggers
-        await asyncio.gather(*[ logger.start() for logger in loggers ])
+    async def _start_gateways(self) -> None:
+        await asyncio.gather(*[ gateway.start() for gateway in self._create_gateways() ])
 
-    async def _stop_loggers(self, loggers: Optional[List[LoggerService]] = None) -> None:
-        loggers = self._create_loggers() if loggers is None else loggers
-        await asyncio.gather(*[ logger.stop() for logger in loggers ])
+    async def _stop_gateways(self) -> None:
+        await asyncio.gather(*[ gateway.stop() for gateway in self._create_gateways() ])
 
-    async def _start_webui(self, webui: Optional[ControllerWebUI] = None) -> None:
-        webui = self._create_webui() if webui is None else webui
-        await asyncio.gather(*[ webui.start() ])
+    async def _setup_components(self) -> None:
+        await asyncio.gather(*[ component.setup() for component in self._create_components() ])
 
-    async def _stop_webui(self, webui: Optional[ControllerWebUI] = None) -> None:
-        webui = self._create_webui() if webui is None else webui
-        await asyncio.gather(*[ webui.stop() ])
+    async def _teardown_components(self) -> None:
+        await asyncio.gather(*[ component.teardown() for component in self._create_components() ])
+
+    async def _start_components(self) -> None:
+        await asyncio.gather(*[ component.start() for component in self._create_components() ])
+
+    async def _stop_components(self) -> None:
+        await asyncio.gather(*[ component.stop() for component in self._create_components() ])
+
+    async def _start_loggers(self) -> None:
+        await asyncio.gather(*[ logger.start() for logger in self._create_loggers() ])
+
+    async def _stop_loggers(self) -> None:
+        await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
+
+    async def _start_webui(self) -> None:
+        await asyncio.gather(*[ self._create_webui().start() ])
+
+    async def _stop_webui(self) -> None:
+        await asyncio.gather(*[ self._create_webui().stop() ])
 
     def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]

@@ -6,4 +6,4 @@ from .common import ClassificationModelComponentConfig, ModelTaskType
 
 class TextClassificationModelComponentConfig(ClassificationModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_CLASSIFICATION]
-    actions: Dict[str, TextClassificationModelActionConfig] = Field(default_factory=dict, description="")
+    actions: Dict[str, TextClassificationModelActionConfig] = Field(default_factory=dict)

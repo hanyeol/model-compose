@@ -6,4 +6,4 @@ from .common import CommonModelComponentConfig, ModelTaskType
 
 class TextEmbeddingModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_EMBEDDING]
-    actions: Dict[str, TextEmbeddingModelActionConfig] = Field(default_factory=dict, description="")
+    actions: Dict[str, TextEmbeddingModelActionConfig] = Field(default_factory=dict)

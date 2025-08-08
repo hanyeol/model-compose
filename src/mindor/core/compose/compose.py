@@ -9,7 +9,7 @@ async def terminate_services(config: ComposeConfig, verbose: bool):
     await ComposeManager(config, daemon=False).terminate_services(verbose)
 
 async def start_services(config: ComposeConfig, verbose: bool):
-    await ComposeManager(config, daemon=False).start_services(verbose)
+    await ComposeManager(config, daemon=True).start_services(verbose)
 
 async def stop_services(config: ComposeConfig, verbose: bool):
     await ComposeManager(config, daemon=False).stop_services(verbose)

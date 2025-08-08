@@ -42,6 +42,8 @@ class AsyncService(ABC):
         if self.daemon_task:
             await self.daemon_task
 
+        await self._on_stop()
+
     def run_in_thread(self, runner: Callable[[], Awaitable[Any]]) -> asyncio.Future:
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
@@ -78,6 +80,9 @@ class AsyncService(ABC):
             await self._shutdown()
 
         self.started = False
+
+    async def _on_stop(self) -> None:
+        pass
 
     @abstractmethod
     async def _serve(self) -> None:

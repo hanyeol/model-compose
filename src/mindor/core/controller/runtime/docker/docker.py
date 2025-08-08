@@ -67,6 +67,12 @@ class DockerRuntimeLauncher:
         if await docker.exists_image():
             await docker.remove_image()
 
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
     async def _prepare_docker_context(self, specs: ControllerRuntimeSpecs) -> None:
         # Prepare context directory
         context_dir = Path.cwd() / ".docker"

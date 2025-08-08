@@ -5,19 +5,27 @@ from mindor.dsl.schema.action import HttpServerActionConfig
 from .common import ComponentType, CommonComponentConfig
 
 class HttpServerCommands(BaseModel):
-    install: Optional[List[str]] = Field(default=None, description="")
-    build: Optional[List[str]] = Field(default=None, description="")
-    start: Optional[List[str]] = Field(default=None, description="")
+    install: Optional[List[List[str]]] = Field(default=None, description="One or more commands to install dependencies.")
+    build: Optional[List[List[str]]] = Field(default=None, description="One or more commands to build the server.")
+    start: Optional[List[str]] = Field(default=None, description="Command to start the server.")
+
+    @model_validator(mode="before")
+    def normalize_commands(cls, values):
+        for key in [ "install", "build" ]:
+            command = values.get(key)
+            if command and isinstance(command, list) and all(isinstance(token, str) for token in command):
+                values[key] = [ command ]
+        return values
 
 class HttpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_SERVER]
-    commands: HttpServerCommands = Field(..., description="")
+    commands: HttpServerCommands = Field(..., description="Shell commands used to install, build, and start the server.")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the commands.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the commands.")
-    port: int = Field(default=8000, ge=1, le=65535, description="")
-    base_path: Optional[str] = Field(default=None, description="")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="")
-    actions: Dict[str, HttpServerActionConfig] = Field(default_factory=dict, description="")
+    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the server will listen.")
+    base_path: Optional[str] = Field(default=None, description="Base path to prefix all HTTP routes exposed by this component.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers to be included in all outgoing HTTP requests.")
+    actions: Dict[str, HttpServerActionConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_command(cls, values: Dict[str, Any]):

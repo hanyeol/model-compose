@@ -114,7 +114,9 @@ class HttpServerComponent(ComponentService):
                 await run_command_streaming(command, self.config.working_dir, self.config.env)
 
     async def _teardown(self):
-        pass
+        if self.config.commands.clean:
+            for command in self.config.commands.clean:
+                await run_command_streaming(command, self.config.working_dir, self.config.env)
 
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")

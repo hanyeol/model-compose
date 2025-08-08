@@ -7,6 +7,7 @@ from .common import ComponentType, CommonComponentConfig
 class McpServerCommands(BaseModel):
     install: Optional[List[List[str]]] = Field(default=None, description="One or more commands to install dependencies.")
     build: Optional[List[List[str]]] = Field(default=None, description="One or more commands to build the server.")
+    clean: Optional[List[List[str]]] = Field(default=None, description="One or more commands to clean the server environment.")
     start: Optional[List[str]] = Field(default=None, description="Command to start the server.")
 
     @model_validator(mode="before")

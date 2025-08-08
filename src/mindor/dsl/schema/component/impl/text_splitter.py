@@ -6,7 +6,7 @@ from .common import ComponentType, CommonComponentConfig
 
 class TextSplitterComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.TEXT_SPLITTER]
-    actions: Optional[Dict[str, TextSplitterActionConfig]] = Field(default_factory=dict, description="Text split actions mapped by an identifier.")
+    actions: Optional[Dict[str, TextSplitterActionConfig]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

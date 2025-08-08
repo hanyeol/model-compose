@@ -6,7 +6,7 @@ from .common import ComponentType, CommonComponentConfig
 
 class WorkflowComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.WORKFLOW]
-    actions: Optional[Dict[str, WorkflowActionConfig]] = Field(default_factory=dict, description="Workflow actions mapped by an identifier.")
+    actions: Optional[Dict[str, WorkflowActionConfig]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

@@ -14,7 +14,7 @@ workflow:
 
 component:
   type: http-server
-  command: [ uvicorn, main:app, --reload ]
+  start: [ uvicorn, main:app, --reload ]
   port: 8000
   method: POST
   path: /echo

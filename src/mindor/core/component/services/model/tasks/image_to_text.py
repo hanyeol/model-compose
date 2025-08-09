@@ -32,8 +32,8 @@ class ImageToTextTaskAction:
         prompts: Optional[List[str]] = [ prompt ] if isinstance(prompt, str) else prompt
         results = []
 
-        if stream and (batch_size != 1 or len(prompts) != 1):
-            raise ValueError("Streaming mode only supports a single input prompt with batch size of 1.")
+        if stream and (batch_size != 1 or len(images) != 1):
+            raise ValueError("Streaming mode only supports a single input image with batch size of 1.")
 
         streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
         for index in range(0, len(images), batch_size):

@@ -6,3 +6,4 @@ class ModelTaskType(str, Enum):
     TRANSLATION         = "translation"
     TEXT_CLASSIFICATION = "text-classification" 
     TEXT_EMBEDDING      = "text-embedding"
+    IMAGE_TO_TEXT       = "image-to-text"

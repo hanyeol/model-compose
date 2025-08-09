@@ -11,7 +11,7 @@ from torch import Tensor
 import torch, asyncio
 
 class TranslationTaskAction:
-    def __init__(self, config: TranslationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(self, config: TranslationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TranslationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer

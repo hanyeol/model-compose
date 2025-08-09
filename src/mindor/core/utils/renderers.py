@@ -3,8 +3,10 @@ from .streaming import StreamResource, UploadFileStreamResource, Base64StreamRes
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
+from .image import load_image_from_stream
 from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
+from PIL import Image as PILImage
 import re, json, base64
 
 class VariableRenderer:
@@ -24,8 +26,8 @@ class VariableRenderer:
             )
         }
 
-    async def render(self, data: Any, ignore_files: bool = True) -> Any:
-        return await self._render_element(data, ignore_files)
+    async def render(self, value: Any, ignore_files: bool = True) -> Any:
+        return await self._render_element(value, ignore_files)
 
     async def _render_element(self, element: Any, ignore_files: bool) -> Any:
         if isinstance(element, str):
@@ -34,7 +36,7 @@ class VariableRenderer:
         if isinstance(element, dict):
             return { key: await self._render_element(value, ignore_files) for key, value in element.items() }
         
-        if isinstance(element, list):
+        if isinstance(element, (list, tuple)):
             return [ await self._render_element(item, ignore_files) for item in element ]
         
         return element
@@ -43,7 +45,7 @@ class VariableRenderer:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
-            key, index, path, type, subtype, format, default, matched_text = (*m.group(1, 2, 3, 4, 5, 6, 7), m.group(0))
+            key, index, path, type, subtype, format, default = m.group(1, 2, 3, 4, 5, 6, 7)
             index = int(index) if index else None
 
             try:
@@ -57,10 +59,11 @@ class VariableRenderer:
             if type and value is not None:
                 value = await self._convert_value_to_type(value, type, subtype, format, ignore_files)
 
-            if matched_text == text:
+            start, end = m.span()
+
+            if start == 0 and end == len(text):
                 return value
 
-            start, end = m.span()
             text = text[:start] + str(value) + text[end:]
 
         return text
@@ -116,3 +119,19 @@ class VariableRenderer:
             return await save_stream_to_temporary_file(value, subtype)
 
         return None
+
+class ImageValueRenderer:
+    async def render(self, value: Any) -> Any:
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> Any:
+        if isinstance(element, UploadFile):
+            return await load_image_from_stream(UploadFileStreamResource(element))
+        
+        if isinstance(element, dict):
+            return { key: await self._render_element(value) for key, value in element.items() }
+
+        if isinstance(element, (list, tuple)):
+            return [ await self._render_element(item) for item in element ]
+        
+        return element if isinstance(element, PILImage.Image) else None

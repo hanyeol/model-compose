@@ -36,13 +36,5 @@ class CommonModelComponentConfig(CommonComponentConfig):
     low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")
     fast_tokenizer: bool = Field(default=True, description="Whether to use the fast tokenizer if available.")
 
-    @model_validator(mode="before")
-    def inflate_single_action(cls, values: Dict[str, Any]):
-        if "actions" not in values:
-            action_keys = set(get_model_union_keys(ModelActionConfig))
-            if any(k in values for k in action_keys):
-                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
-        return values
-
 class ClassificationModelComponentConfig(CommonModelComponentConfig):
     labels: Optional[List[str]] = Field(default=None, description="List of class labels for classification tasks.")

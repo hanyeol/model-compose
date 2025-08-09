@@ -3,7 +3,7 @@ from .streaming import StreamResource
 from PIL import Image as PILImage
 import io
 
-async def load_image_from_stream(stream: StreamResource, extension: Optional[str]) -> Optional[PILImage.Image]:
+async def load_image_from_stream(stream: StreamResource, extension: Optional[str] = None) -> Optional[PILImage.Image]:
     try:
         data = bytearray()
         async with stream:

@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, Dev
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
-from transformers import PreTrainedModel, PreTrainedTokenizer
+from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
 import torch, asyncio
 
 class ModelTaskService(AsyncService):
@@ -41,7 +41,7 @@ class ModelTaskService(AsyncService):
 
     def _get_common_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
-    
+
         if self.config.device_mode != DeviceMode.SINGLE:
             params["device_map"] = self.config.device_mode.value
     
@@ -61,7 +61,10 @@ class ModelTaskService(AsyncService):
             params["local_files_only"] = True
 
         return params
-    
+
+    def _get_model_class(self) -> Type[PreTrainedModel]:
+        raise NotImplementedError("Model class loader not implemented.")
+
     def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedTokenizer:
         params = self._get_common_tokenizer_params()
  
@@ -86,17 +89,37 @@ class ModelTaskService(AsyncService):
             params["local_files_only"] = True
 
         return params
-    
+
+    def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        raise NotImplementedError("Tokenizer class loader not implemented.")
+
+    def _load_pretrained_processor(self, extra_params: Optional[Dict[str, Any]] = None) -> ProcessorMixin:
+        params = self._get_common_processor_params()
+ 
+        if extra_params:
+            params.update(extra_params)
+
+        return self._get_processor_class().from_pretrained(self.config.model, **params)
+
+    def _get_common_processor_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+
+        if self.config.revision:
+            params["revision"] = self.config.revision
+
+        if self.config.cache_dir:
+            params["cache_dir"] = self.config.cache_dir
+
+        if self.config.local_files_only:
+            params["local_files_only"] = True
+
+        return params
+
+    def _get_processor_class(self) -> Type[ProcessorMixin]:
+        raise NotImplementedError("Processor class loader not implemented.")
+
     def _get_model_device(self, model: PreTrainedModel) -> torch.device:
         return next(model.parameters()).device
-
-    @abstractmethod
-    def _get_model_class(self) -> Type[PreTrainedModel]:
-        pass
-
-    @abstractmethod
-    def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
-        pass
 
 def register_model_task_service(type: ModelTaskType):
     def decorator(cls: Type[ModelTaskService]) -> Type[ModelTaskService]:

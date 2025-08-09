@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.core.utils.renderers import VariableRenderer
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
 
 class WorkflowContext:
     def __init__(self, task_id: str, input: Dict[str, Any]):
@@ -15,8 +15,11 @@ class WorkflowContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_variable(self, data: Dict[str, Any], ignore_files: bool = True) -> Any:
-        return await self.renderer.render(data, ignore_files)
+    async def render_variable(self, value: Any, ignore_files: bool = True) -> Any:
+        return await self.renderer.render(value, ignore_files)
+
+    async def render_image(self, value: Any) -> Any:
+        return await ImageValueRenderer().render(await self.render_variable(value))
 
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:

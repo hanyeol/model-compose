@@ -9,6 +9,7 @@ ModelComponentConfig = Annotated[
         TranslationModelComponentConfig,
         TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
+        ImageToTextModelComponentConfig,
     ],
     Field(discriminator="task")
 ]

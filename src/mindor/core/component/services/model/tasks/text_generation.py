@@ -11,7 +11,7 @@ from torch import Tensor
 import torch, asyncio
 
 class TextGenerationTaskAction:
-    def __init__(self, config: TextGenerationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(self, config: TextGenerationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TextGenerationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer

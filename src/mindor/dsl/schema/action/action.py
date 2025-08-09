@@ -10,5 +10,5 @@ ActionConfig = Union[
     ModelActionConfig,
     WorkflowActionConfig,
     ShellActionConfig,
-    TextSplitterActionConfig
+    TextSplitterActionConfig,
 ]

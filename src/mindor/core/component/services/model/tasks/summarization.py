@@ -11,7 +11,7 @@ from torch import Tensor
 import torch, asyncio
 
 class SummarizationTaskAction:
-    def __init__(self, config: SummarizationModelActionConfig, model: Union[PreTrainedModel, GenerationMixin], tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(self, config: SummarizationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: SummarizationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer

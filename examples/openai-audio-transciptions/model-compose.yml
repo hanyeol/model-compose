@@ -10,7 +10,7 @@ workflow:
   title: Generate Transciptions with OpenAI STT
   description: 
   jobs:
-    speak:
+    speech-to-text:
       component: openai-speech-to-text
       input: ${input}
       output: 

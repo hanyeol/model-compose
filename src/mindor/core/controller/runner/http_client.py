@@ -55,7 +55,8 @@ class HttpControllerClient(ControllerClient):
                         flattened.append((list_key, item))
                 continue
 
-            flattened.append((full_key, value))
+            if value is not None:
+                flattened.append((full_key, value))
 
         return flattened
 

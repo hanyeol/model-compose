@@ -2,11 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel, Field
 from .impl import *
 
-ControllerWebUIConfig = Annotated[
+HttpTunnelGatewayConfig = Annotated[
     Union[ 
-        GradioWebUIConfig,
-        StaticWebUIConfig,
-        DynamicWebUIConfig
+        NgrokHttpTunnelGatewayConfig,
+        CloudflareHttpTunnelGatewayConfig,
     ],
     Field(discriminator="driver")
 ]

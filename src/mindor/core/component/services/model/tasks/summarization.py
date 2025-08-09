@@ -70,7 +70,7 @@ class SummarizationTaskAction:
             else:
                 _generate()
 
-        if stream:        
+        if stream:
             async def _stream_generator():
                 async for result in AsyncStreamer(streamer, loop):
                     context.register_source("result", result)

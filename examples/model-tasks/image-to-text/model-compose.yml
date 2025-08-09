@@ -1,0 +1,22 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text from Image
+  description: Generate text based on a given image using a pretrained vision model.
+  input: ${input}
+  output:
+    generated: ${output}
+
+component:
+  type: model
+  task: image-to-text
+  model: Salesforce/blip-image-captioning-large
+  architecture: blip
+  image: ${input.image as image}
+  prompt: ${input.prompt as text}

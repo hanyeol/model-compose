@@ -235,7 +235,10 @@ class HttpServerController(ControllerService):
                 if isinstance(chunk, str):
                     chunk = chunk.replace("\r\n", "\n")
                     if chunk.endswith("\n"):
-                        chunk = [ line.encode("utf-8") if len(line) > 0 else b"\n" for line in chunk.split("\n")[:-1] ]
+                        lines = chunk.split("\n")
+                        if chunk.startswith("\n"):
+                            lines = lines[1:]
+                        chunk = [ line.encode("utf-8") for line in lines ]
                     else:
                         chunk = chunk.encode("utf-8")
                 for line in [ chunk ] if isinstance(chunk, bytes) else chunk:

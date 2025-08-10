@@ -233,8 +233,14 @@ class HttpServerController(ControllerService):
                 if not isinstance(chunk, (str, bytes)):
                     chunk = json.dumps(chunk, ensure_ascii=False, default=str)
                 if isinstance(chunk, str):
-                    chunk = chunk.encode("utf-8")
-                yield b"data: " + chunk + b"\n\n"
+                    chunk = chunk.replace("\r\n", "\n")
+                    if chunk.endswith("\n"):
+                        chunk = [ line.encode("utf-8") if len(line) > 0 else b"\n" for line in chunk.split("\n")[:-1] ]
+                    else:
+                        chunk = chunk.encode("utf-8")
+                for line in [ chunk ] if isinstance(chunk, bytes) else chunk:
+                    yield b"data: " + line + b"\n"
+                yield b"\n"
 
         return StreamingResponse(
             _event_generator(),

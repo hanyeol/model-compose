@@ -59,10 +59,12 @@ class ControllerWebUI(AsyncService):
             port=self.config.port,
             log_level="info"
         ))
-        await self.server.serve()
-        await self.runner.close()
-        self.server = None
-        self.runner = None
+        try:
+            await self.server.serve()
+        finally:
+            await self.runner.close()
+            self.server = None
+            self.runner = None
     
     async def _shutdown(self) -> None:
         if self.server:

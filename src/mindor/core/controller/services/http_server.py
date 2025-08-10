@@ -186,8 +186,10 @@ class HttpServerController(ControllerService):
             port=self.config.port,
             log_level="info"
         ))
-        await self.server.serve()
-        self.server = None
+        try:
+            await self.server.serve()
+        finally:
+            self.server = None
  
     async def _shutdown(self) -> None:
         if self.server:
@@ -217,43 +219,27 @@ class HttpServerController(ControllerService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
-        if isinstance(state.output, AsyncGeneratorType):
-            return self._render_async_generator(state.output)
-        
-        if isinstance(state.output, HttpEventStreamResource):
-            return self._render_event_stream_resource(state.output)
+        if isinstance(state.output, AsyncIterator):
+            return self._render_async_iterator(state.output)
 
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
         return JSONResponse(content=state.output)
     
-    def _render_async_generator(self, generator: AsyncGeneratorType) -> Response:
+    def _render_async_iterator(self, iterator: AsyncIterator) -> Response:
         async def _event_generator() -> AsyncIterator[bytes]:
-            async for chunk in generator:
-                if not isinstance(chunk, str):
-                    chunk = json.dumps()
-                yield b"data: " + chunk.encode("utf-8") + b"\n\n"
+            async for chunk in iterator:
+                if not isinstance(chunk, (str, bytes)):
+                    chunk = json.dumps(chunk, ensure_ascii=False, default=str)
+                if isinstance(chunk, str):
+                    chunk = chunk.encode("utf-8")
+                yield b"data: " + chunk + b"\n\n"
 
         return StreamingResponse(
             _event_generator(),
             media_type="text/event-stream",
             headers={ "Cache-Control": "no-cache" }
-        )
-
-    def _render_event_stream_resource(self, resource: HttpEventStreamResource) -> Response:
-        async def _event_generator() -> AsyncIterator[bytes]:
-            async for chunk in resource:
-                yield b"data: " + chunk + b"\n\n"
-
-        async def _close_stream():
-            await resource.close()
-
-        return StreamingResponse(
-            _event_generator(),
-            media_type="text/event-stream",
-            headers={ "Cache-Control": "no-cache" },
-            background=BackgroundTask(_close_stream)
         )
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:

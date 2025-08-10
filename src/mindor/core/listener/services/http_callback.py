@@ -108,8 +108,10 @@ class HttpCallbackListener(ListenerService):
             port=self.config.port, 
             log_level="info"
         ))
-        await self.server.serve()
-        self.server = None
+        try:
+            await self.server.serve()
+        finally:
+            self.server = None
  
     async def _shutdown(self) -> None:
         if self.server:

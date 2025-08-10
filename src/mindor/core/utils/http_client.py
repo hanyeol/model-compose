@@ -94,7 +94,7 @@ class HttpClient:
             if raise_on_error and response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
 
-            if not isinstance(content, StreamResource):
+            if not isinstance(content, (StreamResource, AsyncIterator)):
                 response.close()
 
             return content if raise_on_error else (content, response.status)
@@ -155,9 +155,9 @@ class HttpClient:
 
         if content_type == "application/json":
             return (await response.json(), content_type)
-        
+
         if content_type == "text/event-stream":
-            return (HttpEventStreamResource(response), content_type)
+            return (HttpEventStreamResource(response).as_iterator(), content_type)
 
         if content_type.startswith("text/"):
             return (await response.text(), content_type)

@@ -74,7 +74,7 @@ class VariableRenderer:
 
         if type == "integer":
             return int(value)
-        
+
         if type == "boolean":
             return str(value).lower() in [ "true", "1" ]
 
@@ -82,7 +82,7 @@ class VariableRenderer:
             if isinstance(value, str):
                 return json.loads(value)
             return value
-        
+
         if type == "object[]":
             if isinstance(value, list):
                 objects = [ v for v in value if isinstance(v, dict) ]

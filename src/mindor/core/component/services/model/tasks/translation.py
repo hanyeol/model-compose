@@ -61,8 +61,9 @@ class TranslationTaskAction:
                         streamer=streamer
                     )
 
-                outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-                results.extend(outputs)
+                if not stream:
+                    outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                    results.extend(outputs)
 
             if stream:
                 thread = Thread(target=_generate)

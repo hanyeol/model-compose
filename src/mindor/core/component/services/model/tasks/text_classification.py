@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
+from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
@@ -17,44 +18,58 @@ class TextClassificationTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
+    async def run(self, context: ComponentActionContext, labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         return_probabilities = await context.render_variable(self.config.params.return_probabilities)
         batch_size           = await context.render_variable(self.config.params.batch_size)
+        stream               = await context.render_variable(self.config.stream)
 
         texts: List[str] = [ text ] if isinstance(text, str) else text
         results = []
 
-        for index in range(0, len(texts), batch_size):
-            batch_texts = texts[index:index + batch_size]
-            inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        def _predict():
+            for index in range(0, len(texts), batch_size):
+                batch_texts = texts[index:index + batch_size]
+                inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
+                inputs = { k: v.to(self.device) for k, v in inputs.items() }
+                predictions = []
 
-            with torch.no_grad():
-                outputs: SequenceClassifierOutput = self.model(**inputs)
-                logits = outputs.logits  # shape: (batch_size, num_classes)
-                
-                predicted = []
-                if return_probabilities:
-                    probs = F.softmax(logits, dim=-1).cpu()
-                    for prob in probs:
-                        predicted_index = torch.argmax(prob).item()
-                        predicted.append({
-                            "label": labels[predicted_index] if labels else predicted_index,
-                            "probabilities": prob.tolist()
-                        })
-                else:
-                    predicted_indices = torch.argmax(logits, dim=-1).tolist()
-                    for predicted_index in predicted_indices:
-                        predicted.append(labels[predicted_index] if labels else predicted_index)
+                with torch.inference_mode():
+                    outputs: SequenceClassifierOutput = self.model(**inputs)
+                    logits = outputs.logits  # shape: (batch_size, num_classes)
+                    
+                    if return_probabilities:
+                        probs = F.softmax(logits, dim=-1).cpu()
+                        for prob in probs:
+                            predicted_index = torch.argmax(prob).item()
+                            predictions.append({
+                                "label": labels[predicted_index] if labels else predicted_index,
+                                "probabilities": prob.tolist()
+                            })
+                    else:
+                        predicted_indices = torch.argmax(logits, dim=-1).tolist()
+                        for predicted_index in predicted_indices:
+                            predictions.append(labels[predicted_index] if labels else predicted_index)
 
-            results.extend(predicted)
+                yield predictions
 
-        result = results if len(results) > 1 else results[0]
-        context.register_source("result", result)
+        if stream:
+            async def _stream_generator():
+                async for predictions in AsyncStreamer(_predict(), loop):
+                    result = predictions if len(predictions) > 1 else predictions[0]
+                    context.register_source("result", result)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            return _stream_generator()
+        else:
+            for predictions in _predict():
+                results.extend(predictions)
+
+            result = results if len(results) > 1 else results[0]
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION)
 class TextClassificationTaskService(ModelTaskService):
@@ -81,7 +96,7 @@ class TextClassificationTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
+        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModelForSequenceClassification

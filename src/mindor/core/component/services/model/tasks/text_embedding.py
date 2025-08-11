@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
+from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
@@ -16,38 +17,52 @@ class TextEmbeddingTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         max_input_length = await context.render_variable(self.config.params.max_input_length)
         pooling          = await context.render_variable(self.config.params.pooling)
         normalize        = await context.render_variable(self.config.params.normalize)
         batch_size       = await context.render_variable(self.config.params.batch_size)
+        stream           = await context.render_variable(self.config.stream)
 
         texts: List[str] = [ text ] if isinstance(text, str) else text
         results = []
 
-        for index in range(0, len(texts), batch_size):
-            batch_texts = texts[index:index + batch_size]
-            inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        def _embed():
+            for index in range(0, len(texts), batch_size):
+                batch_texts = texts[index:index + batch_size]
+                inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
+                inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-            with torch.no_grad():
-                outputs: BaseModelOutput = self.model(**inputs)
-                last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
+                with torch.inference_mode():
+                    outputs: BaseModelOutput = self.model(**inputs)
+                    last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
 
-            attention_mask = inputs.get("attention_mask", None)
-            embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
+                attention_mask = inputs.get("attention_mask", None)
+                embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
-            if normalize:
-                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                if normalize:
+                    embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-            results.extend(embeddings.cpu().tolist())
+                yield embeddings.cpu().tolist()
 
-        result = results if len(results) > 1 else results[0]
-        context.register_source("result", result)
+        if stream:
+            async def _stream_generator():
+                async for embeddings in AsyncStreamer(_embed(), loop):
+                    result = embeddings if len(embeddings) > 1 else embeddings[0]
+                    context.register_source("result", result)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            return _stream_generator()
+        else:
+            for embeddings in _embed():
+                results.extend(embeddings)
+
+            result = results if len(results) > 1 else results[0]
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
         if pooling == "mean":
@@ -95,7 +110,7 @@ class TextEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+        return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModel

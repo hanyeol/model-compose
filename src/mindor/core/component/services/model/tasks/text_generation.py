@@ -41,7 +41,7 @@ class TextGenerationTaskAction:
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
             def _generate():
-                with torch.no_grad():
+                with torch.inference_mode():
                     outputs = self.model.generate(
                         **inputs,
                         max_new_tokens=max_output_length,

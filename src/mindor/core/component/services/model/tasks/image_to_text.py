@@ -44,7 +44,7 @@ class ImageToTextTaskAction:
             inputs = inputs.to(self.device)
 
             def _generate():
-                with torch.no_grad():
+                with torch.inference_mode():
                     outputs = self.model.generate(
                         **inputs,
                         streamer=streamer

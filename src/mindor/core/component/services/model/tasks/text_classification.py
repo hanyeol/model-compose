@@ -33,12 +33,12 @@ class TextClassificationTaskAction:
                 batch_texts = texts[index:index + batch_size]
                 inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
                 inputs = { k: v.to(self.device) for k, v in inputs.items() }
-                predictions = []
 
                 with torch.inference_mode():
                     outputs: SequenceClassifierOutput = self.model(**inputs)
                     logits = outputs.logits  # shape: (batch_size, num_classes)
-                    
+                    predictions = []
+
                     if return_probabilities:
                         probs = F.softmax(logits, dim=-1).cpu()
                         for prob in probs:

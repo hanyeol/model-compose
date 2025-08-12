@@ -27,7 +27,7 @@ class TextEmbeddingTaskAction:
         stream           = await context.render_variable(self.config.stream)
 
         is_single_input: bool = True if not isinstance(text, list) else False
-        has_iterable_result: bool = context.has_reference("result[]", self.config.output)
+        is_result_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 
@@ -49,7 +49,7 @@ class TextEmbeddingTaskAction:
 
                 embeddings = embeddings.cpu().tolist()
 
-                if self.config.output and has_iterable_result:
+                if self.config.output and is_result_array_mode:
                     rendered_outputs = []
                     for embedding in embeddings:
                         context.register_source("result[]", embedding)
@@ -62,7 +62,7 @@ class TextEmbeddingTaskAction:
         if stream:
             async def _stream_generator():
                 async for embeddings in _embed():
-                    if not has_iterable_result:
+                    if not is_result_array_mode:
                         for embedding in embeddings:
                             context.register_source("result", embedding)
                             yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
@@ -75,7 +75,7 @@ class TextEmbeddingTaskAction:
             async for embeddings in _embed():
                 results.extend(embeddings)
 
-            if not has_iterable_result:
+            if not is_result_array_mode:
                 result = results[0] if is_single_input else results
                 context.register_source("result", result)
 

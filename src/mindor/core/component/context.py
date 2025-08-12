@@ -13,14 +13,14 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    def has_reference(self, key: str, value: Any) -> bool:
-        return self.renderer.has_reference(key, value)
-
     async def render_variable(self, value: Any, ignore_files: bool = False) -> Any:
         return await self.renderer.render(value, ignore_files)
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))
+
+    def contains_variable_reference(self, key: str, value: Any) -> bool:
+        return self.renderer.contains_reference(key, value)
 
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:

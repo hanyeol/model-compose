@@ -30,7 +30,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model and tokenizer files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
-    device_mode: DeviceMode = Field(default=DeviceMode.SINGLE, description="")
+    device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="")
     device: str = Field(default="cpu", description="Computation device to use.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")

@@ -28,7 +28,8 @@ class TextGenerationTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        prompts: List[str] = [ prompt ] if isinstance(prompt, str) else prompt
+        is_single_input: bool = True if not isinstance(prompt, list) else False
+        prompts: List[str] = [ prompt ] if is_single_input else prompt
         results = []
 
         if stream and (batch_size != 1 or len(prompts) != 1):
@@ -65,13 +66,13 @@ class TextGenerationTaskAction:
 
         if stream:
             async def _stream_generator():
-                async for result in AsyncStreamer(streamer, loop):
-                    context.register_source("result", result)
-                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                async for chunk in AsyncStreamer(streamer, loop):
+                    context.register_source("result", chunk)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
 
             return _stream_generator()
         else:
-            result = results if len(results) > 1 else results[0] 
+            result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

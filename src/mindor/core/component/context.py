@@ -13,6 +13,9 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
+    def has_reference(self, key: str, value: Any) -> bool:
+        return self.renderer.has_reference(key, value)
+
     async def render_variable(self, value: Any, ignore_files: bool = False) -> Any:
         return await self.renderer.render(value, ignore_files)
 

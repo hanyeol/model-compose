@@ -18,17 +18,19 @@ class TextClassificationTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         return_probabilities = await context.render_variable(self.config.params.return_probabilities)
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        texts: List[str] = [ text ] if isinstance(text, str) else text
+        is_single_input: bool = True if not isinstance(text, list) else False
+        has_iterable_result: bool = context.has_reference("result[]", self.config.output)
+        texts: List[str] = [ text ] if is_single_input else text
         results = []
 
-        def _predict():
+        async def _predict():
             for index in range(0, len(texts), batch_size):
                 batch_texts = texts[index:index + batch_size]
                 inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
@@ -52,24 +54,39 @@ class TextClassificationTaskAction:
                         for predicted_index in predicted_indices:
                             predictions.append(labels[predicted_index] if labels else predicted_index)
 
-                yield predictions
+                if self.config.output and has_iterable_result:
+                    rendered_outputs = []
+                    for prediction in predictions:
+                        context.register_source("result[]", prediction)
+                        output = await context.render_variable(self.config.output, ignore_files=True)
+                        rendered_outputs.append(output)
+                    yield rendered_outputs
+                else:
+                    yield predictions
 
         if stream:
             async def _stream_generator():
-                async for predictions in AsyncStreamer(_predict(), loop):
-                    result = predictions if len(predictions) > 1 else predictions[0]
-                    context.register_source("result", result)
-                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                async for predictions in _predict():
+                    if not has_iterable_result:
+                        for prediction in predictions:
+                            context.register_source("result", prediction)
+                            yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                    else:
+                        for prediction in predictions:
+                            yield prediction
 
             return _stream_generator()
         else:
-            for predictions in _predict():
+            async for predictions in _predict():
                 results.extend(predictions)
 
-            result = results if len(results) > 1 else results[0]
-            context.register_source("result", result)
+            if not has_iterable_result:
+                result = results[0] if is_single_input else results
+                context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            else:
+                return results
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION)
 class TextClassificationTaskService(ModelTaskService):
@@ -96,7 +113,7 @@ class TextClassificationTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels, loop)
+        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModelForSequenceClassification

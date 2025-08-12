@@ -56,14 +56,14 @@ class GradioWebUIBuilder:
                 output = await runner(input)
 
                 if len(workflow.output) == 1 and self._is_streaming_variable(workflow.output[0]):
-                    text = ""
+                    buffer = "" if workflow.output[0].type == WorkflowVariableType.TEXT else []
                     async for chunk in output:
                         chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
                         if workflow.output[0].type == WorkflowVariableType.TEXT:
-                            text += chunk[0] or ""
-                            yield text
+                            buffer += chunk[0] or ""
                         else:
-                            yield chunk[0]
+                            buffer.append(chunk[0])
+                        yield buffer
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)

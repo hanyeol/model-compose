@@ -17,7 +17,7 @@ class TextEmbeddingTaskAction:
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         max_input_length = await context.render_variable(self.config.params.max_input_length)
@@ -26,10 +26,12 @@ class TextEmbeddingTaskAction:
         batch_size       = await context.render_variable(self.config.params.batch_size)
         stream           = await context.render_variable(self.config.stream)
 
-        texts: List[str] = [ text ] if isinstance(text, str) else text
+        is_single_input: bool = True if not isinstance(text, list) else False
+        has_iterable_result: bool = context.has_reference("result[]", self.config.output)
+        texts: List[str] = [ text ] if is_single_input else text
         results = []
 
-        def _embed():
+        async def _embed():
             for index in range(0, len(texts), batch_size):
                 batch_texts = texts[index:index + batch_size]
                 inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
@@ -45,24 +47,41 @@ class TextEmbeddingTaskAction:
                 if normalize:
                     embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-                yield embeddings.cpu().tolist()
+                embeddings = embeddings.cpu().tolist()
+
+                if self.config.output and has_iterable_result:
+                    rendered_outputs = []
+                    for embedding in embeddings:
+                        context.register_source("result[]", embedding)
+                        output = await context.render_variable(self.config.output, ignore_files=True)
+                        rendered_outputs.append(output)
+                    yield rendered_outputs
+                else:
+                    yield embeddings
 
         if stream:
             async def _stream_generator():
-                async for embeddings in AsyncStreamer(_embed(), loop):
-                    result = embeddings if len(embeddings) > 1 else embeddings[0]
-                    context.register_source("result", result)
-                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                async for embeddings in _embed():
+                    if not has_iterable_result:
+                        for embedding in embeddings:
+                            context.register_source("result", embedding)
+                            yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                    else:
+                        for embedding in embeddings:
+                            yield embedding
 
             return _stream_generator()
         else:
-            for embeddings in _embed():
+            async for embeddings in _embed():
                 results.extend(embeddings)
 
-            result = results if len(results) > 1 else results[0]
-            context.register_source("result", result)
+            if not has_iterable_result:
+                result = results[0] if is_single_input else results
+                context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            else:
+                return results
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
         if pooling == "mean":
@@ -110,7 +129,7 @@ class TextEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+        return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         return AutoModel

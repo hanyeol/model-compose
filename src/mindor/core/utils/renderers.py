@@ -16,7 +16,7 @@ class VariableRenderer:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\[\s]*))(?:\[([0-9]+)\])?                  # key: input, result[0], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[([0-9]+)\])?         # key: input, result[], result[0], etc.
                     (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
@@ -28,6 +28,9 @@ class VariableRenderer:
 
     async def render(self, value: Any, ignore_files: bool = True) -> Any:
         return await self._render_element(value, ignore_files)
+
+    def has_reference(self, key: str, value: Any) -> bool:
+        return self._has_reference(key, value)
 
     async def _render_element(self, element: Any, ignore_files: bool) -> Any:
         if isinstance(element, str):
@@ -119,6 +122,19 @@ class VariableRenderer:
             return await save_stream_to_temporary_file(value, subtype)
 
         return None
+
+    def _has_reference(self, key: str, element: Any) -> bool:
+        if isinstance(element, str):
+            return any(key == m.group(1) for m in self.patterns["variable"].finditer(element))
+        
+        if isinstance(element, dict):
+            return any([ self._has_reference(key, value) for value in element.values() ])
+        
+        if isinstance(element, (list, tuple)):
+            return any([ self._has_reference(key, item) for item in element ])
+        
+        return False
+
 
 class ImageValueRenderer:
     async def render(self, value: Any) -> Any:

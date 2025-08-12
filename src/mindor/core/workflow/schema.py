@@ -43,7 +43,7 @@ class WorkflowVariableResolver:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\[\s]*))(?:\[([0-9]+)\])?                  # key: input, result[0], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[([0-9]+)\])?         # key: input, result[], result[0], etc.
                     (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`

@@ -32,7 +32,8 @@ class TranslationTaskAction:
         batch_size        = await context.render_variable(self.config.params.batch_size)
         stream            = await context.render_variable(self.config.stream)
 
-        texts: List[str] = [ text ] if isinstance(text, str) else text
+        is_single_input: bool = True if not isinstance(text, list) else False
+        texts: List[str] = [ text ] if is_single_input else text
         results = []
 
         if stream and (batch_size != 1 or len(texts) != 1):
@@ -73,13 +74,13 @@ class TranslationTaskAction:
 
         if stream:
             async def _stream_generator():
-                async for result in AsyncStreamer(streamer, loop):
-                    context.register_source("result", result)
-                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                async for chunk in AsyncStreamer(streamer, loop):
+                    context.register_source("result", chunk)
+                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
 
             return _stream_generator()
         else:
-            result = results if len(results) > 1 else results[0]
+            result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

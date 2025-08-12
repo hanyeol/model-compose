@@ -6,3 +6,4 @@ class JobType(str, Enum):
     IF            = "if"
     SWITCH        = "switch"
     RANDOM_ROUTER = "random-router"
+    FILTER        = "filter"

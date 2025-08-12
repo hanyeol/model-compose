@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
-from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
@@ -38,7 +37,7 @@ class TextClassificationTaskAction:
 
                 with torch.inference_mode():
                     outputs: SequenceClassifierOutput = self.model(**inputs)
-                    logits = outputs.logits  # shape: (batch_size, num_classes)
+                    logits = outputs.logits # shape: (batch_size, num_classes)
                     predictions = []
 
                     if return_probabilities:

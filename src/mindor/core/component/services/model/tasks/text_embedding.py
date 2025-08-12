@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
-from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
@@ -39,7 +38,7 @@ class TextEmbeddingTaskAction:
 
                 with torch.inference_mode():
                     outputs: BaseModelOutput = self.model(**inputs)
-                    last_hidden_state = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
+                    last_hidden_state = outputs.last_hidden_state # (batch_size, seq_len, hidden_size)
 
                 attention_mask = inputs.get("attention_mask", None)
                 embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)

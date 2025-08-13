@@ -5,27 +5,28 @@ from .base import ComponentService, ComponentGlobalConfigs, ComponentRegistry
 ComponentInstances: Dict[str, ComponentService] = {}
 
 class ComponentResolver:
-    def __init__(self, components: Dict[str, ComponentConfig]):
-        self.components: Dict[str, ComponentConfig] = components
+    def __init__(self, components: List[ComponentConfig]):
+        self.components: List[ComponentConfig] = components
 
     def resolve(self, component_id: Optional[str]) -> Tuple[str, ComponentConfig]:
         component_id = component_id or self._find_default_id(self.components)
+        component = next((component for component in self.components if component.id == component_id), None)
 
-        if not component_id in self.components:
+        if component is None:
             raise ValueError(f"Component not found: {component_id}")
 
-        return component_id, self.components[component_id]
+        return component_id, component
 
-    def _find_default_id(self, components: Dict[str, ComponentConfig]) -> str:
-        default_ids = [ component_id for component_id, component in components.items() if component.default ]
+    def _find_default_id(self, components: List[ComponentConfig]) -> str:
+        default_ids = [ component.id for component in components if component.default or component.id == "__default__" ]
 
         if len(default_ids) > 1:
             raise ValueError("Multiple components have default: true")
 
-        if not default_ids and "__default__" not in components:
+        if not default_ids:
             raise ValueError("No default component defined.")
 
-        return default_ids[0] if default_ids else "__default__"
+        return default_ids[0]
 
 def create_component(id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool) -> ComponentService:
     try:

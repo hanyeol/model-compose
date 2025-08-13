@@ -76,7 +76,7 @@ class WorkflowConfig(BaseModel):
     @classmethod
     def inflate_single_job(cls, values: Dict[str, Any]):
         if "jobs" not in values:
-            job_keys = set(get_model_union_keys(JobConfig))
+            job_keys = set(get_model_union_keys(JobConfig)) - set(WorkflowConfig.model_fields.keys())
             if any(k in values for k in job_keys):
                 values["jobs"] = [ { k: values.pop(k) for k in job_keys if k in values } ]
         return values

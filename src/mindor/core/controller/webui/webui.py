@@ -18,7 +18,7 @@ class ControllerWebUI(AsyncService):
         self,
         config: ControllerWebUIConfig,
         controller: ControllerConfig,
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         workflows: Dict[str, WorkflowConfig],
         daemon: bool
     ):

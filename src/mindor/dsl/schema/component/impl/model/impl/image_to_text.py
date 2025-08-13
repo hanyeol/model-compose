@@ -21,7 +21,7 @@ class ImageToTextModelComponentConfig(CommonModelComponentConfig):
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
-            action_keys = set(ImageToTextModelActionConfig.model_fields.keys())
+            action_keys = set(ImageToTextModelActionConfig.model_fields.keys()) - set(CommonModelComponentConfig.model_fields.keys())
             if any(k in values for k in action_keys):
                 values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

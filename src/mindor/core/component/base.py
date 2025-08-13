@@ -13,35 +13,35 @@ class ActionResolver:
     def __init__(self, actions: List[ActionConfig]):
         self.actions: List[ActionConfig] = actions
 
-    def resolve(self, action_id: Optional[str]) -> ActionConfig:
+    def resolve(self, action_id: Optional[str]) -> Tuple[str, ActionConfig]:
         action_id = action_id or self._find_default_id(self.actions)
         action = next((action for action in self.actions if action.id == action_id), None)
 
         if action is None:
             raise ValueError(f"Action not found: {action_id}")
 
-        return action
+        return action_id, action
 
     def _find_default_id(self, actions: List[ActionConfig]) -> str:
-        default_ids = [ action.id for action in actions if action.default ]
+        default_ids = [ action.id for action in actions if action.default or action.id == "__default__" ]
 
         if len(default_ids) > 1: 
             raise ValueError("Multiple actions have default: true")
 
-        if not default_ids and "__default__" not in actions:
+        if not default_ids:
             raise ValueError("No default action defined.")
 
-        return default_ids[0] if default_ids else "__default__"
+        return default_ids[0]
 
 class ComponentGlobalConfigs:
     def __init__(
         self, 
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig]
     ):
-        self.components: Dict[str, ComponentConfig] = components
+        self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.workflows: Dict[str, WorkflowConfig] = workflows
@@ -65,7 +65,7 @@ class ComponentService(AsyncService):
         await self._teardown()
 
     async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
-        action = ActionResolver(self.config.actions).resolve(action_id)
+        _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
 
         if self.queue:

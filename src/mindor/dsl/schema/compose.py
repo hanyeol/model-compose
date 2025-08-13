@@ -11,7 +11,7 @@ from .logger import LoggerConfig
 
 class ComposeConfig(BaseModel):
     controller: ControllerConfig
-    components: Dict[str, ComponentConfig] = Field(default_factory=dict, description="")
+    components: List[ComponentConfig] = Field(default_factory=list, description="")
     listeners: List[ListenerConfig] = Field(default_factory=list, description="")
     gateways: List[GatewayConfig] = Field(default_factory=list, description="")
     workflows: Dict[str, WorkflowConfig] = Field(default_factory=dict, description="")
@@ -22,7 +22,7 @@ class ComposeConfig(BaseModel):
         if "components" not in values:
             component_values = values.pop("component", None)
             if component_values:
-                values["components"] = { "__default__": component_values }
+                values["components"] = [ component_values ]
         return values
     
     @model_validator(mode="before")

@@ -43,7 +43,7 @@ class ControllerService(AsyncService):
         self,
         config: ControllerConfig,
         workflows: Dict[str, WorkflowConfig],
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         loggers: List[LoggerConfig],
@@ -53,7 +53,7 @@ class ControllerService(AsyncService):
 
         self.config: ControllerConfig = config
         self.workflows: Dict[str, WorkflowConfig] = workflows
-        self.components: Dict[str, ComponentConfig] = components
+        self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.loggers: List[LoggerConfig] = loggers
@@ -233,7 +233,7 @@ class ControllerService(AsyncService):
 
     def _create_components(self) -> List[ComponentService]:
         global_configs = self._get_component_global_configs()
-        return [ create_component(component_id, config, global_configs, self.daemon) for component_id, config in self.components.items() ]
+        return [ create_component(component.id, component, global_configs, self.daemon) for component in self.components ]
     
     def _create_loggers(self) -> List[LoggerService]:
         return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]

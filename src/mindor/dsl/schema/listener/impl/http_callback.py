@@ -31,7 +31,7 @@ class HttpCallbackListenerConfig(CommonListenerConfig):
     @model_validator(mode="before")
     def inflate_single_callback(cls, values: Dict[str, Any]):
         if "callbacks" not in values:
-            callback_keys = set(HttpCallbackConfig.model_fields.keys())
+            callback_keys = set(HttpCallbackConfig.model_fields.keys()) - set(CommonListenerConfig.model_fields.keys())
             if any(k in values for k in callback_keys):
                 values["callbacks"] = [ { k: values.pop(k) for k in callback_keys if k in values } ]
         return values

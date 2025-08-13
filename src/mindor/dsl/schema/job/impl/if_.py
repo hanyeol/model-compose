@@ -32,7 +32,7 @@ class IfJobConfig(CommonJobConfig):
     @model_validator(mode="before")
     def inflate_single_condition(cls, values: Dict[str, Any]):
         if "conditions" not in values:
-            condition_keys = set(IfConditionConfig.model_fields.keys())
+            condition_keys = set(IfConditionConfig.model_fields.keys()) - set(CommonJobConfig.model_fields.keys())
             if any(k in values for k in condition_keys):
                 values["conditions"] = [ { k: values.pop(k) for k in condition_keys if k in values } ]
         return values

@@ -6,6 +6,7 @@ from mindor.dsl.schema.runtime import RuntimeType
 from .types import ComponentType
 
 class CommonComponentConfig(BaseModel):
+    id: str = Field(default="__default__", description="ID of component.")
     type: ComponentType = Field(..., description="Type of component.")
     runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="Runtime environment used to execute this component.")
     max_concurrent_count: int = Field(default=1, description="Maximum number of concurrent actions this component can handle.")

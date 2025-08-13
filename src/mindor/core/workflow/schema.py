@@ -193,17 +193,17 @@ class WorkflowVariableResolver:
         return annotations
 
 class WorkflowInputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
+    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariableConfig]:
         return self._to_variable_config_list(self._resolve_workflow(workflow, workflows, components))
     
-    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariable]:
+    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
 
         for job in workflow.jobs:
             if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
                 action_id = job.action or "__default__"
                 if isinstance(job.component, str):
-                    component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
+                    component = next((component for component in components if component.id == job.component), None)
                     if component:
                         action = next((action for action in component.actions if action.id == action_id), None)
                         if action:
@@ -217,7 +217,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
 
         return variables
 
-    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariable]:
+    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
      
         if component.type == ComponentType.WORKFLOW:
@@ -231,10 +231,10 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
         return variables
 
 class WorkflowOutputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariableConfig]:
+    def resolve(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariableConfig]:
         return self._to_variable_config_list(self._resolve_workflow(workflow, workflows, components))
 
-    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
+    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         routing_job_ids: Set[str] = { job_id for job in workflow.jobs for job_id in job.get_routing_jobs() }
@@ -251,7 +251,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             if isinstance(job, ActionJobConfig) and (not job.output or job.output == "${output}"):
                 action_id = job.action or "__default__"
                 if isinstance(job.component, str):
-                    component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
+                    component = next((component for component in components if component.id == job.component), None)
                     if component:
                         action = next((action for action in component.actions if action.id == action_id), None)
                         if action:
@@ -266,7 +266,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
 
         return variables
 
-    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
+    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         if component.type == ComponentType.WORKFLOW:
@@ -299,7 +299,7 @@ class WorkflowSchema:
         self.input: List[WorkflowVariableConfig] = input
         self.output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = output
 
-def create_workflow_schemas(workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> Dict[str, WorkflowSchema]:
+def create_workflow_schemas(workflows: Dict[str, WorkflowConfig], components: List[ComponentConfig]) -> Dict[str, WorkflowSchema]:
     schema: Dict[str, WorkflowSchema] = {}
 
     for workflow_id, workflow in workflows.items():

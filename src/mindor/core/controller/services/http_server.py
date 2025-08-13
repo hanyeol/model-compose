@@ -95,7 +95,7 @@ class HttpServerController(ControllerService):
     def __init__(
         self,
         config: HttpServerControllerConfig,
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig],

@@ -10,7 +10,7 @@ from .base import ControllerService, ControllerRegistry, TaskStatus
 def create_controller(
     config: ControllerConfig,
     workflows: Dict[str, WorkflowConfig],
-    components: Dict[str, ComponentConfig],
+    components: List[ComponentConfig],
     listeners: List[ListenerConfig],
     gateways: List[GatewayConfig],
     loggers: List[LoggerConfig],

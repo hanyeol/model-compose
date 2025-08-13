@@ -134,7 +134,7 @@ class McpServerController(ControllerService):
         self,
         config: McpServerControllerConfig,
         workflows: Dict[str, WorkflowConfig],
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         loggers: List[LoggerConfig],

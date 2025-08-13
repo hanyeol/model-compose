@@ -11,13 +11,13 @@ class ControllerRuntimeSpecs:
     def __init__(
         self,
         controller: ControllerConfig,
-        components: Dict[str, ComponentConfig],
+        components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         workflows: Dict[str, WorkflowConfig]
     ):
         self.controller: ControllerConfig = controller
-        self.components: Dict[str, ComponentConfig] = components
+        self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.workflows: Dict[str, WorkflowConfig] = workflows
@@ -25,8 +25,7 @@ class ControllerRuntimeSpecs:
     def generate_native_runtime_specs(self) -> Dict[str, Any]:
         specs: Dict[str, Any] = {}
 
-        specs["controller"] = self.controller.model_dump()
-        specs["controller"]["runtime"] = "native"
+        specs["controller"] = { **self.controller.model_dump(), "runtime": "native" }
 
         if getattr(self.controller.webui, "server_dir", None):
             specs["controller"]["webui"]["server_dir"] = "webui/server"
@@ -34,10 +33,9 @@ class ControllerRuntimeSpecs:
         if getattr(self.controller.webui, "static_dir", None):
             specs["controller"]["webui"]["static_dir"] = "webui/static"
 
-        specs["components"] = {}
-        for id, component in self.components.items():
-            specs["components"][id] = component.model_dump()
-            specs["components"][id]["runtime"] = "native"
+        specs["components"] = [
+            { **component.model_dump(), "runtime": "native" } for component in self.components
+        ]
 
         specs["listeners"] = [ listener.model_dump() for listener in self.listeners ]
         specs["gateways" ] = [ gateway.model_dump()  for gateway  in self.gateways  ]

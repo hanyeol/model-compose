@@ -17,7 +17,7 @@ class SwitchJobConfig(CommonJobConfig):
     @model_validator(mode="before")
     def inflate_single_case(cls, values: Dict[str, Any]):
         if "cases" not in values:
-            case_keys = set(SwitchCaseConfig.model_fields.keys())
+            case_keys = set(SwitchCaseConfig.model_fields.keys()) - set(CommonJobConfig.model_fields.keys())
             if any(k in values for k in case_keys):
                 values["cases"] = [ { k: values.pop(k) for k in case_keys if k in values } ]
         return values

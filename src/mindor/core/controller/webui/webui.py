@@ -19,7 +19,7 @@ class ControllerWebUI(AsyncService):
         config: ControllerWebUIConfig,
         controller: ControllerConfig,
         components: List[ComponentConfig],
-        workflows: Dict[str, WorkflowConfig],
+        workflows: List[WorkflowConfig],
         daemon: bool
     ):
         super().__init__(daemon)

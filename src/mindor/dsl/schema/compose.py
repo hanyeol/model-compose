@@ -14,7 +14,7 @@ class ComposeConfig(BaseModel):
     components: List[ComponentConfig] = Field(default_factory=list, description="")
     listeners: List[ListenerConfig] = Field(default_factory=list, description="")
     gateways: List[GatewayConfig] = Field(default_factory=list, description="")
-    workflows: Dict[str, WorkflowConfig] = Field(default_factory=dict, description="")
+    workflows: List[WorkflowConfig] = Field(default_factory=list, description="")
     loggers: List[LoggerConfig] = Field(default_factory=list, description="")
 
     @model_validator(mode="before")
@@ -45,8 +45,8 @@ class ComposeConfig(BaseModel):
     def inflate_single_workflow(cls, values: Dict[str, Any]):
         if "workflows" not in values:
             workflow_values = values.pop("workflow", None)
-            if workflow_values: 
-                values["workflows"] = { "__default__": workflow_values }
+            if workflow_values:
+                values["workflows"] = [ workflow_values ]
         return values
 
     @model_validator(mode="before")

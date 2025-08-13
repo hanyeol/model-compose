@@ -39,12 +39,12 @@ class ComponentGlobalConfigs:
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        workflows: Dict[str, WorkflowConfig]
+        workflows: List[WorkflowConfig]
     ):
         self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
-        self.workflows: Dict[str, WorkflowConfig] = workflows
+        self.workflows: List[WorkflowConfig] = workflows
 
 class ComponentService(AsyncService):
     def __init__(self, id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):

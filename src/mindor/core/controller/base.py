@@ -42,7 +42,7 @@ class ControllerService(AsyncService):
     def __init__(
         self,
         config: ControllerConfig,
-        workflows: Dict[str, WorkflowConfig],
+        workflows: List[WorkflowConfig],
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
@@ -52,7 +52,7 @@ class ControllerService(AsyncService):
         super().__init__(daemon)
 
         self.config: ControllerConfig = config
-        self.workflows: Dict[str, WorkflowConfig] = workflows
+        self.workflows: List[WorkflowConfig] = workflows
         self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways

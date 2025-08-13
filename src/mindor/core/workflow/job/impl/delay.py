@@ -4,7 +4,7 @@ from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import parse_duration, parse_datetime, TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, WorkflowContext, RoutingTarget, register_job
-from datetime import datetime, timedelta
+from datetime import datetime
 import asyncio
 
 @register_job(JobType.DELAY)

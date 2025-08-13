@@ -54,27 +54,28 @@ class JobGraphValidator:
                 _assert_no_cycle(job_id)
 
 class WorkflowResolver:
-    def __init__(self, workflows: Dict[str, WorkflowConfig]):
-        self.workflows: Dict[str, WorkflowConfig] = workflows
+    def __init__(self, workflows: List[WorkflowConfig]):
+        self.workflows: List[WorkflowConfig] = workflows
 
     def resolve(self, workflow_id: Optional[str]) -> Tuple[str, WorkflowConfig]:
         workflow_id = workflow_id or self._find_default_id(self.workflows)
+        workflow = next((workflow for workflow in self.workflows if workflow.id == workflow_id), None)
 
-        if not workflow_id in self.workflows:
+        if workflow is None:
             raise ValueError(f"Workflow not found: {workflow_id}")
 
-        return workflow_id, self.workflows[workflow_id]
+        return workflow_id, workflow
 
-    def _find_default_id(self, workflows: Dict[str, WorkflowConfig]) -> str:
-        default_ids = [ workflow_id for workflow_id, workflow in workflows.items() if workflow.default ]
+    def _find_default_id(self, workflows: List[WorkflowConfig]) -> str:
+        default_ids = [ workflow.id for workflow in workflows if workflow.default or workflow.id == "__default__" ]
 
         if len(default_ids) > 1:
             raise ValueError("Multiple workflows have default: true")
 
-        if not default_ids and "__default__" not in workflows:
+        if not default_ids:
             raise ValueError("No default workflow defined.")
 
-        return default_ids[0] if default_ids else "__default__"
+        return default_ids[0]
 
 class WorkflowRunner:
     def __init__(self, id: str, jobs: List[JobConfig], global_configs: ComponentGlobalConfigs):

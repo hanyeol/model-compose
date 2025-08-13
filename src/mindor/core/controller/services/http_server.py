@@ -98,7 +98,7 @@ class HttpServerController(ControllerService):
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        workflows: Dict[str, WorkflowConfig],
+        workflows: List[WorkflowConfig],
         loggers: List[LoggerConfig],
         daemon: bool
     ):

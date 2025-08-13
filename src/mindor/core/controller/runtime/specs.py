@@ -14,13 +14,13 @@ class ControllerRuntimeSpecs:
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        workflows: Dict[str, WorkflowConfig]
+        workflows: List[WorkflowConfig]
     ):
         self.controller: ControllerConfig = controller
         self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
-        self.workflows: Dict[str, WorkflowConfig] = workflows
+        self.workflows: List[WorkflowConfig] = workflows
 
     def generate_native_runtime_specs(self) -> Dict[str, Any]:
         specs: Dict[str, Any] = {}
@@ -39,6 +39,6 @@ class ControllerRuntimeSpecs:
 
         specs["listeners"] = [ listener.model_dump() for listener in self.listeners ]
         specs["gateways" ] = [ gateway.model_dump()  for gateway  in self.gateways  ]
-        specs["workflows"] = { id: workflow.model_dump() for id, workflow in self.workflows.items() }
+        specs["workflows"] = [ workflow.model_dump() for workflow in self.workflows ]
 
         return enum_union_to_str(specs)

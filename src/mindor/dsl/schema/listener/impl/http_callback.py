@@ -8,7 +8,7 @@ class HttpCallbackConfig(BaseModel):
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="")
     bulk: bool = Field(default=False, description="")
     item: Optional[str] = Field(default=None, description="")
-    identify_by: str = Field(..., description="")
+    identify_by: Optional[str] = Field(default=None, description="")
     status: Optional[str] = Field(default=None, description="")
     success_when: Optional[List[str]] = Field(default=None, description="")
     fail_when: Optional[List[str]] = Field(default=None, description="")

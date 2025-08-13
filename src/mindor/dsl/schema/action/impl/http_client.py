@@ -40,7 +40,7 @@ class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
 
 class HttpClientCallbackCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.CALLBACK]
-    wait_for: str = Field(..., description="")
+    wait_for: Optional[str] = Field(default=None, description="")
 
 HttpClientCompletionConfig = Annotated[ 
     Union[

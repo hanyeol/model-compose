@@ -25,7 +25,7 @@ class TextClassificationTaskAction:
         stream               = await context.render_variable(self.config.stream)
 
         is_single_input: bool = True if not isinstance(text, list) else False
-        is_result_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
+        is_output_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 
@@ -53,7 +53,7 @@ class TextClassificationTaskAction:
                         for predicted_index in predicted_indices:
                             predictions.append(labels[predicted_index] if labels else predicted_index)
 
-                if self.config.output and is_result_array_mode:
+                if self.config.output and is_output_array_mode:
                     rendered_outputs = []
                     for prediction in predictions:
                         context.register_source("result[]", prediction)
@@ -66,7 +66,7 @@ class TextClassificationTaskAction:
         if stream:
             async def _stream_generator():
                 async for predictions in _predict():
-                    if not is_result_array_mode:
+                    if not is_output_array_mode:
                         for prediction in predictions:
                             context.register_source("result", prediction)
                             yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
@@ -79,7 +79,7 @@ class TextClassificationTaskAction:
             async for predictions in _predict():
                 results.extend(predictions)
 
-            if not is_result_array_mode:
+            if not is_output_array_mode:
                 result = results[0] if is_single_input else results
                 context.register_source("result", result)
 

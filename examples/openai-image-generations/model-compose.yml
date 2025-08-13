@@ -7,14 +7,15 @@ controller:
     port: 8081
 
 workflows:
-  dall-e:
+  - id: dall-e
     title: Generate Images with OpenAI DALL·E
     description: Generate images from text prompts using OpenAI’s DALL·E.
     action: dall-e
     input: ${input}
     output: ${output.image_url as image;url}
     default: true
-  gpt-image-1:
+
+  - id: gpt-image-1
     title: Generate Images with OpenAI GPT
     description: Generate images from text prompts using OpenAI’s GPT.
     action: gpt-image-1
@@ -28,7 +29,7 @@ component:
     Authorization: Bearer ${env.OPENAI_API_KEY}
     Content-Type: application/json
   actions:
-    dall-e:
+    - id: dall-e
       path: /images/generations
       method: POST
       body:
@@ -39,7 +40,8 @@ component:
         response_format: url
       output:
         image_url: ${response.data[0].url}
-    gpt-image-1:
+    
+    - id: gpt-image-1
       path: /images/generations
       method: POST
       body:

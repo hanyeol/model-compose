@@ -136,7 +136,7 @@ controller:
     port: 8081
 
 components:
-  chatgpt:
+  - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
     path: /chat/completions
@@ -153,10 +153,10 @@ components:
       quote: ${response.choices[0].message.content}
 
 workflows:
-  generate-quote:
+  - id: generate-quote
     default: true
     jobs:
-      get-quote:
+      - id: get-quote
         component: chatgpt
 ```
 
@@ -273,7 +273,7 @@ controller:
   base_path: /mcp
 
 components:
-  chatgpt:
+  - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
     path: /chat/completions
@@ -290,10 +290,10 @@ components:
       quote: ${response.choices[0].message.content}
 
 workflows:
-  generate-quote:
+  - id: generate-quote
     default: true
     jobs:
-      get-quote:
+      - id: get-quote
         component: chatgpt
 ```
 This configuration launches the controller as an **MCP server**, which listens on port 8080 and exposes your workflows over a **JSON-RPC API**.

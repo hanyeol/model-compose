@@ -10,12 +10,12 @@ workflow:
   title: Analyze Disk Usage with GPT-4o
   description: Automatically retrieve df -h output from the system and generate a detailed disk usage analysis using OpenAI’s GPT-4o.
   jobs:
-    get-disk-usage:
+    - id: get-disk-usage
       component: get-disk-usage
       input: ${input}
       output: ${output}
-    
-    analyze-disk-usage:
+
+    - id: analyze-disk-usage
       component: gpt-4o
       input:
         system-prompt: |
@@ -27,12 +27,12 @@ workflow:
       depends_on: [ get-disk-usage ]
 
 components:
-  get-disk-usage:
+  - id: get-disk-usage
     type: shell
     command: [ "df", "-h" ]
     output: ${result.stdout}
 
-  gpt-4o:
+  - id: gpt-4o
     type: http-client
     base_url: https://api.openai.com/v1
     path: /chat/completions

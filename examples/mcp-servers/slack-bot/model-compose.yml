@@ -7,18 +7,18 @@ controller:
     port: 8081
 
 workflows:
-  send-message:
+  - id: send-message
     action: chat-post-message
     input:
       channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
       text: ${input.messsage @(description Message to send to Slack)}
     output: ${output as json}
 
-  list-channels:
+  - id: list-channels
     action: conversations-list
     output: ${output as object[]}
 
-  join-channel:
+  - id: join-channel
     action: conversations-join
     input:
       channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
@@ -30,7 +30,7 @@ component:
   headers:
     Authorization: Bearer ${env.SLACK_APP_TOKEN}
   actions:
-    chat-post-message:
+    - id: chat-post-message
       path: /chat.postMessage
       method: POST
       body:
@@ -41,7 +41,7 @@ component:
         Content-Type: application/json
       output: ${response}
     
-    conversations-list:
+    - id: conversations-list
       path: /conversations.list
       method: GET
       params:
@@ -50,7 +50,7 @@ component:
         Content-Type: application/x-www-form-urlencoded
       output: ${response.channels as object[]/id,name}
 
-    conversations-join:
+    - id: conversations-join
       path: /conversations.join
       method: POST
       body:

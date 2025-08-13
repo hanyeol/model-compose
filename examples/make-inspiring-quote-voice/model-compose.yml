@@ -10,12 +10,12 @@ workflow:
   title: Inspire with Voice
   description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
   jobs:
-    job-quote:
+    - id: job-quote
       component: write-inspiring-quote
       input: ${input}
       output: ${output}
 
-    job-voice:
+    - id: job-voice
       component: text-to-speech
       input:
         text: ${jobs.job-quote.output.quote}
@@ -26,7 +26,7 @@ workflow:
       depends_on: [ job-quote ]
 
 components:
-  write-inspiring-quote:
+  - id: write-inspiring-quote
     type: http-client
     base_url: https://api.openai.com/v1
     path: /chat/completions
@@ -47,7 +47,7 @@ components:
     output:
       quote: ${response.choices[0].message.content}
 
-  text-to-speech:
+  - id: text-to-speech
     type: http-client
     endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
     method: POST

@@ -199,7 +199,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
     def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig]) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
 
-        for job in workflow.jobs.values():
+        for job in workflow.jobs:
             if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
                 action_id = job.action or "__default__"
                 if isinstance(job.component, str):
@@ -237,9 +237,9 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     def _resolve_workflow(self, workflow: WorkflowConfig, workflows: Dict[str, WorkflowConfig], components: Dict[str, ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
-        routing_job_ids: Set[str] = { job_id for job in workflow.jobs.values() for job_id in job.get_routing_jobs() }
-        for job_id, job in workflow.jobs.items():
-            if not self._is_terminal_job(workflow, job_id):
+        routing_job_ids: Set[str] = { job_id for job in workflow.jobs for job_id in job.get_routing_jobs() }
+        for job in workflow.jobs:
+            if not self._is_terminal_job(workflow, job.id):
                 continue
 
             job_variables: List[WorkflowVariable] = variables
@@ -280,7 +280,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         return variables
 
     def _is_terminal_job(self, workflow: WorkflowConfig, job_id: str) -> bool:
-        return all(job_id not in job.depends_on for other_id, job in workflow.jobs.items() if other_id != job_id)
+        return all(job_id not in job.depends_on for job in workflow.jobs if job.id != job_id)
 
 class WorkflowSchema:
     def __init__(

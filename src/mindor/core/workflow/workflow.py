@@ -77,9 +77,9 @@ class WorkflowResolver:
         return default_ids[0] if default_ids else "__default__"
 
 class WorkflowRunner:
-    def __init__(self, id: str, jobs: Dict[str, JobConfig], global_configs: ComponentGlobalConfigs):
+    def __init__(self, id: str, jobs: List[JobConfig], global_configs: ComponentGlobalConfigs):
         self.id: str = id
-        self.jobs: Dict[str, JobConfig] = jobs
+        self.jobs: Dict[str, JobConfig] = { job.id: job for job in jobs }
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: WorkflowContext) -> Any:

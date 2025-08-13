@@ -59,11 +59,11 @@ class WorkflowVariableGroupConfig(BaseModel):
     repeat_count: int = Field(default=1, description="The number of times this group of variables should be repeated.")
 
 class WorkflowConfig(BaseModel):
-    name: Optional[str] = Field(default=None)
-    title: Optional[str] = Field(default=None)
-    description: Optional[str] = Field(default=None)
-    jobs: Dict[str, JobConfig] = Field(default_factory=dict)
-    default: bool = Field(default=False)
+    name: Optional[str] = Field(default=None, description="")
+    title: Optional[str] = Field(default=None, description="")
+    description: Optional[str] = Field(default=None, description="")
+    jobs: List[JobConfig] = Field(default_factory=list, description="")
+    default: bool = Field(default=False, description="")
 
     @model_validator(mode="before")
     def normalize_jobs(cls, values: Dict[str, Any]):
@@ -78,17 +78,17 @@ class WorkflowConfig(BaseModel):
         if "jobs" not in values:
             job_keys = set(get_model_union_keys(JobConfig))
             if any(k in values for k in job_keys):
-                values["jobs"] = { "__default__": { k: values.pop(k) for k in job_keys if k in values } }
+                values["jobs"] = [ { k: values.pop(k) for k in job_keys if k in values } ]
         return values
 
     @classmethod
-    def fill_missing_job_type(cls, jobs: Dict[str, Any]):
-        for job in jobs.values():
+    def fill_missing_job_type(cls, jobs: List[Any]):
+        for job in jobs:
             if "type" not in job:
                 job["type"] = JobType.ACTION
 
     @classmethod
-    def fill_missing_delay_job_mode(cls, jobs: Dict[str, Any]):
-        for job in [ job for job in jobs.values() if job["type"] == "delay" ]:
-            if "mode" not in job:
+    def fill_missing_delay_job_mode(cls, jobs: List[Any]):
+        for job in jobs:
+            if job["type"] == "delay" and "mode" not in job:
                 job["mode"] = DelayJobMode.TIME_INTERVAL

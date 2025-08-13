@@ -8,12 +8,12 @@ class McpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_CLIENT]
     url: str = Field(..., description="URL of the MCP server to invoke tools.")
     headers: Dict[str, Any] = Field(default_factory=dict, description="")
-    actions: Dict[str, McpClientActionConfig] = Field(default_factory=dict)
+    actions: List[McpClientActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
             action_keys = set(McpClientActionConfig.model_fields.keys())
             if any(k in values for k in action_keys):
-                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
+                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

@@ -2,5 +2,6 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel, Field
 
 class CommonActionConfig(BaseModel):
-    output: Optional[Any] = Field(default=None)
-    default: bool = Field(default=False)
+    id: str = Field(default="__default__", description="ID of action.")
+    output: Optional[Any] = Field(default=None, description="")
+    default: bool = Field(default=False, description="")

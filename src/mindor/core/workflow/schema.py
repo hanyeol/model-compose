@@ -205,11 +205,11 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
                     if component:
-                        action = component.actions[action_id] if action_id in component.actions else None
+                        action = next((action for action in component.actions if action.id == action_id), None)
                         if action:
                             variables.extend(self._resolve_component(component, action, workflows, components))
                 else:
-                    action = job.component.actions[action_id] if action_id in job.component.actions else None
+                    action = next((action for action in job.component.actions if action.id == action_id), None)
                     if action:
                         variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
@@ -253,11 +253,11 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 if isinstance(job.component, str):
                     component: Optional[ComponentConfig] = components[job.component] if job.component in components else None
                     if component:
-                        action = component.actions[action_id] if action_id in component.actions else None
+                        action = next((action for action in component.actions if action.id == action_id), None)
                         if action:
                             job_variables.extend(self._resolve_component(component, action, workflows, components))           
                 else:
-                    action = job.component.actions[action_id] if action_id in job.component.actions else None
+                    action = next((action for action in job.component.actions if action.id == action_id), None)
                     if action:
                         job_variables.extend(self._resolve_component(component, action, workflows, components))           
             else:

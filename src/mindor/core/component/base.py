@@ -10,19 +10,20 @@ from mindor.core.utils.workqueue import WorkQueue
 from .context import ComponentActionContext
 
 class ActionResolver:
-    def __init__(self, actions: Dict[str, ActionConfig]):
-        self.actions = actions
+    def __init__(self, actions: List[ActionConfig]):
+        self.actions: List[ActionConfig] = actions
 
-    def resolve(self, action_id: Optional[str]) -> Tuple[str, ActionConfig]:
+    def resolve(self, action_id: Optional[str]) -> ActionConfig:
         action_id = action_id or self._find_default_id(self.actions)
+        action = next((action for action in self.actions if action.id == action_id), None)
 
-        if not action_id in self.actions:
+        if action is None:
             raise ValueError(f"Action not found: {action_id}")
 
-        return action_id, self.actions[action_id]
+        return action
 
-    def _find_default_id(self, actions: Dict[str, ActionConfig]) -> str:
-        default_ids = [ action_id for action_id, action in actions.items() if action.default ]
+    def _find_default_id(self, actions: List[ActionConfig]) -> str:
+        default_ids = [ action.id for action in actions if action.default ]
 
         if len(default_ids) > 1: 
             raise ValueError("Multiple actions have default: true")
@@ -64,7 +65,7 @@ class ComponentService(AsyncService):
         await self._teardown()
 
     async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
-        _, action = ActionResolver(self.config.actions).resolve(action_id)
+        action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
 
         if self.queue:

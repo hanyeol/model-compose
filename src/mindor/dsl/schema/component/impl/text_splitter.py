@@ -6,12 +6,12 @@ from .common import ComponentType, CommonComponentConfig
 
 class TextSplitterComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.TEXT_SPLITTER]
-    actions: Optional[Dict[str, TextSplitterActionConfig]] = Field(default_factory=dict)
+    actions: List[TextSplitterActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
             action_keys = set(TextSplitterActionConfig.model_fields.keys())
             if any(k in values for k in action_keys):
-                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
+                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

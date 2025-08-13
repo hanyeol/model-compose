@@ -34,7 +34,7 @@ class McpServerComponentConfig(CommonComponentConfig):
     manage: McpServerManageConfig = Field(default_factory=McpServerManageConfig, description="Configuration used to manage the MCP server lifecycle.")
     port: int = Field(default=8000, ge=1, le=65535, description="Port on which the MCP server will listen for incoming requests.")
     base_path: Optional[str] = Field(default=None, description="Base path to prefix all MCP routes exposed by this component.")
-    actions: Dict[str, McpServerActionConfig] = Field(default_factory=dict)
+    actions: List[McpServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_script(cls, values: Dict[str, Any]):
@@ -47,5 +47,5 @@ class McpServerComponentConfig(CommonComponentConfig):
         if "actions" not in values:
             action_keys = set(McpServerActionConfig.model_fields.keys())
             if any(k in values for k in action_keys):
-                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
+                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

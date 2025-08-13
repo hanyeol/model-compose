@@ -8,27 +8,27 @@ class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]
     base_url: Optional[str] = Field(default=None, description="")
     headers: Dict[str, Any] = Field(default_factory=dict, description="")
-    actions: Dict[str, HttpClientActionConfig] = Field(default_factory=dict)
+    actions: List[HttpClientActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
             action_keys = set(HttpClientActionConfig.model_fields.keys())
             if any(k in values for k in action_keys):
-                values["actions"] = { "__default__": { k: values.pop(k) for k in action_keys if k in values } }
+                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values
 
     @model_validator(mode="after")
     def validate_baseurl_for_actions(self):
-        for action_id, action in self.actions.items():
+        for action in self.actions:
             if action.path and not self.base_url:
-                raise ValueError(f"Action '{action_id}' uses 'path' but 'base_url' is not set in the component.")
+                raise ValueError(f"Action '{action.id}' uses 'path' but 'base_url' is not set in the component.")
         return self
 
     @model_validator(mode="after")
     def validate_baseurl_for_completion(self):
-        for action_id, action in self.actions.items():
+        for action in self.actions:
             if isinstance(action.completion, HttpClientPollingCompletionConfig):
                 if action.completion.path and not self.base_url:
-                    raise ValueError(f"Completion for action '{action_id}' uses 'path' but 'base_url' is not set in the component.")
+                    raise ValueError(f"Completion for action '{action.id}' uses 'path' but 'base_url' is not set in the component.")
         return self

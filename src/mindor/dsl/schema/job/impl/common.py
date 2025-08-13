@@ -5,8 +5,8 @@ from mindor.dsl.schema.action import CommonActionConfig
 from .types import JobType
 
 class CommonJobConfig(BaseModel):
-    id: str = Field(default="__default__", description="")
-    type: JobType = Field(..., description="")
+    id: str = Field(default="__default__", description="ID of job.")
+    type: JobType = Field(..., description="Type of job.")
     depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
 
     def get_routing_jobs(self) -> List[str]:

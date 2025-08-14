@@ -222,6 +222,9 @@ class HttpServerController(ControllerService):
         if isinstance(state.output, AsyncIterator):
             return self._render_async_iterator(state.output)
 
+        if isinstance(state.output, HttpEventStreamResource):
+            return self._render_async_iterator(state.output.as_iterator())
+
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
@@ -233,7 +236,6 @@ class HttpServerController(ControllerService):
                 if not isinstance(chunk, (str, bytes)):
                     chunk = json.dumps(chunk, ensure_ascii=False, default=str)
                 if isinstance(chunk, str):
-                    chunk = chunk.replace("\r\n", "\n")
                     if chunk.endswith("\n"):
                         lines = chunk.split("\n")
                         if chunk.startswith("\n"):

@@ -157,7 +157,7 @@ class HttpClient:
             return (await response.json(), content_type)
 
         if content_type == "text/event-stream":
-            return (HttpEventStreamResource(response).as_iterator(), content_type)
+            return (HttpEventStreamResource(response), content_type)
 
         if content_type.startswith("text/"):
             return (await response.text(), content_type)

@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, AsyncIterable, Any
 from types import AsyncGeneratorType
 from typing_extensions import Self
 from pydantic import BaseModel
@@ -219,18 +219,15 @@ class HttpServerController(ControllerService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
-        if isinstance(state.output, AsyncIterator):
+        if isinstance(state.output, (HttpEventStreamResource, AsyncIterator)):
             return self._render_async_iterator(state.output)
-
-        if isinstance(state.output, HttpEventStreamResource):
-            return self._render_async_iterator(state.output.as_iterator())
 
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
         return JSONResponse(content=state.output)
-    
-    def _render_async_iterator(self, iterator: AsyncIterator) -> Response:
+
+    def _render_async_iterator(self, iterator: AsyncIterable[Any]) -> Response:
         async def _event_generator() -> AsyncIterator[bytes]:
             async for chunk in iterator:
                 if not isinstance(chunk, (str, bytes)):

@@ -18,15 +18,6 @@ class StreamResource(ABC):
     def __aiter__(self):
         return self._iterate_stream()
 
-    def as_iterator(self) -> AsyncIterator[bytes]:
-        async def _iterator() -> AsyncIterator[bytes]:
-            try:
-                async for chunk in self:
-                    yield chunk
-            finally:
-                await self.close()
-        return _iterator()
-
     @abstractmethod
     async def close(self) -> None:
         pass

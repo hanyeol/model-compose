@@ -47,17 +47,17 @@ class HttpEventStreamResource(StreamResource):
         self.response = None
         self.stream = None
 
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+    async def _iterate_stream(self) -> AsyncIterator[str]:
         try:
             async for chunk in self.stream:
-                text = chunk.decode("utf-8", errors="ignore")
+                text = chunk.decode("utf-8", errors="replace")
                 self._buffer += text
 
                 while "\n\n" in self._buffer:
                     message, self._buffer = self._buffer.split("\n\n", 1)
                     lines = [ line[5:].lstrip() for line in message.splitlines() if line.startswith("data:") ]
                     if lines and any(line.strip() for line in lines):
-                        yield "\n".join(lines).encode("utf-8")
+                        yield "\n".join(lines)
         except Exception as e:
             return
 

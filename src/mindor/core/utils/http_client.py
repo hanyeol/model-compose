@@ -94,7 +94,7 @@ class HttpClient:
             if raise_on_error and response.status >= 400:
                 raise ValueError(f"Request failed with status {response.status}: {content}")
 
-            if not isinstance(content, (StreamResource, AsyncIterator)):
+            if not isinstance(content, StreamResource):
                 response.close()
 
             return content if raise_on_error else (content, response.status)

@@ -2,14 +2,15 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionType, HttpClientCompletionConfig
+from mindor.dsl.schema.transport.http import HttpStreamFormat
 from mindor.core.listener import HttpCallbackListener
-from mindor.core.utils.http_client import HttpClient
+from mindor.core.utils.http_client import HttpClient, HttpEventStreamResource
 from mindor.core.utils.http_status import is_status_code_matched
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone
-import asyncio
+import asyncio, json
 
 class HttpClientCompletion(ABC):
     def __init__(self, config: HttpClientCompletionConfig):
@@ -94,10 +95,28 @@ class HttpClientAction:
         headers     = await context.render_variable(self.config.headers)
 
         response, result = await client.request(url_or_path, method, params, body, headers), None
+
+        if isinstance(response, HttpEventStreamResource) and context.contains_variable_reference("response[]", self.config.output):
+            async def _stream_generator(stream: HttpEventStreamResource):
+                async for chunk in stream:
+                    context.register_source("response[]", self._convert_stream_chunk(chunk))
+                    yield await context.render_variable(self.config.output, ignore_files=True)
+
+            return _stream_generator(response)
+
         context.register_source("response", response)
 
         if self.completion:
             result = await self.completion.run(context, client)
+
+            if isinstance(result, HttpEventStreamResource) and context.contains_variable_reference("result[]", self.config.output):
+                async def _stream_generator(stream: HttpEventStreamResource):
+                    async for chunk in stream:
+                        context.register_source("result[]", self._convert_stream_chunk(chunk))
+                        yield await context.render_variable(self.config.output, ignore_files=True)
+
+                return _stream_generator(result)
+
             context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else (result or response)
@@ -107,6 +126,18 @@ class HttpClientAction:
             return await context.render_variable(self.config.path)
 
         return await context.render_variable(self.config.endpoint)
+
+    def _convert_stream_chunk(self, chunk: bytes) -> Any:
+        if self.config.stream_format == HttpStreamFormat.JSON:
+            try:
+                return json.loads(chunk)
+            except:
+                return None
+
+        if self.config.stream_format == HttpStreamFormat.TEXT:
+            return chunk.decode("utf-8", errors="replace")
+
+        return chunk
 
 @register_component(ComponentType.HTTP_CLIENT)
 class HttpClientComponent(ComponentService):

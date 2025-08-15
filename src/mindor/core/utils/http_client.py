@@ -60,14 +60,14 @@ class HttpEventStreamResource(StreamResource):
                 parts = []
 
                 for line in block.split(b"\n"):
-                        if line.startswith(b"data:"):
-                            parts.append(line[5:].lstrip(b" "))
-                            continue
-                        if line == b"data":
-                            parts.append(b"")
-                            continue
-                        if line.startswith(b":"): # comment
-                            continue
+                    if line.startswith(b"data:"):
+                        parts.append(line[6:] if line[5:6] == b" " else line[5:])
+                        continue
+                    if line == b"data":
+                        parts.append(b"")
+                        continue
+                    if line.startswith(b":"): # comment
+                        continue
 
                 if parts:
                     yield b"\n".join(parts)

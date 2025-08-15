@@ -40,26 +40,37 @@ class HttpEventStreamResource(StreamResource):
 
         self.response: aiohttp.ClientResponse = response
         self.stream: aiohttp.StreamReader = response.content
-        self._buffer: str = ""
+        self._buffer: bytearray = bytearray()
 
     async def close(self) -> None:
         self.response.close()
         self.response = None
         self.stream = None
 
-    async def _iterate_stream(self) -> AsyncIterator[str]:
-        try:
-            async for chunk in self.stream:
-                text = chunk.decode("utf-8", errors="replace")
-                self._buffer += text
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        async for chunk in self.stream:
+            self._buffer += chunk.replace(b"\r\n", b"\n")
 
-                while "\n\n" in self._buffer:
-                    message, self._buffer = self._buffer.split("\n\n", 1)
-                    lines = [ line[5:].lstrip() for line in message.splitlines() if line.startswith("data:") ]
-                    if lines and any(line.strip() for line in lines):
-                        yield "\n".join(lines)
-        except Exception as e:
-            return
+            while True:
+                pos = self._buffer.find(b"\n\n")
+                if pos < 0:
+                    break
+
+                block, self._buffer = self._buffer[:pos], self._buffer[pos + 2:]
+                parts = []
+
+                for line in block.split(b"\n"):
+                        if line.startswith(b"data:"):
+                            parts.append(line[5:].lstrip(b" "))
+                            continue
+                        if line == b"data":
+                            parts.append(b"")
+                            continue
+                        if line.startswith(b":"): # comment
+                            continue
+
+                if parts:
+                    yield b"\n".join(parts)
 
 class HttpClient:
     shared_instance: Optional["HttpClient"] = None

@@ -9,6 +9,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.streaming import StreamResource
 from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, register_controller
@@ -16,7 +17,7 @@ from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
-import uvicorn, json
+import uvicorn
 
 class WorkflowTaskRequestBody(BaseModel):
     workflow_id: Optional[str] = None
@@ -228,37 +229,20 @@ class HttpServerController(ControllerService):
         return JSONResponse(content=state.output)
 
     def _render_async_iterator(self, iterator: AsyncIterable[Any]) -> Response:
-        async def _event_generator() -> AsyncIterator[bytes]:
-            async for chunk in iterator:
-                if not isinstance(chunk, (str, bytes)):
-                    chunk = json.dumps(chunk, ensure_ascii=False, default=str)
-                if isinstance(chunk, str):
-                    if chunk.endswith("\n"):
-                        lines = chunk.split("\n")
-                        if chunk.startswith("\n"):
-                            lines = lines[1:]
-                        chunk = [ line.encode("utf-8") for line in lines ]
-                    else:
-                        chunk = chunk.encode("utf-8")
-                for line in [ chunk ] if isinstance(chunk, bytes) else chunk:
-                    yield b"data: " + line + b"\n"
-                yield b"\n"
-
         return StreamingResponse(
-            _event_generator(),
+            HttpEventStreamer(iterator).stream(),
             media_type="text/event-stream",
-            headers={ "Cache-Control": "no-cache" }
+            headers={
+                "Cache-Control": "no-cache"
+            }
         )
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:
-        async def _close_stream():
-            await resource.close() 
-
         return StreamingResponse(
             resource,
             media_type=resource.content_type, 
             headers=self._build_stream_resource_headers(resource), 
-            background=BackgroundTask(_close_stream)
+            background=BackgroundTask(resource.close)
         )
 
     def _build_stream_resource_headers(self, resource: StreamResource) -> Dict[str, str]:

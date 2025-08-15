@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
+from mindor.dsl.schema.transport.http import HttpStreamFormat
 from .common import CommonActionConfig
 
 class HttpClientCompletionType(str, Enum):
@@ -10,6 +11,7 @@ class HttpClientCompletionType(str, Enum):
 
 class HttpClientCommonCompletionConfig(BaseModel):
     type: HttpClientCompletionType
+    stream_format: Optional[HttpStreamFormat] = Field(default=None, description="Format of stream payload.")
 
 class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.POLLING]
@@ -57,6 +59,7 @@ class HttpClientActionConfig(CommonActionConfig):
     headers: Dict[str, str] = Field(default_factory=dict, description="")
     body: Dict[str, Any] = Field(default_factory=dict, description="")
     params: Dict[str, str] = Field(default_factory=dict, description="")
+    stream_format: Optional[HttpStreamFormat] = Field(default=None, description="Format of stream payload.")
     completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="")
 
     @model_validator(mode="before")

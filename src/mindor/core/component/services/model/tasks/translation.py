@@ -75,8 +75,9 @@ class TranslationTaskAction:
         if stream:
             async def _stream_generator():
                 async for chunk in AsyncStreamer(streamer, loop):
-                    context.register_source("result", chunk)
-                    yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
+                    if chunk:
+                        context.register_source("result[]", chunk)
+                        yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
 
             return _stream_generator()
         else:

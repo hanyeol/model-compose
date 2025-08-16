@@ -6,6 +6,7 @@ class ComponentType(str, Enum):
     MCP_SERVER    = "mcp-server"
     MCP_CLIENT    = "mcp-client"
     MODEL         = "model"
+    VECTOR_STORE  = "vector-store"
     WORKFLOW      = "workflow"
     SHELL         = "shell"
     TEXT_SPLITTER = "text-splitter"

@@ -3,6 +3,7 @@ from .http_client import *
 from .mcp_server import *
 from .mcp_client import *
 from .model import *
+from .vector_store import *
 from .workflow import *
 from .shell import *
 from .text_splitter import *

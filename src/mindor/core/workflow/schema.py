@@ -141,12 +141,14 @@ class WorkflowVariableResolver:
                 seen_in_group: Set[WorkflowVariable] = set()
                 for variable in item.variables:
                     if variable not in seen_in_group:
-                        group.append(self._to_variable_config(variable))
+                        if variable.name is not None or len(group) == 0:
+                            group.append(self._to_variable_config(variable))
                         seen_in_group.add(variable)
                 configs.append(WorkflowVariableGroupConfig(name=item.name, variables=group, repeat_count=item.repeat_count))
             else:
                 if item not in seen_single:
-                    configs.append(self._to_variable_config(item))
+                    if item.name is not None or len(configs) == 0:
+                        configs.append(self._to_variable_config(item))
                     seen_single.add(item)
 
         return configs

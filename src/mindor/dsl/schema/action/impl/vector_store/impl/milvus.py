@@ -4,16 +4,16 @@ from pydantic import model_validator
 from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorRemoveActionConfig
 
 class MilvusVectorInsertActionConfig(CommonVectorInsertActionConfig):
-    pass
+    partition_name: Optional[str] = Field(default=None, description="Name of the partition where vectors will be inserted.")
 
 class MilvusVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
-    pass
+    partition_name: Optional[str] = Field(default=None, description="Name of the partition where vectors will be updated.")
 
 class MilvusVectorSearchActionConfig(CommonVectorSearchActionConfig):
-    pass
+    partition_name: Optional[str] = Field(default=None, description="Name of the partition to search vectors from.")
 
 class MilvusVectorRemoveActionConfig(CommonVectorRemoveActionConfig):
-    pass
+    partition_name: Optional[str] = Field(default=None, description="Name of the partition from which vectors will be removed.")
 
 MilvusVectorStoreActionConfig = Annotated[
     Union[ 
@@ -22,5 +22,5 @@ MilvusVectorStoreActionConfig = Annotated[
         MilvusVectorSearchActionConfig,
         MilvusVectorRemoveActionConfig
     ],
-    Field(discriminator="type")
+    Field(discriminator="method")
 ]

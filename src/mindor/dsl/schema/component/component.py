@@ -9,6 +9,7 @@ ComponentConfig = Annotated[
         McpServerComponentConfig,
         McpClientComponentConfig,
         ModelComponentConfig,
+        VectorStoreComponentConfig,
         WorkflowComponentConfig,
         ShellComponentConfig,
         TextSplitterComponentConfig

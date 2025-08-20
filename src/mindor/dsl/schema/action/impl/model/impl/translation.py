@@ -16,5 +16,5 @@ class TranslationParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TranslationModelActionConfig(CommonModelInferenceActionConfig):
-    text: Union[str, List[str]] = Field(..., description="Input text to translate.")
+    text: Union[str, Union[str, List[str]]] = Field(..., description="Input text to translate.")
     params: TranslationParamsConfig = Field(default_factory=TranslationParamsConfig, description="Translation configuration parameters.")

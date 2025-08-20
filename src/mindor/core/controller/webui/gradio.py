@@ -93,7 +93,10 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.TEXT:
             return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
-        if variable.type in [ WorkflowVariableType.INTEGER, WorkflowVariableType.NUMBER ]:
+        if variable.type == WorkflowVariableType.INTEGER:
+            return gr.Textbox(label=label, value="", info=info)
+
+        if variable.type == WorkflowVariableType.NUMBER:
             return gr.Number(label=label, value="", info=info)
 
         if variable.type == WorkflowVariableType.BOOLEAN:
@@ -132,6 +135,9 @@ class GradioWebUIBuilder:
                 value = await self._save_value_to_temporary_file(value, subtype, format)
             return create_upload_file(value, type.value, subtype) if value is not None else None
 
+        if type == WorkflowVariableType.INTEGER:
+            return int(value) if value != "" else None
+
         return value if value != "" else None
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
@@ -148,6 +154,9 @@ class GradioWebUIBuilder:
         info = variable.get_annotation_value("description") or ""
 
         if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.BASE64 ]:
+            return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
+
+        if variable.type in [ WorkflowVariableType.NUMBER, WorkflowVariableType.INTEGER ]:
             return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
 
         if variable.type == WorkflowVariableType.TEXT:

@@ -12,19 +12,29 @@ class VectorStoreActionMethod(str, Enum):
 class CommonVectorStoreActionConfig(CommonActionConfig):
     method: VectorStoreActionMethod = Field(..., description="")
     collection_name: str = Field(..., description="Name of the Milvus collection to store vectors.")
+    id_field: str = Field(default="id", description="")
     vector_field: str = Field(default="vector", description="")
 
 class CommonVectorInsertActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.INSERT]
-    vectors: Union[str, List[List[float]]] = Field(..., description="List of vectors to insert.")
-    ids: Optional[Union[str, List[str]]] = Field(default=None, description="Custom IDs for vectors.")
-    metadata: Optional[Union[str, List[Dict[str, Any]]]] = Field(default=None, description="Metadata for each vector.")
+    vector: Union[str, Union[List[float], List[List[float]]]] = Field(..., description="Vector to insert.")
+    metadata: Optional[Union[str, Union[Dict[str, Any], List[Dict[str, Any]]]]] = Field(default=None, description="Metadata for vector.")
 
 class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.UPDATE]
+    vector_id: Union[str, Union[Union[int, str], List[Union[int, str]]]] = Field(..., description="ID of vector to update.")
+    vector: Optional[Union[str, Union[List[float], List[List[float]]]]] = Field(default=None, description="New vector to replace.")
+    metadata: Optional[Union[str, Union[Dict[str, Any], List[Dict[str, Any]]]]] = Field(default=None, description="Updated metadata for vector.")
+    insert_if_not_exist: bool = Field(default=True, description="")
 
 class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.SEARCH]
+    query_vector: Union[str, List[float]] = Field(..., description="Query vector for similarity search.")
+    top_k: int = Field(default=10, description="Number of top similar vectors to return.")
+    metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.)")
+    filter: Optional[Union[str, Union[str, Dict[str, Any]]]] = Field(default=None, description="")
+    output_fields: Optional[Union[str, List[str]]] = Field(default=None, description="")
 
 class CommonVectorRemoveActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.REMOVE]
+    vector_id: Union[str, Union[Union[int, str], List[Union[int, str]]]] = Field(..., description="ID of vector to remove.")

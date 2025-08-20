@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from typing import TYPE_CHECKING
 from mindor.dsl.schema.component import VectorStoreComponentConfig
@@ -7,6 +8,7 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
+import json
 
 if TYPE_CHECKING:
     from pymilvus import AsyncMilvusClient
@@ -37,16 +39,16 @@ class MilvusVectorStoreAction:
         raise ValueError(f"Unsupported vector action method: {self.config.method}")
 
     async def _insert(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
-        vectors  = await context.render_variable(self.config.vectors)
-        ids      = await context.render_variable(self.config.ids)
+        vector   = await context.render_variable(self.config.vector)
         metadata = await context.render_variable(self.config.metadata)
+
+        is_single_input: bool = True if not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))) else False
+        vectors: List[List[float]] = [ vector ] if is_single_input else vector
+        metadata: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
 
         data = []
         for index, vector in enumerate(vectors):
             item = { self.config.vector_field: vector }
-
-            if ids and index < len(ids):
-                item.update({ "id": ids[index] })
 
             if metadata and index < len(metadata):
                 item.update(metadata[index])
@@ -59,16 +61,71 @@ class MilvusVectorStoreAction:
             partition_name=self.config.partition_name
         )
 
-        return { "ids": result["ids"], "affected_rows": result["insert_count"] }
+        return { "ids": list(result.get("ids", [])), "affected_rows": result.get("insert_count", len(data)) }
 
     async def _update(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
-        pass
+        vector_id = await context.render_variable(self.config.vector_id)
+        vector    = await context.render_variable(self.config.vector)
+        metadata  = await context.render_variable(self.config.metadata)
+
+        is_single_input: bool = True if not isinstance(vector_id, list) else False
+        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+        vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
+        metadata: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
+
+        data = []
+        for index, vector_id in enumerate(vector_ids):
+            item = { self.config.id_field: vector_id }
+
+            if vectors and index < len(vectors):
+                item.update({ self.config.vector_field: vectors[index] })
+
+            if metadata and index < len(metadata):
+                item.update(metadata[index])
+
+            data.append(item)
+
+        if not self.config.insert_if_not_exist:
+            queried = await client.query(
+                collection_name=self.config.collection_name,
+                expr=f"{self.config.id_field} in [ {','.join(vector_ids)} ]",
+                output_fields=[ self.config.id_field ],
+                partition_names=[ self.config.partition_name ] if self.config.partition_name else None,
+            )
+
+            found_ids = { row[self.config.id_field] for row in (queried or []) }
+            missing_ids = set(vector_ids) - found_ids
+            if missing_ids:
+                data = [ item for item in data if item[self.config.id_field] in found_ids ]
+
+        if len(data) > 0:
+            result = await client.upsert(
+                collection_name=self.config.collection_name,
+                data=data,
+                partition_name=self.config.partition_name
+            )
+        else:
+            result = { "upsert_count": 0 }
+
+        return { "affected_rows": result.get("upsert_count", len(data)) }
 
     async def _search(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         pass
 
     async def _remove(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
-        pass
+        vector_id = await context.render_variable(self.config.vector_id)
+
+        is_single_input: bool = True if not isinstance(vector_id, list) else False
+        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+        print(f"{self.config.id_field} in {json.dumps(vector_ids)}")
+
+        result = await client.delete(
+            collection_name=self.config.collection_name,
+            expr=f"{self.config.id_field} in {json.dumps(vector_ids)}",
+            partition_name=getattr(self.config, "partition_name", None)
+        )
+
+        return { "affected_rows": result.get("remove_count", len(vector_ids)) }
 
 @register_vector_store_service(VectorStoreDriver.MILVUS)
 class MilvusVectorStoreService(VectorStoreService):

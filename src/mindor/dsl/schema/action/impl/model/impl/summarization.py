@@ -16,5 +16,5 @@ class SummarizationParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class SummarizationModelActionConfig(CommonModelInferenceActionConfig):
-    text: Union[str, List[str]] = Field(..., description="Input text to summarize.")
+    text: Union[str, Union[str, List[str]]] = Field(..., description="Input text to summarize.")
     params: SummarizationParamsConfig = Field(default_factory=SummarizationParamsConfig, description="Summarization configuration parameters.")

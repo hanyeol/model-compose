@@ -10,5 +10,5 @@ class TextEmbeddingParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TextEmbeddingModelActionConfig(CommonModelInferenceActionConfig):
-    text: Union[str, List[str]] = Field(..., description="Input text to be embedded.")
+    text: Union[str, Union[str, List[str]]] = Field(..., description="Input text to be embedded.")
     params: TextEmbeddingParamsConfig = Field(default_factory=TextEmbeddingParamsConfig, description="Configuration parameters for embedding generation.")

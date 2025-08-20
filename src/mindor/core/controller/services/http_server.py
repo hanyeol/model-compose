@@ -45,7 +45,7 @@ class WorkflowVariableResult(BaseModel):
     type: str
     subtype: Optional[str]
     format: Optional[str]
-    default: Optional[str]
+    default: Optional[Any]
 
     @classmethod
     def from_instance(cls, instance: WorkflowVariableConfig) -> Self:

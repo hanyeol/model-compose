@@ -8,5 +8,5 @@ class TextClassificationParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=32, description="Number of input texts to process in a single batch.")
 
 class TextClassificationModelActionConfig(CommonModelInferenceActionConfig):
-    text: Union[str, List[str]] = Field(..., description="Input text to classify.")
+    text: Union[str, Union[str, List[str]]] = Field(..., description="Input text to classify.")
     params: TextClassificationParamsConfig = Field(default_factory=TextClassificationParamsConfig, description="Text classification configuration parameters.")

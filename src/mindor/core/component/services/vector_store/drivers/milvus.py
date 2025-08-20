@@ -61,7 +61,7 @@ class MilvusVectorStoreAction:
             partition_name=self.config.partition_name
         )
 
-        return { "ids": list(result.get("ids", [])), "affected_rows": result.get("insert_count", len(data)) }
+        return { "ids": list(result["ids"]), "affected_rows": result["insert_count"] }
 
     async def _update(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         vector_id = await context.render_variable(self.config.vector_id)
@@ -107,25 +107,48 @@ class MilvusVectorStoreAction:
         else:
             result = { "upsert_count": 0 }
 
-        return { "affected_rows": result.get("upsert_count", len(data)) }
+        return { "affected_rows": result["upsert_count"] }
 
     async def _search(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
-        pass
+        query         = await context.render_variable(self.config.query)
+        top_k         = await context.render_variable(self.config.top_k)
+        metric_type   = await context.render_variable(self.config.metric_type)
+        filter        = await context.render_variable(self.config.filter)
+        output_fields = await context.render_variable(self.config.output_fields)
+
+        is_single_input: bool = True if not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))) else False
+        queries: List[List[float]] = [ query ] if is_single_input else query
+        search_params = {}
+
+        if metric_type:
+            search_params["metric_type"] = metric_type
+
+        results = await client.search(
+            collection_name=self.config.collection_name,
+            data=queries,
+            filter=filter,
+            limit=top_k,
+            output_fields=output_fields or None,
+            search_params=search_params or None,
+            partition_names=[ self.config.partition_name ] if self.config.partition_name else None
+        )
+        results = [ [ dict(hit) for hit in result ] for result in results ]
+
+        return results[0] if is_single_input else results
 
     async def _remove(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         vector_id = await context.render_variable(self.config.vector_id)
 
         is_single_input: bool = True if not isinstance(vector_id, list) else False
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-        print(f"{self.config.id_field} in {json.dumps(vector_ids)}")
 
         result = await client.delete(
             collection_name=self.config.collection_name,
-            expr=f"{self.config.id_field} in {json.dumps(vector_ids)}",
+            filter=f"{self.config.id_field} in [ {','.join([ str(id) for id in vector_ids ])} ]",
             partition_name=getattr(self.config, "partition_name", None)
         )
 
-        return { "affected_rows": result.get("remove_count", len(vector_ids)) }
+        return { "affected_rows": result["delete_count"] }
 
 @register_vector_store_service(VectorStoreDriver.MILVUS)
 class MilvusVectorStoreService(VectorStoreService):

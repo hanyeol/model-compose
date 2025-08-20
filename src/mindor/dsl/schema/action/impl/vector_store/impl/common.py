@@ -29,7 +29,7 @@ class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):
 
 class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.SEARCH]
-    query_vector: Union[str, List[float]] = Field(..., description="Query vector for similarity search.")
+    query: Union[str, List[float]] = Field(..., description="Query vector for similarity search.")
     top_k: int = Field(default=10, description="Number of top similar vectors to return.")
     metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.)")
     filter: Optional[Union[str, Union[str, Dict[str, Any]]]] = Field(default=None, description="")

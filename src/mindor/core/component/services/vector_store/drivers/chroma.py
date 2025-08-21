@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import TYPE_CHECKING
+from mindor.dsl.schema.component import VectorStoreComponentConfig
+from mindor.dsl.schema.action import VectorStoreActionConfig, ChromaVectorStoreActionConfig, VectorStoreActionMethod
+from mindor.core.utils.streamer import AsyncStreamer
+from mindor.core.logger import logging
+from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
+from ..base import ComponentActionContext
+import asyncio, json, uuid
+
+if TYPE_CHECKING:
+    from chromadb.api import ClientAPI as ChromaClient
+    from chromadb.api import Collection
+
+class ChromaVectorStoreAction:
+    def __init__(self, config: ChromaVectorStoreActionConfig):
+        self.config: ChromaVectorStoreActionConfig = config
+
+    async def run(self, context: ComponentActionContext, client: ChromaClient) -> Any:
+        result = await self._dispatch(context, client)
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+    async def _dispatch(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+        if self.config.method == VectorStoreActionMethod.INSERT:
+            return await self._insert(context, client)
+
+        if self.config.method == VectorStoreActionMethod.UPDATE:
+            return await self._update(context, client)
+
+        if self.config.method == VectorStoreActionMethod.SEARCH:
+            return await self._search(context, client)
+
+        if self.config.method == VectorStoreActionMethod.REMOVE:
+            return await self._remove(context, client)
+
+        raise ValueError(f"Unsupported vector action method: {self.config.method}")
+
+    async def _insert(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+        collection_name = await context.render_variable(self.config.collection)
+        vector          = await context.render_variable(self.config.vector)
+        vector_id       = await context.render_variable(self.config.vector_id)
+        document        = await context.render_variable(self.config.document)
+        metadata        = await context.render_variable(self.config.metadata)
+
+        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
+        is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
+        vectors: List[List[float]] = [ vector ] if is_single_input else vector
+        vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
+        documents: Optional[List[str]] = [ document ] if is_single_input and document else document
+        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+
+        if vector_ids is None:
+            vector_ids = await self._run_in_thread(lambda n: [ str(uuid.uuid4()) for _ in range(n) ], len(vectors))
+
+        await self._run_in_thread(
+            collection.add,
+            ids=vector_ids,
+            embeddings=vectors,
+            metadatas=metadatas,
+            documents=documents
+        )
+
+        return { "ids": vector_ids, "affected_rows": len(vector_ids) }
+
+    async def _update(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+        collection_name = await context.render_variable(self.config.collection)
+        vector_id       = await context.render_variable(self.config.vector_id)
+        vector          = await context.render_variable(self.config.vector)
+        metadata        = await context.render_variable(self.config.metadata)
+
+        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
+        is_single_input: bool = bool(not isinstance(vector_id, list))
+        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+        vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
+        metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
+
+    async def _search(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+        collection_name = await context.render_variable(self.config.collection)
+        query           = await context.render_variable(self.config.query)
+        top_k           = await context.render_variable(self.config.top_k)
+        filter          = await context.render_variable(self.config.filter)
+        output_fields   = await context.render_variable(self.config.output_fields)
+
+        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
+        is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
+        queries: List[List[float]] = [ query ] if is_single_input else query
+
+        result = await self._run_in_thread(
+            collection.query,
+            query_embeddings=queries,
+            n_results=int(top_k),
+            where=filter,
+            include=[ "embeddings", "distances", "documents", "metadatas" ]
+        )
+
+        return result
+
+    async def _remove(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+        collection_name = await context.render_variable(self.config.collection)
+        vector_id       = await context.render_variable(self.config.vector_id)
+
+        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
+        is_single_input: bool = bool(not isinstance(vector_id, list))
+        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+
+    async def _run_in_thread(self, func: Callable, *args, **kwargs) -> Any:
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+@register_vector_store_service(VectorStoreDriver.CHROMA)
+class ChromaVectorStoreService(VectorStoreService):
+    def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.client: Optional[ChromaClient] = None
+
+    async def _serve(self) -> None:
+        self.client = self._create_client()
+
+    async def _shutdown(self) -> None:
+        if self.client:
+            self.client = None
+
+    async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
+        return await ChromaVectorStoreAction(action).run(context, self.client)
+
+    def _create_client(self) -> ChromaClient:
+        if self.config.mode == "server":
+            from chromadb import HttpClient
+
+            return HttpClient(
+                **self._resolve_connection_params(),
+                **self._resolve_database_params()
+            )
+
+        if self.config.mode == "local":
+            from chromadb import PersistentClient
+
+            return PersistentClient(
+                path=self.config.storage_dir,
+                **self._resolve_database_params()
+            )
+
+        raise ValueError(f"Unsupported connection mode: {self.config.mode}")
+
+    def _resolve_database_params(self) -> Dict[str, Any]:
+        return {
+            **({ "tenant":   self.config.tenant   } if self.config.tenant   else {}),
+            **({ "database": self.config.database } if self.config.database else {}),
+        }
+
+    def _resolve_connection_params(self) -> Dict[str, Any]:
+        if self.config.endpoint:
+            return { "api_base": self.config.endpoint }
+
+        return { "host": self.config.host, "port": self.config.port, "ssl": bool(self.config.protocol == "https") }

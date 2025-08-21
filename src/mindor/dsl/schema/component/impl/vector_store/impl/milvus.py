@@ -7,14 +7,14 @@ from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
 
 class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     driver: Literal[VectorStoreDriver.MILVUS]
-    endpoint: Optional[str] = Field(default=None, description="")
+    endpoint: Optional[str] = Field(default=None, description="Milvus server endpoint URL.")
     host: str = Field(default="localhost", description="Milvus server hostname or IP address.")
     port: int = Field(default=19530, description="Milvus server port number.")
-    protocol: Literal[ "grpc", "grpcs", "http", "https" ] = Field(default="grpc", description="")
-    user: Optional[str] = Field(default=None, description="Milvus username." )
-    password: Optional[str] = Field(default=None, description="Milvus password.")
-    database_name: Optional[str] = Field(default=None, description="Milvus database name.")
-    timeout: float = Field(default=30.0, description="Timeout in seconds for Milvus client operations.")
+    protocol: Literal[ "grpc", "grpcs", "http", "https" ] = Field(default="grpc", description="Connection protocol.")
+    user: Optional[str] = Field(default=None, description="Username for authentication.")
+    password: Optional[str] = Field(default=None, description="Password for authentication.")
+    database: Optional[str] = Field(default=None, description="Target database name.")
+    timeout: float = Field(default=30.0, description="Client operation timeout in seconds.")
     actions: List[MilvusVectorStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

@@ -28,7 +28,7 @@ class ImageToTextTaskAction:
         batch_size = await context.render_variable(self.config.params.batch_size)
         stream     = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = True if not isinstance(images, list) else False
+        is_single_input: bool = bool(not isinstance(images, list))
         images: List[PILImage.Image] = [ image ] if is_single_input else image
         prompts: Optional[List[str]] = [ prompt ] if is_single_input else prompt
         results = []

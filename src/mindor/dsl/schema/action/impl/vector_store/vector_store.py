@@ -3,5 +3,7 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 VectorStoreActionConfig = Union[
-    MilvusVectorStoreActionConfig
+    MilvusVectorStoreActionConfig,
+    FaissVectorStoreActionConfig,
+    ChromaVectorStoreActionConfig
 ]

@@ -5,6 +5,8 @@ from .impl import *
 VectorStoreComponentConfig = Annotated[
     Union[ 
         MilvusVectorStoreComponentConfig,
+        FaissVectorStoreComponentConfig,
+        ChromaVectorStoreComponentConfig
     ],
     Field(discriminator="driver")
 ]

@@ -32,7 +32,7 @@ class SummarizationTaskAction:
         batch_size        = await context.render_variable(self.config.params.batch_size)
         stream            = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = True if not isinstance(text, list) else False
+        is_single_input: bool = bool(not isinstance(text, list))
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 

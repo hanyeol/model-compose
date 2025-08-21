@@ -11,13 +11,13 @@ class VectorStoreActionMethod(str, Enum):
 
 class CommonVectorStoreActionConfig(CommonActionConfig):
     method: VectorStoreActionMethod = Field(..., description="")
-    collection_name: str = Field(..., description="Name of the Milvus collection to store vectors.")
     id_field: str = Field(default="id", description="")
     vector_field: str = Field(default="vector", description="")
 
 class CommonVectorInsertActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.INSERT]
     vector: Union[str, Union[List[float], List[List[float]]]] = Field(..., description="Vector to insert.")
+    vector_id: Optional[Union[str, Union[Union[int, str], List[Union[int, str]]]]] = Field(default=None, description="ID of vector to insert.")
     metadata: Optional[Union[str, Union[Dict[str, Any], List[Dict[str, Any]]]]] = Field(default=None, description="Metadata for vector.")
 
 class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):

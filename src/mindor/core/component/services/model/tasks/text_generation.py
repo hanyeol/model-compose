@@ -28,7 +28,7 @@ class TextGenerationTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = True if not isinstance(prompt, list) else False
+        is_single_input: bool = bool(not isinstance(prompt, list))
         prompts: List[str] = [ prompt ] if is_single_input else prompt
         results = []
 

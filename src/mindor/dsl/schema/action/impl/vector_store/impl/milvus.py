@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorRemoveActionConfig
+from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorDeleteActionConfig
 
 class MilvusVectorInsertActionConfig(CommonVectorInsertActionConfig):
     collection: str = Field(..., description="Target collection for vector insertion.")
@@ -15,7 +15,7 @@ class MilvusVectorSearchActionConfig(CommonVectorSearchActionConfig):
     collection: str = Field(..., description="Collection to search vectors from.")
     partitions: Optional[List[str]] = Field(default=None, description="Partitions to search within.")
 
-class MilvusVectorRemoveActionConfig(CommonVectorRemoveActionConfig):
+class MilvusVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
     collection: str = Field(..., description="Collection to remove vectors from.")
     partition: Optional[str] = Field(default=None, description="Partition to remove vectors from.")
 
@@ -24,7 +24,7 @@ MilvusVectorStoreActionConfig = Annotated[
         MilvusVectorInsertActionConfig,
         MilvusVectorUpdateActionConfig,
         MilvusVectorSearchActionConfig,
-        MilvusVectorRemoveActionConfig
+        MilvusVectorDeleteActionConfig
     ],
     Field(discriminator="method")
 ]

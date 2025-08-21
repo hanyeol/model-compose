@@ -7,7 +7,7 @@ class VectorStoreActionMethod(str, Enum):
     INSERT = "insert"
     UPDATE = "update"
     SEARCH = "search"
-    REMOVE = "remove"
+    DELETE = "delete"
 
 class CommonVectorStoreActionConfig(CommonActionConfig):
     method: VectorStoreActionMethod = Field(..., description="")
@@ -35,6 +35,6 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     filter: Optional[Union[str, Union[str, Dict[str, Any]]]] = Field(default=None, description="")
     output_fields: Optional[Union[str, List[str]]] = Field(default=None, description="")
 
-class CommonVectorRemoveActionConfig(CommonVectorStoreActionConfig):
-    method: Literal[VectorStoreActionMethod.REMOVE]
+class CommonVectorDeleteActionConfig(CommonVectorStoreActionConfig):
+    method: Literal[VectorStoreActionMethod.DELETE]
     vector_id: Union[str, Union[Union[int, str], List[Union[int, str]]]] = Field(..., description="ID of vector to remove.")

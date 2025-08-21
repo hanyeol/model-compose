@@ -33,8 +33,8 @@ class MilvusVectorStoreAction:
         if self.config.method == VectorStoreActionMethod.SEARCH:
             return await self._search(context, client)
 
-        if self.config.method == VectorStoreActionMethod.REMOVE:
-            return await self._remove(context, client)
+        if self.config.method == VectorStoreActionMethod.DELETE:
+            return await self._delete(context, client)
 
         raise ValueError(f"Unsupported vector action method: {self.config.method}")
 
@@ -147,7 +147,7 @@ class MilvusVectorStoreAction:
 
         return results[0] if is_single_input else results
 
-    async def _remove(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
+    async def _delete(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         partition_name  = await context.render_variable(self.config.partition)
         vector_id       = await context.render_variable(self.config.vector_id)

@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorRemoveActionConfig
+from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorDeleteActionConfig
 
 class ChromaVectorInsertActionConfig(CommonVectorInsertActionConfig):
     collection: str = Field(..., description="Target collection for vector insertion.")
@@ -14,7 +14,7 @@ class ChromaVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
 class ChromaVectorSearchActionConfig(CommonVectorSearchActionConfig):
     collection: str = Field(..., description="Collection to search vectors from.")
 
-class ChromaVectorRemoveActionConfig(CommonVectorRemoveActionConfig):
+class ChromaVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
     collection: str = Field(..., description="Collection to remove vectors from.")
 
 ChromaVectorStoreActionConfig = Annotated[
@@ -22,7 +22,7 @@ ChromaVectorStoreActionConfig = Annotated[
         ChromaVectorInsertActionConfig,
         ChromaVectorUpdateActionConfig,
         ChromaVectorSearchActionConfig,
-        ChromaVectorRemoveActionConfig
+        ChromaVectorDeleteActionConfig
     ],
     Field(discriminator="method")
 ]

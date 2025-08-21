@@ -193,7 +193,7 @@ class MilvusVectorStoreService(VectorStoreService):
         if self.config.endpoint:
             return { "uri": self.config.endpoint }
 
-        if self.config.protocol != "grpc":
+        if self.config.protocol not in [ "grpc", "grpcs" ]:
             return { "uri": f"{self.config.protocol}://{self.config.host}:{self.config.port}" }
         
-        return { "host": self.config.host, "port": self.config.port }
+        return { "host": self.config.host, "port": self.config.port, "secure": bool(self.config.protocol == "grpcs")  }

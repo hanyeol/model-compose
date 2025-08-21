@@ -8,7 +8,7 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
-import asyncio, json, uuid
+import asyncio, json, ulid
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient
@@ -46,7 +46,6 @@ class ChromaVectorStoreAction:
         document        = await context.render_variable(self.config.document)
         metadata        = await context.render_variable(self.config.metadata)
 
-        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
@@ -54,10 +53,10 @@ class ChromaVectorStoreAction:
         metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
 
         if vector_ids is None:
-            vector_ids = await self._run_in_thread(lambda n: [ str(uuid.uuid4()) for _ in range(n) ], len(vectors))
+            vector_ids = [ ulid.ulid() for _ in vectors ]
 
-        await self._run_in_thread(
-            collection.add,
+        collection: Collection = client.get_or_create_collection(name=collection_name)
+        collection.add(
             ids=vector_ids,
             embeddings=vectors,
             metadatas=metadatas,
@@ -72,11 +71,12 @@ class ChromaVectorStoreAction:
         vector          = await context.render_variable(self.config.vector)
         metadata        = await context.render_variable(self.config.metadata)
 
-        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
         vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
         metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
+
+        collection: Collection = client.get_or_create_collection(name=collection_name)
 
     async def _search(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
@@ -85,12 +85,11 @@ class ChromaVectorStoreAction:
         filter          = await context.render_variable(self.config.filter)
         output_fields   = await context.render_variable(self.config.output_fields)
 
-        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
         is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
         queries: List[List[float]] = [ query ] if is_single_input else query
 
-        result = await self._run_in_thread(
-            collection.query,
+        collection: Collection = client.get_or_create_collection(name=collection_name)
+        result = collection.query(
             query_embeddings=queries,
             n_results=int(top_k),
             where=filter,
@@ -103,12 +102,10 @@ class ChromaVectorStoreAction:
         collection_name = await context.render_variable(self.config.collection)
         vector_id       = await context.render_variable(self.config.vector_id)
 
-        collection: Collection = await self._run_in_thread(client.get_or_create_collection, name=collection_name)
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
 
-    async def _run_in_thread(self, func: Callable, *args, **kwargs) -> Any:
-        return await asyncio.to_thread(func, *args, **kwargs)
+        collection: Collection = client.get_or_create_collection(name=collection_name)
 
 @register_vector_store_service(VectorStoreDriver.CHROMA)
 class ChromaVectorStoreService(VectorStoreService):
@@ -125,7 +122,10 @@ class ChromaVectorStoreService(VectorStoreService):
             self.client = None
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await ChromaVectorStoreAction(action).run(context, self.client)
+        async def _run():
+            return await ChromaVectorStoreAction(action).run(context, self.client)
+
+        return await self.run_in_thread(_run)
 
     def _create_client(self) -> ChromaClient:
         if self.config.mode == "server":
@@ -149,7 +149,7 @@ class ChromaVectorStoreService(VectorStoreService):
     def _resolve_database_params(self) -> Dict[str, Any]:
         return {
             **({ "tenant":   self.config.tenant   } if self.config.tenant   else {}),
-            **({ "database": self.config.database } if self.config.database else {}),
+            **({ "database": self.config.database } if self.config.database else {})
         }
 
     def _resolve_connection_params(self) -> Dict[str, Any]:

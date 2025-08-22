@@ -6,4 +6,4 @@ app = FastAPI()
 @app.post("/echo")
 async def echo(request: Request):
     body = await request.json()
-    return JSONResponse(content={"echo": body})
+    return JSONResponse(content={ "echo": body })

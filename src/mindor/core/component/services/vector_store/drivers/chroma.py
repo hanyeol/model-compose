@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from typing import TYPE_CHECKING
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig, ChromaVectorStoreActionConfig, VectorStoreActionMethod
+from mindor.dsl.schema.action import VectorStoreActionConfig, ChromaVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
@@ -13,6 +13,53 @@ import asyncio, json, ulid
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient
     from chromadb.api import Collection
+
+class ChromaWhereSpecBuilder:
+    def build(self, filter: Any) -> Optional[Dict[str, Any]]:
+        spec: Dict[str, Any] = self._build_where_spec(filter)
+        
+        if not spec:
+            return None
+
+        return spec
+
+    def _build_where_spec(self, filter: Any) -> Dict[str, Any]:
+        spec: Dict[str, Any] = {}
+
+        if isinstance(filter, (list, tuple, set)):
+            for item in filter:
+                spec.update(self._build_where_spec(item))
+            return spec
+
+        if isinstance(filter, dict):
+            for field, value in filter.items():
+                spec.update({field: { "$eq": value }})
+            return spec
+
+        if isinstance(filter, VectorStoreFilterCondition):
+            spec.update(self._build_condition_spec(filter))
+            return spec
+
+        return {}
+
+    def _build_condition_spec(self, condition: VectorStoreFilterCondition) -> Optional[Dict[str, Dict[str, Any]]]:
+        operator_map = {
+            VectorStoreFilterOperator.EQ:     "$eq",
+            VectorStoreFilterOperator.NEQ:    "$ne",
+            VectorStoreFilterOperator.GT:     "$gt",
+            VectorStoreFilterOperator.GTE:    "$gte",
+            VectorStoreFilterOperator.LT:     "$lt",
+            VectorStoreFilterOperator.LTE:    "$lte",
+            VectorStoreFilterOperator.IN:     "$in",
+            VectorStoreFilterOperator.NOT_IN: "$nin",
+        }
+
+        operator = operator_map.get(condition.operator)
+        
+        if not operator:
+            return None
+        
+        return { condition.field: { operator: condition.value } }
 
 class ChromaVectorStoreAction:
     def __init__(self, config: ChromaVectorStoreActionConfig):
@@ -89,10 +136,11 @@ class ChromaVectorStoreAction:
         queries: List[List[float]] = [ query ] if is_single_input else query
 
         collection: Collection = client.get_or_create_collection(name=collection_name)
+        where_spec = ChromaWhereSpecBuilder().build(filter)
         result = collection.query(
             query_embeddings=queries,
             n_results=int(top_k),
-            where=filter,
+            where=where_spec,
             include=[ "embeddings", "distances", "documents", "metadatas" ]
         )
 
@@ -101,11 +149,19 @@ class ChromaVectorStoreAction:
     async def _delete(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         vector_id       = await context.render_variable(self.config.vector_id)
+        filter          = await context.render_variable(self.config.filter)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
 
         collection: Collection = client.get_or_create_collection(name=collection_name)
+        where_spec = ChromaWhereSpecBuilder().build(filter)
+        collection.delete(
+            ids=vector_ids,
+            where=where_spec
+        )
+
+        return { "affected_rows": len(vector_ids) }
 
 @register_vector_store_service(VectorStoreDriver.CHROMA)
 class ChromaVectorStoreService(VectorStoreService):

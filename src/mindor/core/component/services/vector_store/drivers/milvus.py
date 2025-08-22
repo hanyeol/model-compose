@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from typing import TYPE_CHECKING
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig, VectorStoreActionMethod
+from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
@@ -12,6 +12,95 @@ import json
 
 if TYPE_CHECKING:
     from pymilvus import AsyncMilvusClient
+
+class MilvusFilterExpressionBuilder:
+    def build(self, filter: Any) -> Optional[str]:
+        clauses: List[str] = self._build_clauses(filter)
+        
+        if not clauses:
+            return None
+
+        return " and ".join(clauses)
+
+    def _build_clauses(self, filter: Any) -> List[str]:
+        clauses: List[str] = []
+
+        if isinstance(filter, (list, tuple, set)):
+            for item in filter:
+                clauses.extend(self._build_clauses(item))
+            return clauses 
+
+        if isinstance(filter, dict):
+            for field, value in filter.items():
+                clause = self._format_field_clause(field, value)
+                if clause:
+                    clauses.append(clause)
+            return clauses
+
+        if isinstance(filter, VectorStoreFilterCondition):
+            clause = self._format_condition(filter)
+            if clause:
+                clauses.append(clause)
+            return clauses
+
+        if isinstance(filter, str):
+            clause = filter.strip()
+            if clause:
+                clauses.append(clause)
+            return clauses
+
+        return clauses
+
+    def _format_condition(self, condition: VectorStoreFilterCondition) -> Optional[str]:
+        if condition.operator == VectorStoreFilterOperator.EQ:
+            return f"{condition.field} == {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.NEQ:
+            return f"{condition.field} != {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.GT:
+            return f"{condition.field} > {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.GTE:
+            return f"{condition.field} >= {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.LT:
+            return f"{condition.field} < {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.LTE:
+            return f"{condition.field} <= {self._format_scalar(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.IN:
+            return f"{condition.field} in {self._format_list(condition.value)}"
+        
+        if condition.operator == VectorStoreFilterOperator.NOT_IN:
+            return f"{condition.field} not in {self._format_list(condition.value)}"
+
+        return None
+
+    def _format_field_clause(self, field: str, value: Any) -> Optional[str]:
+        if isinstance(value, (list, tuple, set)):
+            return f"{field} in {self._format_list(list(value))}" if value else None
+        
+        if not isinstance(value, dict):
+            return f"{field} == {self._format_scalar(value)}"
+
+        return None
+
+    def _format_list(self, value: List[Any]) -> str:
+        return "[ " + ", ".join(self._format_scalar(item) for item in value) + " ]"
+
+    def _format_scalar(self, value: Any) -> str:
+        if isinstance(value, str):
+            return "'" + value.replace("'", "\\'") + "'"
+
+        if isinstance(value, bool):
+            return "true" if value else "false"
+
+        if value is None:
+            return "null"
+
+        return str(value)
 
 class MilvusVectorStoreAction:
     def __init__(self, config: MilvusVectorStoreActionConfig):
@@ -95,14 +184,15 @@ class MilvusVectorStoreAction:
             data.append(item)
 
         if not self.config.insert_if_not_exist:
-            queried = await client.query(
+            filter_expr = MilvusFilterExpressionBuilder().build({ self.config.id_field: vector_ids })
+            result = await client.query(
                 collection_name=collection_name,
                 partition_names=[ partition_name ] if partition_name else None,
-                expr=f"{self.config.id_field} in [ {','.join(vector_ids)} ]",
+                expr=filter_expr,
                 output_fields=[ self.config.id_field ]
             )
 
-            found_ids = { row[self.config.id_field] for row in (queried or []) }
+            found_ids = { row[self.config.id_field] for row in (result or []) }
             missing_ids = set(vector_ids) - found_ids
             if missing_ids:
                 data = [ item for item in data if item[self.config.id_field] in found_ids ]
@@ -134,11 +224,12 @@ class MilvusVectorStoreAction:
         if metric_type:
             search_params["metric_type"] = metric_type
 
+        filter_expr = MilvusFilterExpressionBuilder().build(filter)
         results = await client.search(
             collection_name=collection_name,
             partition_names=partition_names,
             data=queries,
-            filter=filter,
+            filter=filter_expr,
             limit=top_k,
             output_fields=output_fields or None,
             search_params=search_params or None
@@ -151,14 +242,16 @@ class MilvusVectorStoreAction:
         collection_name = await context.render_variable(self.config.collection)
         partition_name  = await context.render_variable(self.config.partition)
         vector_id       = await context.render_variable(self.config.vector_id)
+        filter          = await context.render_variable(self.config.filter)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
 
+        filter_expr = MilvusFilterExpressionBuilder().build([ { self.config.id_field: vector_ids }, filter ])
         result = await client.delete(
             collection_name=collection_name,
             partition_name=partition_name,
-            filter=f"{self.config.id_field} in [ {','.join([ str(id) for id in vector_ids ])} ]"
+            filter=filter_expr
         )
 
         return { "affected_rows": result["delete_count"] }

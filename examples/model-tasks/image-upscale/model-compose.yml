@@ -1,0 +1,20 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Upscale Image
+  description: 
+  input: ${input}
+  output: ${output as image}
+
+component:
+  type: model
+  task: image-upscale
+  model: qualcomm/ESRGAN
+  architecture: esrgan
+  image: ${input.image as image}

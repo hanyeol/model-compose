@@ -39,7 +39,7 @@ workflows:
         action: update
         input:
           vector: ${jobs.embedding-sentence.output}
-          vector_id: ${input.vector_id as integer}
+          vector_id: ${input.vector_id}
           metadata:
             text: ${input.text}
         output: ${output as json}
@@ -59,7 +59,7 @@ workflows:
         action: search
         input:
           vector: ${jobs.embedding-sentence.output}
-        output: ${output as object[]/id,score,entity.text}
+        output: ${output as object[]/id,score,metadata.text}
         depends_on: [ embedding-sentence ]
 
   - id: delete-sentence-embedding
@@ -84,7 +84,7 @@ components:
       - id: update
         collection: test
         method: update
-        vector_id: ${input.vector_id as integer}
+        vector_id: ${input.vector_id}
         vector: ${input.vector}
         metadata: ${input.metadata}
 
@@ -97,7 +97,7 @@ components:
       - id: delete
         collection: test
         method: delete
-        vector_id: ${input.vector_id as integer}
+        vector_id: ${input.vector_id}
 
   - id: embedding-model
     type: model

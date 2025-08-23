@@ -59,7 +59,7 @@ workflows:
         action: search
         input:
           vector: ${jobs.embedding-sentence.output}
-        output: ${output as object[]/id,score,entity.text}
+        output: ${output as object[]/id,score,metadata.text}
         depends_on: [ embedding-sentence ]
 
   - id: delete-sentence-embedding

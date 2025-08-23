@@ -15,7 +15,7 @@ class CommonDelayJobConfig(OutputJobConfig):
 
 class TimeIntervalDelayJobConfig(CommonDelayJobConfig):
     mode: Literal[DelayJobMode.TIME_INTERVAL]
-    duration: Union[str, float, int] = Field(..., description="Time to wait before continuing.")
+    duration: Union[float, int, str] = Field(..., description="Time to wait before continuing.")
 
 class SpecificTimeDelayJobConfig(CommonDelayJobConfig):
     mode: Literal[DelayJobMode.SPECIFIC_TIME]

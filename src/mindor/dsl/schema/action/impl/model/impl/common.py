@@ -12,7 +12,7 @@ class CommonModelActionConfig(CommonActionConfig):
 
 class CommonModelInferenceActionConfig(CommonModelActionConfig):
     mode: ModelTaskMode = Field(default=ModelTaskMode.INFERENCE)
-    stream: bool = Field(default=False, description="Whether to enable streaming responses for inference.")
+    stream: Optional[bool] = Field(default=None, description="Whether to enable streaming responses for inference.")
 
 class CommonModelTrainingActionConfig(CommonModelActionConfig):
     mode: ModelTaskMode = Field(default=ModelTaskMode.TRAINING)

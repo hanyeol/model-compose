@@ -8,7 +8,6 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
-import json
 
 if TYPE_CHECKING:
     from pymilvus import AsyncMilvusClient

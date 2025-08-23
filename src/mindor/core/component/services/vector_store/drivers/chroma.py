@@ -8,7 +8,7 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
-import asyncio, json, ulid
+import ulid
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient

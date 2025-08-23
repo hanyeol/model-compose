@@ -61,13 +61,13 @@ class ImageToTextTaskAction:
                 _generate()
 
         if stream:
-            async def _stream_generator():
+            async def _stream_output_generator():
                 async for chunk in AsyncStreamer(streamer, loop):
                     if chunk:
                         context.register_source("result[]", chunk)
                         yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
 
-            return _stream_generator()
+            return _stream_output_generator()
         else:
             result = results[0] if is_single_input else results
             context.register_source("result", result)

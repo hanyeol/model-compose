@@ -64,7 +64,7 @@ class TextClassificationTaskAction:
                     yield predictions
 
         if stream:
-            async def _stream_generator():
+            async def _stream_output_generator():
                 async for predictions in _predict():
                     if not is_output_array_mode:
                         for prediction in predictions:
@@ -74,7 +74,7 @@ class TextClassificationTaskAction:
                         for prediction in predictions:
                             yield prediction
 
-            return _stream_generator()
+            return _stream_output_generator()
         else:
             async for predictions in _predict():
                 results.extend(predictions)

@@ -59,7 +59,7 @@ class TextEmbeddingTaskAction:
                     yield embeddings
 
         if stream:
-            async def _stream_generator():
+            async def _stream_output_generator():
                 async for embeddings in _embed():
                     if not is_output_array_mode:
                         for embedding in embeddings:
@@ -69,7 +69,7 @@ class TextEmbeddingTaskAction:
                         for embedding in embeddings:
                             yield embedding
 
-            return _stream_generator()
+            return _stream_output_generator()
         else:
             async for embeddings in _embed():
                 results.extend(embeddings)

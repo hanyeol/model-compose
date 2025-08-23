@@ -63,7 +63,7 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     top_k: int = Field(default=10, description="Number of top similar vectors to return.")
     metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.)")
     filter: Optional[Union[Union[str, List[VectorStoreFilterCondition]], str]] = Field(default=None, description="")
-    output_fields: Optional[Union[List[str], str]] = Field(default=None, description="")
+    output_fields: Optional[List[str]] = Field(default=None, description="")
 
     @model_validator(mode="before")
     def inflate_filter(cls, values: Dict[str, Any]):

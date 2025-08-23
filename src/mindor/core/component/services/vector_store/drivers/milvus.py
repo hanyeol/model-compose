@@ -138,7 +138,7 @@ class MilvusVectorStoreAction:
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-        metadata: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
+        metadatas: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
         batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
         inserted_ids, affected_rows = [], 0
 
@@ -149,8 +149,8 @@ class MilvusVectorStoreAction:
             if vector_ids and index < len(vector_ids):
                 item.update({ self.config.id_field: vector_ids[index]})
 
-            if metadata and index < len(metadata):
-                item.update(metadata[index])
+            if metadatas and index < len(metadatas):
+                item.update(metadatas[index])
 
             data.append(item)
         
@@ -178,7 +178,7 @@ class MilvusVectorStoreAction:
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
         vectors: Optional[List[List[float]]] = [ vector ] if is_single_input and vector else vector
-        metadata: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
         batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
         affected_rows = 0
 
@@ -189,8 +189,8 @@ class MilvusVectorStoreAction:
             if vectors and index < len(vectors):
                 item.update({ self.config.vector_field: vectors[index] })
 
-            if metadata and index < len(metadata):
-                item.update(metadata[index])
+            if metadatas and index < len(metadatas):
+                item.update(metadatas[index])
 
             data.append(item)
 
@@ -251,8 +251,16 @@ class MilvusVectorStoreAction:
                 output_fields=output_fields or None,
                 search_params=search_params or None
             )
-            for hits in result:
-                results.append([ dict(hit) for hit in hits ])
+            for n in range(len(result)):
+                hits = []
+                for hit in result[n]:
+                    hits.append({
+                        "id": hit["id"],
+                        "score": 1 / (1 + hit["distance"]),
+                        "distance": hit["distance"],
+                        "metadata": hit["entity"]
+                    })
+                results.append(hits)
 
         return results[0] if is_single_input else results
 

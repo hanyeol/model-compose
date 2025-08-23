@@ -1,0 +1,110 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: insert-sentence-embedding
+    title:
+    description:
+    jobs:
+      - id: embedding-sentence
+        component: embedding-model
+        input: ${input}
+        output: ${output}
+
+      - id: insert-embedding
+        component: vector-store
+        action: insert
+        input:
+          vector: ${jobs.embedding-sentence.output}
+          metadata: ${input}
+        output: ${output as json}
+        depends_on: [ embedding-sentence ]
+
+  - id: update-sentence-embedding
+    title:
+    description:
+    jobs:
+      - id: embedding-sentence
+        component: embedding-model
+        input: ${input}
+        output: ${output}
+
+      - id: update-embedding
+        component: vector-store
+        action: update
+        input:
+          vector: ${jobs.embedding-sentence.output}
+          vector_id: ${input.vector_id as integer}
+          metadata:
+            text: ${input.text}
+        output: ${output as json}
+        depends_on: [ embedding-sentence ]
+
+  - id: search-sentence-embeddings
+    title:
+    description:
+    jobs:
+      - id: embedding-sentence
+        component: embedding-model
+        input: ${input}
+        output: ${output}
+
+      - id: search-embeddings
+        component: vector-store
+        action: search
+        input:
+          vector: ${jobs.embedding-sentence.output}
+        output: ${output as object[]/id,score,entity.text}
+        depends_on: [ embedding-sentence ]
+
+  - id: delete-sentence-embedding
+    title:
+    description:
+    component: vector-store
+    action: delete
+    input: ${input}
+    output: ${output as json}
+
+components:
+  - id: vector-store
+    type: vector-store
+    driver: milvus
+    host: 172.31.20.209
+    port: 19530
+    protocol: http
+    database: sbs_saas_dev
+    actions:
+      - id: insert
+        collection: test
+        method: insert
+        vector: ${input.vector}
+        metadata: ${input.metadata}
+
+      - id: update
+        collection: test
+        method: update
+        vector_id: ${input.vector_id as integer}
+        vector: ${input.vector}
+        metadata: ${input.metadata}
+
+      - id: search
+        collection: test
+        method: search
+        query: ${input.vector}
+        output_fields: [ text ]
+
+      - id: delete
+        collection: test
+        method: delete
+        vector_id: ${input.vector_id as integer}
+
+  - id: embedding-model
+    type: model
+    task: text-embedding
+    model: sentence-transformers/all-MiniLM-L6-v2
+    text: ${input.text}

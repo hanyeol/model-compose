@@ -133,11 +133,14 @@ class MilvusVectorStoreAction:
         vector          = await context.render_variable(self.config.vector)
         vector_id       = await context.render_variable(self.config.vector_id)
         metadata        = await context.render_variable(self.config.metadata)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
         metadata: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
+        batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
+        inserted_ids, affected_rows = [], 0
 
         data = []
         for index, vector in enumerate(vectors):
@@ -150,14 +153,19 @@ class MilvusVectorStoreAction:
                 item.update(metadata[index])
 
             data.append(item)
+        
+        for index in range(0, len(data), batch_size):
+            batch_data = data[index:index + batch_size]
 
-        result = await client.insert(
-            collection_name=collection_name,
-            partition_name=partition_name,
-            data=data
-        )
+            result = await client.insert(
+                collection_name=collection_name,
+                partition_name=partition_name,
+                data=batch_data
+            )
+            inserted_ids.extend(result["ids"])
+            affected_rows += result["insert_count"]
 
-        return { "ids": list(result["ids"]), "affected_rows": result["insert_count"] }
+        return { "ids": inserted_ids, "affected_rows": affected_rows }
 
     async def _update(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
@@ -165,11 +173,14 @@ class MilvusVectorStoreAction:
         vector_id       = await context.render_variable(self.config.vector_id)
         vector          = await context.render_variable(self.config.vector)
         metadata        = await context.render_variable(self.config.metadata)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
         vectors: Optional[List[List[float]]] = [ vector ] if is_single_input and vector else vector
         metadata: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
+        affected_rows = 0
 
         data = []
         for index, vector_id in enumerate(vector_ids):
@@ -183,58 +194,65 @@ class MilvusVectorStoreAction:
 
             data.append(item)
 
-        if not self.config.insert_if_not_exist:
-            filter_expr = MilvusFilterExpressionBuilder().build({ self.config.id_field: vector_ids })
-            result = await client.query(
-                collection_name=collection_name,
-                partition_names=[ partition_name ] if partition_name else None,
-                expr=filter_expr,
-                output_fields=[ self.config.id_field ]
-            )
+        for index in range(0, len(data), batch_size):
+            batch_data = data[index:index + batch_size]
+            batch_vector_ids = vector_ids[index:index + batch_size]
 
-            found_ids = { row[self.config.id_field] for row in (result or []) }
-            missing_ids = set(vector_ids) - found_ids
-            if missing_ids:
-                data = [ item for item in data if item[self.config.id_field] in found_ids ]
+            if not self.config.insert_if_not_exist:
+                filter_expr = MilvusFilterExpressionBuilder().build({ self.config.id_field: batch_vector_ids })
 
-        if len(data) > 0:
-            result = await client.upsert(
-                collection_name=collection_name,
-                partition_name=partition_name,
-                data=data
-            )
-        else:
-            result = { "upsert_count": 0 }
+                result = await client.query(
+                    collection_name=collection_name,
+                    partition_names=[ partition_name ] if partition_name else None,
+                    expr=filter_expr,
+                    output_fields=[ self.config.id_field ]
+                )
 
-        return { "affected_rows": result["upsert_count"] }
+                found_ids = { row[self.config.id_field] for row in (result or []) }
+                missing_ids = set(batch_vector_ids) - found_ids
+                if missing_ids:
+                    batch_data = [ item for item in batch_data if item[self.config.id_field] in found_ids ]
 
-    async def _search(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
+            if len(data) > 0:
+                result = await client.upsert(
+                    collection_name=collection_name,
+                    partition_name=partition_name,
+                    data=batch_data
+                )
+                affected_rows += result["upsert_count"]
+
+        return { "affected_rows": affected_rows }
+
+    async def _search(self, context: ComponentActionContext, client: AsyncMilvusClient) -> List[List[Dict[str, Any]]] | List[Dict[str, Any]]:
         collection_name = await context.render_variable(self.config.collection)
         partition_names = await context.render_variable(self.config.partitions)
         query           = await context.render_variable(self.config.query)
         top_k           = await context.render_variable(self.config.top_k)
-        metric_type     = await context.render_variable(self.config.metric_type)
         filter          = await context.render_variable(self.config.filter)
         output_fields   = await context.render_variable(self.config.output_fields)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
         queries: List[List[float]] = [ query ] if is_single_input else query
-        search_params = {}
-
-        if metric_type:
-            search_params["metric_type"] = metric_type
-
         filter_expr = MilvusFilterExpressionBuilder().build(filter)
-        results = await client.search(
-            collection_name=collection_name,
-            partition_names=partition_names,
-            data=queries,
-            filter=filter_expr,
-            limit=top_k,
-            output_fields=output_fields or None,
-            search_params=search_params or None
-        )
-        results = [ [ dict(hit) for hit in result ] for result in results ]
+        search_params = await self._resolve_search_params(context)
+        batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
+        results = []
+
+        for index in range(0, len(queries), batch_size):
+            batch_queries = queries[index:index + batch_size]
+        
+            result = await client.search(
+                collection_name=collection_name,
+                partition_names=partition_names,
+                data=batch_queries,
+                filter=filter_expr,
+                limit=top_k,
+                output_fields=output_fields or None,
+                search_params=search_params or None
+            )
+            for hits in result:
+                results.append([ dict(hit) for hit in hits ])
 
         return results[0] if is_single_input else results
 
@@ -243,18 +261,34 @@ class MilvusVectorStoreAction:
         partition_name  = await context.render_variable(self.config.partition)
         vector_id       = await context.render_variable(self.config.vector_id)
         filter          = await context.render_variable(self.config.filter)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
+        affected_rows = 0
 
-        filter_expr = MilvusFilterExpressionBuilder().build([ { self.config.id_field: vector_ids }, filter ])
-        result = await client.delete(
-            collection_name=collection_name,
-            partition_name=partition_name,
-            filter=filter_expr
-        )
+        for index in range(0, len(vector_ids), batch_size):
+            batch_vector_ids = vector_ids[index:index + batch_size]
+            filter_expr = MilvusFilterExpressionBuilder().build([ { self.config.id_field: batch_vector_ids }, filter ])
 
-        return { "affected_rows": result["delete_count"] }
+            result = await client.delete(
+                collection_name=collection_name,
+                partition_name=partition_name,
+                filter=filter_expr
+            )
+            affected_rows += result["delete_count"]
+
+        return { "affected_rows": affected_rows }
+
+    async def _resolve_search_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        search_params = {}
+
+        metric_type = await context.render_variable(self.config.metric_type)
+        if metric_type:
+            search_params["metric_type"] = metric_type
+
+        return search_params
 
 @register_vector_store_service(VectorStoreDriver.MILVUS)
 class MilvusVectorStoreService(VectorStoreService):

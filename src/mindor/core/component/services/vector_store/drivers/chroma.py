@@ -92,6 +92,7 @@ class ChromaVectorStoreAction:
         vector_id       = await context.render_variable(self.config.vector_id)
         document        = await context.render_variable(self.config.document)
         metadata        = await context.render_variable(self.config.metadata)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
@@ -117,6 +118,7 @@ class ChromaVectorStoreAction:
         vector_id       = await context.render_variable(self.config.vector_id)
         vector          = await context.render_variable(self.config.vector)
         metadata        = await context.render_variable(self.config.metadata)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
@@ -125,12 +127,13 @@ class ChromaVectorStoreAction:
 
         collection: Collection = client.get_or_create_collection(name=collection_name)
 
-    async def _search(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+    async def _search(self, context: ComponentActionContext, client: ChromaClient) -> List[List[Dict[str, Any]]] | List[Dict[str, Any]]:
         collection_name = await context.render_variable(self.config.collection)
         query           = await context.render_variable(self.config.query)
         top_k           = await context.render_variable(self.config.top_k)
         filter          = await context.render_variable(self.config.filter)
         output_fields   = await context.render_variable(self.config.output_fields)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
         queries: List[List[float]] = [ query ] if is_single_input else query
@@ -150,6 +153,7 @@ class ChromaVectorStoreAction:
         collection_name = await context.render_variable(self.config.collection)
         vector_id       = await context.render_variable(self.config.vector_id)
         filter          = await context.render_variable(self.config.filter)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id

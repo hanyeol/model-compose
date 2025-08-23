@@ -137,7 +137,7 @@ class MilvusVectorStoreAction:
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-        metadatas: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
+        metadata: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
 
         data = []
         for index, vector in enumerate(vectors):
@@ -146,8 +146,8 @@ class MilvusVectorStoreAction:
             if vector_ids and index < len(vector_ids):
                 item.update({ self.config.id_field: vector_ids[index]})
 
-            if metadatas and index < len(metadatas):
-                item.update(metadatas[index])
+            if metadata and index < len(metadata):
+                item.update(metadata[index])
 
             data.append(item)
 
@@ -169,7 +169,7 @@ class MilvusVectorStoreAction:
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
         vectors: Optional[List[List[float]]] = [ vector ] if is_single_input and vector else vector
-        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+        metadata: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
 
         data = []
         for index, vector_id in enumerate(vector_ids):
@@ -178,8 +178,8 @@ class MilvusVectorStoreAction:
             if vectors and index < len(vectors):
                 item.update({ self.config.vector_field: vectors[index] })
 
-            if metadatas and index < len(metadatas):
-                item.update(metadatas[index])
+            if metadata and index < len(metadata):
+                item.update(metadata[index])
 
             data.append(item)
 

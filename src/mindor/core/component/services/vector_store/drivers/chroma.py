@@ -97,7 +97,7 @@ class ChromaVectorStoreAction:
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
         documents: Optional[List[str]] = [ document ] if is_single_input and document else document
-        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+        metadata: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
 
         if vector_ids is None:
             vector_ids = [ ulid.ulid() for _ in vectors ]
@@ -106,7 +106,7 @@ class ChromaVectorStoreAction:
         collection.add(
             ids=vector_ids,
             embeddings=vectors,
-            metadatas=metadatas,
+            metadata=metadata,
             documents=documents
         )
 
@@ -121,7 +121,7 @@ class ChromaVectorStoreAction:
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
         vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
-        metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
+        metadata: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
 
         collection: Collection = client.get_or_create_collection(name=collection_name)
 
@@ -141,7 +141,7 @@ class ChromaVectorStoreAction:
             query_embeddings=queries,
             n_results=int(top_k),
             where=where_spec,
-            include=[ "embeddings", "distances", "documents", "metadatas" ]
+            include=[ "embeddings", "distances", "documents", "metadata" ]
         )
 
         return result

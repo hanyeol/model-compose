@@ -21,12 +21,17 @@ class AttentionMode(str, Enum):
     FLASH_ATTENTION_2 = "flash_attention_2"
     MEM_EFFICIENT     = "mem_efficient"
 
+class ModelSourceConfig(BaseModel):
+    id: str = Field(..., description="Model identifier.")
+    provider: Optional[str] = Field(default=None, description="Model provider.")
+    revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
+    filename: Optional[str] = Field(default=None, description="Specific file inside the model repo.")
+
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    model: str = Field(..., description="Model name or path.")
-    revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
-    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model and tokenizer files.")
+    model: Union[str, ModelSourceConfig] = Field(..., description="Model source specification.")
+    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="")
     device: str = Field(default="cpu", description="Computation device to use.")

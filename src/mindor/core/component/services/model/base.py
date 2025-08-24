@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, DeviceMode
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelSourceConfig, DeviceMode
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
@@ -42,6 +42,10 @@ class ModelTaskService(AsyncService):
     def _get_common_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
+        if isinstance(self.config.model, ModelSourceConfig):
+            if self.config.model.revision:
+                params["revision"] = self.config.model.revision
+
         if self.config.device_mode != DeviceMode.SINGLE:
             params["device_map"] = self.config.device_mode.value
     
@@ -50,9 +54,6 @@ class ModelTaskService(AsyncService):
     
         if self.config.low_cpu_mem_usage:
             params["low_cpu_mem_usage"] = True
-
-        if self.config.revision:
-            params["revision"] = self.config.revision
 
         if self.config.cache_dir:
             params["cache_dir"] = self.config.cache_dir
@@ -75,12 +76,13 @@ class ModelTaskService(AsyncService):
 
     def _get_common_tokenizer_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
+
+        if isinstance(self.config.model, ModelSourceConfig):
+            if self.config.model.revision:
+                params["revision"] = self.config.model.revision
     
         if not self.config.fast_tokenizer:
             params["use_fast"] = False
-    
-        if self.config.revision:
-            params["revision"] = self.config.revision
 
         if self.config.cache_dir:
             params["cache_dir"] = self.config.cache_dir
@@ -104,9 +106,10 @@ class ModelTaskService(AsyncService):
     def _get_common_processor_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if self.config.revision:
-            params["revision"] = self.config.revision
-
+        if isinstance(self.config.model, ModelSourceConfig):
+            if self.config.model.revision:
+                params["revision"] = self.config.model.revision
+ 
         if self.config.cache_dir:
             params["cache_dir"] = self.config.cache_dir
 

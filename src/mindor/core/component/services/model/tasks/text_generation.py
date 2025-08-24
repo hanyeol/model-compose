@@ -5,7 +5,7 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer, StopStringCriteria
 from threading import Thread
 from torch import Tensor
 import torch, asyncio
@@ -21,10 +21,16 @@ class TextGenerationTaskAction:
         prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
 
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
+        min_output_length    = await context.render_variable(self.config.params.min_output_length)
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
+        do_sample            = await context.render_variable(self.config.params.do_sample)
         temperature          = await context.render_variable(self.config.params.temperature)
         top_k                = await context.render_variable(self.config.params.top_k)
         top_p                = await context.render_variable(self.config.params.top_p)
+        num_beams            = await context.render_variable(self.config.params.num_beams)
+        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        stop_sequences       = await context.render_variable(self.config.params.stop_sequences)
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
@@ -36,6 +42,7 @@ class TextGenerationTaskAction:
             raise ValueError("Streaming mode only supports a single input prompt with batch size of 1.")
 
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
+        stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
         for index in range(0, len(prompts), batch_size):
             batch_prompts = prompts[index:index + batch_size]
             inputs: Dict[str, Tensor] = self.tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
@@ -46,11 +53,18 @@ class TextGenerationTaskAction:
                     outputs = self.model.generate(
                         **inputs,
                         max_new_tokens=max_output_length,
+                        min_length=min_output_length,
                         num_return_sequences=num_return_sequences,
+                        do_sample=do_sample,
                         temperature=temperature,
-                        do_sample=True,
                         top_k=top_k,
                         top_p=top_p,
+                        num_beams=num_beams,
+                        length_penalty=length_penalty,
+                        early_stopping=early_stopping,
+                        pad_token_id=getattr(self.tokenizer, "pad_token_id", None),
+                        eos_token_id=getattr(self.tokenizer, "eos_token_id", None),
+                        stopping_criteria=stopping_criteria,
                         streamer=streamer
                     )
 

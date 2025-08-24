@@ -26,7 +26,7 @@ class ModelTaskService(AsyncService):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         pass
 
-    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:
+    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> Union[PreTrainedModel, torch.nn.Module]:
         params = self._get_common_model_params()
 
         if extra_params:

@@ -22,7 +22,7 @@ class AttentionMode(str, Enum):
     MEM_EFFICIENT     = "mem_efficient"
 
 class ModelSourceConfig(BaseModel):
-    id: str = Field(..., description="Model identifier.")
+    model_id: str = Field(..., description="Model identifier.")
     provider: Optional[str] = Field(default=None, description="Model provider.")
     revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
     filename: Optional[str] = Field(default=None, description="Specific file inside the model repo.")

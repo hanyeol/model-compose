@@ -30,7 +30,7 @@ class ModelSourceConfig(BaseModel):
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    model: Union[str, ModelSourceConfig] = Field(..., description="Model source specification.")
+    model: Union[str, ModelSourceConfig] = Field(..., description="Model source.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="")

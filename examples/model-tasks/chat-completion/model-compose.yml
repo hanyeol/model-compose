@@ -1,0 +1,24 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Chat Messages
+  description: Generate chat messages based on a given role message using a pretrained language model.
+  input: ${input}
+  output:
+    generated: ${output}
+
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  messages:
+    - role: system
+      content: ${input.system-prompt}
+    - role: user
+      content: ${input.user-prompt}

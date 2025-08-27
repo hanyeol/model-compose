@@ -1,5 +1,6 @@
 from .common import *
 from .text_generation import *
+from .chat_completion import *
 from .summarization import *
 from .translation import *
 from .text_classification import *

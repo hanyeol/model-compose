@@ -10,4 +10,4 @@ class HttpTunnelGatewayDriver(str, Enum):
 
 class CommonHttpTunnelGatewayConfig(CommonGatewayConfig):
     type: Literal[GatewayType.HTTP_TUNNEL]
-    driver: HttpTunnelGatewayDriver = Field(..., description="")
+    driver: HttpTunnelGatewayDriver = Field(..., description="HTTP tunneling service provider.")

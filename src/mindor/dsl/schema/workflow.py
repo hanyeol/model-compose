@@ -63,8 +63,8 @@ class WorkflowConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name of workflow.")
     title: Optional[str] = Field(default=None, description="Title of workflow.")
     description: Optional[str] = Field(default=None, description="Description of workflow.")
-    jobs: List[JobConfig] = Field(default_factory=list, description="")
-    default: bool = Field(default=False, description="")
+    jobs: List[JobConfig] = Field(default_factory=list, description="List of jobs that define the execution steps.")
+    default: bool = Field(default=False, description="Whether this workflow should be used as the default.")
 
     @model_validator(mode="before")
     def normalize_jobs(cls, values: Dict[str, Any]):

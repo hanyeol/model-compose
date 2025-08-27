@@ -3,4 +3,4 @@ from pydantic import BaseModel, Field
 from .types import RuntimeType
 
 class CommonRuntimeConfig(BaseModel):
-    type: RuntimeType = Field(..., description="")
+    type: RuntimeType = Field(..., description="Runtime environment type.")

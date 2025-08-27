@@ -33,7 +33,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     model: Union[str, ModelSourceConfig] = Field(..., description="Model source.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
-    device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="")
+    device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="cpu", description="Computation device to use.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")

@@ -19,6 +19,6 @@ class ImageToTextParamsConfig(BaseModel):
     batch_size: Union[int, str] = Field(default=1, description="Number of input images to process in a single batch.")
 
 class ImageToTextModelActionConfig(CommonModelInferenceActionConfig):
-    image: Union[Union[str, List[str]], str] = Field(..., description="")
+    image: Union[Union[str, List[str]], str] = Field(..., description="Input image for text generation.")
     prompt: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Input prompt to generate text from.")
     params: ImageToTextParamsConfig = Field(default_factory=ImageToTextParamsConfig, description="Image to text configuration parameters.")

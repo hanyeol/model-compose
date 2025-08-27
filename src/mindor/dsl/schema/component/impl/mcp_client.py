@@ -7,7 +7,7 @@ from .common import ComponentType, CommonComponentConfig
 class McpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_CLIENT]
     url: str = Field(..., description="URL of the MCP server to invoke tools.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers to include when connecting to the MCP server.")
     actions: List[McpClientActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

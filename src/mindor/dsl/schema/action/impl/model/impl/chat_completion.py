@@ -4,14 +4,14 @@ from pydantic import model_validator
 from .common import CommonModelInferenceActionConfig
 
 class ChatMessage(BaseModel):
-    role: str = Field(..., description="")
-    content: str = Field(..., description="")
+    role: str = Field(..., description="Role of the message sender.")
+    content: str = Field(..., description="Text content of the chat message.")
 
 class ToolCall(BaseModel):
     role: str = Field(default="assistant", description="Role for tool calls.")
     name: str = Field(..., description="Tool name.")
     call_id: str = Field(..., description="Tool call identifier.")
-    arguments: Dict[str, Any] = Field(default_factory=dict, description="")
+    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments passed to the tool function.")
 
 class ToolResult(BaseModel):
     role: str = Field(default="tool", description="Role for tool responses.")

@@ -7,4 +7,4 @@ from .types import VectorStoreDriver
 
 class CommonVectorStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_STORE]
-    driver: VectorStoreDriver = Field(..., description="")
+    driver: VectorStoreDriver = Field(..., description="Vector store backend driver.")

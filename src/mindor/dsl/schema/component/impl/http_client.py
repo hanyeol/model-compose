@@ -6,8 +6,8 @@ from .common import ComponentType, CommonComponentConfig
 
 class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]
-    base_url: Optional[str] = Field(default=None, description="")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="")
+    base_url: Optional[str] = Field(default=None, description="Base URL for HTTP requests.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Default HTTP headers to include in all requests.")
     actions: List[HttpClientActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

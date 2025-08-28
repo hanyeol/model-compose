@@ -1,7 +1,7 @@
 from typing import Optional, Callable, Awaitable, Any
 from abc import ABC, abstractmethod
 from threading import Thread
-import asyncio
+import asyncio, time
 
 class AsyncService(ABC):
     def __init__(self, daemon: bool):
@@ -34,6 +34,16 @@ class AsyncService(ABC):
             self.thread = None
         else:
             await self._stop()
+
+    async def wait_until_ready(self, timeout: int = 0) -> None:
+        start_time = time.monotonic()
+
+        while timeout <= 0 or time.monotonic() - start_time < timeout:
+            if await self._is_ready():
+                return
+            await asyncio.sleep(0.5)
+
+        raise TimeoutError(f"Service did not become ready within {timeout} seconds.")
 
     async def wait_until_stopped(self) -> None:
         if self.thread:
@@ -80,6 +90,9 @@ class AsyncService(ABC):
             await self._shutdown()
 
         self.started = False
+
+    async def _is_ready(self) -> bool:
+        return True
 
     async def _on_stop(self) -> None:
         pass

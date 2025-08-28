@@ -161,10 +161,19 @@ class HttpServerComponent(ComponentService):
 
     async def _serve(self) -> None:
         if self.config.manage.scripts.start:
-            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env, block=False)
+            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
 
     async def _shutdown(self) -> None:
         pass
+
+    async def _is_ready(self) -> bool:
+        try:
+            _, writer = await asyncio.open_connection("localhost", self.config.port)
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (ConnectionRefusedError, OSError):
+            return False
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await HttpServerAction(action).run(context, self.client)

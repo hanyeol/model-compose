@@ -5,8 +5,7 @@ import asyncio, os
 async def run_command_streaming(
     command: List[str],
     working_dir: Optional[str] = None,
-    env: Dict[str, str] = None,
-    block: bool = True
+    env: Dict[str, str] = None
 ) -> None:
     process = await asyncio.create_subprocess_exec(
         *command,
@@ -23,18 +22,11 @@ async def run_command_streaming(
                 break
             print(line.decode().rstrip())
 
-    if block:
-        stdout_task = asyncio.create_task(_stream_output(process.stdout))
-        stderr_task = asyncio.create_task(_stream_output(process.stderr))
-        await process.wait()
-        await stdout_task
-        await stderr_task
-    else:
-        await asyncio.gather(
-            _stream_output(process.stdout),
-            _stream_output(process.stderr),
-            process.wait()
-        )
+    await asyncio.gather(
+        _stream_output(process.stdout),
+        _stream_output(process.stderr),
+        process.wait()
+    )
 
 async def run_command(
     command: List[str],

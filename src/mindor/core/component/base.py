@@ -64,6 +64,10 @@ class ComponentService(AsyncService):
     async def teardown(self) -> None:
         await self._teardown()
 
+    async def start(self, background: bool = False) -> None:
+        await super().start(background)
+        await self.wait_until_ready()
+
     async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
@@ -96,6 +100,9 @@ class ComponentService(AsyncService):
 
     async def _shutdown(self) -> None:
         pass
+
+    async def _is_ready(self) -> bool:
+        return True
 
     @abstractmethod
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

@@ -24,7 +24,7 @@ component:
     model: gpt-4o
     messages:
       - role: user
-        content: ${input.prompt}
+        content: ${input.prompt as text}
     temperature: ${input.temperature as number | 0.7}
     stream: true
   stream_format: json

@@ -1,7 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from typing import TYPE_CHECKING
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.streamer import AsyncStreamer
@@ -303,6 +303,9 @@ class MilvusVectorStoreService(VectorStoreService):
         super().__init__(id, config, daemon)
 
         self.client: Optional[AsyncMilvusClient] = None
+
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [ "pymilvus" ]
 
     async def _serve(self) -> None:
         from pymilvus import AsyncMilvusClient

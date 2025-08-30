@@ -17,7 +17,7 @@ class ModelComponent(ComponentService):
     def __init__(self, id: str, config: ModelComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-        self.task_service = self._create_task_service(self.config.task)
+        self.task_service: ModelTaskService = self._create_task_service(self.config.task)
 
     def _create_task_service(self, type: ModelTaskType) -> ModelTaskService:
         try:
@@ -26,6 +26,17 @@ class ModelComponent(ComponentService):
             return ModelTaskServiceRegistry[type](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported model task type: {type}")
+
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        task_dependencies = self.task_service.get_setup_requirements()
+
+        return [ 
+            "transformers>=4.21.0",
+            "torch",
+            "sentencepiece",
+            "accelerate",
+            *(task_dependencies or [])
+        ]
 
     async def _serve(self) -> None:
         await self.task_service.start()

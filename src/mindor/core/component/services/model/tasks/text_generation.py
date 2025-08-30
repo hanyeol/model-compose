@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
@@ -7,11 +10,8 @@ from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 import asyncio
 
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer, StopStringCriteria
+    from transformers import PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer, StopStringCriteria
     from threading import Thread
     from torch import Tensor
     import torch
@@ -24,6 +24,8 @@ class TextGenerationTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        import torch
+
         prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
 
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
@@ -126,7 +128,9 @@ class TextGenerationTaskService(ModelTaskService):
         return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        from transformers import AutoModelForCausalLM
         return AutoModelForCausalLM
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        from transformers import AutoTokenizer
         return AutoTokenizer

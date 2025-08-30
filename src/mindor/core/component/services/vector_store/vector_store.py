@@ -17,7 +17,7 @@ class VectorStoreComponent(ComponentService):
     def __init__(self, id: str, config: VectorStoreComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-        self.store_service = self._create_store_service(self.config.driver)
+        self.store_service: VectorStoreService = self._create_store_service(self.config.driver)
 
     def _create_store_service(self, driver: VectorStoreDriver) -> VectorStoreService:
         try:
@@ -27,6 +27,9 @@ class VectorStoreComponent(ComponentService):
         except KeyError:
             raise ValueError(f"Unsupported vector store driver: {driver}")
 
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return self.store_service.get_setup_requirements()
+    
     async def _serve(self) -> None:
         await self.store_service.start()
 

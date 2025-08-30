@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
@@ -6,11 +9,8 @@ from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 import asyncio
 
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+    from transformers import PreTrainedModel, PreTrainedTokenizer
     from transformers.modeling_outputs import BaseModelOutput
     from torch import Tensor
     import torch
@@ -23,6 +23,8 @@ class TextEmbeddingTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext) -> Any:
+        import torch, torch.nn.functional as F
+
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         max_input_length = await context.render_variable(self.config.params.max_input_length)
@@ -50,7 +52,7 @@ class TextEmbeddingTaskAction:
                 embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
                 if normalize:
-                    embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1, eps=1e-12)
+                    embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
                 embeddings = embeddings.cpu().tolist()
 
@@ -89,6 +91,8 @@ class TextEmbeddingTaskAction:
                 return results
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
+        import torch
+
         if pooling == "mean":
             if attention_mask is not None:
                 mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size())
@@ -137,7 +141,9 @@ class TextEmbeddingTaskService(ModelTaskService):
         return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        from transformers import AutoModel
         return AutoModel
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        from transformers import AutoTokenizer
         return AutoTokenizer

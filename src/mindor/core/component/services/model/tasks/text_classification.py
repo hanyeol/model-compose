@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
@@ -6,13 +9,9 @@ from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
 import asyncio
 
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+    from transformers import PreTrainedModel, PreTrainedTokenizer
     from transformers.modeling_outputs import SequenceClassifierOutput
-    import torch.nn.functional as F
     from torch import Tensor
     import torch
 
@@ -24,6 +23,8 @@ class TextClassificationTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
+        import torch, torch.nn.functional as F
+
         text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
         return_probabilities = await context.render_variable(self.config.params.return_probabilities)
@@ -121,7 +122,9 @@ class TextClassificationTaskService(ModelTaskService):
         return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        from transformers import AutoModelForSequenceClassification
         return AutoModelForSequenceClassification
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        from transformers import AutoTokenizer
         return AutoTokenizer

@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Protocol, Any
 from mindor.dsl.schema.component import ModelComponentConfig, ImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
@@ -8,9 +11,6 @@ from ..base import ComponentActionContext
 from PIL import Image as PILImage
 from threading import Thread
 import asyncio
-
-from __future__ import annotations
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, TextIteratorStreamer, StopStringCriteria
@@ -28,6 +28,8 @@ class ImageToTextTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        import torch
+
         image: Union[PILImage.Image, List[PILImage.Image]] = await context.render_image(self.config.image)
         prompt: Optional[Union[str, List[str]]] = await context.render_variable(self.config.prompt)
 

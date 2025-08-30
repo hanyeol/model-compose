@@ -7,6 +7,8 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
+from mindor.core.utils.package import extract_module_name, is_module_installed, install_package
+from mindor.core.logger import logging
 from .context import ComponentActionContext
 
 class ActionResolver:
@@ -59,6 +61,10 @@ class ComponentService(AsyncService):
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     async def setup(self) -> None:
+        dependencies = self._get_setup_requirements()
+        if dependencies:
+            await self._install_packages(dependencies)
+
         await self._setup()
 
     async def teardown(self) -> None:
@@ -82,6 +88,9 @@ class ComponentService(AsyncService):
 
     async def _teardown(self) -> None:
         pass
+
+    async def _get_setup_requirements(self) -> Optional[List[str]]:
+        return None
 
     async def _start(self) -> None:
         if self.queue:
@@ -107,6 +116,13 @@ class ComponentService(AsyncService):
     @abstractmethod
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
+
+    async def _install_packages(self, packages: List[str]) -> None:
+        for package_spec in packages:
+            module_name = extract_module_name(package_spec)
+            if not is_module_installed(module_name):
+                logging.info(f"Installing missing module: {package_spec}")
+                await install_package(package_spec)
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

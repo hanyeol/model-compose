@@ -73,9 +73,11 @@ class ControllerService(AsyncService):
                 await self._stop_loggers()
                 return
 
+            await self._start_loggers()
             await self._setup_components()
             await self.start()
             await self.wait_until_stopped()
+            await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -100,8 +102,10 @@ class ControllerService(AsyncService):
 
     async def start_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
+            await self._start_loggers()
             await self.start()
             await self.wait_until_stopped()
+            await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -147,8 +151,6 @@ class ControllerService(AsyncService):
         if self.task_queue:
             await self.task_queue.start()
 
-        await self._start_loggers()
-
         if self.daemon:
             await self._start_gateways()
             await self._start_listeners()
@@ -174,9 +176,6 @@ class ControllerService(AsyncService):
                 await self._stop_webui()
 
         await super()._stop()
-
-    async def _on_stop(self) -> None:
-        await self._stop_loggers()
 
     async def _watch_stop_request(self, interval: float = 1.0) -> None:
         stop_file = Path.cwd() / ".stop"

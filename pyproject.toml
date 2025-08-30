@@ -21,10 +21,6 @@ dependencies = [
     "ulid", 
     "gradio",
     "Pillow",
-    "transformers>=4.21.0",
-    "torch",
-    "sentencepiece",
-    "accelerate",
     "docker"
 ]
 

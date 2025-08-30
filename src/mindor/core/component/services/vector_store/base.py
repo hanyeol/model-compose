@@ -12,6 +12,9 @@ class VectorStoreService(AsyncService):
         self.id: str = id
         self.config: VectorStoreComponentConfig = config
 
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return None
+
     async def run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)
 

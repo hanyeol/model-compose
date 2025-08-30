@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelSourceConfig, DeviceMode
@@ -5,9 +8,6 @@ from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
 import asyncio
-
-from __future__ import annotations
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
@@ -19,6 +19,9 @@ class ModelTaskService(AsyncService):
 
         self.id: str = id
         self.config: ModelComponentConfig = config
+
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return None
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()

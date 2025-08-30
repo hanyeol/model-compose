@@ -110,7 +110,7 @@ class TextGenerationTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        if self._is_model_namespace("unsloth"):
+        if self.config.driver == "unsloth":
             return [ "unsloth" ]
 
         return None
@@ -134,7 +134,7 @@ class TextGenerationTaskService(ModelTaskService):
         return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self._is_model_namespace("unsloth"):
+        if self.config.driver == "unsloth":
             from unsloth import FastLanguageModel
             return FastLanguageModel
 

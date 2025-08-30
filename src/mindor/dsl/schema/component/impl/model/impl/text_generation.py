@@ -1,4 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
@@ -6,6 +7,7 @@ from .common import CommonModelComponentConfig, ModelTaskType
 
 class TextGenerationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_GENERATION]
+    driver: Literal[ "huggingface", "unsloth" ] = Field(default="huggingface")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

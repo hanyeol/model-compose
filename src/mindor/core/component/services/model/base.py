@@ -75,12 +75,6 @@ class ModelTaskService(AsyncService):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         raise NotImplementedError("Model class loader not implemented.")
 
-    def _is_model_namespace(self, namespace: str) -> bool:
-        if isinstance(self.config.model, ModelSourceConfig):
-            return self.config.model.model_id.startswith(f"{namespace}/")
-        
-        return self.config.model.startswith(f"{namespace}/")
-
     def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedTokenizer:
         params = self._get_common_tokenizer_params()
  

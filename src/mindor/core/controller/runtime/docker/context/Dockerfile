@@ -26,12 +26,7 @@ RUN pip install --no-cache-dir \
     pyngrok \
     ulid \
     gradio \
-    Pillow \
-    'transformers>=4.21.0' \
-    torch \
-    sentencepiece \
-    accelerate \
-    docker
+    Pillow
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

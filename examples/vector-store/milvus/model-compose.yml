@@ -74,10 +74,10 @@ components:
   - id: vector-store
     type: vector-store
     driver: milvus
-    host: 172.31.20.209
+    host: localhost
     port: 19530
     protocol: http
-    database: sbs_saas_dev
+    database: test
     actions:
       - id: insert
         collection: test

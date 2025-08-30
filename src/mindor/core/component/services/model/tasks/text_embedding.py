@@ -4,10 +4,16 @@ from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelAction
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
-from transformers.modeling_outputs import BaseModelOutput
-from torch import Tensor
-import torch, asyncio
+import asyncio
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+    from transformers.modeling_outputs import BaseModelOutput
+    from torch import Tensor
+    import torch
 
 class TextEmbeddingTaskAction:
     def __init__(self, config: TextEmbeddingModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):

@@ -4,11 +4,17 @@ from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelA
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
-from transformers.modeling_outputs import SequenceClassifierOutput
-import torch.nn.functional as F
-from torch import Tensor
-import torch, asyncio
+import asyncio
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+    from transformers.modeling_outputs import SequenceClassifierOutput
+    import torch.nn.functional as F
+    from torch import Tensor
+    import torch
 
 class TextClassificationTaskAction:
     def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):

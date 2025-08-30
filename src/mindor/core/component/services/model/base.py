@@ -4,8 +4,14 @@ from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, Mod
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.services import AsyncService
 from ...context import ComponentActionContext
-from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
-import torch, asyncio
+import asyncio
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
+    import torch
 
 class ModelTaskService(AsyncService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

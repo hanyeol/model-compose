@@ -5,11 +5,17 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
-from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, TextIteratorStreamer, StopStringCriteria
 from PIL import Image as PILImage
 from threading import Thread
-from torch import Tensor
-import torch, asyncio
+import asyncio
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, TextIteratorStreamer, StopStringCriteria
+    from torch import Tensor
+    import torch
 
 class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer

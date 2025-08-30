@@ -117,9 +117,13 @@ class TextGenerationTaskService(ModelTaskService):
 
     async def _serve(self) -> None:
         try:
-            self.model = self._load_pretrained_model()
-            self.tokenizer = self._load_pretrained_tokenizer()
-            self.device = self._get_model_device(self.model)
+            if self.config.driver == "unsloth":
+                self.model, self.tokenizer = self._load_pretrained_model()
+                self.device = self._get_model_device(self.model)
+            else:
+                self.model = self._load_pretrained_model()
+                self.tokenizer = self._load_pretrained_tokenizer()
+                self.device = self._get_model_device(self.model)
             logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")

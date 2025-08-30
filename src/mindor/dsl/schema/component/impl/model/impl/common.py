@@ -23,7 +23,7 @@ class AttentionMode(str, Enum):
 
 class ModelSourceConfig(BaseModel):
     model_id: str = Field(..., description="Model identifier.")
-    provider: Optional[str] = Field(default=None, description="Model provider.")
+    provider: Literal[ "huggingface" ] = Field(default="huggingface", description="Model provider.")
     revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
     filename: Optional[str] = Field(default=None, description="Specific file inside the model repo.")
 
@@ -31,7 +31,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
     driver: Literal[ "huggingface" ] = Field(default="huggingface", description="")
-    model: Union[str, ModelSourceConfig] = Field(..., description="Model source.")
+    model: Union[str, ModelSourceConfig] = Field(..., description="Model source configuration.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")

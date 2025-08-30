@@ -136,7 +136,17 @@ class TextGenerationTaskService(ModelTaskService):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+    
+    def _get_common_model_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = super()._get_common_model_params()
 
+        if self.config.driver == "unsloth":
+            params["dtype"] = None
+            params["load_in_4bit"] = True
+            params["use_cache"] = True
+
+        return params
+    
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.driver == "unsloth":
             from unsloth import FastLanguageModel

@@ -7,7 +7,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
-from mindor.core.utils.package import extract_module_name, is_module_installed, install_package
+from mindor.core.utils.package import install_package, parse_requirement, is_requirement_satisfied
 from mindor.core.logger import logging
 from .context import ComponentActionContext
 
@@ -119,8 +119,8 @@ class ComponentService(AsyncService):
 
     async def _install_packages(self, packages: List[str]) -> None:
         for package_spec in packages:
-            module_name = extract_module_name(package_spec)
-            if not is_module_installed(module_name):
+            requirement = parse_requirement(package_spec)
+            if not requirement or not is_requirement_satisfied(requirement):
                 logging.info(f"Installing missing module: {package_spec}")
                 await install_package(package_spec)
 

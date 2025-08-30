@@ -1,7 +1,9 @@
+from typing import Optional
+from packaging.requirements import Requirement, SpecifierSet
+from packaging.utils import canonicalize_name
+from importlib.metadata import version, PackageNotFoundError
 import sys, subprocess, re
 import asyncio
-
-_VERSION_SPEC_PATTERN = re.compile(r'^([a-zA-Z0-9_\-\.]+)([><=!]+.*)?$')
 
 async def install_package(package_spec: str) -> None:
     """Install a package using pip.
@@ -25,33 +27,37 @@ async def install_package(package_spec: str) -> None:
             stderr=stderr
         )
 
-def extract_module_name(package_spec: str) -> str:
-    """Extract module name from package specification.
+def parse_requirement(package_spec: str) -> Optional[Requirement]:
+    """Attempt to parse the package specification as a PEP 508 requirement.
 
     Args:
-        package_spec: Package specification like "torch>=2.0.0" or "transformers"
-        
-    Returns:
-        Module name for importing (e.g., "torch" from "torch>=2.0.0")
-    """
-    match = re.match(_VERSION_SPEC_PATTERN, package_spec)
-    
-    if match:
-        return match.group(1)
-    
-    return None
+        package_spec: A package specification string (e.g., "torch>=2.0.0")
 
-def is_module_installed(module_name: str) -> bool:
-    """Check if a module is installed and importable.
-    
-    Args:
-        module_name: Name of the module to check
-        
     Returns:
-        True if module can be imported, False otherwise
-    """
+        A Requirement object if the specification can be parsed, None otherwise
+    """    
     try:
-        __import__(module_name)
-        return True
-    except ImportError:
+        return Requirement(package_spec)
+    except Exception:
+        return None
+
+def is_requirement_satisfied(requirement: Requirement) -> bool:
+    """Check whether the installed version of a package satisfies the given requirement.
+
+    Args:
+        requirement: Requirement object specifying the package name and version constraints.
+
+    Returns:
+        True if the package is installed and its version meets the requirement, False otherwise.
+    """
+    distribution_name = canonicalize_name(requirement.name)
+    try:
+        installed_version = version(distribution_name)  # e.g. "4.41.2"
+    except PackageNotFoundError:
         return False
+
+    specifier: SpecifierSet = requirement.specifier
+    if not specifier:
+        return True
+
+    return specifier.contains(installed_version, prereleases=True)

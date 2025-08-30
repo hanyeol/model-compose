@@ -7,7 +7,6 @@ from .common import CommonModelComponentConfig, ModelTaskType
 
 class TextGenerationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_GENERATION]
-    driver: Literal[ "huggingface", "unsloth" ] = Field(default="huggingface")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

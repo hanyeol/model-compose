@@ -109,21 +109,11 @@ class TextGenerationTaskService(ModelTaskService):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
-        if self.config.driver == "unsloth":
-            return [ "unsloth", "bitsandbytes" ]
-
-        return None
-
     async def _serve(self) -> None:
         try:
-            if self.config.driver == "unsloth":
-                self.model, self.tokenizer = self._load_pretrained_model()
-                self.device = self._get_model_device(self.model)
-            else:
-                self.model = self._load_pretrained_model()
-                self.tokenizer = self._load_pretrained_tokenizer()
-                self.device = self._get_model_device(self.model)
+            self.model = self._load_pretrained_model()
+            self.tokenizer = self._load_pretrained_tokenizer()
+            self.device = self._get_model_device(self.model)
             logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
@@ -137,21 +127,7 @@ class TextGenerationTaskService(ModelTaskService):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
     
-    def _get_common_model_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = super()._get_common_model_params()
-
-        if self.config.driver == "unsloth":
-            params["dtype"] = None
-            params["load_in_4bit"] = True
-            params["use_cache"] = True
-
-        return params
-    
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.driver == "unsloth":
-            from unsloth import FastLanguageModel
-            return FastLanguageModel
-
         from transformers import AutoModelForCausalLM
         return AutoModelForCausalLM
 

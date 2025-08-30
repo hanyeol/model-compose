@@ -111,7 +111,7 @@ class TextGenerationTaskService(ModelTaskService):
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         if self.config.driver == "unsloth":
-            return [ "unsloth" ]
+            return [ "unsloth", "bitsandbytes" ]
 
         return None
 

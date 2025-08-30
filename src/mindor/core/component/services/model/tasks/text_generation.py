@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
@@ -109,6 +109,12 @@ class TextGenerationTaskService(ModelTaskService):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
         self.device: Optional[torch.device] = None
 
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        if self._is_model_namespace("unsloth"):
+            return [ "unsloth" ]
+
+        return None
+
     async def _serve(self) -> None:
         try:
             self.model = self._load_pretrained_model()
@@ -128,6 +134,10 @@ class TextGenerationTaskService(ModelTaskService):
         return await TextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        if self._is_model_namespace("unsloth"):
+            from unsloth import FastLanguageModel
+            return FastLanguageModel
+
         from transformers import AutoModelForCausalLM
         return AutoModelForCausalLM
 

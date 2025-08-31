@@ -16,7 +16,7 @@ class IfConditionOperator(str, Enum):
     STARTS_WITH = "starts-with"
     ENDS_WITH   = "ends-with"
     MATCH       = "match"
-
+ 
 class IfConditionConfig(BaseModel):
     operator: IfConditionOperator = Field(default=IfConditionOperator.EQ, description="Condition operator.")
     input: Optional[Any] = Field(default=None, description="Input to evaluate.")

@@ -9,7 +9,9 @@ from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
 import gradio as gr
-import json
+import json, re
+
+_variable_name_regex = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
@@ -193,20 +195,39 @@ class GradioWebUIBuilder:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
-                group = output[variable.name] if isinstance(output, dict) and variable.name in output else None if variable.name else output
+                group = self._resolve_variable_output(output, variable)
                 for value in group or ():
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
-                value = output[variable.name] if isinstance(output, dict) and variable.name in output else None if variable.name else output
+                value = self._resolve_variable_output(output, variable)
                 flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 
+    def _resolve_variable_output(self, output: Any, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Any:
+        if isinstance(output, dict) and variable.name:
+            m = re.match(_variable_name_regex, variable.name)
+            if not m:
+                return None
+
+            name, index = m.group(1, 2)
+            if name not in output:
+                return None
+
+            if isinstance(output[name], list) and index:
+                if int(index) < len(output[name]):
+                    return output[name][int(index)]
+                return None
+
+            return output[name]
+
+        return None if variable.name else output
+
     async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
         if format == WorkflowVariableFormat.SSE_JSON:
-            return await self._resolve_json_field_from_bytes(value, subtype, format)
+            return self._resolve_json_field_from_bytes(value, subtype, format)
 
         if type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
-            return await self._convert_value_to_string(value, subtype, format)
+            return self._convert_value_to_string(value, subtype, format)
 
         if type == WorkflowVariableType.IMAGE:
             return await self._load_image_from_value(value, subtype, format)
@@ -216,7 +237,7 @@ class GradioWebUIBuilder:
 
         return value
 
-    async def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+    def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
         if isinstance(value, (dict, list)):
             return json.dumps(value)
         
@@ -228,7 +249,7 @@ class GradioWebUIBuilder:
 
         return None
     
-    async def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
+    def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
         try:
             return self.field_resolver.resolve(json.loads(value), subtype)
         except Exception:

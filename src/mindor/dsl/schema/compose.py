@@ -24,7 +24,7 @@ class ComposeConfig(BaseModel):
             if component_values:
                 values["components"] = [ component_values ]
         return values
-    
+
     @model_validator(mode="before")
     def inflate_single_listener(cls, values: Dict[str, Any]):
         if "listeners" not in values:

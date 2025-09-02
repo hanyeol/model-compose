@@ -124,7 +124,7 @@ class HttpServerController(ControllerService):
         )
 
     def _configure_routes(self) -> None:
-        @self.router.post("/workflows/runs")
+        @self.router.post("/workflows/__default__/runs")
         async def run_default_workflow(
             request: Request
         ):

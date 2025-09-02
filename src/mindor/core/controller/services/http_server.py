@@ -19,8 +19,7 @@ from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 import uvicorn
 
-class WorkflowTaskRequestBody(BaseModel):
-    workflow_id: Optional[str] = None
+class WorkflowRunRequestBody(BaseModel):
     input: Optional[Any] = None
     wait_for_completion: bool = True
     output_only: bool = False
@@ -74,6 +73,7 @@ class WorkflowSchemaResult(BaseModel):
     description: Optional[str] = None
     input: List[WorkflowVariableResult]
     output: List[Union[WorkflowVariableResult, WorkflowVariableGroupResult]]
+    default: bool = False
 
     @classmethod
     def from_instance(cls, instance: WorkflowSchema) -> Self:
@@ -83,10 +83,11 @@ class WorkflowSchemaResult(BaseModel):
             description=instance.description,
             input=[ cls._to_variable_result(variable) for variable in instance.input ],
             output=[ cls._to_variable_result(variable) for variable in instance.output ],
+            default=instance.default
         )
-    
+
     @classmethod
-    def _to_variable_result(cls, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig ]) -> Union[WorkflowVariableResult, WorkflowVariableGroupResult]:
+    def _to_variable_result(cls, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[WorkflowVariableResult, WorkflowVariableGroupResult]:
         if isinstance(variable, WorkflowVariableGroupConfig):
             return WorkflowVariableGroupResult.from_instance(variable)
         return WorkflowVariableResult.from_instance(variable)
@@ -123,23 +124,34 @@ class HttpServerController(ControllerService):
         )
 
     def _configure_routes(self) -> None:
-        @self.router.post("/workflows")
-        async def run_workflow(
+        @self.router.post("/workflows/runs")
+        async def run_default_workflow(
             request: Request
         ):
-            body = await self._parse_workflow_body(request)
-            state = await self.run_workflow(body.workflow_id, body.input, body.wait_for_completion)
+            return await self._handle_workflow_run_request(request, None)
 
-            if body.output_only and not body.wait_for_completion:
-                raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
-            
-            if not body.output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
-                raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
+        @self.router.post("/workflows/{workflow_id}/runs")
+        async def run_workflow(
+            request: Request,
+            workflow_id: str
+        ):
+            if workflow_id not in self.workflow_schemas:
+                raise HTTPException(status_code=404, detail="Workflow not found.")
 
-            if body.output_only:
-                return self._render_task_output(state)
-            
-            return self._render_task_state(state)
+            return await self._handle_workflow_run_request(request, workflow_id)
+
+        @self.router.get("/workflows/schemas")
+        async def get_workflow_schemas():
+            return self._render_workflow_schemas(self.workflow_schemas)
+
+        @self.router.get("/workflows/{workflow_id}/schema")
+        async def get_workflow_schema(
+            workflow_id: str
+        ):
+            if workflow_id not in self.workflow_schemas:
+                raise HTTPException(status_code=404, detail="Workflow not found.")
+
+            return self._render_workflow_schema(self.workflow_schemas[workflow_id])
 
         @self.router.get("/tasks/{task_id}")
         async def get_task_state(
@@ -151,34 +163,7 @@ class HttpServerController(ControllerService):
             if not state:
                 raise HTTPException(status_code=404, detail="Task not found.")
             
-            if not output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
-                raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
-
-            if output_only:
-                return self._render_task_output(state)
-
-            return self._render_task_state(state)
-
-        @self.router.get("/tasks/{task_id}/jobs")
-        async def get_task_jobs(
-            task_id: str
-        ):
-            return None
-
-        @self.router.get("/workflows")
-        async def get_workflow_schemas():
-            return self._render_workflow_schemas(self.workflow_schemas)
-
-        @self.router.get("/workflows/{workflow_id}")
-        async def get_workflow_schema(
-            workflow_id: str,
-        ):
-            workflow = self.workflow_schemas[workflow_id] if workflow_id in self.workflow_schemas else None
-
-            if not workflow:
-                raise HTTPException(status_code=404, detail="Workflow not found.")
-
-            return self._render_workflow_schema(workflow)
+            return self._render_task_response(state, output_only)
 
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(
@@ -196,7 +181,16 @@ class HttpServerController(ControllerService):
         if self.server:
             self.server.should_exit = True
 
-    async def _parse_workflow_body(self, request: Request) -> WorkflowTaskRequestBody:
+    async def _handle_workflow_run_request(self, request: Request, workflow_id: Optional[str]) -> Response:
+        body = await self._parse_workflow_run_body(request)
+        state = await self.run_workflow(workflow_id, body.input, body.wait_for_completion)
+
+        if body.output_only and not body.wait_for_completion:
+            raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
+
+        return self._render_task_response(state, body.output_only)
+
+    async def _parse_workflow_run_body(self, request: Request) -> WorkflowRunRequestBody:
         content_type, _ = parse_options_header(request.headers, "Content-Type")
 
         if content_type not in [ "application/json", "multipart/form-data", "application/x-www-form-urlencoded" ]:
@@ -206,9 +200,18 @@ class HttpServerController(ControllerService):
                 raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
 
         try:
-            return WorkflowTaskRequestBody(**await parse_request_body(request, content_type, nested=True))
+            return WorkflowRunRequestBody(**await parse_request_body(request, content_type, nested=True))
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
+
+    def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
+        if not output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
+            raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
+
+        if output_only:
+            return self._render_task_output(state)
+
+        return self._render_task_state(state)
 
     def _render_task_state(self, state: TaskState) -> Response:
         return JSONResponse(content=TaskResult.from_instance(state).model_dump(exclude_none=True))

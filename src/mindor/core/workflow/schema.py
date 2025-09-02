@@ -292,7 +292,8 @@ class WorkflowSchema:
         title: Optional[str], 
         description: Optional[str], 
         input: List[WorkflowVariableConfig], 
-        output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
+        output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
+        default: bool
     ):
         self.workflow_id: str = workflow_id
         self.name: Optional[str] = name
@@ -300,6 +301,7 @@ class WorkflowSchema:
         self.description: Optional[str] = description
         self.input: List[WorkflowVariableConfig] = input
         self.output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = output
+        self.default: bool = default
 
 def create_workflow_schemas(workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> Dict[str, WorkflowSchema]:
     schema: Dict[str, WorkflowSchema] = {}
@@ -311,7 +313,8 @@ def create_workflow_schemas(workflows: List[WorkflowConfig], components: List[Co
             title=workflow.title, 
             description=workflow.description,
             input=WorkflowInputVariableResolver().resolve(workflow, workflows, components),
-            output=WorkflowOutputVariableResolver().resolve(workflow, workflows, components)
+            output=WorkflowOutputVariableResolver().resolve(workflow, workflows, components),
+            default=workflow.default
         )
 
     return schema

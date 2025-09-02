@@ -27,7 +27,7 @@ class ComposeManager:
     async def stop_services(self, verbose: bool):
         await self.controller.stop_services(verbose)
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], output_path: Optional[str], verbose: bool) -> TaskState:
+    async def run_workflow(self, workflow_id: str, input: Dict[str, Any], output_path: Optional[str], verbose: bool) -> TaskState:
         if not self.controller.started:
             await self.controller.start()
 

@@ -183,7 +183,7 @@ def run_command(
             env = merge_env_data(env, env_data)
             config = load_compose_config(".", config_files, env)
             input = json.loads(input_json) if input_json else {}
-            state = await run_workflow(config, workflow_id, input, output_path, verbose)
+            state = await run_workflow(config, workflow_id or "__default__", input, output_path, verbose)
             if isinstance(state.output, (dict, list)) or state.error:
                 click.echo(json.dumps(
                     state.output or state.error,

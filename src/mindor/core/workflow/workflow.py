@@ -57,25 +57,20 @@ class WorkflowResolver:
     def __init__(self, workflows: List[WorkflowConfig]):
         self.workflows: List[WorkflowConfig] = workflows
 
-    def resolve(self, workflow_id: Optional[str]) -> Tuple[str, WorkflowConfig]:
-        workflow_id = workflow_id or self._find_default_id(self.workflows)
-        workflow = next((workflow for workflow in self.workflows if workflow.id == workflow_id), None)
+    def resolve(self, workflow_id: str, raise_on_error: bool = True) -> Union[Tuple[str, WorkflowConfig], Tuple[None, None]]:
+        if workflow_id == "__default__":
+            workflow = self.workflows[0] if len(self.workflows) == 1 else None
+            workflow = workflow or next((workflow for workflow in self.workflows if workflow.default), None)
+        else:
+            workflow = next((workflow for workflow in self.workflows if workflow.id == workflow_id), None)
 
         if workflow is None:
-            raise ValueError(f"Workflow not found: {workflow_id}")
+            if raise_on_error:
+                raise ValueError(f"Workflow not found: {workflow_id}")
+            else:
+                return (None, None)
 
-        return workflow_id, workflow
-
-    def _find_default_id(self, workflows: List[WorkflowConfig]) -> str:
-        default_ids = [ workflow.id for workflow in workflows if workflow.default or workflow.id == "__default__" ]
-
-        if len(default_ids) > 1:
-            raise ValueError("Multiple workflows have default: true")
-
-        if not default_ids:
-            raise ValueError("No default workflow defined.")
-
-        return default_ids[0]
+        return workflow.id, workflow
 
 class WorkflowRunner:
     def __init__(self, id: str, jobs: List[JobConfig], global_configs: ComponentGlobalConfigs):

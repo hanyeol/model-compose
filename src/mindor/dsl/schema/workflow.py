@@ -59,7 +59,7 @@ class WorkflowVariableGroupConfig(BaseModel):
     repeat_count: int = Field(default=1, description="The number of times this group of variables should be repeated.")
 
 class WorkflowConfig(BaseModel):
-    id: str = Field(default="__default__", description="ID of workflow.")
+    id: str = Field(default="__workflow__", description="ID of workflow.")
     name: Optional[str] = Field(default=None, description="Name of workflow.")
     title: Optional[str] = Field(default=None, description="Title of workflow.")
     description: Optional[str] = Field(default=None, description="Description of workflow.")
@@ -93,3 +93,9 @@ class WorkflowConfig(BaseModel):
         for job in jobs:
             if job["type"] == "delay" and "mode" not in job:
                 job["mode"] = DelayJobMode.TIME_INTERVAL
+
+    @field_validator("id")
+    def validate_id(cls, value):
+        if value == "__default__":
+            raise ValueError("Workflow id cannot be '__default__'")
+        return value

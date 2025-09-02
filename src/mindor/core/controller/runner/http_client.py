@@ -12,6 +12,7 @@ class HttpControllerClient(ControllerClient):
         self.client: HttpClient = HttpClient(self._resolve_controller_url())
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
+        url = f"/workflows/{workflow_id or '__default__'}/runs"
         body = {
             "input": input,
             "wait_for_completion": True,
@@ -27,7 +28,7 @@ class HttpControllerClient(ControllerClient):
                 "Content-Type": "multipart/form-data"
             }
 
-        return await self.client.request(f"/workflows/{workflow_id}/runs", "POST", None, body, headers)
+        return await self.client.request(url, "POST", None, body, headers)
 
     async def close(self) -> None:
         await self.client.close()

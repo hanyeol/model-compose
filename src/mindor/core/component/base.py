@@ -15,25 +15,20 @@ class ActionResolver:
     def __init__(self, actions: List[ActionConfig]):
         self.actions: List[ActionConfig] = actions
 
-    def resolve(self, action_id: Optional[str]) -> Tuple[str, ActionConfig]:
-        action_id = action_id or self._find_default_id(self.actions)
-        action = next((action for action in self.actions if action.id == action_id), None)
+    def resolve(self, action_id: str, raise_on_error: bool = True) -> Union[Tuple[str, ActionConfig], Tuple[None, None]]:
+        if action_id == "__default__":
+            action = self.actions[0] if len(self.actions) == 1 else None
+            action = action or next((action for action in self.actions if action.default), None)
+        else:
+            action = next((action for action in self.actions if action.id == action_id), None)
 
         if action is None:
-            raise ValueError(f"Action not found: {action_id}")
+            if raise_on_error:
+                raise ValueError(f"Action not found: {action_id}")
+            else:
+                return (None, None)
 
-        return action_id, action
-
-    def _find_default_id(self, actions: List[ActionConfig]) -> str:
-        default_ids = [ action.id for action in actions if action.default or action.id == "__default__" ]
-
-        if len(default_ids) > 1: 
-            raise ValueError("Multiple actions have default: true")
-
-        if not default_ids:
-            raise ValueError("No default action defined.")
-
-        return default_ids[0]
+        return action.id, action
 
 class ComponentGlobalConfigs:
     def __init__(
@@ -74,7 +69,7 @@ class ComponentService(AsyncService):
         await super().start(background)
         await self.wait_until_ready()
 
-    async def run(self, action_id: Union[str, None], run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, action_id: str, run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
 

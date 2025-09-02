@@ -127,7 +127,7 @@ class ControllerService(AsyncService):
             await self._stop_loggers()
             return
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
+    async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
         task_id = ulid.ulid()
         state = TaskState(task_id=task_id, status=TaskStatus.PENDING)
         with self.task_states_lock:
@@ -232,7 +232,7 @@ class ControllerService(AsyncService):
 
     def _create_components(self) -> List[ComponentService]:
         global_configs = self._get_component_global_configs()
-        return [ create_component(component.id, component, global_configs, self.daemon) for component in self.components ]
+        return [ create_component(component.id or "__default__", component, global_configs, self.daemon) for component in self.components ]
     
     def _create_loggers(self) -> List[LoggerService]:
         return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
@@ -253,7 +253,7 @@ class ControllerService(AsyncService):
     def _get_default_logger_config(self) -> LoggerConfig:
         return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
 
-    async def _run_workflow(self, task_id: str, workflow_id: Optional[str], input: Dict[str, Any]) -> TaskState:
+    async def _run_workflow(self, task_id: str, workflow_id: str, input: Dict[str, Any]) -> TaskState:
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING)
         with self.task_states_lock:
             self.task_states.set(task_id, state)

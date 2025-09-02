@@ -128,7 +128,7 @@ class HttpServerController(ControllerService):
         async def run_default_workflow(
             request: Request
         ):
-            return await self._handle_workflow_run_request(request, None)
+            return await self._handle_workflow_run_request(request, "__default__")
 
         @self.router.post("/workflows/{workflow_id}/runs")
         async def run_workflow(

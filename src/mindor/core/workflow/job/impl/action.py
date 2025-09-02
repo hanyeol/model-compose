@@ -14,7 +14,7 @@ class ActionJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
-        component: ComponentService = self._create_component(self.id, await context.render_variable(self.config.component))
+        component: ComponentService = self._create_component(self.id, self.config.component)
 
         if not component.started:
             await component.start()
@@ -28,7 +28,7 @@ class ActionJob(Job):
             job_time_tracker = TimeTracker()
             logging.debug("[task-%s] Action 'run-%s' started for job '%s'", context.task_id, run_id, self.id)
 
-            output = await component.run(await context.render_variable(self.config.action), run_id, input)
+            output = await component.run(self.config.action, run_id, input)
             context.register_source("output", output)
 
             logging.debug("[task-%s] Action 'run-%s' completed in %.2f seconds.", context.task_id, run_id, job_time_tracker.elapsed())

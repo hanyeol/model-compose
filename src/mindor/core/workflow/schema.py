@@ -5,6 +5,8 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.dsl.schema.job import ActionJobConfig, OutputJobConfig
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
+from mindor.core.component import ComponentResolver, ActionResolver
+from mindor.core.workflow import WorkflowResolver
 import re, json
 
 @dataclass
@@ -203,15 +205,14 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
 
         for job in workflow.jobs:
             if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
-                action_id = job.action or "__default__"
                 if isinstance(job.component, str):
-                    component = next((component for component in components if component.id == job.component), None)
+                    _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
                     if component:
-                        action = next((action for action in component.actions if action.id == action_id), None)
+                        _, action = ActionResolver(component.actions).resolve(job.action, raise_on_error=False)
                         if action:
                             variables.extend(self._resolve_component(component, action, workflows, components))
                 else:
-                    action = next((action for action in job.component.actions if action.id == action_id), None)
+                    _, action = ActionResolver(job.component.actions).resolve(job.action, raise_on_error=False)
                     if action:
                         variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
@@ -223,8 +224,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
         variables: List[WorkflowVariable] = []
      
         if component.type == ComponentType.WORKFLOW:
-            workflow_id = action.workflow or "__default__"
-            workflow = next((workflow for workflow in workflows if workflow.id == workflow_id), None)
+            _, workflow = WorkflowResolver(workflows).resolve(action.workflow, raise_on_error=False)
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components))
         else:
@@ -251,17 +251,16 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
             if isinstance(job, ActionJobConfig) and (not job.output or job.output == "${output}"):
-                action_id = job.action or "__default__"
                 if isinstance(job.component, str):
-                    component = next((component for component in components if component.id == job.component), None)
+                    _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
                     if component:
-                        action = next((action for action in component.actions if action.id == action_id), None)
+                        _, action = ActionResolver(component.actions).resolve(job.action, raise_on_error=False)
                         if action:
-                            job_variables.extend(self._resolve_component(component, action, workflows, components))           
+                            job_variables.extend(self._resolve_component(component, action, workflows, components))
                 else:
-                    action = next((action for action in job.component.actions if action.id == action_id), None)
+                    _, action = ActionResolver(job.component.actions).resolve(job.action, raise_on_error=False)
                     if action:
-                        job_variables.extend(self._resolve_component(component, action, workflows, components))           
+                        job_variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
                 if isinstance(job, OutputJobConfig):
                     job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))
@@ -272,8 +271,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         if component.type == ComponentType.WORKFLOW:
-            workflow_id = action.workflow or "__default__"
-            workflow = next((workflow for workflow in workflows if workflow.id == workflow_id), None)
+            _, workflow = WorkflowResolver(workflows).resolve(action.workflow)
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components, internal=True))
         else:

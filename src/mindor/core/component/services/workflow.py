@@ -12,16 +12,15 @@ class WorkflowAction:
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: ComponentActionContext) -> Any:
-        workflow_id = await context.render_variable(self.config.workflow)
+        workflow = self._create_workflow(self.config.workflow)
         input = await context.render_variable(self.config.input)
 
-        workflow = self._create_workflow(workflow_id)
         output = await workflow.run(context.run_id, input)
         context.register_source("output", output)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
 
-    def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
+    def _create_workflow(self, workflow_id: str) -> Workflow:
         return create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
 
 @register_component(ComponentType.WORKFLOW)

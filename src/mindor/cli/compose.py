@@ -198,12 +198,24 @@ def run_command(
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
+@click.command(name="schema")
+@click.option("--output", "-o", "output_path", type=click.Path(dir_okay=False, writable=True, path_type=Path), required=False, help="Output path for JSON Schema")
+def schema_command(output_path: Path = None):
+    schema = ComposeConfig.model_json_schema()
+    schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(schema_json)
+            click.echo(f"✅ JSON Schema generated at {output_path}")
+    else:
+        click.echo(schema_json)
 
 compose_command.add_command(up_command)
 compose_command.add_command(down_command)
 compose_command.add_command(start_command)
 compose_command.add_command(stop_command)
 compose_command.add_command(run_command)
+compose_command.add_command(schema_command)
 
 if __name__ == "__main__":
     compose_command()

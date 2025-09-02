@@ -1,0 +1,5891 @@
+{
+  "$defs": {
+    "ActionJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "action",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The output data returned from this job. Accepts any type.",
+          "title": "Output"
+        },
+        "component": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "discriminator": {
+                "mapping": {
+                  "http-client": "#/$defs/HttpClientComponentConfig",
+                  "http-server": "#/$defs/HttpServerComponentConfig",
+                  "mcp-client": "#/$defs/McpClientComponentConfig",
+                  "mcp-server": "#/$defs/McpServerComponentConfig",
+                  "model": {
+                    "discriminator": {
+                      "mapping": {
+                        "image-to-text": "#/$defs/ImageToTextModelComponentConfig",
+                        "summarization": "#/$defs/SummarizationModelComponentConfig",
+                        "text-classification": "#/$defs/TextClassificationModelComponentConfig",
+                        "text-embedding": "#/$defs/TextEmbeddingModelComponentConfig",
+                        "text-generation": "#/$defs/TextGenerationModelComponentConfig",
+                        "translation": "#/$defs/TranslationModelComponentConfig"
+                      },
+                      "propertyName": "task"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/TextGenerationModelComponentConfig"
+                      },
+                      {
+                        "$ref": "#/$defs/SummarizationModelComponentConfig"
+                      },
+                      {
+                        "$ref": "#/$defs/TranslationModelComponentConfig"
+                      },
+                      {
+                        "$ref": "#/$defs/TextClassificationModelComponentConfig"
+                      },
+                      {
+                        "$ref": "#/$defs/TextEmbeddingModelComponentConfig"
+                      },
+                      {
+                        "$ref": "#/$defs/ImageToTextModelComponentConfig"
+                      }
+                    ]
+                  },
+                  "shell": "#/$defs/ShellComponentConfig",
+                  "text-splitter": "#/$defs/TextSplitterComponentConfig",
+                  "workflow": "#/$defs/WorkflowComponentConfig"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/HttpServerComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/HttpClientComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/McpServerComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/McpClientComponentConfig"
+                },
+                {
+                  "discriminator": {
+                    "mapping": {
+                      "image-to-text": "#/$defs/ImageToTextModelComponentConfig",
+                      "summarization": "#/$defs/SummarizationModelComponentConfig",
+                      "text-classification": "#/$defs/TextClassificationModelComponentConfig",
+                      "text-embedding": "#/$defs/TextEmbeddingModelComponentConfig",
+                      "text-generation": "#/$defs/TextGenerationModelComponentConfig",
+                      "translation": "#/$defs/TranslationModelComponentConfig"
+                    },
+                    "propertyName": "task"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/TextGenerationModelComponentConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/SummarizationModelComponentConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/TranslationModelComponentConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/TextClassificationModelComponentConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/TextEmbeddingModelComponentConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/ImageToTextModelComponentConfig"
+                    }
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/WorkflowComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/ShellComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/TextSplitterComponentConfig"
+                }
+              ]
+            }
+          ],
+          "default": "__default__",
+          "description": "The component to run. May be either a string identifier or a full config object.",
+          "title": "Component"
+        },
+        "action": {
+          "default": "__default__",
+          "description": "The action to invoke on the component. Defaults to '__default__'.",
+          "title": "Action",
+          "type": "string"
+        },
+        "input": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Input data supplied to the component. Accepts any type.",
+          "title": "Input"
+        },
+        "repeat_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1,
+          "description": "Number of times to repeat the component execution. Must be at least 1.",
+          "title": "Repeat Count"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ActionJobConfig",
+      "type": "object"
+    },
+    "CloudflareHttpTunnelGatewayConfig": {
+      "properties": {
+        "type": {
+          "const": "http-tunnel",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": ""
+        },
+        "port": {
+          "default": 8090,
+          "description": "",
+          "title": "Port",
+          "type": "integer"
+        },
+        "driver": {
+          "const": "cloudflare",
+          "title": "Driver",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "driver"
+      ],
+      "title": "CloudflareHttpTunnelGatewayConfig",
+      "type": "object"
+    },
+    "ConsoleLoggerConfig": {
+      "properties": {
+        "type": {
+          "const": "console",
+          "title": "Type",
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/LoggingLevel",
+          "default": "info",
+          "description": ""
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ConsoleLoggerConfig",
+      "type": "object"
+    },
+    "DeviceMode": {
+      "enum": [
+        "single",
+        "auto"
+      ],
+      "title": "DeviceMode",
+      "type": "string"
+    },
+    "DockerBuildConfig": {
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Build context path.",
+          "title": "Context"
+        },
+        "dockerfile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to Dockerfile relative to context.",
+          "title": "Dockerfile"
+        },
+        "args": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Build arguments as key-value pairs.",
+          "title": "Args"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target build stage in multi-stage builds.",
+          "title": "Target"
+        },
+        "cache_from": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Images to use for build cache resolution.",
+          "title": "Cache From"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Image labels to apply at build time.",
+          "title": "Labels"
+        },
+        "network": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Network mode used during build.",
+          "title": "Network"
+        },
+        "pull": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Always pull newer versions of base images.",
+          "title": "Pull"
+        },
+        "shm_size": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared memory size.",
+          "title": "Shm Size"
+        }
+      },
+      "title": "DockerBuildConfig",
+      "type": "object"
+    },
+    "DockerHealthCheck": {
+      "properties": {
+        "test": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Health check command.",
+          "title": "Test"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "30s",
+          "description": "Time between checks.",
+          "title": "Interval"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "30s",
+          "description": "Timeout for each check.",
+          "title": "Timeout"
+        },
+        "retries": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 3,
+          "description": "Number of failures before marking as unhealthy.",
+          "title": "Retries"
+        },
+        "start_period": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "0s",
+          "description": "Startup grace period before checks start.",
+          "title": "Start Period"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "DockerHealthCheck",
+      "type": "object"
+    },
+    "DockerPortConfig": {
+      "properties": {
+        "target": {
+          "description": "Port exposed by the container.",
+          "title": "Target",
+          "type": "integer"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Host port to publish.",
+          "title": "Published"
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "enum": [
+                "tcp",
+                "udp"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "tcp",
+          "description": "Protocol.",
+          "title": "Protocol"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "host",
+                "ingress"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Publishing mode.",
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "DockerPortConfig",
+      "type": "object"
+    },
+    "DockerRuntimeConfig": {
+      "properties": {
+        "type": {
+          "const": "docker",
+          "title": "Type",
+          "type": "string"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Docker image name with optional tag.",
+          "title": "Image"
+        },
+        "build": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DockerBuildConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Build configuration for building image locally."
+        },
+        "container_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the container.",
+          "title": "Container Name"
+        },
+        "hostname": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hostname inside the container.",
+          "title": "Hostname"
+        },
+        "ports": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "$ref": "#/$defs/DockerPortConfig"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Port mappings.",
+          "title": "Ports"
+        },
+        "networks": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Networks to attach the container to.",
+          "title": "Networks"
+        },
+        "volumes": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/DockerVolumeConfig"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Volume mounts.",
+          "title": "Volumes"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variables.",
+          "title": "Environment"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment files.",
+          "title": "Env File"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override the default command.",
+          "title": "Command"
+        },
+        "entrypoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override the entrypoint.",
+          "title": "Entrypoint"
+        },
+        "working_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory inside the container.",
+          "title": "Working Dir"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "User to run the container as.",
+          "title": "User"
+        },
+        "mem_limit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Memory limit.",
+          "title": "Mem Limit"
+        },
+        "memswap_limit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total memory + swap limit.",
+          "title": "Memswap Limit"
+        },
+        "cpus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CPU quota.",
+          "title": "Cpus"
+        },
+        "cpu_shares": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Relative CPU weight.",
+          "title": "Cpu Shares"
+        },
+        "restart": {
+          "default": "no",
+          "description": "Restart policy.",
+          "enum": [
+            "no",
+            "always",
+            "on-failure",
+            "unless-stopped"
+          ],
+          "title": "Restart",
+          "type": "string"
+        },
+        "healthcheck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DockerHealthCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Health check configuration."
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Container labels.",
+          "title": "Labels"
+        },
+        "logging": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Logging configuration.",
+          "title": "Logging"
+        },
+        "privileged": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run container in privileged mode.",
+          "title": "Privileged"
+        },
+        "security_opt": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Security options.",
+          "title": "Security Opt"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DockerRuntimeConfig",
+      "type": "object"
+    },
+    "DockerVolumeConfig": {
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "bind",
+                "volume",
+                "tmpfs"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Volume type.",
+          "title": "Type"
+        },
+        "target": {
+          "description": "Target path inside the container.",
+          "title": "Target",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source path or volume name on the host.",
+          "title": "Source"
+        },
+        "read_only": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mount as read-only.",
+          "title": "Read Only"
+        },
+        "bind": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bind options.",
+          "title": "Bind"
+        },
+        "volume": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Volume options.",
+          "title": "Volume"
+        },
+        "tmpfs": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "tmpfs mount options.",
+          "title": "Tmpfs"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "DockerVolumeConfig",
+      "type": "object"
+    },
+    "DynamicWebUIConfig": {
+      "properties": {
+        "driver": {
+          "const": "dynamic",
+          "title": "Driver",
+          "type": "string"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the Web UI server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8081,
+          "description": "Port number to serve the Web UI on.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "command": {
+          "description": "Command to start the web UI server.",
+          "title": "Command",
+          "type": "string"
+        },
+        "server_dir": {
+          "default": "webui/server",
+          "description": "Directory containing source code and entry point for the web UI server.",
+          "title": "Server Dir",
+          "type": "string"
+        },
+        "static_dir": {
+          "default": "webui/static",
+          "description": "Directory containing static HTML/CSS/JS files for the web UI.",
+          "title": "Static Dir",
+          "type": "string"
+        }
+      },
+      "required": [
+        "driver",
+        "command"
+      ],
+      "title": "DynamicWebUIConfig",
+      "type": "object"
+    },
+    "FileLoggerConfig": {
+      "properties": {
+        "type": {
+          "const": "file",
+          "title": "Type",
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/LoggingLevel",
+          "default": "info",
+          "description": ""
+        },
+        "path": {
+          "default": "./logs/run.log",
+          "description": "",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "FileLoggerConfig",
+      "type": "object"
+    },
+    "FilterJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "filter",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The output data returned from this job. Accepts any type.",
+          "title": "Output"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "FilterJobConfig",
+      "type": "object"
+    },
+    "GradioWebUIConfig": {
+      "properties": {
+        "driver": {
+          "const": "gradio",
+          "title": "Driver",
+          "type": "string"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the Web UI server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8081,
+          "description": "Port number to serve the Web UI on.",
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "driver"
+      ],
+      "title": "GradioWebUIConfig",
+      "type": "object"
+    },
+    "HttpCallbackConfig": {
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "method": {
+          "default": "POST",
+          "description": "",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "bulk": {
+          "default": false,
+          "description": "",
+          "title": "Bulk",
+          "type": "boolean"
+        },
+        "item": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Item"
+        },
+        "identify_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Identify By"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Status"
+        },
+        "success_when": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Success When"
+        },
+        "fail_when": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Fail When"
+        },
+        "result": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Result"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "HttpCallbackConfig",
+      "type": "object"
+    },
+    "HttpCallbackListenerConfig": {
+      "properties": {
+        "type": {
+          "const": "http-callback",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": ""
+        },
+        "max_concurrent_count": {
+          "default": 0,
+          "description": "",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the HTTP server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8090,
+          "description": "Port number on which the HTTP server will listen.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "base_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Base Path"
+        },
+        "callbacks": {
+          "description": "",
+          "items": {
+            "$ref": "#/$defs/HttpCallbackConfig"
+          },
+          "title": "Callbacks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpCallbackListenerConfig",
+      "type": "object"
+    },
+    "HttpClientActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Endpoint"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Path"
+        },
+        "method": {
+          "default": "POST",
+          "description": "",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        },
+        "body": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Body",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Params",
+          "type": "object"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "callback": "#/$defs/HttpClientCallbackCompletionConfig",
+                  "polling": "#/$defs/HttpClientPollingCompletionConfig"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/HttpClientPollingCompletionConfig"
+                },
+                {
+                  "$ref": "#/$defs/HttpClientCallbackCompletionConfig"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Completion"
+        }
+      },
+      "title": "HttpClientActionConfig",
+      "type": "object"
+    },
+    "HttpClientCallbackCompletionConfig": {
+      "properties": {
+        "type": {
+          "const": "callback",
+          "title": "Type",
+          "type": "string"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "wait_for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Wait For"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpClientCallbackCompletionConfig",
+      "type": "object"
+    },
+    "HttpClientComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "http-client",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/HttpClientActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Base Url"
+        },
+        "headers": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpClientComponentConfig",
+      "type": "object"
+    },
+    "HttpClientPollingCompletionConfig": {
+      "properties": {
+        "type": {
+          "const": "polling",
+          "title": "Type",
+          "type": "string"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Endpoint"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Path"
+        },
+        "method": {
+          "default": "GET",
+          "description": "",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        },
+        "body": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Body",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Params",
+          "type": "object"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Status"
+        },
+        "success_when": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Success When"
+        },
+        "fail_when": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Fail When"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Interval"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpClientPollingCompletionConfig",
+      "type": "object"
+    },
+    "HttpServerActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "method": {
+          "default": "POST",
+          "description": "",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        },
+        "body": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Body",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Params",
+          "type": "object"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "callback": "#/$defs/HttpServerCallbackCompletionConfig",
+                  "polling": "#/$defs/HttpServerPollingCompletionConfig"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/HttpServerPollingCompletionConfig"
+                },
+                {
+                  "$ref": "#/$defs/HttpServerCallbackCompletionConfig"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Completion"
+        }
+      },
+      "title": "HttpServerActionConfig",
+      "type": "object"
+    },
+    "HttpServerCallbackCompletionConfig": {
+      "properties": {
+        "type": {
+          "const": "callback",
+          "title": "Type",
+          "type": "string"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "wait_for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Wait For"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpServerCallbackCompletionConfig",
+      "type": "object"
+    },
+    "HttpServerComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "http-server",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/HttpServerActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "manage": {
+          "$ref": "#/$defs/HttpServerManageConfig",
+          "description": "Configuration used to manage the HTTP server lifecycle."
+        },
+        "port": {
+          "default": 8000,
+          "description": "Port on which the HTTP server will listen for incoming requests.",
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "base_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base path to prefix all HTTP routes exposed by this component.",
+          "title": "Base Path"
+        },
+        "headers": {
+          "additionalProperties": true,
+          "description": "Headers to be included in all outgoing HTTP requests.",
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpServerComponentConfig",
+      "type": "object"
+    },
+    "HttpServerControllerConfig": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name used to identify this controller.",
+          "title": "Name"
+        },
+        "type": {
+          "const": "http-server",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "Runtime environment settings.",
+          "discriminator": {
+            "mapping": {
+              "docker": "#/$defs/DockerRuntimeConfig",
+              "native": "#/$defs/NativeRuntimeConfig"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NativeRuntimeConfig"
+            },
+            {
+              "$ref": "#/$defs/DockerRuntimeConfig"
+            }
+          ],
+          "title": "Runtime"
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of tasks that can be executed concurrently.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "threaded": {
+          "default": false,
+          "description": "Whether to run tasks in separate threads.",
+          "title": "Threaded",
+          "type": "boolean"
+        },
+        "webui": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "dynamic": "#/$defs/DynamicWebUIConfig",
+                  "gradio": "#/$defs/GradioWebUIConfig",
+                  "static": "#/$defs/StaticWebUIConfig"
+                },
+                "propertyName": "driver"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/GradioWebUIConfig"
+                },
+                {
+                  "$ref": "#/$defs/StaticWebUIConfig"
+                },
+                {
+                  "$ref": "#/$defs/DynamicWebUIConfig"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Configuration for the controller's Web UI interface.",
+          "title": "Webui"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the HTTP server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8080,
+          "description": "Port number on which the HTTP server will listen.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "base_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base path to prefix all API routes",
+          "title": "Base Path"
+        },
+        "origins": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "*",
+          "description": "CORS allowed origins, specified as a comma-separated string",
+          "title": "Origins"
+        }
+      },
+      "required": [
+        "type",
+        "runtime"
+      ],
+      "title": "HttpServerControllerConfig",
+      "type": "object"
+    },
+    "HttpServerManageConfig": {
+      "properties": {
+        "scripts": {
+          "$ref": "#/$defs/HttpServerManageScripts",
+          "description": "Shell scripts used to install, build, clean, and start the server."
+        },
+        "working_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory for the scripts.",
+          "title": "Working Dir"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables to set when executing the scripts.",
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scripts"
+      ],
+      "title": "HttpServerManageConfig",
+      "type": "object"
+    },
+    "HttpServerManageScripts": {
+      "properties": {
+        "install": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to install dependencies.",
+          "title": "Install"
+        },
+        "build": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to build the server.",
+          "title": "Build"
+        },
+        "clean": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to clean the server environment.",
+          "title": "Clean"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Script to start the server.",
+          "title": "Start"
+        }
+      },
+      "title": "HttpServerManageScripts",
+      "type": "object"
+    },
+    "HttpServerPollingCompletionConfig": {
+      "properties": {
+        "type": {
+          "const": "polling",
+          "title": "Type",
+          "type": "string"
+        },
+        "stream_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpStreamFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format of stream payload."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Path"
+        },
+        "method": {
+          "default": "GET",
+          "description": "",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        },
+        "body": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Body",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "",
+          "title": "Params",
+          "type": "object"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Status"
+        },
+        "success_when": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Success When"
+        },
+        "fail_when": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Fail When"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Interval"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HttpServerPollingCompletionConfig",
+      "type": "object"
+    },
+    "HttpStreamFormat": {
+      "enum": [
+        "json",
+        "text"
+      ],
+      "title": "HttpStreamFormat",
+      "type": "string"
+    },
+    "IfConditionConfig": {
+      "properties": {
+        "operator": {
+          "$ref": "#/$defs/IfConditionOperator",
+          "default": "eq",
+          "description": "Condition operator."
+        },
+        "input": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Input to evaluate.",
+          "title": "Input"
+        },
+        "value": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value to compare against.",
+          "title": "Value"
+        },
+        "if_true": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job ID to run if condition is true.",
+          "title": "If True"
+        },
+        "if_false": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job ID to run if condition is false.",
+          "title": "If False"
+        }
+      },
+      "title": "IfConditionConfig",
+      "type": "object"
+    },
+    "IfConditionOperator": {
+      "enum": [
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not-in",
+        "starts-with",
+        "ends-with",
+        "match"
+      ],
+      "title": "IfConditionOperator",
+      "type": "string"
+    },
+    "IfJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "if",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "conditions": {
+          "description": "List of conditions to evaluate.",
+          "items": {
+            "$ref": "#/$defs/IfConditionConfig"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "otherwise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job ID to run if no conditions matched or no result returned.",
+          "title": "Otherwise"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "IfJobConfig",
+      "type": "object"
+    },
+    "ImageToTextModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "",
+          "title": "Image"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Input prompt to generate text from.",
+          "title": "Prompt"
+        },
+        "params": {
+          "$ref": "#/$defs/ImageToTextParamsConfig",
+          "description": "Image to text configuration parameters."
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "title": "ImageToTextModelActionConfig",
+      "type": "object"
+    },
+    "ImageToTextModelArchitecture": {
+      "enum": [
+        "blip",
+        "blip2",
+        "git",
+        "pix2struct",
+        "donut",
+        "kosmos2"
+      ],
+      "title": "ImageToTextModelArchitecture",
+      "type": "string"
+    },
+    "ImageToTextModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/ImageToTextModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "image-to-text",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        },
+        "architecture": {
+          "$ref": "#/$defs/ImageToTextModelArchitecture",
+          "description": "Model architecture."
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model",
+        "architecture"
+      ],
+      "title": "ImageToTextModelComponentConfig",
+      "type": "object"
+    },
+    "ImageToTextParamsConfig": {
+      "properties": {
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1,
+          "description": "Number of input images to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "ImageToTextParamsConfig",
+      "type": "object"
+    },
+    "LoggingLevel": {
+      "enum": [
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "critical"
+      ],
+      "title": "LoggingLevel",
+      "type": "string"
+    },
+    "McpClientActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "tool": {
+          "default": "__default__",
+          "description": "Name of the tool to invoke.",
+          "title": "Tool",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "description": "Arguments to pass to the tool.",
+          "title": "Arguments",
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional HTTP headers to include in the tool call.",
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "title": "McpClientActionConfig",
+      "type": "object"
+    },
+    "McpClientComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "mcp-client",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/McpClientActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "url": {
+          "description": "URL of the MCP server to invoke tools.",
+          "title": "Url",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": true,
+          "description": "",
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "url"
+      ],
+      "title": "McpClientComponentConfig",
+      "type": "object"
+    },
+    "McpServerActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "tool": {
+          "default": "__default__",
+          "description": "Name of the tool to invoke.",
+          "title": "Tool",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "description": "Arguments to pass to the tool.",
+          "title": "Arguments",
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional HTTP headers to include in the tool call.",
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "title": "McpServerActionConfig",
+      "type": "object"
+    },
+    "McpServerComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "mcp-server",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/McpServerActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "manage": {
+          "$ref": "#/$defs/McpServerManageConfig",
+          "description": "Configuration used to manage the MCP server lifecycle."
+        },
+        "port": {
+          "default": 8000,
+          "description": "Port on which the MCP server will listen for incoming requests.",
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "base_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base path to prefix all MCP routes exposed by this component.",
+          "title": "Base Path"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "McpServerComponentConfig",
+      "type": "object"
+    },
+    "McpServerControllerConfig": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name used to identify this controller.",
+          "title": "Name"
+        },
+        "type": {
+          "const": "mcp-server",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "Runtime environment settings.",
+          "discriminator": {
+            "mapping": {
+              "docker": "#/$defs/DockerRuntimeConfig",
+              "native": "#/$defs/NativeRuntimeConfig"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NativeRuntimeConfig"
+            },
+            {
+              "$ref": "#/$defs/DockerRuntimeConfig"
+            }
+          ],
+          "title": "Runtime"
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of tasks that can be executed concurrently.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "threaded": {
+          "default": false,
+          "description": "Whether to run tasks in separate threads.",
+          "title": "Threaded",
+          "type": "boolean"
+        },
+        "webui": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "dynamic": "#/$defs/DynamicWebUIConfig",
+                  "gradio": "#/$defs/GradioWebUIConfig",
+                  "static": "#/$defs/StaticWebUIConfig"
+                },
+                "propertyName": "driver"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/GradioWebUIConfig"
+                },
+                {
+                  "$ref": "#/$defs/StaticWebUIConfig"
+                },
+                {
+                  "$ref": "#/$defs/DynamicWebUIConfig"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Configuration for the controller's Web UI interface.",
+          "title": "Webui"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the MCP server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8080,
+          "description": "Port number on which the MCP server will listen.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "base_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base path to prefix all MCP endpoints",
+          "title": "Base Path"
+        }
+      },
+      "required": [
+        "type",
+        "runtime"
+      ],
+      "title": "McpServerControllerConfig",
+      "type": "object"
+    },
+    "McpServerManageConfig": {
+      "properties": {
+        "scripts": {
+          "$ref": "#/$defs/McpServerManageScripts",
+          "description": "Shell scripts used to install, build, clean, and start the server."
+        },
+        "working_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory for the scripts.",
+          "title": "Working Dir"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables to set when executing the scripts.",
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scripts"
+      ],
+      "title": "McpServerManageConfig",
+      "type": "object"
+    },
+    "McpServerManageScripts": {
+      "properties": {
+        "install": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to install dependencies.",
+          "title": "Install"
+        },
+        "build": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to build the server.",
+          "title": "Build"
+        },
+        "clean": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to clean the server environment.",
+          "title": "Clean"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Script to start the server.",
+          "title": "Start"
+        }
+      },
+      "title": "McpServerManageScripts",
+      "type": "object"
+    },
+    "ModelPrecision": {
+      "enum": [
+        "auto",
+        "float32",
+        "float16",
+        "bfloat16"
+      ],
+      "title": "ModelPrecision",
+      "type": "string"
+    },
+    "ModelTaskMode": {
+      "enum": [
+        "inference",
+        "training"
+      ],
+      "title": "ModelTaskMode",
+      "type": "string"
+    },
+    "NativeRuntimeConfig": {
+      "properties": {
+        "type": {
+          "const": "native",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "NativeRuntimeConfig",
+      "type": "object"
+    },
+    "NgrokHttpTunnelGatewayConfig": {
+      "properties": {
+        "type": {
+          "const": "http-tunnel",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": ""
+        },
+        "port": {
+          "default": 8090,
+          "description": "",
+          "title": "Port",
+          "type": "integer"
+        },
+        "driver": {
+          "const": "ngrok",
+          "title": "Driver",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "driver"
+      ],
+      "title": "NgrokHttpTunnelGatewayConfig",
+      "type": "object"
+    },
+    "RandomRouterJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "random-router",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/RandomRoutingMode",
+          "default": "uniform",
+          "description": ""
+        },
+        "routings": {
+          "description": "",
+          "items": {
+            "$ref": "#/$defs/RandomRoutingConfig"
+          },
+          "title": "Routings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RandomRouterJobConfig",
+      "type": "object"
+    },
+    "RandomRoutingConfig": {
+      "properties": {
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Weight"
+        },
+        "target": {
+          "description": "Destination job ID for this route.",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "RandomRoutingConfig",
+      "type": "object"
+    },
+    "RandomRoutingMode": {
+      "enum": [
+        "uniform",
+        "weighted"
+      ],
+      "title": "RandomRoutingMode",
+      "type": "string"
+    },
+    "RuntimeType": {
+      "enum": [
+        "native",
+        "docker"
+      ],
+      "title": "RuntimeType",
+      "type": "string"
+    },
+    "ShellActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "command": {
+          "description": "The shell command to execute, as a list of arguments.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Command",
+          "type": "array"
+        },
+        "working_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory for the command.",
+          "title": "Working Dir"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables to set when executing the command.",
+          "title": "Env",
+          "type": "object"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum time allowed for the command to run, in seconds.",
+          "title": "Timeout"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "ShellActionConfig",
+      "type": "object"
+    },
+    "ShellComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "shell",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/ShellActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "manage": {
+          "$ref": "#/$defs/ShellManageConfig",
+          "description": "Configuration for scripts and environment setup related to this shell component."
+        },
+        "base_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base working directory for all actions in this component.",
+          "title": "Base Dir"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables to set for all actions in this component.",
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ShellComponentConfig",
+      "type": "object"
+    },
+    "ShellManageConfig": {
+      "properties": {
+        "scripts": {
+          "$ref": "#/$defs/ShellManageScripts",
+          "description": "Shell scripts used to install dependencies and clean up the environment."
+        },
+        "working_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory for the scripts.",
+          "title": "Working Dir"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables to set when executing the scripts.",
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scripts"
+      ],
+      "title": "ShellManageConfig",
+      "type": "object"
+    },
+    "ShellManageScripts": {
+      "properties": {
+        "install": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to install dependencies.",
+          "title": "Install"
+        },
+        "clean": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One or more scripts to clean up the execution environment.",
+          "title": "Clean"
+        }
+      },
+      "title": "ShellManageScripts",
+      "type": "object"
+    },
+    "SpecificTimeDelayJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "delay",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The output data returned from this job. Accepts any type.",
+          "title": "Output"
+        },
+        "mode": {
+          "const": "specific-time",
+          "title": "Mode",
+          "type": "string"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Specific date and time to wait until.",
+          "title": "Time"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Timezone identifier used to interpret the 'time' field.",
+          "title": "Timezone"
+        }
+      },
+      "required": [
+        "type",
+        "mode",
+        "time"
+      ],
+      "title": "SpecificTimeDelayJobConfig",
+      "type": "object"
+    },
+    "SshConnectionConfig": {
+      "properties": {
+        "host": {
+          "description": "Host address of the SSH server to connect to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 22,
+          "description": "Port number used to connect to the SSH server.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "auth": {
+          "description": "SSH authentication configuration.",
+          "discriminator": {
+            "mapping": {
+              "keyfile": "#/$defs/SshKeyfileAuthConfig",
+              "password": "#/$defs/SshPasswordAuthConfig"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SshKeyfileAuthConfig"
+            },
+            {
+              "$ref": "#/$defs/SshPasswordAuthConfig"
+            }
+          ],
+          "title": "Auth"
+        }
+      },
+      "required": [
+        "host",
+        "auth"
+      ],
+      "title": "SshConnectionConfig",
+      "type": "object"
+    },
+    "SshKeyfileAuthConfig": {
+      "properties": {
+        "type": {
+          "const": "keyfile",
+          "title": "Type",
+          "type": "string"
+        },
+        "username": {
+          "description": "Username for the SSH connection.",
+          "title": "Username",
+          "type": "string"
+        },
+        "keyfile": {
+          "description": "Path to the private key file for SSH authentication.",
+          "title": "Keyfile",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "username",
+        "keyfile"
+      ],
+      "title": "SshKeyfileAuthConfig",
+      "type": "object"
+    },
+    "SshPasswordAuthConfig": {
+      "properties": {
+        "type": {
+          "const": "password",
+          "title": "Type",
+          "type": "string"
+        },
+        "username": {
+          "description": "Username for the SSH connection.",
+          "title": "Username",
+          "type": "string"
+        },
+        "password": {
+          "description": "Password for SSH authentication.",
+          "title": "Password",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "username",
+        "password"
+      ],
+      "title": "SshPasswordAuthConfig",
+      "type": "object"
+    },
+    "SshTunnelGatewayConfig": {
+      "properties": {
+        "type": {
+          "const": "ssh-tunnel",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": ""
+        },
+        "port": {
+          "default": 8090,
+          "description": "",
+          "title": "Port",
+          "type": "integer"
+        },
+        "connection": {
+          "$ref": "#/$defs/SshConnectionConfig",
+          "description": "SSH connection configuration."
+        }
+      },
+      "required": [
+        "type",
+        "connection"
+      ],
+      "title": "SshTunnelGatewayConfig",
+      "type": "object"
+    },
+    "StaticWebUIConfig": {
+      "properties": {
+        "driver": {
+          "const": "static",
+          "title": "Driver",
+          "type": "string"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host address to bind the Web UI server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8081,
+          "description": "Port number to serve the Web UI on.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "static_dir": {
+          "default": "webui",
+          "description": "Directory containing static HTML/CSS/JS files for the web UI.",
+          "title": "Static Dir",
+          "type": "string"
+        }
+      },
+      "required": [
+        "driver"
+      ],
+      "title": "StaticWebUIConfig",
+      "type": "object"
+    },
+    "SummarizationModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Input text to summarize.",
+          "title": "Text"
+        },
+        "params": {
+          "$ref": "#/$defs/SummarizationParamsConfig",
+          "description": "Summarization configuration parameters."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "SummarizationModelActionConfig",
+      "type": "object"
+    },
+    "SummarizationModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/SummarizationModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "summarization",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model"
+      ],
+      "title": "SummarizationModelComponentConfig",
+      "type": "object"
+    },
+    "SummarizationParamsConfig": {
+      "properties": {
+        "max_input_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1024,
+          "description": "Maximum number of tokens per input text.",
+          "title": "Max Input Length"
+        },
+        "max_output_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 256,
+          "description": "Maximum number of tokens to generate.",
+          "title": "Max Output Length"
+        },
+        "min_output_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 30,
+          "description": "Minimum number of tokens to generate.",
+          "title": "Min Output Length"
+        },
+        "num_beams": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 4,
+          "description": "Number of beams to use for beam search.",
+          "title": "Num Beams"
+        },
+        "length_penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 2.0,
+          "description": "Length penalty applied during beam search.",
+          "title": "Length Penalty"
+        },
+        "early_stopping": {
+          "default": true,
+          "description": "Whether to stop the beam search when all beams finish generating.",
+          "title": "Early Stopping",
+          "type": "boolean"
+        },
+        "do_sample": {
+          "default": true,
+          "description": "Whether to use sampling to generate diverse summaries.",
+          "title": "Do Sample",
+          "type": "boolean"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 50,
+          "description": "Top-K sampling; restricts sampling to the top K tokens.",
+          "title": "Top K"
+        },
+        "top_p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1.0,
+          "description": "Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.",
+          "title": "Top P"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 32,
+          "description": "Number of input texts to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "SummarizationParamsConfig",
+      "type": "object"
+    },
+    "SwitchCaseConfig": {
+      "properties": {
+        "value": {
+          "description": "Value to match against the input.",
+          "title": "Value",
+          "type": "string"
+        },
+        "then": {
+          "description": "Job ID to route to if the value matches.",
+          "title": "Then",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "then"
+      ],
+      "title": "SwitchCaseConfig",
+      "type": "object"
+    },
+    "SwitchJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "switch",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "input": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value to match against switch cases.",
+          "title": "Input"
+        },
+        "cases": {
+          "description": "List of cases to evaluate.",
+          "items": {
+            "$ref": "#/$defs/SwitchCaseConfig"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "otherwise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job ID to route to if no cases match.",
+          "title": "Otherwise"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SwitchJobConfig",
+      "type": "object"
+    },
+    "TextClassificationModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Input text to classify.",
+          "title": "Text"
+        },
+        "params": {
+          "$ref": "#/$defs/TextClassificationParamsConfig",
+          "description": "Text classification configuration parameters."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextClassificationModelActionConfig",
+      "type": "object"
+    },
+    "TextClassificationModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/TextClassificationModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "text-classification",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "List of class labels for classification tasks.",
+          "title": "Labels"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model"
+      ],
+      "title": "TextClassificationModelComponentConfig",
+      "type": "object"
+    },
+    "TextClassificationParamsConfig": {
+      "properties": {
+        "return_probabilities": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Whether to return class probabilities for each prediction.",
+          "title": "Return Probabilities"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 32,
+          "description": "Number of input texts to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "TextClassificationParamsConfig",
+      "type": "object"
+    },
+    "TextEmbeddingModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Input text to be embedded.",
+          "title": "Text"
+        },
+        "params": {
+          "$ref": "#/$defs/TextEmbeddingParamsConfig",
+          "description": "Configuration parameters for embedding generation."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextEmbeddingModelActionConfig",
+      "type": "object"
+    },
+    "TextEmbeddingModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/TextEmbeddingModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "text-embedding",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model"
+      ],
+      "title": "TextEmbeddingModelComponentConfig",
+      "type": "object"
+    },
+    "TextEmbeddingParamsConfig": {
+      "properties": {
+        "max_input_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 512,
+          "description": "Maximum number of tokens per input text.",
+          "title": "Max Input Length"
+        },
+        "pooling": {
+          "default": "mean",
+          "description": "Pooling strategy used to aggregate token embeddings.",
+          "enum": [
+            "mean",
+            "cls",
+            "max"
+          ],
+          "title": "Pooling",
+          "type": "string"
+        },
+        "normalize": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": true,
+          "description": "Whether to apply L2 normalization to the output embeddings.",
+          "title": "Normalize"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 32,
+          "description": "Number of input texts to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "TextEmbeddingParamsConfig",
+      "type": "object"
+    },
+    "TextGenerationModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Input prompt to generate text from.",
+          "title": "Prompt"
+        },
+        "params": {
+          "$ref": "#/$defs/TextGenerationParamsConfig",
+          "description": "Text generation configuration parameters."
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "title": "TextGenerationModelActionConfig",
+      "type": "object"
+    },
+    "TextGenerationModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/TextGenerationModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "text-generation",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model"
+      ],
+      "title": "TextGenerationModelComponentConfig",
+      "type": "object"
+    },
+    "TextGenerationParamsConfig": {
+      "properties": {
+        "max_output_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1024,
+          "description": "The maximum number of tokens to generate.",
+          "title": "Max Output Length"
+        },
+        "num_return_sequences": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1,
+          "description": "The number of generated sequences to return.",
+          "title": "Num Return Sequences"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1.0,
+          "description": "Sampling temperature; higher values produce more random results.",
+          "title": "Temperature"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 50,
+          "description": "Top-K sampling; restricts sampling to the top K tokens.",
+          "title": "Top K"
+        },
+        "top_p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 0.9,
+          "description": "Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.",
+          "title": "Top P"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 32,
+          "description": "Number of input texts to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "TextGenerationParamsConfig",
+      "type": "object"
+    },
+    "TextSplitterActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "text": {
+          "description": "Input text to be split.",
+          "title": "Text",
+          "type": "string"
+        },
+        "separators": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Separators used for splitting.",
+          "title": "Separators"
+        },
+        "chunk_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1000,
+          "description": "Maximum number of characters per chunk.",
+          "title": "Chunk Size"
+        },
+        "chunk_overlap": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 200,
+          "description": "Number of overlapping characters between chunks.",
+          "title": "Chunk Overlap"
+        },
+        "maximize_chunk": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": true,
+          "description": "Whether to combine parts to fill each chunk as close to the maximum size as possible.",
+          "title": "Maximize Chunk"
+        },
+        "stream": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Whether to stream the output chunks one by one instead of returning the full list.",
+          "title": "Stream"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextSplitterActionConfig",
+      "type": "object"
+    },
+    "TextSplitterComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "text-splitter",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/TextSplitterActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "TextSplitterComponentConfig",
+      "type": "object"
+    },
+    "TimeIntervalDelayJobConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of job.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "delay",
+          "title": "Type",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "Jobs that must complete before this job runs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The output data returned from this job. Accepts any type.",
+          "title": "Output"
+        },
+        "mode": {
+          "const": "time-interval",
+          "title": "Mode",
+          "type": "string"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Time to wait before continuing.",
+          "title": "Duration"
+        }
+      },
+      "required": [
+        "type",
+        "mode",
+        "duration"
+      ],
+      "title": "TimeIntervalDelayJobConfig",
+      "type": "object"
+    },
+    "TranslationModelActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModelTaskMode",
+          "default": "inference"
+        },
+        "stream": {
+          "default": false,
+          "description": "Whether to enable streaming responses for inference.",
+          "title": "Stream",
+          "type": "boolean"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Input text to translate.",
+          "title": "Text"
+        },
+        "params": {
+          "$ref": "#/$defs/TranslationParamsConfig",
+          "description": "Translation configuration parameters."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TranslationModelActionConfig",
+      "type": "object"
+    },
+    "TranslationModelComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "model",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/TranslationModelActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "task": {
+          "const": "translation",
+          "title": "Task",
+          "type": "string"
+        },
+        "model": {
+          "description": "Model name or path.",
+          "title": "Model",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Model version or branch to load.",
+          "title": "Revision"
+        },
+        "cache_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Directory to cache the model and tokenizer files.",
+          "title": "Cache Dir"
+        },
+        "local_files_only": {
+          "default": false,
+          "description": "Force loading from local files only.",
+          "title": "Local Files Only",
+          "type": "boolean"
+        },
+        "device_mode": {
+          "$ref": "#/$defs/DeviceMode",
+          "default": "auto",
+          "description": ""
+        },
+        "device": {
+          "default": "cpu",
+          "description": "Computation device to use.",
+          "title": "Device",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPrecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numerical precision to use when loading the model weights."
+        },
+        "low_cpu_mem_usage": {
+          "default": false,
+          "description": "Load model with minimal CPU RAM usage.",
+          "title": "Low Cpu Mem Usage",
+          "type": "boolean"
+        },
+        "fast_tokenizer": {
+          "default": true,
+          "description": "Whether to use the fast tokenizer if available.",
+          "title": "Fast Tokenizer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "model"
+      ],
+      "title": "TranslationModelComponentConfig",
+      "type": "object"
+    },
+    "TranslationParamsConfig": {
+      "properties": {
+        "max_input_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1024,
+          "description": "Maximum number of tokens per input text.",
+          "title": "Max Input Length"
+        },
+        "max_output_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 256,
+          "description": "Maximum number of tokens to generate.",
+          "title": "Max Output Length"
+        },
+        "min_output_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 10,
+          "description": "Minimum number of tokens to generate.",
+          "title": "Min Output Length"
+        },
+        "num_beams": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 4,
+          "description": "Number of beams to use for beam search.",
+          "title": "Num Beams"
+        },
+        "length_penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1.0,
+          "description": "Length penalty applied during beam search.",
+          "title": "Length Penalty"
+        },
+        "early_stopping": {
+          "default": true,
+          "description": "Whether to stop the beam search when all beams finish generating.",
+          "title": "Early Stopping",
+          "type": "boolean"
+        },
+        "do_sample": {
+          "default": false,
+          "description": "Whether to use sampling to generate diverse translations.",
+          "title": "Do Sample",
+          "type": "boolean"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 50,
+          "description": "Top-K sampling; restricts sampling to the top K tokens.",
+          "title": "Top K"
+        },
+        "top_p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1.0,
+          "description": "Top-p (nucleus) sampling; restricts sampling to tokens with cumulative probability >= top_p.",
+          "title": "Top P"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 32,
+          "description": "Number of input texts to process in a single batch.",
+          "title": "Batch Size"
+        }
+      },
+      "title": "TranslationParamsConfig",
+      "type": "object"
+    },
+    "WorkflowActionConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of action.",
+          "title": "Id",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "",
+          "title": "Output"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        },
+        "workflow": {
+          "default": "__default__",
+          "description": "The workflow to run. Defaults to '__default__'.",
+          "title": "Workflow",
+          "type": "string"
+        },
+        "input": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Input data supplied to the workflow. Accepts any type.",
+          "title": "Input"
+        }
+      },
+      "title": "WorkflowActionConfig",
+      "type": "object"
+    },
+    "WorkflowComponentConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of component.",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "workflow",
+          "title": "Type",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeType",
+          "default": "native",
+          "description": "Runtime environment used to execute this component."
+        },
+        "max_concurrent_count": {
+          "default": 1,
+          "description": "Maximum number of concurrent actions this component can handle.",
+          "title": "Max Concurrent Count",
+          "type": "integer"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use this component when no component is explicitly specified.",
+          "title": "Default"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/WorkflowActionConfig"
+          },
+          "title": "Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "WorkflowComponentConfig",
+      "type": "object"
+    },
+    "WorkflowConfig": {
+      "properties": {
+        "id": {
+          "default": "__default__",
+          "description": "ID of workflow.",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of workflow.",
+          "title": "Name"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Title of workflow.",
+          "title": "Title"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of workflow.",
+          "title": "Description"
+        },
+        "jobs": {
+          "description": "",
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "action": "#/$defs/ActionJobConfig",
+                "delay": {
+                  "discriminator": {
+                    "mapping": {
+                      "specific-time": "#/$defs/SpecificTimeDelayJobConfig",
+                      "time-interval": "#/$defs/TimeIntervalDelayJobConfig"
+                    },
+                    "propertyName": "mode"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/TimeIntervalDelayJobConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/SpecificTimeDelayJobConfig"
+                    }
+                  ]
+                },
+                "filter": "#/$defs/FilterJobConfig",
+                "if": "#/$defs/IfJobConfig",
+                "random-router": "#/$defs/RandomRouterJobConfig",
+                "switch": "#/$defs/SwitchJobConfig"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ActionJobConfig"
+              },
+              {
+                "discriminator": {
+                  "mapping": {
+                    "specific-time": "#/$defs/SpecificTimeDelayJobConfig",
+                    "time-interval": "#/$defs/TimeIntervalDelayJobConfig"
+                  },
+                  "propertyName": "mode"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/TimeIntervalDelayJobConfig"
+                  },
+                  {
+                    "$ref": "#/$defs/SpecificTimeDelayJobConfig"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/IfJobConfig"
+              },
+              {
+                "$ref": "#/$defs/SwitchJobConfig"
+              },
+              {
+                "$ref": "#/$defs/RandomRouterJobConfig"
+              },
+              {
+                "$ref": "#/$defs/FilterJobConfig"
+              }
+            ]
+          },
+          "title": "Jobs",
+          "type": "array"
+        },
+        "default": {
+          "type": "boolean",
+          "default": false,
+          "description": "",
+          "title": "Default"
+        }
+      },
+      "title": "WorkflowConfig",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "controller": {
+      "discriminator": {
+        "mapping": {
+          "http-server": "#/$defs/HttpServerControllerConfig",
+          "mcp-server": "#/$defs/McpServerControllerConfig"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HttpServerControllerConfig"
+        },
+        {
+          "$ref": "#/$defs/McpServerControllerConfig"
+        }
+      ],
+      "title": "Controller"
+    },
+    "components": {
+      "description": "",
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "http-client": "#/$defs/HttpClientComponentConfig",
+            "http-server": "#/$defs/HttpServerComponentConfig",
+            "mcp-client": "#/$defs/McpClientComponentConfig",
+            "mcp-server": "#/$defs/McpServerComponentConfig",
+            "model": {
+              "discriminator": {
+                "mapping": {
+                  "image-to-text": "#/$defs/ImageToTextModelComponentConfig",
+                  "summarization": "#/$defs/SummarizationModelComponentConfig",
+                  "text-classification": "#/$defs/TextClassificationModelComponentConfig",
+                  "text-embedding": "#/$defs/TextEmbeddingModelComponentConfig",
+                  "text-generation": "#/$defs/TextGenerationModelComponentConfig",
+                  "translation": "#/$defs/TranslationModelComponentConfig"
+                },
+                "propertyName": "task"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/TextGenerationModelComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/SummarizationModelComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/TranslationModelComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/TextClassificationModelComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/TextEmbeddingModelComponentConfig"
+                },
+                {
+                  "$ref": "#/$defs/ImageToTextModelComponentConfig"
+                }
+              ]
+            },
+            "shell": "#/$defs/ShellComponentConfig",
+            "text-splitter": "#/$defs/TextSplitterComponentConfig",
+            "workflow": "#/$defs/WorkflowComponentConfig"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/HttpServerComponentConfig"
+          },
+          {
+            "$ref": "#/$defs/HttpClientComponentConfig"
+          },
+          {
+            "$ref": "#/$defs/McpServerComponentConfig"
+          },
+          {
+            "$ref": "#/$defs/McpClientComponentConfig"
+          },
+          {
+            "discriminator": {
+              "mapping": {
+                "image-to-text": "#/$defs/ImageToTextModelComponentConfig",
+                "summarization": "#/$defs/SummarizationModelComponentConfig",
+                "text-classification": "#/$defs/TextClassificationModelComponentConfig",
+                "text-embedding": "#/$defs/TextEmbeddingModelComponentConfig",
+                "text-generation": "#/$defs/TextGenerationModelComponentConfig",
+                "translation": "#/$defs/TranslationModelComponentConfig"
+              },
+              "propertyName": "task"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextGenerationModelComponentConfig"
+              },
+              {
+                "$ref": "#/$defs/SummarizationModelComponentConfig"
+              },
+              {
+                "$ref": "#/$defs/TranslationModelComponentConfig"
+              },
+              {
+                "$ref": "#/$defs/TextClassificationModelComponentConfig"
+              },
+              {
+                "$ref": "#/$defs/TextEmbeddingModelComponentConfig"
+              },
+              {
+                "$ref": "#/$defs/ImageToTextModelComponentConfig"
+              }
+            ]
+          },
+          {
+            "$ref": "#/$defs/WorkflowComponentConfig"
+          },
+          {
+            "$ref": "#/$defs/ShellComponentConfig"
+          },
+          {
+            "$ref": "#/$defs/TextSplitterComponentConfig"
+          }
+        ]
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "listeners": {
+      "description": "",
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "http-callback": "#/$defs/HttpCallbackListenerConfig"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/HttpCallbackListenerConfig"
+          }
+        ]
+      },
+      "title": "Listeners",
+      "type": "array"
+    },
+    "gateways": {
+      "description": "",
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "http-tunnel": {
+              "discriminator": {
+                "mapping": {
+                  "cloudflare": "#/$defs/CloudflareHttpTunnelGatewayConfig",
+                  "ngrok": "#/$defs/NgrokHttpTunnelGatewayConfig"
+                },
+                "propertyName": "driver"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/NgrokHttpTunnelGatewayConfig"
+                },
+                {
+                  "$ref": "#/$defs/CloudflareHttpTunnelGatewayConfig"
+                }
+              ]
+            },
+            "ssh-tunnel": "#/$defs/SshTunnelGatewayConfig"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "discriminator": {
+              "mapping": {
+                "cloudflare": "#/$defs/CloudflareHttpTunnelGatewayConfig",
+                "ngrok": "#/$defs/NgrokHttpTunnelGatewayConfig"
+              },
+              "propertyName": "driver"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/NgrokHttpTunnelGatewayConfig"
+              },
+              {
+                "$ref": "#/$defs/CloudflareHttpTunnelGatewayConfig"
+              }
+            ]
+          },
+          {
+            "$ref": "#/$defs/SshTunnelGatewayConfig"
+          }
+        ]
+      },
+      "title": "Gateways",
+      "type": "array"
+    },
+    "workflows": {
+      "description": "",
+      "items": {
+        "$ref": "#/$defs/WorkflowConfig"
+      },
+      "title": "Workflows",
+      "type": "array"
+    },
+    "loggers": {
+      "description": "",
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "console": "#/$defs/ConsoleLoggerConfig",
+            "file": "#/$defs/FileLoggerConfig"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ConsoleLoggerConfig"
+          },
+          {
+            "$ref": "#/$defs/FileLoggerConfig"
+          }
+        ]
+      },
+      "title": "Loggers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "controller"
+  ],
+  "title": "ComposeConfig",
+  "type": "object"
+}

@@ -34,6 +34,7 @@ class McpServerComponentConfig(CommonComponentConfig):
     manage: McpServerManageConfig = Field(default_factory=McpServerManageConfig, description="Configuration used to manage the MCP server lifecycle.")
     port: int = Field(default=8000, ge=1, le=65535, description="Port on which the MCP server will listen for incoming requests.")
     base_path: Optional[str] = Field(default=None, description="Base path to prefix all MCP routes exposed by this component.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers to be included in all outgoing requests.")
     actions: List[McpServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

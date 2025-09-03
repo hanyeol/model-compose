@@ -15,7 +15,7 @@ class McpControllerClient(ControllerClient):
         self.client: McpClient = McpClient(self._resolve_controller_url())
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
-        return await self._call_tool(workflow_id, input, workflow)
+        return await self._call_tool(workflow_id or "__workflow__", input, workflow)
 
     async def close(self) -> None:
         await self.client.close()

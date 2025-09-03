@@ -8,11 +8,11 @@ from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ..base import ModelTaskService, ModelTaskType, register_model_task_service
 from ..base import ComponentActionContext
+from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer, GenerationMixin, TextIteratorStreamer, StopStringCriteria
-    from threading import Thread
+    from transformers import PreTrainedModel, PreTrainedTokenizer, GenerationMixin
     from torch import Tensor
     import torch
 
@@ -24,6 +24,7 @@ class SummarizationTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        from transformers import TextIteratorStreamer, StopStringCriteria
         import torch
 
         text: Union[str, List[str]] = await context.render_variable(self.config.text)

@@ -13,7 +13,7 @@ from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, TextIteratorStreamer, StopStringCriteria
+    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin
     from torch import Tensor
     import torch
 
@@ -28,6 +28,7 @@ class ImageToTextTaskAction:
         self.device: torch.device = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        from transformers import TextIteratorStreamer, StopStringCriteria
         import torch
 
         image: Union[PILImage.Image, List[PILImage.Image]] = await context.render_image(self.config.image)

@@ -5,6 +5,7 @@ from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, I
 from mindor.core.utils.shell import run_command_streaming
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
+import asyncio
 
 class McpServerAction:
     def __init__(self, config: McpServerActionConfig):
@@ -61,10 +62,19 @@ class McpServerComponent(ComponentService):
 
     async def _serve(self) -> None:
         if self.config.manage.scripts.start:
-            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env, block=False)
+            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
 
     async def _shutdown(self) -> None:
         pass
+
+    async def _is_ready(self) -> bool:
+        try:
+            _, writer = await asyncio.open_connection("localhost", self.config.port)
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (ConnectionRefusedError, OSError):
+            return False
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await McpServerAction(action).run(context, self.client)

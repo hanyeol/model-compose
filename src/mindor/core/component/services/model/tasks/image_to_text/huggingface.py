@@ -111,28 +111,6 @@ class HuggingfaceImageToTextTaskAction:
 
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageToTextTaskService(HuggingfaceModelTaskService):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
-        super().__init__(id, config, daemon)
-
-        self.model: Optional[Union[PreTrainedModel, GenerationMixin]] = None
-        self.processor: Optional[ProcessorMixin] = None
-        self.device: Optional[torch.device] = None
-
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            self.processor = self._load_pretrained_processor()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and processor loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
-
-    async def _shutdown(self) -> None:
-        self.model = None
-        self.processor = None
-        self.device = None
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await HuggingfaceImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 

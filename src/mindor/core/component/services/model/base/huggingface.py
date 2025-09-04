@@ -2,7 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelSourceConfig, DeviceMode
+from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, DeviceMode
+from mindor.core.logger import logging
 from .common import ModelTaskService
 
 if TYPE_CHECKING:
@@ -10,6 +11,14 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceModelTaskService(ModelTaskService):
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.model: Optional[PreTrainedModel] = None
+        self.processor: Optional[ProcessorMixin] = None
+        self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.device: Optional[torch.device] = None
+
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ 
             "transformers>=4.21.0",
@@ -18,18 +27,38 @@ class HuggingfaceModelTaskService(ModelTaskService):
             "accelerate"
         ]
 
+    async def _serve(self) -> None:
+        try:
+            self.model = self._load_pretrained_model()
+            self.processor = self._load_pretrained_processor()
+            self.tokenizer = self._load_pretrained_tokenizer()
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
+        except Exception as e:
+            logging.error(f"Failed to load model '{self.config.model}': {e}")
+            raise
+
+    async def _shutdown(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        self.device = None
+
     def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:
+        model_cls = self._get_model_class()
         params = self._get_common_model_params()
 
         if extra_params:
             params.update(extra_params)
 
-        model = self._get_model_class().from_pretrained(self.config.model, **params)
+        model = model_cls.from_pretrained(self.config.model, **params)
 
         if self.config.device_mode == DeviceMode.SINGLE:
             model = model.to(torch.device(self.config.device))
 
         return model
+
+    def _get_model_class(self) -> Type[PreTrainedModel]:
+        raise NotImplementedError("Model class loader not implemented.")
 
     def _get_common_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
@@ -55,16 +84,52 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
         return params
 
-    def _get_model_class(self) -> Type[PreTrainedModel]:
-        raise NotImplementedError("Model class loader not implemented.")
+    def _load_pretrained_processor(self, extra_params: Optional[Dict[str, Any]] = None) -> Optional[ProcessorMixin]:
+        processor_cls = self._get_processor_class()
 
-    def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedTokenizer:
+        if not processor_cls:
+            return None
+
+        params = self._get_common_processor_params()
+ 
+        if extra_params:
+            params.update(extra_params)
+
+        return self._get_processor_class().from_pretrained(self.config.model, **params)
+
+    def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
+        return None
+
+    def _get_common_processor_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+
+        if isinstance(self.config.model, ModelSourceConfig):
+            if self.config.model.revision:
+                params["revision"] = self.config.model.revision
+ 
+        if self.config.cache_dir:
+            params["cache_dir"] = self.config.cache_dir
+
+        if self.config.local_files_only:
+            params["local_files_only"] = True
+
+        return params
+
+    def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> Optional[PreTrainedTokenizer]:
+        tokenizer_cls = self._get_tokenizer_class()
+
+        if not tokenizer_cls:
+            return None
+
         params = self._get_common_tokenizer_params()
  
         if extra_params:
             params.update(extra_params)
 
-        return self._get_tokenizer_class().from_pretrained(self.config.model, **params)
+        return tokenizer_cls.from_pretrained(self.config.model, **params)
+
+    def _get_tokenizer_class(self) -> Optional[Type[PreTrainedTokenizer]]:
+        return None
 
     def _get_common_tokenizer_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
@@ -83,35 +148,6 @@ class HuggingfaceModelTaskService(ModelTaskService):
             params["local_files_only"] = True
 
         return params
-
-    def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
-        raise NotImplementedError("Tokenizer class loader not implemented.")
-
-    def _load_pretrained_processor(self, extra_params: Optional[Dict[str, Any]] = None) -> ProcessorMixin:
-        params = self._get_common_processor_params()
- 
-        if extra_params:
-            params.update(extra_params)
-
-        return self._get_processor_class().from_pretrained(self.config.model, **params)
-
-    def _get_common_processor_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-
-        if isinstance(self.config.model, ModelSourceConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
- 
-        if self.config.cache_dir:
-            params["cache_dir"] = self.config.cache_dir
-
-        if self.config.local_files_only:
-            params["local_files_only"] = True
-
-        return params
-
-    def _get_processor_class(self) -> Type[ProcessorMixin]:
-        raise NotImplementedError("Processor class loader not implemented.")
 
     def _get_model_device(self, model: PreTrainedModel) -> torch.device:
         return next(model.parameters()).device

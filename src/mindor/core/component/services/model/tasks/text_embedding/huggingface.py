@@ -115,28 +115,6 @@ class HuggingfaceTextEmbeddingTaskAction:
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextEmbeddingTaskService(HuggingfaceModelTaskService):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
-        super().__init__(id, config, daemon)
-
-        self.model: Optional[PreTrainedModel] = None
-        self.tokenizer: Optional[PreTrainedTokenizer] = None
-        self.device: Optional[torch.device] = None
-
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            self.tokenizer = self._load_pretrained_tokenizer()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
-
-    async def _shutdown(self) -> None:
-        self.model = None
-        self.tokenizer = None
-        self.device = None
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 

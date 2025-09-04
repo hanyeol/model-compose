@@ -43,14 +43,9 @@ class HuggingfaceModelTaskService(ModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:
+    def _load_pretrained_model(self) -> PreTrainedModel:
         model_cls = self._get_model_class()
-        params = self._get_common_model_params()
-
-        if extra_params:
-            params.update(extra_params)
-
-        model = model_cls.from_pretrained(self.config.model, **params)
+        model = model_cls.from_pretrained(self.config.model, **self._get_model_params())
 
         if self.config.device_mode == DeviceMode.SINGLE:
             model = model.to(torch.device(self.config.device))
@@ -60,7 +55,7 @@ class HuggingfaceModelTaskService(ModelTaskService):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         raise NotImplementedError("Model class loader not implemented.")
 
-    def _get_common_model_params(self) -> Dict[str, Any]:
+    def _get_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
         if isinstance(self.config.model, ModelSourceConfig):
@@ -84,23 +79,18 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
         return params
 
-    def _load_pretrained_processor(self, extra_params: Optional[Dict[str, Any]] = None) -> Optional[ProcessorMixin]:
+    def _load_pretrained_processor(self) -> Optional[ProcessorMixin]:
         processor_cls = self._get_processor_class()
 
         if not processor_cls:
             return None
 
-        params = self._get_common_processor_params()
- 
-        if extra_params:
-            params.update(extra_params)
-
-        return self._get_processor_class().from_pretrained(self.config.model, **params)
+        return processor_cls.from_pretrained(self.config.model, **self._get_processor_params())
 
     def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
         return None
 
-    def _get_common_processor_params(self) -> Dict[str, Any]:
+    def _get_processor_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
         if isinstance(self.config.model, ModelSourceConfig):
@@ -115,23 +105,18 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
         return params
 
-    def _load_pretrained_tokenizer(self, extra_params: Optional[Dict[str, Any]] = None) -> Optional[PreTrainedTokenizer]:
+    def _load_pretrained_tokenizer(self) -> Optional[PreTrainedTokenizer]:
         tokenizer_cls = self._get_tokenizer_class()
 
         if not tokenizer_cls:
             return None
 
-        params = self._get_common_tokenizer_params()
- 
-        if extra_params:
-            params.update(extra_params)
-
-        return tokenizer_cls.from_pretrained(self.config.model, **params)
+        return tokenizer_cls.from_pretrained(self.config.model, **self._get_tokenizer_params())
 
     def _get_tokenizer_class(self) -> Optional[Type[PreTrainedTokenizer]]:
         return None
 
-    def _get_common_tokenizer_params(self) -> Dict[str, Any]:
+    def _get_tokenizer_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
         if isinstance(self.config.model, ModelSourceConfig):

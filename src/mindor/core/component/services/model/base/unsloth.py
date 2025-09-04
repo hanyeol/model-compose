@@ -1,0 +1,69 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, DeviceMode
+from mindor.core.logger import logging
+from .common import ModelTaskService
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizer
+    import torch
+
+class UnslothModelTaskService(ModelTaskService):
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.model: Optional[PreTrainedModel] = None
+        self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.device: Optional[torch.device] = None
+
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [ 
+            "unsloth",
+            "torch"
+        ]
+
+    async def _serve(self) -> None:
+        try:
+            self.model, self.tokenizer = self._load_pretrained_model()
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
+        except Exception as e:
+            logging.error(f"Failed to load model '{self.config.model}': {e}")
+            raise
+
+    async def _shutdown(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        self.device = None
+
+    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+        from unsloth import FastLanguageModel
+
+        params = self._get_model_params()
+
+        if extra_params:
+            params.update(extra_params)
+
+        return FastLanguageModel.from_pretrained(self.config.model, **params)
+
+    def _get_model_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+
+        if self.config.device_mode != DeviceMode.SINGLE:
+            params["device_map"] = self.config.device_mode.value
+    
+        if self.config.precision is not None:
+            params["dtype"] = self.config.precision.value
+
+        if self.config.cache_dir:
+            params["cache_dir"] = self.config.cache_dir
+
+        if self.config.local_files_only:
+            params["local_files_only"] = True
+
+        return params
+
+    def _get_model_device(self, model: PreTrainedModel) -> torch.device:
+        return next(model.parameters()).device

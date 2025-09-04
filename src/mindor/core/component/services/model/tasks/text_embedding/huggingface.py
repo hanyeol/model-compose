@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.logger import logging
-from ..base import ModelTaskService, ModelTaskType, register_model_task_service
-from ..base import ComponentActionContext
+from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import HuggingfaceModelTaskService, ComponentActionContext
 import asyncio
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class TextEmbeddingTaskAction:
+class HuggingfaceTextEmbeddingTaskAction:
     def __init__(self, config: TextEmbeddingModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TextEmbeddingModelActionConfig = config
         self.model: PreTrainedModel = model
@@ -113,8 +113,8 @@ class TextEmbeddingTaskAction:
 
         raise ValueError(f"Unsupported pooling type: {pooling}")
 
-@register_model_task_service(ModelTaskType.TEXT_EMBEDDING)
-class TextEmbeddingTaskService(ModelTaskService):
+@register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
+class HuggingfaceTextEmbeddingTaskService(HuggingfaceModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -138,7 +138,7 @@ class TextEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+        return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModel

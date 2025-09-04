@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver
 from mindor.dsl.schema.action import ActionConfig, ModelActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
@@ -17,26 +17,18 @@ class ModelComponent(ComponentService):
     def __init__(self, id: str, config: ModelComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-        self.task_service: ModelTaskService = self._create_task_service(self.config.task)
+        self.task_service: ModelTaskService = self._create_task_service(self.config.task, self.config.driver)
 
-    def _create_task_service(self, type: ModelTaskType) -> ModelTaskService:
+    def _create_task_service(self, type: ModelTaskType, driver: ModelDriver) -> ModelTaskService:
         try:
             if not ModelTaskServiceRegistry:
                 from . import tasks
-            return ModelTaskServiceRegistry[type](self.id, self.config, self.daemon)
+            return ModelTaskServiceRegistry[type][driver](self.id, self.config, self.daemon)
         except KeyError:
-            raise ValueError(f"Unsupported model task type: {type}")
+            raise ValueError(f"Unsupported model task type: {type} on {driver}")
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        task_dependencies = self.task_service.get_setup_requirements()
-
-        return [ 
-            "transformers>=4.21.0",
-            "torch",
-            "sentencepiece",
-            "accelerate",
-            *(task_dependencies or [])
-        ]
+        return self.task_service.get_setup_requirements()
 
     async def _serve(self) -> None:
         await self.task_service.start()

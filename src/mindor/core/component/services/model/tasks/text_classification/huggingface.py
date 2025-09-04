@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.logger import logging
-from ..base import ModelTaskService, ModelTaskType, register_model_task_service
-from ..base import ComponentActionContext
+from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import HuggingfaceModelTaskService, ComponentActionContext
 import asyncio
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class TextClassificationTaskAction:
+class HuggingfaceTextClassificationTaskAction:
     def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config: TextClassificationModelActionConfig = config
         self.model: PreTrainedModel = model
@@ -94,8 +94,8 @@ class TextClassificationTaskAction:
             else:
                 return results
 
-@register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION)
-class TextClassificationTaskService(ModelTaskService):
+@register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.HUGGINGFACE)
+class HuggingfaceTextClassificationTaskService(HuggingfaceModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -119,7 +119,7 @@ class TextClassificationTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
+        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification

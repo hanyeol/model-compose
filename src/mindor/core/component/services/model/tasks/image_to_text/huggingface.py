@@ -6,8 +6,8 @@ from mindor.dsl.schema.component import ModelComponentConfig, ImageToTextModelAr
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
-from ..base import ModelTaskService, ModelTaskType, register_model_task_service
-from ..base import ComponentActionContext
+from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import HuggingfaceModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
 from threading import Thread
 import asyncio
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer
 
-class ImageToTextTaskAction:
+class HuggingfaceImageToTextTaskAction:
     def __init__(self, config: ImageToTextModelActionConfig, model: PreTrainedModel, processor: ProcessorMixin, device: torch.device):
         self.config: ImageToTextModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
@@ -109,8 +109,8 @@ class ImageToTextTaskAction:
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-@register_model_task_service(ModelTaskType.IMAGE_TO_TEXT)
-class ImageToTextTaskService(ModelTaskService):
+@register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
+class HuggingfaceImageToTextTaskService(HuggingfaceModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -134,7 +134,7 @@ class ImageToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await ImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
+        return await HuggingfaceImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == ImageToTextModelArchitecture.BLIP:

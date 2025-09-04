@@ -2,40 +2,23 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelSourceConfig, DeviceMode
-from mindor.dsl.schema.action import ModelActionConfig
-from mindor.core.services import AsyncService
-from ...context import ComponentActionContext
-import asyncio
+from mindor.dsl.schema.component import ModelSourceConfig, DeviceMode
+from .common import ModelTaskService
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
     import torch
 
-class ModelTaskService(AsyncService):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: ModelComponentConfig = config
-
+class HuggingfaceModelTaskService(ModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return None
+        return [ 
+            "transformers>=4.21.0",
+            "torch",
+            "sentencepiece",
+            "accelerate"
+        ]
 
-    async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-
-        async def _run():
-            return await self._run(action, context, loop)
-
-        return await self.run_in_thread(_run)
-
-    @abstractmethod
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        pass
-
-    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> Union[PreTrainedModel, torch.nn.Module]:
+    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> PreTrainedModel:
         params = self._get_common_model_params()
 
         if extra_params:
@@ -132,11 +115,3 @@ class ModelTaskService(AsyncService):
 
     def _get_model_device(self, model: PreTrainedModel) -> torch.device:
         return next(model.parameters()).device
-
-def register_model_task_service(type: ModelTaskType):
-    def decorator(cls: Type[ModelTaskService]) -> Type[ModelTaskService]:
-        ModelTaskServiceRegistry[type] = cls
-        return cls
-    return decorator
-
-ModelTaskServiceRegistry: Dict[ModelTaskType, Type[ModelTaskService]] = {}

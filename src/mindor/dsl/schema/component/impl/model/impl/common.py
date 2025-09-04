@@ -30,6 +30,12 @@ class Quantization(str, Enum):
     FP4  = "fp4"
     NF4  = "nf4"
 
+class ModelDriver(str, Enum):
+    HUGGINGFACE = "huggingface"
+    UNSLOTH     = "unsloth"
+    VLLM        = "vllm"
+    LLAMACPP    = "llamacpp"
+
 class ModelSourceConfig(BaseModel):
     model_id: str = Field(..., description="Model identifier.")
     provider: Literal[ "huggingface" ] = Field(default="huggingface", description="Model provider.")
@@ -39,7 +45,7 @@ class ModelSourceConfig(BaseModel):
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    driver: Literal[ "huggingface", "unsloth" ] = Field(default="huggingface", description="Model inference framework driver to use.")
+    driver: ModelDriver = Field(default=ModelDriver.HUGGINGFACE, description="Model inference framework driver to use.")
     model: Union[str, ModelSourceConfig] = Field(..., description="Model source configuration.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")

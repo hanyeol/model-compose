@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, TranslationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, SummarizationModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
-from ..base import ModelTaskService, ModelTaskType, register_model_task_service
-from ..base import ComponentActionContext
+from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import HuggingfaceModelTaskService, ComponentActionContext
 from threading import Thread
 import asyncio
 
@@ -16,9 +16,9 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class TranslationTaskAction:
-    def __init__(self, config: TranslationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
-        self.config: TranslationModelActionConfig = config
+class HuggingfaceSummarizationTaskAction:
+    def __init__(self, config: SummarizationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
+        self.config: SummarizationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
@@ -56,7 +56,7 @@ class TranslationTaskAction:
             batch_texts = texts[index:index + batch_size]
             inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
-            
+
             def _generate():
                 with torch.inference_mode():
                     outputs = self.model.generate(
@@ -100,8 +100,8 @@ class TranslationTaskAction:
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-@register_model_task_service(ModelTaskType.TRANSLATION)
-class TranslationTaskService(ModelTaskService):
+@register_model_task_service(ModelTaskType.SUMMARIZATION, ModelDriver.HUGGINGFACE)
+class HuggingfaceSummarizationTaskService(HuggingfaceModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -125,7 +125,7 @@ class TranslationTaskService(ModelTaskService):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TranslationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+        return await HuggingfaceSummarizationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSeq2SeqLM

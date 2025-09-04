@@ -21,6 +21,15 @@ class AttentionMode(str, Enum):
     FLASH_ATTENTION_2 = "flash_attention_2"
     MEM_EFFICIENT     = "mem_efficient"
 
+class Quantization(str, Enum):
+    NONE = "none"
+    FP16 = "fp16"
+    BF16 = "bf16"
+    INT8 = "int8"
+    INT4 = "int4"
+    FP4  = "fp4"
+    NF4  = "nf4"
+
 class ModelSourceConfig(BaseModel):
     model_id: str = Field(..., description="Model identifier.")
     provider: Literal[ "huggingface" ] = Field(default="huggingface", description="Model provider.")
@@ -30,15 +39,17 @@ class ModelSourceConfig(BaseModel):
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    driver: Literal[ "huggingface" ] = Field(default="huggingface", description="")
+    driver: Literal[ "huggingface", "unsloth" ] = Field(default="huggingface", description="Model inference framework driver to use.")
     model: Union[str, ModelSourceConfig] = Field(..., description="Model source configuration.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
     local_files_only: bool = Field(default=False, description="Force loading from local files only.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="cpu", description="Computation device to use.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
+    quantization: Quantization = Field(default=Quantization.NONE, description="Quantization method.")
     low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")
     fast_tokenizer: bool = Field(default=True, description="Whether to use the fast tokenizer if available.")
+    max_seq_length: int = Field(default=2048, description="")
 
 class ClassificationModelComponentConfig(CommonModelComponentConfig):
     labels: Optional[List[str]] = Field(default=None, description="List of class labels for classification tasks.")

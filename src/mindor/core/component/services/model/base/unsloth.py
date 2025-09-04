@@ -38,15 +38,13 @@ class UnslothModelTaskService(ModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    def _load_pretrained_model(self, extra_params: Optional[Dict[str, Any]] = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+    def _load_pretrained_model(self) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         from unsloth import FastLanguageModel
 
-        params = self._get_model_params()
-
-        if extra_params:
-            params.update(extra_params)
-
-        return FastLanguageModel.from_pretrained(self.config.model, **params)
+        return FastLanguageModel.from_pretrained(
+            self.config.model, 
+            **self._get_model_params()
+        )
 
     def _get_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}

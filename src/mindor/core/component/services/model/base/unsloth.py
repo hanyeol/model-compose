@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, DeviceMode
+from mindor.dsl.schema.component import ModelComponentConfig, DeviceMode
 from mindor.core.logger import logging
 from .common import ModelTaskService
 

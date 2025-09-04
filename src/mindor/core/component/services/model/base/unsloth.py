@@ -8,7 +8,6 @@ from .common import ModelTaskService
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
-    import torch
 
 class UnslothModelTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -16,7 +15,6 @@ class UnslothModelTaskService(ModelTaskService):
 
         self.model: Optional[PreTrainedModel] = None
         self.tokenizer: Optional[PreTrainedTokenizer] = None
-        self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ 
@@ -27,8 +25,7 @@ class UnslothModelTaskService(ModelTaskService):
     async def _serve(self) -> None:
         try:
             self.model, self.tokenizer = self._load_pretrained_model()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
+            logging.info(f"Model and tokenizer loaded successfully: {self.config.model}")
         except Exception as e:
             logging.error(f"Failed to load model '{self.config.model}': {e}")
             raise
@@ -62,6 +59,3 @@ class UnslothModelTaskService(ModelTaskService):
             params["local_files_only"] = True
 
         return params
-
-    def _get_model_device(self, model: PreTrainedModel) -> torch.device:
-        return next(model.parameters()).device

@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .text_generation import CommonModelInferenceActionConfig, TextGenerationParamsConfig
+from .text_generation import CommonModelActionConfig, TextGenerationParamsConfig
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender.")
@@ -25,6 +25,6 @@ InputMessage: TypeAlias = Union[ToolResult, ToolCall, ChatMessage]
 class ChatCompletionParamsConfig(TextGenerationParamsConfig):
     pass
 
-class ChatCompletionModelActionConfig(CommonModelInferenceActionConfig):
+class ChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input messages to generate chat response from.")
     params: ChatCompletionParamsConfig = Field(default_factory=ChatCompletionParamsConfig, description="Chat completion configuration parameters.")

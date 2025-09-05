@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonModelInferenceActionConfig
+from .common import CommonModelActionConfig
 
 class TextGenerationParamsConfig(BaseModel):
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input text.")
@@ -18,6 +18,6 @@ class TextGenerationParamsConfig(BaseModel):
     stop_sequences: Union[List[str], str] = Field(default=None, description="List of stop sequences.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input texts to process in a single batch.")
 
-class TextGenerationModelActionConfig(CommonModelInferenceActionConfig):
+class TextGenerationModelActionConfig(CommonModelActionConfig):
     text: Union[Union[str, List[str]], str] = Field(..., description="Input text to generate text from.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Text generation configuration parameters.")

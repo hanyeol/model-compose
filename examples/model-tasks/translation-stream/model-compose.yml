@@ -14,10 +14,10 @@ workflow:
 
 component:
   type: model
-  task: translation
+  task: text-generation
   model: alirezamsh/small100
   text: ${input.text as text}
   stream: true
   params:
-    num_beams: 1
-    batch_size: 1
+    max_input_length: 1024
+    do_sample: false

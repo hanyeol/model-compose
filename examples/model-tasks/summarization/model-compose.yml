@@ -15,6 +15,10 @@ workflow:
 
 component:
   type: model
-  task: summarization
+  task: text-generation
   model: facebook/bart-large-cnn
   text: ${input.text as text}
+  params:
+    max_input_length: 1024
+    top_p: 1.0
+  

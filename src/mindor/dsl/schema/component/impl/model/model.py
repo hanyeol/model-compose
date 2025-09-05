@@ -5,8 +5,6 @@ from .impl import *
 ModelComponentConfig = Annotated[
     Union[ 
         TextGenerationModelComponentConfig,
-        SummarizationModelComponentConfig,
-        TranslationModelComponentConfig,
         TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
         ImageToTextModelComponentConfig,

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, TextGenerationModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
@@ -27,15 +27,16 @@ class HuggingfaceTextGenerationTaskAction:
         from transformers import TextIteratorStreamer, StopStringCriteria
         import torch
 
-        prompt: Union[str, List[str]] = await context.render_variable(self.config.prompt)
+        text: Union[str, List[str]] = await context.render_variable(self.config.text)
 
+        max_input_length     = await context.render_variable(self.config.params.max_input_length)
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
         min_output_length    = await context.render_variable(self.config.params.min_output_length)
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
         do_sample            = await context.render_variable(self.config.params.do_sample)
-        temperature          = await context.render_variable(self.config.params.temperature)
-        top_k                = await context.render_variable(self.config.params.top_k)
-        top_p                = await context.render_variable(self.config.params.top_p)
+        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
         num_beams            = await context.render_variable(self.config.params.num_beams)
         length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
         early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
@@ -43,18 +44,18 @@ class HuggingfaceTextGenerationTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = bool(not isinstance(prompt, list))
-        prompts: List[str] = [ prompt ] if is_single_input else prompt
+        is_single_input: bool = bool(not isinstance(text, list))
+        texts: List[str] = [ text ] if is_single_input else text
         results = []
 
-        if stream and (batch_size != 1 or len(prompts) != 1):
-            raise ValueError("Streaming mode only supports a single input prompt with batch size of 1.")
+        if stream and (batch_size != 1 or len(texts) != 1):
+            raise ValueError("Streaming mode only supports a single input text with batch size of 1.")
 
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
         stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
-        for index in range(0, len(prompts), batch_size):
-            batch_prompts = prompts[index:index + batch_size]
-            inputs: Dict[str, Tensor] = self.tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
+        for index in range(0, len(texts), batch_size):
+            batch_texts = texts[index:index + batch_size]
+            inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
             def _generate():
@@ -107,8 +108,15 @@ class HuggingfaceTextGenerationTaskService(HuggingfaceModelTaskService):
         return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
     
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        from transformers import AutoModelForCausalLM
-        return AutoModelForCausalLM
+        if self.config.architecture == TextGenerationModelArchitecture.CASUAL:
+            from transformers import AutoModelForCausalLM
+            return AutoModelForCausalLM
+
+        if self.config.architecture == TextGenerationModelArchitecture.SEQ2SEQ:
+            from transformers import AutoModelForSeq2SeqLM
+            return AutoModelForSeq2SeqLM
+
+        raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer

@@ -5,8 +5,13 @@ from pydantic import model_validator
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
 from .common import CommonModelComponentConfig, ModelTaskType
 
+class TextGenerationModelArchitecture(str, Enum):
+    CASUAL  = "casual"
+    SEQ2SEQ = "seq2seq"
+
 class TextGenerationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_GENERATION]
+    architecture: TextGenerationModelArchitecture = Field(default=TextGenerationModelArchitecture.CASUAL, description="Model architecture.")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

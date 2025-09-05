@@ -4,8 +4,6 @@ from .impl import *
 
 ModelActionConfig = Union[
     TextGenerationModelActionConfig,
-    SummarizationModelActionConfig,
-    TranslationModelActionConfig,
     TextClassificationModelActionConfig,
     TextEmbeddingModelActionConfig,
     ImageToTextModelActionConfig,

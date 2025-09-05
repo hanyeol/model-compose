@@ -108,7 +108,7 @@ class HuggingfaceTextGenerationTaskService(HuggingfaceModelTaskService):
         return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
     
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture == TextGenerationModelArchitecture.CASUAL:
+        if self.config.architecture == TextGenerationModelArchitecture.CAUSAL:
             from transformers import AutoModelForCausalLM
             return AutoModelForCausalLM
 

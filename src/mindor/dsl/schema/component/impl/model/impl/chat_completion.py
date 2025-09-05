@@ -5,7 +5,7 @@ from mindor.dsl.schema.action import ChatCompletionModelActionConfig
 from .common import CommonModelComponentConfig, ModelTaskType
 
 class ChatCompletionModelComponentConfig(CommonModelComponentConfig):
-    task: Literal[ModelTaskType.TEXT_GENERATION]
+    task: Literal[ModelTaskType.CHAT_COMPLETION]
     actions: List[ChatCompletionModelActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

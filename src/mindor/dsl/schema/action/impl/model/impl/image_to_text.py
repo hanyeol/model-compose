@@ -20,5 +20,5 @@ class ImageToTextParamsConfig(BaseModel):
 
 class ImageToTextModelActionConfig(CommonModelActionConfig):
     image: Union[Union[str, List[str]], str] = Field(..., description="Input image for text generation.")
-    prompt: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Input prompt to generate text from.")
+    text: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Input text to generate text from.")
     params: ImageToTextParamsConfig = Field(default_factory=ImageToTextParamsConfig, description="Image to text configuration parameters.")

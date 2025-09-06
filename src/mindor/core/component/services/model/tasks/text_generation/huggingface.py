@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, TextGenerationModelArchitecture
+from mindor.dsl.schema.component import TextGenerationModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
@@ -27,7 +27,11 @@ class HuggingfaceTextGenerationTaskAction:
         from transformers import TextIteratorStreamer, StopStringCriteria
         import torch
 
-        text: Union[str, List[str]] = await context.render_variable(self.config.text)
+        text = await self._prepare_input(context)
+
+        is_single_input: bool = bool(not isinstance(text, list))
+        texts: List[str] = [ text ] if is_single_input else text
+        results = []
 
         max_input_length     = await context.render_variable(self.config.params.max_input_length)
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
@@ -44,10 +48,6 @@ class HuggingfaceTextGenerationTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = bool(not isinstance(text, list))
-        texts: List[str] = [ text ] if is_single_input else text
-        results = []
-
         if stream and (batch_size != 1 or len(texts) != 1):
             raise ValueError("Streaming mode only supports a single input text with batch size of 1.")
 
@@ -55,7 +55,7 @@ class HuggingfaceTextGenerationTaskAction:
         stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
         for index in range(0, len(texts), batch_size):
             batch_texts = texts[index:index + batch_size]
-            inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", max_length=max_input_length, padding=True, truncation=True)
+            inputs = self._tokenize_input(batch_texts, max_input_length)
             inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
             def _generate():
@@ -101,6 +101,21 @@ class HuggingfaceTextGenerationTaskAction:
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
+        return await context.render_variable(self.config.text)
+
+    def _tokenize_input(self, texts: List[str], max_input_length: Optional[int]) -> Dict[str, Tensor]:
+        params = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": True if max_input_length is not None else False
+        }
+
+        if max_input_length is not None:
+            params["max_length"] = max_input_length
+
+        return self.tokenizer(texts, **params)
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextGenerationTaskService(HuggingfaceModelTaskService):

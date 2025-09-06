@@ -22,9 +22,6 @@ class ToolResult(BaseModel):
 
 InputMessage: TypeAlias = Union[ToolResult, ToolCall, ChatMessage]
 
-class ChatCompletionParamsConfig(TextGenerationParamsConfig):
-    pass
-
 class ChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input messages to generate chat response from.")
-    params: ChatCompletionParamsConfig = Field(default_factory=ChatCompletionParamsConfig, description="Chat completion configuration parameters.")
+    params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion configuration parameters.")

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Protocol, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ImageToTextModelArchitecture
+from mindor.dsl.schema.component import ImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
@@ -31,8 +31,12 @@ class HuggingfaceImageToTextTaskAction:
         from transformers import TextIteratorStreamer, StopStringCriteria
         import torch
 
-        image: Union[PILImage.Image, List[PILImage.Image]] = await context.render_image(self.config.image)
-        prompt: Optional[Union[str, List[str]]] = await context.render_variable(self.config.prompt)
+        image, text = await self._prepare_input(context)
+
+        is_single_input: bool = bool(not isinstance(images, list))
+        images: List[PILImage.Image] = [ image ] if is_single_input else image
+        texts: Optional[List[str]] = [ text ] if is_single_input else text
+        results = []
 
         max_input_length     = await context.render_variable(self.config.params.max_input_length)
         max_output_length    = await context.render_variable(self.config.params.max_output_length)
@@ -49,11 +53,6 @@ class HuggingfaceImageToTextTaskAction:
         batch_size           = await context.render_variable(self.config.params.batch_size)
         stream               = await context.render_variable(self.config.stream)
 
-        is_single_input: bool = bool(not isinstance(images, list))
-        images: List[PILImage.Image] = [ image ] if is_single_input else image
-        prompts: Optional[List[str]] = [ prompt ] if is_single_input else prompt
-        results = []
-
         if stream and (batch_size != 1 or len(images) != 1):
             raise ValueError("Streaming mode only supports a single input image with batch size of 1.")
 
@@ -61,9 +60,9 @@ class HuggingfaceImageToTextTaskAction:
         stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, stop_sequences) ] if stop_sequences else None
         for index in range(0, len(images), batch_size):
             batch_images = images[index:index + batch_size]
-            batch_prompts = prompts[index:index + batch_size] if prompts else None
+            batch_texts = texts[index:index + batch_size] if texts else None
             
-            inputs: Tensor = self.processor(images=batch_images, text=batch_prompts, max_length=max_input_length, return_tensors="pt")
+            inputs = self._process_input(batch_images, batch_texts, max_input_length)
             inputs = inputs.to(self.device)
 
             def _generate():
@@ -108,6 +107,24 @@ class HuggingfaceImageToTextTaskAction:
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Union[PILImage.Image, List[PILImage.Image]], Optional[Union[str, List[str]]]]:
+        image = await context.render_image(self.config.image)
+        text  = await context.render_variable(self.config.text)
+        
+        return image, text
+
+    def _process_input(self, images: List[PILImage.Image], texts: Optional[List[str]], max_input_length: Optional[int]) -> Tensor:
+        params = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": True if max_input_length is not None else False
+         }
+
+        if max_input_length is not None:
+            params["max_length"] = max_input_length
+
+        return self.processor(images=images, text=texts, **params)
 
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageToTextTaskService(HuggingfaceModelTaskService):

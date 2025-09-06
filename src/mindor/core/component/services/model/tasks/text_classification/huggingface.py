@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
@@ -25,21 +24,22 @@ class HuggingfaceTextClassificationTaskAction:
     async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
         import torch, torch.nn.functional as F
 
-        text: Union[str, List[str]] = await context.render_variable(self.config.text)
-
-        return_probabilities = await context.render_variable(self.config.params.return_probabilities)
-        batch_size           = await context.render_variable(self.config.params.batch_size)
-        stream               = await context.render_variable(self.config.stream)
+        text = await self._prepare_input(context)
 
         is_single_input: bool = bool(not isinstance(text, list))
         is_output_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 
+        max_input_length     = await context.render_variable(self.config.params.max_input_length)
+        return_probabilities = await context.render_variable(self.config.params.return_probabilities)
+        batch_size           = await context.render_variable(self.config.params.batch_size)
+        stream               = await context.render_variable(self.config.stream)
+
         async def _predict():
             for index in range(0, len(texts), batch_size):
                 batch_texts = texts[index:index + batch_size]
-                inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True)
+                inputs = self._tokenize_input(batch_texts, max_input_length)
                 inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
                 with torch.inference_mode():
@@ -93,6 +93,21 @@ class HuggingfaceTextClassificationTaskAction:
                 return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
             else:
                 return results
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
+        return await context.render_variable(self.config.text)
+
+    def _tokenize_input(self, texts: List[str], max_input_length: Optional[int]) -> Dict[str, Tensor]:
+        params = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": True if max_input_length is not None else False
+        }
+
+        if max_input_length is not None:
+            params["max_length"] = max_input_length
+
+        return self.tokenizer(texts, **params)
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextClassificationTaskService(HuggingfaceModelTaskService):

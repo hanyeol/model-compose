@@ -4,6 +4,7 @@ from .impl import *
 
 ModelActionConfig = Union[
     TextGenerationModelActionConfig,
+    ChatCompletionModelActionConfig,
     TextClassificationModelActionConfig,
     TextEmbeddingModelActionConfig,
     ImageToTextModelActionConfig,

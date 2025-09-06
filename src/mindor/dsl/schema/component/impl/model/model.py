@@ -5,6 +5,7 @@ from .impl import *
 ModelComponentConfig = Annotated[
     Union[ 
         TextGenerationModelComponentConfig,
+        ChatCompletionModelComponentConfig,
         TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
         ImageToTextModelComponentConfig,

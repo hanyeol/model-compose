@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 from packaging.requirements import Requirement, SpecifierSet
 from packaging.utils import canonicalize_name
 from importlib.metadata import version, PackageNotFoundError
@@ -9,7 +9,7 @@ async def install_package(package_spec: str) -> None:
     """Install a package using pip.
     
     Args:
-        package_spec: Package specification to install (e.g., "torch>=2.0.0")
+        package_spec: Package specification to install (e.g., "torch>=2.0.0" or "git+https://github.com/...")
     """
     process = await asyncio.create_subprocess_exec(
         sys.executable, "-m", "pip", "install", package_spec,
@@ -31,7 +31,7 @@ def parse_requirement(package_spec: str) -> Optional[Requirement]:
     """Attempt to parse the package specification as a PEP 508 requirement.
 
     Args:
-        package_spec: A package specification string (e.g., "torch>=2.0.0")
+        package_spec: A package specification string (e.g., "torch>=2.0.0" or "git+https://github.com/...")
 
     Returns:
         A Requirement object if the specification can be parsed, None otherwise

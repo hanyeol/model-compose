@@ -114,10 +114,11 @@ class ComponentService(AsyncService):
 
     async def _install_packages(self, packages: List[str]) -> None:
         for package_spec in packages:
+            package_spec, repository = (package_spec.split("@", 1) + [ None ])[:2]
             requirement = parse_requirement(package_spec)
             if not requirement or not is_requirement_satisfied(requirement):
                 logging.info(f"Installing missing module: {package_spec}")
-                await install_package(package_spec)
+                await install_package(repository or package_spec)
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

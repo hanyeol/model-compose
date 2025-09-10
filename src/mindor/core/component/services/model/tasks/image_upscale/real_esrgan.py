@@ -57,7 +57,7 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
             hub.cached_download = cached_download
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "realesrgan" ]
+        return [ "realesrgan>=1.0@git+https://github.com/xinntao/Real-ESRGAN.git" ]
 
     async def _serve(self) -> None:
         try:

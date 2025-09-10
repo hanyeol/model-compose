@@ -6,4 +6,5 @@ class ModelTaskType(str, Enum):
     TEXT_CLASSIFICATION = "text-classification" 
     TEXT_EMBEDDING      = "text-embedding"
     IMAGE_TO_TEXT       = "image-to-text"
+    IMAGE_GENERATION    = "image-generation"
     IMAGE_UPSCALE       = "image-upscale"

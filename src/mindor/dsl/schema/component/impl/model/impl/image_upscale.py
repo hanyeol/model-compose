@@ -16,7 +16,7 @@ class ImageUpscaleModelArchitecture(str, Enum):
 
 class CommonImageUpscaleModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.IMAGE_UPSCALE]
-    driver: Literal[ModelDriver.CUSTOM]
+    driver: ModelDriver = Field(default=ModelDriver.CUSTOM)
     architecture: ImageUpscaleModelArchitecture = Field(..., description="Model architecture.")
 
     @model_validator(mode="before")

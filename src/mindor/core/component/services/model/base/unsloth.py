@@ -51,10 +51,4 @@ class UnslothModelTaskService(ModelTaskService):
         if self.config.precision is not None:
             params["dtype"] = self.config.precision.value
 
-        if self.config.cache_dir:
-            params["cache_dir"] = self.config.cache_dir
-
-        if self.config.local_files_only:
-            params["local_files_only"] = True
-
         return params

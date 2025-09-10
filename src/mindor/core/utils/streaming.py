@@ -18,15 +18,6 @@ class StreamResource(ABC):
     def __aiter__(self):
         return self._iterate_stream()
 
-    def as_iterator(self) -> AsyncIterator[bytes]:
-        async def _iterator() -> AsyncIterator[bytes]:
-            try:
-                async for chunk in self:
-                    yield chunk
-            finally:
-                await self.close()
-        return _iterator()
-
     @abstractmethod
     async def close(self) -> None:
         pass
@@ -42,16 +33,15 @@ class FileStreamResource(StreamResource):
         self.path = path
         self.stream: Optional[aiofiles.threadpool.text.AsyncTextIOWrapper] = None
 
-    async def __aenter__(self):
-        self.stream = await aiofiles.open(self.path, "rb")
-        return self
-
     async def close(self) -> None:
         if self.stream:
             await self.stream.close()
             self.stream = None
         
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        if not self.stream:
+            self.stream = await aiofiles.open(self.path, "rb")
+
         while True:
             chunk = await self.stream.read(8192)
             if not chunk:
@@ -63,9 +53,6 @@ class UploadFileStreamResource(StreamResource):
         super().__init__(file.content_type, file.filename)
 
         self.file: UploadFile = file
-
-    async def __aenter__(self):
-        return self
 
     async def close(self) -> None:
         await self.file.close()
@@ -84,16 +71,15 @@ class Base64StreamResource(StreamResource):
         self.encoded: str = encoded
         self.stream: Optional[io.BytesIO] = None
 
-    async def __aenter__(self):
-        self.stream = io.BytesIO(base64.b64decode(self.encoded))
-        return self
-
     async def close(self) -> None:
         if self.stream:
             self.stream.close()
             self.stream = None
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        if not self.stream:
+            self.stream = io.BytesIO(base64.b64decode(self.encoded))
+
         while True:
             chunk = self.stream.read(8192)
             if not chunk:

@@ -24,4 +24,7 @@ InputMessage: TypeAlias = Union[ToolResult, ToolCall, ChatMessage]
 
 class ChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input messages to generate chat response from.")
+    batch_size: Union[int, str] = Field(default=1, description="Number of input texts to process in a single batch.")
+    max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input text.")
+    stop_sequences: Union[List[str], str] = Field(default=None, description="List of stop sequences.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion configuration parameters.")

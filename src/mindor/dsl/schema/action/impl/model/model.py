@@ -8,4 +8,5 @@ ModelActionConfig = Union[
     TextClassificationModelActionConfig,
     TextEmbeddingModelActionConfig,
     ImageToTextModelActionConfig,
+    ImageUpscaleModelActionConfig,
 ]

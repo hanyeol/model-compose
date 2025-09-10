@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelSourceConfig, DeviceMode
+from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, DeviceMode
 from mindor.core.logger import logging
 from .common import ModelTaskService
 
@@ -13,35 +13,6 @@ if TYPE_CHECKING:
 class HuggingfaceModelTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
-
-        self.model: Optional[PreTrainedModel] = None
-        self.processor: Optional[ProcessorMixin] = None
-        self.tokenizer: Optional[PreTrainedTokenizer] = None
-        self.device: Optional[torch.device] = None
-
-    def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ 
-            "transformers>=4.21.0",
-            "torch",
-            "sentencepiece",
-            "accelerate"
-        ]
-
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            self.processor = self._load_pretrained_processor()
-            self.tokenizer = self._load_pretrained_tokenizer()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
-
-    async def _shutdown(self) -> None:
-        self.model = None
-        self.tokenizer = None
-        self.device = None
 
     def _load_pretrained_model(self) -> PreTrainedModel:
         model_cls = self._get_model_class()
@@ -58,9 +29,15 @@ class HuggingfaceModelTaskService(ModelTaskService):
     def _get_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(self.config.model, ModelSourceConfig):
+        if isinstance(self.config.model, HuggingfaceModelConfig):
             if self.config.model.revision:
                 params["revision"] = self.config.model.revision
+            
+            if self.config.model.cache_dir:
+                params["cache_dir"] = self.config.model.cache_dir
+
+            if self.config.model.local_files_only:
+                params["local_files_only"] = True
 
         if self.config.device_mode != DeviceMode.SINGLE:
             params["device_map"] = self.config.device_mode.value
@@ -71,39 +48,41 @@ class HuggingfaceModelTaskService(ModelTaskService):
         if self.config.low_cpu_mem_usage:
             params["low_cpu_mem_usage"] = True
 
-        if self.config.cache_dir:
-            params["cache_dir"] = self.config.cache_dir
-
-        if self.config.local_files_only:
-            params["local_files_only"] = True
-
         return params
 
-    def _load_pretrained_processor(self) -> Optional[ProcessorMixin]:
-        processor_cls = self._get_processor_class()
+    def _get_model_device(self, model: PreTrainedModel) -> torch.device:
+        return next(model.parameters()).device
 
-        if not processor_cls:
-            return None
+class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
-        return processor_cls.from_pretrained(self.config.model, **self._get_processor_params())
+        self.model: Optional[PreTrainedModel] = None
+        self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.device: Optional[torch.device] = None
 
-    def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
-        return None
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [ 
+            "transformers>=4.21.0",
+            "torch",
+            "sentencepiece",
+            "accelerate"
+        ]
 
-    def _get_processor_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
+    async def _serve(self) -> None:
+        try:
+            self.model = self._load_pretrained_model()
+            self.tokenizer = self._load_pretrained_tokenizer()
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
+        except Exception as e:
+            logging.error(f"Failed to load model '{self.config.model}': {e}")
+            raise
 
-        if isinstance(self.config.model, ModelSourceConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
- 
-        if self.config.cache_dir:
-            params["cache_dir"] = self.config.cache_dir
-
-        if self.config.local_files_only:
-            params["local_files_only"] = True
-
-        return params
+    async def _shutdown(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        self.device = None
 
     def _load_pretrained_tokenizer(self) -> Optional[PreTrainedTokenizer]:
         tokenizer_cls = self._get_tokenizer_class()
@@ -119,20 +98,74 @@ class HuggingfaceModelTaskService(ModelTaskService):
     def _get_tokenizer_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(self.config.model, ModelSourceConfig):
+        if isinstance(self.config.model, HuggingfaceModelConfig):
             if self.config.model.revision:
                 params["revision"] = self.config.model.revision
-    
+
+            if self.config.model.cache_dir:
+                params["cache_dir"] = self.config.model.cache_dir
+
+            if self.config.model.local_files_only:
+                params["local_files_only"] = True
+
         if not self.config.fast_tokenizer:
             params["use_fast"] = False
 
-        if self.config.cache_dir:
-            params["cache_dir"] = self.config.cache_dir
-
-        if self.config.local_files_only:
-            params["local_files_only"] = True
-
         return params
 
-    def _get_model_device(self, model: PreTrainedModel) -> torch.device:
-        return next(model.parameters()).device
+class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.model: Optional[PreTrainedModel] = None
+        self.processor: Optional[ProcessorMixin] = None
+        self.device: Optional[torch.device] = None
+
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [ 
+            "transformers>=4.21.0",
+            "torch",
+            "sentencepiece",
+            "accelerate"
+        ]
+
+    async def _serve(self) -> None:
+        try:
+            self.model = self._load_pretrained_model()
+            self.processor = self._load_pretrained_processor()
+            self.device = self._get_model_device(self.model)
+            logging.info(f"Model and processor loaded successfully on device '{self.device}': {self.config.model}")
+        except Exception as e:
+            logging.error(f"Failed to load model '{self.config.model}': {e}")
+            raise
+
+    async def _shutdown(self) -> None:
+        self.model = None
+        self.processor = None
+        self.device = None
+
+    def _load_pretrained_processor(self) -> Optional[ProcessorMixin]:
+        processor_cls = self._get_processor_class()
+
+        if not processor_cls:
+            return None
+
+        return processor_cls.from_pretrained(self.config.model, **self._get_processor_params())
+
+    def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
+        return None
+
+    def _get_processor_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+
+        if isinstance(self.config.model, HuggingfaceModelConfig):
+            if self.config.model.revision:
+                params["revision"] = self.config.model.revision
+ 
+            if self.config.model.cache_dir:
+                params["cache_dir"] = self.config.model.cache_dir
+
+            if self.config.model.local_files_only:
+                params["local_files_only"] = True
+
+        return params

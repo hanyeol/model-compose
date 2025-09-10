@@ -75,9 +75,15 @@ class HttpEventStreamResource(StreamResource):
 class HttpClient:
     shared_instance: Optional["HttpClient"] = None
 
-    def __init__(self, base_url: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None
+    ):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
+        self.timeout: Optional[float] = timeout
         self.session: aiohttp.ClientSession = self._create_session(self.base_url)
 
     async def __aenter__(self):
@@ -95,11 +101,20 @@ class HttpClient:
         params: Optional[Dict[str, Any]] = None,
         body: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
         raise_on_error: bool = True
     ) -> Union[Any, Tuple[Any, int]]:
         response: aiohttp.ClientResponse = None
         try:
-            response = await self._request_with_session(self.session, url_or_path, method, params, body, { **(self.headers or {}), **(headers or {})})
+            response = await self._request_with_session(
+                session=self.session,
+                url_or_path=url_or_path, 
+                method=method, 
+                params=params,
+                body=body,
+                headers={ **(self.headers or {}), **(headers or {})},
+                timeout=timeout or self.timeout
+            )
             content, _ = await self._parse_response_content(response)
 
             if raise_on_error and response.status >= 400:
@@ -143,7 +158,8 @@ class HttpClient:
         method: str,
         params: Optional[Dict[str, Any]],
         body: Optional[Any],
-        headers: Optional[Dict[str, str]]
+        headers: Optional[Dict[str, str]],
+        timeout: Optional[float] = None
     ) -> aiohttp.ClientResponse:
         data, content_type = self._build_request_body(body, headers)
  
@@ -151,7 +167,14 @@ class HttpClient:
             headers = CaseInsensitiveDict(headers)
             headers.pop("Content-Type", None)
 
-        return await session.request(method, url_or_path.lstrip("/"), params=params, data=data, headers=headers)
+        return await session.request(
+            method=method, 
+            url=url_or_path.lstrip("/"),
+            params=params,
+            data=data,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=timeout) if timeout is not None else None
+        )
 
     def _build_request_body(self, body: Optional[Any], headers: Optional[Dict[str, str]]) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(headers, "Content-Type")

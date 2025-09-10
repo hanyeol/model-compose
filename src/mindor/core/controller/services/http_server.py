@@ -11,12 +11,14 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.http_client import HttpEventStreamResource
+from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource
 from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
+from PIL import Image as PILImage
 import uvicorn
 
 class WorkflowRunRequestBody(BaseModel):
@@ -222,6 +224,9 @@ class HttpServerController(ControllerService):
 
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
+
+        if isinstance(state.output, PILImage.Image):
+            return self._render_stream_resource(ImageStreamResource(state.output))
 
         if isinstance(state.output, (HttpEventStreamResource, AsyncIterator)):
             return self._render_async_iterator(state.output)

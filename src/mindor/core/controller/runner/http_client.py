@@ -9,7 +9,7 @@ class HttpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
         super().__init__(config)
 
-        self.client: HttpClient = HttpClient(self._resolve_controller_url())
+        self.client: HttpClient = HttpClient(self._resolve_controller_url(), timeout=3600)
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
         url = f"/workflows/{workflow_id or '__default__'}/runs"

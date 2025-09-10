@@ -6,19 +6,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 class CustomImageGenerationTaskService:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == ImageGenerationModelFamily.HUNYUAN_IMAGE:
-            from .hu import EsrganImageUpscaleTaskService
-            return EsrganImageUpscaleTaskService(id, config, daemon)
-
-        if config.architecture == ImageUpscaleModelArchitecture.REAL_ESRGAN:
-            from .real_esrgan import RealEsrganImageUpscaleTaskService
-            return RealEsrganImageUpscaleTaskService(id, config, daemon)
-
-        if config.architecture == ImageUpscaleModelArchitecture.LDSR:
-            from .ldsr import LdsrImageUpscaleTaskService
-            return LdsrImageUpscaleTaskService(id, config, daemon)
-
-        if config.architecture == ImageUpscaleModelArchitecture.SWINIR:
-            from .swinir import SwinIRImageUpscaleTaskService
-            return SwinIRImageUpscaleTaskService(id, config, daemon)
+            from .hunyuan_image import HunyuanImageGenerationTaskService
+            return HunyuanImageGenerationTaskService(id, config, daemon)
 
         raise ValueError(f"Unknown architecture: {config.architecture}")

@@ -8,13 +8,17 @@ controller:
 
 workflow:
   title: Upscale Image
-  description: 
+  description: Upscale input images using a pretrained super-resolution model.
   input: ${input}
   output: ${output as image}
 
 component:
   type: model
   task: image-upscale
-  model: qualcomm/ESRGAN
-  architecture: esrgan
+  architecture: real-esrgan
+  model:
+    provider: huggingface
+    repository: ai-forever/Real-ESRGAN
+    filename: RealESRGAN_x4.pth
+  scale: 4
   image: ${input.image as image}

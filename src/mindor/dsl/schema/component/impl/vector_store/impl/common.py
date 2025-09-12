@@ -3,7 +3,12 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
-from .types import VectorStoreDriver
+
+class VectorStoreDriver(str, Enum):
+    MILVUS = "milvus"
+    QDRANT = "qdrant"
+    FAISS  = "faiss"
+    CHROMA = "chroma"
 
 class CommonVectorStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_STORE]

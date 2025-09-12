@@ -1,7 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonVectorInsertActionConfig, CommonVectorUpdateActionConfig, CommonVectorSearchActionConfig, CommonVectorDeleteActionConfig
+from .common import (
+    CommonVectorInsertActionConfig, 
+    CommonVectorUpdateActionConfig, 
+    CommonVectorSearchActionConfig, 
+    CommonVectorDeleteActionConfig
+)
 
 class QdrantVectorInsertActionConfig(CommonVectorInsertActionConfig):
     collection: str = Field(..., description="Target collection for vector insertion.")

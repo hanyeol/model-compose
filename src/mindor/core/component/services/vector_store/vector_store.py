@@ -9,17 +9,17 @@ class VectorStoreAction:
     def __init__(self, config: VectorStoreActionConfig):
         self.config: VectorStoreActionConfig = config
 
-    async def run(self, context: ComponentActionContext, store_service: VectorStoreService) -> Any:
-        return await store_service.run(self.config, context)
+    async def run(self, context: ComponentActionContext, service: VectorStoreService) -> Any:
+        return await service.run(self.config, context)
 
 @register_component(ComponentType.VECTOR_STORE)
 class VectorStoreComponent(ComponentService):
     def __init__(self, id: str, config: VectorStoreComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-        self.store_service: VectorStoreService = self._create_store_service(self.config.driver)
+        self.service: VectorStoreService = self._create_service(self.config.driver)
 
-    def _create_store_service(self, driver: VectorStoreDriver) -> VectorStoreService:
+    def _create_service(self, driver: VectorStoreDriver) -> VectorStoreService:
         try:
             if not VectorStoreServiceRegistry:
                 from . import drivers
@@ -28,13 +28,13 @@ class VectorStoreComponent(ComponentService):
             raise ValueError(f"Unsupported vector store driver: {driver}")
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.store_service.get_setup_requirements()
+        return self.service.get_setup_requirements()
     
     async def _serve(self) -> None:
-        await self.store_service.start()
+        await self.service.start()
 
     async def _shutdown(self) -> None:
-        await self.store_service.stop()
+        await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await VectorStoreAction(action).run(context, self.store_service)
+        return await VectorStoreAction(action).run(context, self.service)

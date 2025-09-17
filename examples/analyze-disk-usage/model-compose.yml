@@ -18,9 +18,9 @@ workflow:
     - id: analyze-disk-usage
       component: gpt-4o
       input:
-        system-prompt: |
+        system_prompt: |
           You are a Unix system expert. When given the output of df -h, provide a detailed analysis of disk usage, highlight any volumes with critically high usage, and recommend specific actions to free up space.
-        user-prompt: ${jobs.get-disk-usage.output}
+        user_prompt: ${jobs.get-disk-usage.output}
       output: 
         usage: ${jobs.get-disk-usage.output}
         advice: ${output as markdown}
@@ -44,7 +44,7 @@ components:
       model: gpt-4o
       messages:
         - role: system
-          content: ${input.system-prompt}
+          content: ${input.system_prompt}
         - role: user
-          content: ${input.user-prompt}
+          content: ${input.user_prompt}
     output: ${response.choices[0].message.content}

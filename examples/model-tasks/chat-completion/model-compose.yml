@@ -19,6 +19,6 @@ component:
   model: HuggingFaceTB/SmolLM3-3B
   messages:
     - role: system
-      content: ${input.system-prompt}
+      content: ${input.system_prompt}
     - role: user
-      content: ${input.user-prompt}
+      content: ${input.user_prompt}

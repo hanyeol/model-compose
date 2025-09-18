@@ -96,7 +96,7 @@ graph TD
     J1((text-to-speech<br/>job))
 
     %% Components (rectangles)
-    C1[text-to-speech<br/>component]
+    C1[ElevenLabs TTS<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

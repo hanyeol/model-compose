@@ -114,7 +114,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[BART-Large-CNN<br/>summarization model]
+    C1[Text Summarization Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

@@ -97,7 +97,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[OpenAI GPT-4o Model<br/>component]
+    C1[OpenAI GPT-4o<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

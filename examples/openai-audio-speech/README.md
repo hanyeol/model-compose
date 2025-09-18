@@ -100,7 +100,7 @@ graph TD
     J1((text-to-speech<br/>job))
 
     %% Components (rectangles)
-    C1[OpenAI TTS Model<br/>component]
+    C1[OpenAI TTS<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -208,43 +208,3 @@ body:
   response_format: ${input.format | mp3}
   speed: ${input.speed | 1.0}  # Speech speed (0.25-4.0)
 ```
-
-## Pricing and API Limits
-
-### Pricing Structure (as of 2024)
-
-| Model | Price per 1K Characters | Quality | Use Case |
-|-------|-------------------------|---------|----------|
-| **tts-1** | $0.015 | Standard | Real-time, interactive |
-| **tts-1-hd** | $0.030 | High | Content creation, media |
-| **gpt-4o-mini-tts** | $0.010 | Standard | Budget-conscious apps |
-
-### Rate Limits
-
-- **Requests per minute (RPM)**: 50 (can be increased)
-- **Tokens per minute (TPM)**: 50,000
-- **Requests per day (RPD)**: 10,000
-
-### Cost Optimization Tips
-
-1. **Choose Appropriate Model**: Use tts-1 for real-time, tts-1-hd for quality
-2. **Batch Processing**: Combine related text segments
-3. **Caching**: Store frequently used audio
-4. **Monitor Usage**: Track character consumption
-
-## Use Cases
-
-### Content Creation
-- **Podcast Production**: Generate professional narration
-- **Video Content**: Add voiceovers to educational videos
-- **Audiobook Creation**: Convert written books to audio
-
-### Business Applications
-- **Customer Service**: Automated phone responses
-- **E-learning Platforms**: Interactive educational content
-- **Marketing**: Audio advertisements and announcements
-
-### Accessibility Solutions
-- **Visual Impairment Support**: Text-to-speech for websites
-- **Reading Assistance**: Help for dyslexia or learning difficulties
-- **Language Learning**: Pronunciation examples

@@ -129,7 +129,7 @@ graph TD
     J2((store-vector<br/>job))
 
     %% Components (rectangles)
-    C1[Text Embedding<br/>component]
+    C1[Text Embedding Model<br/>component]
     C2[Milvus Vector Store<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
@@ -172,7 +172,7 @@ graph TD
     J2((search-vectors<br/>job))
 
     %% Components (rectangles)
-    C1[Text Embedding<br/>component]
+    C1[Text Embedding Model<br/>component]
     C2[Milvus Vector Store<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
@@ -201,18 +201,6 @@ graph TD
 |-------|------|-------------|
 | `results` | array | Array of similar documents with scores and metadata |
 | `total_results` | integer | Number of results returned |
-
-## Available Operations
-
-### Insert Operations
-- **insert-sentence-embedding**: Store new text embeddings with auto-generated IDs
-- **update-sentence-embedding**: Update existing embeddings by integer ID
-
-### Search Operations
-- **search-sentence-embeddings**: Find similar texts using high-speed semantic search
-
-### Management Operations
-- **delete-sentence-embedding**: Remove embeddings by integer ID
 
 ## Customization
 
@@ -272,101 +260,4 @@ actions:
     search_params:
       metric_type: "L2"  # Euclidean distance
       params: {"nprobe": 16}
-```
-
-## Performance Considerations
-
-### Milvus Performance
-
-| Index Type | Memory Usage | Search Speed | Accuracy | Use Case |
-|------------|--------------|--------------|----------|----------|
-| **HNSW** | High | Fastest | Highest | Real-time applications |
-| **IVF_FLAT** | Medium | Fast | High | Balanced performance |
-| **IVF_PQ** | Low | Medium | Good | Large-scale datasets |
-
-### Scaling Considerations
-- Use Milvus cluster mode for large deployments
-- Implement read replicas for query-heavy workloads
-- Consider data partitioning strategies
-- Monitor collection size and memory usage
-
-## Use Cases
-
-### Large-Scale Document Search
-Handle millions of documents with sub-millisecond search times for enterprise knowledge bases.
-
-### Real-time Recommendation Systems
-Power recommendation engines with fast similarity searches across product catalogs.
-
-### Content Moderation
-Classify and filter content using embedding-based similarity to known patterns.
-
-### Anomaly Detection
-Use embeddings to detect outliers and anomalies in data streams.
-
-### Enterprise RAG Systems
-Provide high-performance context retrieval for large-language model applications.
-
-## Example Integration
-
-### Production RAG Pipeline
-```yaml
-workflows:
-  - id: enterprise-rag
-    jobs:
-      - id: search-context
-        component: vector-store
-        action: search
-        input:
-          text: ${input.query}
-          limit: 10
-
-      - id: rerank-results
-        component: reranker
-        input:
-          query: ${input.query}
-          documents: ${jobs.search-context.output.results[*].metadata.text}
-        depends_on: [search-context]
-
-      - id: generate-answer
-        component: llm-model
-        input:
-          context: ${jobs.rerank-results.output.top_documents}
-          question: ${input.query}
-        depends_on: [rerank-results]
-```
-
-## System Requirements
-
-### Hardware
-- **RAM**: 4GB+ for Milvus + embedding model
-- **Storage**: 2GB+ for Milvus data and model files
-- **CPU**: Multi-core recommended for concurrent operations
-- **GPU**: Optional, but recommended for large-scale deployments
-
-### Software
-- Python 3.8+
-- PyTorch (CPU or GPU)
-- Docker & Docker Compose
-- Milvus 2.3.0+
-
-## Production Deployment
-
-### High Availability
-- Deploy Milvus in cluster mode
-- Use load balancers for API endpoints
-- Implement health checks and failover
-
-### Monitoring
-- Monitor Milvus metrics via Prometheus endpoint
-- Track query performance and resource usage
-- Set up alerts for system health
-
-### Backup and Recovery
-```bash
-# Backup Milvus data
-docker exec milvus-standalone /bin/bash -c "cd /var/lib/milvus && tar -czf backup.tar.gz db_data"
-
-# Restore from backup
-docker exec milvus-standalone /bin/bash -c "cd /var/lib/milvus && tar -xzf backup.tar.gz"
 ```

@@ -114,7 +114,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Text Embedding<br/>component]
+    C1[Text Embedding Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

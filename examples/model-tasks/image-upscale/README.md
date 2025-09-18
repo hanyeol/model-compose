@@ -113,7 +113,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Image Upscale<br/>component]
+    C1[Image Upscale Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

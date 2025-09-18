@@ -123,8 +123,8 @@ graph TD
     J2((job-voice))
 
     %% Components (rectangles)
-    C1[write-inspiring-quote<br/>component]
-    C2[text-to-speech<br/>component]
+    C1[OpenAI GPT-4o<br/>component]
+    C2[ElevenLabs TTS<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

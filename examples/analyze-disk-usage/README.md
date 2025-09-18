@@ -90,8 +90,8 @@ graph TD
     J2((analyze-disk-usage<br/>job))
 
     %% Components (rectangles)
-    C1[get-disk-usage<br/>component]
-    C2[gpt-4o<br/>component]
+    C1[Shell Command<br/>component]
+    C2[OpenAI GPT-4o<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

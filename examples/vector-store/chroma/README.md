@@ -119,7 +119,7 @@ graph TD
     J2((store-vector<br/>job))
 
     %% Components (rectangles)
-    C1[Text Embedding<br/>component]
+    C1[Text Embedding Model<br/>component]
     C2[ChromaDB Vector Store<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
@@ -162,7 +162,7 @@ graph TD
     J2((search-vectors<br/>job))
 
     %% Components (rectangles)
-    C1[Text Embedding<br/>component]
+    C1[Text Embedding Model<br/>component]
     C2[ChromaDB Vector Store<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
@@ -237,69 +237,3 @@ actions:
     collection: documents  # Custom collection name
     method: insert
 ```
-
-## Performance Considerations
-
-### Embedding Model Performance
-
-| Model | Dimensions | Speed | Accuracy | Use Case |
-|-------|------------|-------|----------|----------|
-| **all-MiniLM-L6-v2** | 384 | Fast | Good | General purpose |
-| **all-mpnet-base-v2** | 768 | Slower | Higher | High accuracy needs |
-| **all-distilroberta-v1** | 768 | Medium | Good | Balanced performance |
-
-### ChromaDB Performance
-- Use persistent storage for production
-- Consider batch operations for large datasets
-- Monitor memory usage with large collections
-
-## Use Cases
-
-### Document Search
-Store and search through document collections using semantic similarity rather than keyword matching.
-
-### FAQ Systems
-Build intelligent FAQ systems that understand user questions and find relevant answers.
-
-### Content Recommendation
-Recommend similar articles, products, or content based on embeddings.
-
-### Duplicate Detection
-Identify duplicate or near-duplicate content using similarity thresholds.
-
-### RAG (Retrieval Augmented Generation)
-Provide context to language models by retrieving relevant documents based on query similarity.
-
-## Example Integration
-
-### RAG Pipeline with ChromaDB
-```yaml
-workflows:
-  - id: rag-query
-    jobs:
-      - id: search-context
-        component: vector-store
-        action: search
-        input:
-          text: ${input.query}
-          limit: 5
-
-      - id: generate-answer
-        component: llm-model
-        input:
-          context: ${jobs.search-context.output.results[*].metadata.text}
-          question: ${input.query}
-        depends_on: [search-context]
-```
-
-## System Requirements
-
-### Hardware
-- **RAM**: 2GB+ for embedding model
-- **Storage**: 500MB for model files
-- **CPU**: Multi-core recommended for better performance
-
-### Software
-- Python 3.8+
-- PyTorch (CPU or GPU)
-- ChromaDB server (local or remote)

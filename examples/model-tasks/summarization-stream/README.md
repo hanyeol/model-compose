@@ -114,7 +114,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[BART-Large-CNN<br/>streaming summarization]
+    C1[Streaming Text Summarization Model<br/>component]
 
     %% Streaming output
     S1[SSE Stream<br/>sse-text]

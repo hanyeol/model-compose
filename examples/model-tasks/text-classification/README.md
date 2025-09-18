@@ -112,7 +112,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Text Classification<br/>component]
+    C1[Text Classification Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

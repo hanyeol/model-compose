@@ -96,7 +96,7 @@ graph TD
     J1((image-variation<br/>job))
 
     %% Components (rectangles)
-    C1[OpenAI DALL·E Model<br/>component]
+    C1[OpenAI DALL·E<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

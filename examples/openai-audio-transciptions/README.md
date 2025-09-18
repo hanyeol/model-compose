@@ -103,7 +103,7 @@ graph TD
     J1((speech-to-text<br/>job))
 
     %% Components (rectangles)
-    C1[OpenAI Whisper Model<br/>component]
+    C1[OpenAI Whisper<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -203,48 +203,3 @@ body:
   file: ${input.file as audio}
   language: ${input.language as select/en,es,fr,de,it,pt,ru,ja,ko,zh | auto}
 ```
-
-## Pricing and API Limits
-
-### Pricing Structure (as of 2024)
-
-| Model | Price per Minute | Quality | Use Case |
-|-------|------------------|---------|----------|
-| **whisper-1** | $0.006 | High | General transcription |
-| **gpt-4o-transcribe** | $0.010 | Highest | Critical accuracy needs |
-| **gpt-4o-mini-transcribe** | $0.003 | Good | Budget-conscious apps |
-
-### Rate Limits
-
-- **Requests per minute (RPM)**: 50
-- **Files per day**: 1,000 (varies by plan)
-- **Concurrent uploads**: 10
-
-### Cost Optimization Tips
-
-1. **Choose Appropriate Model**: Use mini for cost, standard for accuracy
-2. **Audio Preprocessing**: Clean audio for better results
-3. **Format Selection**: Use compressed formats for large files
-4. **Batch Processing**: Group related files
-
-## Use Cases
-
-### Content Creation
-- **Podcast Transcription**: Convert audio content to text
-- **Video Subtitles**: Generate captions for videos
-- **Interview Documentation**: Transcribe interviews and meetings
-
-### Business Applications
-- **Meeting Minutes**: Automated meeting transcription
-- **Customer Support**: Transcribe support calls
-- **Training Materials**: Convert audio training to text
-
-### Accessibility Solutions
-- **Hearing Impairment**: Real-time captioning
-- **Language Learning**: Transcription for pronunciation
-- **Voice Notes**: Convert voice memos to text
-
-### Media and Entertainment
-- **News Broadcasting**: Automated news transcription
-- **Radio Shows**: Convert radio content to text
-- **Gaming**: Transcribe voice chat for moderation

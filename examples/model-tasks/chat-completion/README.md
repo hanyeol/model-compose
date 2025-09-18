@@ -118,7 +118,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Chat Completion<br/>component]
+    C1[Chat Completion Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

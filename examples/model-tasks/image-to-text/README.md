@@ -123,7 +123,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Image to Text<br/>component]
+    C1[Image to Text Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

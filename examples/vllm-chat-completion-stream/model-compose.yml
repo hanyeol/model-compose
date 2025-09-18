@@ -18,11 +18,22 @@ component:
     install:
       - bash
       - -c
-      - eval "$(pyenv init -)" && (pyenv activate vllm 2>/dev/null || pyenv virtualenv $(python --version | cut -d' ' -f2) vllm) && pyenv activate vllm && pip install vllm
+      - |
+        eval "$(pyenv init -)" &&
+        (pyenv activate vllm 2>/dev/null || pyenv virtualenv $(python --version | cut -d' ' -f2) vllm) &&
+        pyenv activate vllm &&
+        pip install vllm
     start:
       - bash
       - -c
-      - eval "$(pyenv init -)" && pyenv activate vllm && python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2-7B-Instruct --port 8000 --served-model-name qwen2-7b-instruct --max-model-len 2048
+      - |
+        eval "$(pyenv init -)" &&
+        pyenv activate vllm &&
+        python -m vllm.entrypoints.openai.api_server
+          --model Qwen/Qwen2-7B-Instruct
+          --port 8000
+          --served-model-name qwen2-7b-instruct
+          --max-model-len 2048
   port: 8000
   method: POST
   path: /v1/chat/completions

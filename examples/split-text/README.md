@@ -127,27 +127,6 @@ graph TD
 | `total_chunks` | integer | Number of chunks created |
 | `average_chunk_size` | integer | Average size of chunks |
 
-## Chunking Strategies
-
-### Chunk Size Configuration
-
-| Use Case | Chunk Size | Overlap | Description |
-|----------|------------|---------|-------------|
-| **AI Models** | 512-2048 | 50-200 | Model token limits |
-| **Embeddings** | 200-500 | 50-100 | Semantic coherence |
-| **Search** | 150-300 | 25-50 | Query matching |
-| **Summarization** | 1000-3000 | 100-300 | Context preservation |
-
-### Separator Strategies
-
-The text splitter uses intelligent separator detection in order:
-
-1. **Paragraph breaks** (`\n\n`)
-2. **Sentence endings** (`. `, `! `, `? `)
-3. **Line breaks** (`\n`)
-4. **Word boundaries** (` `)
-5. **Character boundaries** (fallback)
-
 ## Customization
 
 ### Basic Configuration

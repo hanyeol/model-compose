@@ -12,15 +12,11 @@ class HttpControllerClient(ControllerClient):
         self.client: HttpClient = HttpClient(self._resolve_controller_url(), timeout=3600)
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
-        url = f"/workflows/runs"
         body = {
             "workflow_id": workflow_id,
             "input": input,
             "wait_for_completion": True,
             "output_only": True
-        }
-        headers = {
-            "Content-Type": "application/json"
         }
 
         if self._contains_upload_file(input):
@@ -28,8 +24,12 @@ class HttpControllerClient(ControllerClient):
             headers = {
                 "Content-Type": "multipart/form-data"
             }
+        else:
+            headers = {
+                "Content-Type": "application/json"
+            }
 
-        return await self.client.request(url, "POST", None, body, headers)
+        return await self.client.request("/workflows/runs", "POST", None, body, headers)
 
     async def close(self) -> None:
         await self.client.close()

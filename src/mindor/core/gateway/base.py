@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import abstractmethod
 from mindor.dsl.schema.gateway import GatewayConfig, GatewayType
 from mindor.core.services import AsyncService
+from mindor.core.logger import logging
 
 class GatewayService(AsyncService):
     def __init__(self, id: str, config: GatewayConfig, daemon: bool):
@@ -13,6 +14,10 @@ class GatewayService(AsyncService):
     @abstractmethod
     def get_context(self) -> Dict[str, Any]:
         pass
+
+    async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
+        logging.info(f"Installing required module: {package_spec}")
+        await super()._install_package(package_spec, repository)
 
 def register_gateway(type: GatewayType):
     def decorator(cls: Type[GatewayService]) -> Type[GatewayService]:

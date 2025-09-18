@@ -74,6 +74,8 @@ class ControllerService(AsyncService):
                 return
 
             await self._start_loggers()
+            await self._setup_listeners()
+            await self._setup_gateways()
             await self._setup_components()
             await self.start()
             await self.wait_until_stopped()
@@ -91,6 +93,8 @@ class ControllerService(AsyncService):
             await self._start_loggers()
             await NativeRuntimeLauncher().stop()
             await self._teardown_components()
+            await self._teardown_gateways()
+            await self._teardown_listeners()
             await self._stop_loggers()
             return
 
@@ -188,11 +192,23 @@ class ControllerService(AsyncService):
 
         os.unlink(stop_file)
 
+    async def _setup_listeners(self) -> None:
+        await asyncio.gather(*[ listener.setup() for listener in self._create_listeners() ])
+
+    async def _teardown_listeners(self) -> None:
+        await asyncio.gather(*[ listener.teardown() for listener in self._create_listeners() ])
+
     async def _start_listeners(self) -> None:
         await asyncio.gather(*[ listener.start() for listener in self._create_listeners() ])
 
     async def _stop_listeners(self) -> None:
         await asyncio.gather(*[ listener.stop() for listener in self._create_listeners() ])
+
+    async def _setup_gateways(self) -> None:
+        await asyncio.gather(*[ gateway.setup() for gateway in self._create_gateways() ])
+
+    async def _teardown_gateways(self) -> None:
+        await asyncio.gather(*[ gateway.teardown() for gateway in self._create_gateways() ])
 
     async def _start_gateways(self) -> None:
         await asyncio.gather(*[ gateway.start() for gateway in self._create_gateways() ])

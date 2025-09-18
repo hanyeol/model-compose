@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.listener import ListenerConfig, ListenerType
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
+from mindor.core.logger import logging
 
 class ListenerService(AsyncService):
     def __init__(self, id: str, config: ListenerConfig, daemon: bool):
@@ -25,6 +26,10 @@ class ListenerService(AsyncService):
             await self.queue.stop()
 
         await super()._stop()
+
+    async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
+        logging.info(f"Installing required module: {package_spec}")
+        await super()._install_package(package_spec, repository)
 
 def register_listener(type: ListenerType):
     def decorator(cls: Type[ListenerService]) -> Type[ListenerService]:

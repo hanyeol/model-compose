@@ -7,7 +7,6 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
 from mindor.core.utils.workqueue import WorkQueue
-from mindor.core.utils.package import install_package, parse_requirement, is_requirement_satisfied
 from mindor.core.logger import logging
 from .context import ComponentActionContext
 
@@ -55,16 +54,6 @@ class ComponentService(AsyncService):
         if self.config.max_concurrent_count > 0:
             self.queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
-    async def setup(self) -> None:
-        dependencies = self._get_setup_requirements()
-        if dependencies:
-            await self._install_packages(dependencies)
-
-        await self._setup()
-
-    async def teardown(self) -> None:
-        await self._teardown()
-
     async def start(self, background: bool = False) -> None:
         await super().start(background)
         await self.wait_until_ready()
@@ -77,15 +66,6 @@ class ComponentService(AsyncService):
             return await (await self.queue.schedule(action, context))
 
         return await self._run(action, context)
-
-    async def _setup(self) -> None:
-        pass
-
-    async def _teardown(self) -> None:
-        pass
-
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return None
 
     async def _start(self) -> None:
         if self.queue:
@@ -111,14 +91,10 @@ class ComponentService(AsyncService):
     @abstractmethod
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
-
-    async def _install_packages(self, packages: List[str]) -> None:
-        for package_spec in packages:
-            package_spec, repository = (package_spec.split("@") + [ None ])[:2]
-            requirement = parse_requirement(package_spec)
-            if not requirement or not is_requirement_satisfied(requirement):
-                logging.info(f"Installing missing module: {package_spec}")
-                await install_package(repository or package_spec)
+  
+    async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
+        logging.info(f"Installing required module: {package_spec}")
+        await super()._install_package(package_spec, repository)
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

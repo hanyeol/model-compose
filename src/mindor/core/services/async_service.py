@@ -1,5 +1,6 @@
-from typing import Optional, Callable, Awaitable, Any
+from typing import Optional, List, Callable, Awaitable, Any
 from abc import ABC, abstractmethod
+from mindor.core.utils.package import install_package, parse_requirement, is_requirement_satisfied
 from threading import Thread
 import asyncio, time
 
@@ -11,6 +12,16 @@ class AsyncService(ABC):
         self.thread: Optional[Thread] = None
         self.thread_loop: Optional[asyncio.AbstractEventLoop] = None
         self.daemon_task: Optional[asyncio.Task] = None
+
+    async def setup(self) -> None:
+        dependencies = self._get_setup_requirements()
+        if dependencies:
+            await self._install_packages(dependencies)
+
+        await self._setup()
+
+    async def teardown(self) -> None:
+        await self._teardown()
 
     async def start(self, background: bool = False) -> None:
         if background:
@@ -74,6 +85,15 @@ class AsyncService(ABC):
 
         return future
 
+    async def _setup(self) -> None:
+        pass
+
+    async def _teardown(self) -> None:
+        pass
+
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return None
+
     async def _start(self) -> None:
         self.started = True
 
@@ -99,3 +119,13 @@ class AsyncService(ABC):
     @abstractmethod
     async def _shutdown(self) -> None:
         pass
+
+    async def _install_packages(self, packages: List[str]) -> None:
+        for package_spec in packages:
+            package_spec, repository = (package_spec.split("@") + [ None ])[:2]
+            requirement = parse_requirement(package_spec)
+            if not requirement or not is_requirement_satisfied(requirement):
+                await install_package(package_spec, repository)
+    
+    async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
+        await install_package(repository or package_spec)

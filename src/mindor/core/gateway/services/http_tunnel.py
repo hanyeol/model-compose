@@ -1,15 +1,23 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig, HttpTunnelGatewayDriver
 from mindor.core.logger import logging
 from ..base import GatewayService, GatewayType, register_gateway
-from pyngrok import ngrok
 import asyncio
+
+if TYPE_CHECKING:
+    from pyngrok import ngrok
 
 class CommonHttpTunnelGateway:
     def __init__(self, config: HttpTunnelGatewayConfig):
         self.config: HttpTunnelGatewayConfig = config
         self.public_url: Optional[str] = None
+
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return None
 
     async def serve(self) -> None:
         self.public_url = await self._serve()
@@ -34,7 +42,12 @@ class NgrokHttpTunnelGateway(CommonHttpTunnelGateway):
 
         self.tunnel: Optional[ngrok.NgrokTunnel] = None
 
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [ "pyngrok" ]
+
     async def _serve(self) -> str:
+        from pyngrok import ngrok
+
         self.tunnel = await asyncio.to_thread(
             ngrok.connect,
             addr=self.config.port,
@@ -43,6 +56,8 @@ class NgrokHttpTunnelGateway(CommonHttpTunnelGateway):
         return self.tunnel.public_url
 
     async def _shutdown(self) -> None:
+        from pyngrok import ngrok
+
         if self.tunnel:
             await asyncio.to_thread(ngrok.disconnect, self.tunnel.public_url)
             self.tunnel = None
@@ -68,6 +83,9 @@ class HttpTunnelGateway(GatewayService):
         if self.config.driver == HttpTunnelGatewayDriver.CLOUDFLARE:
             self.engine = CloudflareHttpTunnelGateway(self.config)
             return
+
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return self.engine.get_setup_requirements()
 
     def get_context(self) -> Dict[str, Any]:
         return {

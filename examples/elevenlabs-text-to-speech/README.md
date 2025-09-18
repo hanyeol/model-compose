@@ -34,7 +34,7 @@ ElevenLabs offers premium text-to-speech services with advanced AI voice synthes
 
 2. Set your ElevenLabs API key:
    ```bash
-   export ELEVENLABS_API_KEY="your_api_key_here"
+   export ELEVENLABS_API_KEY=your_actual_elevenlabs_api_key
    ```
 ## How to Run
 

@@ -21,19 +21,12 @@ This workflow provides a complete vector database solution that:
 
 ### ChromaDB Installation
 
-```bash
-# Install ChromaDB
-pip install chromadb
+model-compose automatically installs ChromaDB and required dependencies when the workflow starts.
 
-# Or run with Docker
+**Optional - External ChromaDB Server:**
+```bash
+# Only needed if using remote ChromaDB server
 docker run -p 8000:8000 chromadb/chroma
-```
-
-### Model Dependencies
-
-```bash
-# Install sentence transformers
-pip install sentence-transformers torch
 ```
 
 ### Environment Configuration

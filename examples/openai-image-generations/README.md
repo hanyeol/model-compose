@@ -118,7 +118,7 @@ graph TD
     J1((dall-e<br/>workflow))
 
     %% Component
-    C1[OpenAI HTTP Client<br/>DALL-E Action]
+    C1[OpenAI GPT-4o Model<br/>component]
 
     %% Job to component connections
     J1 --> C1

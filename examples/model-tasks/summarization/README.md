@@ -12,7 +12,7 @@ This workflow provides local text summarization that:
 4. **No External APIs**: Completely offline text processing without dependencies
 5. **Configurable Length**: Adjustable summary length and quality parameters
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,31 +49,33 @@ Unlike cloud-based text APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the BART-large-CNN model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Your long article or document text here..."}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run summarization --input '{"text": "Your long article or document text here..."}'
+   ```
 
-```bash
-model-compose run --input '{"text": "Your long document text here..."}'
-```
+## Component Details
 
-## Available Components
-
-### BART-Large-CNN Summarization Model Component
+### Text Summarization Model Component
 - **Type**: Model component with text-generation task
 - **Purpose**: Local text summarization using sequence-to-sequence model
 - **Model**: facebook/bart-large-cnn
@@ -148,43 +150,6 @@ graph TD
 - Model loading takes 1-2 minutes depending on hardware
 - GPU acceleration improves summarization speed
 - Processing time varies with input text length
-
-## Example Usage
-
-### News Article Summarization
-```json
-{
-  "text": "Scientists have discovered a new species of deep-sea fish in the Mariana Trench. The fish, which has been named Pseudoliparis swirei, was found at a depth of 8,000 meters below sea level. This makes it the deepest-living fish ever recorded. The discovery was made using a specially designed submersible that can withstand the extreme pressure at these depths. The fish is small, measuring only about 10 centimeters in length, and appears to be adapted to the harsh conditions of the deep ocean. Researchers believe this discovery could lead to new insights about life in extreme environments and may have implications for understanding how life might exist on other planets."
-}
-```
-
-**Expected Output:**
-```json
-{
-  "summary": "Scientists discovered Pseudoliparis swirei, the deepest-living fish ever recorded, at 8,000 meters in the Mariana Trench. The 10-centimeter fish was found using a pressure-resistant submersible and could provide insights into extreme environment adaptation and extraterrestrial life possibilities."
-}
-```
-
-### Research Paper Abstract
-```json
-{
-  "text": "This study examines the impact of remote work on employee productivity and job satisfaction across various industries. We conducted a comprehensive survey of 2,500 employees from 50 companies over a six-month period. Our findings indicate that remote work led to a 23% increase in productivity metrics and a 31% improvement in job satisfaction scores. However, we also observed challenges including decreased team collaboration (down 18%) and increased feelings of isolation among workers. The study concludes that hybrid work models, combining remote and in-office work, may optimize the benefits while mitigating the drawbacks. Organizations should implement structured communication protocols and regular team-building activities to maintain collaboration and employee engagement in remote work environments."
-}
-```
-
-### Technical Documentation
-```json
-{
-  "text": "The new API endpoint allows developers to retrieve user profile information through a RESTful interface. To access the endpoint, developers must include a valid authentication token in the request header. The endpoint supports both GET and POST methods, with GET returning basic profile information and POST allowing for profile updates. Rate limiting is implemented at 100 requests per hour per API key. The response format is JSON and includes fields for user ID, name, email, profile picture URL, and last login timestamp. Error responses follow standard HTTP status codes with detailed error messages in the response body. Developers should implement proper error handling and respect rate limits to ensure optimal API performance."
-}
-```
-
-### Meeting Notes
-```json
-{
-  "text": "Today's product team meeting covered three main topics. First, we discussed the upcoming Q4 feature release, which will include the new dashboard analytics, user notification system, and mobile app improvements. The release is scheduled for November 15th, pending final QA testing. Second, we reviewed customer feedback from the recent user survey. The top requested features are dark mode, advanced filtering options, and integration with third-party calendar apps. Finally, we addressed the technical debt backlog and prioritized refactoring the authentication system and optimizing database queries. Action items include: Sarah will coordinate with the design team on dark mode mockups, Mike will research calendar integration APIs, and the dev team will begin authentication system refactoring next sprint."
-}
-```
 
 ## Model Parameters
 

@@ -12,7 +12,7 @@ This workflow provides local streaming text summarization that:
 4. **Automatic Model Management**: Downloads and caches models automatically on first use
 5. **No External APIs**: Completely offline text processing with streaming capabilities
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,33 +49,33 @@ Unlike cloud-based text APIs, local streaming execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the BART-large-CNN model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080 with SSE support
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Your long article or document text here..."}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api (streaming)
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run summarization --input '{"text": "Your long article or document text here..."}'
+   ```
 
-```bash
-model-compose run --input '{"text": "Your long document text here..."}'
-```
+## Component Details
 
-**Note**: CLI execution shows the final result, not the streaming process.
-
-## Available Components
-
-### BART-Large-CNN Streaming Summarization Model Component
+### Text Summarization Streaming Model Component
 - **Type**: Model component with text-generation task (streaming enabled)
 - **Purpose**: Local text summarization with real-time streaming output
 - **Model**: facebook/bart-large-cnn
@@ -174,125 +174,6 @@ data: {"token": "string", "is_final": boolean}
 Content-Type: text/plain
 Cache-Control: no-cache
 Connection: keep-alive
-```
-
-## Example Usage
-
-### Basic Streaming Summarization
-
-**Input:**
-```json
-{
-  "text": "Scientists have discovered a new species of deep-sea fish in the Mariana Trench. The fish, which has been named Pseudoliparis swirei, was found at a depth of 8,000 meters below sea level. This makes it the deepest-living fish ever recorded..."
-}
-```
-
-**Streaming Output Sequence:**
-```
-data: {"token": "Scientists", "is_final": false}
-
-data: {"token": " discovered", "is_final": false}
-
-data: {"token": " Pseudoliparis", "is_final": false}
-
-data: {"token": " swirei", "is_final": false}
-
-data: {"token": ",", "is_final": false}
-
-data: {"token": " the", "is_final": false}
-
-data: {"token": " deepest", "is_final": false}
-
-data: {"token": "-living", "is_final": false}
-
-data: {"token": " fish", "is_final": false}
-
-data: {"token": " ever", "is_final": false}
-
-data: {"token": " recorded", "is_final": false}
-
-data: {"token": ".", "is_final": true}
-
-```
-
-## Client-Side Integration
-
-### JavaScript SSE Client
-
-```javascript
-async function streamSummarization(text) {
-  const response = await fetch('/api', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream'
-    },
-    body: JSON.stringify({ text: text })
-  });
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let summary = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
-        summary += data.token;
-
-        // Update UI with partial summary
-        updateSummaryDisplay(summary);
-
-        if (data.is_final) {
-          console.log('Summary complete:', summary);
-          return summary;
-        }
-      }
-    }
-  }
-}
-
-function updateSummaryDisplay(partialSummary) {
-  document.getElementById('summary-display').textContent = partialSummary;
-}
-```
-
-### Python SSE Client
-
-```python
-import requests
-import json
-
-def stream_summarization(text):
-    response = requests.post(
-        'http://localhost:8080/api',
-        json={'text': text},
-        headers={'Accept': 'text/event-stream'},
-        stream=True
-    )
-
-    summary = ''
-    for line in response.iter_lines():
-        if line.startswith(b'data: '):
-            data = json.loads(line[6:])
-            summary += data['token']
-
-            # Print partial summary
-            print(f"\rSummary: {summary}", end='', flush=True)
-
-            if data['is_final']:
-                print()  # New line after completion
-                return summary
-
-# Usage
-text = "Your long document text here..."
-final_summary = stream_summarization(text)
 ```
 
 ## System Requirements

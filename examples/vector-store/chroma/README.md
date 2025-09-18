@@ -1,20 +1,26 @@
 # ChromaDB Vector Store Example
 
-This example demonstrates how to use model-compose with ChromaDB as a vector store for semantic search and similarity matching. It provides a complete pipeline for embedding text, storing vectors, and performing similarity searches using the `sentence-transformers/all-MiniLM-L6-v2` embedding model.
+This example demonstrates how to use model-compose with ChromaDB as a vector store for semantic search and similarity matching using text embeddings.
 
 ## Overview
 
-ChromaDB is an open-source embedding database designed for building AI applications. This configuration showcases:
+This workflow provides a complete vector database solution that:
 
-- Text embedding generation using sentence transformers
-- Vector storage and retrieval with ChromaDB
-- CRUD operations on vector embeddings
-- Semantic similarity search capabilities
-- Web UI for interactive testing
+1. **Text Embedding Generation**: Converts text to vector embeddings using sentence transformers
+2. **Vector Storage**: Stores embeddings in ChromaDB with metadata
+3. **Semantic Search**: Performs similarity-based searches using vector embeddings
+4. **CRUD Operations**: Supports insert, update, search, and delete operations
 
-## Prerequisites
+## Preparation
+
+### Prerequisites
+
+- model-compose installed and available in your PATH
+- ChromaDB server (local or remote)
+- Python with PyTorch support
 
 ### ChromaDB Installation
+
 ```bash
 # Install ChromaDB
 pip install chromadb
@@ -24,235 +30,197 @@ docker run -p 8000:8000 chromadb/chroma
 ```
 
 ### Model Dependencies
+
 ```bash
 # Install sentence transformers
 pip install sentence-transformers torch
 ```
 
-### Environment Setup
-```bash
-# Install model-compose
-pip install -e .
-```
+### Environment Configuration
 
-## Architecture
+1. Navigate to this example directory:
+   ```bash
+   cd examples/vector-store/chroma
+   ```
 
-The system consists of two main components:
+2. No additional environment configuration required - ChromaDB runs locally by default.
 
-### Components
+## How to Run
 
-#### 1. Embedding Model (`embedding-model`)
-- **Type**: Local model
-- **Task**: Text embedding
-- **Model**: `sentence-transformers/all-MiniLM-L6-v2`
-- **Purpose**: Converts text into 384-dimensional vector embeddings
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-#### 2. Vector Store (`vector-store`)
-- **Type**: Vector database
+2. **Run the workflows:**
+
+   **Insert Text Embedding:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/insert-sentence-embedding/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "This is a sample document about machine learning."}}'
+   ```
+
+   **Search Similar Texts:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/search-sentence-embeddings/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "artificial intelligence and neural networks"}}'
+   ```
+
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Select the desired workflow (insert, search, update, delete)
+   - Enter your input parameters
+   - Click the "Run Workflow" button
+
+   **Using CLI:**
+   ```bash
+   # Insert text embedding
+   model-compose run insert-sentence-embedding --input '{"text": "Machine learning is a subset of AI."}'
+
+   # Search for similar texts
+   model-compose run search-sentence-embeddings --input '{"text": "deep learning algorithms"}'
+   ```
+
+## Component Details
+
+### embedding-model
+- **Type**: Model component with text-embedding task
+- **Purpose**: Convert text to 384-dimensional vector embeddings
+- **Model**: sentence-transformers/all-MiniLM-L6-v2
+- **Features**:
+  - Fast inference speed
+  - Good semantic understanding
+  - Compact embedding size
+
+### vector-store
+- **Type**: Vector database component
+- **Purpose**: Store and search vector embeddings with metadata
 - **Driver**: ChromaDB
-- **Collection**: `test`
-- **Purpose**: Stores and searches vector embeddings
+- **Features**:
+  - CRUD operations on vectors
+  - Similarity search capabilities
+  - Metadata storage and filtering
+  - Local and remote deployment
 
-### Available Actions
+## Workflow Details
 
-| Action | Method | Description |
-|--------|---------|-------------|
-| `insert` | INSERT | Add new vector with metadata |
-| `update` | UPDATE | Modify existing vector by ID |
-| `search` | SEARCH | Find similar vectors |
-| `delete` | DELETE | Remove vector by ID |
+### "Insert Sentence Embedding" Workflow
 
-## Workflows
+**Description**: Convert text to embeddings and store them in ChromaDB with metadata.
 
-### 1. Insert Sentence Embedding
-
-Converts text to embeddings and stores them in ChromaDB.
+#### Job Flow
 
 ```mermaid
-graph LR
-    A[Input Text] --> B[Embedding Model]
-    B --> C[Vector Store Insert]
-    C --> D[Storage Confirmation]
+graph TD
+    %% Jobs (circles)
+    J1((generate-embedding<br/>job))
+    J2((store-vector<br/>job))
+
+    %% Components (rectangles)
+    C1[Text Embedding<br/>component]
+    C2[ChromaDB Vector Store<br/>component]
+
+    %% Job to component connections (solid: invokes, dotted: returns)
+    J1 --> C1
+    C1 -.-> |embedding vector| J1
+    J2 --> C2
+    C2 -.-> |storage confirmation| J2
+
+    %% Job flow
+    J1 --> J2
+
+    %% Input/Output
+    Input((Input)) --> J1
+    J2 --> Output((Output))
 ```
 
-**Input Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `text` | string | Yes | Text to convert and store |
+#### Input Parameters
 
-**Output:**
-- JSON confirmation with insertion status
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `text` | string | Yes | - | Text to convert and store |
 
-**Usage Example:**
-```bash
-curl -X POST http://localhost:8080/api/insert-sentence-embedding \
-  -H "Content-Type: application/json" \
-  -d '{"text": "This is a sample document about machine learning."}'
-```
+#### Output Format
 
-### 2. Update Sentence Embedding
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Insertion status confirmation |
+| `vector_id` | string | Generated ID for the stored vector |
 
-Updates an existing vector embedding with new text.
+### "Search Sentence Embeddings" Workflow
+
+**Description**: Perform semantic similarity search using query text to find related stored embeddings.
+
+#### Job Flow
 
 ```mermaid
-graph LR
-    A[Input Text + ID] --> B[Embedding Model]
-    B --> C[Vector Store Update]
-    C --> D[Update Confirmation]
+graph TD
+    %% Jobs (circles)
+    J1((generate-query-embedding<br/>job))
+    J2((search-vectors<br/>job))
+
+    %% Components (rectangles)
+    C1[Text Embedding<br/>component]
+    C2[ChromaDB Vector Store<br/>component]
+
+    %% Job to component connections (solid: invokes, dotted: returns)
+    J1 --> C1
+    C1 -.-> |query embedding| J1
+    J2 --> C2
+    C2 -.-> |similar documents| J2
+
+    %% Job flow
+    J1 --> J2
+
+    %% Input/Output
+    Input((Input)) --> J1
+    J2 --> Output((Output))
 ```
 
-**Input Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `text` | string | Yes | New text content |
-| `vector_id` | string | Yes | ID of vector to update |
+#### Input Parameters
 
-**Output:**
-- JSON confirmation with update status
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `text` | string | Yes | - | Query text for similarity search |
 
-**Usage Example:**
-```bash
-curl -X POST http://localhost:8080/api/update-sentence-embedding \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Updated content about deep learning.",
-    "vector_id": "doc_123"
-  }'
-```
+#### Output Format
 
-### 3. Search Sentence Embeddings
+| Field | Type | Description |
+|-------|------|-------------|
+| `results` | array | Array of similar documents with scores and metadata |
+| `total_results` | integer | Number of results returned |
 
-Performs semantic similarity search using query text.
+## Available Operations
 
-```mermaid
-graph LR
-    A[Query Text] --> B[Embedding Model]
-    B --> C[Vector Store Search]
-    C --> D[Similar Documents]
-```
+### Insert Operations
+- **insert-sentence-embedding**: Store new text embeddings
+- **update-sentence-embedding**: Update existing embeddings by ID
 
-**Input Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `text` | string | Yes | Query text for similarity search |
+### Search Operations
+- **search-sentence-embeddings**: Find similar texts using semantic search
 
-**Output:**
-- Array of objects with `id`, `score`, and `metadata.text`
-- Results sorted by similarity score (higher = more similar)
+### Management Operations
+- **delete-sentence-embedding**: Remove embeddings by ID
 
-**Usage Example:**
-```bash
-curl -X POST http://localhost:8080/api/search-sentence-embeddings \
-  -H "Content-Type: application/json" \
-  -d '{"text": "artificial intelligence and neural networks"}'
-```
+## Customization
 
-**Sample Response:**
-```json
-[
-  {
-    "id": "doc_123",
-    "score": 0.85,
-    "metadata": {
-      "text": "Deep learning and neural networks are subsets of machine learning."
-    }
-  },
-  {
-    "id": "doc_456",
-    "score": 0.72,
-    "metadata": {
-      "text": "AI applications include computer vision and natural language processing."
-    }
-  }
-]
-```
-
-### 4. Delete Sentence Embedding
-
-Removes a vector embedding by its ID.
-
-```mermaid
-graph LR
-    A[Vector ID] --> B[Vector Store Delete]
-    B --> C[Deletion Confirmation]
-```
-
-**Input Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `vector_id` | string | Yes | ID of vector to delete |
-
-**Output:**
-- JSON confirmation with deletion status
-
-**Usage Example:**
-```bash
-curl -X POST http://localhost:8080/api/delete-sentence-embedding \
-  -H "Content-Type: application/json" \
-  -d '{"vector_id": "doc_123"}'
-```
-
-## How to Run Instructions
-
-### 1. Start the Service
-
-```bash
-# Navigate to the example directory
-cd examples/vector-store/chroma
-
-# Start the controller
-model-compose up
-```
-
-This starts:
-- HTTP API server on port 8080
-- Gradio web interface on port 8081
-
-### 2. Access the Web UI
-
-Open http://localhost:8081 in your browser to interact with the workflows through a web interface.
-
-### 3. API Endpoints
-
-Base URL: `http://localhost:8080/api`
-
-- `POST /insert-sentence-embedding` - Store new text embeddings
-- `POST /update-sentence-embedding` - Update existing embeddings
-- `POST /search-sentence-embeddings` - Search for similar texts
-- `POST /delete-sentence-embedding` - Remove embeddings
-
-## System Requirements
-
-### Hardware
-- **RAM**: 2GB+ for embedding model
-- **Storage**: 500MB for model files
-- **CPU**: Multi-core recommended for better performance
-
-### Software
-- Python 3.8+
-- PyTorch (CPU or GPU)
-- ChromaDB server (local or remote)
-
-## Customization Options
-
-### Embedding Model
-
-Change the embedding model in `model-compose.yml`:
+### Embedding Model Selection
 
 ```yaml
 components:
   - id: embedding-model
     type: model
     task: text-embedding
-    model: sentence-transformers/all-mpnet-base-v2  # More accurate but larger
+    model: sentence-transformers/all-mpnet-base-v2  # Higher accuracy
     # or
     model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  # Multilingual
 ```
 
 ### ChromaDB Configuration
 
-For remote ChromaDB instance:
-
+#### Remote ChromaDB Instance
 ```yaml
 components:
   - id: vector-store
@@ -260,13 +228,9 @@ components:
     driver: chroma
     host: your-chroma-server.com
     port: 8000
-    # Add authentication if needed
 ```
 
-### Collection Settings
-
-Modify collection names and settings:
-
+#### Custom Collection Settings
 ```yaml
 actions:
   - id: insert
@@ -277,9 +241,12 @@ actions:
 ## Performance Considerations
 
 ### Embedding Model Performance
-- **all-MiniLM-L6-v2**: Fast, 384 dimensions, good for most use cases
-- **all-mpnet-base-v2**: Slower, 768 dimensions, higher accuracy
-- **all-distilroberta-v1**: Balanced speed and accuracy
+
+| Model | Dimensions | Speed | Accuracy | Use Case |
+|-------|------------|-------|----------|----------|
+| **all-MiniLM-L6-v2** | 384 | Fast | Good | General purpose |
+| **all-mpnet-base-v2** | 768 | Slower | Higher | High accuracy needs |
+| **all-distilroberta-v1** | 768 | Medium | Good | Balanced performance |
 
 ### ChromaDB Performance
 - Use persistent storage for production
@@ -300,31 +267,39 @@ Recommend similar articles, products, or content based on embeddings.
 ### Duplicate Detection
 Identify duplicate or near-duplicate content using similarity thresholds.
 
-### Clustering and Classification
-Group similar documents or classify content based on embedding similarity.
+### RAG (Retrieval Augmented Generation)
+Provide context to language models by retrieving relevant documents based on query similarity.
 
-## Troubleshooting
+## Example Integration
 
-### Model Download Issues
-If the embedding model fails to download:
-```bash
-# Pre-download the model
-python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+### RAG Pipeline with ChromaDB
+```yaml
+workflows:
+  - id: rag-query
+    jobs:
+      - id: search-context
+        component: vector-store
+        action: search
+        input:
+          text: ${input.query}
+          limit: 5
+
+      - id: generate-answer
+        component: llm-model
+        input:
+          context: ${jobs.search-context.output.results[*].metadata.text}
+          question: ${input.query}
+        depends_on: [search-context]
 ```
 
-### ChromaDB Connection Issues
-- Ensure ChromaDB is running and accessible
-- Check firewall settings for port 8000
-- Verify ChromaDB version compatibility
+## System Requirements
 
-### Memory Issues
-- Reduce batch size for large documents
-- Use smaller embedding models for resource-constrained environments
-- Consider using quantized models for edge deployment
+### Hardware
+- **RAM**: 2GB+ for embedding model
+- **Storage**: 500MB for model files
+- **CPU**: Multi-core recommended for better performance
 
-## API Rate Limits
-
-This example uses local models and ChromaDB, so there are no external API rate limits. Performance is limited by:
-- Local hardware capabilities
-- ChromaDB performance characteristics
-- Model inference speed
+### Software
+- Python 3.8+
+- PyTorch (CPU or GPU)
+- ChromaDB server (local or remote)

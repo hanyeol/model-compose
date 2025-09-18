@@ -11,7 +11,7 @@ This workflow provides a basic echo service that:
 3. **Input/Output Processing**: Shows how data flows between components and workflows
 4. **Development Testing**: Provides a simple service for testing model-compose HTTP capabilities
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -29,29 +29,39 @@ This workflow provides a basic echo service that:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-This will:
-- Start the local echo server on port 8000 using `uvicorn main:app --reload`
-- Start the model-compose API on port 8080
-- Start the Web UI on port 8081
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Hello, world!"}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
-- Echo server: http://localhost:8000 (internal)
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your text
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run --input '{"text": "Hello, world!"}'
+   ```
 
-```bash
-model-compose run --input '{"text": "Hello, World!"}'
-```
+3. **Direct server access (alternative):**
+   ```bash
+   # Direct access to the internal echo server
+   curl -X POST http://localhost:8000/echo \
+        -H "Content-Type: application/json" \
+        -d '{"text": "Hello, world!"}'
+   ```
 
-## Available Components
+## Component Details
 
 ### Default Component (Echo Server)
 - **Type**: HTTP server component with managed lifecycle
@@ -86,7 +96,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Echo Server<br/>http-server component]
+    C1[Echo Server<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -131,36 +141,6 @@ async def echo(request: Request):
 3. Wraps the received data in an "echo" object
 4. Returns the wrapped data as JSON response
 
-## Example Usage
-
-### Basic Echo Test
-```json
-{
-  "text": "Hello, model-compose!"
-}
-```
-
-**Response:**
-```json
-{
-  "text": "Hello, model-compose!"
-}
-```
-
-### Testing Longer Messages
-```json
-{
-  "text": "This is a longer message to test the echo functionality of the server."
-}
-```
-
-### Development Testing
-```json
-{
-  "text": "Testing auto-reload and development features"
-}
-```
-
 ## Data Flow
 
 The complete data transformation process:
@@ -177,16 +157,6 @@ The complete data transformation process:
 - **FastAPI Docs**: Interactive API documentation available at `http://localhost:8000/docs`
 - **Simple Debugging**: Easy to modify and test different response formats
 - **Minimal Dependencies**: Only requires FastAPI and Uvicorn
-
-## Use Cases
-
-This example is ideal for:
-
-1. **Learning model-compose**: Understanding basic HTTP component usage
-2. **Development Testing**: Testing workflows before integrating with real services
-3. **Prototyping**: Quickly mocking external API responses
-4. **Debugging**: Isolating issues in HTTP communication
-5. **Template**: Starting point for more complex HTTP server components
 
 ## Customization
 

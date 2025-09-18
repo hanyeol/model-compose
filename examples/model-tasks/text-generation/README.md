@@ -11,7 +11,7 @@ This workflow provides local text generation that:
 3. **Text Continuation**: Generates text based on input prompts with configurable parameters
 4. **No External APIs**: Completely offline text generation without API dependencies
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -47,31 +47,33 @@ Unlike cloud-based APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the SmolLM3-3B model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"prompt": "Once upon a time in a distant galaxy"}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your prompt
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run --input '{"prompt": "Once upon a time in a distant galaxy"}'
+   ```
 
-```bash
-model-compose run --input '{"prompt": "The future of artificial intelligence is"}'
-```
+## Component Details
 
-## Available Components
-
-### SmolLM3-3B Model Component
+### Text Generation Model Component
 - **Type**: Model component with text-generation task
 - **Purpose**: Local text generation using pretrained language model
 - **Model**: HuggingFaceTB/SmolLM3-3B (3 billion parameter model)
@@ -108,7 +110,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[SmolLM3-3B<br/>model component]
+    C1[Text Generation<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -144,43 +146,6 @@ graph TD
 - Model loading takes 1-2 minutes depending on hardware
 - GPU acceleration significantly improves generation speed
 - Generation speed varies with prompt length and output requirements
-
-## Example Usage
-
-### Basic Text Generation
-```json
-{
-  "prompt": "Once upon a time in a magical forest"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "generated": "Once upon a time in a magical forest, there lived a wise old owl who could speak to all the woodland creatures..."
-}
-```
-
-### Code Generation
-```json
-{
-  "prompt": "def fibonacci(n):\n    \"\"\"\n    Calculate the nth Fibonacci number\n    \"\"\""
-}
-```
-
-### Creative Writing
-```json
-{
-  "prompt": "Write a short poem about the ocean at sunset:"
-}
-```
-
-### Instruction Following
-```json
-{
-  "prompt": "Explain the concept of machine learning in simple terms for a beginner:"
-}
-```
 
 ## Model Parameters
 

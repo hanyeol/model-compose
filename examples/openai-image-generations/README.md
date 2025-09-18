@@ -11,7 +11,7 @@ This multi-workflow example provides two different approaches to AI image genera
 
 Both workflows use the same underlying OpenAI Images API but with different models and output formats, allowing you to choose the best approach for your specific use case.
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -44,29 +44,42 @@ Both workflows use the same underlying OpenAI Images API but with different mode
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using API:**
+   ```bash
+   # Generate image with DALL-E (URL format) - Default workflow
+   curl -X POST http://localhost:8080/api/workflows/dall-e/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"prompt": "A serene mountain landscape at sunset", "model": "dall-e-3"}}'
+   
+   # Generate image with GPT Image (Base64 format)
+   curl -X POST http://localhost:8080/api/workflows/gpt-image-1/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"prompt": "A futuristic city skyline"}}'
+   ```
 
-### Single Execution
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Select the workflow from the tab
+   - Enter your prompt and settings
+   - Click the "Run Workflow" button
 
-**Run DALL-E workflow (default):**
-```bash
-model-compose run --input '{"prompt": "A serene mountain landscape at sunset"}'
-```
+   **Using CLI:**
+   ```bash
+   # Generate image with DALL-E (URL format)
+   model-compose run dall-e --input '{"prompt": "A serene mountain landscape at sunset", "model": "dall-e-3"}'
+   
+   # Generate image with GPT Image (Base64 format)
+   model-compose run gpt-image-1 --input '{"prompt": "A futuristic city skyline"}'
+   ```
 
-**Run GPT Image workflow:**
-```bash
-model-compose run gpt-image-1 --input '{"prompt": "A futuristic city skyline"}'
-```
-
-## Available Components
+## Component Details
 
 ### OpenAI HTTP Client Component
 - **Type**: HTTP client component
@@ -149,7 +162,7 @@ graph TD
 
     %% Input/Output
     Input((Input)) --> J1
-    J1 --> Output((Base64 Image))
+    J1 --> Output((Output))
 ```
 
 #### Input Parameters
@@ -163,73 +176,6 @@ graph TD
 | Field | Type | Description |
 |-------|------|-------------|
 | `image_data` | string (base64) | Base64-encoded PNG image data |
-
-## Example Usage
-
-### DALL-E Image Generation
-
-**Input:**
-```json
-{
-  "prompt": "A peaceful Japanese garden with cherry blossoms, koi pond, and traditional wooden bridge"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "image_url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-xxx/user-xxx/img-xxx.png?st=xxx&se=xxx&sp=r&sv=xxx&sr=b&rscc=max-age%3D31536000&rscd=attachment%3B+filename%3Dxxx.png&sig=xxx"
-}
-```
-
-### GPT Image Generation
-
-**Input:**
-```json
-{
-  "prompt": "A vibrant underwater coral reef scene with tropical fish and sea turtles"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-}
-```
-
-### DALL-E 3 Generation
-
-**Input:**
-```json
-{
-  "prompt": "A majestic dragon soaring above a medieval castle",
-  "model": "dall-e-3"
-}
-```
-
-### Creative and Artistic Prompts
-
-**Abstract Art:**
-```json
-{
-  "prompt": "Abstract geometric composition with bold colors and flowing lines representing the concept of time"
-}
-```
-
-**Photorealistic Scene:**
-```json
-{
-  "prompt": "Photorealistic portrait of a wise elderly wizard with intricate robes and glowing crystal staff"
-}
-```
-
-**Architectural Design:**
-```json
-{
-  "prompt": "Modern sustainable architecture house with green roof, solar panels, and glass walls in a forest setting"
-}
-```
 
 ## Model Comparison
 

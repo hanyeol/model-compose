@@ -11,7 +11,7 @@ This workflow provides a streaming chat interface that:
 3. **Server-Sent Events**: Delivers responses as SSE (Server-Sent Events) for real-time user experience
 4. **Temperature Control**: Allows customization of response creativity through temperature parameter
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -42,31 +42,43 @@ This example uses pyenv to create an isolated Python environment for vLLM to avo
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service (first run will install vLLM):**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Wait for installation and model loading:**
+   - First run: 10-30 minutes (downloads model and installs vLLM)
+   - Subsequent runs: 2-5 minutes (model loading only)
 
-On first run, this will:
-- Create a Python virtual environment using pyenv
-- Install vLLM and dependencies
-- Download the Qwen2-7B-Instruct model
-- Start the vLLM server on port 8000
-- Start the model-compose API on port 8080
+3. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
-- vLLM server: http://localhost:8000 (internal)
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "prompt": "Explain the benefits of local AI models",
+         "temperature": 0.7
+       }
+     }'
+   ```
 
-### Single Execution
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your prompt and settings
+   - Click the "Run Workflow" button
 
-```bash
-model-compose run --input '{"prompt": "Hello, how are you?", "temperature": 0.7}'
-```
+   **Using CLI:**
+   ```bash
+   model-compose run --input '{
+     "prompt": "Explain the benefits of local AI models",
+     "temperature": 0.7
+   }'
+   ```
 
-## Available Components
+## Component Details
 
 ### Default Component (vLLM Server)
 - **Type**: HTTP server component with managed lifecycle
@@ -117,7 +129,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[vLLM Server<br/>streaming component]
+    C1[vLLM Server<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -164,55 +176,6 @@ graph TD
 - First startup may take several minutes to download the model
 - GPU acceleration significantly improves response speed
 - Model loading requires substantial memory allocation
-
-## Example Usage
-
-### Basic Streaming Chat
-```json
-{
-  "prompt": "Explain machine learning in simple terms"
-}
-```
-
-### Creative Writing with Streaming
-```json
-{
-  "prompt": "Write a short poem about autumn",
-  "temperature": 0.9
-}
-```
-
-### Technical Questions
-```json
-{
-  "prompt": "How does a neural network work?",
-  "temperature": 0.3
-}
-```
-
-## Example Output
-
-The workflow returns streaming text delivered as Server-Sent Events:
-
-```
-data: Machine
-data:  learning
-data:  is
-data:  a
-data:  subset
-data:  of
-data:  artificial
-data:  intelligence...
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Out of Memory**: Reduce model context length or upgrade system RAM
-2. **Model Download Fails**: Check internet connection and disk space
-3. **vLLM Installation Issues**: Ensure compatible Python version and CUDA drivers
-4. **Server Startup Timeout**: Allow more time for first model loading
 
 ### Performance Optimization
 

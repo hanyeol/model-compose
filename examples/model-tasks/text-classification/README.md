@@ -11,7 +11,7 @@ This workflow provides local text classification that:
 3. **Probability Scores**: Returns confidence scores for each classification label
 4. **No External APIs**: Completely offline text classification without API dependencies
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,31 +49,33 @@ Unlike cloud-based classification APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the toxic-comment-model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "This is a normal, respectful comment."}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run text-classification --input '{"text": "This is a normal, respectful comment."}'
+   ```
 
-```bash
-model-compose run --input '{"text": "This is a great example of helpful content."}'
-```
+## Component Details
 
-## Available Components
-
-### Toxic Comment Classification Model Component
+### Text Classification Model Component
 - **Type**: Model component with text-classification task
 - **Purpose**: Classify text as toxic or non-toxic content
 - **Model**: martin-ha/toxic-comment-model
@@ -110,7 +112,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[toxic-comment-model<br/>classification component]
+    C1[Text Classification<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -145,64 +147,6 @@ graph TD
       {"label": "toxic", "score": 0.0766}
     ]
   }
-}
-```
-
-## Example Usage
-
-### Safe Content Classification
-```json
-{
-  "text": "This is a helpful and informative article about machine learning."
-}
-```
-
-**Expected Output:**
-```json
-{
-  "predicted": {
-    "label": "non-toxic",
-    "score": 0.9891,
-    "scores": [
-      {"label": "non-toxic", "score": 0.9891},
-      {"label": "toxic", "score": 0.0109}
-    ]
-  }
-}
-```
-
-### Potentially Problematic Content
-```json
-{
-  "text": "This content contains inappropriate language and hostility."
-}
-```
-
-**Expected Output:**
-```json
-{
-  "predicted": {
-    "label": "toxic",
-    "score": 0.8234,
-    "scores": [
-      {"label": "non-toxic", "score": 0.1766},
-      {"label": "toxic", "score": 0.8234}
-    ]
-  }
-}
-```
-
-### Neutral Content
-```json
-{
-  "text": "The weather today is partly cloudy with a chance of rain."
-}
-```
-
-### Technical Discussion
-```json
-{
-  "text": "The algorithm's performance can be improved by optimizing the hyperparameters."
 }
 ```
 

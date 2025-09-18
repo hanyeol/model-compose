@@ -11,7 +11,7 @@ This MCP server provides Slack integration workflows that:
 3. **MCP Server**: Exposes workflows through Model Context Protocol for AI agent integration
 4. **Multi-Workflow**: Demonstrates multiple related workflows in a single MCP server
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -51,34 +51,42 @@ This MCP server provides Slack integration workflows that:
 
 ## How to Run
 
-### Run MCP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
+2. **Run the workflows:**
 
-```bash
-model-compose up
-```
+   **Using MCP Client:**
+   - Connect to MCP server: http://localhost:8080/mcp
+   - Available workflows: send-message, list-channels, join-channel
+   - Use your MCP-compatible client to execute workflows
 
-Once the server starts:
-- MCP Server: http://localhost:8080/mcp
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Select the desired workflow (send-message, list-channels, join-channel)
+   - Enter the required parameters
+   - Click the "Run" button
 
-### Individual Workflow Execution
+   **Using CLI:**
+   ```bash
+   # Send a message to default channel
+   model-compose run send-message --input '{"messsage": "Hello from model-compose!"}'
+   
+   # Send to specific channel
+   model-compose run send-message --input '{
+     "channel": "C1234567890",
+     "messsage": "Hello specific channel!"
+   }'
+   
+   # List channels
+   model-compose run list-channels
+   
+   # Join a channel
+   model-compose run join-channel --input '{"channel": "C1234567890"}'
+   ```
 
-#### Send Message
-```bash
-model-compose run send-message --input '{"channel": "C1234567890", "message": "Hello from model-compose!"}'
-```
-
-#### List Channels
-```bash
-model-compose run list-channels --input '{"limit": 50}'
-```
-
-#### Join Channel
-```bash
-model-compose run join-channel --input '{"channel": "C1234567890"}'
-```
-
-## Available Components
+## Component Details
 
 ### Slack API Component
 - **Type**: HTTP client component with multiple actions
@@ -109,7 +117,7 @@ graph TD
     J1((send-message<br/>job))
 
     %% Component
-    C1[Slack API<br/>http-client component]
+    C1[Slack API<br/>component]
 
     %% Job to component connections
     J1 --> C1
@@ -146,7 +154,7 @@ graph TD
     J1((list-channels<br/>job))
 
     %% Component
-    C1[Slack API<br/>http-client component]
+    C1[Slack API<br/>component]
 
     %% Job to component connections
     J1 --> C1
@@ -181,7 +189,7 @@ graph TD
     J1((join-channel<br/>job))
 
     %% Component
-    C1[Slack API<br/>http-client component]
+    C1[Slack API<br/>component]
 
     %% Job to component connections
     J1 --> C1
@@ -218,52 +226,6 @@ AI agents can access these workflows as tools:
 - `send-message`: Send messages to Slack
 - `list-channels`: Get available channels
 - `join-channel`: Join public channels
-
-## Example Usage
-
-### Basic Message Sending
-```json
-{
-  "channel": "C1234567890",
-  "message": "Hello team! This message was sent via model-compose."
-}
-```
-
-### Message with Rich Content
-```json
-{
-  "channel": "C1234567890",
-  "message": "Status Update",
-  "attachments": [
-    {
-      "color": "good",
-      "fields": [
-        {
-          "title": "Status",
-          "value": "Deployment successful",
-          "short": true
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Channel Discovery
-```json
-{
-  "limit": 10
-}
-```
-
-**Response:**
-```json
-[
-  {"id": "C1234567890", "name": "general"},
-  {"id": "C0987654321", "name": "development"},
-  {"id": "C1122334455", "name": "announcements"}
-]
-```
 
 ## Slack Web API Reference
 

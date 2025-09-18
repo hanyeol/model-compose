@@ -11,7 +11,7 @@ This workflow provides an end-to-end inspirational quote generation service that
 3. **Multi-Step Processing**: Demonstrates job dependencies and data flow between components
 4. **Audio Output**: Delivers high-quality MP3 audio with customizable voice selection
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -50,28 +50,41 @@ This workflow provides an end-to-end inspirational quote generation service that
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using API:**
+   ```bash
+   # Use default voice
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{}'
+   
+   # Use specific voice
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"voice_id": "21m00Tcm4TlvDq8ikWAM"}}'
+   ```
 
-### Single Execution
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Optionally specify a voice ID
+   - Click the "Run Workflow" button
 
-```bash
-model-compose run --input '{"voice_id": "JBFqnCBsd6RMkjVDRZzb"}'
-```
+   **Using CLI:**
+   ```bash
+   # Use default voice
+   model-compose run
+   
+   # Use specific voice
+   model-compose run --input '{"voice_id": "21m00Tcm4TlvDq8ikWAM"}'
+   ```
 
-**With custom voice:**
-```bash
-model-compose run --input '{"voice_id": "21m00Tcm4TlvDq8ikWAM"}'
-```
-
-## Available Components
+## Component Details
 
 ### write-inspiring-quote (OpenAI GPT-4o)
 - **Type**: HTTP client component
@@ -110,8 +123,8 @@ graph TD
     J2((job-voice))
 
     %% Components (rectangles)
-    C1[write-inspiring-quote<br/>http-client component]
-    C2[text-to-speech<br/>http-client component]
+    C1[write-inspiring-quote<br/>component]
+    C2[text-to-speech<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -171,29 +184,6 @@ Don't think you're worthless—there's nothing to gain from that. Aim high. That
 - **ErXwobaYiN019PkySvjV**: Antoni (Male, smooth and professional)
 
 To find more voices, visit your ElevenLabs dashboard or use their API to list available voices.
-
-## Example Usage
-
-### Basic Quote Generation
-```json
-{}
-```
-Uses default voice (George) to generate and voice a random inspirational quote.
-
-### Custom Voice Selection
-```json
-{
-  "voice_id": "21m00Tcm4TlvDq8ikWAM"
-}
-```
-
-### Example Output
-```json
-{
-  "quote": "Success isn't about avoiding failure—it's about learning from every setback and using that knowledge to climb higher than you ever imagined possible.",
-  "audio": "data:audio/mp3;base64,SUQzAwAAAAAeABFQcm..."
-}
-```
 
 ## Customization
 
@@ -263,7 +253,7 @@ workflow:
       input:
         text: ${jobs.generate-quotes.output[${index}].quote}
         voice_id: ${input.voices[${index}]}
-      depends_on: [generate-quotes]
+      depends_on: [ generate-quotes ]
 ```
 
 ### Theme-Based Quotes

@@ -9,7 +9,7 @@ This workflow provides a straightforward chat interface that:
 1. **Chat Completion**: Accepts user prompts and generates responses using OpenAI's GPT-4o model
 2. **Temperature Control**: Allows customization of response creativity through temperature parameter
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -35,23 +35,39 @@ This workflow provides a straightforward chat interface that:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "prompt": "Explain the importance of renewable energy",
+         "temperature": 0.7
+       }
+     }'
+   ```
 
-### Single Execution
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your prompt and settings
+   - Click the "Run Workflow" button
 
-```bash
-model-compose run --input '{"prompt": "Hello, how are you?", "temperature": 0.7}'
-```
+   **Using CLI:**
+   ```bash
+   model-compose run --input '{
+     "prompt": "Explain the importance of renewable energy",
+     "temperature": 0.7
+   }'
+   ```
 
-## Available Components
+## Component Details
 
 ### Default Component
 - **Type**: HTTP client component
@@ -78,7 +94,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[OpenAI GPT-4o<br/>component]
+    C1[OpenAI GPT-4o Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -101,41 +117,6 @@ graph TD
 | Field | Type | Description |
 |-------|------|-------------|
 | `message` | text | The AI-generated response text |
-
-## Example Usage
-
-### Basic Chat
-```json
-{
-  "prompt": "Explain quantum computing in simple terms"
-}
-```
-
-### Creative Writing
-```json
-{
-  "prompt": "Write a short story about a robot learning to paint",
-  "temperature": 0.9
-}
-```
-
-### Factual Responses
-```json
-{
-  "prompt": "What are the main causes of climate change?",
-  "temperature": 0.3
-}
-```
-
-## Example Output
-
-The workflow returns a JSON response containing the AI-generated message:
-
-```json
-{
-  "message": "Quantum computing is a revolutionary technology that uses the principles of quantum mechanics..."
-}
-```
 
 ## Customization
 

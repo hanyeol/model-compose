@@ -9,7 +9,7 @@ This workflow operates through the following process:
 1. **Collect Disk Usage**: Executes `df -h` command to gather current system disk usage information
 2. **AI Analysis**: Uses OpenAI GPT-4o model to analyze disk usage data and provide recommendations
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -35,23 +35,30 @@ This workflow operates through the following process:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{}'
+   ```
 
-### Single Execution
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Click the "Run Workflow" button
 
-```bash
-model-compose run
-```
+   **Using CLI:**
+   ```bash
+   model-compose run
+   ```
 
-## Available Components
+## Component Details
 
 ### get-disk-usage
 - **Type**: Shell component

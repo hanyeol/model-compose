@@ -10,7 +10,7 @@ This workflow provides a streaming chat interface that:
 2. **Server-Sent Events**: Delivers responses as SSE (Server-Sent Events) for real-time user experience
 3. **Temperature Control**: Allows customization of response creativity through temperature parameter
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -36,23 +36,39 @@ This workflow provides a streaming chat interface that:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+  ```bash
+  model-compose up
+  ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+  **Using API:**
+  ```bash
+  curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+    -H "Content-Type: application/json" \
+    -d '{
+      "input": {
+        "prompt": "Explain machine learning in simple terms",
+        "temperature": 0.7
+      }
+    }'
+  ```
 
-### Single Execution
+  **Using Web UI:**
+  - Open the Web UI: http://localhost:8081
+  - Enter your prompt and settings
+  - Click the "Run Workflow" button
 
-```bash
-model-compose run --input '{"prompt": "Hello, how are you?", "temperature": 0.7}'
-```
+  **Using CLI:**
+  ```bash
+  model-compose run --input '{
+    "prompt": "Explain machine learning in simple terms",
+    "temperature": 0.7
+  }'
+  ```
 
-## Available Components
+## Component Details
 
 ### Default Component
 - **Type**: HTTP client component
@@ -81,7 +97,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[OpenAI GPT-4o<br/>streaming component]
+    C1[OpenAI GPT-4o Model<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -113,44 +129,6 @@ This example differs from the standard chat completions by providing:
 - **SSE Format**: Output is formatted as Server-Sent Events for web browser compatibility
 - **Delta Processing**: Extracts content from streaming JSON chunks using `${response[].choices[0].delta.content}`
 - **Enhanced UX**: Users see responses appear character-by-character in real-time
-
-## Example Usage
-
-### Basic Streaming Chat
-```json
-{
-  "prompt": "Explain quantum computing in simple terms"
-}
-```
-
-### Creative Writing with Streaming
-```json
-{
-  "prompt": "Write a short story about a robot learning to paint",
-  "temperature": 0.9
-}
-```
-
-### Factual Responses with Streaming
-```json
-{
-  "prompt": "What are the main causes of climate change?",
-  "temperature": 0.3
-}
-```
-
-## Example Output
-
-The workflow returns streaming text delivered as Server-Sent Events:
-
-```
-data: Quantum
-data:  computing
-data:  is
-data:  a
-data:  revolutionary
-data:  technology...
-```
 
 ## Customization
 

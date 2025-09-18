@@ -11,7 +11,7 @@ This workflow provides local chat completion that:
 3. **Automatic Model Management**: Downloads and caches models automatically on first use
 4. **No External APIs**: Completely offline chat completion without API dependencies
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -47,31 +47,41 @@ Unlike cloud-based chat APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the SmolLM3-3B model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{
+       "input": {
+         "system-prompt": "You are a helpful AI assistant.",
+         "user-prompt": "Explain quantum computing in simple terms."
+       }
+     }'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your system prompt and user prompt
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run --input '{
+     "system-prompt": "You are a helpful AI assistant.",
+     "user-prompt": "Explain quantum computing in simple terms."
+   }'
+   ```
 
-```bash
-model-compose run --input '{"system_prompt": "You are a helpful assistant.", "user_prompt": "Hello, how are you?"}'
-```
+## Component Details
 
-## Available Components
-
-### SmolLM3-3B Chat Model Component
+### Chat Completion Model Component
 - **Type**: Model component with chat-completion task
 - **Purpose**: Local conversational AI using pretrained chat model
 - **Model**: HuggingFaceTB/SmolLM3-3B (3 billion parameter chat model)
@@ -108,7 +118,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[SmolLM3-3B<br/>chat model component]
+    C1[Chat Completion<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -147,47 +157,6 @@ The chat completion task follows the standard conversational format:
 - **Purpose**: Contains the user's question or request
 - **Required**: Must be provided for the conversation
 - **Example**: "Explain how recursion works in Python."
-
-## Example Usage
-
-### Basic Conversation
-```json
-{
-  "system_prompt": "You are a friendly and helpful assistant.",
-  "user_prompt": "What is machine learning?"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "generated": "Machine learning is a branch of artificial intelligence where computers learn to make predictions or decisions by finding patterns in data, rather than being explicitly programmed for each specific task."
-}
-```
-
-### Programming Assistant
-```json
-{
-  "system_prompt": "You are an expert Python programmer. Provide clear, concise explanations with code examples.",
-  "user_prompt": "How do I create a simple HTTP server in Python?"
-}
-```
-
-### Creative Writing Helper
-```json
-{
-  "system_prompt": "You are a creative writing assistant. Help users with storytelling, character development, and plot ideas.",
-  "user_prompt": "Give me ideas for a science fiction story about time travel."
-}
-```
-
-### No System Prompt
-```json
-{
-  "user_prompt": "Tell me a fun fact about space."
-}
-```
-The model will use its default behavior without specific role instructions.
 
 ## System Requirements
 

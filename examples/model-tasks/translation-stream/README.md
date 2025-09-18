@@ -12,7 +12,7 @@ This workflow provides local streaming text translation that:
 4. **Progressive Updates**: Streams translated tokens as they are generated
 5. **No External APIs**: Completely offline translation with streaming capabilities
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,33 +49,33 @@ Unlike cloud-based translation APIs, local streaming execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the SMALL100 model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080 with SSE support
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Hello, how are you today? I hope you are having a wonderful day."}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api (streaming)
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run translation --input '{"text": "Hello, how are you today? I hope you are having a wonderful day."}'
+   ```
 
-```bash
-model-compose run --input '{"text": "Hello, how are you today?"}'
-```
+## Component Details
 
-**Note**: CLI execution shows the final result, not the streaming process.
-
-## Available Components
-
-### SMALL100 Streaming Translation Model Component
+### Text Translation Streaming Model Component
 - **Type**: Model component with text-generation task (streaming enabled)
 - **Purpose**: Local multilingual text translation with real-time streaming
 - **Model**: alirezamsh/small100
@@ -176,228 +176,6 @@ data: {"token": "string", "is_final": boolean}
 Content-Type: text/plain
 Cache-Control: no-cache
 Connection: keep-alive
-```
-
-## Example Usage
-
-### Basic Streaming Translation
-
-**Input (English to Spanish):**
-```json
-{
-  "text": "Hello, how are you today? I hope you're having a wonderful day."
-}
-```
-
-**Streaming Output Sequence:**
-```
-data: {"token": "Hola", "is_final": false}
-
-data: {"token": ",", "is_final": false}
-
-data: {"token": " ¿", "is_final": false}
-
-data: {"token": "cómo", "is_final": false}
-
-data: {"token": " estás", "is_final": false}
-
-data: {"token": " hoy", "is_final": false}
-
-data: {"token": "?", "is_final": false}
-
-data: {"token": " Espero", "is_final": false}
-
-data: {"token": " que", "is_final": false}
-
-data: {"token": " tengas", "is_final": false}
-
-data: {"token": " un", "is_final": false}
-
-data: {"token": " día", "is_final": false}
-
-data: {"token": " maravilloso", "is_final": false}
-
-data: {"token": ".", "is_final": true}
-
-```
-
-## Client-Side Integration
-
-### JavaScript SSE Client
-
-```javascript
-async function streamTranslation(text, targetLang = 'es') {
-  const response = await fetch('/api', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream'
-    },
-    body: JSON.stringify({
-      text: text,
-      target_lang: targetLang
-    })
-  });
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let translation = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
-        translation += data.token;
-
-        // Update UI with partial translation
-        updateTranslationDisplay(translation);
-
-        if (data.is_final) {
-          console.log('Translation complete:', translation);
-          return translation;
-        }
-      }
-    }
-  }
-}
-
-function updateTranslationDisplay(partialTranslation) {
-  document.getElementById('translation-display').textContent = partialTranslation;
-}
-
-// Usage
-streamTranslation("Hello, world!", "es").then(result => {
-  console.log("Final translation:", result);
-});
-```
-
-### Python SSE Client
-
-```python
-import requests
-import json
-
-def stream_translation(text, source_lang='auto', target_lang='es'):
-    response = requests.post(
-        'http://localhost:8080/api',
-        json={
-            'text': text,
-            'source_lang': source_lang,
-            'target_lang': target_lang
-        },
-        headers={'Accept': 'text/event-stream'},
-        stream=True
-    )
-
-    translation = ''
-    for line in response.iter_lines():
-        if line.startswith(b'data: '):
-            data = json.loads(line[6:])
-            translation += data['token']
-
-            # Print partial translation
-            print(f"\rTranslation: {translation}", end='', flush=True)
-
-            if data['is_final']:
-                print()  # New line after completion
-                return translation
-
-# Usage
-text = "Hello, how are you today?"
-final_translation = stream_translation(text, 'en', 'es')
-```
-
-### Real-time Translation Interface
-
-```javascript
-class StreamingTranslator {
-  constructor(apiUrl) {
-    this.apiUrl = apiUrl;
-    this.translation = '';
-    this.isTranslating = false;
-  }
-
-  async translate(text, sourceLang, targetLang, onUpdate, onComplete, onError) {
-    if (this.isTranslating) {
-      throw new Error('Translation already in progress');
-    }
-
-    this.isTranslating = true;
-    this.translation = '';
-
-    try {
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
-        },
-        body: JSON.stringify({
-          text: text,
-          source_lang: sourceLang,
-          target_lang: targetLang
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-            this.translation += data.token;
-
-            onUpdate(this.translation, data.token);
-
-            if (data.is_final) {
-              this.isTranslating = false;
-              onComplete(this.translation);
-              return this.translation;
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.isTranslating = false;
-      onError(error);
-      throw error;
-    }
-  }
-
-  cancelTranslation() {
-    this.isTranslating = false;
-    // Implementation would need to handle abort controller
-  }
-}
-
-// Usage
-const translator = new StreamingTranslator('/api');
-
-translator.translate(
-  "The quick brown fox jumps over the lazy dog.",
-  'en',
-  'es',
-  (partial, token) => console.log('New token:', token),
-  (final) => console.log('Complete translation:', final),
-  (error) => console.error('Translation error:', error)
-);
 ```
 
 ## System Requirements

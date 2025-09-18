@@ -11,7 +11,7 @@ This workflow provides local text embedding generation that:
 3. **Automatic Model Management**: Downloads and caches models automatically on first use
 4. **No External APIs**: Completely offline embedding generation without API dependencies
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,31 +49,33 @@ Unlike cloud-based embedding APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the all-MiniLM-L6-v2 model from HuggingFace
-- Install required dependencies (sentence-transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Machine learning is transforming technology"}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run text-embedding --input '{"text": "Machine learning is transforming technology"}'
+   ```
 
-```bash
-model-compose run --input '{"text": "This is a sample text for embedding generation."}'
-```
+## Component Details
 
-## Available Components
-
-### all-MiniLM-L6-v2 Embedding Model Component
+### Text Embedding Model Component
 - **Type**: Model component with text-embedding task
 - **Purpose**: Generate semantic vector representations of text
 - **Model**: sentence-transformers/all-MiniLM-L6-v2
@@ -112,7 +114,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[all-MiniLM-L6-v2<br/>embedding model component]
+    C1[Text Embedding<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -134,43 +136,6 @@ graph TD
 | Field | Type | Description |
 |-------|------|-------------|
 | `embedding` | json | Array of 384 floating-point numbers representing the text embedding |
-
-## Example Usage
-
-### Basic Text Embedding
-```json
-{
-  "text": "Machine learning is a subset of artificial intelligence."
-}
-```
-
-**Expected Output:**
-```json
-{
-  "embedding": [0.0234, -0.1567, 0.0891, ..., -0.0456]
-}
-```
-
-### Document Similarity
-```json
-{
-  "text": "The weather today is sunny and warm."
-}
-```
-
-### Question Embedding
-```json
-{
-  "text": "How does photosynthesis work in plants?"
-}
-```
-
-### Code Documentation
-```json
-{
-  "text": "This function calculates the factorial of a given number using recursion."
-}
-```
 
 ## System Requirements
 

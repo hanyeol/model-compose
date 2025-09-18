@@ -12,7 +12,7 @@ This workflow provides local text translation that:
 4. **No External APIs**: Completely offline translation without dependencies
 5. **Deterministic Output**: Consistent translation results with disabled sampling
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,33 +49,33 @@ Unlike cloud-based translation APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the SMALL100 model from HuggingFace
-- Install required dependencies (transformers, torch, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"text": "Hello, how are you today?"}}'
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run translation --input '{"text": "Hello, how are you today?"}'
+   ```
 
-```bash
-model-compose run --input '{"text": "Hello, how are you today?"}'
-```
+## Component Details
 
-**Note**: Default translation direction depends on model configuration. Specify language codes for precise control.
-
-## Available Components
-
-### SMALL100 Translation Model Component
+### Text Translation Model Component
 - **Type**: Model component with text-generation task
 - **Purpose**: Local multilingual text translation
 - **Model**: alirezamsh/small100
@@ -158,43 +158,6 @@ graph TD
 
 ### Language Code Format
 Use ISO 639-1 language codes (e.g., 'en' for English, 'es' for Spanish, 'zh' for Chinese).
-
-## Example Usage
-
-### English to Spanish Translation
-```json
-{
-  "text": "Hello, how are you today? I hope you're having a wonderful day."
-}
-```
-
-**Expected Output (if configured for en→es):**
-```json
-{
-  "translated": "Hola, ¿cómo estás hoy? Espero que tengas un día maravilloso."
-}
-```
-
-### Business Communication
-```json
-{
-  "text": "Thank you for your inquiry. We will respond to your request within 24 hours. Please let us know if you have any urgent concerns."
-}
-```
-
-### Technical Documentation
-```json
-{
-  "text": "To configure the application, edit the settings file and restart the service. Make sure all dependencies are properly installed before proceeding."
-}
-```
-
-### Casual Conversation
-```json
-{
-  "text": "What's your favorite movie? I really enjoyed watching the latest science fiction film last weekend."
-}
-```
 
 ## System Requirements
 

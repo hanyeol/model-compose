@@ -12,7 +12,7 @@ This workflow provides local image upscaling that:
 4. **No External APIs**: Completely offline image processing without dependencies
 5. **Real-time Processing**: Fast inference suitable for interactive applications
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -49,31 +49,33 @@ Unlike cloud-based image enhancement APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the Real-ESRGAN model weights from HuggingFace
-- Install required dependencies (torch, opencv-python, PIL, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -H "Content-Type: multipart/form-data" \
+     -F "image=@/path/to/your/low-resolution-image.jpg"
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Enter your input parameters
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   model-compose run image-upscale --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
+   ```
 
-```bash
-model-compose run --input '{"image": "path/to/low_res_image.jpg"}'
-```
+## Component Details
 
-## Available Components
-
-### Real-ESRGAN Image Upscale Model Component
+### Image Upscale Model Component
 - **Type**: Model component with image-upscale task
 - **Purpose**: Local image super-resolution and enhancement
 - **Model**: ai-forever/Real-ESRGAN (RealESRGAN_x4.pth)
@@ -111,7 +113,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[Real-ESRGAN<br/>upscale model component]
+    C1[Image Upscale<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1

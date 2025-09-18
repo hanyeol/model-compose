@@ -12,7 +12,7 @@ This workflow provides local image-to-text generation that:
 4. **Automatic Model Management**: Downloads and caches models automatically on first use
 5. **No External APIs**: Completely offline image analysis without API dependencies
 
-## Setup
+## Preparation
 
 ### Prerequisites
 
@@ -48,36 +48,44 @@ Unlike cloud-based vision APIs, local model execution provides:
 
 ## How to Run
 
-### Run in HTTP Server Mode
+1. **Start the service:**
+   ```bash
+   model-compose up
+   ```
 
-```bash
-model-compose up
-```
+2. **Run the workflow:**
 
-On first run, this will:
-- Download the BLIP image captioning model from HuggingFace
-- Install required dependencies (transformers, torch, PIL, etc.)
-- Load the model into memory
-- Start the model-compose API on port 8080
+   **Using API:**
+   ```bash
+   # Basic image captioning
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -F "image=@/path/to/your/image.jpg" \
+     -F "input={\"image\": \"@image\"}"
+   
+   # With text prompt for guided generation
+   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+     -F "image=@/path/to/your/image.jpg" \
+     -F "input={\"image\": \"@image\", \"prompt\": \"Describe the colors and mood in this image\"}"
+   ```
 
-Once the server starts:
-- API endpoint: http://localhost:8080/api
-- Web UI: http://localhost:8081
+   **Using Web UI:**
+   - Open the Web UI: http://localhost:8081
+   - Upload an image file or provide image path
+   - Optionally enter a text prompt to guide generation
+   - Click the "Run Workflow" button
 
-### Single Execution
+   **Using CLI:**
+   ```bash
+   # Basic image captioning
+   model-compose run image-to-text --input '{"image": "/path/to/your/image.jpg"}'
+   
+   # With text prompt for guided generation
+   model-compose run image-to-text --input '{"image": "/path/to/your/image.jpg", "prompt": "Describe the colors and mood in this image"}'
+   ```
 
-```bash
-model-compose run --input '{"image": "path/to/image.jpg"}'
-```
+## Component Details
 
-Or with a custom prompt:
-```bash
-model-compose run --input '{"image": "path/to/image.jpg", "prompt": "Describe the weather in this image"}'
-```
-
-## Available Components
-
-### BLIP Image Captioning Model Component
+### Image to Text Model Component
 - **Type**: Model component with image-to-text task
 - **Purpose**: Local image understanding and captioning
 - **Model**: Salesforce/blip-image-captioning-large
@@ -115,7 +123,7 @@ graph TD
     J1((default<br/>job))
 
     %% Component
-    C1[BLIP Image Captioning<br/>model component]
+    C1[Image to Text<br/>component]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
@@ -152,67 +160,6 @@ graph TD
 - Model loading takes 30-60 seconds depending on hardware
 - GPU acceleration significantly improves inference speed
 - Processing time varies with image size and complexity
-
-## Example Usage
-
-### Basic Image Captioning
-```json
-{
-  "image": "/path/to/photo.jpg"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "generated": "A woman walking her dog in a park on a sunny day"
-}
-```
-
-### Prompted Image Description
-```json
-{
-  "image": "/path/to/cityscape.jpg",
-  "prompt": "Describe the architecture in this image"
-}
-```
-
-**Expected Output:**
-```json
-{
-  "generated": "The image shows modern skyscrapers with glass facades and contemporary architectural design against a clear blue sky"
-}
-```
-
-### Nature Photography
-```json
-{
-  "image": "/path/to/landscape.jpg",
-  "prompt": "What season is depicted in this landscape?"
-}
-```
-
-### Product Photography
-```json
-{
-  "image": "/path/to/product.jpg",
-  "prompt": "Describe this product for an e-commerce listing"
-}
-```
-
-## Image Format Support
-
-The model accepts various image formats:
-- **JPEG/JPG**: Most common format, excellent compatibility
-- **PNG**: Supports transparency, high quality
-- **BMP**: Uncompressed format
-- **TIFF**: High-quality format for professional images
-
-### Image Processing
-- Images are automatically resized to 384x384 pixels
-- Aspect ratio is preserved with padding
-- Color images are preferred (grayscale supported)
-- Maximum file size recommendations: <50MB for optimal performance
 
 ## Customization
 

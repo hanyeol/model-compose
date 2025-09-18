@@ -58,12 +58,12 @@ Unlike cloud-based vision APIs, local model execution provides:
    **Using API:**
    ```bash
    # Basic image captioning
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
      -F "input={\"image\": \"@image\"}"
    
    # With text prompt for guided generation
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
      -F "input={\"image\": \"@image\", \"prompt\": \"Describe the colors and mood in this image\"}"
    ```

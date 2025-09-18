@@ -60,12 +60,12 @@ This workflow provides an end-to-end inspirational quote generation service that
    **Using API:**
    ```bash
    # Use default voice
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{}'
    
    # Use specific voice
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"voice_id": "21m00Tcm4TlvDq8ikWAM"}}'
    ```

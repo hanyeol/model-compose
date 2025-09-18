@@ -56,16 +56,16 @@ pip install sentence-transformers torch
 
    **Insert Text Embedding:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/insert-sentence-embedding/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"text": "This is a sample document about machine learning."}}'
+     -d '{"workflow_id": "insert-sentence-embedding", "input": {"text": "This is a sample document about machine learning."}}}'
    ```
 
    **Search Similar Texts:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/search-sentence-embeddings/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"text": "artificial intelligence and neural networks"}}'
+     -d '{"workflow_id": "search-sentence-embeddings", "input": {"text": "artificial intelligence and neural networks"}}}'
    ```
 
    **Using Web UI:**
@@ -146,8 +146,51 @@ graph TD
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `status` | string | Insertion status confirmation |
-| `vector_id` | string | Generated ID for the stored vector |
+| `ids` | string[] | Array of generated/assigned vector IDs |
+| `affected_rows` | integer | Number of vectors successfully inserted |
+
+### "Update Text Embedding" Workflow
+
+**Description**: Generate new text embedding and update existing vector in ChromaDB.
+
+#### Job Flow
+
+```mermaid
+graph TD
+    %% Jobs (circles)
+    J1((generate-embedding<br/>job))
+    J2((update-vector<br/>job))
+
+    %% Components (rectangles)
+    C1[Text Embedding Model<br/>component]
+    C2[ChromaDB Vector Store<br/>component]
+
+    %% Job to component connections (solid: invokes, dotted: returns)
+    J1 --> C1
+    C1 -.-> |embedding vector| J1
+    J2 --> C2
+    C2 -.-> |update confirmation| J2
+
+    %% Job flow
+    J1 --> J2
+
+    %% Input/Output
+    Input((Input)) --> J1
+    J2 --> Output((Output))
+```
+
+#### Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `vector_id` | string | Yes | - | ID of the vector to update |
+| `text` | string | Yes | - | New text to generate embedding for |
+
+#### Output Format
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `affected_rows` | integer | Number of vectors successfully updated |
 
 ### "Search Similar Embeddings" Workflow
 
@@ -189,8 +232,49 @@ graph TD
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `results` | array | Array of similar documents with scores and metadata |
-| `total_results` | integer | Number of results returned |
+| `id` | string | Vector ID |
+| `score` | number | Similarity score (0-1, higher is more similar) |
+| `distance` | number | Vector distance (lower is more similar) |
+| `metadata` | object | Associated metadata (filtered by output_fields) |
+| `document` | string | Original document text |
+| `embedding` | number[] | Vector embedding values |
+
+### "Delete Text Embedding" Workflow
+
+**Description**: Remove a specific vector from the ChromaDB collection.
+
+#### Job Flow
+
+This workflow uses a simplified single-component configuration.
+
+```mermaid
+graph TD
+    %% Default job (implicit)
+    J1((delete-vector<br/>job))
+
+    %% Component
+    C1[ChromaDB Vector Store<br/>component]
+
+    %% Job to component connections
+    J1 --> C1
+    C1 -.-> |deletion result| J1
+
+    %% Input/Output
+    Input((Input)) --> J1
+    J1 --> Output((Output))
+```
+
+#### Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `vector_id` | string | Yes | - | ID of the vector to delete |
+
+#### Output Format
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `affected_rows` | integer | Number of vectors successfully deleted |
 
 ## Available Operations
 

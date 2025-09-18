@@ -52,7 +52,7 @@ This workflow provides advanced image editing capabilities that:
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: multipart/form-data" \
      -F "input={\"prompt\": \"Add a sunset background\", \"image\": \"@image\"}" \
      -F "image=@original.png"

@@ -47,7 +47,7 @@ ElevenLabs offers premium text-to-speech services with advanced AI voice synthes
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"text": "Welcome to our high-quality text-to-speech service."}}'
    ```

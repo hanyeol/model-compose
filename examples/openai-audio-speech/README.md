@@ -52,7 +52,7 @@ This workflow provides advanced speech synthesis capabilities that:
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
        "input": {

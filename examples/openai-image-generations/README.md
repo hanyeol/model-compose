@@ -54,14 +54,14 @@ Both workflows use the same underlying OpenAI Images API but with different mode
    **Using API:**
    ```bash
    # Generate image with DALL-E (URL format) - Default workflow
-   curl -X POST http://localhost:8080/api/workflows/dall-e/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"prompt": "A serene mountain landscape at sunset", "model": "dall-e-3"}}'
+     -d '{"workflow_id": "dall-e", "input": {"prompt": "A serene mountain landscape at sunset", "model": "dall-e-3"}}'
    
    # Generate image with GPT Image (Base64 format)
-   curl -X POST http://localhost:8080/api/workflows/gpt-image-1/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"prompt": "A futuristic city skyline"}}'
+     -d '{"workflow_id": "gpt-image-1", "input": {"prompt": "A futuristic city skyline"}}'
    ```
 
    **Using Web UI:**

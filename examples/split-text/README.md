@@ -38,7 +38,7 @@ This workflow provides intelligent text segmentation capabilities that:
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
        "input": {

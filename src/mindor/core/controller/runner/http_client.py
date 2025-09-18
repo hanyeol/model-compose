@@ -12,8 +12,9 @@ class HttpControllerClient(ControllerClient):
         self.client: HttpClient = HttpClient(self._resolve_controller_url(), timeout=3600)
 
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
-        url = f"/workflows/{workflow_id or '__default__'}/runs"
+        url = f"/workflows/runs"
         body = {
+            "workflow_id": workflow_id,
             "input": input,
             "wait_for_completion": True,
             "output_only": True

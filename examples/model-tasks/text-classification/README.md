@@ -75,7 +75,7 @@ Unlike cloud-based classification APIs, local model execution provides:
 
 ## Component Details
 
-### Text Classification Model Component
+### Text Classification Model Component (Default)
 - **Type**: Model component with text-classification task
 - **Purpose**: Classify text as toxic or non-toxic content
 - **Model**: martin-ha/toxic-comment-model
@@ -109,7 +109,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Text Classification Model<br/>component]

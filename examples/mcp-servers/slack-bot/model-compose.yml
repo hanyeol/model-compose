@@ -8,6 +8,8 @@ controller:
 
 workflows:
   - id: send-message
+    title: Send Message to Slack Channel
+    description: Send a text message to a specified Slack channel using the Slack Web API
     action: chat-post-message
     input:
       channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
@@ -15,10 +17,14 @@ workflows:
     output: ${output as json}
 
   - id: list-channels
+    title: List Slack Channels
+    description: Retrieve a list of all available channels in the Slack workspace
     action: conversations-list
     output: ${output as object[]}
 
   - id: join-channel
+    title: Join Slack Channel
+    description: Join a specified Slack channel for the bot user
     action: conversations-join
     input:
       channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}

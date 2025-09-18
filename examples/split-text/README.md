@@ -75,7 +75,7 @@ This workflow provides intelligent text segmentation capabilities that:
 
 ## Component Details
 
-### text-splitter
+### Text Splitter Component (Default)
 - **Type**: Text processing component
 - **Purpose**: Split large text into smaller, manageable chunks
 - **Method**: Separator-based chunking with intelligent overlap

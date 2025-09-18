@@ -78,7 +78,7 @@ This workflow provides advanced speech-to-text capabilities that:
 
 ## Component Details
 
-### speech-to-text
+### OpenAI Whisper Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: Convert audio files to text using OpenAI's Whisper models
 - **API**: OpenAI Audio Transcriptions v1

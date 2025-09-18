@@ -75,7 +75,7 @@ This workflow provides advanced speech synthesis capabilities that:
 
 ## Component Details
 
-### text-to-speech
+### OpenAI TTS Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: Convert text to natural-sounding speech using OpenAI's TTS API
 - **API**: OpenAI Text-to-Speech v1

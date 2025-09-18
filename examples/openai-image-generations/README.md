@@ -81,7 +81,7 @@ Both workflows use the same underlying OpenAI Images API but with different mode
 
 ## Component Details
 
-### OpenAI HTTP Client Component
+### OpenAI HTTP Client Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: Interface with OpenAI's Images API
 - **Base URL**: https://api.openai.com/v1
@@ -115,10 +115,10 @@ This workflow uses a simplified single-component configuration.
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((dall-e<br/>workflow))
+    J1((Default<br/>job))
 
     %% Component
-    C1[OpenAI DALL·E<br/>component]
+    C1[OpenAI HTTP Client<br/>component]
 
     %% Job to component connections
     J1 --> C1
@@ -126,7 +126,7 @@ graph TD
 
     %% Input/Output
     Input((Input)) --> J1
-    J1 --> Output((Image URL))
+    J1 --> Output((Output))
 ```
 
 #### Input Parameters
@@ -151,10 +151,10 @@ graph TD
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((gpt-image-1<br/>workflow))
+    J1((Default<br/>job))
 
     %% Component
-    C1[OpenAI HTTP Client<br/>GPT Image Action]
+    C1[OpenAI HTTP Client<br/>component]
 
     %% Job to component connections
     J1 --> C1
@@ -199,28 +199,6 @@ graph TD
 | Typical Use Case | Web display | App embedding |
 | Storage | OpenAI hosted | Self-managed |
 | URL Expiration | Yes (temporary) | N/A |
-
-## API Information
-
-### Rate Limits and Pricing
-
-**DALL-E 2:**
-- Rate Limit: 50 images per minute
-- Cost: $0.020 per image (1024×1024)
-
-**DALL-E 3:**
-- Rate Limit: 7 images per minute per user
-- Cost: $0.080 per image (1024×1024)
-
-**GPT Image:**
-- Rate limits and pricing may vary based on OpenAI's current policies
-
-### Image Specifications
-
-- **Resolution**: 1024×1024 pixels (fixed)
-- **Format**: PNG
-- **Color Space**: RGB
-- **Compression**: Optimized for web delivery
 
 ## Customization
 

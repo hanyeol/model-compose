@@ -75,7 +75,7 @@ Unlike cloud-based text APIs, local streaming execution provides:
 
 ## Component Details
 
-### Text Summarization Streaming Model Component
+### Text Summarization Streaming Model Component (Default)
 - **Type**: Model component with text-generation task (streaming enabled)
 - **Purpose**: Local text summarization with real-time streaming output
 - **Model**: facebook/bart-large-cnn
@@ -102,27 +102,21 @@ Unlike cloud-based text APIs, local streaming execution provides:
 
 ### "Summarize Text" Workflow (Streaming)
 
-**Description**: Generate concise summaries from longer texts with real-time streaming output using Server-Sent Events.
+**Description**: Generate concise summaries from longer texts with real-time streaming output using the BART model.
 
 #### Job Flow
 
-This example uses a simplified single-component configuration with streaming enabled.
-
 ```mermaid
 graph TD
-    %% Default job (implicit)
-    J1((default<br/>job))
+    %% Jobs (circles)
+    J1((summarize-text<br/>job))
 
-    %% Component
+    %% Components (rectangles)
     C1[Streaming Text Summarization Model<br/>component]
-
-    %% Streaming output
-    S1[SSE Stream<br/>sse-text]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
-    C1 -.-> |streaming tokens| S1
-    S1 -.-> |final summary| J1
+    C1 -.-> |streaming summary| J1
 
     %% Input/Output
     Input((Input)) --> J1
@@ -153,7 +147,7 @@ data: {"token": ".", "is_final": true}
 **Final Output:**
 | Field | Type | Description |
 |-------|------|-------------|
-| `output` | text | Complete summary text (SSE format) |
+| - | text | Complete summary text (SSE format) |
 
 ## Server-Sent Events (SSE) Format
 

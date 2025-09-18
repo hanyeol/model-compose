@@ -8,8 +8,7 @@ controller:
 
 workflow:
   title: Classify Text
-  description: Classifies input text into predefined labels using a text classification model.
-  description: 
+  description: Classifies input text into predefined labels using a text classification model. 
   input: ${input}
   output:
     predicted: ${output}

@@ -71,7 +71,7 @@ This workflow provides AI-powered image variation capabilities that:
 
 ## Component Details
 
-### image-variations
+### OpenAI DALL·E Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: Generate creative variations of input images using DALL·E
 - **API**: OpenAI Image Variations v1

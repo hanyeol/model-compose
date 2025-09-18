@@ -7,8 +7,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Generate Transciptions with OpenAI STT
-  description: 
+  title: Generate Transcriptions with OpenAI STT
+  description: Convert audio files to text using OpenAI's Whisper and transcription models. 
   jobs:
     - id: speech-to-text
       component: openai-speech-to-text

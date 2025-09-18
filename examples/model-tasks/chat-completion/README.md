@@ -81,7 +81,7 @@ Unlike cloud-based chat APIs, local model execution provides:
 
 ## Component Details
 
-### Chat Completion Model Component
+### Chat Completion Model Component (Default)
 - **Type**: Model component with chat-completion task
 - **Purpose**: Local conversational AI using pretrained chat model
 - **Model**: HuggingFaceTB/SmolLM3-3B (3 billion parameter chat model)
@@ -115,7 +115,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Chat Completion Model<br/>component]

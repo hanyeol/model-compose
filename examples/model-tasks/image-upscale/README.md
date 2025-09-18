@@ -75,7 +75,7 @@ Unlike cloud-based image enhancement APIs, local model execution provides:
 
 ## Component Details
 
-### Image Upscale Model Component
+### Image Upscale Model Component (Default)
 - **Type**: Model component with image-upscale task
 - **Purpose**: Local image super-resolution and enhancement
 - **Model**: ai-forever/Real-ESRGAN (RealESRGAN_x4.pth)
@@ -110,7 +110,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Image Upscale Model<br/>component]

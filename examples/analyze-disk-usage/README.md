@@ -60,13 +60,13 @@ This workflow operates through the following process:
 
 ## Component Details
 
-### get-disk-usage
+### Shell Command Component (get-disk-usage)
 - **Type**: Shell component
 - **Purpose**: Executes system disk usage command
 - **Command**: `df -h`
 - **Output**: Raw disk usage information in human-readable format
 
-### gpt-4o
+### OpenAI GPT-4o Component (gpt-4o)
 - **Type**: HTTP client component
 - **Purpose**: AI-powered disk usage analysis
 - **API**: OpenAI GPT-4o Chat Completions

@@ -63,7 +63,7 @@ This workflow provides a basic echo service that:
 
 ## Component Details
 
-### Default Component (Echo Server)
+### Echo Server Component (Default)
 - **Type**: HTTP server component with managed lifecycle
 - **Purpose**: Simple echo service for testing and demonstration
 - **Framework**: FastAPI with Uvicorn server
@@ -93,7 +93,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Echo Server<br/>component]

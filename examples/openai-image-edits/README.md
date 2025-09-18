@@ -83,7 +83,7 @@ This workflow provides advanced image editing capabilities that:
 
 ## Component Details
 
-### image-editor
+### OpenAI Image Editor Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: Modify images using AI-powered editing with text prompts
 - **API**: OpenAI Image Edits v1

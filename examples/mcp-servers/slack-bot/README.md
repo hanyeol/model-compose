@@ -88,7 +88,7 @@ This MCP server provides Slack integration workflows that:
 
 ## Component Details
 
-### Slack API Component
+### Slack API HTTP Client Component (Default)
 - **Type**: HTTP client component with multiple actions
 - **Purpose**: Slack Web API integration
 - **Base URL**: `https://slack.com/api`
@@ -105,9 +105,9 @@ This MCP server provides Slack integration workflows that:
 
 ## Workflow Details
 
-### "send-message" Workflow
+### "Send Message to Slack Channel" Workflow
 
-**Description**: Send a message to a Slack channel with optional attachments
+**Description**: Send a text message to a specified Slack channel using the Slack Web API
 
 #### Job Flow
 
@@ -142,9 +142,9 @@ graph TD
 |-------|------|-------------|
 | - | json | Complete Slack API response including message metadata |
 
-### "list-channels" Workflow
+### "List Slack Channels" Workflow
 
-**Description**: Retrieve a list of available Slack channels
+**Description**: Retrieve a list of all available channels in the Slack workspace
 
 #### Job Flow
 
@@ -177,9 +177,9 @@ graph TD
 |-------|------|-------------|
 | - | object[] | Array of channel objects with `id` and `name` fields |
 
-### "join-channel" Workflow
+### "Join Slack Channel" Workflow
 
-**Description**: Join a public Slack channel
+**Description**: Join a specified Slack channel for the bot user
 
 #### Job Flow
 

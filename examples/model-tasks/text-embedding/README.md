@@ -75,7 +75,7 @@ Unlike cloud-based embedding APIs, local model execution provides:
 
 ## Component Details
 
-### Text Embedding Model Component
+### Text Embedding Model Component (Default)
 - **Type**: Model component with text-embedding task
 - **Purpose**: Generate semantic vector representations of text
 - **Model**: sentence-transformers/all-MiniLM-L6-v2
@@ -111,7 +111,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Text Embedding Model<br/>component]

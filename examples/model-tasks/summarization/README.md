@@ -75,7 +75,7 @@ Unlike cloud-based text APIs, local model execution provides:
 
 ## Component Details
 
-### Text Summarization Model Component
+### Text Summarization Model Component (Default)
 - **Type**: Model component with text-generation task
 - **Purpose**: Local text summarization using sequence-to-sequence model
 - **Model**: facebook/bart-large-cnn
@@ -111,7 +111,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Text Summarization Model<br/>component]

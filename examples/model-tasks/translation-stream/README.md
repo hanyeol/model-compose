@@ -75,7 +75,7 @@ Unlike cloud-based translation APIs, local streaming execution provides:
 
 ## Component Details
 
-### Text Translation Streaming Model Component
+### Text Translation Streaming Model Component (Default)
 - **Type**: Model component with text-generation task (streaming enabled)
 - **Purpose**: Local multilingual text translation with real-time streaming
 - **Model**: alirezamsh/small100
@@ -102,27 +102,21 @@ Unlike cloud-based translation APIs, local streaming execution provides:
 
 ### "Translate Text" Workflow (Streaming)
 
-**Description**: Translate input text with real-time streaming output using Server-Sent Events.
+**Description**: Translate input text with real-time streaming output using the SMALL100 multilingual model.
 
 #### Job Flow
 
-This example uses a simplified single-component configuration with streaming enabled.
-
 ```mermaid
 graph TD
-    %% Default job (implicit)
-    J1((default<br/>job))
+    %% Jobs (circles)
+    J1((translate-text<br/>job))
 
-    %% Component
+    %% Components (rectangles)
     C1[Streaming Text Translation Model<br/>component]
-
-    %% Streaming output
-    S1[SSE Stream<br/>sse-text]
 
     %% Job to component connections (solid: invokes, dotted: returns)
     J1 --> C1
-    C1 -.-> |streaming tokens| S1
-    S1 -.-> |final translation| J1
+    C1 -.-> |streaming translation| J1
 
     %% Input/Output
     Input((Input)) --> J1

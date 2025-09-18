@@ -95,7 +95,7 @@ pip install sentence-transformers torch pymilvus
 
 ## Component Details
 
-### embedding-model
+### Text Embedding Model Component (embedding-model)
 - **Type**: Model component with text-embedding task
 - **Purpose**: Convert text to 384-dimensional vector embeddings
 - **Model**: sentence-transformers/all-MiniLM-L6-v2
@@ -104,7 +104,7 @@ pip install sentence-transformers torch pymilvus
   - High-quality semantic understanding
   - Compact embedding size
 
-### vector-store
+### Milvus Vector Store Component (vector-store)
 - **Type**: Vector database component
 - **Purpose**: High-performance vector storage and similarity search
 - **Driver**: Milvus
@@ -116,9 +116,9 @@ pip install sentence-transformers torch pymilvus
 
 ## Workflow Details
 
-### "Insert Sentence Embedding" Workflow
+### "Insert Text Embedding" Workflow
 
-**Description**: Convert text to embeddings and store them in Milvus with auto-generated integer IDs.
+**Description**: Generate text embedding and insert it into Milvus vector database.
 
 #### Job Flow
 
@@ -159,9 +159,9 @@ graph TD
 | `status` | string | Insertion status confirmation |
 | `vector_id` | integer | Auto-generated integer ID for the stored vector |
 
-### "Search Sentence Embeddings" Workflow
+### "Search Similar Embeddings" Workflow
 
-**Description**: Perform high-speed semantic similarity search using query text to find related stored embeddings.
+**Description**: Generate query embedding and search for similar vectors in Milvus database.
 
 #### Job Flow
 

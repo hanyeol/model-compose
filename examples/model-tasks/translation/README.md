@@ -75,7 +75,7 @@ Unlike cloud-based translation APIs, local model execution provides:
 
 ## Component Details
 
-### Text Translation Model Component
+### Text Translation Model Component (Default)
 - **Type**: Model component with text-generation task
 - **Purpose**: Local multilingual text translation
 - **Model**: alirezamsh/small100
@@ -111,7 +111,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Text Translation Model<br/>component]

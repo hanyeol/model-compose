@@ -8,8 +8,8 @@ controller:
 
 workflows:
   - id: insert-sentence-embedding
-    title:
-    description:
+    title: Insert Text Embedding
+    description: Generate text embedding and insert it into ChromaDB vector store
     jobs:
       - id: embedding-sentence
         component: embedding-model
@@ -26,8 +26,8 @@ workflows:
         depends_on: [ embedding-sentence ]
 
   - id: update-sentence-embedding
-    title:
-    description:
+    title: Update Text Embedding
+    description: Generate new text embedding and update existing vector in ChromaDB
     jobs:
       - id: embedding-sentence
         component: embedding-model
@@ -46,8 +46,8 @@ workflows:
         depends_on: [ embedding-sentence ]
 
   - id: search-sentence-embeddings
-    title:
-    description:
+    title: Search Similar Embeddings
+    description: Generate query embedding and search for similar vectors in ChromaDB
     jobs:
       - id: embedding-sentence
         component: embedding-model
@@ -63,8 +63,8 @@ workflows:
         depends_on: [ embedding-sentence ]
 
   - id: delete-sentence-embedding
-    title:
-    description:
+    title: Delete Text Embedding
+    description: Remove a specific vector from the ChromaDB collection
     component: vector-store
     action: delete
     input: ${input}

@@ -85,7 +85,7 @@ Unlike cloud-based vision APIs, local model execution provides:
 
 ## Component Details
 
-### Image to Text Model Component
+### Image to Text Model Component (Default)
 - **Type**: Model component with image-to-text task
 - **Purpose**: Local image understanding and captioning
 - **Model**: Salesforce/blip-image-captioning-large
@@ -120,7 +120,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Image to Text Model<br/>component]

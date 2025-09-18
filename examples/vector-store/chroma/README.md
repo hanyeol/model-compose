@@ -85,7 +85,7 @@ pip install sentence-transformers torch
 
 ## Component Details
 
-### embedding-model
+### Text Embedding Model Component (embedding-model)
 - **Type**: Model component with text-embedding task
 - **Purpose**: Convert text to 384-dimensional vector embeddings
 - **Model**: sentence-transformers/all-MiniLM-L6-v2
@@ -94,7 +94,7 @@ pip install sentence-transformers torch
   - Good semantic understanding
   - Compact embedding size
 
-### vector-store
+### ChromaDB Vector Store Component (vector-store)
 - **Type**: Vector database component
 - **Purpose**: Store and search vector embeddings with metadata
 - **Driver**: ChromaDB
@@ -106,9 +106,9 @@ pip install sentence-transformers torch
 
 ## Workflow Details
 
-### "Insert Sentence Embedding" Workflow
+### "Insert Text Embedding" Workflow
 
-**Description**: Convert text to embeddings and store them in ChromaDB with metadata.
+**Description**: Generate text embedding and insert it into ChromaDB vector store.
 
 #### Job Flow
 
@@ -149,9 +149,9 @@ graph TD
 | `status` | string | Insertion status confirmation |
 | `vector_id` | string | Generated ID for the stored vector |
 
-### "Search Sentence Embeddings" Workflow
+### "Search Similar Embeddings" Workflow
 
-**Description**: Perform semantic similarity search using query text to find related stored embeddings.
+**Description**: Generate query embedding and search for similar vectors in ChromaDB.
 
 #### Job Flow
 
@@ -195,14 +195,14 @@ graph TD
 ## Available Operations
 
 ### Insert Operations
-- **insert-sentence-embedding**: Store new text embeddings
-- **update-sentence-embedding**: Update existing embeddings by ID
+- **insert-sentence-embedding**: Insert Text Embedding - Generate text embedding and insert it into ChromaDB vector store
+- **update-sentence-embedding**: Update Text Embedding - Generate new text embedding and update existing vector in ChromaDB
 
 ### Search Operations
-- **search-sentence-embeddings**: Find similar texts using semantic search
+- **search-sentence-embeddings**: Search Similar Embeddings - Generate query embedding and search for similar vectors in ChromaDB
 
 ### Management Operations
-- **delete-sentence-embedding**: Remove embeddings by ID
+- **delete-sentence-embedding**: Delete Text Embedding - Remove a specific vector from the ChromaDB collection
 
 ## Customization
 

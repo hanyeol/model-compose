@@ -80,7 +80,7 @@ This example uses pyenv to create an isolated Python environment for vLLM to avo
 
 ## Component Details
 
-### Default Component (vLLM Server)
+### vLLM Chat Server Component (vllm-server)
 - **Type**: HTTP server component with managed lifecycle
 - **Purpose**: Local AI model serving with streaming chat completion
 - **Model**: Qwen/Qwen2-7B-Instruct (7 billion parameter instruct-tuned model)
@@ -126,7 +126,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[vLLM Server<br/>component]
@@ -137,7 +137,7 @@ graph TD
 
     %% Input/Output
     Input((Input)) --> J1
-    J1 --> Output((Streaming<br/>Output))
+    J1 --> Output((Output))
 ```
 
 #### Input Parameters

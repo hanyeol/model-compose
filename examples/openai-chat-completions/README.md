@@ -69,7 +69,7 @@ This workflow provides a straightforward chat interface that:
 
 ## Component Details
 
-### Default Component
+### OpenAI HTTP Client Component (Default)
 - **Type**: HTTP client component
 - **Purpose**: AI-powered text generation and chat completion
 - **API**: OpenAI GPT-4o Chat Completions
@@ -91,7 +91,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[OpenAI GPT-4o<br/>component]

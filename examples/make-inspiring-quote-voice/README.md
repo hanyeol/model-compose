@@ -86,7 +86,7 @@ This workflow provides an end-to-end inspirational quote generation service that
 
 ## Component Details
 
-### write-inspiring-quote (OpenAI GPT-4o)
+### OpenAI GPT-4o Component (write-inspiring-quote)
 - **Type**: HTTP client component
 - **Purpose**: Generate inspiring motivational quotes
 - **API**: OpenAI GPT-4o Chat Completions
@@ -97,7 +97,7 @@ This workflow provides an end-to-end inspirational quote generation service that
   - Consistent motivational tone and style
   - Example-driven prompt engineering
 
-### text-to-speech (ElevenLabs TTS)
+### ElevenLabs TTS Component (text-to-speech)
 - **Type**: HTTP client component
 - **Purpose**: Convert text to natural-sounding speech
 - **API**: ElevenLabs Text-to-Speech v1
@@ -119,8 +119,8 @@ This workflow provides an end-to-end inspirational quote generation service that
 ```mermaid
 graph TD
     %% Jobs (circles)
-    J1((job-quote))
-    J2((job-voice))
+    J1((job-quote<br/>job))
+    J2((job-voice<br/>job))
 
     %% Components (rectangles)
     C1[OpenAI GPT-4o<br/>component]

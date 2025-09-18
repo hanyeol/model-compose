@@ -71,7 +71,7 @@ ElevenLabs offers premium text-to-speech services with advanced AI voice synthes
 
 ## Component Details
 
-### text-to-speech
+### ElevenLabs TTS Component (elevenlabs-text-to-speech)
 - **Type**: HTTP client component
 - **Purpose**: Convert text to natural-sounding speech using ElevenLabs AI
 - **API**: ElevenLabs Text-to-Speech v1

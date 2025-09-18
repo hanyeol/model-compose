@@ -73,7 +73,7 @@ Unlike cloud-based APIs, local model execution provides:
 
 ## Component Details
 
-### Text Generation Model Component
+### Text Generation Model Component (Default)
 - **Type**: Model component with text-generation task
 - **Purpose**: Local text generation using pretrained language model
 - **Model**: HuggingFaceTB/SmolLM3-3B (3 billion parameter model)
@@ -107,7 +107,7 @@ This example uses a simplified single-component configuration without explicit j
 ```mermaid
 graph TD
     %% Default job (implicit)
-    J1((default<br/>job))
+    J1((Default<br/>job))
 
     %% Component
     C1[Text Generation Model<br/>component]

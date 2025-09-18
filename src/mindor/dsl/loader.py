@@ -55,6 +55,10 @@ class ComposeConfigLoader:
         for m in reversed(matches):
             name, default = m.group(1, 2)
             start, end = m.span()
+
+            if name not in env and default is None:
+                raise ValueError(f"Environment variable '{name}' is not set and no default value provided")
+
             text = text[:start] + env.get(name, default) + text[end:]
 
         return text

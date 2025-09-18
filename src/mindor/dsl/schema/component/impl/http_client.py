@@ -22,7 +22,7 @@ class HttpClientComponentConfig(CommonComponentConfig):
     def validate_baseurl_for_actions(self):
         for action in self.actions:
             if action.path and not self.base_url:
-                raise ValueError(f"Action '{action.id}' uses 'path' but 'base_url' is not set in the component.")
+                raise ValueError(f"Action '{action.id}' uses 'path' but 'base_url' is not set in the component")
         return self
 
     @model_validator(mode="after")
@@ -30,5 +30,5 @@ class HttpClientComponentConfig(CommonComponentConfig):
         for action in self.actions:
             if isinstance(action.completion, HttpClientPollingCompletionConfig):
                 if action.completion.path and not self.base_url:
-                    raise ValueError(f"Completion for action '{action.id}' uses 'path' but 'base_url' is not set in the component.")
+                    raise ValueError(f"Completion for action '{action.id}' uses 'path' but 'base_url' is not set in the component")
         return self

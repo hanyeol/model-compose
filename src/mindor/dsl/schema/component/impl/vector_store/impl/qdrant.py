@@ -7,8 +7,8 @@ from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
 
 class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     driver: Literal[VectorStoreDriver.MILVUS]
-    endpoint: Optional[str] = Field(default=None, description="Qdrant server endpoint URL.")
-    host: str = Field(default="localhost", description="Qdrant server hostname or IP address.")
+    endpoint: Optional[str] = Field(default=None, description="Milvus server endpoint URL.")
+    host: str = Field(default="localhost", description="Milvus server hostname or IP address.")
     port: int = Field(default=None, description="Qdrant server port number.")
     protocol: Literal[ "http", "https", "grpc", "grpcs" ] = Field(default="http", description="Connection protocol.")
     user: Optional[str] = Field(default=None, description="Username for authentication.")
@@ -20,7 +20,7 @@ class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     @model_validator(mode="before")
     def validate_endpoint_or_host(cls, values: Dict[str, Any]):
         if bool(values.get("endpoint")) == bool(values.get("host")):
-            raise ValueError("Either 'endpoint' or 'host' must be set, but not both.")
+            raise ValueError("Either 'endpoint' or 'host' must be set, but not both")
         return values
 
     @model_validator(mode="before")

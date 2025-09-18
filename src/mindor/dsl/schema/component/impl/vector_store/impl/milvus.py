@@ -20,7 +20,7 @@ class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     @model_validator(mode="before")
     def validate_endpoint_or_host(cls, values: Dict[str, Any]):
         if bool(values.get("endpoint")) == bool(values.get("host")):
-            raise ValueError("Either 'endpoint' or 'host' must be set, but not both.")
+            raise ValueError("Either 'endpoint' or 'host' must be set, but not both")
         return values
 
     @model_validator(mode="before")

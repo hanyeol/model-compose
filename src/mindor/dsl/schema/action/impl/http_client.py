@@ -30,7 +30,7 @@ class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):
         if bool(values.get("endpoint")) == bool(values.get("path")):
-            raise ValueError("Either 'endpoint' or 'path' must be set, but not both.")
+            raise ValueError("Either 'endpoint' or 'path' must be set, but not both")
         return values
 
     @model_validator(mode="before")
@@ -65,5 +65,5 @@ class HttpClientActionConfig(CommonActionConfig):
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):
         if bool(values.get("endpoint")) == bool(values.get("path")):
-            raise ValueError("Either 'endpoint' or 'path' must be set, but not both.")
+            raise ValueError("Either 'endpoint' or 'path' must be set, but not both")
         return values

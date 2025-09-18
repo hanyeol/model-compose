@@ -43,16 +43,16 @@ class HttpClientPollingCompletion(HttpClientCompletion):
                 if status in (self.config.success_when or []):
                     return response
                 if status in (self.config.fail_when or []):
-                    raise RuntimeError(f"Polling failed: status '{status}' matched a failure condition.")
+                    raise RuntimeError(f"Polling failed: status '{status}' matched a failure condition")
             else: # use status code
                 if is_status_code_matched(status_code, self.config.success_when or []):
                     return response
                 if is_status_code_matched(status_code, self.config.fail_when or []):
-                    raise RuntimeError(f"Polling failed: status code '{status_code}' matched a failure condition.")
+                    raise RuntimeError(f"Polling failed: status code '{status_code}' matched a failure condition")
 
             await asyncio.sleep(interval.total_seconds())
 
-        raise TimeoutError(f"Polling timed out after {timeout}.")
+        raise TimeoutError(f"Polling timed out after {timeout}")
 
     async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
         if self.config.path:

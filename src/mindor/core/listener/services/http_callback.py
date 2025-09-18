@@ -33,7 +33,7 @@ class HttpCallbackContext:
 
         if self.bulk:
             if not isinstance(item, list):
-               raise ValueError("Expected a list because 'bulk' is true, but got a non-list.")
+               raise ValueError("Expected a list because 'bulk' is true, but got a non-list")
             return item
 
         return [ item ]

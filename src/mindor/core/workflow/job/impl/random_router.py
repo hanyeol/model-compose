@@ -20,7 +20,7 @@ class RandomRouterJob(Job):
                     targets.append(routing.target)
 
             if not weights:
-                raise ValueError(f"No valid weights found in random-router job '{self.id}'.")
+                raise ValueError(f"No valid weights found in random-router job '{self.id}'")
 
             target = random.choices(targets, weights=weights, k=1)[0]
             return RoutingTarget(target)
@@ -29,7 +29,7 @@ class RandomRouterJob(Job):
             targets = [ routing.target for routing in self.config.routings ]
 
             if not targets:
-                raise ValueError(f"No valid routing found in random-router job '{self.id}'.")
+                raise ValueError(f"No valid routing found in random-router job '{self.id}'")
 
             target = random.choice(targets)
             return RoutingTarget(target)

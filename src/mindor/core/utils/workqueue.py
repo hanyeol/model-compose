@@ -25,7 +25,7 @@ class WorkQueue:
 
     async def start(self):
         if self.queue:
-            raise ValueError("Queue already started.")
+            raise ValueError("Queue already started")
 
         self.queue = asyncio.Queue()
         self.stopped = False
@@ -35,7 +35,7 @@ class WorkQueue:
 
     async def schedule(self, *args: Any, **kwargs: Any) -> asyncio.Future:
         if not self.queue:
-            raise ValueError("Queue not started.")
+            raise ValueError("Queue not started")
 
         future = asyncio.get_running_loop().create_future()
         await self.queue.put((args, kwargs, future))
@@ -44,7 +44,7 @@ class WorkQueue:
 
     async def stop(self):
         if not self.queue:
-            raise ValueError("Queue already stopped or not started.")
+            raise ValueError("Queue already stopped or not started")
         
         self.stopped = True
         for worker in self.workers:

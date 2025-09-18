@@ -43,7 +43,7 @@ class AsyncService(ABC):
                 return
             await asyncio.sleep(0.5)
 
-        raise TimeoutError(f"Service did not become ready within {timeout} seconds.")
+        raise TimeoutError(f"Service did not become ready within {timeout} seconds")
 
     async def wait_until_stopped(self) -> None:
         if self.thread:

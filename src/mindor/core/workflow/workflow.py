@@ -22,23 +22,23 @@ class JobGraphValidator:
         for job_id, job in self.jobs.items():
             for dependency_id in job.depends_on:
                 if dependency_id == job_id:
-                    raise  ValueError(f"Job '{job_id}' cannot depend on itself.")
+                    raise  ValueError(f"Job '{job_id}' cannot depend on itself")
                 
                 if dependency_id not in self.jobs:
-                    raise ValueError(f"Job '{job_id}' references a non-existent job '{dependency_id}' in its depends_on list.")
+                    raise ValueError(f"Job '{job_id}' references a non-existent job '{dependency_id}' in its depends_on list")
 
     def _validate_has_entry_jobs(self) -> None:
         entry_job_ids = [ job_id for job_id, job in self.jobs.items() if not job.depends_on ]
 
         if not entry_job_ids:
-            raise ValueError("At least one job without any depends_on is required.")
+            raise ValueError("At least one job without any depends_on is required")
 
     def _validate_has_no_cycles(self) -> None:
         visiting, visited = set(), set()
 
         def _assert_no_cycle(job_id: str):
             if job_id in visiting:
-                raise ValueError(f"Job '{job_id}' is part of a dependency cycle.")
+                raise ValueError(f"Job '{job_id}' is part of a dependency cycle")
             
             if job_id not in visited:
                 visiting.add(job_id)

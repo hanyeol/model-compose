@@ -22,6 +22,7 @@ from PIL import Image as PILImage
 import uvicorn
 
 class WorkflowRunRequestBody(BaseModel):
+    workflow_id: Optional[str] = None
     input: Optional[Any] = None
     wait_for_completion: bool = True
     output_only: bool = False
@@ -67,6 +68,19 @@ class WorkflowVariableGroupResult(BaseModel):
         return cls(
             name=instance.name,
             variables=[ WorkflowVariableResult.from_instance(variable) for variable in instance.variables ]
+        )
+
+class WorkflowSimpleResult(BaseModel):
+    workflow_id: str
+    title: Optional[str] = None
+    default: bool = False
+
+    @classmethod
+    def from_instance(cls, instance: WorkflowSchema) -> Self:
+        return cls(
+            workflow_id=instance.workflow_id,
+            title=instance.title,
+            default=instance.default
         )
 
 class WorkflowSchemaResult(BaseModel):
@@ -126,25 +140,14 @@ class HttpServerController(ControllerService):
         )
 
     def _configure_routes(self) -> None:
-        @self.router.post("/workflows/__default__/runs")
-        async def run_default_workflow(
-            request: Request
+        @self.router.get("/workflows")
+        async def get_workflow_list(
+            include_schema: bool = False
         ):
-            return await self._handle_workflow_run_request(request, "__default__")
+            if include_schema:
+                return self._render_workflow_schemas(self.workflow_schemas)
 
-        @self.router.post("/workflows/{workflow_id}/runs")
-        async def run_workflow(
-            request: Request,
-            workflow_id: str
-        ):
-            if workflow_id not in self.workflow_schemas:
-                raise HTTPException(status_code=404, detail="Workflow not found.")
-
-            return await self._handle_workflow_run_request(request, workflow_id)
-
-        @self.router.get("/workflows/schemas")
-        async def get_workflow_schemas():
-            return self._render_workflow_schemas(self.workflow_schemas)
+            return self._render_workflow_list(self.workflow_schemas)
 
         @self.router.get("/workflows/{workflow_id}/schema")
         async def get_workflow_schema(
@@ -154,6 +157,12 @@ class HttpServerController(ControllerService):
                 raise HTTPException(status_code=404, detail="Workflow not found.")
 
             return self._render_workflow_schema(self.workflow_schemas[workflow_id])
+
+        @self.router.post("/workflows/runs")
+        async def run_workflow(
+            request: Request
+        ):
+            return await self._handle_workflow_run_request(request)
 
         @self.router.get("/tasks/{task_id}")
         async def get_task_state(
@@ -183,8 +192,14 @@ class HttpServerController(ControllerService):
         if self.server:
             self.server.should_exit = True
 
-    async def _handle_workflow_run_request(self, request: Request, workflow_id: Optional[str]) -> Response:
+    async def _handle_workflow_run_request(self, request: Request) -> Response:
         body = await self._parse_workflow_run_body(request)
+
+        workflow_id = body.workflow_id or "__default__"
+
+        if workflow_id not in self.workflow_schemas:
+            raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
+
         state = await self.run_workflow(workflow_id, body.input, body.wait_for_completion)
 
         if body.output_only and not body.wait_for_completion:
@@ -262,10 +277,15 @@ class HttpServerController(ControllerService):
 
         return headers
 
+    def _render_workflow_list(self, workflows: Dict[str, WorkflowSchema]) -> Response:
+        return JSONResponse(content=[
+            WorkflowSimpleResult.from_instance(workflow).model_dump(exclude_none=True) for workflow in workflows.values()
+        ])
+
     def _render_workflow_schemas(self, workflows: Dict[str, WorkflowSchema]) -> Response:
-        return JSONResponse(content={
-            workflow_id: WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True) for workflow_id, workflow in workflows.items()
-        })
+        return JSONResponse(content=[
+            WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True) for workflow in workflows.values()
+        ])
 
     def _render_workflow_schema(self, workflow: WorkflowSchema) -> Response:
         return JSONResponse(content=WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True))

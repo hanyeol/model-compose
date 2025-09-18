@@ -44,7 +44,7 @@ class HuggingfaceImageToTextTaskAction:
         generation_params = await self._resolve_generation_params(context)
 
         if stream and (batch_size != 1 or len(images) != 1):
-            raise ValueError("Streaming mode only supports a single input image with batch size of 1.")
+            raise ValueError("Streaming mode only supports a single input image with batch size of 1")
 
         streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
         stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, stop_sequences) ] if stop_sequences else None

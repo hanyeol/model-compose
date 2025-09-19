@@ -38,7 +38,7 @@ class DatasetsAction:
         if shuffle:
             dataset = dataset.shuffle()
 
-        if fraction is not None and fraction < 1.0:
+        if isinstance(fraction, float) and fraction < 1.0:
             sample_size = max(int(len(dataset) * fraction), 1)
             dataset = dataset.select(range(sample_size))
 

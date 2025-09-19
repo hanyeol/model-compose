@@ -39,13 +39,6 @@ curl http://localhost:19530/health
 # Get connection details from dashboard
 ```
 
-### Model Dependencies
-
-```bash
-# Install required packages
-pip install sentence-transformers torch pymilvus
-```
-
 ### Environment Configuration
 
 1. Navigate to this example directory:
@@ -71,11 +64,25 @@ pip install sentence-transformers torch pymilvus
      -d '{"workflow_id": "insert-sentence-embedding", "input": {"text": "This is a comprehensive guide to machine learning algorithms."}}}'
    ```
 
+   **Update Text Embedding:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"workflow_id": "update-sentence-embedding", "input": {"vector_id": 1, "text": "Updated content about advanced machine learning techniques."}}'
+   ```
+
    **Search Similar Texts:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"workflow_id": "search-sentence-embeddings", "input": {"text": "artificial intelligence and deep learning techniques"}}}'
+   ```
+
+   **Delete Text Embedding:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"workflow_id": "delete-sentence-embedding", "input": {"vector_id": 1}}'
    ```
 
    **Using Web UI:**
@@ -89,8 +96,14 @@ pip install sentence-transformers torch pymilvus
    # Insert text embedding
    model-compose run insert-sentence-embedding --input '{"text": "Machine learning is transforming technology."}'
 
+   # Update existing text embedding
+   model-compose run update-sentence-embedding --input '{"vector_id": 1, "text": "Advanced neural networks and AI systems."}'
+
    # Search for similar texts
    model-compose run search-sentence-embeddings --input '{"text": "deep learning algorithms"}'
+
+   # Delete text embedding
+   model-compose run delete-sentence-embedding --input '{"vector_id": 1}'
    ```
 
 ## Component Details

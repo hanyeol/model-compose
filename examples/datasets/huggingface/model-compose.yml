@@ -1,0 +1,22 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    port: 8081
+
+components:
+  - id: huggingface-datasets
+    type: datasets
+    actions:
+      - id: load-alpaca
+        method: load
+        provider: huggingface
+        path: tatsu-lab/alpaca
+
+workflows:
+  - id: load-dataset
+    jobs:
+      - id: load-alpaca-dataset
+        component: huggingface-datasets
+        action: load-alpaca

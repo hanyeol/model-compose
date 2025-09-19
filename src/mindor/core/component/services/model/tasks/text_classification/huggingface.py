@@ -31,7 +31,7 @@ class HuggingfaceTextClassificationTaskAction:
         results = []
 
         batch_size           = await context.render_variable(self.config.batch_size)
-        stream               = await context.render_variable(self.config.stream)
+        streaming            = await context.render_variable(self.config.streaming)
         tokenizer_params     = await self._resolve_tokenizer_params(context)
         return_probabilities = await context.render_variable(self.config.params.return_probabilities)
 
@@ -69,7 +69,7 @@ class HuggingfaceTextClassificationTaskAction:
                 else:
                     yield predictions
 
-        if stream:
+        if streaming:
             async def _stream_output_generator():
                 async for predictions in _predict():
                     if not is_output_array_mode:

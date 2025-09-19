@@ -117,13 +117,13 @@ class HttpServerAction:
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else (result or response)
 
     def _convert_stream_chunk(self, chunk: bytes) -> Any:
-        if self.config.stream_format == HttpStreamFormat.JSON:
+        if self.config.streaming_format == HttpStreamFormat.JSON:
             try:
                 return json.loads(chunk)
             except:
                 return None
 
-        if self.config.stream_format == HttpStreamFormat.TEXT:
+        if self.config.streaming_format == HttpStreamFormat.TEXT:
             return chunk.decode("utf-8", errors="replace")
 
         return chunk

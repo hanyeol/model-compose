@@ -106,7 +106,7 @@ This example uses pyenv to create an isolated Python environment for vLLM to avo
     ```
 - **Features**:
   - Automatic model download and setup
-  - Real-time streaming responses using `stream: true`
+  - Real-time streaming responses using `streaming: true`
   - Configurable temperature and max tokens
   - Server-Sent Events output format
   - JSON stream parsing for delta content extraction
@@ -211,7 +211,7 @@ body:
   max_tokens: ${input.max_tokens as number | 1024}
   temperature: ${input.temperature as number | 0.7}
   top_p: ${input.top_p as number | 0.9}
-  stream: true
+  streaming: true
 ```
 
 ## Comparison with OpenAI

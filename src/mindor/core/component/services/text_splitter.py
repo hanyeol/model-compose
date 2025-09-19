@@ -14,7 +14,7 @@ class TextSplitterAction:
         chunk_size     = await context.render_variable(self.config.chunk_size)
         chunk_overlap  = await context.render_variable(self.config.chunk_overlap)
         maximize_chunk = await context.render_variable(self.config.maximize_chunk)
-        stream         = await context.render_variable(self.config.stream)
+        streaming      = await context.render_variable(self.config.streaming)
 
         chunks = self._recursive_split(text, separators or [ "\n\n", "\n", " ", "" ], chunk_size, maximize_chunk)
 

@@ -198,7 +198,7 @@ component:
   model: facebook/bart-large-cnn
   architecture: seq2seq
   text: ${input.text as text}
-  stream: true
+  streaming: true
   params:
     max_input_length: 1024
     min_length: 30
@@ -223,7 +223,7 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   text: ${input.text as text}
-  stream: true
+  streaming: true
 ```
 
 ### Buffer Size Control
@@ -234,7 +234,7 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   text: ${input.text as text}
-  stream: true
+  streaming: true
   params:
     streaming_buffer_size: 1    # Stream every token
     # or

@@ -4,4 +4,4 @@ from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
 class CommonModelActionConfig(CommonActionConfig):
-    stream: Optional[bool] = Field(default=None, description="Whether to enable streaming responses for inference.")
+    streaming: Optional[bool] = Field(default=None, description="Whether to enable streaming responses for inference.")

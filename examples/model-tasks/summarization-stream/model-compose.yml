@@ -18,7 +18,7 @@ component:
   model: facebook/bart-large-cnn
   architecture: seq2seq
   text: ${input.text as text}
-  stream: true
+  streaming: true
   params:
     max_input_length: 1024
     top_p: 1.0

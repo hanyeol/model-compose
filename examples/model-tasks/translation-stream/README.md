@@ -216,7 +216,7 @@ component:
   model: alirezamsh/small100
   architecture: seq2seq
   text: ${input.text as text}
-  stream: true
+  streaming: true
   params:
     max_input_length: 1024
     max_length: 1024
@@ -236,7 +236,7 @@ component:
   text: |
     Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
     ${input.text as text}
-  stream: true
+  streaming: true
   params:
     max_input_length: 1024
     do_sample: false
@@ -247,14 +247,14 @@ component:
 ```yaml
 # Fast streaming (lower quality)
 component:
-  stream: true
+  streaming: true
   params:
     num_beams: 1              # Greedy decoding
     streaming_buffer_size: 1  # Immediate streaming
 
 # Quality streaming (slower)
 component:
-  stream: true
+  streaming: true
   params:
     num_beams: 3              # Beam search for quality
     streaming_buffer_size: 3  # Buffer tokens for smoother output

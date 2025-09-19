@@ -31,7 +31,7 @@ class HuggingfaceTextEmbeddingTaskAction:
         results = []
 
         batch_size       = await context.render_variable(self.config.batch_size)
-        stream           = await context.render_variable(self.config.stream)
+        streaming        = await context.render_variable(self.config.streaming)
         tokenizer_params = await self._resolve_tokenizer_params(context)
         pooling          = await context.render_variable(self.config.params.pooling)
         normalize        = await context.render_variable(self.config.params.normalize)
@@ -64,7 +64,7 @@ class HuggingfaceTextEmbeddingTaskAction:
                 else:
                     yield embeddings
 
-        if stream:
+        if streaming:
             async def _stream_output_generator():
                 async for embeddings in _embed():
                     if not is_output_array_mode:

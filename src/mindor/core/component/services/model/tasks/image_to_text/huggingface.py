@@ -38,12 +38,12 @@ class HuggingfaceImageToTextTaskAction:
         results = []
 
         batch_size        = await context.render_variable(self.config.batch_size)
-        stream            = await context.render_variable(self.config.stream)
+        streaming         = await context.render_variable(self.config.streaming)
         stop_sequences    = await context.render_variable(self.config.stop_sequences)
         processor_params  = await self._resolve_processor_params(context)
         generation_params = await self._resolve_generation_params(context)
 
-        if stream and (batch_size != 1 or len(images) != 1):
+        if streaming and (batch_size != 1 or len(images) != 1):
             raise ValueError("Streaming mode only supports a single input image with batch size of 1")
 
         streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
@@ -68,13 +68,13 @@ class HuggingfaceImageToTextTaskAction:
                 outputs = self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                 results.extend(outputs)
 
-            if stream:
+            if streaming:
                 thread = Thread(target=_generate)
                 thread.start()
             else:
                 _generate()
 
-        if stream:
+        if streaming:
             async def _stream_output_generator():
                 async for chunk in AsyncStreamer(streamer, loop):
                     if chunk:

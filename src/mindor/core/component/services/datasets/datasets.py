@@ -1,8 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod, DatasetsProvider
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .providers import HuggingfaceDatasetsProvider, LocalDatasetsProvider
+
+if TYPE_CHECKING:
+    from datasets import Dataset
 
 class DatasetsAction:
     def __init__(self, config: DatasetsActionConfig):
@@ -14,13 +20,16 @@ class DatasetsAction:
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-    async def _dispatch(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _dispatch(self, context: ComponentActionContext) -> Dataset:
         if self.config.method == DatasetsActionMethod.LOAD:
             return await self._load(context)
 
+        if self.config.method == DatasetsActionMethod.CONCAT:
+            return await self._concat(context)
+
         raise ValueError(f"Unsupported datasets action method: {self.config.method}")
 
-    async def _load(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _load(self, context: ComponentActionContext) -> Dataset:
         if self.config.provider == DatasetsProvider.HUGGINGFACE:
             return await HuggingfaceDatasetsProvider(self.config).load(context)
 
@@ -28,6 +37,21 @@ class DatasetsAction:
             return await LocalDatasetsProvider(self.config).load(context)
 
         raise ValueError(f"Unsupported dataset provider: {self.config.provider}")
+
+    async def _concat(self, context: ComponentActionContext) -> Dataset:
+        from datasets import concatenate_datasets
+
+        datasets  = await context.render_variable(self.config.datasets)
+        direction = await context.render_variable(self.config.direction)
+        info      = await context.render_variable(self.config.info)
+        split     = await context.render_variable(self.config.split)
+
+        return concatenate_datasets(
+            datasets,
+            info=info,
+            split=split,
+            axis=0 if direction == "vertical" else 1
+        )
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):

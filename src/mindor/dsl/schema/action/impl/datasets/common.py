@@ -6,6 +6,7 @@ from ..common import CommonActionConfig
 class DatasetsActionMethod(str, Enum):
     LOAD   = "load"
     CONCAT = "concat"
+    FILTER = "filter"
 
 class CommonDatasetsActionConfig(CommonActionConfig):
     method: DatasetsActionMethod = Field(..., description="Datasets operation method.")

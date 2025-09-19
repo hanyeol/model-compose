@@ -14,11 +14,19 @@ DatasetsLoadActionConfig = Annotated[
 
 class DatasetsConcatActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.CONCAT]
+    datasets: Union[List[str], str] = Field(..., description="List of datasets to concatenate.")
+    direction: Literal[ "vertical", "horizontal" ] = Field(default="vertical", description="Direction to concatenate. 'vertical' for rows (default), 'horizontal' for columns.")
+    info: Optional[Any] = Field(default=None, description="Dataset info to use for the concatenated dataset.")
+    split: Optional[str] = Field(default=None, description="Name of the split for the concatenated dataset.")
+
+class DatasetsFilterActionConfig(CommonDatasetsActionConfig):
+    method: Literal[DatasetsActionMethod.FILTER]
 
 DatasetsActionConfig = Annotated[
-    Union[ 
+    Union[
         DatasetsLoadActionConfig,
-        DatasetsConcatActionConfig
+        DatasetsConcatActionConfig,
+        DatasetsFilterActionConfig
     ],
     Field(discriminator="method")
 ]

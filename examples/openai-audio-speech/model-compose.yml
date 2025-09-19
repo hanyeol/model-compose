@@ -28,5 +28,4 @@ components:
       input: ${input.text}
       voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
       response_format: mp3
-    response_type: buffer
     output: ${response}

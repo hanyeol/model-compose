@@ -28,5 +28,4 @@ components:
     body:
       model: ${input.model as select/gpt-4o-transcribe,gpt-4o-mini-transcribe,whisper-1 | whisper-1}
       file: ${input.file as audio}
-    response_type: buffer
     output: ${response}

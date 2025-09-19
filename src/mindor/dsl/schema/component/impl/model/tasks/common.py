@@ -59,7 +59,7 @@ class HuggingfaceModelConfig(CommonModelConfig):
     filename: Optional[str] = Field(default=None, description="Specific file within the repository.")
     revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
-    local_files_only: bool = Field(default=False, description="Force loading from local files only.")
+    local_files_only: Union[bool, str] = Field(default=False, description="Force loading from local files only.")
     token: Optional[str] = Field(default=None, description="HuggingFace access token for private models.")
 
 class LocalModelConfig(CommonModelConfig):
@@ -84,8 +84,8 @@ class CommonModelComponentConfig(CommonComponentConfig):
     device: str = Field(default="cpu", description="Computation device to use.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
-    low_cpu_mem_usage: bool = Field(default=False, description="Load model with minimal CPU RAM usage.")
-    fast_tokenizer: bool = Field(default=True, description="Whether to use the fast tokenizer if available.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
+    fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
     max_seq_length: int = Field(default=2048, description="")
 
     @model_validator(mode="before")

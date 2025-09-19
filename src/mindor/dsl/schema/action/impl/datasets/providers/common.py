@@ -14,4 +14,6 @@ class CommonDatasetsLoadActionConfig(CommonDatasetsActionConfig):
     streaming: bool = Field(default=False, description="Enable streaming mode for large datasets.")
     keep_in_memory: bool = Field(default=False, description="Keep dataset in memory.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache downloaded files.")
-    save_infos: bool = Field(default=False, description="Save dataset info to cache.")
+    save_infos: Union[bool, str] = Field(default=False, description="Save dataset info to cache.")
+    fraction: Optional[Union[float, str]] = Field(default=None, description="Fraction of dataset to load.")
+    shuffle: bool = Field(default=False, description="Shuffle dataset before applying fraction selection.")

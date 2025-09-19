@@ -9,4 +9,4 @@ class HuggingfaceDatasetsLoadActionConfig(CommonDatasetsLoadActionConfig):
     name: Optional[str] = Field(default=None, description="Dataset configuration name.")
     revision: Optional[str] = Field(default=None, description="Dataset revision/version to load.")
     token: Optional[str] = Field(default=None, description="Authentication token for private datasets.")
-    trust_remote_code: bool = Field(default=False, description="Allow executing remote code for dataset loading.")
+    trust_remote_code: Union[bool, str] = Field(default=False, description="Allow executing remote code for dataset loading.")

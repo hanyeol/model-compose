@@ -6,7 +6,7 @@ from .common import ListenerType, CommonListenerConfig
 class HttpCallbackConfig(BaseModel):
     path: str
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method this callback endpoint will accept.")
-    bulk: bool = Field(default=False, description="Whether this callback handles multiple items in a single request.")
+    bulk: Union[bool, str] = Field(default=False, description="Whether this callback handles multiple items in a single request.")
     item: Optional[str] = Field(default=None, description="Field path to extract individual items from the callback payload.")
     identify_by: Optional[str] = Field(default=None, description="Field path used to identify and match callback responses to pending requests.")
     status: Optional[str] = Field(default=None, description="Field path to check for completion status in callback payload.")

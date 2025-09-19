@@ -30,6 +30,21 @@ class DatasetsAction:
         raise ValueError(f"Unsupported datasets action method: {self.config.method}")
 
     async def _load(self, context: ComponentActionContext) -> Dataset:
+        fraction = await context.render_variable(self.config.fraction)
+        shuffle  = await context.render_variable(self.config.shuffle)
+
+        dataset = await self._load_dataset(context)
+
+        if shuffle:
+            dataset = dataset.shuffle()
+
+        if fraction is not None and fraction < 1.0:
+            sample_size = max(int(len(dataset) * fraction), 1)
+            dataset = dataset.select(range(sample_size))
+
+        return dataset
+
+    async def _load_dataset(self, context: ComponentActionContext) -> Dataset:
         if self.config.provider == DatasetsProvider.HUGGINGFACE:
             return await HuggingfaceDatasetsProvider(self.config).load(context)
 

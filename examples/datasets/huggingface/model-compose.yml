@@ -9,14 +9,55 @@ components:
   - id: huggingface-datasets
     type: datasets
     actions:
-      - id: load-alpaca
+      - id: load
         method: load
         provider: huggingface
-        path: tatsu-lab/alpaca
+        path: ${input.path}
+        split: ${input.split}
+        fraction: ${input.fraction}
+
+      - id: concat
+        method: concat
+        datasets: ${input.datasets}
 
 workflows:
   - id: load-dataset
+    title: Load HuggingFace Dataset
+    description: Load a single dataset from HuggingFace Hub with configurable path and split
     jobs:
-      - id: load-alpaca-dataset
+      - id: load-dataset
         component: huggingface-datasets
-        action: load-alpaca
+        action: load
+        input:
+          path: ${input.path | tatsu-lab/alpaca}
+          split: ${input.split | train}
+          fraction: ${input.fraction as number | 1.0}
+
+  - id: concat-datasets
+    title: Concatenate Multiple Datasets
+    description: Load two different datasets from HuggingFace Hub and concatenate them vertically
+    jobs:
+      - id: load-first-dataset
+        component: huggingface-datasets
+        action: load
+        input:
+          path: ${input.path-1 | tatsu-lab/alpaca}
+          split: ${input.split-1 | train}
+          fraction: ${input.fraction-1 as number | 1.0}
+
+      - id: load-second-dataset
+        component: huggingface-datasets
+        action: load
+        input:
+          path: ${input.path-2 | yahma/alpaca-cleaned}
+          split: ${input.split-2 | train}
+          fraction: ${input.fraction-2 as number | 1.0}
+
+      - id: concat-datasets
+        component: huggingface-datasets
+        action: concat
+        input:
+          datasets:
+            - ${jobs.load-first-dataset.output}
+            - ${jobs.load-second-dataset.output}
+        depends_on: [ load-first-dataset, load-second-dataset ]

@@ -11,7 +11,7 @@ class LocalDatasetsProvider(CommonDatasetsProvider):
     async def load(self, context: ComponentActionContext) -> Dataset:
         from datasets import load_dataset
 
-        path           = await context.render_variable(self.config.path)
+        loader         = await context.render_variable(self.config.loader)
         data_files     = await context.render_variable(self.config.data_files)
         data_dir       = await context.render_variable(self.config.data_dir)
         split          = await context.render_variable(self.config.split)
@@ -21,7 +21,7 @@ class LocalDatasetsProvider(CommonDatasetsProvider):
         save_infos     = await context.render_variable(self.config.save_infos)
 
         return load_dataset(
-            path=path,
+            path=loader,
             data_files=data_files,
             data_dir=data_dir,
             split=split,

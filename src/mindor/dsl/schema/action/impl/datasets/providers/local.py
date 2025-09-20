@@ -5,6 +5,6 @@ from .common import CommonDatasetsLoadActionConfig, DatasetsProvider
 
 class LocalDatasetsLoadActionConfig(CommonDatasetsLoadActionConfig):
     provider: Literal[DatasetsProvider.LOCAL]
-    path: str = Field(..., description="Local path to dataset files.")
-    data_files: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="Specific data files to load.")
+    loader: str = Field(..., description="Dataset loader type (e.g., 'json', 'csv', 'parquet', 'text')")
+    data_files: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="Path to data files.")
     data_dir: Optional[str] = Field(default=None, description="Directory containing data files.")

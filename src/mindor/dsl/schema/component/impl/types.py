@@ -6,6 +6,7 @@ class ComponentType(str, Enum):
     MCP_SERVER    = "mcp-server"
     MCP_CLIENT    = "mcp-client"
     MODEL         = "model"
+    MODEL_TRAINER = "model-trainer"
     DATASETS      = "datasets"
     VECTOR_STORE  = "vector-store"
     WORKFLOW      = "workflow"

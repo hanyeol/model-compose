@@ -4,6 +4,7 @@ from .http_client import *
 from .mcp_server import *
 from .mcp_client import *
 from .model import *
+from .model_trainer import *
 from .datasets import *
 from .vector_store import *
 from .workflow import *

@@ -3,14 +3,9 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 ModelTrainerComponentConfig = Annotated[
-    Union[ 
-        ClassificationModelComponentConfig,
-        ChatCompletionModelComponentConfig,
-        TextClassificationModelComponentConfig,
-        TextEmbeddingModelComponentConfig,
-        ImageToTextModelComponentConfig,
-        ImageGenerationModelComponentConfig,
-        ImageUpscaleModelComponentConfig,
+    Union[
+        SftModelTrainerComponentConfig,
+        ClassificationModelTrainerComponentConfig
     ],
-    Field(discriminator="method")
+    Field(discriminator="task")
 ]

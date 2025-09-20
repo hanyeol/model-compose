@@ -12,6 +12,7 @@ class ModelTaskType(str, Enum):
     IMAGE_TO_TEXT       = "image-to-text"
     IMAGE_GENERATION    = "image-generation"
     IMAGE_UPSCALE       = "image-upscale"
+    FACE_EMBEDDING      = "face-embedding"
 
 class ModelDriver(str, Enum):
     HUGGINGFACE = "huggingface"
@@ -68,7 +69,7 @@ class LocalModelConfig(CommonModelConfig):
     format: ModelFormat = Field(default=ModelFormat.PYTORCH, description="Model file format.")
 
 ModelConfig = Annotated[
-    Union[ 
+    Union[
         HuggingfaceModelConfig,
         LocalModelConfig,
     ],
@@ -85,8 +86,6 @@ class CommonModelComponentConfig(CommonComponentConfig):
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
-    fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
-    max_seq_length: int = Field(default=2048, description="")
 
     @model_validator(mode="before")
     def fill_missing_model_provider(cls, values: Dict[str, Any]):
@@ -95,5 +94,6 @@ class CommonModelComponentConfig(CommonComponentConfig):
             model["provider"] = ModelProvider.HUGGINGFACE
         return values
 
-class ClassificationModelComponentConfig(CommonModelComponentConfig):
-    labels: Optional[List[str]] = Field(default=None, description="List of class labels for classification tasks.")
+class LanguageModelComponentConfig(CommonModelComponentConfig):
+    fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
+    max_seq_length: int = Field(default=2048, description="Maximum sequence length for the model.")

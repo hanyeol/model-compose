@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import torch
 
 class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    def __init__(self, config: SwinIRImageUpscaleModelActionConfig, model: SwinIR, device: torch.device):
+    def __init__(self, config: SwinIRImageUpscaleModelActionConfig, model: SwinIR, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.model: SwinIR = model
@@ -201,4 +201,4 @@ class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
         return params
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return SwinIRImageUpscaleTaskAction(action, self.model).run(context)
+        return SwinIRImageUpscaleTaskAction(action, self.model, self.device).run(context)

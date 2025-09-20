@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     import torch
 
 class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    def __init__(self, config: LdsrImageUpscaleModelActionConfig, model: PreTrainedModel, device: torch.device):
+    def __init__(self, config: LdsrImageUpscaleModelActionConfig, model: PreTrainedModel, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.model: PreTrainedModel = model
@@ -100,4 +100,4 @@ class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
         pass
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return LdsrImageUpscaleTaskAction(action, self.model).run(context)
+        return LdsrImageUpscaleTaskAction(action, self.model, self.device).run(context)

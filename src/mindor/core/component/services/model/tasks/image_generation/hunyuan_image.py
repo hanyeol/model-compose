@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import torch
 
 class HunyuanImageGenerationTaskAction(ImageGenerationTaskAction):
-    def __init__(self, config: HunyuanImageGenerationModelActionConfig, pipeline: Any, device: torch.device):
+    def __init__(self, config: HunyuanImageGenerationModelActionConfig, pipeline: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.pipeline = pipeline

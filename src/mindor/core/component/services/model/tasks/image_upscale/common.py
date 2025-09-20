@@ -17,9 +17,9 @@ _resample_map = {
 }
 
 class ImageUpscaleTaskAction:
-    def __init__(self, config: ImageUpscaleModelActionConfig, device: torch.device):
+    def __init__(self, config: ImageUpscaleModelActionConfig, device: Optional[torch.device]):
         self.config: ImageUpscaleModelActionConfig = config
-        self.device: torch.device = device
+        self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:
         image = await self._prepare_input(context)

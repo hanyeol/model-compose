@@ -12,9 +12,9 @@ if TYPE_CHECKING:
     import torch
 
 class ImageGenerationTaskAction:
-    def __init__(self, config: ImageGenerationModelActionConfig, device: torch.device):
+    def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
         self.config: ImageGenerationModelActionConfig = config
-        self.device: torch.device = device
+        self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:
         text = await self._prepare_input(context)
@@ -22,18 +22,18 @@ class ImageGenerationTaskAction:
         texts: List[PILImage.Image] = [ text ] if is_single_input else text
         results = []
 
-        batch_size   = await context.render_variable(self.config.batch_size)
-        params       = await self._resolve_generation_params(context)
+        batch_size = await context.render_variable(self.config.batch_size)
+        params     = await self._resolve_generation_params(context)
 
         for index in range(0, len(texts), batch_size):
             batch_texts = texts[index:index + batch_size]
-            upscaled_images = await self._upscale(batch_texts, params)
+            upscaled_images = await self._generate(batch_texts, params)
             results.extend(upscaled_images)
 
         return results[0] if is_single_input else results
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_image(self.config.image)
+        return await context.render_variable(self.config.text)
 
     @abstractmethod
     async def _generate(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:

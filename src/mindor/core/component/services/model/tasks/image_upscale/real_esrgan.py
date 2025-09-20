@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     import torch
 
 class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    def __init__(self, config: RealEsrganImageUpscaleModelActionConfig, model: RealESRGAN, device: torch.device):
+    def __init__(self, config: RealEsrganImageUpscaleModelActionConfig, model: RealESRGAN, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.model: RealESRGAN = model

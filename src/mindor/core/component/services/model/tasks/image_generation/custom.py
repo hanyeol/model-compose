@@ -9,4 +9,4 @@ class CustomImageGenerationTaskService:
             from .hunyuan_image import HunyuanImageGenerationTaskService
             return HunyuanImageGenerationTaskService(id, config, daemon)
 
-        raise ValueError(f"Unknown architecture: {config.architecture}")
+        raise ValueError(f"Unknown family: {config.family}")

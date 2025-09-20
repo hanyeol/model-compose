@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import torch
 
 class FluxImageGenerationTaskAction(ImageGenerationTaskAction):
-    def __init__(self, config: FluxImageGenerationModelActionConfig, pipeline: Any, device: torch.device):
+    def __init__(self, config: FluxImageGenerationModelActionConfig, pipeline: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.pipeline = pipeline

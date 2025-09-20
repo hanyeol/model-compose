@@ -97,7 +97,10 @@ curl http://localhost:19530/health
    model-compose run insert-sentence-embedding --input '{"text": "Machine learning is transforming technology."}'
 
    # Update existing text embedding
-   model-compose run update-sentence-embedding --input '{"vector_id": 1, "text": "Advanced neural networks and AI systems."}'
+   model-compose run update-sentence-embedding --input '{
+     "vector_id": 1,
+     "text": "Advanced neural networks and AI systems."
+   }'
 
    # Search for similar texts
    model-compose run search-sentence-embeddings --input '{"text": "deep learning algorithms"}'

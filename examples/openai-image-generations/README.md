@@ -73,7 +73,10 @@ Both workflows use the same underlying OpenAI Images API but with different mode
    **Using CLI:**
    ```bash
    # Generate image with DALL-E (URL format)
-   model-compose run dall-e --input '{"prompt": "A serene mountain landscape at sunset", "model": "dall-e-3"}'
+   model-compose run dall-e --input '{
+     "prompt": "A serene mountain landscape at sunset",
+     "model": "dall-e-3"
+   }'
    
    # Generate image with GPT Image (Base64 format)
    model-compose run gpt-image-1 --input '{"prompt": "A futuristic city skyline"}'

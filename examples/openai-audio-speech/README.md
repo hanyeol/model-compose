@@ -70,7 +70,11 @@ This workflow provides advanced speech synthesis capabilities that:
 
    **Using CLI:**
    ```bash
-   model-compose run --input '{"text": "Hello, this is a test of text to speech conversion", "model": "tts-1", "voice": "nova"}'
+   model-compose run --input '{
+     "text": "Hello, this is a test of text to speech conversion",
+     "model": "tts-1",
+     "voice": "nova"
+   }'
    ```
 
 ## Component Details

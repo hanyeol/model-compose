@@ -144,7 +144,7 @@ graph TD
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `voice_id` | text | No | JBFqnCBsd6RMkjVDRZzb | ElevenLabs voice ID for speech synthesis |
+| `voice_id` | text | No | `JBFqnCBsd6RMkjVDRZzb` | ElevenLabs voice ID for speech synthesis |
 
 #### Output Format
 

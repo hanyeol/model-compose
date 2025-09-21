@@ -29,7 +29,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
             image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             for face in self.model.get(image_cv):
                 embeddings.append(face.embedding)
-        
+
         return embeddings
 
     async def _resolve_embedding_params(self, context: ComponentActionContext) -> Dict[str, Any]:

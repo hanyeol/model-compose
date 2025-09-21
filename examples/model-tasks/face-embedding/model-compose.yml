@@ -1,0 +1,21 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title:
+  description:
+  input: ${input}
+  output: 
+    embedding: ${output as json}
+
+component:
+  type: model
+  task: face-embedding
+  family: insightface
+  model: antelopev2
+  image: ${input.face_image as image}

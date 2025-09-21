@@ -1,1 +1,1 @@
-from .image_upscale import *
+from .face_embedding import *

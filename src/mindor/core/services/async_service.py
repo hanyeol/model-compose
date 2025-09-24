@@ -125,7 +125,7 @@ class AsyncService(ABC):
             package_spec, repository = (package_spec.split("@") + [ None ])[:2]
             requirement = parse_requirement(package_spec)
             if not requirement or not is_requirement_satisfied(requirement):
-                await install_package(package_spec, repository)
+                await self._install_package(package_spec, repository)
     
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         await install_package(repository or package_spec)

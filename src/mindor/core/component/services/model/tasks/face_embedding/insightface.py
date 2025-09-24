@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbeddingModelActionConfig
 from mindor.core.logger import logging
 from .common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
 from ...base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
+import asyncio, os
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
@@ -55,10 +55,25 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis
 
-        model = FaceAnalysis(name=self.config.model)
+        model = FaceAnalysis(self._resolve_model_params())
         model.prepare(ctx_id=self._get_device_id())
 
         return model
+
+    def _resolve_model_params(self) -> Dict[str, Any]:
+        if isinstance(self.config.model, LocalModelConfig):
+            return {
+                "name": os.path.basename(self.config.model.path),
+                "root": os.path.dirname(self.config.model.path)
+            }
+
+        if isinstance(self.config.model, str):
+            return {
+                "name": os.path.basename(self.config.model),
+                "root": os.path.dirname(self.config.model)
+            }
+
+        raise ValueError(f"Unsupported model type: {type(self.config.model)}")
 
     def _get_device_id(self) -> int:
         return 0

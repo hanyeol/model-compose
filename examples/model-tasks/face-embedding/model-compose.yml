@@ -17,5 +17,5 @@ component:
   type: model
   task: face-embedding
   family: insightface
-  model: antelopev2
+  model: ./models/antelopev2
   image: ${input.face_image as image}

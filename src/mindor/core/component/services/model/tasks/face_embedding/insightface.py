@@ -62,17 +62,25 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
 
     def _resolve_model_params(self) -> Dict[str, Any]:
         if isinstance(self.config.model, LocalModelConfig):
-            return {
+            path = os.path.dirname(self.config.model.path)
+
+            if os.path.basename(path) != "models":
+                raise ValueError(f"Expected 'models' directory in path, got: {path}")
+
+            return { 
                 "name": os.path.basename(self.config.model.path),
-                "root": os.path.dirname(self.config.model.path),
-                "download": False
+                "root": os.path.dirname(path)
             }
 
         if isinstance(self.config.model, str):
-            return {
+            path = os.path.dirname(self.config.model)
+
+            if os.path.basename(path) != "models":
+                raise ValueError(f"Expected 'models' directory in path, got: {path}")
+
+            return { 
                 "name": os.path.basename(self.config.model),
-                "root": os.path.dirname(self.config.model),
-                "download": True
+                "root": os.path.dirname(path)
             }
 
         raise ValueError(f"Unsupported model type: {type(self.config.model)}")

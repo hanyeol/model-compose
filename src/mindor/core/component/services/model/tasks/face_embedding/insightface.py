@@ -55,7 +55,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis
 
-        model = FaceAnalysis(self._resolve_model_params())
+        model = FaceAnalysis(**self._resolve_model_params())
         model.prepare(ctx_id=self._get_device_id())
 
         return model

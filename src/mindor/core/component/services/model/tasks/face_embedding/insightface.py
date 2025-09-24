@@ -64,13 +64,15 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
         if isinstance(self.config.model, LocalModelConfig):
             return {
                 "name": os.path.basename(self.config.model.path),
-                "root": os.path.dirname(self.config.model.path)
+                "root": os.path.dirname(self.config.model.path),
+                "download": False
             }
 
         if isinstance(self.config.model, str):
             return {
                 "name": os.path.basename(self.config.model),
-                "root": os.path.dirname(self.config.model)
+                "root": os.path.dirname(self.config.model),
+                "download": True
             }
 
         raise ValueError(f"Unsupported model type: {type(self.config.model)}")

@@ -11,6 +11,7 @@ ModelComponentConfig = Annotated[
         ImageToTextModelComponentConfig,
         ImageGenerationModelComponentConfig,
         ImageUpscaleModelComponentConfig,
+        FaceEmbeddingeModelComponentConfig
     ],
     Field(discriminator="task")
 ]

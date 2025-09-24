@@ -42,7 +42,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
         self.model: Optional[FaceAnalysis] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "insightface", "opencv-python" ]
+        return [ "insightface", "opencv-python", "onnxruntime" ]
 
     async def _serve(self) -> None:
         try:

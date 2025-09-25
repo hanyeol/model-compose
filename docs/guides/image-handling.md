@@ -19,12 +19,12 @@ For web APIs, images are uploaded using multipart form data:
 
 ```bash
 # Basic image upload
-curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -F "image=@/path/to/image.jpg" \
   -F "input={\"image\": \"@image\"}"
 
 # Multiple images
-curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -F "image1=@/path/to/first.jpg" \
   -F "image2=@/path/to/second.png" \
   -F "input={\"images\": [\"@image1\", \"@image2\"]}"
@@ -185,7 +185,7 @@ workflows:
 
 ```bash
 # Batch processing via API
-curl -X POST http://localhost:8080/api/workflows/__default__/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -F "image1=@photo1.jpg" \
   -F "image2=@photo2.jpg" \
   -F "image3=@photo3.jpg" \

@@ -162,10 +162,10 @@ YYYY-MM-DD HH:MM:SS,mmm LEVEL: [task-ID] Message content
 
 **Example Log Messages:**
 ```
-2025-07-30 08:20:25,922 INFO: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Workflow '__default__' started.
+2025-07-30 08:20:25,922 INFO: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Workflow '__workflow__' started.
 2025-07-30 08:20:25,924 DEBUG: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Action 'run-01K1C7SEJ41AFFMPJG6Z8FTJ5C' started for job 'gpt-image-1'
 2025-07-30 08:21:16,492 DEBUG: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Action 'run-01K1C7SEJ41AFFMPJG6Z8FTJ5C' completed in 50.57 seconds.
-2025-07-30 08:21:16,493 INFO: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Workflow '__default__' completed in 50.57 seconds.
+2025-07-30 08:21:16,493 INFO: [task-01K1C7SEJ0G010ZZ1M398DDCXA] Workflow '__workflow__' completed in 50.57 seconds.
 ```
 
 ## Multiple Logger Configuration

@@ -10,20 +10,20 @@ class ListenerService(AsyncService):
 
         self.id: str = id
         self.config: ListenerConfig = config
-        self.queue: Optional[WorkQueue] = None
+        self.work_queue: Optional[WorkQueue] = None
 
         # if self.config.max_concurrent_count > 0:
-        #     self.queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
+        #     self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
 
     async def _start(self) -> None:
-        if self.queue:
-            await self.queue.start()
+        if self.work_queue:
+            await self.work_queue.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
-        if self.queue:
-            await self.queue.stop()
+        if self.work_queue:
+            await self.work_queue.stop()
 
         await super()._stop()
 

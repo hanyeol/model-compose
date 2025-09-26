@@ -6,7 +6,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.services import AsyncService
-from mindor.core.utils.workqueue import WorkQueue
+from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.logger import logging
 from .context import ComponentActionContext
 
@@ -49,10 +49,10 @@ class ComponentService(AsyncService):
         self.id: str = id
         self.config: ComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
-        self.queue: Optional[WorkQueue] = None
+        self.work_queue: Optional[WorkQueue] = None
 
         if self.config.max_concurrent_count > 0:
-            self.queue = WorkQueue(self.config.max_concurrent_count, self._run)
+            self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     async def start(self, background: bool = False) -> None:
         await super().start(background)
@@ -62,20 +62,20 @@ class ComponentService(AsyncService):
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
 
-        if self.queue:
-            return await (await self.queue.schedule(action, context))
+        if self.work_queue:
+            return await (await self.work_queue.schedule(action, context))
 
         return await self._run(action, context)
 
     async def _start(self) -> None:
-        if self.queue:
-            await self.queue.start()
+        if self.work_queue:
+            await self.work_queue.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
-        if self.queue:
-            await self.queue.stop()
+        if self.work_queue:
+            await self.work_queue.stop()
 
         await super()._stop()
 

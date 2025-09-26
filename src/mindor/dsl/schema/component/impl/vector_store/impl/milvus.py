@@ -9,7 +9,7 @@ class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     driver: Literal[VectorStoreDriver.MILVUS]
     endpoint: Optional[str] = Field(default=None, description="Milvus server endpoint URL.")
     host: str = Field(default="localhost", description="Milvus server hostname or IP address.")
-    port: int = Field(default=19530, description="Milvus server port number.")
+    port: int = Field(default=19530, ge=1, le=65535, description="Milvus server port number.")
     protocol: Literal[ "http", "https", "grpc", "grpcs" ] = Field(default="http", description="Connection protocol.")
     user: Optional[str] = Field(default=None, description="Username for authentication.")
     password: Optional[str] = Field(default=None, description="Password for authentication.")

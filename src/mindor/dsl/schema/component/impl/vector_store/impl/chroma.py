@@ -11,7 +11,7 @@ class ChromaVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     mode: Literal[ "local", "server" ] = Field(default="local", description="Run Chroma locally or connect to a server.")
     storage_dir: str = Field(default="./chroma", description="Local storage path.")
     host: str = Field(default="localhost", description="Chroma server hostname or IP address.")
-    port: int = Field(default=8000, description="Chroma server port number.")
+    port: int = Field(default=8000, ge=1, le=65535, description="Chroma server port number.")
     protocol: Literal[ "http", "https" ] = Field(default="http", description="Connection protocol.")
     tenant: Optional[str] = Field(default=None, description="Target tenant name.")
     database: Optional[str] = Field(default=None, description="Target database name.")

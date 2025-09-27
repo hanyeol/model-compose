@@ -23,8 +23,8 @@ class HttpServerPollingCompletionConfig(HttpServerCommonCompletionConfig):
     status: Optional[str] = Field(default=None, description="Field path to check for completion status in polling response.")
     success_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate successful completion.")
     fail_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate failed completion.")
-    interval: Optional[str] = Field(default=None, description="Time interval between polling attempts.")
-    timeout: Optional[str] = Field(default=None, description="Maximum time to wait for completion before giving up.")
+    interval: str = Field(default="5s", description="Time interval between polling attempts.")
+    timeout: str = Field(default="300s", description="Maximum time to wait for completion before giving up.")
 
     @model_validator(mode="before")
     def normalize_status_fields(cls, values: Dict[str, Any]):

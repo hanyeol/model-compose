@@ -10,4 +10,4 @@ class ControllerWebUIDriver(str, Enum):
 class CommonWebUIConfig(BaseModel):
     driver: ControllerWebUIDriver = Field(..., description="Web UI rendering mode.")
     host: str = Field(default="0.0.0.0", description="Host address to bind the Web UI server to.")
-    port: int = Field(default=8081, description="Port number to serve the Web UI on.")
+    port: int = Field(default=8081, ge=1, le=65535, description="Port number to serve the Web UI on.")

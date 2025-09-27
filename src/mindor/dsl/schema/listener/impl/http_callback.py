@@ -24,7 +24,7 @@ class HttpCallbackConfig(BaseModel):
 class HttpCallbackListenerConfig(CommonListenerConfig):
     type: Literal[ListenerType.HTTP_CALLBACK]
     host: str = Field(default="0.0.0.0", description="Host address to bind the HTTP server to.")
-    port: int = Field(default=8090, description="Port number on which the HTTP server will listen.")
+    port: int = Field(default=8090, ge=1, le=65535, description="Port number on which the HTTP server will listen.")
     base_path: Optional[str] = Field(default=None, description="Base path prefix for all callback endpoints.")
     callbacks: List[HttpCallbackConfig] = Field(default_factory=list, description="List of callback endpoint configurations.")
 

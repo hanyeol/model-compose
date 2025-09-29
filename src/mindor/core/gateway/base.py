@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from abc import abstractmethod
 from mindor.dsl.schema.gateway import GatewayConfig, GatewayType
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from mindor.core.logger import logging
 
 class GatewayService(AsyncService):

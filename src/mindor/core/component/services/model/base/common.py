@@ -5,7 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, HuggingfaceModelConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
 import asyncio

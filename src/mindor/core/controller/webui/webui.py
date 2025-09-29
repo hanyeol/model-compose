@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.controller.runner import ControllerRunner
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from .gradio import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI

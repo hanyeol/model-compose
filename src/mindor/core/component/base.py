@@ -5,7 +5,7 @@ from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.logger import logging
 from .context import ComponentActionContext

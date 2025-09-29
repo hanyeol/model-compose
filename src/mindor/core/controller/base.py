@@ -8,7 +8,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway

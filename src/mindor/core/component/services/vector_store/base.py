@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import VectorStoreComponentConfig, VectorStoreDriver
 from mindor.dsl.schema.action import VectorStoreActionConfig
-from mindor.core.services import AsyncService
+from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
 
 class VectorStoreService(AsyncService):

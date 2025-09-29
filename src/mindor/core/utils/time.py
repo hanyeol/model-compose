@@ -16,15 +16,18 @@ def parse_duration(value: Union[str, float, int]) -> timedelta:
     if isinstance(value, (float, int)):
         return timedelta(seconds=value)
 
+    if value.endswith("ms"):
+        return timedelta(milliseconds=float(value[:-2]))
+
     if value.endswith("s"):
         return timedelta(seconds=float(value[:-1]))
-    
+
     if value.endswith("m"):
         return timedelta(minutes=float(value[:-1]))
-    
+
     if value.endswith("h"):
         return timedelta(hours=float(value[:-1]))
-    
+
     if value.endswith("d"):
         return timedelta(days=float(value[:-1]))
 

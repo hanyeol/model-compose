@@ -144,7 +144,7 @@ class McpServerController(ControllerService):
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastMCP = FastMCP(self.config.name, **{
-            "streamable_http_path": self.config.base_path
+            "streamable_http_path": self.config.base_path or "/"
         })
 
         self._configure_tools()

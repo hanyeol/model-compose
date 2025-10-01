@@ -128,7 +128,7 @@ class HttpServerController(ControllerService):
         
         self._configure_server()
         self._configure_routes()
-        self.app.include_router(self.router, prefix=self.config.base_path)
+        self.app.include_router(self.router, prefix=self.config.base_path or "")
 
     def _configure_server(self) -> None:
         self.app.add_middleware(

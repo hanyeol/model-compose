@@ -57,7 +57,7 @@ class HttpCallbackListener(ListenerService):
         self.router: APIRouter = APIRouter()
 
         self._configure_routes()
-        self.app.include_router(self.router, prefix=self.config.base_path)
+        self.app.include_router(self.router, prefix=self.config.base_path or "")
 
     def _configure_routes(self) -> None:
         for callback in self.config.callbacks:

@@ -73,14 +73,14 @@ class WorkflowVariableGroupResult(BaseModel):
 class WorkflowSimpleResult(BaseModel):
     workflow_id: str
     title: Optional[str] = None
-    default: bool = False
+    default: Optional[bool] = None
 
     @classmethod
     def from_instance(cls, instance: WorkflowSchema) -> Self:
         return cls(
             workflow_id=instance.workflow_id,
             title=instance.title,
-            default=instance.default
+            default=instance.default or None
         )
 
 class WorkflowSchemaResult(BaseModel):
@@ -89,7 +89,7 @@ class WorkflowSchemaResult(BaseModel):
     description: Optional[str] = None
     input: List[WorkflowVariableResult]
     output: List[Union[WorkflowVariableResult, WorkflowVariableGroupResult]]
-    default: bool = False
+    default: Optional[bool] = None
 
     @classmethod
     def from_instance(cls, instance: WorkflowSchema) -> Self:
@@ -99,7 +99,7 @@ class WorkflowSchemaResult(BaseModel):
             description=instance.description,
             input=[ cls._to_variable_result(variable) for variable in instance.input ],
             output=[ cls._to_variable_result(variable) for variable in instance.output ],
-            default=instance.default
+            default=instance.default or None
         )
 
     @classmethod

@@ -27,6 +27,9 @@ class DatasetsAction:
         if self.config.method == DatasetsActionMethod.CONCAT:
             return await self._concat(context)
 
+        if self.config.method == DatasetsActionMethod.SELECT:
+            return await self._select(context)
+
         raise ValueError(f"Unsupported datasets action method: {self.config.method}")
 
     async def _load(self, context: ComponentActionContext) -> Dataset:
@@ -67,6 +70,24 @@ class DatasetsAction:
             split=split,
             axis=0 if direction == "vertical" else 1
         )
+
+    async def _select(self, context: ComponentActionContext) -> Dataset:
+        dataset = await context.render_variable(self.config.dataset)
+        axis    = await context.render_variable(self.config.axis)
+        indices = await context.render_variable(self.config.indices)
+        columns = await context.render_variable(self.config.columns)
+
+        if axis == "rows":
+            if indices is None:
+                raise ValueError("indices must be provided when axis='rows'")
+            return dataset.select([ int(index) for index in indices ])
+
+        if axis == "columns":
+            if columns is None:
+                raise ValueError("columns must be provided when axis='columns'")
+            return dataset.select_columns(columns)
+
+        raise ValueError(f"Unsupported axis: {axis}")
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):

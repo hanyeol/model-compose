@@ -19,6 +19,13 @@ class DatasetsConcatActionConfig(CommonDatasetsActionConfig):
     info: Optional[Any] = Field(default=None, description="Dataset info to use for the concatenated dataset.")
     split: Optional[str] = Field(default=None, description="Name of the split for the concatenated dataset.")
 
+class DatasetsSelectActionConfig(CommonDatasetsActionConfig):
+    method: Literal[DatasetsActionMethod.SELECT]
+    dataset: str = Field(..., description="Source dataset to select from.")
+    axis: Literal[ "rows", "columns" ] = Field(default="columns", description="Select rows by indices or columns by names.")
+    indices: Optional[Union[List[int], str]] = Field(default=None, description="Row indices to select (for axis='rows').")
+    columns: Optional[Union[List[str], str]] = Field(default=None, description="Column names to select (for axis='columns').")
+
 class DatasetsFilterActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.FILTER]
 
@@ -26,6 +33,7 @@ DatasetsActionConfig = Annotated[
     Union[
         DatasetsLoadActionConfig,
         DatasetsConcatActionConfig,
+        DatasetsSelectActionConfig,
         DatasetsFilterActionConfig
     ],
     Field(discriminator="method")

@@ -104,6 +104,9 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.BOOLEAN:
             return gr.Checkbox(label=label, value=default or False, info=info)
         
+        if variable.type == WorkflowVariableType.LIST:
+            return gr.Textbox(label=label, value=default or "", info=info)
+
         if variable.type == WorkflowVariableType.IMAGE:
             return gr.Image(label=label, type="filepath")
 
@@ -139,6 +142,9 @@ class GradioWebUIBuilder:
 
         if type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
+
+        if type == WorkflowVariableType.LIST:
+            return str(value).split(",")
 
         return value if value != "" else None
 

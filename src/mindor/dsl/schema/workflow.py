@@ -12,6 +12,7 @@ class WorkflowVariableType(str, Enum):
     INTEGER  = "integer"
     NUMBER   = "number"
     BOOLEAN  = "boolean"
+    LIST     = "list"
     JSON     = "json"
     OBJECTS  = "object[]"
     # Encoded data

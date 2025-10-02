@@ -9,7 +9,8 @@ This workflow provides comprehensive dataset operations including:
 1. **Dataset Loading**: Load datasets from HuggingFace Hub with configurable parameters
 2. **Fraction Sampling**: Load only a portion of large datasets for efficient processing
 3. **Dataset Concatenation**: Combine multiple datasets vertically for training or analysis
-4. **Flexible Configuration**: Support for different splits, paths, and sampling options
+4. **Row/Column Selection**: Select specific rows by indices or columns by names
+5. **Flexible Configuration**: Support for different splits, paths, and sampling options
 
 ## Prerequisites
 
@@ -40,6 +41,20 @@ This workflow provides comprehensive dataset operations including:
      -d '{"workflow_id": "concat-datasets", "input": {"path-1": "tatsu-lab/alpaca", "split-1": "train", "fraction-1": 0.05, "path-2": "yahma/alpaca-cleaned", "split-2": "train", "fraction-2": 0.05}}'
    ```
 
+   **Select Columns from Dataset:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"workflow_id": "select-columns", "input": {"path": "tatsu-lab/alpaca", "split": "train", "fraction": 0.1, "columns": ["instruction", "output"]}}'
+   ```
+
+   **Select Rows from Dataset:**
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"workflow_id": "select-rows", "input": {"path": "tatsu-lab/alpaca", "split": "train", "indices": [0, 5, 10, 15, 20]}}'
+   ```
+
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Select the desired workflow (load-dataset or concat-datasets)
@@ -65,6 +80,21 @@ This workflow provides comprehensive dataset operations including:
      "path-2": "yahma/alpaca-cleaned",
      "fraction-2": 0.2
    }'
+
+   # Select specific columns from a dataset
+   model-compose run select-columns --input '{
+     "path": "tatsu-lab/alpaca",
+     "split": "train",
+     "fraction": 0.1,
+     "columns": ["instruction", "output"]
+   }'
+
+   # Select specific rows from a dataset
+   model-compose run select-rows --input '{
+     "path": "tatsu-lab/alpaca",
+     "split": "train",
+     "indices": [0, 5, 10, 15, 20]
+   }'
    ```
 
 ## Component Details
@@ -89,6 +119,13 @@ This workflow provides comprehensive dataset operations including:
   - Vertical concatenation (rows)
   - Horizontal concatenation (columns)
   - Automatic split handling
+
+#### 3. Select Action
+- **Purpose**: Select specific rows or columns from a dataset
+- **Features**:
+  - Row selection by indices (axis='rows')
+  - Column selection by names (axis='columns')
+  - Flexible filtering for data preprocessing
 
 ## Workflow Details
 
@@ -270,8 +307,37 @@ workflows:
         component: huggingface-datasets
         action: load
 
+      - id: select-columns
+        component: huggingface-datasets
+        action: select-columns
+        input:
+          dataset: ${jobs.load-dataset.output}
+          columns: ["text", "label"]
+
       - id: process-data
         # Add custom processing components
         component: text-processor
-        input: ${jobs.load-dataset.output}
+        input: ${jobs.select-columns.output}
+```
+
+### Select Examples
+
+**Select specific columns for training:**
+```yaml
+- id: prepare-training-data
+  component: huggingface-datasets
+  action: select-columns
+  input:
+    dataset: ${jobs.load-dataset.output}
+    columns: ["instruction", "output"]  # Only keep required fields
+```
+
+**Select sample rows for quick testing:**
+```yaml
+- id: get-samples
+  component: huggingface-datasets
+  action: select-rows
+  input:
+    dataset: ${jobs.load-dataset.output}
+    indices: [0, 100, 200, 300, 400]  # Get specific examples
 ```

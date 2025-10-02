@@ -6,6 +6,7 @@ from ..common import CommonActionConfig
 class DatasetsActionMethod(str, Enum):
     LOAD   = "load"
     CONCAT = "concat"
+    SELECT = "select"
     FILTER = "filter"
 
 class CommonDatasetsActionConfig(CommonActionConfig):

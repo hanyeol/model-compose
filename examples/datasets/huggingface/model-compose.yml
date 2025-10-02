@@ -20,6 +20,18 @@ components:
         method: concat
         datasets: ${input.datasets}
 
+      - id: select-columns
+        method: select
+        dataset: ${input.dataset}
+        axis: columns
+        columns: ${input.columns}
+
+      - id: select-rows
+        method: select
+        dataset: ${input.dataset}
+        axis: rows
+        indices: ${input.indices}
+
 workflows:
   - id: load-dataset
     title: Load HuggingFace Dataset
@@ -61,4 +73,44 @@ workflows:
             - ${jobs.load-first-dataset.output}
             - ${jobs.load-second-dataset.output}
         depends_on: [ load-first-dataset, load-second-dataset ]
+
+  - id: select-columns
+    title: Select Columns from Dataset
+    description: Load a dataset and select specific columns
+    jobs:
+      - id: load-dataset
+        component: huggingface-datasets
+        action: load
+        input:
+          path: ${input.path | tatsu-lab/alpaca}
+          split: ${input.split | train}
+          fraction: ${input.fraction as number | 0.1}
+
+      - id: select-columns
+        component: huggingface-datasets
+        action: select-columns
+        input:
+          dataset: ${jobs.load-dataset.output}
+          columns: ${input.columns as list}
+        depends_on: [ load-dataset ]
+
+  - id: select-rows
+    title: Select Rows from Dataset
+    description: Load a dataset and select specific rows by indices
+    jobs:
+      - id: load-dataset
+        component: huggingface-datasets
+        action: load
+        input:
+          path: ${input.path | tatsu-lab/alpaca}
+          split: ${input.split | train}
+          fraction: ${input.fraction as number | 1.0}
+
+      - id: select-rows
+        component: huggingface-datasets
+        action: select-rows
+        input:
+          dataset: ${jobs.load-dataset.output}
+          indices: ${input.indices as list}
+        depends_on: [ load-dataset ]
 

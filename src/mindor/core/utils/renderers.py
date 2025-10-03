@@ -3,7 +3,7 @@ from .streaming import StreamResource, UploadFileStreamResource, Base64StreamRes
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
-from .image import load_image_from_stream
+from .image import load_image_from_stream, ImageStreamResource
 from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
@@ -96,6 +96,8 @@ class VariableRenderer:
             return []
 
         if type == "base64":
+            if isinstance(value, PILImage.Image):
+                return await encode_stream_to_base64(ImageStreamResource(value, format))
             if isinstance(value, UploadFile):
                 return await encode_stream_to_base64(UploadFileStreamResource(value))
             if isinstance(value, StreamResource):

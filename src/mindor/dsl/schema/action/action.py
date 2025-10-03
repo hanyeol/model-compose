@@ -11,4 +11,5 @@ ActionConfig = Union[
     WorkflowActionConfig,
     ShellActionConfig,
     TextSplitterActionConfig,
+    ImageProcessorActionConfig
 ]

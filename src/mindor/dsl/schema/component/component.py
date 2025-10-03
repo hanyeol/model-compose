@@ -13,7 +13,8 @@ ComponentConfig = Annotated[
         VectorStoreComponentConfig,
         WorkflowComponentConfig,
         ShellComponentConfig,
-        TextSplitterComponentConfig
+        TextSplitterComponentConfig,
+        ImageProcessorComponentConfig
     ],
     Field(discriminator="type")
 ]

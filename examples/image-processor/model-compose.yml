@@ -1,0 +1,157 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: resize
+    title: Resize Image
+    description: Resize image with fit, fill, or stretch mode
+    component: image-processor
+    action: resize
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: crop
+    title: Crop Image
+    description: Crop a rectangular region from an image
+    component: image-processor
+    action: crop
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: rotate
+    title: Rotate Image
+    description: Rotate image by a specified angle
+    component: image-processor
+    action: rotate
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: flip
+    title: Flip Image
+    description: Flip image horizontally or vertically
+    component: image-processor
+    action: flip
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: grayscale
+    title: Convert to Grayscale
+    description: Convert image to grayscale
+    component: image-processor
+    action: grayscale
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: blur
+    title: Blur Image
+    description: Apply Gaussian blur to image
+    component: image-processor
+    action: blur
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: sharpen
+    title: Sharpen Image
+    description: Enhance image sharpness
+    component: image-processor
+    action: sharpen
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: adjust-brightness
+    title: Adjust Brightness
+    description: Adjust image brightness
+    component: image-processor
+    action: adjust-brightness
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: adjust-contrast
+    title: Adjust Contrast
+    description: Adjust image contrast
+    component: image-processor
+    action: adjust-contrast
+    input: ${input}
+    output: ${output as image;base64}
+
+  - id: adjust-saturation
+    title: Adjust Saturation
+    description: Adjust image saturation
+    component: image-processor
+    action: adjust-saturation
+    input: ${input}
+    output: ${output as image;base64}
+
+components:
+  - id: image-processor
+    type: image-processor
+    actions:
+      - id: resize
+        method: resize
+        image: ${input.image as image}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+        scale_mode: ${input.scale_mode as select/fit,fill,stretch | fit}
+        output: ${result as base64}
+
+      - id: crop
+        method: crop
+        image: ${input.image as image}
+        x: ${input.x as integer | 0}
+        y: ${input.y as integer | 0}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+        output: ${result as base64}
+
+      - id: rotate
+        method: rotate
+        image: ${input.image as image}
+        angle: ${input.angle as number}
+        expand: ${input.expand as boolean | true}
+        output: ${result as base64}
+
+      - id: flip
+        method: flip
+        image: ${input.image as image}
+        direction: ${input.direction as select/horizontal,vertical | horizontal}
+        output: ${result as base64}
+
+      - id: grayscale
+        method: grayscale
+        image: ${input.image as image}
+        output: ${result as base64}
+
+      - id: blur
+        method: blur
+        image: ${input.image as image}
+        radius: ${input.radius as number | 2.0}
+        output: ${result as base64}
+
+      - id: sharpen
+        method: sharpen
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.5}
+        output: ${result as base64}
+
+      - id: adjust-brightness
+        method: adjust-brightness
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.0}
+        output: ${result as base64}
+
+      - id: adjust-contrast
+        method: adjust-contrast
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.0}
+        output: ${result as base64}
+
+      - id: adjust-saturation
+        method: adjust-saturation
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.0}
+        output: ${result as base64}

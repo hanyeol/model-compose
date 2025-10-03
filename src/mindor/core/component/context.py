@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
 from mindor.core.gateway import find_gateway_by_port
+from PIL import Image as PILImage
 
 class ComponentActionContext:
     def __init__(self, run_id: str, input: Dict[str, Any]):
@@ -16,7 +17,7 @@ class ComponentActionContext:
     async def render_variable(self, value: Any, ignore_files: bool = False) -> Any:
         return await self.renderer.render(value, ignore_files)
 
-    async def render_image(self, value: Any) -> Any:
+    async def render_image(self, value: Any) -> Optional[PILImage.Image]:
         return await ImageValueRenderer().render(await self.render_variable(value))
 
     def contains_variable_reference(self, key: str, value: Any) -> bool:

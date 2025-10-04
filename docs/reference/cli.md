@@ -16,21 +16,21 @@ pip install -e .[dev]
 
 ### `model-compose up`
 
-Start the workflow controller in the current directory.
+Start the controller in the current directory.
 
 ```bash
-# Start the workflow controller
+# Start the controller
 model-compose up
 
 # Run in detached mode
 model-compose up -d
 ```
 
-The controller will look for a `model-compose.yml` file in the current directory and start the defined services, workflows, and listeners.
+The controller will look for a `model-compose.yml` file in the current directory and start the defined components, gateway, and listeners.
 
 ### `model-compose down`
 
-Stop the running workflow controller.
+Stop the running controller.
 
 ```bash
 model-compose down
@@ -68,7 +68,7 @@ model-compose run <workflow-name>
 
 The CLI reads configuration from `model-compose.yml` files in the current directory. These files define:
 
-- **Controllers**: HTTP/MCP servers
+- **Controller**: HTTP/MCP servers
 - **Components**: Reusable API calls and model tasks
 - **Workflows**: Job sequences with data flow
 - **Listeners**: Webhook callbacks

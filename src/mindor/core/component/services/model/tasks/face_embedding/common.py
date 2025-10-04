@@ -36,7 +36,7 @@ class FaceEmbeddingTaskAction:
         return await context.render_image(self.config.image)
 
     @abstractmethod
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
         pass
 
     @abstractmethod

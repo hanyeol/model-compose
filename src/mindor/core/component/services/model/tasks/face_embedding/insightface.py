@@ -20,15 +20,15 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         self.model: FaceAnalysis = model
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Tensor]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
         import numpy as np
         import cv2
 
         embeddings = []
         for image in images:
             image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            for face in self.model.get(image_cv):
-                embeddings.append(face.embedding)
+            embeddings.append([ face.embedding.tolist() for face in self.model.get(image_cv) ])
+
 
         return embeddings
 

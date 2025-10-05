@@ -20,7 +20,19 @@ class ToolResult(BaseModel):
     content: Optional[Any] = Field(default=None, description="Tool execution result.")
     error: Optional[str] = Field(default=None, description="Error message if tool execution failed.")
 
-InputMessage: TypeAlias = Union[ToolResult, ToolCall, ChatMessage]
+class ToolParameter(BaseModel):
+    type: str = Field(..., description="Parameter type (e.g., 'object', 'string', 'number').")
+    properties: Optional[Dict[str, Any]] = Field(default=None, description="Object properties for 'object' type.")
+    enum: Optional[List[str]] = Field(default=None, description="Allowed values for enum parameters.")
+    description: Optional[str] = Field(default=None, description="Parameter description.")
+    required: Optional[List[str]] = Field(default=None, description="Required property names for 'object' type.")
+
+class ToolFunction(BaseModel):
+    name: str = Field(..., description="Function name.")
+    description: Optional[str] = Field(default=None, description="Function description.")
+    parameters: Optional[ToolParameter] = Field(default=None, description="Function parameters schema.")
+
+InputMessage: TypeAlias = Union[ChatMessage, ToolCall, ToolResult]
 
 class ChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input messages to generate chat response from.")
@@ -28,3 +40,4 @@ class ChatCompletionModelActionConfig(CommonModelActionConfig):
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input text.")
     stop_sequences: Union[List[str], str] = Field(default=None, description="List of stop sequences.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion configuration parameters.")
+    tools: Optional[List[ToolFunction]] = Field(default=None, description="Available tools the model can call.")

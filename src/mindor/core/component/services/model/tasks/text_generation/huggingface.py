@@ -118,9 +118,12 @@ class HuggingfaceTextGenerationTaskAction:
             "num_return_sequences": num_return_sequences,
             "do_sample": do_sample,
             "num_beams": num_beams,
-            "pad_token_id": getattr(self.tokenizer, "pad_token_id", None),
-            "eos_token_id": getattr(self.tokenizer, "eos_token_id", None),
         }
+
+        for token in [ "pad_token_id", "eos_token_id", "bos_token_id" ]:
+            token_id = getattr(self.tokenizer, token, None)
+            if token_id is not None:
+                params[token] = token_id
 
         if do_sample:
             if temperature is not None:

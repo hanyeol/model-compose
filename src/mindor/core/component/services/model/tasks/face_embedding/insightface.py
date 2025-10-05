@@ -8,7 +8,7 @@ from mindor.core.logger import logging
 from .common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
 from ...base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os
+import asyncio, os, shutil
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
@@ -54,35 +54,54 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis
 
-        model = FaceAnalysis(**self._resolve_model_params())
+        params = self._resolve_model_params()
+
+        try:
+            model = FaceAnalysis(**params)
+        except:
+            self._fix_wrong_model_path(params)
+            model = FaceAnalysis(**params)
+
         model.prepare(ctx_id=self._get_device_id())
 
         return model
 
     def _resolve_model_params(self) -> Dict[str, Any]:
-        if isinstance(self.config.model, LocalModelConfig):
-            path = os.path.dirname(self.config.model.path)
+        if isinstance(self.config.model, (LocalModelConfig, str)):
+            if isinstance(self.config.model, LocalModelConfig):
+                # TODO: process local storage
+                path = self.config.model.path
+            else:
+                path = self.config.model
 
-            if os.path.basename(path) != "models":
-                raise ValueError(f"Expected 'models' directory in path, got: {path}")
+            root, name = self._prepare_model_path(path)
 
-            return { 
-                "name": os.path.basename(self.config.model.path),
-                "root": os.path.dirname(path)
-            }
-
-        if isinstance(self.config.model, str):
-            path = os.path.dirname(self.config.model)
-
-            if os.path.basename(path) != "models":
-                raise ValueError(f"Expected 'models' directory in path, got: {path}")
-
-            return { 
-                "name": os.path.basename(self.config.model),
-                "root": os.path.dirname(path)
-            }
+            return { "name": name, "root": root }
 
         raise ValueError(f"Unsupported model type: {type(self.config.model)}")
+    
+    def _prepare_model_path(self, path: str) -> Tuple[str, str]:
+        root = os.path.dirname(path)
+        name = os.path.basename(path)
+
+        if os.path.basename(root) != "models":
+            models_dir = os.path.join(root, "models")
+            if not os.path.exists(models_dir):
+                os.symlink(root, models_dir, target_is_directory=True)
+        else:
+            root = os.path.dirname(root)
+
+        return (root, name)
+    
+    def _fix_wrong_model_path(self, params: Dict[str, Any]) -> None:
+        root, name = params["root"], params["name"]
+        model_dir = os.path.join(root, "models", name)
+        wrong_model_dir = os.path.join(model_dir, name)
+
+        if os.path.isdir(wrong_model_dir):
+            for file in os.listdir(wrong_model_dir):
+                shutil.move(os.path.join(wrong_model_dir, file), os.path.join(model_dir, file))
+            os.rmdir(wrong_model_dir)
 
     def _get_device_id(self) -> int:
         return 0

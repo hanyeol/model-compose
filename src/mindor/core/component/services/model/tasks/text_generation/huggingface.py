@@ -41,7 +41,7 @@ class HuggingfaceTextGenerationTaskAction:
         if streaming and (batch_size != 1 or len(texts) != 1):
             raise ValueError("Streaming mode only supports a single input text with batch size of 1")
 
-        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if stream else None
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True) if streaming else None
         stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
 
         for index in range(0, len(texts), batch_size):

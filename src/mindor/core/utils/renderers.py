@@ -1,4 +1,5 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
+from pydantic import BaseModel
 from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file
 from .http_request import create_upload_file
@@ -36,12 +37,15 @@ class VariableRenderer:
         if isinstance(element, str):
             return await self._render_text(element, ignore_files)
         
+        if isinstance(element, BaseModel):
+            return await self._render_element(element.model_dump())
+
         if isinstance(element, dict):
             return { key: await self._render_element(value, ignore_files) for key, value in element.items() }
-        
+
         if isinstance(element, (list, tuple)):
             return [ await self._render_element(item, ignore_files) for item in element ]
-        
+
         return element
 
     async def _render_text(self, text: str, ignore_files: bool) -> Any:

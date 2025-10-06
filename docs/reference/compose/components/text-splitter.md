@@ -477,7 +477,7 @@ component:
   chunk_overlap: ${input.overlap_ratio as integer | 200}
   separators: ${input.custom_separators | ['\n\n', '\n', ' ', '']}
   maximize_chunk: ${input.fill_chunks as boolean | true}
-  stream: ${input.enable_streaming as boolean | false}
+  streaming: ${input.enable_streaming as boolean | false}
 ```
 
 ## Best Practices

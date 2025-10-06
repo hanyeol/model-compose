@@ -6,6 +6,7 @@ from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod,
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .providers import HuggingfaceDatasetsProvider, LocalDatasetsProvider
+from .utils import format_template_example
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -29,6 +30,9 @@ class DatasetsAction:
 
         if self.config.method == DatasetsActionMethod.SELECT:
             return await self._select(context)
+
+        if self.config.method == DatasetsActionMethod.MAP:
+            return await self._map(context)
 
         raise ValueError(f"Unsupported datasets action method: {self.config.method}")
 
@@ -64,6 +68,10 @@ class DatasetsAction:
         info      = await context.render_variable(self.config.info)
         split     = await context.render_variable(self.config.split)
 
+        for dataset in datasets:
+            if not isinstance(dataset, Dataset):
+                raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+
         return concatenate_datasets(
             datasets,
             info=info,
@@ -77,6 +85,9 @@ class DatasetsAction:
         indices = await context.render_variable(self.config.indices)
         columns = await context.render_variable(self.config.columns)
 
+        if not isinstance(dataset, Dataset):
+            raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+
         if axis == "rows":
             if indices is None:
                 raise ValueError("indices must be provided when axis='rows'")
@@ -88,6 +99,20 @@ class DatasetsAction:
             return dataset.select_columns(columns)
 
         raise ValueError(f"Unsupported axis: {axis}")
+
+    async def _map(self, context: ComponentActionContext) -> Dataset:
+        dataset        = await context.render_variable(self.config.dataset)
+        template       = await context.render_variable(self.config.template)
+        output_column  = await context.render_variable(self.config.output_column)
+        remove_columns = await context.render_variable(self.config.remove_columns)
+
+        if not isinstance(dataset, Dataset):
+            raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+
+        def format_example(example):
+            return { output_column: format_template_example(template, example) }
+
+        return dataset.map(format_example, remove_columns=remove_columns)
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):

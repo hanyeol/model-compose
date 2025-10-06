@@ -29,12 +29,20 @@ class DatasetsSelectActionConfig(CommonDatasetsActionConfig):
 class DatasetsFilterActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.FILTER]
 
+class DatasetsMapActionConfig(CommonDatasetsActionConfig):
+    method: Literal[DatasetsActionMethod.MAP]
+    dataset: str = Field(..., description="Source dataset to map.")
+    template: str = Field(..., description="Template string with {column_name} placeholders to be replaced with dataset column values.")
+    output_column: str = Field(..., description="Name of the new column to create with the mapped values.")
+    remove_columns: Optional[Union[List[str], str]] = Field(default=None, description="Columns to remove after mapping.")
+
 DatasetsActionConfig = Annotated[
     Union[
         DatasetsLoadActionConfig,
         DatasetsConcatActionConfig,
         DatasetsSelectActionConfig,
-        DatasetsFilterActionConfig
+        DatasetsFilterActionConfig,
+        DatasetsMapActionConfig
     ],
     Field(discriminator="method")
 ]

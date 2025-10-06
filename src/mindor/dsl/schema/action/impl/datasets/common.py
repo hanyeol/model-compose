@@ -8,6 +8,7 @@ class DatasetsActionMethod(str, Enum):
     CONCAT = "concat"
     SELECT = "select"
     FILTER = "filter"
+    MAP    = "map"
 
 class CommonDatasetsActionConfig(CommonActionConfig):
     method: DatasetsActionMethod = Field(..., description="Datasets operation method.")

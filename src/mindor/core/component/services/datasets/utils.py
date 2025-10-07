@@ -1,6 +1,5 @@
+from typing import Dict, List, Any
 import re
-from typing import Dict, Any
-
 
 def format_template_example(template: str, example: Dict[str, Any]) -> str:
     column_names = set(re.findall(r"\{(\w+)\}", template))

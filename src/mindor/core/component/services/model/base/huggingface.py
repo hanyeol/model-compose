@@ -89,6 +89,9 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
             if config.model.local_files_only:
                 params["local_files_only"] = True
+            
+            if config.model.token:
+                params["token"] = config.model.token
 
         if not isinstance(config, PeftAdapterConfig):
             if config.device_mode != DeviceMode.SINGLE:

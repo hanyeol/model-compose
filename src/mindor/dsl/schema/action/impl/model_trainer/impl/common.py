@@ -59,7 +59,7 @@ class CommonModelTrainerActionConfig(CommonActionConfig):
     num_epochs: Union[int, str] = Field(default=3, description="Number of training epochs.")
 
     # Optimizer and scheduler
-    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW, description="Optimizer to use for training.")
+    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW_TORCH, description="Optimizer to use for training.")
     lr_scheduler_type: LRSchedulerType = Field(default=LRSchedulerType.LINEAR, description="Learning rate scheduler type.")
 
     # Output configuration

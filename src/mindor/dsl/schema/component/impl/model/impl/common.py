@@ -77,7 +77,11 @@ ModelConfig = Annotated[
     Field(discriminator="provider")
 ]
 
+class PeftAdapterType(str, Enum):
+    LORA = "lora"
+
 class PeftAdapterConfig(BaseModel):
+    type: PeftAdapterType = Field(..., description="Type of the adapter.")
     name: Optional[str] = Field(default=None, description="Name for the adapter.")
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight/scale (0.0-1.0).")

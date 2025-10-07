@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
-from ...model import PeftAdapterConfig, ModelQuantization
+from ...model import PeftAdapterType, ModelQuantization
 
 class TrainingTaskType(str, Enum):
     SFT            = "sft"
@@ -12,7 +12,7 @@ class TrainingTaskType(str, Enum):
 class CommonModelTrainerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TRAINER]
     task: TrainingTaskType = Field(..., description="Type of training task to perform.")
-    peft_adapter: Optional[PeftAdapterConfig] = Field(default=None, description="PEFT adapter to use.")
+    peft_adapter: Optional[PeftAdapterType] = Field(default=None, description="PEFT adapter type to use.")
 
     # LoRA configuration
     lora_r: int = Field(default=8, description="LoRA rank.")

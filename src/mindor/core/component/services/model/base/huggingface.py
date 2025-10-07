@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, DeviceMode
+from mindor.dsl.schema.component import ModelComponentConfig, PeftAdapterConfig, HuggingfaceModelConfig, DeviceMode
 from mindor.core.logger import logging
 from .common import ModelTaskService
 
@@ -16,36 +16,88 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
     def _load_pretrained_model(self) -> PreTrainedModel:
         model_cls = self._get_model_class()
-        model = model_cls.from_pretrained(self.config.model, **self._get_model_params())
+        model = model_cls.from_pretrained(self._get_model_path(self.config), **self._get_model_params(self.config))
+
+        if len(self.config.peft_adapters or []) > 0:
+            model = self._load_peft_adapters(model, self.config.peft_adapters)
 
         if self.config.device_mode == DeviceMode.SINGLE:
             model = model.to(torch.device(self.config.device))
 
         return model
 
+    def _load_peft_adapters(self, base_model: PreTrainedModel, adapter_configs: List[PeftAdapterConfig]) -> PreTrainedModel:
+        from peft import PeftModel
+
+        names, weights = self._build_peft_adapter_lists(adapter_configs)
+        peft_model = PeftModel.from_pretrained(
+            base_model,
+            self._get_model_path(adapter_configs[0]),
+            adapter_name=names[0],
+            **self._get_model_params(adapter_configs[0])
+        )
+
+        for index in range(1, len(adapter_configs)):
+            peft_model.load_adapter(
+                self._get_model_path(adapter_configs[index]),
+                adapter_name=names[index],
+                **self._get_model_params(adapter_configs[index])
+            )
+
+        multiple_adapters = len(adapter_configs) > 1
+        has_non_unit_weight = any(abs(weight - 1.0) > 1e-12 for weight in weights)
+
+        if multiple_adapters or has_non_unit_weight:
+            peft_model.add_weighted_adapter(names, weights=weights, adapter_name="blended_adapter")
+            peft_model.set_adapter("blended_adapter")
+        else:
+            peft_model.set_adapter(names[0])
+
+        return peft_model
+
+    def _build_peft_adapter_lists(self, adapter_configs: List[PeftAdapterConfig]) -> Tuple[List[str], List[float]]:
+        names: List[str] = []
+        weights: List[float] = []
+
+        for index, config in enumerate(adapter_configs):
+            names.append(config.name or f"peft_adapter_{index}")
+            weights.append(config.weight)
+
+        return names, weights
+
     def _get_model_class(self) -> Type[PreTrainedModel]:
         raise NotImplementedError("Model class loader not implemented.")
 
-    def _get_model_params(self) -> Dict[str, Any]:
+    def _get_model_path(self, config: Union[ModelComponentConfig, PeftAdapterConfig]) -> str:
+        if isinstance(config.model, HuggingfaceModelConfig):
+            return config.model.repository
+
+        return config.model.path
+
+    def _get_model_params(self, config: Union[ModelComponentConfig, PeftAdapterConfig]) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
-            
-            if self.config.model.cache_dir:
-                params["cache_dir"] = self.config.model.cache_dir
+        if isinstance(config.model, HuggingfaceModelConfig):
+            if config.model.filename:
+                params["filename"] = config.model.filename
 
-            if self.config.model.local_files_only:
+            if config.model.revision:
+                params["revision"] = config.model.revision
+            
+            if config.model.cache_dir:
+                params["cache_dir"] = config.model.cache_dir
+
+            if config.model.local_files_only:
                 params["local_files_only"] = True
 
-        if self.config.device_mode != DeviceMode.SINGLE:
-            params["device_map"] = self.config.device_mode.value
+        if not isinstance(config, PeftAdapterConfig):
+            if config.device_mode != DeviceMode.SINGLE:
+                params["device_map"] = config.device_mode.value
     
-        if self.config.precision is not None:
-            params["torch_dtype"] = getattr(torch, self.config.precision.value)
+        if config.precision is not None:
+            params["torch_dtype"] = getattr(torch, config.precision.value)
     
-        if self.config.low_cpu_mem_usage:
+        if config.low_cpu_mem_usage:
             params["low_cpu_mem_usage"] = True
 
         return params
@@ -64,6 +116,7 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ 
             "transformers>=4.21.0",
+            "peft",
             "torch",
             "sentencepiece",
             "accelerate"

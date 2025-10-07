@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
+from mindor.dsl.utils.path import is_local_path
 from ...common import CommonComponentConfig, ComponentType
 
 class ModelTaskType(str, Enum):
@@ -76,6 +77,31 @@ ModelConfig = Annotated[
     Field(discriminator="provider")
 ]
 
+class PeftAdapterConfig(BaseModel):
+    name: Optional[str] = Field(default=None, description="Name for the adapter.")
+    model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
+    weight: Union[float, str] = Field(default=1.0, description="Adapter weight/scale (0.0-1.0).")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
+    quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, str):
+            if is_local_path(model):
+                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+            else:
+                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+        return values
+
+    @model_validator(mode="before")
+    def fill_missing_model_provider(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, dict) and "provider" not in model:
+            model["provider"] = ModelProvider.HUGGINGFACE
+        return values
+
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
@@ -86,6 +112,17 @@ class CommonModelComponentConfig(CommonComponentConfig):
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
+    peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters to load on top of the base model.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, str):
+            if is_local_path(model):
+                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+            else:
+                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+        return values
 
     @model_validator(mode="before")
     def fill_missing_model_provider(cls, values: Dict[str, Any]):

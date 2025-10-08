@@ -48,8 +48,12 @@ class HuggingfaceModelTaskService(ModelTaskService):
         has_non_unit_weight = any(abs(weight - 1.0) > 1e-12 for weight in weights)
 
         if multiple_adapters or has_non_unit_weight:
+            # Use add_weighted_adapter for merging multiple PEFT adapters with weights
+            # Note: This operation can be slow for large models (e.g., 7B+)
+            logging.info(f"Merging {len(names)} PEFT adapters with weights {weights}. This may take a while...")
             peft_model.add_weighted_adapter(names, weights=weights, adapter_name="blended_adapter")
             peft_model.set_adapter("blended_adapter")
+            logging.info("PEFT adapters merging completed.")
         else:
             peft_model.set_adapter(names[0])
 
@@ -117,9 +121,9 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ 
+        return [
             "transformers>=4.21.0",
-            "peft",
+            "peft>=0.5.0",
             "torch",
             "sentencepiece",
             "accelerate"

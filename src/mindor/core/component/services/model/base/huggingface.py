@@ -146,7 +146,7 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         if not tokenizer_cls:
             return None
 
-        return tokenizer_cls.from_pretrained(self.config.model, **self._get_tokenizer_params())
+        return tokenizer_cls.from_pretrained(self._get_model_path(self.config), **self._get_tokenizer_params())
 
     def _get_tokenizer_class(self) -> Optional[Type[PreTrainedTokenizer]]:
         return None
@@ -163,6 +163,9 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
 
             if self.config.model.local_files_only:
                 params["local_files_only"] = True
+
+            if self.config.model.token:
+                params["token"] = self.config.model.token
 
         if not self.config.fast_tokenizer:
             params["use_fast"] = False
@@ -206,7 +209,7 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         if not processor_cls:
             return None
 
-        return processor_cls.from_pretrained(self.config.model, **self._get_processor_params())
+        return processor_cls.from_pretrained(self._get_model_path(self.config), **self._get_processor_params())
 
     def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
         return None
@@ -217,11 +220,14 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         if isinstance(self.config.model, HuggingfaceModelConfig):
             if self.config.model.revision:
                 params["revision"] = self.config.model.revision
- 
+
             if self.config.model.cache_dir:
                 params["cache_dir"] = self.config.model.cache_dir
 
             if self.config.model.local_files_only:
                 params["local_files_only"] = True
+
+            if self.config.model.token:
+                params["token"] = self.config.model.token
 
         return params

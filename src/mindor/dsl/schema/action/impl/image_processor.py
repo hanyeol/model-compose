@@ -60,7 +60,7 @@ class ImageProcessorBlurActionConfig(CommonImageProcessorActionConfig):
 
 class ImageProcessorSharpenActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.SHARPEN]
-    factor: Union[float, str] = Field(1.0, description="Sharpening factor.")
+    factor: Union[float, str] = Field(default=1.0, description="Sharpening factor.")
 
 class ImageProcessorAdjustBrightnessActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_BRIGHTNESS]

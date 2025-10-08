@@ -142,28 +142,20 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
 
     def _load_pretrained_tokenizer(self) -> Optional[PreTrainedTokenizer]:
         tokenizer_cls = self._get_tokenizer_class()
-
-        if not tokenizer_cls:
-            return None
-
         tokenizer = tokenizer_cls.from_pretrained(self._get_model_path(self.config), **self._get_tokenizer_params())
 
-        self._configure_special_tokens(tokenizer)
+        if tokenizer.pad_token is None:
+            self._configure_missing_pad_token(tokenizer)
 
         return tokenizer
 
-    def _configure_special_tokens(self, tokenizer: PreTrainedTokenizer) -> None:
-        if tokenizer.pad_token is None:
-            if tokenizer.eos_token is not None:
-                tokenizer.pad_token = tokenizer.eos_token
-                logging.info(f"Set pad_token to eos_token: {tokenizer.eos_token}")
-            else:
-                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-                logging.info("Added new pad_token: [PAD]")
-
-        if tokenizer.unk_token is None:
-            tokenizer.add_special_tokens({'unk_token': '[UNK]'})
-            logging.info("Added new unk_token: [UNK]")
+    def _configure_missing_pad_token(self, tokenizer: PreTrainedTokenizer) -> None:
+        if tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+            logging.info(f"Set pad_token to eos_token: {tokenizer.eos_token}")
+        else:
+            tokenizer.add_special_tokens({ "pad_token": "[PAD]" })
+            logging.info("Added new pad_token: [PAD]")
 
     def _get_tokenizer_class(self) -> Optional[Type[PreTrainedTokenizer]]:
         return None

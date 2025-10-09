@@ -149,6 +149,7 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         tokenizer = tokenizer_cls.from_pretrained(self._get_model_path(self.config), **self._get_tokenizer_params())
 
         if tokenizer.pad_token is None:
+            logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")
             self._configure_missing_pad_token(tokenizer)
 
         return tokenizer

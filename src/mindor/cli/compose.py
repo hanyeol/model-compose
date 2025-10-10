@@ -5,6 +5,15 @@ import click
 import asyncio
 import json
 
+def _load_compose_config(config_files: List[Path], env_files: List[Path], env_data: List[str]):
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+
+    env = load_env_files(".", env_files or [])
+    env = merge_env_data(env, env_data)
+
+    return load_compose_config(".", config_files, env)
+
 @click.group()
 @click.option(
     "--file", "-f", "config_files", multiple=True,
@@ -42,15 +51,11 @@ def up_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
-    from mindor.core.runtime.env import load_env_files, merge_env_data
-    from mindor.dsl.loader import load_compose_config
     from mindor.core.compose import launch_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            env = load_env_files(".", env_files or [])
-            env = merge_env_data(env, env_data)
-            config = load_compose_config(".", config_files, env)
+            config = _load_compose_config(config_files, env_files, env_data)
             await launch_services(config, detach, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
@@ -75,15 +80,11 @@ def down_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
-    from mindor.core.runtime.env import load_env_files, merge_env_data
-    from mindor.dsl.loader import load_compose_config
     from mindor.core.compose import terminate_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            env = load_env_files(".", env_files or [])
-            env = merge_env_data(env, env_data)
-            config = load_compose_config(".", config_files, env)
+            config = _load_compose_config(config_files, env_files, env_data)
             await terminate_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
@@ -108,15 +109,11 @@ def start_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
-    from mindor.core.runtime.env import load_env_files, merge_env_data
-    from mindor.dsl.loader import load_compose_config
     from mindor.core.compose import start_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            env = load_env_files(".", env_files or [])
-            env = merge_env_data(env, env_data)
-            config = load_compose_config(".", config_files, env)
+            config = _load_compose_config(config_files, env_files, env_data)
             await start_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
@@ -141,15 +138,11 @@ def stop_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
-    from mindor.core.runtime.env import load_env_files, merge_env_data
-    from mindor.dsl.loader import load_compose_config
     from mindor.core.compose import stop_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            env = load_env_files(".", env_files or [])
-            env = merge_env_data(env, env_data)
-            config = load_compose_config(".", config_files, env)
+            config = _load_compose_config(config_files, env_files, env_data)
             await stop_services(config, verbose)
         except Exception as e:
             click.echo(f"❌ {e}", err=True)
@@ -190,15 +183,11 @@ def run_command(
     output_path: Optional[Path],
     verbose: bool
 ) -> None:
-    from mindor.core.runtime.env import load_env_files, merge_env_data
-    from mindor.dsl.loader import load_compose_config
     from mindor.core.compose import run_workflow
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
-            env = load_env_files(".", env_files or [])
-            env = merge_env_data(env, env_data)
-            config = load_compose_config(".", config_files, env)
+            config = _load_compose_config(config_files, env_files, env_data)
             input = json.loads(input_json) if input_json else {}
             state = await run_workflow(config, workflow_id or "__default__", input, output_path, verbose)
             if isinstance(state.output, (dict, list)) or state.error:

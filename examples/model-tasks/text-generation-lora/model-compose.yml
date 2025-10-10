@@ -29,7 +29,6 @@ component:
       name: assistant
       model: plncmm/guanaco-lora-7b
       weight: 0.8
-      device: cuda:0
   text: ${input.prompt as text}
 
   params:

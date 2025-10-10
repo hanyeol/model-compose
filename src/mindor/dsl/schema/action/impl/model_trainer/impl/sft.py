@@ -6,7 +6,7 @@ from .common import CommonModelTrainerActionConfig
 class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
     # Dataset configuration
     dataset: str = Field(..., description="Training dataset to use.")
-    eval_dataset: Optional[str] = Field(default=None, description="Evaluation dataset (optional).")
+    eval_dataset: Optional[str] = Field(default=None, description="Evaluation dataset.")
 
     # Data formatting
     text_column: Optional[str] = Field(default=None, description="Column name containing the text for training.")

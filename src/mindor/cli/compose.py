@@ -1,17 +1,19 @@
-import click
-import json
+from typing import Optional, List
+import importlib.metadata
 from pathlib import Path
+import click
 import asyncio
-
-from mindor.dsl.loader import load_compose_config
-from mindor.core.runtime.env import load_env_files, merge_env_data
-from mindor.core.compose import *
+import json
 
 @click.group()
 @click.option(
     "--file", "-f", "config_files", multiple=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Compose configuration files."
+)
+@click.version_option(
+    version=importlib.metadata.version("model-compose"),
+    message="%(prog)s %(version)s"
 )
 @click.pass_context
 def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
@@ -34,12 +36,15 @@ def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def up_command(
-    ctx: click.Context, 
+    ctx: click.Context,
     detach: bool,
     env_files: List[Path],
     env_data: List[str],
     verbose: bool
 ) -> None:
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.compose import launch_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
@@ -70,6 +75,9 @@ def down_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.compose import terminate_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
@@ -100,6 +108,9 @@ def start_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.compose import start_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
@@ -130,6 +141,9 @@ def stop_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.compose import stop_services
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
@@ -176,6 +190,9 @@ def run_command(
     output_path: Optional[Path],
     verbose: bool
 ) -> None:
+    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.dsl.loader import load_compose_config
+    from mindor.core.compose import run_workflow
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:

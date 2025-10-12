@@ -4,7 +4,7 @@ from pydantic import model_validator
 from .common import ListenerType, CommonListenerConfig
 
 class HttpCallbackConfig(BaseModel):
-    path: str
+    path: str = Field(..., description="URL path for this callback endpoint.")
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method this callback endpoint will accept.")
     bulk: Union[bool, str] = Field(default=False, description="Whether this callback handles multiple items in a single request.")
     item: Optional[str] = Field(default=None, description="Field path to extract individual items from the callback payload.")

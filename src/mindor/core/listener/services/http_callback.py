@@ -10,9 +10,6 @@ from fastapi.responses import Response, JSONResponse
 from threading import Lock
 import asyncio, uvicorn
 
-_pending_futures: Dict[str, asyncio.Future] = {}
-_pending_futures_lock: Lock = Lock()
-
 class HttpCallbackContext:
     def __init__(self, body: Optional[Any], query: Optional[Dict[str, str]], bulk: bool, item: Optional[str]):
         self.body: Optional[Any] = body
@@ -49,6 +46,9 @@ class HttpCallbackContext:
 
 @register_listener(ListenerType.HTTP_CALLBACK)
 class HttpCallbackListener(ListenerService):
+    _pending_futures: Dict[str, asyncio.Future] = {}
+    _pending_futures_lock: Lock = Lock()
+
     def __init__(self, id: str, config: HttpCallbackListenerConfig, daemon: bool):
         super().__init__(id, config, daemon)
         
@@ -118,14 +118,14 @@ class HttpCallbackListener(ListenerService):
             self.server.should_exit = True
 
     def _get_pending_future(self, id: str) -> Optional[asyncio.Future]:
-        with _pending_futures_lock:
-            return _pending_futures.get(id)
+        with self._pending_futures_lock:
+            return self._pending_futures.get(id)
 
     def _remove_pending_future(self, id: str) -> None:
-        with _pending_futures_lock:
-            _pending_futures.pop(id, None)
+        with self._pending_futures_lock:
+            self._pending_futures.pop(id, None)
 
     @classmethod
     def register_pending_future(cls, id: str, future: asyncio.Future) -> None:
-        with _pending_futures_lock:
-            _pending_futures[id] = future
+        with cls._pending_futures_lock:
+            cls._pending_futures[id] = future

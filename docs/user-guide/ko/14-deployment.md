@@ -477,7 +477,21 @@ CMD [ "python", "-m", "mindor.cli.compose", "up" ]
 
 ### 14.3.2 커스텀 Dockerfile 사용
 
-**프로젝트에 Dockerfile 추가:**
+프로젝트에 특화된 Docker 이미지를 사용하려면 커스텀 Dockerfile을 작성할 수 있습니다.
+
+**프로젝트 디렉토리 구조:**
+
+```
+my-project/
+├── model-compose.yml    # 워크플로우 설정
+├── Dockerfile           # 커스텀 Docker 이미지
+├── requirements.txt     # Python 의존성 (선택)
+└── .env                 # 환경 변수 (선택)
+```
+
+**참고**: 커스텀 Dockerfile을 사용하려면 `build` 섹션에서 명시적으로 지정해야 합니다. Dockerfile은 프로젝트 루트 또는 원하는 위치에 배치할 수 있습니다.
+
+**Dockerfile 예시:**
 
 ```dockerfile
 # Dockerfile
@@ -504,7 +518,9 @@ COPY . .
 CMD [ "model-compose", "up" ]
 ```
 
-**설정에서 커스텀 Dockerfile 지정:**
+**설정에서 커스텀 Dockerfile 지정 (필수):**
+
+커스텀 Dockerfile을 사용하려면 `build` 섹션을 반드시 지정해야 합니다:
 
 ```yaml
 controller:
@@ -513,8 +529,8 @@ controller:
   runtime:
     type: docker
     build:
-      context: .
-      dockerfile: Dockerfile       # 커스텀 Dockerfile
+      context: .                   # 빌드 컨텍스트 (프로젝트 루트)
+      dockerfile: Dockerfile       # 커스텀 Dockerfile (필수)
 ```
 
 ### 14.3.3 멀티 스테이지 빌드

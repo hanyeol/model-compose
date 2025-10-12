@@ -477,7 +477,21 @@ CMD [ "python", "-m", "mindor.cli.compose", "up" ]
 
 ### 14.3.2 Using Custom Dockerfile
 
-**Adding Dockerfile to project:**
+To use a project-specific Docker image, you can create a custom Dockerfile.
+
+**Project directory structure:**
+
+```
+my-project/
+├── model-compose.yml    # Workflow configuration
+├── Dockerfile           # Custom Docker image
+├── requirements.txt     # Python dependencies (optional)
+└── .env                 # Environment variables (optional)
+```
+
+**Note**: To use a custom Dockerfile, you must explicitly specify it in the `build` section. The Dockerfile can be placed in the project root or any desired location.
+
+**Dockerfile example:**
 
 ```dockerfile
 # Dockerfile

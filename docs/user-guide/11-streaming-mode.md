@@ -762,7 +762,7 @@ component:
 
 ---
 
-## 11.7 Best Practices
+## 11.7 Streaming Best Practices
 
 ### Streaming Usage Recommendations
 

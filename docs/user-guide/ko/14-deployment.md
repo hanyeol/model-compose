@@ -1061,7 +1061,7 @@ controller:
 
 ---
 
-## 14.6 Best Practices
+## 14.6 배포 모범 사례
 
 ### 환경별 배포 전략
 

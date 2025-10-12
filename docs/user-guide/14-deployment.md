@@ -1059,7 +1059,7 @@ controller:
 
 ---
 
-## 14.6 Best Practices
+## 14.6 Deployment Best Practices
 
 ### Environment-specific Deployment Strategies
 

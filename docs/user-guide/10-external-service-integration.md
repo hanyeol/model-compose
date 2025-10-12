@@ -570,7 +570,7 @@ workflow:
 
 ---
 
-## Best Practices
+## 10.8 External Service Integration Best Practices
 
 ### 1. API Key Management
 

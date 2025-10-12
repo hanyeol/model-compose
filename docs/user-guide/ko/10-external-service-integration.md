@@ -697,7 +697,7 @@ component:
 
 ---
 
-## Best Practices
+## 10.8 외부 서비스 통합 모범 사례
 
 ### 1. 환경 변수로 API 키 관리
 

@@ -114,7 +114,7 @@ This document outlines the structure of the model-compose user guide.
 - 10.5 [Stability AI (Image Generation)](./10-external-service-integration.md#105-stability-ai-image-generation)
 - 10.6 [Replicate](./10-external-service-integration.md#106-replicate)
 - 10.7 [Custom HTTP API](./10-external-service-integration.md#107-custom-http-api)
-- 10.8 [Best Practices](./10-external-service-integration.md#108-best-practices)
+- 10.8 [External Service Integration Best Practices](./10-external-service-integration.md#108-external-service-integration-best-practices)
 
 ## 11. [Streaming Mode](./11-streaming-mode.md)
 - 11.1 [Streaming Overview](./11-streaming-mode.md#111-streaming-overview)
@@ -143,7 +143,7 @@ This document outlines the structure of the model-compose user guide.
   - 11.6.1 [Real-time Translation Streaming](./11-streaming-mode.md#1161-real-time-translation-streaming)
   - 11.6.2 [OpenAI + Claude Combination](./11-streaming-mode.md#1162-openai--claude-combination)
   - 11.6.3 [Local Model Streaming Server](./11-streaming-mode.md#1163-local-model-streaming-server)
-- 11.7 [Best Practices](./11-streaming-mode.md#117-best-practices)
+- 11.7 [Streaming Best Practices](./11-streaming-mode.md#117-streaming-best-practices)
 
 ## 12. [Variable Binding](./12-variable-binding.md)
 - 12.1 [Basic Syntax](./12-variable-binding.md#121-basic-syntax)
@@ -200,7 +200,7 @@ This document outlines the structure of the model-compose user guide.
   - 13.3.1 [Integration Example: Async Image Processing](./13-system-integration.md#1331-integration-example-async-image-processing)
   - 13.3.2 [Architecture Diagram](./13-system-integration.md#1332-architecture-diagram)
   - 13.3.3 [Production Environment Considerations](./13-system-integration.md#1333-production-environment-considerations)
-- 13.4 [Best Practices](./13-system-integration.md#134-best-practices)
+- 13.4 [System Integration Best Practices](./13-system-integration.md#134-system-integration-best-practices)
 
 ## 14. [Deployment](./14-deployment.md)
 - 14.1 [Local Execution](./14-deployment.md#141-local-execution)
@@ -232,7 +232,7 @@ This document outlines the structure of the model-compose user guide.
   - 14.5.3 [Workflow Execution Logging](./14-deployment.md#1453-workflow-execution-logging)
   - 14.5.4 [Metrics Collection](./14-deployment.md#1454-metrics-collection)
   - 14.5.5 [External Monitoring Systems](./14-deployment.md#1455-external-monitoring-systems)
-- 14.6 [Best Practices](./14-deployment.md#146-best-practices)
+- 14.6 [Deployment Best Practices](./14-deployment.md#146-deployment-best-practices)
 
 ## 15. [Practical Examples](./15-practical-examples.md)
 - 15.1 [Building a Chatbot](./15-practical-examples.md#151-building-a-chatbot)

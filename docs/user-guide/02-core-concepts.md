@@ -97,7 +97,26 @@ controller:
 - `port`: MCP server port (default: 8080)
 - `base_path`: Base path for MCP endpoints
 
+**Transport Method:**
 > **Note**: Currently only SSE (Server-Sent Events) transport is supported.
+>
+> SSE is an HTTP-based protocol that provides unidirectional real-time data streaming from server to client. This means:
+> - MCP clients must connect to the server via HTTP connections
+> - stdio transport (standard input/output) is not yet supported
+> - When using with MCP clients like Claude Desktop, the `@modelcontextprotocol/server-stdio` adapter is required
+>
+> **Practical Example**:
+> ```json
+> // Claude Desktop configuration (claude_desktop_config.json)
+> {
+>   "mcpServers": {
+>     "my-workflow": {
+>       "command": "npx",
+>       "args": ["-y", "@modelcontextprotocol/server-stdio", "http://localhost:8080/mcp"]
+>     }
+>   }
+> }
+> ```
 
 ### Runtime Configuration
 
@@ -391,7 +410,7 @@ jobs:
 
 ## 2.6 Data Flow and Variable Binding
 
-**Variable binding** is how data flows through your workflow using the `${...}` syntax.
+**Variable binding** uses the `${...}` syntax to connect data between workflow steps. You can reference environment variables, user input, component outputs, and previous job results, with support for type conversion, default values, and format specification. This enables you to build complex data pipelines declaratively without writing code.
 
 ### Variable Sources
 
@@ -557,6 +576,126 @@ workflow:
    - Get voice ID from `${input.voice_id}` (or use default)
    - Pass to TTS API to generate MP3 audio
    - Encode audio to Base64 and return
+
+---
+
+## 2.7 Components vs Jobs
+
+In model-compose, **Components** and **Jobs** serve different purposes. Understanding this distinction is key to designing effective workflows.
+
+### Component
+
+A **component** is a **reusable functional definition**.
+
+- **Definition**: Declared in the `components` section
+- **Role**: Defines how to access a specific service or functionality (e.g., API calls, model execution)
+- **Reusability**: Can be reused across multiple workflows and jobs
+- **Execution**: Components themselves don't execute; they are executed through jobs
+- **Distributed Deployment**: Components can be deployed to remote servers to build distributed environments
+
+```yaml
+components:
+  - id: gpt4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+```
+
+### Job
+
+A **job** is an **actual execution instance of a component within a workflow**.
+
+- **Definition**: Declared in the `workflow.jobs` section
+- **Role**: Executes a component, passes input data, and collects output
+- **Execution Order**: Defines execution sequence with other jobs via `depends_on`
+- **Data Flow**: Passes results from previous jobs as input to subsequent jobs
+
+```yaml
+workflow:
+  jobs:
+    - id: generate-text
+      component: gpt4o
+      input:
+        prompt: "Write a haiku"
+      output: ${output}
+
+    - id: analyze-sentiment
+      component: gpt4o
+      input:
+        prompt: "Analyze sentiment: ${jobs.generate-text.output}"
+      depends_on: [generate-text]
+```
+
+### Key Differences Summary
+
+| Aspect | Component | Job |
+|--------|-----------|-----|
+| **Definition Location** | `components` section | `workflow.jobs` section |
+| **Role** | Functional definition (template) | Execution instance |
+| **Reusability** | Reusable across workflows | Bound to specific workflow |
+| **Execution** | Cannot execute directly | Executes when workflow runs |
+| **Data** | Defines input/output schema | Handles actual data passing |
+| **Dependencies** | None | Uses `depends_on` for job ordering |
+
+### Practical Example
+
+```yaml
+# Component definition: How to call OpenAI API
+components:
+  - id: openai-chat
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      text: ${response.choices[0].message.content}
+
+# Workflow: Reuse the same component in multiple jobs
+workflows:
+  - id: content-pipeline
+    jobs:
+      # Job 1: Generate title
+      - id: generate-title
+        component: openai-chat
+        input:
+          prompt: "Create a catchy title for a blog about AI"
+        output: ${output}
+
+      # Job 2: Generate body (uses title)
+      - id: generate-body
+        component: openai-chat
+        input:
+          prompt: "Write a blog post with this title: ${jobs.generate-title.output.text}"
+        depends_on: [generate-title]
+        output: ${output}
+
+      # Job 3: Generate summary (uses body)
+      - id: generate-summary
+        component: openai-chat
+        input:
+          prompt: "Summarize this text: ${jobs.generate-body.output.text}"
+        depends_on: [generate-body]
+        output: ${output}
+```
+
+In this example:
+- **Component** `openai-chat`: Defines OpenAI API calling method once
+- **Jobs** (`generate-title`, `generate-body`, `generate-summary`): Execute the same component three times with different prompts and data
 
 ---
 

@@ -97,7 +97,26 @@ controller:
 - `port`: MCP 서버 포트 (기본값: 8080)
 - `base_path`: MCP 엔드포인트 기본 경로
 
+**전송 방식:**
 > **참고**: 현재는 SSE (Server-Sent Events) 전송 방식만 지원합니다.
+>
+> SSE는 서버에서 클라이언트로 단방향 실시간 데이터 스트리밍을 제공하는 HTTP 기반 프로토콜입니다. 이는 다음을 의미합니다:
+> - MCP 클라이언트는 HTTP 연결을 통해 서버에 연결해야 합니다
+> - stdio 전송 방식(표준 입출력)은 아직 지원되지 않습니다
+> - Claude Desktop 등의 MCP 클라이언트에서 사용 시 `@modelcontextprotocol/server-stdio` 어댑터가 필요합니다
+>
+> **실제 사용 예제**:
+> ```json
+> // Claude Desktop 설정 (claude_desktop_config.json)
+> {
+>   "mcpServers": {
+>     "my-workflow": {
+>       "command": "npx",
+>       "args": ["-y", "@modelcontextprotocol/server-stdio", "http://localhost:8080/mcp"]
+>     }
+>   }
+> }
+> ```
 
 ### 런타임 설정
 
@@ -391,7 +410,7 @@ jobs:
 
 ## 2.6 데이터 흐름 및 변수 바인딩
 
-**변수 바인딩**은 `${...}` 구문을 사용하여 워크플로우를 통해 데이터가 흐르는 방식입니다.
+**변수 바인딩**은 `${...}` 구문을 사용하여 워크플로우의 각 단계 간 데이터를 연결합니다. 환경 변수, 사용자 입력, 컴포넌트 출력, 이전 작업 결과를 참조할 수 있으며, 타입 변환, 기본값 설정, 포맷 지정 등의 기능을 제공합니다. 이를 통해 코드 없이 선언적으로 복잡한 데이터 파이프라인을 구성할 수 있습니다.
 
 ### 변수 소스
 
@@ -558,6 +577,126 @@ workflow:
    - `${input.voice_id}`에서 음성 ID 가져옴 (없으면 기본값 사용)
    - TTS API에 전달하여 오디오 생성
    - 인용구와 오디오를 반환
+
+---
+
+## 2.7 작업과 컴포넌트의 차이
+
+model-compose에서 **컴포넌트**와 **작업(Job)**은 서로 다른 역할을 합니다. 이 차이를 이해하는 것이 효과적인 워크플로우 설계의 핵심입니다.
+
+### 컴포넌트 (Component)
+
+**컴포넌트**는 **재사용 가능한 기능의 정의**입니다.
+
+- **정의**: `components` 섹션에서 선언
+- **역할**: 특정 서비스나 기능에 접근하는 방법을 정의 (예: API 호출, 모델 실행)
+- **재사용성**: 여러 워크플로우와 여러 작업에서 재사용 가능
+- **실행**: 컴포넌트 자체는 실행되지 않으며, 작업을 통해 실행됨
+- **분산 배포**: 컴포넌트를 원격 서버에 배포하여 분산 환경 구축 가능
+
+```yaml
+components:
+  - id: gpt4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+```
+
+### 작업 (Job)
+
+**작업**은 **워크플로우 내에서 컴포넌트의 실제 실행 인스턴스**입니다.
+
+- **정의**: `workflow.jobs` 섹션에서 선언
+- **역할**: 컴포넌트를 실행하고, 입력 데이터를 전달하며, 출력을 수집
+- **실행 순서**: `depends_on`을 통해 다른 작업과의 실행 순서 정의
+- **데이터 흐름**: 이전 작업의 결과를 다음 작업의 입력으로 전달
+
+```yaml
+workflow:
+  jobs:
+    - id: generate-text
+      component: gpt4o
+      input:
+        prompt: "Write a haiku"
+      output: ${output}
+
+    - id: analyze-sentiment
+      component: gpt4o
+      input:
+        prompt: "Analyze sentiment: ${jobs.generate-text.output}"
+      depends_on: [generate-text]
+```
+
+### 주요 차이점 요약
+
+| 구분 | 컴포넌트 (Component) | 작업 (Job) |
+|------|---------------------|-----------|
+| **정의 위치** | `components` 섹션 | `workflow.jobs` 섹션 |
+| **역할** | 기능 정의 (템플릿) | 실행 인스턴스 |
+| **재사용성** | 여러 워크플로우에서 재사용 | 특정 워크플로우에 종속 |
+| **실행** | 직접 실행 불가 | 워크플로우 실행 시 실행됨 |
+| **데이터** | 입력/출력 스키마 정의 | 실제 데이터 전달 및 처리 |
+| **의존성** | 없음 | `depends_on`으로 작업 간 순서 정의 |
+
+### 실전 예제
+
+```yaml
+# 컴포넌트 정의: OpenAI API 호출 방법
+components:
+  - id: openai-chat
+    type: http-client
+    base_url: https://api.openai.com/v1
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      text: ${response.choices[0].message.content}
+
+# 워크플로우: 동일한 컴포넌트를 여러 작업에서 재사용
+workflows:
+  - id: content-pipeline
+    jobs:
+      # 작업 1: 제목 생성
+      - id: generate-title
+        component: openai-chat
+        input:
+          prompt: "Create a catchy title for a blog about AI"
+        output: ${output}
+
+      # 작업 2: 본문 생성 (제목을 사용)
+      - id: generate-body
+        component: openai-chat
+        input:
+          prompt: "Write a blog post with this title: ${jobs.generate-title.output.text}"
+        depends_on: [generate-title]
+        output: ${output}
+
+      # 작업 3: 요약 생성 (본문을 사용)
+      - id: generate-summary
+        component: openai-chat
+        input:
+          prompt: "Summarize this text: ${jobs.generate-body.output.text}"
+        depends_on: [generate-body]
+        output: ${output}
+```
+
+위 예제에서:
+- **컴포넌트** `openai-chat`: OpenAI API 호출 방법을 한 번 정의
+- **작업들** (`generate-title`, `generate-body`, `generate-summary`): 동일한 컴포넌트를 서로 다른 프롬프트와 데이터로 세 번 실행
 
 ---
 

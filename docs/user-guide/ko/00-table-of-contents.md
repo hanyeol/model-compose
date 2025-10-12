@@ -257,10 +257,28 @@
   - 15.6.1 [이미지 → 텍스트 → 음성 파이프라인](./15-practical-examples.md#1561-이미지--텍스트--음성-파이프라인)
   - 15.6.2 [음성 → 텍스트 → 번역 → 음성 파이프라인](./15-practical-examples.md#1562-음성--텍스트--번역--음성-파이프라인)
 
-## 16. 문제 해결
-- 16.1 자주 묻는 질문 (FAQ)
-- 16.2 일반적인 오류 및 해결책
-- 16.3 디버깅 팁
+## 16. [문제 해결](./16-troubleshooting.md)
+- 16.1 [자주 묻는 질문 (FAQ)](./16-troubleshooting.md#161-자주-묻는-질문-faq)
+  - 16.1.1 [설치 및 환경 설정](./16-troubleshooting.md#1611-설치-및-환경-설정)
+  - 16.1.2 [컴포넌트 설정](./16-troubleshooting.md#1612-컴포넌트-설정)
+  - 16.1.3 [워크플로우 실행](./16-troubleshooting.md#1613-워크플로우-실행)
+  - 16.1.4 [Web UI](./16-troubleshooting.md#1614-web-ui)
+  - 16.1.5 [리스너와 게이트웨이](./16-troubleshooting.md#1615-리스너와-게이트웨이)
+- 16.2 [일반적인 오류 및 해결책](./16-troubleshooting.md#162-일반적인-오류-및-해결책)
+  - 16.2.1 [모델 로딩 오류](./16-troubleshooting.md#1621-모델-로딩-오류)
+  - 16.2.2 [네트워크 오류](./16-troubleshooting.md#1622-네트워크-오류)
+  - 16.2.3 [설정 파일 오류](./16-troubleshooting.md#1623-설정-파일-오류)
+  - 16.2.4 [변수 바인딩 오류](./16-troubleshooting.md#1624-변수-바인딩-오류)
+  - 16.2.5 [Docker 런타임 오류](./16-troubleshooting.md#1625-docker-런타임-오류)
+- 16.3 [디버깅 팁](./16-troubleshooting.md#163-디버깅-팁)
+  - 16.3.1 [로깅 활성화](./16-troubleshooting.md#1631-로깅-활성화)
+  - 16.3.2 [변수 값 확인](./16-troubleshooting.md#1632-변수-값-확인)
+  - 16.3.3 [단계별 실행](./16-troubleshooting.md#1633-단계별-실행)
+  - 16.3.4 [API 응답 확인](./16-troubleshooting.md#1634-api-응답-확인)
+  - 16.3.5 [Docker 컨테이너 로그](./16-troubleshooting.md#1635-docker-컨테이너-로그)
+  - 16.3.6 [환경 변수 확인](./16-troubleshooting.md#1636-환경-변수-확인)
+  - 16.3.7 [포트 충돌 확인](./16-troubleshooting.md#1637-포트-충돌-확인)
+  - 16.3.8 [의존성 확인](./16-troubleshooting.md#1638-의존성-확인)
 
 ## 17. [부록](./17-appendix.md)
 - 17.1 [설정 파일 전체 스키마](./17-appendix.md#171-설정-파일-전체-스키마)

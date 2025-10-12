@@ -604,7 +604,7 @@ graph TB
 
 When components support streaming, you can stream data in real-time.
 
-> **For more details, see [Chapter 10: Streaming Mode](./10-streaming-mode.md).**
+> **For more details, see [Chapter 11: Streaming Mode](./11-streaming-mode.md).**
 
 ### Streaming Configuration in Components
 

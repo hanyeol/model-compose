@@ -291,7 +291,7 @@ controller:
   runtime:
     type: docker
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s                # Check interval
       timeout: 10s                 # Timeout
       max_retry_count: 3           # Maximum retry count
@@ -730,7 +730,7 @@ controller:
   runtime:
     type: docker
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       max_retry_count: 3
@@ -752,7 +752,7 @@ controller:
   runtime:
     type: docker
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:8080/health\")' || exit 1"]
+      test: [ "CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:8080/health\")' || exit 1" ]
       interval: 20s
 ```
 

@@ -36,6 +36,8 @@ ${response.data[0].id}      # Array index
 |----------------|----------------|-------------------|-------------|
 | `http-client` | `${response}` | `${response[]}` | HTTP response data |
 | `http-server` | `${response}` | `${response[]}` | Managed HTTP server response |
+| `mcp-client` | `${response}` | - | MCP response data |
+| `mcp-server` | `${response}` | - | Managed MCP server response |
 | `model` | `${result}` | `${result[]}` | Model inference result |
 | `model-trainer` | `${result}` | - | Training result metrics |
 | `vector-store` | `${response}` | - | Vector search/insert result |
@@ -44,7 +46,6 @@ ${response.data[0].id}      # Array index
 | `image-processor` | `${result}` | - | Processed image |
 | `workflow` | `${output}` | - | Sub-workflow output |
 | `shell` | `${stdout}`, `${stderr}` | - | Command execution result |
-| `mcp-client` | `${response}` | - | MCP server response |
 
 **Usage Examples**:
 

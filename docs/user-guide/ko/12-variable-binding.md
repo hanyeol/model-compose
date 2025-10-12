@@ -36,6 +36,8 @@ ${response.data[0].id}      # 배열 인덱스
 |--------------|----------|--------------|------|
 | `http-client` | `${response}` | `${response[]}` | HTTP 응답 데이터 |
 | `http-server` | `${response}` | `${response[]}` | 관리형 HTTP 서버 응답 |
+| `mcp-client` | `${response}` | - | MCP 응답 데이터 |
+| `mcp-server` | `${response}` | - | 관리형 MCP 서버 응답 |
 | `model` | `${result}` | `${result[]}` | 모델 추론 결과 |
 | `model-trainer` | `${result}` | - | 훈련 결과 메트릭 |
 | `vector-store` | `${response}` | - | 벡터 검색/삽입 결과 |
@@ -44,7 +46,6 @@ ${response.data[0].id}      # 배열 인덱스
 | `image-processor` | `${result}` | - | 처리된 이미지 |
 | `workflow` | `${output}` | - | 서브 워크플로우 출력 |
 | `shell` | `${stdout}`, `${stderr}` | - | 명령 실행 결과 |
-| `mcp-client` | `${response}` | - | MCP 서버 응답 |
 
 **사용 예제**:
 

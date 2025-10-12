@@ -41,6 +41,26 @@ pip install -e .
 
 ---
 
+## 📚 Documentation
+
+**📖 [Complete User Guide](docs/user-guide/00-table-of-contents.md)**
+
+Need help getting started or want to explore advanced features? Check out our comprehensive user guide:
+
+- **🌍 English**: [User Guide](docs/user-guide/00-table-of-contents.md)
+- **🇰🇷 한국어**: [사용자 가이드](docs/user-guide/ko/00-table-of-contents.md)
+
+The guide covers everything from basic concepts to advanced workflows, including:
+- Getting started with model-compose
+- Component and workflow configuration
+- Local AI models and training
+- Streaming mode and variable binding
+- System integration with listeners and gateways
+- Deployment strategies
+- Practical examples and troubleshooting
+
+---
+
 ## 🚀 How to Run
 
 **model-compose** provides a CLI interface to launch and manage your AI workflows — inspired by `docker-compose`.
@@ -170,35 +190,7 @@ This minimal example defines a simple workflow that calls the OpenAI ChatGPT API
 
 You can easily expand this example by adding more components (e.g., text-to-speech, image generation) and connecting them through additional jobs.
 
-#### 📡 Listener Example
-
-```
-listener:
-  type: http-callback
-  port: 8090
-  base_path: /callbacks
-  callbacks:
-    - path: /chat-ai
-      method: POST
-      item: ${body.data}
-      identify_by: ${item.task_id}
-      result: ${item.choices[0].message.content}
-```
-
-This listener sets up an HTTP callback endpoint at `http://localhost:8090/callbacks/chat-ai` to handle asynchronous responses from an external service that behaves like ChatGPT but supports delayed or push-based results. This is useful when integrating with services that notify results via webhook-style callbacks.
-
-#### 🌐 Gateway Example
-
-```
-gateway:
-  type: http-tunnel
-  driver: ngrok
-  port: 8090
-```
-
-This gateway configuration exposes the local listener defined above to the public internet using an HTTP tunnel powered by ngrok. It forwards incoming traffic from a secure, public URL (e.g., `https://abc123.ngrok.io`) directly to your local callback endpoint at `http://localhost:8090`. This is essential when integrating with third-party services that need to push data back to your workflow via webhooks or asynchronous callbacks.
-
-> 📁 For more example model-compose.yml configurations, check the [examples directory](examples) in the source code.
+> 📁 For more example configurations including listeners, gateways, and advanced workflows, check the [examples directory](examples) or refer to the [User Guide](docs/user-guide/00-table-of-contents.md).
 
 ---
 ## 🖥 Web UI

@@ -66,6 +66,20 @@ model-compose up
 - Adjustable temperature parameter
 - Real-time response display
 
+**Architecture Diagram**:
+
+```mermaid
+graph TD
+    A[User] -->|① Input prompt| B[Web UI<br/>Port 8081]
+    B -->|② HTTP request| C[Controller<br/>Port 8080]
+    C -->|③ Execute workflow| D[http-client<br/>component]
+    D -->|④ API call| E[OpenAI GPT-4o<br/>API]
+    E -->|⑤ Response| D
+    D -->|⑥ Result| C
+    C -->|⑦ JSON response| B
+    B -->|⑧ Display text| A
+```
+
 ### 15.1.2 Streaming Chatbot
 
 **Goal**: Build a streaming chatbot with real-time typing effect
@@ -105,6 +119,44 @@ component:
 - Real-time streaming using SSE protocol
 - Automatic typing effect in Gradio
 - Immediate feedback for long responses
+
+**Streaming Flow Diagram**:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant W as Web UI
+    participant C as Controller
+    participant HC as http-client
+    participant API as OpenAI API
+
+    U->>W: Input prompt
+    W->>C: POST /api/workflows/runs<br/>(wait_for_completion: true)
+    C->>HC: Execute workflow<br/>(stream: true)
+    HC->>API: POST /chat/completions<br/>(stream: true)
+
+    Note over API: Start generating response
+
+    API-->>HC: SSE: chunk 1
+    HC-->>C: ${response[]} chunk 1
+    C-->>W: SSE: "data: Once"
+    W-->>U: Display "Once"
+
+    API-->>HC: SSE: chunk 2
+    HC-->>C: ${response[]} chunk 2
+    C-->>W: SSE: "data:  upon"
+    W-->>U: Append " upon"
+
+    API-->>HC: SSE: chunk 3
+    HC-->>C: ${response[]} chunk 3
+    C-->>W: SSE: "data:  a"
+    W-->>U: Append " a"
+
+    Note over API: Response complete
+    API-->>HC: [DONE]
+    HC-->>C: Stream ended
+    C-->>W: Close connection
+```
 
 ---
 
@@ -239,6 +291,19 @@ ELEVENLABS_API_KEY=...
 1. GPT-4o generates an inspiring quote
 2. ElevenLabs API converts quote to speech
 3. Web UI displays both text and audio
+
+**Workflow Diagram**:
+
+```mermaid
+graph TD
+    A[User Input] -->|① Input| B[Job 1: job-quote<br/>write-inspiring-quote]
+    B -->|② GPT-4o API call| C[OpenAI API]
+    C -->|③ Quote text returned| B
+    B -->|④ output.quote<br/>depends_on: job-quote| D[Job 2: job-voice<br/>text-to-speech]
+    D -->|⑤ TTS API call<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
+    E -->|⑥ Audio data returned<br/>Base64| D
+    D -->|⑦ Final output| F[Result<br/>quote: Text<br/>audio: Base64]
+```
 
 ---
 
@@ -520,6 +585,24 @@ components:
 - Milvus high-performance vector search
 - Context-based answer generation using GPT-4o
 
+**RAG Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[User Query<br/>input.query] -->|① Start| B[Job 1: embed-query<br/>embedding-model]
+    B -->|② Text embedding| C[Embedding Vector<br/>768 dimensions]
+
+    C -->|③ Vector input| D[Job 2: search-docs<br/>milvus-store]
+    D -->|④ Vector similarity search| E[(Milvus DB<br/>documents collection)]
+    E -->|⑤ Top 5 docs returned| D
+
+    D -->|⑥ Search results<br/>text + source| F[Job 3: generate-answer<br/>llm GPT-4o]
+    F -->|⑦ Context-based query| G[OpenAI API]
+    G -->|⑧ Answer generation| F
+
+    F -->|⑨ Final answer| H[Result Return]
+```
+
 ---
 
 ## 15.5 Slack Bot (MCP)
@@ -778,6 +861,20 @@ components:
 2. **Text Enhancement**: GPT-4o rewrites description to be more detailed and engaging
 3. **Speech Conversion**: OpenAI TTS converts text to speech
 
+**Multimodal Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[Image Input<br/>input.image] -->|① Start| B[Job 1: analyze-image<br/>BLIP Model]
+    B -->|② Image→Text<br/>Local inference| C[Basic Description<br/>output.text]
+
+    C -->|③ Description text| D[Job 2: enhance-description<br/>GPT-4o]
+    D -->|④ Description enhancement<br/>API call| E[Detailed Description<br/>output.message]
+
+    E -->|⑤ Enhanced text| F[Job 3: text-to-speech<br/>OpenAI TTS]
+    F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>description: Text<br/>audio: Audio]
+```
+
 ### 15.6.2 Speech → Text → Translation → Speech Pipeline
 
 **Goal**: Translate spoken language to another language with speech output
@@ -859,6 +956,20 @@ components:
 2. **Translation**: Helsinki-NLP model translates text
 3. **Speech Synthesis**: OpenAI TTS converts translated text to speech
 4. **Output**: Original text, translated text, and translated audio
+
+**Voice Translation Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[Audio Input<br/>input.audio] -->|① Start| B[Job 1: transcribe<br/>Whisper]
+    B -->|② Speech→Text<br/>OpenAI API| C[Original Text<br/>output.text]
+
+    C -->|③ Original text| D[Job 2: translate<br/>Helsinki-NLP]
+    D -->|④ Text translation<br/>Local model| E[Translated Text<br/>output.text]
+
+    E -->|⑤ Translated text| F[Job 3: synthesize<br/>OpenAI TTS]
+    F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>original: Original<br/>translated: Translation<br/>audio: Speech]
+```
 
 ---
 

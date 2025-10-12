@@ -422,16 +422,32 @@ body:
 
 #### 3. 컴포넌트 응답
 
+**중요**: 컴포넌트 타입에 따라 응답 변수가 다릅니다.
+
 ```yaml
-${response.field}
+${response.field}   # HTTP 기반 컴포넌트 (http-client, http-server, vector-store 등)
+${result.field}     # 로컬 실행 컴포넌트 (model, datasets, text-splitter 등)
+${stdout}           # 셸 명령 (shell)
+${output}           # 워크플로우 (workflow)
 ```
 
 예시:
 ```yaml
+# HTTP 클라이언트
 output:
   message: ${response.choices[0].message.content}
   tokens: ${response.usage.total_tokens}
+
+# 로컬 모델
+output:
+  generated_text: ${result}
+
+# 셸 명령
+output:
+  command_output: ${stdout}
 ```
+
+> 💡 **컴포넌트별 상세 변수 참조**: 모든 컴포넌트 타입의 변수 소스는 [12.2.2 컴포넌트별 응답 변수 소스](./12-variable-binding.md#1222-컴포넌트별-응답-변수-소스)를 참조하세요.
 
 #### 4. 이전 작업 출력
 

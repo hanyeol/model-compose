@@ -15,7 +15,9 @@ ${key.path as type/subtype;format | default @(annotation)}
 
 ---
 
-## 12.2 Key References
+## 12.2 Variable References
+
+Variable references allow you to access data from various sources in your workflow using dot notation and array indexing. You can reference input data, component outputs, job results, and environment variables. The `${...}` syntax supports nested object paths, array access, and context-specific variables depending on where they are used in your configuration.
 
 ### 12.2.1 Single Value Reference
 
@@ -26,7 +28,65 @@ ${input.user.email}         # Nested path
 ${response.data[0].id}      # Array index
 ```
 
-### 12.2.2 Streaming Reference (Per-Chunk)
+### 12.2.2 Component Response Variable Sources
+
+**Important**: Different component types use different variables to reference response data.
+
+| Component Type | Variable Source | Streaming Variable | Description |
+|----------------|----------------|-------------------|-------------|
+| `http-client` | `${response}` | `${response[]}` | HTTP response data |
+| `http-server` | `${response}` | `${response[]}` | Managed HTTP server response |
+| `model` | `${result}` | `${result[]}` | Model inference result |
+| `model-trainer` | `${result}` | - | Training result metrics |
+| `vector-store` | `${response}` | - | Vector search/insert result |
+| `datasets` | `${result}` | - | Dataset samples |
+| `text-splitter` | `${result}` | - | Split text chunks |
+| `image-processor` | `${result}` | - | Processed image |
+| `workflow` | `${output}` | - | Sub-workflow output |
+| `shell` | `${stdout}`, `${stderr}` | - | Command execution result |
+| `mcp-client` | `${response}` | - | MCP server response |
+
+**Usage Examples**:
+
+```yaml
+# HTTP client - uses response
+components:
+  - id: openai-api
+    type: http-client
+    endpoint: https://api.openai.com/v1/chat/completions
+    output: ${response.choices[0].message.content}
+
+# Local model - uses result
+components:
+  - id: local-model
+    type: model
+    task: text-generation
+    model: gpt2
+    output: ${result}
+
+# Vector store - uses response
+components:
+  - id: chroma-db
+    type: vector-store
+    driver: chroma
+    action: search
+    output: ${response}
+
+# Shell command - uses stdout/stderr
+components:
+  - id: run-script
+    type: shell
+    command: echo "Hello"
+    output: ${stdout}
+```
+
+**Key Rules**:
+- HTTP-based components (`http-client`, `http-server`, `vector-store`, `mcp-client`) → `${response}`
+- Local execution components (`model`, `datasets`, `text-splitter`, `image-processor`) → `${result}`
+- Shell commands → `${stdout}` or `${stderr}`
+- Workflow invocation → `${output}`
+
+### 12.2.3 Streaming Reference (Per-Chunk)
 
 ```yaml
 ${result[]}                 # Model streaming chunks
@@ -34,14 +94,19 @@ ${response[]}               # HTTP streaming chunks
 ${result[0]}                # Specific index chunk
 ```
 
-### 12.2.3 Job Result Reference
+Components that support streaming:
+- `http-client` (with stream_format setting) → `${response[]}`
+- `http-server` (with stream_format setting) → `${response[]}`
+- `model` (with streaming: true) → `${result[]}`
+
+### 12.2.4 Job Result Reference
 
 ```yaml
 ${jobs.job-id.output}           # Specific job output
 ${jobs.job-id.output.field}     # Specific field of job output
 ```
 
-### 12.2.4 Environment Variables
+### 12.2.5 Environment Variables
 
 ```yaml
 ${env.OPENAI_API_KEY}       # Environment variable
@@ -51,6 +116,8 @@ ${env.PORT | 8080}          # With default value
 ---
 
 ## 12.3 Type Conversion
+
+Type conversion allows you to transform variable values into specific data types using the `as` keyword. This ensures data compatibility between components and enables proper formatting for different use cases. You can convert between basic types (text, number, boolean), extract specific fields from object arrays, and handle media types with format specifications.
 
 ### 12.3.1 Basic Types
 
@@ -98,7 +165,9 @@ ${output as image/png;base64}           # Decode Base64 string to image
 
 ---
 
-## 12.4 Output Format
+## 12.4 Variable Format
+
+Variable format specifiers control how data is serialized and transmitted to clients or downstream components. Using the semicolon (`;`) syntax after type conversion, you can specify streaming protocols like SSE for real-time data delivery, or optimize data presentation for Web UI.
 
 ### 12.4.1 SSE (Server-Sent Events) Streaming
 
@@ -110,10 +179,10 @@ output: ${output as text;sse-text}
 output: ${output as text;sse-json}
 ```
 
-### 12.4.2 Gradio UI Specific
+### 12.4.2 Web UI Specific
 
 ```yaml
-# Gradio automatically selects UI component
+# Web UI automatically selects UI component
 ${input.photo as image}      # Image upload widget
 ${output as audio}           # Audio player
 ${result as text}            # Textbox
@@ -122,6 +191,8 @@ ${result as text}            # Textbox
 ---
 
 ## 12.5 Default Values
+
+Default values provide fallback data when a variable is missing or null. Using the pipe (`|`) operator, you can specify literal values or reference environment variables. When using an environment variable as a default, you can additionally specify one level of literal default for that environment variable.
 
 ### 12.5.1 Literal Default Values
 
@@ -191,7 +262,7 @@ ${input.temperature as slider/0,2,0.1 | 0.7}
 
 ```yaml
 ${input.prompt as text}
-# UI hint not included in type (Gradio auto-detects)
+# UI hint not included in type (Web UI auto-detects)
 ```
 
 ---

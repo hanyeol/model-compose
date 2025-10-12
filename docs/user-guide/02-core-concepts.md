@@ -422,16 +422,32 @@ body:
 
 #### 3. Component Response
 
+**Important**: Response variables differ by component type.
+
 ```yaml
-${response.field}
+${response.field}   # HTTP-based components (http-client, http-server, vector-store, etc.)
+${result.field}     # Local execution components (model, datasets, text-splitter, etc.)
+${stdout}           # Shell commands (shell)
+${output}           # Workflow invocation (workflow)
 ```
 
-Example:
+Examples:
 ```yaml
+# HTTP client
 output:
   message: ${response.choices[0].message.content}
   tokens: ${response.usage.total_tokens}
+
+# Local model
+output:
+  generated_text: ${result}
+
+# Shell command
+output:
+  command_output: ${stdout}
 ```
+
+> 💡 **Detailed Variable Reference**: See [12.2.2 Component Response Variable Sources](./12-variable-binding.md#1222-component-response-variable-sources) for a complete list of variable sources for all component types.
 
 #### 4. Previous Job Output
 

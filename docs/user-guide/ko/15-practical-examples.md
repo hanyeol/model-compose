@@ -10,6 +10,20 @@
 
 **목표**: OpenAI GPT-4o를 사용한 간단한 대화형 챗봇 구축
 
+**아키텍처 다이어그램**:
+
+```mermaid
+graph TD
+    A[사용자] -->|① 프롬프트 입력| B[Web UI<br/>Port 8081]
+    B -->|② HTTP 요청| C[Controller<br/>Port 8080]
+    C -->|③ 워크플로우 실행| D[http-client<br/>컴포넌트]
+    D -->|④ API 호출| E[OpenAI GPT-4o<br/>API]
+    E -->|⑤ 응답| D
+    D -->|⑥ 결과| C
+    C -->|⑦ JSON 응답| B
+    B -->|⑧ 텍스트 표시| A
+```
+
 **구성 파일** (`model-compose.yml`):
 
 ```yaml
@@ -105,6 +119,44 @@ component:
 - SSE 프로토콜을 사용한 실시간 스트리밍
 - Gradio에서 자동으로 타이핑 효과 적용
 - 긴 응답에 대한 즉각적인 피드백
+
+**스트리밍 흐름 다이어그램**:
+
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant W as Web UI
+    participant C as Controller
+    participant HC as http-client
+    participant API as OpenAI API
+
+    U->>W: 프롬프트 입력
+    W->>C: POST /api/workflows/runs<br/>(wait_for_completion: true)
+    C->>HC: 워크플로우 실행<br/>(stream: true)
+    HC->>API: POST /chat/completions<br/>(stream: true)
+
+    Note over API: 응답 생성 시작
+
+    API-->>HC: SSE: chunk 1
+    HC-->>C: ${response[]} chunk 1
+    C-->>W: SSE: "data: Once"
+    W-->>U: 화면에 "Once" 표시
+
+    API-->>HC: SSE: chunk 2
+    HC-->>C: ${response[]} chunk 2
+    C-->>W: SSE: "data:  upon"
+    W-->>U: 화면에 " upon" 추가
+
+    API-->>HC: SSE: chunk 3
+    HC-->>C: ${response[]} chunk 3
+    C-->>W: SSE: "data:  a"
+    W-->>U: 화면에 " a" 추가
+
+    Note over API: 응답 완료
+    API-->>HC: [DONE]
+    HC-->>C: 스트림 종료
+    C-->>W: 연결 종료
+```
 
 ---
 
@@ -239,6 +291,19 @@ ELEVENLABS_API_KEY=...
 1. GPT-4o가 영감을 주는 명언 생성
 2. ElevenLabs API가 명언을 음성으로 변환
 3. Web UI에서 텍스트와 오디오 모두 표시
+
+**워크플로우 다이어그램**:
+
+```mermaid
+graph TD
+    A[사용자 입력] -->|① 트리거| B[Job 1: job-quote<br/>write-inspiring-quote]
+    B -->|② GPT-4o API 호출| C[OpenAI API]
+    C -->|③ 명언 텍스트 반환| B
+    B -->|④ output.quote<br/>depends_on: job-quote| D[Job 2: job-voice<br/>text-to-speech]
+    D -->|⑤ TTS API 호출<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
+    E -->|⑥ 음성 데이터 반환<br/>Base64| D
+    D -->|⑦ 최종 출력| F[결과<br/>quote: 텍스트<br/>audio: Base64]
+```
 
 ---
 
@@ -520,6 +585,24 @@ components:
 - Milvus 고성능 벡터 검색
 - GPT-4o를 사용한 컨텍스트 기반 답변 생성
 
+**RAG 파이프라인 다이어그램**:
+
+```mermaid
+graph TD
+    A[사용자 질문<br/>input.query] -->|① 시작| B[Job 1: embed-query<br/>embedding-model]
+    B -->|② 텍스트 임베딩| C[Embedding Vector<br/>768차원]
+
+    C -->|③ 벡터 입력| D[Job 2: search-docs<br/>milvus-store]
+    D -->|④ 벡터 유사도 검색| E[(Milvus DB<br/>documents 컬렉션)]
+    E -->|⑤ Top 5 문서 반환| D
+
+    D -->|⑥ 검색 결과<br/>text + source| F[Job 3: generate-answer<br/>llm GPT-4o]
+    F -->|⑦ 컨텍스트 기반 질의| G[OpenAI API]
+    G -->|⑧ 답변 생성| F
+
+    F -->|⑨ 최종 답변| H[결과 반환]
+```
+
 ---
 
 ## 15.5 Slack 봇 (MCP)
@@ -778,6 +861,20 @@ components:
 2. **텍스트 향상**: GPT-4o가 설명을 더 자세하고 매력적으로 재작성
 3. **음성 변환**: OpenAI TTS가 텍스트를 음성으로 변환
 
+**멀티모달 파이프라인 다이어그램**:
+
+```mermaid
+graph TD
+    A[이미지 입력<br/>input.image] -->|① 시작| B[Job 1: analyze-image<br/>BLIP 모델]
+    B -->|② 이미지→텍스트<br/>로컬 추론| C[기본 설명<br/>output.text]
+
+    C -->|③ 설명 텍스트| D[Job 2: enhance-description<br/>GPT-4o]
+    D -->|④ 설명 향상<br/>API 호출| E[상세한 설명<br/>output.message]
+
+    E -->|⑤ 향상된 텍스트| F[Job 3: text-to-speech<br/>OpenAI TTS]
+    F -->|⑥ 텍스트→음성<br/>API 호출| G[최종 결과<br/>description: 텍스트<br/>audio: 음성]
+```
+
 ### 15.6.2 음성 → 텍스트 → 번역 → 음성 파이프라인
 
 **목표**: 음성을 다른 언어로 번역하여 음성으로 출력
@@ -859,6 +956,20 @@ components:
 2. **번역**: Helsinki-NLP 모델이 텍스트 번역
 3. **음성 합성**: OpenAI TTS가 번역된 텍스트를 음성으로 변환
 4. **결과 출력**: 원본 텍스트, 번역 텍스트, 번역된 음성
+
+**음성 번역 파이프라인 다이어그램**:
+
+```mermaid
+graph TD
+    A[음성 입력<br/>input.audio] -->|① 시작| B[Job 1: transcribe<br/>Whisper]
+    B -->|② 음성→텍스트<br/>OpenAI API| C[원본 텍스트<br/>output.text]
+
+    C -->|③ 원본 텍스트| D[Job 2: translate<br/>Helsinki-NLP]
+    D -->|④ 텍스트 번역<br/>로컬 모델| E[번역된 텍스트<br/>output.text]
+
+    E -->|⑤ 번역된 텍스트| F[Job 3: synthesize<br/>OpenAI TTS]
+    F -->|⑥ 텍스트→음성<br/>API 호출| G[최종 결과<br/>original: 원본<br/>translated: 번역<br/>audio: 음성]
+```
 
 ---
 

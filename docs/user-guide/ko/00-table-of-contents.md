@@ -163,7 +163,7 @@
   - 12.3.5 [Base64 디코딩](./12-variable-binding.md#1235-base64-디코딩)
 - 12.4 [출력 포맷](./12-variable-binding.md#124-출력-포맷)
   - 12.4.1 [SSE (Server-Sent Events) 스트리밍](./12-variable-binding.md#1241-sse-server-sent-events-스트리밍)
-  - 12.4.2 [Gradio UI 특화](./12-variable-binding.md#1242-gradio-ui-특화)
+  - 12.4.2 [Web UI 특화](./12-variable-binding.md#1242-gradio-ui-특화)
 - 12.5 [기본값](./12-variable-binding.md#125-기본값)
   - 12.5.1 [리터럴 기본값](./12-variable-binding.md#1251-리터럴-기본값)
   - 12.5.2 [환경 변수 기본값](./12-variable-binding.md#1252-환경-변수-기본값)

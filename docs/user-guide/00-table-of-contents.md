@@ -160,7 +160,7 @@ This document outlines the structure of the model-compose user guide.
   - 12.3.5 [Base64 Decoding](./12-variable-binding.md#1235-base64-decoding)
 - 12.4 [Output Format](./12-variable-binding.md#124-output-format)
   - 12.4.1 [SSE (Server-Sent Events) Streaming](./12-variable-binding.md#1241-sse-server-sent-events-streaming)
-  - 12.4.2 [Gradio UI Specific](./12-variable-binding.md#1242-gradio-ui-specific)
+  - 12.4.2 [Web UI Specific](./12-variable-binding.md#1242-gradio-ui-specific)
 - 12.5 [Default Values](./12-variable-binding.md#125-default-values)
   - 12.5.1 [Literal Default Values](./12-variable-binding.md#1251-literal-default-values)
   - 12.5.2 [Environment Variable Default Values](./12-variable-binding.md#1252-environment-variable-default-values)

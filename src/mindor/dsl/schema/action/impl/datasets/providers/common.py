@@ -11,8 +11,8 @@ class CommonDatasetsLoadActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.LOAD]
     provider: DatasetsProvider = Field(..., description="Datasets provider configuration.")
     split: Optional[str] = Field(default=None, description="Dataset split to load (e.g., 'train', 'test', 'validation').")
-    streaming: bool = Field(default=False, description="Enable streaming mode for large datasets.")
-    keep_in_memory: bool = Field(default=False, description="Keep dataset in memory.")
+    streaming: Union[bool, str] = Field(default=False, description="Enable streaming mode for large datasets.")
+    keep_in_memory: Union[bool, str] = Field(default=False, description="Keep dataset in memory.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache downloaded files.")
     save_infos: Union[bool, str] = Field(default=False, description="Save dataset info to cache.")
     fraction: Optional[Union[float, str]] = Field(default=None, description="Fraction of dataset to load.")

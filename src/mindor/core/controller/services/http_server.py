@@ -176,6 +176,10 @@ class HttpServerController(ControllerService):
             
             return self._render_task_response(state, output_only)
 
+        @self.router.get("/health")
+        async def health_check():
+            return JSONResponse(content={ "status": "ok" })
+
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(
             self.app,

@@ -9,7 +9,7 @@ class CommonControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
     type: ControllerType = Field(..., description="Type of controller to run.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=1, description="Maximum number of tasks that can be executed concurrently.")
+    max_concurrent_count: int = Field(default=0, description="Maximum number of tasks that can be executed concurrently.")
     threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
     webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")
 

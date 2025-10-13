@@ -8,9 +8,90 @@
 
 변수 바인딩은 `${...}` 구문을 사용하여 데이터를 참조하고 변환합니다.
 
-**기본 구조**:
+### 기본 구조
+
+변수 바인딩은 **데이터 소스**(`key.path`)를 지정하고, 필요에 따라 **타입 변환**(`as type/subtype;format`), **기본값**(`| default`), **메타데이터**(`@(annotation)`)를 추가할 수 있습니다.
+
+**전체 문법**:
 ```
 ${key.path as type/subtype;format | default @(annotation)}
+```
+
+데이터 소스(`key.path`) 이외의 모든 요소는 선택적입니다.
+
+**사용 예시**:
+
+```yaml
+# 가장 간단한 형태
+${input.name}
+
+# 타입과 서브타입 지정
+${input.avatar as image/png}
+
+# 포맷 지정
+${input.photo as image;base64}
+
+# 기본값 설정
+${input.count | 0}
+
+# 메타데이터 추가
+${input.email @(description "이메일 주소")}
+
+# 모든 요소 조합
+${input.profile as image/jpeg;url | ${env.DEFAULT_AVATAR} @(description "프로필 사진")}
+```
+
+### 구성 요소 상세 설명
+
+| 요소 | 설명 | 예시 |
+|------|------|------|
+| **key** | 데이터 소스 (`input`, `response`, `result`, `env` 등) | `input`, `response`, `jobs` |
+| **path** | 점 표기법으로 중첩 필드 접근, 배열 인덱스 지원 | `.user.name`, `.data[0].id` |
+| **type** | 데이터 타입 (상세 목록은 아래 참조) | `image`, `audio`, `text`, `json` |
+| **subtype** | 타입의 세부 형식 (MIME subtype 또는 파일 확장자) | `jpeg`, `png`, `mp3`, `wav` |
+| **format** | 데이터 포맷 (상세 목록은 아래 참조) | `base64`, `url`, `sse-json` |
+| **default** | 값이 없을 때 사용할 기본값 | `"기본값"`, `0`, `${env.FALLBACK}` |
+| **annotation** | 변수에 대한 메타데이터 (UI 힌트, 설명, 검증 규칙 등) | `@(description "사용자명")` |
+
+**데이터 타입(`type`) 상세 목록**:
+
+| 카테고리 | 타입 | 설명 |
+|----------|------|------|
+| **기본형** | `string` | 일반 문자열 |
+| | `text` | 긴 텍스트 (textarea) |
+| | `integer` | 정수 |
+| | `number` | 숫자 (정수/실수) |
+| | `boolean` | 참/거짓 |
+| | `list` | 배열 |
+| | `json` | JSON 객체 |
+| | `object[]` | 객체 배열 |
+| **인코딩** | `base64` | Base64 인코딩 데이터 |
+| | `markdown` | 마크다운 텍스트 |
+| **미디어** | `image` | 이미지 파일 |
+| | `audio` | 오디오 파일 |
+| | `video` | 비디오 파일 |
+| | `file` | 일반 파일 |
+| **UI** | `select` | 드롭다운 선택 |
+
+**데이터 포맷(`format`) 상세 목록**:
+
+| 카테고리 | 포맷 | 설명 |
+|----------|------|------|
+| **인코딩** | `base64` | Base64 인코딩 형식 |
+| **소스** | `url` | URL 주소 형식 |
+| | `path` | 파일 경로 형식 |
+| | `stream` | 스트림 데이터 |
+| **스트리밍 출력** | `sse-text` | Server-Sent Events 텍스트 형식 |
+| | `sse-json` | Server-Sent Events JSON 형식 |
+
+**간단한 예시**:
+```yaml
+${input.name}                                      # 기본: 이름 필드만
+${input.avatar as image/png}                       # 타입 변환: PNG 이미지로
+${input.bio as markdown}                           # 타입 지정: 마크다운 텍스트
+${input.photo as image;base64}                     # 포맷 지정: base64 인코딩
+${input.count | 0}                                 # 기본값: 없으면 0
+${input.email @(description "이메일 주소")}           # 주석: UI에 레이블 표시
 ```
 
 ---

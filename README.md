@@ -1,3 +1,12 @@
+```
+                      _      _                                                
+  _ __ ___   ___   __| | ___| |       ___ ___  _ __ ___  _ __   ___  ___  ___ 
+ | '_ ` _ \ / _ \ / _` |/ _ \ |_____ / __/ _ \| '_ ` _ \| '_ \ / _ \/ __|/ _ \
+ | | | | | | (_) | (_| |  __/ |_____| (_| (_) | | | | | | |_) | (_) \__ \  __/
+ |_| |_| |_|\___/ \__,_|\___|_|      \___\___/|_| |_| |_| .__/ \___/|___/\___|
+                                                        |_|                   
+```
+
 # model-compose: Declarative AI Model and Workflow Orchestrator
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
@@ -47,12 +56,12 @@ pip install -e .
 
 ## 📚 Documentation
 
-**📖 [Complete User Guide](docs/user-guide/00-table-of-contents.md)**
+**📖 [Complete User Guide](docs/user-guide/README.md)**
 
 Need help getting started or want to explore advanced features? Check out our comprehensive user guide:
 
-- **🌍 English**: [User Guide](docs/user-guide/00-table-of-contents.md)
-- **🇰🇷 한국어**: [사용자 가이드](docs/user-guide/ko/00-table-of-contents.md)
+- **🌍 English**: [User Guide](docs/user-guide/README.md)
+- **🇰🇷 한국어**: [사용자 가이드](docs/user-guide/ko/README.md)
 
 The guide covers everything from basic concepts to advanced workflows, including:
 - Getting started with model-compose
@@ -194,7 +203,7 @@ This minimal example defines a simple workflow that calls the OpenAI ChatGPT API
 
 You can easily expand this example by adding more components (e.g., text-to-speech, image generation) and connecting them through additional jobs.
 
-> 📁 For more example configurations including listeners, gateways, and advanced workflows, check the [examples directory](examples) or refer to the [User Guide](docs/user-guide/00-table-of-contents.md).
+> 📁 For more example configurations including listeners, gateways, and advanced workflows, check the [examples directory](examples) or refer to the [User Guide](docs/user-guide/README.md).
 
 ---
 ## 🖥 Web UI

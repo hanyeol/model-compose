@@ -6,12 +6,80 @@ This chapter provides a detailed explanation of model-compose's variable binding
 
 ## 12.1 Basic Syntax
 
-Variable binding uses the `${...}` syntax to reference and transform data.
+### Basic Structure
 
-**Basic Structure**:
+Variable binding specifies a **data source** (`key.path`), and optionally adds **type conversion** (`as type/subtype;format`), **default value** (`| default`), and **metadata** (`@(annotation)`).
+
+**Full Syntax**:
 ```
 ${key.path as type/subtype;format | default @(annotation)}
 ```
+
+All elements except the data source (`key.path`) are optional.
+
+**Progressive Examples**:
+```yaml
+# Simplest form
+${input.name}
+
+# With type and subtype
+${input.avatar as image/png}
+
+# With format
+${input.photo as image;base64}
+
+# With default value
+${input.count | 0}
+
+# With metadata
+${input.email @(description "Email Address")}
+
+# All elements combined
+${input.profile as image/jpeg;url | ${env.DEFAULT_AVATAR} @(description "Profile Picture")}
+```
+
+### Component Description
+
+| Element | Description | Examples |
+|---------|-------------|----------|
+| **key** | Data source (`input`, `response`, `result`, `env`, etc.) | `input`, `response`, `jobs` |
+| **path** | Nested field access with dot notation, array indexing supported | `.user.name`, `.data[0].id` |
+| **type** | Data type (see detailed list below) | `image`, `audio`, `text`, `json` |
+| **subtype** | Detailed format of the type (MIME subtype or file extension) | `jpeg`, `png`, `mp3`, `wav` |
+| **format** | Data format (source format or output format during conversion) | `base64`, `url`, `sse-json` |
+| **default** | Default value when value is missing | `"default"`, `0`, `${env.FALLBACK}` |
+| **annotation** | Metadata for variable (UI hints, description, validation rules, etc.) | `@(description "Username")` |
+
+**Data type(`type`) Detailed List**:
+
+| Category | Type | Description |
+|----------|------|-------------|
+| **Primitives** | `string` | General string |
+| | `text` | Long text (textarea) |
+| | `integer` | Integer number |
+| | `number` | Number (integer/float) |
+| | `boolean` | True/false |
+| | `list` | Array |
+| | `json` | JSON object |
+| | `object[]` | Array of objects |
+| **Encoding** | `base64` | Base64 encoded data |
+| | `markdown` | Markdown text |
+| **Media** | `image` | Image file |
+| | `audio` | Audio file |
+| | `video` | Video file |
+| | `file` | General file |
+| **UI** | `select` | Dropdown selection |
+
+**Data format(`format`) Detailed List**:
+
+| Category | Format | Description |
+|----------|--------|-------------|
+| **Encoding** | `base64` | Base64 encoding format |
+| **Source** | `url` | URL address format |
+| | `path` | File path format |
+| | `stream` | Stream data |
+| **Streaming Output** | `sse-text` | Server-Sent Events text format |
+| | `sse-json` | Server-Sent Events JSON format |
 
 ---
 

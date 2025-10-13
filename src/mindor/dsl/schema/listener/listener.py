@@ -4,7 +4,8 @@ from .impl import *
 
 ListenerConfig = Annotated[
     Union[ 
-        HttpCallbackListenerConfig
+        HttpCallbackListenerConfig,
+        HttpTriggerListenerConfig
     ],
     Field(discriminator="type")
 ]

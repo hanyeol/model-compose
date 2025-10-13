@@ -23,7 +23,7 @@ from .runtime.native import NativeRuntimeLauncher
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, os
+import asyncio, ulid, os, threading
 
 class TaskStatus(str, Enum):
     PENDING    = "pending"
@@ -39,6 +39,19 @@ class TaskState:
     error: Optional[Any] = None
 
 class ControllerService(AsyncService):
+    _shared_instance: Optional["ControllerService"] = None
+    _shared_instance_lock = threading.Lock()
+    
+    def __new__(cls, *args, **kwargs):
+        with cls._shared_instance_lock:
+            if cls._shared_instance is None:
+                cls._shared_instance = super().__new__(cls, args, kwargs)
+        return cls._shared_instance
+
+    @classmethod
+    def get_shared_instance(cls) -> Optional["ControllerService"]:
+        return cls._shared_instance
+
     def __init__(
         self,
         config: ControllerConfig,

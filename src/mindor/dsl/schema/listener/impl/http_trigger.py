@@ -8,7 +8,6 @@ class HttpTriggerConfig(BaseModel):
     method: Literal["GET", "POST", "PUT", "DELETE", "PATCH"] = Field(default="POST", description="HTTP method this trigger endpoint will accept.")
     bulk: Union[bool, str] = Field(default=False, description="Whether this trigger handles multiple items in a single request.")
     item: Optional[str] = Field(default=None, description="Field path to extract individual items from the trigger payload.")
-    identify_by: Optional[str] = Field(default=None, description="Field path used to identify and match trigger responses to pending requests.")
     workflow: str = Field(..., description="Workflow ID to execute when this endpoint is triggered.")
     input: Optional[Dict[str, str]] = Field(default=None, description="Workflow input parameters.")
 

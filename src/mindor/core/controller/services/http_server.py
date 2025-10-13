@@ -42,6 +42,10 @@ class TaskResult(BaseModel):
             error=instance.error
         )
 
+    @classmethod
+    def to_dict(cls, instance: TaskState) -> Dict[str, Any]:
+        return cls.from_instance(instance).model_dump(exclude_none=True)
+
 class WorkflowVariableResult(BaseModel):
     name: Optional[str]
     type: str
@@ -83,6 +87,10 @@ class WorkflowSimpleResult(BaseModel):
             default=instance.default or None
         )
 
+    @classmethod
+    def to_dict(cls, instance: WorkflowSchema) -> Dict[str, Any]:
+        return cls.from_instance(instance).model_dump(exclude_none=True)
+
 class WorkflowSchemaResult(BaseModel):
     workflow_id: str
     title: Optional[str] = None
@@ -101,6 +109,10 @@ class WorkflowSchemaResult(BaseModel):
             output=[ cls._to_variable_result(variable) for variable in instance.output ],
             default=instance.default or None
         )
+
+    @classmethod
+    def to_dict(cls, instance: WorkflowSchema) -> Dict[str, Any]:
+        return cls.from_instance(instance).model_dump(exclude_none=True)
 
     @classmethod
     def _to_variable_result(cls, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[WorkflowVariableResult, WorkflowVariableGroupResult]:
@@ -235,7 +247,7 @@ class HttpServerController(ControllerService):
         return self._render_task_state(state)
 
     def _render_task_state(self, state: TaskState) -> Response:
-        return JSONResponse(content=TaskResult.from_instance(state).model_dump(exclude_none=True))
+        return JSONResponse(content=TaskResult.to_dict(state))
 
     def _render_task_output(self, state: TaskState) -> Response:
         if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING ]:
@@ -283,13 +295,13 @@ class HttpServerController(ControllerService):
 
     def _render_workflow_list(self, workflows: Dict[str, WorkflowSchema]) -> Response:
         return JSONResponse(content=[
-            WorkflowSimpleResult.from_instance(workflow).model_dump(exclude_none=True) for workflow in workflows.values()
+            WorkflowSimpleResult.to_dict(workflow) for workflow in workflows.values()
         ])
 
     def _render_workflow_schemas(self, workflows: Dict[str, WorkflowSchema]) -> Response:
         return JSONResponse(content=[
-            WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True) for workflow in workflows.values()
+            WorkflowSchemaResult.to_dict(workflow) for workflow in workflows.values()
         ])
 
     def _render_workflow_schema(self, workflow: WorkflowSchema) -> Response:
-        return JSONResponse(content=WorkflowSchemaResult.from_instance(workflow).model_dump(exclude_none=True))
+        return JSONResponse(content=WorkflowSchemaResult.to_dict(workflow))

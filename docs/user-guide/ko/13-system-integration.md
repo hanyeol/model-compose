@@ -4,11 +4,39 @@
 
 ---
 
-## 13.1 리스너 - 비동기 콜백
+## 13.1 리스너 개요
 
-리스너는 외부 시스템으로부터 비동기 콜백을 받기 위한 HTTP 서버입니다. 작업 완료 후 결과를 콜백 URL로 전송하는 외부 서비스와 통합할 때 유용합니다.
+리스너는 외부 시스템과 통신하기 위한 HTTP 서버입니다. 두 가지 유형이 있습니다:
 
-### 13.1.1 리스너 개요
+### 리스너 유형
+
+**1. HTTP Callback (http-callback)**
+- 외부 서비스로부터 **비동기 콜백**을 받아 **대기 중인 워크플로우**에 결과 전달
+- 용도: 비동기 API 통합 (이미지 생성, 비디오 처리, 결제 처리 등)
+- 특징: 워크플로우가 콜백을 기다리며 일시 정지
+
+**2. HTTP Trigger (http-trigger)**
+- 외부에서 HTTP 요청을 받아 **즉시 워크플로우 실행**
+- 용도: 웹훅 수신, REST API 엔드포인트 제공
+- 특징: 요청마다 새로운 워크플로우 인스턴스 시작
+
+### 차이점 비교
+
+| 특징 | HTTP Callback | HTTP Trigger |
+|------|--------------|--------------|
+| **목적** | 비동기 작업 결과 수신 | 워크플로우 시작 |
+| **워크플로우** | 이미 실행 중 (대기 상태) | 새로 시작 |
+| **응답** | 대기 중인 워크플로우에 전달 | 즉시 워크플로우 실행 |
+| **사용 예** | 외부 API 콜백, 결제 완료 알림 | 웹훅 수신, REST API |
+| **식별자** | `identify_by`로 대기 워크플로우 매칭 | 항상 새 워크플로우 시작 |
+
+---
+
+## 13.2 HTTP Callback 리스너
+
+HTTP Callback 리스너는 외부 서비스로부터 비동기 콜백을 받기 위한 서버입니다. 작업 완료 후 결과를 콜백 URL로 전송하는 외부 서비스와 통합할 때 유용합니다.
+
+### 13.2.1 HTTP Callback 개요
 
 많은 외부 서비스는 즉시 결과를 반환하지 않고, 작업을 큐에 넣고 나중에 콜백 URL로 결과를 전송합니다:
 
@@ -18,7 +46,7 @@
 4. 작업 완료 후 콜백 URL로 결과 전송
 5. 리스너가 콜백을 받아 대기 중인 요청에 결과 전달
 
-### 13.1.2 HTTP 콜백 리스너 기본 설정
+### 13.2.2 HTTP Callback 기본 설정
 
 **간단한 콜백 리스너:**
 
@@ -33,7 +61,7 @@ listener:
 
 이 설정은 `http://0.0.0.0:8090/callback` 엔드포인트를 생성하여 POST 요청을 받습니다.
 
-### 13.1.3 콜백 엔드포인트 설정
+### 13.2.3 콜백 엔드포인트 설정
 
 **단일 콜백 엔드포인트:**
 
@@ -89,7 +117,7 @@ listener:
       result: ${body.data}
 ```
 
-### 13.1.4 콜백 필드 설명
+### 13.2.4 콜백 필드 설명
 
 | 필드 | 설명 | 필수 | 기본값 |
 |------|------|------|--------|
@@ -103,7 +131,7 @@ listener:
 | `bulk` | 단일 요청에 여러 항목 처리 | 아니오 | `false` |
 | `item` | bulk 모드에서 항목 추출 경로 | 아니오 | - |
 
-### 13.1.5 벌크(Bulk) 콜백 처리
+### 13.2.5 벌크(Bulk) 콜백 처리
 
 여러 작업의 결과를 하나의 콜백 요청으로 받는 경우:
 
@@ -140,7 +168,7 @@ listener:
 }
 ```
 
-### 13.1.6 리스너 고급 설정
+### 13.2.6 HTTP Callback 고급 설정
 
 **동시 실행 제어:**
 
@@ -165,9 +193,9 @@ listener:
   path: /callback
 ```
 
-### 13.1.7 리스너 작동 원리
+### 13.2.7 HTTP Callback 작동 원리
 
-리스너는 외부 서비스로부터 콜백을 받아 대기 중인 워크플로우에 결과를 전달합니다.
+HTTP Callback 리스너는 외부 서비스로부터 콜백을 받아 대기 중인 워크플로우에 결과를 전달합니다.
 
 **기본 구조:**
 
@@ -219,9 +247,9 @@ sequenceDiagram
 6. **리스너 수신**: 리스너가 콜백 수신하여 `identify_by`로 워크플로우 찾기
 7. **워크플로우 재개**: 결과를 워크플로우에 전달하고 다음 단계 실행
 
-**중요**: 리스너는 로컬 포트에서만 실행되므로, 외부에서 접근하려면 **게이트웨이**(13.2절)가 필요합니다. 게이트웨이와 함께 사용하는 완전한 예제는 **13.3절**에서 다룹니다.
+**중요**: 리스너는 로컬 포트에서만 실행되므로, 외부에서 접근하려면 **게이트웨이**(13.4절)가 필요합니다. 게이트웨이와 함께 사용하는 완전한 예제는 **13.5절**에서 다룹니다.
 
-### 13.1.8 콜백 데이터 매핑
+### 13.2.8 콜백 데이터 매핑
 
 리스너는 콜백 요청의 다양한 필드를 추출하고 매핑할 수 있습니다.
 
@@ -271,11 +299,324 @@ Content-Type: application/json
 
 ---
 
-## 13.2 게이트웨이 - HTTP 터널링
+## 13.3 HTTP Trigger 리스너
+
+HTTP Trigger 리스너는 외부에서 HTTP 요청을 받아 즉시 워크플로우를 실행합니다. REST API 엔드포인트나 웹훅 수신기로 사용할 수 있습니다.
+
+### 13.3.1 HTTP Trigger 개요
+
+HTTP Trigger는 다음과 같은 상황에서 유용합니다:
+
+- 외부 시스템에서 웹훅을 보낼 때 (GitHub, Slack, Discord 등)
+- REST API 엔드포인트를 제공할 때
+- 수동으로 워크플로우를 트리거할 때
+- 이벤트 기반 자동화가 필요할 때
+
+**HTTP Callback과의 차이:**
+- HTTP Callback: 이미 실행 중인 워크플로우에 결과 전달
+- HTTP Trigger: 새로운 워크플로우 인스턴스 시작
+
+### 13.3.2 HTTP Trigger 기본 설정
+
+**간단한 트리거 리스너:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /trigger/my-workflow
+  method: POST
+  workflow: my-workflow
+  input:
+    data: ${body.data}
+```
+
+이 설정은 `http://0.0.0.0:8091/trigger/my-workflow` 엔드포인트를 생성하여 POST 요청을 받으면 `my-workflow`를 실행합니다.
+
+### 13.3.3 트리거 엔드포인트 설정
+
+**단일 트리거 엔드포인트:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /webhooks/deploy
+  method: POST
+  workflow: deployment-workflow
+  input:
+    repo: ${body.repository.name}
+    branch: ${body.ref}
+    commit: ${body.head_commit.id}
+```
+
+**다중 트리거 엔드포인트:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  base_path: /api
+  triggers:
+    # GitHub push 이벤트
+    - path: /github/push
+      method: POST
+      workflow: ci-build
+      input:
+        repository: ${body.repository.name}
+        branch: ${body.ref}
+        pusher: ${body.pusher.name}
+
+    # Slack 슬래시 커맨드
+    - path: /slack/command
+      method: POST
+      workflow: slack-handler
+      input:
+        command: ${body.command}
+        text: ${body.text}
+        user: ${body.user_name}
+        channel: ${body.channel_id}
+
+    # 수동 트리거
+    - path: /manual/process
+      method: POST
+      workflow: data-processing
+      input:
+        file_url: ${body.file_url}
+        options: ${body.options}
+```
+
+### 13.3.4 트리거 필드 설명
+
+| 필드 | 설명 | 필수 | 기본값 |
+|------|------|------|--------|
+| `path` | 트리거 엔드포인트 경로 | 예 | - |
+| `method` | HTTP 메서드 | 아니오 | `POST` |
+| `workflow` | 실행할 워크플로우 ID | 예 | - |
+| `input` | 워크플로우 입력 매핑 | 아니오 | 전체 body |
+| `bulk` | 단일 요청에 여러 워크플로우 실행 | 아니오 | `false` |
+| `item` | bulk 모드에서 항목 추출 경로 | 아니오 | - |
+
+### 13.3.5 벌크(Bulk) 트리거 처리
+
+여러 항목을 한 번에 처리하여 각각 워크플로우를 실행하는 경우:
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /batch/process
+  method: POST
+  bulk: true
+  item: ${body.items}
+  workflow: item-processor
+  input:
+    item_id: ${item.id}
+    data: ${item.data}
+```
+
+요청 예시:
+```json
+{
+  "items": [
+    {"id": "item-1", "data": {"name": "Product A"}},
+    {"id": "item-2", "data": {"name": "Product B"}},
+    {"id": "item-3", "data": {"name": "Product C"}}
+  ]
+}
+```
+
+이 요청은 3개의 워크플로우 인스턴스를 각각 실행합니다.
+
+### 13.3.6 HTTP Trigger 작동 원리
+
+**기본 구조:**
+
+```yaml
+listener:
+  type: http-trigger
+  port: 8091
+  path: /webhook
+  workflow: my-workflow
+  input:
+    data: ${body.data}
+```
+
+**실행 흐름:**
+
+```mermaid
+sequenceDiagram
+    participant E as 외부 시스템
+    participant T as HTTP Trigger<br/>(포트 8091)
+    participant W as 워크플로우 엔진
+
+    Note over E,W: 1. HTTP 요청 수신
+    E->>T: POST http://localhost:8091/webhook<br/>{data: "example"}
+
+    Note over T: 2. 입력 매핑
+    T->>T: input.data = body.data
+
+    Note over T,W: 3. 워크플로우 시작
+    T->>W: run_workflow("my-workflow", {data: "example"})
+
+    Note over W: 4. 워크플로우 실행<br/>(비동기, 백그라운드)
+
+    Note over T,E: 5. 즉시 응답
+    T-->>E: 200 OK<br/>{status: "triggered"}
+
+    Note over W: 6. 워크플로우 완료<br/>(트리거와 독립적으로 실행)
+```
+
+**단계별 설명:**
+
+1. **요청 수신**: 외부 시스템이 트리거 엔드포인트에 HTTP 요청 전송
+2. **입력 매핑**: `input` 설정에 따라 요청 데이터를 워크플로우 입력으로 변환
+3. **워크플로우 시작**: 새로운 워크플로우 인스턴스를 비동기로 시작
+4. **즉시 응답**: 워크플로우 완료를 기다리지 않고 즉시 응답 반환
+5. **백그라운드 실행**: 워크플로우는 독립적으로 실행 완료
+
+**중요**: HTTP Trigger는 워크플로우를 시작만 하고 즉시 응답을 반환합니다. 워크플로우 결과를 받으려면 별도의 메커니즘(HTTP Callback, 데이터베이스 조회 등)이 필요합니다.
+
+### 13.3.7 입력 데이터 매핑
+
+HTTP 요청의 다양한 필드를 워크플로우 입력으로 매핑할 수 있습니다.
+
+**Body 필드 추출:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    name: ${body.user.name}
+    email: ${body.user.email}
+    action: ${body.action}
+```
+
+**Query 파라미터 사용:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    token: ${query.token}
+    mode: ${query.mode}
+    data: ${body}
+```
+
+요청 예시:
+```
+POST http://localhost:8091/webhook?token=abc123&mode=test
+Content-Type: application/json
+
+{
+  "user": "john",
+  "action": "process"
+}
+```
+
+**복합 매핑:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    auth:
+      token: ${query.token}
+      user: ${body.user}
+    payload:
+      data: ${body.data}
+      timestamp: ${body.timestamp}
+```
+
+### 13.3.8 실전 예제
+
+**GitHub Webhook 처리:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /github/webhook
+  method: POST
+  workflow: github-ci
+  input:
+    event: ${body.action}
+    repository: ${body.repository.full_name}
+    branch: ${body.pull_request.head.ref}
+    author: ${body.pull_request.user.login}
+
+workflow:
+  id: github-ci
+  title: GitHub CI Pipeline
+  jobs:
+    - id: checkout
+      component: git-clone
+      input:
+        repo: ${input.repository}
+        branch: ${input.branch}
+
+    - id: test
+      component: run-tests
+      depends_on: [checkout]
+
+    - id: notify
+      component: github-status
+      depends_on: [test]
+      input:
+        status: ${jobs.test.output.success}
+```
+
+**Slack Webhook 처리:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /slack/events
+  method: POST
+  workflow: slack-bot
+  input:
+    event_type: ${body.event.type}
+    user: ${body.event.user}
+    channel: ${body.event.channel}
+    text: ${body.event.text}
+
+workflow:
+  id: slack-bot
+  title: Slack Bot Handler
+  jobs:
+    - id: process-message
+      component: nlp-analyzer
+      input:
+        text: ${input.text}
+
+    - id: reply
+      component: slack-client
+      depends_on: [process-message]
+      input:
+        channel: ${input.channel}
+        text: "처리 완료: ${jobs.process-message.output.result}"
+```
+
+---
+
+## 13.4 게이트웨이 - HTTP 터널링
 
 게이트웨이는 로컬에서 실행 중인 서비스를 인터넷에 공개하기 위한 터널링 서비스입니다. 개발 환경에서 웹훅을 테스트하거나 외부에서 로컬 서비스에 접근해야 할 때 유용합니다.
 
-### 13.2.1 게이트웨이 개요
+### 13.4.1 게이트웨이 개요
 
 게이트웨이는 다음과 같은 상황에서 필요합니다:
 
@@ -288,7 +629,7 @@ Content-Type: application/json
 - HTTP 터널: ngrok, Cloudflare Tunnel
 - SSH 터널: SSH 리버스 터널
 
-### 13.2.2 HTTP 터널 - ngrok
+### 13.4.2 HTTP 터널 - ngrok
 
 ngrok는 로컬 서버를 공개 URL로 노출하는 터널링 서비스입니다.
 
@@ -350,7 +691,7 @@ workflow:
 6. ngrok가 요청을 로컬 포트 8090으로 전달
 7. 리스너가 콜백 수신 후 워크플로우에 결과 전달
 
-### 13.2.3 HTTP 터널 - Cloudflare
+### 13.4.3 HTTP 터널 - Cloudflare
 
 Cloudflare Tunnel은 무료로 사용할 수 있는 안정적인 터널링 서비스입니다.
 
@@ -373,7 +714,7 @@ gateway:
 | 안정성 | 높음 | 매우 높음 |
 | 속도 | 빠름 | 매우 빠름 |
 
-### 13.2.4 SSH 터널
+### 13.4.4 SSH 터널
 
 SSH 리버스 터널을 사용하여 원격 서버를 통해 로컬 서비스를 공개합니다.
 
@@ -412,7 +753,7 @@ SSH 터널은 다음과 같은 경우에 유용합니다:
 - 방화벽이 ngrok/Cloudflare를 차단할 때
 - 기업 환경에서 승인된 서버만 사용해야 할 때
 
-### 13.2.5 게이트웨이 고급 설정
+### 13.4.5 게이트웨이 고급 설정
 
 **런타임 설정:**
 
@@ -445,7 +786,7 @@ components:
       local_port: ${gateway:8080.port}
 ```
 
-### 13.2.6 실전 예제: Slack 봇 웹훅
+### 13.4.6 실전 예제: Slack 봇 웹훅
 
 ```yaml
 gateway:
@@ -498,11 +839,11 @@ Slack 앱 설정:
 
 ---
 
-## 13.3 리스너와 게이트웨이 함께 사용
+## 13.5 리스너와 게이트웨이 함께 사용
 
 리스너와 게이트웨이를 함께 사용하면 로컬 환경에서도 외부 웹훅을 안전하게 테스트할 수 있습니다.
 
-### 13.3.1 통합 예제: 비동기 이미지 처리
+### 13.5.1 통합 예제: 비동기 이미지 처리
 
 ```yaml
 gateway:
@@ -589,7 +930,7 @@ workflow:
         savings: ${output.original_size - output.compressed_size}
 ```
 
-### 13.3.2 아키텍처 다이어그램
+### 13.5.2 아키텍처 다이어그램
 
 ```mermaid
 sequenceDiagram
@@ -626,7 +967,7 @@ sequenceDiagram
 5. **매칭 단계**: 리스너가 task_id로 대기 중인 워크플로우 찾기
 6. **완료 단계**: 워크플로우에 결과 전달 및 다음 단계 진행
 
-### 13.3.3 프로덕션 환경 고려사항
+### 13.5.3 프로덕션 환경 고려사항
 
 **로컬 개발:**
 ```yaml
@@ -664,7 +1005,7 @@ components:
 
 ---
 
-## 13.4 시스템 통합 모범 사례
+## 13.6 시스템 통합 모범 사례
 
 ### 1. 리스너 보안
 

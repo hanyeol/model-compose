@@ -4,11 +4,39 @@ This chapter covers listeners and gateways for integrating with external systems
 
 ---
 
-## 13.1 Listeners - Async Callbacks
+## 13.1 Listener Overview
 
-Listeners are HTTP servers for receiving asynchronous callbacks from external systems. They are useful when integrating with external services that send results to a callback URL after task completion.
+Listeners are HTTP servers for communicating with external systems. There are two types:
 
-### 13.1.1 Listener Overview
+### Listener Types
+
+**1. HTTP Callback (http-callback)**
+- Receives **asynchronous callbacks** from external services and delivers results to **waiting workflows**
+- Use cases: Async API integration (image generation, video processing, payment processing, etc.)
+- Behavior: Workflow pauses while waiting for callback
+
+**2. HTTP Trigger (http-trigger)**
+- Receives HTTP requests from external sources and **immediately starts workflows**
+- Use cases: Webhook reception, REST API endpoint provision
+- Behavior: Each request starts a new workflow instance
+
+### Comparison
+
+| Feature | HTTP Callback | HTTP Trigger |
+|---------|--------------|--------------|
+| **Purpose** | Receive async task results | Start workflows |
+| **Workflow** | Already running (waiting state) | Newly started |
+| **Response** | Delivered to waiting workflow | Immediately start workflow |
+| **Examples** | External API callbacks, payment completion | Webhook reception, REST API |
+| **Identifier** | Match waiting workflow via `identify_by` | Always start new workflow |
+
+---
+
+## 13.2 HTTP Callback Listener
+
+HTTP Callback listeners receive asynchronous callbacks from external services. Useful when integrating with services that send results to a callback URL after task completion.
+
+### 13.2.1 HTTP Callback Overview
 
 Many external services don't return results immediately, but queue tasks and send results to a callback URL later:
 
@@ -18,7 +46,7 @@ Many external services don't return results immediately, but queue tasks and sen
 4. After completion, sends results to callback URL
 5. Listener receives callback and delivers results to waiting workflow
 
-### 13.1.2 Basic HTTP Callback Listener Configuration
+### 13.2.2 Basic HTTP Callback Configuration
 
 **Simple callback listener:**
 
@@ -33,7 +61,7 @@ listener:
 
 This creates an endpoint at `http://0.0.0.0:8090/callback` that accepts POST requests.
 
-### 13.1.3 Callback Endpoint Configuration
+### 13.2.3 Callback Endpoint Configuration
 
 **Single callback endpoint:**
 
@@ -89,7 +117,7 @@ listener:
       result: ${body.data}
 ```
 
-### 13.1.4 Callback Field Descriptions
+### 13.2.4 Callback Field Descriptions
 
 | Field | Description | Required | Default |
 |-------|-------------|----------|---------|
@@ -103,7 +131,7 @@ listener:
 | `bulk` | Handle multiple items in single request | No | `false` |
 | `item` | Item extraction path in bulk mode | No | - |
 
-### 13.1.5 Bulk Callback Processing
+### 13.2.5 Bulk Callback Processing
 
 When receiving results for multiple tasks in a single callback request:
 
@@ -140,7 +168,7 @@ Callback request example:
 }
 ```
 
-### 13.1.6 Advanced Listener Configuration
+### 13.2.6 Advanced HTTP Callback Configuration
 
 **Concurrency control:**
 
@@ -165,7 +193,7 @@ listener:
   path: /callback
 ```
 
-### 13.1.7 How Listeners Work
+### 13.2.7 How HTTP Callback Works
 
 Listeners receive callbacks from external services and deliver results to waiting workflows.
 
@@ -219,9 +247,9 @@ sequenceDiagram
 6. **Listener receives**: Listener receives callback and finds workflow using `identify_by`
 7. **Workflow resumes**: Delivers result to workflow and executes next step
 
-**Important**: Listeners only run on local ports. To access from external sources, you need a **gateway** (Section 13.2). Complete examples using gateways are covered in **Section 13.3**.
+**Important**: Listeners only run on local ports. To access from external sources, you need a **gateway** (Section 13.4). Complete examples using gateways are covered in **Section 13.5**.
 
-### 13.1.8 Callback Data Mapping
+### 13.2.8 Callback Data Mapping
 
 Listeners can extract and map various fields from callback requests.
 
@@ -271,11 +299,324 @@ Content-Type: application/json
 
 ---
 
-## 13.2 Gateways - HTTP Tunneling
+## 13.3 HTTP Trigger Listener
+
+HTTP Trigger listeners receive HTTP requests from external sources and immediately start workflows. Can be used as REST API endpoints or webhook receivers.
+
+### 13.3.1 HTTP Trigger Overview
+
+HTTP Triggers are useful in these situations:
+
+- Receiving webhooks from external systems (GitHub, Slack, Discord, etc.)
+- Providing REST API endpoints
+- Manually triggering workflows
+- Event-driven automation needs
+
+**Difference from HTTP Callback:**
+- HTTP Callback: Deliver results to already running workflows
+- HTTP Trigger: Start new workflow instances
+
+### 13.3.2 Basic HTTP Trigger Configuration
+
+**Simple trigger listener:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /trigger/my-workflow
+  method: POST
+  workflow: my-workflow
+  input:
+    data: ${body.data}
+```
+
+This creates an endpoint at `http://0.0.0.0:8091/trigger/my-workflow` that starts `my-workflow` when receiving a POST request.
+
+### 13.3.3 Trigger Endpoint Configuration
+
+**Single trigger endpoint:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /webhooks/deploy
+  method: POST
+  workflow: deployment-workflow
+  input:
+    repo: ${body.repository.name}
+    branch: ${body.ref}
+    commit: ${body.head_commit.id}
+```
+
+**Multiple trigger endpoints:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  base_path: /api
+  triggers:
+    # GitHub push event
+    - path: /github/push
+      method: POST
+      workflow: ci-build
+      input:
+        repository: ${body.repository.name}
+        branch: ${body.ref}
+        pusher: ${body.pusher.name}
+
+    # Slack slash command
+    - path: /slack/command
+      method: POST
+      workflow: slack-handler
+      input:
+        command: ${body.command}
+        text: ${body.text}
+        user: ${body.user_name}
+        channel: ${body.channel_id}
+
+    # Manual trigger
+    - path: /manual/process
+      method: POST
+      workflow: data-processing
+      input:
+        file_url: ${body.file_url}
+        options: ${body.options}
+```
+
+### 13.3.4 Trigger Field Descriptions
+
+| Field | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `path` | Trigger endpoint path | Yes | - |
+| `method` | HTTP method | No | `POST` |
+| `workflow` | Workflow ID to execute | Yes | - |
+| `input` | Workflow input mapping | No | Entire body |
+| `bulk` | Execute multiple workflows in single request | No | `false` |
+| `item` | Item extraction path in bulk mode | No | - |
+
+### 13.3.5 Bulk Trigger Processing
+
+When processing multiple items at once, executing a workflow for each:
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /batch/process
+  method: POST
+  bulk: true
+  item: ${body.items}
+  workflow: item-processor
+  input:
+    item_id: ${item.id}
+    data: ${item.data}
+```
+
+Request example:
+```json
+{
+  "items": [
+    {"id": "item-1", "data": {"name": "Product A"}},
+    {"id": "item-2", "data": {"name": "Product B"}},
+    {"id": "item-3", "data": {"name": "Product C"}}
+  ]
+}
+```
+
+This request starts 3 separate workflow instances.
+
+### 13.3.6 How HTTP Trigger Works
+
+**Basic structure:**
+
+```yaml
+listener:
+  type: http-trigger
+  port: 8091
+  path: /webhook
+  workflow: my-workflow
+  input:
+    data: ${body.data}
+```
+
+**Execution flow:**
+
+```mermaid
+sequenceDiagram
+    participant E as External System
+    participant T as HTTP Trigger<br/>(Port 8091)
+    participant W as Workflow Engine
+
+    Note over E,W: 1. Receive HTTP request
+    E->>T: POST http://localhost:8091/webhook<br/>{data: "example"}
+
+    Note over T: 2. Input mapping
+    T->>T: input.data = body.data
+
+    Note over T,W: 3. Start workflow
+    T->>W: run_workflow("my-workflow", {data: "example"})
+
+    Note over W: 4. Execute workflow<br/>(async, background)
+
+    Note over T,E: 5. Immediate response
+    T-->>E: 200 OK<br/>{status: "triggered"}
+
+    Note over W: 6. Workflow completes<br/>(runs independently of trigger)
+```
+
+**Step-by-step explanation:**
+
+1. **Receive request**: External system sends HTTP request to trigger endpoint
+2. **Input mapping**: Convert request data to workflow input according to `input` configuration
+3. **Start workflow**: Start new workflow instance asynchronously
+4. **Immediate response**: Return response immediately without waiting for workflow completion
+5. **Background execution**: Workflow runs independently to completion
+
+**Important**: HTTP Trigger only starts workflows and returns immediately. To receive workflow results, you need separate mechanisms (HTTP Callback, database queries, etc.).
+
+### 13.3.7 Input Data Mapping
+
+You can map various fields from HTTP requests to workflow inputs.
+
+**Body field extraction:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    name: ${body.user.name}
+    email: ${body.user.email}
+    action: ${body.action}
+```
+
+**Using query parameters:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    token: ${query.token}
+    mode: ${query.mode}
+    data: ${body}
+```
+
+Request example:
+```
+POST http://localhost:8091/webhook?token=abc123&mode=test
+Content-Type: application/json
+
+{
+  "user": "john",
+  "action": "process"
+}
+```
+
+**Complex mapping:**
+
+```yaml
+listener:
+  type: http-trigger
+  path: /webhook
+  workflow: my-workflow
+  input:
+    auth:
+      token: ${query.token}
+      user: ${body.user}
+    payload:
+      data: ${body.data}
+      timestamp: ${body.timestamp}
+```
+
+### 13.3.8 Practical Examples
+
+**GitHub Webhook handling:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /github/webhook
+  method: POST
+  workflow: github-ci
+  input:
+    event: ${body.action}
+    repository: ${body.repository.full_name}
+    branch: ${body.pull_request.head.ref}
+    author: ${body.pull_request.user.login}
+
+workflow:
+  id: github-ci
+  title: GitHub CI Pipeline
+  jobs:
+    - id: checkout
+      component: git-clone
+      input:
+        repo: ${input.repository}
+        branch: ${input.branch}
+
+    - id: test
+      component: run-tests
+      depends_on: [checkout]
+
+    - id: notify
+      component: github-status
+      depends_on: [test]
+      input:
+        status: ${jobs.test.output.success}
+```
+
+**Slack Webhook handling:**
+
+```yaml
+listener:
+  type: http-trigger
+  host: 0.0.0.0
+  port: 8091
+  path: /slack/events
+  method: POST
+  workflow: slack-bot
+  input:
+    event_type: ${body.event.type}
+    user: ${body.event.user}
+    channel: ${body.event.channel}
+    text: ${body.event.text}
+
+workflow:
+  id: slack-bot
+  title: Slack Bot Handler
+  jobs:
+    - id: process-message
+      component: nlp-analyzer
+      input:
+        text: ${input.text}
+
+    - id: reply
+      component: slack-client
+      depends_on: [process-message]
+      input:
+        channel: ${input.channel}
+        text: "Processing complete: ${jobs.process-message.output.result}"
+```
+
+---
+
+## 13.4 Gateways - HTTP Tunneling
 
 Gateways are tunneling services for exposing locally running services to the internet. Useful for testing webhooks in development or when external access to local services is needed.
 
-### 13.2.1 Gateway Overview
+### 13.4.1 Gateway Overview
 
 Gateways are needed in these scenarios:
 
@@ -288,7 +629,7 @@ Gateways are needed in these scenarios:
 - HTTP tunnels: ngrok, Cloudflare Tunnel
 - SSH tunnels: SSH reverse tunnels
 
-### 13.2.2 HTTP Tunnel - ngrok
+### 13.4.2 HTTP Tunnel - ngrok
 
 ngrok is a tunneling service that exposes local servers with public URLs.
 
@@ -350,7 +691,7 @@ Execution flow:
 6. ngrok forwards request to local port 8090
 7. Listener receives callback and delivers result to workflow
 
-### 13.2.3 HTTP Tunnel - Cloudflare
+### 13.4.3 HTTP Tunnel - Cloudflare
 
 Cloudflare Tunnel is a stable tunneling service available for free.
 
@@ -373,7 +714,7 @@ gateway:
 | Stability | High | Very high |
 | Speed | Fast | Very fast |
 
-### 13.2.4 SSH Tunnel
+### 13.4.4 SSH Tunnel
 
 Use SSH reverse tunnels to expose local services through remote servers.
 
@@ -412,7 +753,7 @@ SSH tunnels are useful when:
 - Firewalls block ngrok/Cloudflare
 - Corporate environments require approved servers only
 
-### 13.2.5 Advanced Gateway Configuration
+### 13.4.5 Advanced Gateway Configuration
 
 **Runtime configuration:**
 
@@ -445,7 +786,7 @@ components:
       local_port: ${gateway:8080.port}
 ```
 
-### 13.2.6 Real-world Example: Slack Bot Webhook
+### 13.4.6 Real-world Example: Slack Bot Webhook
 
 ```yaml
 gateway:
@@ -498,11 +839,11 @@ Slack app setup:
 
 ---
 
-## 13.3 Using Listeners and Gateways Together
+## 13.5 Using Listeners and Gateways Together
 
 Using listeners and gateways together allows safe testing of external webhooks in local environments.
 
-### 13.3.1 Integration Example: Async Image Processing
+### 13.5.1 Integration Example: Async Image Processing
 
 ```yaml
 gateway:
@@ -589,7 +930,7 @@ workflow:
         savings: ${output.original_size - output.compressed_size}
 ```
 
-### 13.3.2 Architecture Diagram
+### 13.5.2 Architecture Diagram
 
 ```mermaid
 sequenceDiagram
@@ -626,7 +967,7 @@ sequenceDiagram
 5. **Matching stage**: Listener finds waiting workflow by task_id
 6. **Completion stage**: Delivers result to workflow and proceeds to next step
 
-### 13.3.3 Production Environment Considerations
+### 13.5.3 Production Environment Considerations
 
 **Local development:**
 ```yaml
@@ -664,7 +1005,7 @@ components:
 
 ---
 
-## 13.4 System Integration Best Practices
+## 13.6 System Integration Best Practices
 
 ### 1. Listener Security
 

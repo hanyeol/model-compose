@@ -18,6 +18,7 @@
 - **Flexible I/O Routing**: Connect inputs and outputs between jobs using clean, scoped variables—no glue code needed.
 - **Streaming Mode Support**: Stream real-time outputs from models and APIs, enabling interactive applications and faster feedback loops.
 - **Run Locally, Serve Remotely**: Execute workflows from the CLI or expose them as HTTP or MCP endpoints with an optional Web UI.
+- **MCP Server Integration**: Instantly transform your workflows into Model Context Protocol (MCP) tools—just change the controller type, no code changes needed.
 - **Async Webhook Integration**: Handle asynchronous callbacks from external services with built-in HTTP callback listeners.
 - **Event-Driven Workflows**: Trigger workflows via HTTP webhooks with HTTP trigger listeners for real-time automation.
 - **Secure Tunneling**: Expose local services to the internet using gateway support (ngrok, Cloudflare Tunnel, SSH tunnels).

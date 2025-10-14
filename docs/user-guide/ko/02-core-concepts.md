@@ -17,12 +17,12 @@ controller:
   port: 8080
 
 components:
-  # 재사용 가능한 작업 단위 정의
+  # 독립적인 실행 모듈 정의
   - id: my-component
     type: http-client
 
 workflows:
-  # 완전한 AI 파이프라인 정의
+  # 워크플로우 파이프라인 정의
   - id: my-workflow
     jobs:
       - component: my-component
@@ -37,7 +37,7 @@ gateways:
 ### 주요 섹션
 
 1. **controller** (필수): 워크플로우 실행 환경 설정
-2. **components** (선택): 재사용 가능한 컴포넌트 정의
+2. **components** (선택): 독립적인 실행 모듈 정의
 3. **workflows** (선택): 워크플로우 파이프라인 정의
 4. **listeners** (선택): 이벤트 리스너 정의
 5. **gateways** (선택): 터널링 서비스 정의

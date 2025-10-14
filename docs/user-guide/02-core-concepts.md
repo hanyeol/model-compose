@@ -17,12 +17,12 @@ controller:
   port: 8080
 
 components:
-  # Defines reusable action units
+  # Defines executable modules
   - id: my-component
     type: http-client
 
 workflows:
-  # Defines complete AI pipelines
+  # Defines workflow pipelines
   - id: my-workflow
     jobs:
       - component: my-component
@@ -37,7 +37,7 @@ gateways:
 ### Main Sections
 
 1. **controller** (required): Workflow execution environment configuration
-2. **components** (optional): Reusable component definitions
+2. **components** (optional): Executable module definitions
 3. **workflows** (optional): Workflow pipeline definitions
 4. **listeners** (optional): Event listener definitions
 5. **gateways** (optional): Tunneling service definitions

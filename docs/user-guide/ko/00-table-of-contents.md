@@ -1,4 +1,4 @@
-# model-compose 사용자 가이드 - 목차
+# 목차
 
 이 문서는 model-compose 사용자 가이드의 구조를 설명합니다.
 

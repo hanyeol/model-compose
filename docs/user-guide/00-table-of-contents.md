@@ -1,4 +1,4 @@
-# model-compose User Guide - Table of Contents
+# Table of Contents
 
 This document outlines the structure of the model-compose user guide.
 

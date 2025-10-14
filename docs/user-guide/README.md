@@ -5,7 +5,7 @@ Welcome to the **model-compose** user guide! This comprehensive documentation wi
 ## 📖 Documentation Languages
 
 - **🌍 English**: You're reading it! (Current directory)
-- **🇰🇷 한국어**: [한국어 사용자 가이드](./ko/00-table-of-contents.md)
+- **🇰🇷 한국어**: [한국어 사용자 가이드](./ko/README.md)
 
 ---
 

@@ -5,7 +5,7 @@
 ## 📖 문서 언어
 
 - **🇰🇷 한국어**: 현재 읽고 계신 문서입니다! (현재 디렉토리)
-- **🌍 English**: [English User Guide](../00-table-of-contents.md)
+- **🌍 English**: [English User Guide](../README.md)
 
 ---
 

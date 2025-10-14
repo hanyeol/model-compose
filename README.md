@@ -36,24 +36,6 @@
 
 ---
 
-## 📦 Installation
-
-```
-pip install model-compose
-```
-
-Or install from source:
-
-```
-git clone https://github.com/hanyeol/model-compose.git
-cd model-compose
-pip install -e .
-```
-
-> Requires: Python 3.9 or higher
-
----
-
 ## 📚 Documentation
 
 **📖 [Complete User Guide](docs/user-guide/README.md)**
@@ -71,6 +53,24 @@ The guide covers everything from basic concepts to advanced workflows, including
 - System integration with listeners and gateways
 - Deployment strategies
 - Practical examples and troubleshooting
+
+---
+
+## 📦 Installation
+
+```
+pip install model-compose
+```
+
+Or install from source:
+
+```
+git clone https://github.com/hanyeol/model-compose.git
+cd model-compose
+pip install -e .
+```
+
+> Requires: Python 3.9 or higher
 
 ---
 

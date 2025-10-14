@@ -92,11 +92,13 @@ workflows:
           data: ${jobs.step1.output.data1}
         output:
           data2: ${output}
+        depends_on: [ step1] 
 
       - id: step3
         component: component3
         input:
           data: ${jobs.step2.output.data2}
+        depends_on: [ step2 ]
 ```
 
 ### Example: Text Generation and Speech Synthesis
@@ -145,6 +147,7 @@ workflows:
           voice_id: ${input.voice_id}
         output:
           audio: ${output}
+        depends_on: [ generate ]
 ```
 
 Structure diagram:
@@ -197,6 +200,7 @@ workflows:
             encoding: utf-8
         output:
           transformed: ${output.result}
+        depends_on: [ fetch ]
 
       - id: save
         component: data-saver
@@ -204,6 +208,7 @@ workflows:
           data: ${jobs.transform.output.transformed}
           metadata: ${jobs.fetch.output.metadata}
           destination: ${input.target_path}
+        depends_on: [ transform, fetch ]
 ```
 
 Structure diagram:
@@ -479,6 +484,7 @@ workflows:
         value: false
         if_true: process
         if_false: reject
+        depends_on: [ moderate ]
 
       - id: process
         component: text-processor
@@ -486,11 +492,13 @@ workflows:
           text: ${input.text}
         output:
           result: ${output.result}
+        depends_on: [ check-safety ]
 
       - id: reject
         component: rejection-handler
         input:
           text: ${input.text}
+        depends_on: [ check-safety ]
 ```
 
 Structure diagram:
@@ -561,21 +569,25 @@ workflows:
         component: image-processor
         input:
           data: ${input.data}
+        depends_on: [ route-by-type ]
 
       - id: process-video
         component: video-processor
         input:
           data: ${input.data}
+        depends_on: [ route-by-type ]
 
       - id: process-audio
         component: audio-processor
         input:
           data: ${input.data}
+        depends_on: [ route-by-type ]
 
       - id: process-unknown
         component: default-processor
         input:
           data: ${input.data}
+        depends_on: [ route-by-type ]
 ```
 
 Structure diagram:
@@ -767,6 +779,7 @@ workflows:
           messages: ${input.messages}
         output:
           result: ${output.text}
+        depends_on: [ try-gpt4o ]
 ```
 
 Structure diagram:
@@ -801,6 +814,7 @@ workflows:
           error_message: ${jobs.risky-operation.error.message}
           error_code: ${jobs.risky-operation.error.code}
           timestamp: ${jobs.risky-operation.error.timestamp}
+        depends_on: [ risky-operation ]
 ```
 
 ---
@@ -881,6 +895,7 @@ workflows:
       - id: analyze
         component: analyzer
         input: ${jobs.preprocess.output}
+        depends_on: [ preprocess ]
 ```
 
 ### 4. Document Inputs and Outputs
@@ -917,6 +932,7 @@ workflows:
       - id: fallback-task
         component: backup-service
         condition: ${jobs.important-task.error}
+        depends_on: [ important-task ]
 ```
 
 ---

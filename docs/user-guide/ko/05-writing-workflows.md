@@ -2,6 +2,59 @@
 
 이 장에서는 model-compose의 워크플로우 작성 방법을 다룹니다. 단일 작업부터 복잡한 다단계 워크플로우까지, 작업 간 데이터 전달, 조건부 실행, 스트리밍 모드, 에러 핸들링을 학습합니다.
 
+## 워크플로우란?
+
+**워크플로우(Workflow)**는 하나 이상의 작업(Job)을 조합하여 완전한 실행 파이프라인을 구성하는 실행 단위입니다. 워크플로우를 작성할 때는 다음 세 가지 핵심 요소를 정의해야 합니다:
+
+### 1. 작업(Job) 정의
+각 작업은 실행할 컴포넌트와 해당 컴포넌트에 전달할 입력을 지정합니다.
+
+```yaml
+jobs:
+  - id: my-task
+    component: my-component
+    input:
+      field: ${input.value}
+```
+
+### 2. 작업 간 의존성 관계
+`depends_on` 필드로 작업 간의 실행 순서를 명시합니다. 이를 통해 순차 실행, 병렬 실행, 복잡한 실행 그래프를 정의할 수 있습니다.
+
+```yaml
+jobs:
+  - id: task1
+    component: component1
+
+  - id: task2
+    component: component2
+    depends_on: [ task1 ]  # task1 완료 후 실행
+```
+
+### 3. 입출력 정의
+- **입력(input)**: 워크플로우 입력 또는 이전 작업의 출력을 현재 작업의 입력으로 매핑
+- **출력(output)**: 작업의 결과를 워크플로우 출력 또는 다음 작업의 입력으로 사용
+
+각 작업의 출력은 `${jobs.job_id.output}`에 저장되어, 이후 작업들에서 입력으로 참조할 수 있습니다.
+
+```yaml
+jobs:
+  - id: task1
+    component: component1
+    input:
+      data: ${input.user_data}     # 워크플로우 입력 사용
+    output:
+      result: ${output.processed}  # 작업 출력 정의
+    # 위 출력은 jobs.task1.output 변수에 저장됨
+
+  - id: task2
+    component: component2
+    input:
+      data: ${jobs.task1.output.result}  # task1의 출력을 입력으로 사용
+    depends_on: [ task1 ]
+```
+
+이 세 가지 요소를 조합하여 간단한 단일 작업부터 복잡한 다단계 파이프라인까지 다양한 워크플로우를 구성할 수 있습니다.
+
 ---
 
 ## 5.1 단일 작업 워크플로우
@@ -74,6 +127,21 @@ workflows:
 
 여러 작업을 순차적으로 실행하는 워크플로우입니다.
 
+### 작업 의존성 (depends_on)
+
+`depends_on` 필드를 사용하여 작업 간의 실행 순서를 명시적으로 정의할 수 있습니다. 이 필드는 현재 작업이 시작되기 전에 완료되어야 하는 작업들의 ID 목록을 지정합니다.
+
+**기본 형식:**
+```yaml
+depends_on: [ job-id-1, job-id-2 ]
+```
+
+**주요 특징:**
+- 여러 작업에 대한 의존성을 배열로 지정 가능
+- 의존성이 있는 작업들이 모두 완료된 후에 실행
+- 의존성이 없는 작업들은 병렬로 실행 가능
+- 순환 의존성(circular dependency)은 허용되지 않음
+
 ### 순차 실행
 
 ```yaml
@@ -92,13 +160,91 @@ workflows:
           data: ${jobs.step1.output.data1}
         output:
           data2: ${output}
-        depends_on: [ step1 ]
+        depends_on: [step1]  # step1이 완료된 후 실행
 
       - id: step3
         component: component3
         input:
           data: ${jobs.step2.output.data2}
-        depends_on: [ step2 ]
+        depends_on: [step2]  # step2가 완료된 후 실행
+```
+
+### 병렬 실행
+
+의존성이 없는 작업들은 동시에 실행됩니다:
+
+```yaml
+workflows:
+  - id: parallel-workflow
+    jobs:
+      - id: task-a
+        component: component-a
+        input: ${input}
+        output:
+          result-a: ${output}
+
+      - id: task-b
+        component: component-b
+        input: ${input}
+        output:
+          result-b: ${output}
+      # task-a와 task-b는 병렬로 실행됨
+
+      - id: combine
+        component: combiner
+        input:
+          data-a: ${jobs.task-a.output.result-a}
+          data-b: ${jobs.task-b.output.result-b}
+        depends_on: [task-a, task-b]  # 두 작업이 모두 완료된 후 실행
+```
+
+### 복잡한 의존성 그래프
+
+```yaml
+workflows:
+  - id: complex-workflow
+    jobs:
+      - id: fetch-data
+        component: data-fetcher
+        output:
+          raw: ${output}
+
+      - id: process-1
+        component: processor-1
+        input: ${jobs.fetch-data.output.raw}
+        depends_on: [fetch-data]
+        output:
+          processed-1: ${output}
+
+      - id: process-2
+        component: processor-2
+        input: ${jobs.fetch-data.output.raw}
+        depends_on: [fetch-data]
+        output:
+          processed-2: ${output}
+
+      - id: merge
+        component: merger
+        input:
+          data-1: ${jobs.process-1.output.processed-1}
+          data-2: ${jobs.process-2.output.processed-2}
+        depends_on: [process-1, process-2]
+        output:
+          merged: ${output}
+```
+
+구조 다이어그램:
+```mermaid
+graph TB
+    fetch["Job: fetch-data"]
+    proc1["Job: process-1"]
+    proc2["Job: process-2"]
+    merge["Job: merge"]
+
+    fetch --> proc1
+    fetch --> proc2
+    proc1 --> merge
+    proc2 --> merge
 ```
 
 ### 예제: 텍스트 생성 후 음성 변환

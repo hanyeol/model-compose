@@ -2,6 +2,59 @@
 
 This chapter covers how to write workflows in model-compose. From single-job workflows to complex multi-step pipelines, you'll learn about data passing between jobs, conditional execution, streaming mode, and error handling.
 
+## What is a Workflow?
+
+A **Workflow** is an execution unit that combines one or more jobs to form a complete execution pipeline. When writing a workflow, you need to define three core elements:
+
+### 1. Job Definitions
+Each job specifies the component to execute and the input to pass to that component.
+
+```yaml
+jobs:
+  - id: my-task
+    component: my-component
+    input:
+      field: ${input.value}
+```
+
+### 2. Job Dependencies
+Use the `depends_on` field to explicitly define the execution order between jobs. This allows you to create sequential execution, parallel execution, or complex execution graphs.
+
+```yaml
+jobs:
+  - id: task1
+    component: component1
+
+  - id: task2
+    component: component2
+    depends_on: [task1]  # Executes after task1 completes
+```
+
+### 3. Input/Output Definitions
+- **input**: Maps workflow input or previous job outputs to the current job's input
+- **output**: Uses the job's result as workflow output or as input for subsequent jobs
+
+Each job's output is stored in `${jobs.job_id.output}` and can be referenced as input by subsequent jobs.
+
+```yaml
+jobs:
+  - id: task1
+    component: component1
+    input:
+      data: ${input.user_data}     # Use workflow input
+    output:
+      result: ${output.processed}
+    # Output is stored in jobs.task1.output
+
+  - id: task2
+    component: component2
+    input:
+      data: ${jobs.task1.output.result}  # Use task1's output as input
+    depends_on: [task1]
+```
+
+By combining these three elements, you can build workflows ranging from simple single jobs to complex multi-step pipelines.
+
 ---
 
 ## 5.1 Single-Job Workflows
@@ -74,6 +127,21 @@ workflows:
 
 Workflows that execute multiple jobs sequentially.
 
+### Job Dependencies (depends_on)
+
+Use the `depends_on` field to explicitly define the execution order between jobs. This field specifies a list of job IDs that must complete before the current job starts.
+
+**Basic format:**
+```yaml
+depends_on: [job-id-1, job-id-2]
+```
+
+**Key features:**
+- Can specify dependencies on multiple jobs as an array
+- Executes after all dependent jobs complete
+- Jobs without dependencies can run in parallel
+- Circular dependencies are not allowed
+
 ### Sequential Execution
 
 ```yaml
@@ -92,13 +160,91 @@ workflows:
           data: ${jobs.step1.output.data1}
         output:
           data2: ${output}
-        depends_on: [ step1] 
+        depends_on: [step1]  # Executes after step1 completes
 
       - id: step3
         component: component3
         input:
           data: ${jobs.step2.output.data2}
-        depends_on: [ step2 ]
+        depends_on: [step2]  # Executes after step2 completes
+```
+
+### Parallel Execution
+
+Jobs without dependencies run concurrently:
+
+```yaml
+workflows:
+  - id: parallel-workflow
+    jobs:
+      - id: task-a
+        component: component-a
+        input: ${input}
+        output:
+          result-a: ${output}
+
+      - id: task-b
+        component: component-b
+        input: ${input}
+        output:
+          result-b: ${output}
+      # task-a and task-b run in parallel
+
+      - id: combine
+        component: combiner
+        input:
+          data-a: ${jobs.task-a.output.result-a}
+          data-b: ${jobs.task-b.output.result-b}
+        depends_on: [task-a, task-b]  # Executes after both tasks complete
+```
+
+### Complex Dependency Graph
+
+```yaml
+workflows:
+  - id: complex-workflow
+    jobs:
+      - id: fetch-data
+        component: data-fetcher
+        output:
+          raw: ${output}
+
+      - id: process-1
+        component: processor-1
+        input: ${jobs.fetch-data.output.raw}
+        depends_on: [fetch-data]
+        output:
+          processed-1: ${output}
+
+      - id: process-2
+        component: processor-2
+        input: ${jobs.fetch-data.output.raw}
+        depends_on: [fetch-data]
+        output:
+          processed-2: ${output}
+
+      - id: merge
+        component: merger
+        input:
+          data-1: ${jobs.process-1.output.processed-1}
+          data-2: ${jobs.process-2.output.processed-2}
+        depends_on: [process-1, process-2]
+        output:
+          merged: ${output}
+```
+
+Structure diagram:
+```mermaid
+graph TB
+    fetch["Job: fetch-data"]
+    proc1["Job: process-1"]
+    proc2["Job: process-2"]
+    merge["Job: merge"]
+
+    fetch --> proc1
+    fetch --> proc2
+    proc1 --> merge
+    proc2 --> merge
 ```
 
 ### Example: Text Generation and Speech Synthesis

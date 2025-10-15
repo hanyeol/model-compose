@@ -45,6 +45,10 @@ The guide covers everything from basic concepts to advanced workflows, including
 - Deployment strategies
 - Practical examples and troubleshooting
 
+**📂 [Browse Examples](examples/README.md)**
+
+Explore practical, ready-to-run examples organized by category and component type.
+
 ---
 
 ## 📦 Installation

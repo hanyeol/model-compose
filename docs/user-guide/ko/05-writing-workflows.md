@@ -73,6 +73,18 @@ workflows:
           field: ${input.value}
 ```
 
+### 간소화 형태
+
+작업이 하나일 때는 `jobs`와 job의 `id`를 생략할 수 있습니다. job id가 생략되면 기본적으로 `__job__`으로 지정됩니다.
+
+```yaml
+workflows:
+  - id: simple-workflow
+    component: my-component
+    input:
+      field: ${input.value}
+```
+
 ### 예제: 텍스트 생성
 
 ```yaml
@@ -105,20 +117,6 @@ workflows:
 실행:
 ```bash
 model-compose run generate-text --input '{"prompt": "Hello, AI!"}'
-```
-
-### 간소화된 형태
-
-단일 작업 워크플로우는 더 간단하게 작성할 수 있습니다:
-
-```yaml
-workflows:
-  - id: generate-text
-    component: gpt4o
-    input:
-      prompt: ${input.prompt}
-    output:
-      result: ${output.text}
 ```
 
 ---

@@ -73,6 +73,18 @@ workflows:
           field: ${input.value}
 ```
 
+### Simplified Form
+
+When there's only one job, you can omit `jobs` and the job `id`. If the job id is omitted, it defaults to `__job__`.
+
+```yaml
+workflows:
+  - id: simple-workflow
+    component: my-component
+    input:
+      field: ${input.value}
+```
+
 ### Example: Text Generation
 
 ```yaml
@@ -105,20 +117,6 @@ workflows:
 Execution:
 ```bash
 model-compose run generate-text --input '{"prompt": "Hello, AI!"}'
-```
-
-### Simplified Form
-
-Single-job workflows can be written more concisely:
-
-```yaml
-workflows:
-  - id: generate-text
-    component: gpt4o
-    input:
-      prompt: ${input.prompt}
-    output:
-      result: ${output.text}
 ```
 
 ---

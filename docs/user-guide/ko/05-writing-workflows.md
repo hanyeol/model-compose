@@ -636,13 +636,11 @@ workflows:
           text: ${input.text}
         output:
           result: ${output.result}
-        depends_on: [check-safety]
 
       - id: reject
         component: rejection-handler
         input:
           text: ${input.text}
-        depends_on: [ check-safety ]
 ```
 
 구조 다이어그램:

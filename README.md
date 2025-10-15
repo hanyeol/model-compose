@@ -1,12 +1,3 @@
-```
-                      _      _                                                
-  _ __ ___   ___   __| | ___| |       ___ ___  _ __ ___  _ __   ___  ___  ___ 
- | '_ ` _ \ / _ \ / _` |/ _ \ |_____ / __/ _ \| '_ ` _ \| '_ \ / _ \/ __|/ _ \
- | | | | | | (_) | (_| |  __/ |_____| (_| (_) | | | | | | |_) | (_) \__ \  __/
- |_| |_| |_|\___/ \__,_|\___|_|      \___\___/|_| |_| |_| .__/ \___/|___/\___|
-                                                        |_|                   
-```
-
 # model-compose: Declarative AI Model and Workflow Orchestrator
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)

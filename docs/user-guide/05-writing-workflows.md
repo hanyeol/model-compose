@@ -75,7 +75,7 @@ workflows:
 
 ### Simplified Form
 
-When there's only one job, you can omit `jobs` and the job `id`. If the job id is omitted, it defaults to `__job__`.
+When there's only one job, you can omit `jobs` and the job `id`. If the `id` is omitted, it defaults to `__job__`.
 
 ```yaml
 workflows:

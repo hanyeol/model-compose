@@ -2,7 +2,7 @@
 
 This chapter covers how to write workflows in model-compose. From single-job workflows to complex multi-step pipelines, you'll learn about data passing between jobs, conditional execution, streaming mode, and error handling.
 
-## What is a Workflow?
+## 5.1 What is a Workflow?
 
 A **Workflow** is an execution unit that combines one or more jobs to form a complete execution pipeline. When writing a workflow, you need to define three core elements:
 
@@ -57,7 +57,7 @@ By combining these three elements, you can build workflows ranging from simple s
 
 ---
 
-## 5.1 Single-Job Workflows
+## 5.2 Single-Job Workflows
 
 The simplest form of a workflow contains just one job.
 
@@ -123,7 +123,7 @@ workflows:
 
 ---
 
-## 5.2 Multi-Step Workflows
+## 5.3 Multi-Step Workflows
 
 Workflows that execute multiple jobs sequentially.
 
@@ -310,7 +310,7 @@ graph LR
 
 ---
 
-## 5.3 Data Passing Between Jobs
+## 5.4 Data Passing Between Jobs
 
 How to pass data between jobs in a workflow.
 
@@ -394,7 +394,7 @@ workflows:
 
 ---
 
-## 5.4 Job Types
+## 5.5 Job Types
 
 model-compose provides various job types to support different task patterns.
 
@@ -571,7 +571,7 @@ jobs:
 
 ---
 
-## 5.5 Conditional Execution
+## 5.6 Conditional Execution
 
 Using If and Switch jobs to control execution flow based on conditions.
 
@@ -758,7 +758,7 @@ graph TB
 
 ---
 
-## 5.6 Streaming Mode
+## 5.7 Streaming Mode
 
 When components support streaming, you can stream data in real-time.
 
@@ -838,7 +838,7 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 ---
 
-## 5.7 Error Handling
+## 5.8 Error Handling
 
 Handle errors that may occur during workflow execution.
 
@@ -965,7 +965,7 @@ workflows:
 
 ---
 
-## 5.8 Workflow Best Practices
+## 5.9 Workflow Best Practices
 
 ### 1. Clear Job Names
 

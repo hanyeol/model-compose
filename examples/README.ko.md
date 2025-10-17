@@ -175,7 +175,7 @@ HUGGINGFACE_TOKEN=your-token-here
 1. 사용 사례와 일치하는 예제를 찾아보세요
 2. 프로젝트의 시작점으로 예제를 복사하세요
 3. 필요에 맞게 `model-compose.yml`을 수정하세요
-4. 자세한 문서는 [사용자 가이드](../docs/user-guide/ko/README.ko.md)를 참조하세요
+4. 자세한 문서는 [사용자 가이드](../docs/user-guide/ko/README.md)를 참조하세요
 
 ---
 

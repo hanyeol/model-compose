@@ -32,7 +32,7 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 
 #### 워크플로우 구축
 - [컴포넌트 설정](./04-component-configuration.md) - 재사용 가능한 컴포넌트 정의
-- [워크플로우 작성](./05-writing-workflows.md) - 다단계 파이프라인 생성
+- [워크플로우 작성](./05-writing-workflows.md) - 다중 단계 파이프라인 생성
 - [변수 바인딩](./12-variable-binding.md) - 데이터 흐름 및 변환
 
 #### 컨트롤러 & UI
@@ -82,7 +82,7 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 | 설치 및 첫 워크플로우 실행 | [시작하기](./01-getting-started.md) |
 | 외부 API 호출 (OpenAI, Claude) | [외부 서비스 통합](./10-external-service-integration.md) |
 | 로컬 AI 모델 실행 | [로컬 AI 모델](./08-local-ai-models.md) |
-| 다단계 워크플로우 생성 | [워크플로우 작성](./05-writing-workflows.md) |
+| 다중 단계 워크플로우 생성 | [워크플로우 작성](./05-writing-workflows.md) |
 | 실시간 출력 스트리밍 | [스트리밍 모드](./11-streaming-mode.md) |
 | 웹훅 및 콜백 처리 | [시스템 통합](./13-system-integration.md) |
 | 프로덕션 배포 | [배포](./14-deployment.md) |

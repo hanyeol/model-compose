@@ -229,7 +229,7 @@ component:
   output: ${output as text;sse-json}
   ```
 
-### 11.3.2 다단계 워크플로우 스트리밍
+### 11.3.2 다중 단계 워크플로우 스트리밍
 
 ```yaml
 workflows:

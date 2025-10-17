@@ -4,9 +4,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-**[🇰🇷 한국어](README.ko.md)**
-
 **model-compose** is an open-source, declarative workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services or run local AI models, all within powerful, composable workflows.
+
+## 📖 Documentation Languages
+
+- **🌍 English**: You're reading it!
+- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
 
 ---
 

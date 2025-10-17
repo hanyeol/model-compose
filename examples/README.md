@@ -4,7 +4,7 @@ This directory contains practical examples demonstrating various features and us
 
 ## 📖 Documentation Languages
 
-- **🌍 English**: You're reading it! (Current directory)
+- **🌍 English**: You're reading it!
 - **🇰🇷 한국어**: [한국어 문서](README.ko.md)
 
 ## 📋 Quick Start

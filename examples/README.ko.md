@@ -192,7 +192,7 @@ HUGGINGFACE_TOKEN=your-token-here
 
 ## 📚 추가 자료
 
-- [사용자 가이드](../docs/user-guide/ko/README.ko.md) - 포괄적인 문서
+- [사용자 가이드](../docs/user-guide/ko/README.md) - 포괄적인 문서
 - [영문 사용자 가이드](../docs/user-guide/README.md) - English documentation
 - [GitHub 저장소](https://github.com/hanyeol/model-compose) - 소스 코드 및 이슈
 

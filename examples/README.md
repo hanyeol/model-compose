@@ -2,6 +2,11 @@
 
 This directory contains practical examples demonstrating various features and use cases of model-compose. Each example includes a ready-to-run `model-compose.yml` configuration file.
 
+## 📖 Documentation Languages
+
+- **🌍 English**: You're reading it! (Current directory)
+- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
+
 ## 📋 Quick Start
 
 To run any example:

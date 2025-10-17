@@ -288,7 +288,7 @@ model-compose run my-other-workflow --input '{"key": "value"}'
 
 ---
 
-### 1.3.3 컨트롤러 시작 및 Web UI 사용
+### 1.3.3 컨트롤러 시작 및 웹 UI 사용
 
 `up` 명령어는 워크플로우를 HTTP 엔드포인트로 호스팅하고 선택적으로 Web UI를 제공하는 지속적인 서버를 시작합니다.
 
@@ -313,7 +313,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
 
 이제 컨트롤러가 실행 중이며 요청을 받을 준비가 되었습니다.
 
-#### Web UI 사용
+#### 웹 UI 사용
 
 브라우저를 열고 다음으로 이동합니다:
 

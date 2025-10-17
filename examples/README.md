@@ -39,10 +39,10 @@ Many examples require API keys. Create a `.env` file in the example directory:
 
 ```bash
 # For OpenAI examples
-OPENAI_API_KEY=your-api-key-here
+OPENAI_API_KEY=your-api-key
 
 # For ElevenLabs examples
-ELEVENLABS_API_KEY=your-api-key-here
+ELEVENLABS_API_KEY=your-api-key
 
 # For HuggingFace examples
 HUGGINGFACE_TOKEN=your-token-here

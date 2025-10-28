@@ -20,6 +20,8 @@
 
 **无需编写代码，只需 YAML 配置。**
 
+<div align="center">
+
 [📖 用户指南](docs/user-guide/zh-cn/README.md) · [🚀 快速开始](#-快速开始) · [💡 示例](examples/README.md) · [🤝 贡献](#-贡献)
 
 </div>

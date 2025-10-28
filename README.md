@@ -20,7 +20,11 @@
 
 **No custom code. Just YAML configuration.**
 
+<div align="center">
+
 [📖 User Guide](docs/user-guide/README.md) · [🚀 Quick Start](#-quick-start) · [💡 Examples](examples/README.md) · [🤝 Contributing](#-contributing)
+
+</div>
 
 ---
 

@@ -2,11 +2,6 @@
 
 **model-compose** 사용자 가이드에 오신 것을 환영합니다! 이 포괄적인 문서는 기본 개념부터 고급 배포 전략까지 선언적 AI 워크플로우 오케스트레이션을 마스터하는 데 도움을 드립니다.
 
-## 📖 다른 언어로 보기
-
-- **🌍 English**: [English User Guide](../README.md)
-- **🇨🇳 简体中文**: [简体中文用户指南](../zh-cn/README.md)
-
 ---
 
 ## 🚀 빠른 시작
@@ -138,6 +133,13 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 - **문서 이슈**: [이슈 제출](https://github.com/hanyeol/model-compose/issues)
 - **질문**: [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions)
 - **버그 리포트**: [Issue Tracker](https://github.com/hanyeol/model-compose/issues)
+
+---
+
+## 📖 다른 언어로 보기
+
+- **🌍 English**: [English User Guide](../README.md)
+- **🇨🇳 简体中文**: [简体中文用户指南](../zh-cn/README.md)
 
 ---
 

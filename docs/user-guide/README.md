@@ -2,11 +2,6 @@
 
 Welcome to the **model-compose** user guide! This comprehensive documentation will help you master declarative AI workflow orchestration—from basic concepts to advanced deployment strategies.
 
-## 📖 Other Languages
-
-- **🇰🇷 한국어**: [한국어 사용자 가이드](./ko/README.md)
-- **🇨🇳 简体中文**: [简体中文用户指南](./zh-cn/README.md)
-
 ---
 
 ## 🚀 Quick Start
@@ -138,6 +133,13 @@ We appreciate all contributions!
 - **Documentation Issues**: [File an issue](https://github.com/hanyeol/model-compose/issues)
 - **Questions**: [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions)
 - **Bug Reports**: [Issue Tracker](https://github.com/hanyeol/model-compose/issues)
+
+---
+
+## 📖 Other Languages
+
+- **🇰🇷 한국어**: [한국어 사용자 가이드](./ko/README.md)
+- **🇨🇳 简体中文**: [简体中文用户指南](./zh-cn/README.md)
 
 ---
 

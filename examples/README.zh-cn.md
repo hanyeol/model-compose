@@ -2,11 +2,6 @@
 
 本目录包含演示 model-compose 各种功能和用例的实用示例。每个示例都包含一个可直接运行的 `model-compose.yml` 配置文件。
 
-## 📖 其他语言
-
-- **🌍 English**: [English Documentation](README.md)
-- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
-
 ## 📋 快速开始
 
 运行任何示例：

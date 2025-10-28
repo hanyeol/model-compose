@@ -2,11 +2,6 @@
 
 欢迎使用 **model-compose** 用户指南！本综合文档将帮助您掌握声明式 AI 工作流编排——从基础概念到高级部署策略。
 
-## 📖 其他语言
-
-- **🌍 English**: [English User Guide](../README.md)
-- **🇰🇷 한국어**: [한국어 사용자 가이드](../ko/README.md)
-
 ---
 
 ## 🚀 快速开始
@@ -138,6 +133,13 @@
 - **文档问题**：[提交问题](https://github.com/hanyeol/model-compose/issues)
 - **问题咨询**：[GitHub 讨论区](https://github.com/hanyeol/model-compose/discussions)
 - **错误报告**：[问题跟踪器](https://github.com/hanyeol/model-compose/issues)
+
+---
+
+## 📖 其他语言
+
+- **🌍 English**: [English User Guide](../README.md)
+- **🇰🇷 한국어**: [한국어 사용자 가이드](../ko/README.md)
 
 ---
 

@@ -106,7 +106,7 @@ Many configuration objects share common properties:
 
 For working examples of these configurations, see the `examples/` directory in the repository:
 
-- `examples/openai-chat-completions/` - Simple HTTP client workflow
+- `examples/providers/openai/openai-chat-completions/` - Simple HTTP client workflow
 - `examples/make-inspiring-quote-voice/` - Multi-step workflow with dependencies
 - `examples/model-tasks/` - Various local model configurations
 - `examples/vector-store/` - Vector database usage patterns

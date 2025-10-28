@@ -2,10 +2,10 @@
 
 Welcome to the **model-compose** user guide! This comprehensive documentation will help you master declarative AI workflow orchestration—from basic concepts to advanced deployment strategies.
 
-## 📖 Documentation Languages
+## 📖 Other Languages
 
-- **🌍 English**: You're reading it!
 - **🇰🇷 한국어**: [한국어 사용자 가이드](./ko/README.md)
+- **🇨🇳 简体中文**: [简体中文用户指南](./zh-cn/README.md)
 
 ---
 

@@ -78,7 +78,7 @@ The CLI reads configuration from `model-compose.yml` files in the current direct
 
 ```bash
 # Start a workflow controller
-cd examples/openai-chat-completions
+cd examples/providers/openai/openai-chat-completions
 model-compose up
 
 # Run a specific workflow

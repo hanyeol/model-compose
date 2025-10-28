@@ -123,7 +123,7 @@ Instantly get a user-friendly interface to test and monitor your workflows. Supp
 Transform your workflows into MCP tools by changing one line:
 ```yaml
 controller:
-  type: mcp-server  # Change from http-server to mcp-server
+  type: mcp-server
 ```
 Just set the type to `mcp-server`. Your workflows become instantly accessible via the Model Context Protocol.
 

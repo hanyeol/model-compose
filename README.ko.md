@@ -123,7 +123,7 @@ controller:
 한 줄만 변경하여 워크플로우를 MCP 도구로 변환:
 ```yaml
 controller:
-  type: mcp-server  # http-server에서 mcp-server로 변경
+  type: mcp-server
 ```
 타입을 `mcp-server`로 설정하기만 하면 워크플로우가 Model Context Protocol을 통해 즉시 액세스 가능해집니다.
 

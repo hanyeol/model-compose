@@ -123,7 +123,7 @@ controller:
 只需更改一行即可将工作流转换为 MCP 工具：
 ```yaml
 controller:
-  type: mcp-server  # 从 http-server 改为 mcp-server
+  type: mcp-server
 ```
 只需将类型设置为 `mcp-server`。您的工作流即可通过 Model Context Protocol 立即访问。
 

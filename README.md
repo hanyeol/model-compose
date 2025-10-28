@@ -111,7 +111,7 @@ Your API is now live at `http://localhost:8080` and Web UI at `http://localhost:
 ## 💡 Key Capabilities
 
 ### 🖥️ Built-in Web UI
-Add a visual interface with just 3 lines of YAML:
+Add a web interface by adding just 2 lines to your YAML:
 ```yaml
 controller:
   webui:
@@ -125,7 +125,7 @@ Transform your workflows into MCP tools by changing one line:
 controller:
   type: mcp-server  # Change from http-server to mcp-server
 ```
-No code changes needed. Your workflows become instantly accessible via the Model Context Protocol.
+Just set the type to `mcp-server`. Your workflows become instantly accessible via the Model Context Protocol.
 
 ### 🐳 Docker Deployment
 Deploy anywhere with built-in Docker support:

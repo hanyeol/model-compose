@@ -111,7 +111,7 @@ API 运行在 `http://localhost:8080`，Web UI 运行在 `http://localhost:8081`
 ## 💡 核心能力
 
 ### 🖥️ 内置 Web UI
-仅需 3 行 YAML 即可添加可视化界面：
+只需添加 2 行即可启用 Web 界面：
 ```yaml
 controller:
   webui:
@@ -125,7 +125,7 @@ controller:
 controller:
   type: mcp-server  # 从 http-server 改为 mcp-server
 ```
-无需更改代码。您的工作流即可通过 Model Context Protocol 立即访问。
+只需将类型设置为 `mcp-server`。您的工作流即可通过 Model Context Protocol 立即访问。
 
 ### 🐳 Docker 部署
 内置 Docker 支持，随处部署：

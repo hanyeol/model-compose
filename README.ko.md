@@ -16,7 +16,7 @@
 
 # 🤖 Model-Compose
 
-**model-compose**는 `docker-compose`에서 영감을 받아서 만든 선언적 AI 워크플로우 오케스트레이터입니다. 간단한 YAML 파일로 AI 모델 파이프라인을 정의하고 실행하세요 — 코드를 작성할 필요가 없어요. 외부 AI 서비스(OpenAI, Anthropic, Google 등) 연결, 로컬 AI 모델 실행, 벡터 스토어 통합 등으로 강력하고 조합 가능한 워크플로우로 구성할 수 있습니다.
+**model-compose**는 `docker-compose`에서 영감을 받아서 만든 선언적 AI 워크플로우 오케스트레이터입니다. 간단한 YAML 파일로 AI 모델 파이프라인을 정의하고 실행할 수 있습니다 — 코드를 작성할 필요가 없어요. 외부 AI 서비스(OpenAI, Anthropic, Google 등) 연결, 로컬 AI 모델 실행, 벡터 스토어 통합 등으로 강력하고 조합 가능한 워크플로우로 구성할 수 있습니다.
 
 **코드 작성 없이, YAML 설정만으로.**
 
@@ -111,7 +111,7 @@ API는 `http://localhost:8080`에서, Web UI는 `http://localhost:8081`에서 �
 ## 💡 핵심 역량
 
 ### 🖥️ 내장 Web UI
-단 3줄의 YAML로 시각적 인터페이스 추가:
+단 2줄만 추가하여 웹 인터페이스 활성화:
 ```yaml
 controller:
   webui:
@@ -125,7 +125,7 @@ controller:
 controller:
   type: mcp-server  # http-server에서 mcp-server로 변경
 ```
-코드 변경 없이 워크플로우가 Model Context Protocol을 통해 즉시 액세스 가능해집니다.
+타입을 `mcp-server`로 설정하기만 하면 워크플로우가 Model Context Protocol을 통해 즉시 액세스 가능해집니다.
 
 ### 🐳 Docker 배포
 내장 Docker 지원으로 어디서나 배포:

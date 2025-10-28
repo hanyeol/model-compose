@@ -197,4 +197,11 @@ HUGGINGFACE_TOKEN=your-token-here
 
 ---
 
+## 📖 其他语言
+
+- **🌍 English**: [English Documentation](README.md)
+- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
+
+---
+
 **编排愉快！🎉**

@@ -197,4 +197,11 @@ Have a useful example to share?
 
 ---
 
+## 📖 Other Languages
+
+- **🌍 English**: You're reading it!
+- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
+
+---
+
 **Happy Composing! 🎉**

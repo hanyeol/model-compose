@@ -1,4 +1,4 @@
-# model-compose Examples
+# Model-Compose Examples
 
 This directory contains practical examples demonstrating various features and use cases of model-compose. Each example includes a ready-to-run `model-compose.yml` configuration file.
 
@@ -198,7 +198,6 @@ Have a useful example to share?
 ## 📚 Additional Resources
 
 - [User Guide](../docs/user-guide/) - Comprehensive documentation
-- [Korean User Guide](../docs/user-guide/ko/) - 한국어 문서
 - [GitHub Repository](https://github.com/hanyeol/model-compose) - Source code and issues
 
 ---

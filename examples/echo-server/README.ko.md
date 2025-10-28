@@ -153,7 +153,6 @@ async def echo(request: Request):
 
 ## 개발 기능
 
-- **자동 리로드**: `main.py`가 수정되면 server 자동 리로드
 - **FastAPI 문서**: `http://localhost:8000/docs`에서 대화형 API 문서 사용 가능
 - **간단한 디버깅**: 다양한 응답 형식을 쉽게 수정하고 테스트
 - **최소 의존성**: FastAPI 및 Uvicorn만 필요
@@ -194,10 +193,4 @@ start: [ uvicorn, main:app, --host, 0.0.0.0, --port, 8000, --reload ]
 
 1. **포트가 이미 사용 중**: 8000 포트가 사용 중이면 `model-compose.yml`에서 포트 변경
 2. **Import 오류**: Python 환경에 FastAPI 및 Uvicorn이 설치되어 있는지 확인
-3. **자동 리로드 작동 안 함**: 파일 권한 확인 및 `main.py`가 쓰기 가능한지 확인
-
-### 성능 참고사항
-
-- 자동 리로드가 활성화된 개발 server입니다
-- 프로덕션 사용을 위해 프로덕션 ASGI server 사용 고려
-- Server는 컴포넌트 수명 주기 내에서 동기적으로 실행됨
+3. **Server 시작 실패**: `main.py` 파일이 현재 디렉토리에 있는지 확인

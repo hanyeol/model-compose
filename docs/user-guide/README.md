@@ -1,4 +1,4 @@
-# model-compose User Guide
+# Model-Compose User Guide
 
 Welcome to the **model-compose** user guide! This comprehensive documentation will help you master declarative AI workflow orchestration—from basic concepts to advanced deployment strategies.
 

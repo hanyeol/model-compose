@@ -1,4 +1,4 @@
-# model-compose 예제
+# Model-Compose 예제
 
 이 디렉토리에는 model-compose의 다양한 기능과 사용 사례를 보여주는 실용적인 예제가 포함되어 있습니다. 각 예제에는 바로 실행 가능한 `model-compose.yml` 설정 파일이 포함되어 있습니다.
 
@@ -193,7 +193,6 @@ HUGGINGFACE_TOKEN=your-token-here
 ## 📚 추가 자료
 
 - [사용자 가이드](../docs/user-guide/ko/README.md) - 포괄적인 문서
-- [영문 사용자 가이드](../docs/user-guide/README.md) - English documentation
 - [GitHub 저장소](https://github.com/hanyeol/model-compose) - 소스 코드 및 이슈
 
 ---

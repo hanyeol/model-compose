@@ -153,7 +153,6 @@ The complete data transformation process:
 
 ## Development Features
 
-- **Auto-reload**: The server automatically reloads when `main.py` is modified
 - **FastAPI Docs**: Interactive API documentation available at `http://localhost:8000/docs`
 - **Simple Debugging**: Easy to modify and test different response formats
 - **Minimal Dependencies**: Only requires FastAPI and Uvicorn
@@ -194,10 +193,4 @@ start: [ uvicorn, main:app, --host, 0.0.0.0, --port, 8000, --reload ]
 
 1. **Port Already in Use**: Change the port in `model-compose.yml` if 8000 is occupied
 2. **Import Errors**: Ensure FastAPI and Uvicorn are installed in your Python environment
-3. **Auto-reload Not Working**: Check file permissions and ensure `main.py` is writable
-
-### Performance Notes
-
-- This is a development server with auto-reload enabled
-- For production use, consider using production ASGI servers
-- The server runs synchronously within the component lifecycle
+3. **Server Fails to Start**: Verify that `main.py` exists in the current directory

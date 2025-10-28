@@ -1,4 +1,4 @@
-# model-compose 用户指南
+# Model-Compose 用户指南
 
 欢迎使用 **model-compose** 用户指南！本综合文档将帮助您掌握声明式 AI 工作流编排——从基础概念到高级部署策略。
 

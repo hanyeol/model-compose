@@ -91,10 +91,15 @@ workflows:
       - component: chatgpt
 ```
 
+Create a `.env` file:
+
+```bash
+OPENAI_API_KEY=your-key
+```
+
 Run it:
 
 ```bash
-export OPENAI_API_KEY=your-key
 model-compose up
 ```
 

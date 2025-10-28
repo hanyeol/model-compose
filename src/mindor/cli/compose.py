@@ -58,7 +58,12 @@ def up_command(
             config = _load_compose_config(config_files, env_files, env_data)
             await launch_services(config, detach, verbose)
         except Exception as e:
-            click.echo(f"❌ {e}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
 
 @click.command(name="down")
@@ -87,7 +92,12 @@ def down_command(
             config = _load_compose_config(config_files, env_files, env_data)
             await terminate_services(config, verbose)
         except Exception as e:
-            click.echo(f"❌ {e}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
 
 @click.command(name="start")
@@ -116,7 +126,12 @@ def start_command(
             config = _load_compose_config(config_files, env_files, env_data)
             await start_services(config, verbose)
         except Exception as e:
-            click.echo(f"❌ {e}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
 
 @click.command(name="stop")
@@ -145,7 +160,12 @@ def stop_command(
             config = _load_compose_config(config_files, env_files, env_data)
             await stop_services(config, verbose)
         except Exception as e:
-            click.echo(f"❌ {e}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
 
 @click.command(name="run")
@@ -202,7 +222,12 @@ def run_command(
         except json.JSONDecodeError:
             click.echo("❌ Invalid JSON provided for --input", err=True)
         except Exception as e:
-            click.echo(f"❌ {e}", err=True)
+            if verbose:
+                import traceback
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
     asyncio.run(_async_command())
 
 compose_command.add_command(up_command)

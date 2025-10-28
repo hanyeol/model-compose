@@ -14,7 +14,7 @@
 
 ---
 
-# 🤖 model-compose
+# 🤖 Model-Compose
 
 **model-compose** 是受 `docker-compose` 启发创建的声明式工作流编排器。使用简单的 YAML 文件定义和运行 AI 模型管道 — 无需编写代码。轻松连接外部 AI 服务（OpenAI、Anthropic、Google 等）、运行本地 AI 模型、集成向量存储等 — 所有功能都在强大且可组合的工作流中实现。
 

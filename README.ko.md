@@ -14,7 +14,7 @@
 
 ---
 
-# 🤖 model-compose
+# 🤖 Model-Compose
 
 **model-compose**는 `docker-compose`에서 영감을 받아서 만든 선언적 AI 워크플로우 오케스트레이터입니다. 간단한 YAML 파일로 AI 모델 파이프라인을 정의하고 실행하세요 — 코드를 작성할 필요가 없어요. 외부 AI 서비스(OpenAI, Anthropic, Google 등) 연결, 로컬 AI 모델 실행, 벡터 스토어 통합 등으로 강력하고 조합 가능한 워크플로우로 구성할 수 있습니다.
 

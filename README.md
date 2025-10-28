@@ -14,7 +14,7 @@
 
 ---
 
-# 🤖 model-compose
+# 🤖 Model-Compose
 
 **model-compose** is a declarative AI workflow orchestrator inspired by `docker-compose`. It lets you define and run AI model pipelines using simple YAML files — no custom code required. Effortlessly connect external AI services (OpenAI, Anthropic, Google, etc.), run local AI models, integrate vector stores, and more — all within powerful, composable workflows.
 

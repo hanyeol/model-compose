@@ -35,7 +35,8 @@
 - 🚀 **Production Ready**: HTTP/MCP servers + Web UI + Docker deployment
 - 🔌 **Connect Anything**: External AI services, local models, vector stores, and more
 - ⚡ **Stream & Scale**: Real-time streaming and event-driven automation
-- 🛠️ **Developer Friendly**: Environment variables, tunneling, webhooks
+- ⚙️ **Configuration**: Environment variables, flexible settings
+- 🔗 **Integration**: Webhooks, tunneling, HTTP servers
 
 ---
 

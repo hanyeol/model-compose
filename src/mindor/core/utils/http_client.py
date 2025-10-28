@@ -1,8 +1,9 @@
 from typing import Union, Optional, Dict, Tuple, AsyncIterator, Any
 from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
+from .url import encode_url
 from requests.structures import CaseInsensitiveDict
-import aiohttp
+import aiohttp, json
 
 class HttpStreamResource(StreamResource):
     def __init__(
@@ -118,7 +119,8 @@ class HttpClient:
             content, _ = await self._parse_response_content(response)
 
             if raise_on_error and response.status >= 400:
-                raise ValueError(f"Request failed with status {response.status}: {content}")
+                error_detail = json.dumps(content, indent=2) if isinstance(content, dict) else str(content)
+                raise ValueError(f"Request failed with status {response.status}\nURL: {url_or_path}\nResponse: {error_detail}")
 
             if not isinstance(content, StreamResource):
                 response.close()
@@ -168,8 +170,8 @@ class HttpClient:
             headers.pop("Content-Type", None)
 
         return await session.request(
-            method=method, 
-            url=url_or_path.lstrip("/"),
+            method=method,
+            url=encode_url(url_or_path.lstrip("/")),
             params=params,
             data=data,
             headers=headers,

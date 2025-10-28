@@ -199,8 +199,8 @@ Have a useful example to share?
 
 ## 📖 Other Languages
 
-- **🌍 English**: You're reading it!
-- **🇰🇷 한국어**: [한국어 문서](README.ko.md)
+- **🇰🇷 한국어**: [한국어 사용자 가이드](README.ko.md)
+- **🇨🇳 简体中文**: [简体中文用户指南](README.zh-cn.md)
 
 ---
 

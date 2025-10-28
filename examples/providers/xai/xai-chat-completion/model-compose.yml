@@ -1,0 +1,30 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with Grok
+  description: Generate text responses using Grok
+  input: ${input}
+  output: ${output}
+
+component:
+  type: http-client
+  base_url: https://api.x.ai/v1
+  path: /chat/completions
+  method: POST
+  headers:
+    Authorization: Bearer ${env.XAI_API_KEY}
+    Content-Type: application/json
+  body:
+    model: grok-3
+    messages:
+      - role: user
+        content: ${input.prompt as text}
+    temperature: ${input.temperature as number | 0.7}
+  output:
+    message: ${response.choices[0].message.content}

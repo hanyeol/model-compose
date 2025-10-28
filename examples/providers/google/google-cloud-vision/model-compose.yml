@@ -1,0 +1,164 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: label-detection
+    title: Detect Labels in Image
+    description: Detect and extract labels from an image using Google Cloud Vision API.
+    action: label-detection
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+    default: true
+
+  - id: text-detection
+    title: Detect Text in Image (OCR)
+    description: Extract text from an image using Optical Character Recognition.
+    action: text-detection
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+
+  - id: face-detection
+    title: Detect Faces in Image
+    description: Detect faces and facial features in an image.
+    action: face-detection
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+
+  - id: object-localization
+    title: Localize Objects in Image
+    description: Detect and localize multiple objects in an image.
+    action: object-localization
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+
+  - id: landmark-detection
+    title: Detect Landmarks in Image
+    description: Detect popular landmarks in an image.
+    action: landmark-detection
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+
+  - id: logo-detection
+    title: Detect Logos in Image
+    description: Detect company logos in an image.
+    action: logo-detection
+    input:
+      image: ${input.image as image}
+      max_results: ${input.max_results as integer | 10}
+    output: ${output}
+
+component:
+  type: http-client
+  base_url: https://vision.googleapis.com/v1
+  headers:
+    Content-Type: application/json
+  actions:
+    - id: label-detection
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: LABEL_DETECTION
+                maxResults: ${input.max_results}
+      output:
+        labels: ${response.responses[0].labelAnnotations}
+        descriptions: ${response.responses[0].labelAnnotations[*].description}
+
+    - id: text-detection
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: TEXT_DETECTION
+      output:
+        full_text: ${response.responses[0].fullTextAnnotation.text}
+        text_annotations: ${response.responses[0].textAnnotations}
+
+    - id: face-detection
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: FACE_DETECTION
+                maxResults: ${input.max_results}
+      output:
+        faces: ${response.responses[0].faceAnnotations}
+        face_count: ${response.responses[0].faceAnnotations | length}
+
+    - id: object-localization
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: OBJECT_LOCALIZATION
+                maxResults: ${input.max_results}
+      output:
+        objects: ${response.responses[0].localizedObjectAnnotations}
+        object_names: ${response.responses[0].localizedObjectAnnotations[*].name}
+
+    - id: landmark-detection
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: LANDMARK_DETECTION
+                maxResults: ${input.max_results}
+      output:
+        landmarks: ${response.responses[0].landmarkAnnotations}
+        landmark_names: ${response.responses[0].landmarkAnnotations[*].description}
+
+    - id: logo-detection
+      path: /images:annotate
+      method: POST
+      params:
+        key: ${env.GOOGLE_CLOUD_API_KEY}
+      body:
+        requests:
+          - image:
+              content: ${input.image as base64}
+            features:
+              - type: LOGO_DETECTION
+                maxResults: ${input.max_results}
+      output:
+        logos: ${response.responses[0].logoAnnotations}
+        logo_names: ${response.responses[0].logoAnnotations[*].description}

@@ -1,13 +1,18 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, AsyncIterator, Self, Any
 from pydantic import BaseModel
 from mindor.dsl.schema.listener import HttpTriggerListenerConfig, HttpTriggerConfig
-from mindor.core.controller import ControllerService, TaskState
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.renderers import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
 from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
 from fastapi.responses import Response, JSONResponse
 import asyncio, uvicorn
+
+if TYPE_CHECKING:
+    from mindor.core.controller import ControllerService, TaskState
 
 class TaskResult(BaseModel):
     task_id: str
@@ -78,13 +83,15 @@ class HttpTriggerListener(ListenerService):
         for trigger in self.config.triggers:
             self.router.add_api_route(
                 path=trigger.path,
-                endpoint=self._make_trigger_handler(trigger),
+                endpoint=self._build_trigger_handler(trigger),
                 methods=[trigger.method],
                 name=f"trigger_{trigger.path.strip('/').replace('/', '_')}",
             )
 
-    def _make_trigger_handler(self, trigger: HttpTriggerConfig) -> Callable:
+    def _build_trigger_handler(self, trigger: HttpTriggerConfig) -> Callable:
         async def _handler(request: Request) -> Response:
+            from mindor.core.controller import ControllerService
+            
             controller = ControllerService.get_shared_instance()
             content_type, _ = parse_options_header(request.headers, "Content-Type")
             body, query = await parse_request_body(request, content_type), request.query_params

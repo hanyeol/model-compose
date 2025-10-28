@@ -16,7 +16,7 @@ from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.logger import LoggerService, create_logger
 from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
-from mindor.core.utils.workqueue import WorkQueue
+from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from .runtime.specs import ControllerRuntimeSpecs
 from .runtime.native import NativeRuntimeLauncher
@@ -45,7 +45,7 @@ class ControllerService(AsyncService):
     def __new__(cls, *args, **kwargs):
         with cls._shared_instance_lock:
             if cls._shared_instance is None:
-                cls._shared_instance = super().__new__(cls, args, kwargs)
+                cls._shared_instance = super().__new__(cls)
         return cls._shared_instance
 
     @classmethod
@@ -292,7 +292,9 @@ class ControllerService(AsyncService):
             output = await workflow.run(task_id, input)
             state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, output=output)
         except Exception as e:
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
+            import traceback
+            error_message = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=error_message)
 
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)

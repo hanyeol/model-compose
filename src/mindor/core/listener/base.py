@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.listener import ListenerConfig, ListenerType
 from mindor.core.foundation import AsyncService
-from mindor.core.utils.workqueue import WorkQueue
+from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.logger import logging
 
 class ListenerService(AsyncService):

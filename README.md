@@ -30,7 +30,7 @@
 
 ## ✨ Features
 
-- 🎨 **Zero Code**: Pure YAML configuration—no scripting required
+- 🎨 **No-Code**: Pure YAML configuration—no scripting required
 - 🔄 **Composable**: Reusable components and multi-step workflows
 - 🚀 **Production Ready**: HTTP/MCP servers + Web UI + Docker deployment
 - 🔌 **Connect Anything**: External AI services, local models, vector stores, and more

@@ -66,7 +66,7 @@ HUGGINGFACE_TOKEN=your-token-here
 #### 기타 서비스
 - **[elevenlabs-text-to-speech](./elevenlabs-text-to-speech/README.ko.md)** - ElevenLabs를 사용한 고품질 TTS
 
-### 다중 단계 워크플로우
+### 여러 단계 워크플로우
 
 - **[make-inspiring-quote-voice](./make-inspiring-quote-voice/README.ko.md)** - 명언 텍스트 생성 → 음성으로 변환
 - **[analyze-disk-usage](./analyze-disk-usage/README.ko.md)** - 디스크 사용량 분석 → 보고서 생성

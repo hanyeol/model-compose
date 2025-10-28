@@ -55,16 +55,22 @@ HUGGINGFACE_TOKEN=your-token-here
 ### 외부 API 통합
 
 #### OpenAI API
-- **[openai-chat-completions](./openai-chat-completions/README.ko.md)** - GPT 모델과 대화
-- **[openai-chat-completions-stream](./openai-chat-completions-stream/README.ko.md)** - 스트리밍 채팅 응답
-- **[openai-audio-speech](./openai-audio-speech/README.ko.md)** - OpenAI TTS를 사용한 텍스트 음성 변환
-- **[openai-audio-transciptions](./openai-audio-transciptions/README.ko.md)** - 오디오 전사 (Whisper)
-- **[openai-image-generations](./openai-image-generations/README.ko.md)** - DALL-E로 이미지 생성
-- **[openai-image-edits](./openai-image-edits/README.ko.md)** - DALL-E로 이미지 편집
-- **[openai-image-variations](./openai-image-variations/README.ko.md)** - 이미지 변형 생성
+- **[openai-chat-completions](./providers/openai/openai-chat-completions/README.ko.md)** - GPT 모델과 대화
+- **[openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/README.ko.md)** - 스트리밍 채팅 응답
+- **[openai-audio-speech](./providers/openai/openai-audio-speech/README.ko.md)** - OpenAI TTS를 사용한 텍스트 음성 변환
+- **[openai-audio-transciptions](./providers/openai/openai-audio-transciptions/README.ko.md)** - 오디오 전사 (Whisper)
+- **[openai-image-generations](./providers/openai/openai-image-generations/README.ko.md)** - DALL-E로 이미지 생성
+- **[openai-image-edits](./providers/openai/openai-image-edits/README.ko.md)** - DALL-E로 이미지 편집
+- **[openai-image-variations](./providers/openai/openai-image-variations/README.ko.md)** - 이미지 변형 생성
+
+#### xAI API
+- **[xai-chat-completion](./providers/xai/xai-chat-completion/)** - xAI의 Grok 모델과 대화
+
+#### Google Cloud API
+- **[google-cloud-vision](./providers/google/google-cloud-vision/)** - Google Cloud Vision API를 사용한 이미지 분석
 
 #### 기타 서비스
-- **[elevenlabs-text-to-speech](./elevenlabs-text-to-speech/README.ko.md)** - ElevenLabs를 사용한 고품질 TTS
+- **[elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/README.ko.md)** - ElevenLabs를 사용한 고품질 TTS
 
 ### 여러 단계 워크플로우
 
@@ -116,14 +122,16 @@ HUGGINGFACE_TOKEN=your-token-here
 시연하는 컴포넌트 유형별로 정리된 예제를 둘러보세요:
 
 ### HTTP 클라이언트 컴포넌트
-- [openai-chat-completions](./openai-chat-completions/README.ko.md)
-- [openai-chat-completions-stream](./openai-chat-completions-stream/README.ko.md)
-- [openai-audio-speech](./openai-audio-speech/README.ko.md)
-- [openai-audio-transciptions](./openai-audio-transciptions/README.ko.md)
-- [openai-image-generations](./openai-image-generations/README.ko.md)
-- [openai-image-edits](./openai-image-edits/README.ko.md)
-- [openai-image-variations](./openai-image-variations/README.ko.md)
-- [elevenlabs-text-to-speech](./elevenlabs-text-to-speech/README.ko.md)
+- [openai-chat-completions](./providers/openai/openai-chat-completions/README.ko.md)
+- [openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/README.ko.md)
+- [openai-audio-speech](./providers/openai/openai-audio-speech/README.ko.md)
+- [openai-audio-transciptions](./providers/openai/openai-audio-transciptions/README.ko.md)
+- [openai-image-generations](./providers/openai/openai-image-generations/README.ko.md)
+- [openai-image-edits](./providers/openai/openai-image-edits/README.ko.md)
+- [openai-image-variations](./providers/openai/openai-image-variations/README.ko.md)
+- [xai-chat-completion](./providers/xai/xai-chat-completion/)
+- [google-cloud-vision](./providers/google/google-cloud-vision/)
+- [elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/README.ko.md)
 - [make-inspiring-quote-voice](./make-inspiring-quote-voice/README.ko.md)
 
 ### 모델 컴포넌트 (로컬 AI)

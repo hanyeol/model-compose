@@ -55,16 +55,22 @@ HUGGINGFACE_TOKEN=your-token-here
 ### 外部 API 集成
 
 #### OpenAI API
-- **[openai-chat-completions](./openai-chat-completions/)** - 与 GPT 模型聊天
-- **[openai-chat-completions-stream](./openai-chat-completions-stream/)** - 流式聊天响应
-- **[openai-audio-speech](./openai-audio-speech/)** - 使用 OpenAI TTS 的文本转语音
-- **[openai-audio-transciptions](./openai-audio-transciptions/)** - 音频转录 (Whisper)
-- **[openai-image-generations](./openai-image-generations/)** - 使用 DALL-E 生成图像
-- **[openai-image-edits](./openai-image-edits/)** - 使用 DALL-E 编辑图像
-- **[openai-image-variations](./openai-image-variations/)** - 创建图像变体
+- **[openai-chat-completions](./providers/openai/openai-chat-completions/)** - 与 GPT 模型聊天
+- **[openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/)** - 流式聊天响应
+- **[openai-audio-speech](./providers/openai/openai-audio-speech/)** - 使用 OpenAI TTS 的文本转语音
+- **[openai-audio-transciptions](./providers/openai/openai-audio-transciptions/)** - 音频转录 (Whisper)
+- **[openai-image-generations](./providers/openai/openai-image-generations/)** - 使用 DALL-E 生成图像
+- **[openai-image-edits](./providers/openai/openai-image-edits/)** - 使用 DALL-E 编辑图像
+- **[openai-image-variations](./providers/openai/openai-image-variations/)** - 创建图像变体
+
+#### xAI API
+- **[xai-chat-completion](./providers/xai/xai-chat-completion/)** - 与 xAI 的 Grok 模型聊天
+
+#### Google Cloud API
+- **[google-cloud-vision](./providers/google/google-cloud-vision/)** - 使用 Google Cloud Vision API 进行图像分析
 
 #### 其他服务
-- **[elevenlabs-text-to-speech](./elevenlabs-text-to-speech/)** - 使用 ElevenLabs 的高质量 TTS
+- **[elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/)** - 使用 ElevenLabs 的高质量 TTS
 
 ### 多步骤工作流
 
@@ -116,14 +122,16 @@ HUGGINGFACE_TOKEN=your-token-here
 按组件类型浏览示例：
 
 ### HTTP Client 组件
-- [openai-chat-completions](./openai-chat-completions/)
-- [openai-chat-completions-stream](./openai-chat-completions-stream/)
-- [openai-audio-speech](./openai-audio-speech/)
-- [openai-audio-transciptions](./openai-audio-transciptions/)
-- [openai-image-generations](./openai-image-generations/)
-- [openai-image-edits](./openai-image-edits/)
-- [openai-image-variations](./openai-image-variations/)
-- [elevenlabs-text-to-speech](./elevenlabs-text-to-speech/)
+- [openai-chat-completions](./providers/openai/openai-chat-completions/)
+- [openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/)
+- [openai-audio-speech](./providers/openai/openai-audio-speech/)
+- [openai-audio-transciptions](./providers/openai/openai-audio-transciptions/)
+- [openai-image-generations](./providers/openai/openai-image-generations/)
+- [openai-image-edits](./providers/openai/openai-image-edits/)
+- [openai-image-variations](./providers/openai/openai-image-variations/)
+- [xai-chat-completion](./providers/xai/xai-chat-completion/)
+- [google-cloud-vision](./providers/google/google-cloud-vision/)
+- [elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/)
 - [make-inspiring-quote-voice](./make-inspiring-quote-voice/)
 
 ### Model 组件（本地 AI）

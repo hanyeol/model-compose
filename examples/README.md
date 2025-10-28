@@ -55,16 +55,22 @@ HUGGINGFACE_TOKEN=your-token-here
 ### External API Integration
 
 #### OpenAI API
-- **[openai-chat-completions](./openai-chat-completions/)** - Chat with GPT models
-- **[openai-chat-completions-stream](./openai-chat-completions-stream/)** - Streaming chat responses
-- **[openai-audio-speech](./openai-audio-speech/)** - Text-to-speech using OpenAI TTS
-- **[openai-audio-transciptions](./openai-audio-transciptions/)** - Audio transcription (Whisper)
-- **[openai-image-generations](./openai-image-generations/)** - Image generation with DALL-E
-- **[openai-image-edits](./openai-image-edits/)** - Image editing with DALL-E
-- **[openai-image-variations](./openai-image-variations/)** - Create image variations
+- **[openai-chat-completions](./providers/openai/openai-chat-completions/)** - Chat with GPT models
+- **[openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/)** - Streaming chat responses
+- **[openai-audio-speech](./providers/openai/openai-audio-speech/)** - Text-to-speech using OpenAI TTS
+- **[openai-audio-transciptions](./providers/openai/openai-audio-transciptions/)** - Audio transcription (Whisper)
+- **[openai-image-generations](./providers/openai/openai-image-generations/)** - Image generation with DALL-E
+- **[openai-image-edits](./providers/openai/openai-image-edits/)** - Image editing with DALL-E
+- **[openai-image-variations](./providers/openai/openai-image-variations/)** - Create image variations
+
+#### xAI API
+- **[xai-chat-completion](./providers/xai/xai-chat-completion/)** - Chat with xAI's Grok models
+
+#### Google Cloud API
+- **[google-cloud-vision](./providers/google/google-cloud-vision/)** - Image analysis with Google Cloud Vision API
 
 #### Other Services
-- **[elevenlabs-text-to-speech](./elevenlabs-text-to-speech/)** - High-quality TTS with ElevenLabs
+- **[elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/)** - High-quality TTS with ElevenLabs
 
 ### Multi-Step Workflows
 
@@ -116,14 +122,16 @@ HUGGINGFACE_TOKEN=your-token-here
 Browse examples organized by the component types they demonstrate:
 
 ### HTTP Client Component
-- [openai-chat-completions](./openai-chat-completions/)
-- [openai-chat-completions-stream](./openai-chat-completions-stream/)
-- [openai-audio-speech](./openai-audio-speech/)
-- [openai-audio-transciptions](./openai-audio-transciptions/)
-- [openai-image-generations](./openai-image-generations/)
-- [openai-image-edits](./openai-image-edits/)
-- [openai-image-variations](./openai-image-variations/)
-- [elevenlabs-text-to-speech](./elevenlabs-text-to-speech/)
+- [openai-chat-completions](./providers/openai/openai-chat-completions/)
+- [openai-chat-completions-stream](./providers/openai/openai-chat-completions-stream/)
+- [openai-audio-speech](./providers/openai/openai-audio-speech/)
+- [openai-audio-transciptions](./providers/openai/openai-audio-transciptions/)
+- [openai-image-generations](./providers/openai/openai-image-generations/)
+- [openai-image-edits](./providers/openai/openai-image-edits/)
+- [openai-image-variations](./providers/openai/openai-image-variations/)
+- [xai-chat-completion](./providers/xai/xai-chat-completion/)
+- [google-cloud-vision](./providers/google/google-cloud-vision/)
+- [elevenlabs-text-to-speech](./providers/elevenlabs/elevenlabs-text-to-speech/)
 - [make-inspiring-quote-voice](./make-inspiring-quote-voice/)
 
 ### Model Component (Local AI)

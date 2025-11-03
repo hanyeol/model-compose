@@ -5,7 +5,7 @@ from .common import ControllerType, CommonControllerConfig
 
 class HttpServerControllerConfig(CommonControllerConfig):
     type: Literal[ControllerType.HTTP_SERVER]
-    host: str = Field(default="0.0.0.0", description="Host address to bind the HTTP server to.")
+    host: str = Field(default="127.0.0.1", description="Host address to bind the HTTP server to.")
     port: int = Field(default=8080, ge=1, le=65535, description="Port number on which the HTTP server will listen.")
     base_path: Optional[str] = Field(default=None, description="Base path to prefix all API routes")
     origins: Optional[str] = Field(default="*", description="CORS allowed origins, specified as a comma-separated string")

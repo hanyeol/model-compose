@@ -17,6 +17,7 @@ component:
   type: model
   task: chat-completion
   model: HuggingFaceTB/SmolLM3-3B
+  max_concurrent_count: 1
   messages:
     - role: system
       content: ${input.system_prompt}

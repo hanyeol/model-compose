@@ -18,6 +18,7 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
+  max_concurrent_count: 1
   text: ${input.text as text}
   params:
     max_input_length: 1024

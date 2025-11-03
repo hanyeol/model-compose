@@ -18,6 +18,7 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ non-toxic, toxic ]
+  max_concurrent_count: 1
   text: ${input.text}
   params:
     return_probabilities: true

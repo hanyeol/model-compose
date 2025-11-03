@@ -10,7 +10,7 @@ class CommonComponentConfig(BaseModel):
     id: str = Field(default="__component__", description="ID of component.")
     type: ComponentType = Field(..., description="Type of component.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=1, description="Maximum number of concurrent actions this component can handle.")
+    max_concurrent_count: int = Field(default=0, description="Maximum number of concurrent actions this component can handle.")
     default: bool = Field(default=False, description="Whether to use this component when no component is explicitly specified.")
     actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions available within this component.")
 

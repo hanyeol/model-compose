@@ -20,6 +20,6 @@ def create_gateway(id: str, config: GatewayConfig, daemon: bool) -> GatewayServi
 
 def find_gateway_by_port(port: int) -> Optional[GatewayService]:
     for gateway in GatewayInstances.values():
-        if gateway.config.port == port:
+        if gateway.serves_port(port):
             return gateway
     return None

@@ -12,7 +12,11 @@ class GatewayService(AsyncService):
         self.config: GatewayConfig = config
 
     @abstractmethod
-    def get_context(self) -> Dict[str, Any]:
+    def get_context(self, port: int) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def serves_port(self, port: int) -> bool:
         pass
 
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:

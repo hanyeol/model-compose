@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.gateway import HttpTunnelGatewayConfig, HttpTunnelGatewayDriver
 from ...base import GatewayService, GatewayType, register_gateway
-from .base import GatewayService, CommonHttpTunnelGateway
+from .base import CommonHttpTunnelGateway
 from .drivers import NgrokHttpTunnelGateway, CloudflareHttpTunnelGateway
 
 @register_gateway(GatewayType.HTTP_TUNNEL)
@@ -28,11 +28,15 @@ class HttpTunnelGateway(GatewayService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.driver.get_setup_requirements()
 
-    def get_context(self) -> Dict[str, Any]:
-        return {
-            "public_url": self.driver.public_url,
-            "port": self.config.port
-        }
+    def get_context(self, port: int) -> Optional[Dict[str, Any]]:
+        if port == self.config.port:
+            return {
+                "public_url": self.driver.public_url
+            }
+        return None
+
+    def serves_port(self, port: int) -> bool:
+        return port == self.config.port
 
     async def _serve(self) -> None:
         await self.driver.serve()

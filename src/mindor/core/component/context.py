@@ -43,6 +43,6 @@ class ComponentActionContext:
         gateway = find_gateway_by_port(int(port)) if port else None
 
         if gateway:
-            return gateway.get_context()
+            return gateway.get_context(int(port))
 
         return None

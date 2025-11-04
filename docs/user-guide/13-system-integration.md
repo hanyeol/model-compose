@@ -626,8 +626,12 @@ Gateways are needed in these scenarios:
 - External services require callback URLs
 
 **Supported gateways:**
-- HTTP tunnels: ngrok, Cloudflare Tunnel
-- SSH tunnels: SSH reverse tunnels
+
+| Type | Features | Use Cases |
+|------|----------|-----------|
+| **HTTP Tunnel (ngrok)** | Easy setup, temporary URLs | Local development, quick testing |
+| **HTTP Tunnel (Cloudflare)** | Free unlimited, high reliability | Local development, continuous testing |
+| **SSH Tunnel** | Own server, fixed addresses | Enterprise environments, production-ready |
 
 ### 13.4.2 HTTP Tunnel - ngrok
 
@@ -723,7 +727,8 @@ Use SSH reverse tunnels to expose local services through remote servers.
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # Remote port 9834 -> Local port 8090
   connection:
     host: remote-server.com
     port: 22
@@ -738,7 +743,8 @@ gateway:
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # Remote port 9834 -> Local port 8090
   connection:
     host: remote-server.com
     port: 22
@@ -748,10 +754,44 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**Multiple port forwarding:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # First port forwarding
+    - "9835:8091"  # Second port forwarding
+    - "9836:8092"  # Third port forwarding
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+**Simple port setup (same local and remote port):**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port: 8090  # Remote port 8090 -> Local port 8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
 SSH tunnels are useful when:
 - Using custom domains
 - Firewalls block ngrok/Cloudflare
 - Corporate environments require approved servers only
+- Fixed IP addresses or ports are needed
 
 ### 13.4.5 Advanced Gateway Configuration
 
@@ -769,6 +809,8 @@ gateway:
 
 When gateway is configured, these variables are available:
 
+**HTTP Tunnel (ngrok, Cloudflare):**
+
 ```yaml
 gateway:
   type: http-tunnel
@@ -781,12 +823,106 @@ components:
     body:
       # Use public URL (gateway:port.public_url format)
       webhook_url: ${gateway:8080.public_url}/webhook
+      # Example: https://abc123.ngrok.io/webhook
 
       # Port information
       local_port: ${gateway:8080.port}
 ```
 
-### 13.4.6 Real-world Example: Slack Bot Webhook
+**SSH Tunnel:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+
+components:
+  service:
+    type: http-client
+    body:
+      # Use public address (gateway:local_port.public_address format)
+      webhook_url: http://${gateway:8090.public_address}/webhook
+      # Example: http://remote-server.com:9834/webhook
+```
+
+### 13.4.6 Real-world Example: SSH Tunnel
+
+**Callback reception via SSH tunnel:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # Remote port 9834 -> Local port 8090
+  connection:
+    host: ${env.SSH_TUNNEL_HOST}
+    port: ${env.SSH_TUNNEL_PORT | 22}
+    auth:
+      type: keyfile
+      username: ${env.SSH_USERNAME}
+      keyfile: ${env.SSH_KEYFILE | ~/.ssh/id_rsa}
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+component:
+  type: http-client
+  base_url: https://api.external-service.com
+  path: /process
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    data: ${input.data}
+    # Use SSH tunnel's public address
+    callback_url: http://${gateway:8090.public_address}/callback
+    task_id: ${context.run_id}
+  completion:
+    type: callback
+    wait_for: ${context.run_id}
+  output:
+    task_id: ${response.task_id}
+    result: ${result as json}
+
+workflow:
+  title: SSH Tunnel Gateway Example
+  description: Expose local callback listener to external services using SSH tunnel
+  input: ${input}
+  output: ${output}
+```
+
+**Environment variable setup:**
+
+```bash
+export SSH_TUNNEL_HOST="remote-server.com"
+export SSH_TUNNEL_PORT=22
+export SSH_USERNAME="user"
+export SSH_KEYFILE="~/.ssh/id_rsa"
+
+model-compose up
+```
+
+This setup works as follows:
+1. Listener runs on local port 8090
+2. SSH tunnel forwards remote server's port 9834 to local port 8090
+3. External service sends callback to `http://remote-server.com:9834/callback`
+4. SSH tunnel forwards the request to local port 8090
+5. Listener receives callback and delivers result to workflow
+
+### 13.4.7 Real-world Example: Slack Bot Webhook
 
 ```yaml
 gateway:

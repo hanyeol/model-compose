@@ -626,8 +626,12 @@ workflow:
 - 외부 서비스가 콜백 URL을 요구하는 경우
 
 **지원 게이트웨이:**
-- HTTP 터널: ngrok, Cloudflare Tunnel
-- SSH 터널: SSH 리버스 터널
+
+| 타입 | 특징 | 사용 사례 |
+|------|------|----------|
+| **HTTP 터널 (ngrok)** | 쉬운 설정, 임시 URL | 로컬 개발, 빠른 테스트 |
+| **HTTP 터널 (Cloudflare)** | 무료 무제한, 높은 안정성 | 로컬 개발, 지속적 테스트 |
+| **SSH 터널** | 자체 서버 사용, 고정 주소 | 기업 환경, 프로덕션 준비 |
 
 ### 13.4.2 HTTP 터널 - ngrok
 
@@ -723,7 +727,8 @@ SSH 리버스 터널을 사용하여 원격 서버를 통해 로컬 서비스를
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # 원격 포트 9834 -> 로컬 포트 8090
   connection:
     host: remote-server.com
     port: 22
@@ -738,7 +743,8 @@ gateway:
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # 원격 포트 9834 -> 로컬 포트 8090
   connection:
     host: remote-server.com
     port: 22
@@ -748,10 +754,44 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**다중 포트 포워딩:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # 첫 번째 포트 포워딩
+    - "9835:8091"  # 두 번째 포트 포워딩
+    - "9836:8092"  # 세 번째 포트 포워딩
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+**간단한 포트 설정 (로컬과 원격 포트 동일):**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port: 8090  # 원격 포트 8090 -> 로컬 포트 8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
 SSH 터널은 다음과 같은 경우에 유용합니다:
 - 자체 도메인을 사용하고 싶을 때
 - 방화벽이 ngrok/Cloudflare를 차단할 때
 - 기업 환경에서 승인된 서버만 사용해야 할 때
+- 고정된 IP 주소나 포트가 필요할 때
 
 ### 13.4.5 게이트웨이 고급 설정
 
@@ -769,6 +809,8 @@ gateway:
 
 게이트웨이가 설정되면 다음 변수를 사용할 수 있습니다:
 
+**HTTP 터널 (ngrok, Cloudflare):**
+
 ```yaml
 gateway:
   type: http-tunnel
@@ -781,12 +823,106 @@ components:
     body:
       # 공개 URL 사용 (gateway:포트.public_url 형식)
       webhook_url: ${gateway:8080.public_url}/webhook
+      # 예: https://abc123.ngrok.io/webhook
 
       # 포트 정보
       local_port: ${gateway:8080.port}
 ```
 
-### 13.4.6 실전 예제: Slack 봇 웹훅
+**SSH 터널:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+
+components:
+  service:
+    type: http-client
+    body:
+      # 공개 주소 사용 (gateway:로컬포트.public_address 형식)
+      webhook_url: http://${gateway:8090.public_address}/webhook
+      # 예: http://remote-server.com:9834/webhook
+```
+
+### 13.4.6 실전 예제: SSH 터널 사용
+
+**SSH 터널을 통한 콜백 수신:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # 원격 포트 9834 -> 로컬 포트 8090
+  connection:
+    host: ${env.SSH_TUNNEL_HOST}
+    port: ${env.SSH_TUNNEL_PORT | 22}
+    auth:
+      type: keyfile
+      username: ${env.SSH_USERNAME}
+      keyfile: ${env.SSH_KEYFILE | ~/.ssh/id_rsa}
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+component:
+  type: http-client
+  base_url: https://api.external-service.com
+  path: /process
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    data: ${input.data}
+    # SSH 터널의 공개 주소 사용
+    callback_url: http://${gateway:8090.public_address}/callback
+    task_id: ${context.run_id}
+  completion:
+    type: callback
+    wait_for: ${context.run_id}
+  output:
+    task_id: ${response.task_id}
+    result: ${result as json}
+
+workflow:
+  title: SSH Tunnel Gateway Example
+  description: SSH 터널을 사용하여 로컬 콜백 리스너를 외부 서비스에 노출
+  input: ${input}
+  output: ${output}
+```
+
+**환경 변수 설정:**
+
+```bash
+export SSH_TUNNEL_HOST="remote-server.com"
+export SSH_TUNNEL_PORT=22
+export SSH_USERNAME="user"
+export SSH_KEYFILE="~/.ssh/id_rsa"
+
+model-compose up
+```
+
+이 설정은 다음과 같이 작동합니다:
+1. 로컬 포트 8090에서 리스너 실행
+2. SSH 터널을 통해 원격 서버의 포트 9834를 로컬 포트 8090으로 포워딩
+3. 외부 서비스는 `http://remote-server.com:9834/callback`으로 콜백 전송
+4. SSH 터널이 요청을 로컬 포트 8090으로 전달
+5. 리스너가 콜백을 수신하여 워크플로우에 결과 전달
+
+### 13.4.7 실전 예제: Slack 봇 웹훅
 
 ```yaml
 gateway:

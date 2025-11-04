@@ -626,8 +626,12 @@ workflow:
 - 外部服务需要回调 URL
 
 **支持的网关：**
-- HTTP 隧道：ngrok、Cloudflare Tunnel
-- SSH 隧道：SSH 反向隧道
+
+| 类型 | 特点 | 使用场景 |
+|------|------|----------|
+| **HTTP 隧道 (ngrok)** | 设置简单，临时 URL | 本地开发，快速测试 |
+| **HTTP 隧道 (Cloudflare)** | 免费无限制，高可靠性 | 本地开发，持续测试 |
+| **SSH 隧道** | 自有服务器，固定地址 | 企业环境，生产就绪 |
 
 ### 13.4.2 HTTP 隧道 - ngrok
 
@@ -723,7 +727,8 @@ gateway:
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # 远程端口 9834 -> 本地端口 8090
   connection:
     host: remote-server.com
     port: 22
@@ -738,7 +743,8 @@ gateway:
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8090"  # 远程端口 9834 -> 本地端口 8090
   connection:
     host: remote-server.com
     port: 22
@@ -748,10 +754,44 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**多端口转发：**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # 第一个端口转发
+    - "9835:8091"  # 第二个端口转发
+    - "9836:8092"  # 第三个端口转发
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+**简单端口设置（本地和远程端口相同）：**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port: 8090  # 远程端口 8090 -> 本地端口 8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
 SSH 隧道在以下情况下很有用：
 - 使用自定义域名
 - 防火墙阻止 ngrok/Cloudflare
 - 企业环境仅允许批准的服务器
+- 需要固定 IP 地址或端口
 
 ### 13.4.5 高级网关配置
 
@@ -769,6 +809,8 @@ gateway:
 
 当配置网关时，这些变量可用：
 
+**HTTP 隧道（ngrok、Cloudflare）：**
+
 ```yaml
 gateway:
   type: http-tunnel
@@ -781,12 +823,106 @@ components:
     body:
       # 使用公共 URL（gateway:port.public_url 格式）
       webhook_url: ${gateway:8080.public_url}/webhook
+      # 示例：https://abc123.ngrok.io/webhook
 
       # 端口信息
       local_port: ${gateway:8080.port}
 ```
 
-### 13.4.6 真实示例：Slack Bot Webhook
+**SSH 隧道：**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+
+components:
+  service:
+    type: http-client
+    body:
+      # 使用公共地址（gateway:local_port.public_address 格式）
+      webhook_url: http://${gateway:8090.public_address}/webhook
+      # 示例：http://remote-server.com:9834/webhook
+```
+
+### 13.4.6 真实示例：SSH 隧道
+
+**通过 SSH 隧道接收回调：**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8090"  # 远程端口 9834 -> 本地端口 8090
+  connection:
+    host: ${env.SSH_TUNNEL_HOST}
+    port: ${env.SSH_TUNNEL_PORT | 22}
+    auth:
+      type: keyfile
+      username: ${env.SSH_USERNAME}
+      keyfile: ${env.SSH_KEYFILE | ~/.ssh/id_rsa}
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+component:
+  type: http-client
+  base_url: https://api.external-service.com
+  path: /process
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    data: ${input.data}
+    # 使用 SSH 隧道的公共地址
+    callback_url: http://${gateway:8090.public_address}/callback
+    task_id: ${context.run_id}
+  completion:
+    type: callback
+    wait_for: ${context.run_id}
+  output:
+    task_id: ${response.task_id}
+    result: ${result as json}
+
+workflow:
+  title: SSH Tunnel Gateway Example
+  description: 使用 SSH 隧道将本地回调监听器暴露给外部服务
+  input: ${input}
+  output: ${output}
+```
+
+**环境变量设置：**
+
+```bash
+export SSH_TUNNEL_HOST="remote-server.com"
+export SSH_TUNNEL_PORT=22
+export SSH_USERNAME="user"
+export SSH_KEYFILE="~/.ssh/id_rsa"
+
+model-compose up
+```
+
+此设置的工作流程如下：
+1. 监听器在本地端口 8090 上运行
+2. SSH 隧道将远程服务器的端口 9834 转发到本地端口 8090
+3. 外部服务向 `http://remote-server.com:9834/callback` 发送回调
+4. SSH 隧道将请求转发到本地端口 8090
+5. 监听器接收回调并将结果传递给工作流
+
+### 13.4.7 真实示例：Slack Bot Webhook
 
 ```yaml
 gateway:

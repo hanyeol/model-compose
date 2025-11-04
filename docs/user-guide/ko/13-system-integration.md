@@ -1061,7 +1061,7 @@ workflow:
           component: async-service
           input: ${input}
           retry:
-            max_attempts: 3
+            max_retry_count: 3
             delay: 5000
 ```
 

@@ -505,113 +505,6 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 포트 및 호스트 설정
-
-### 호스트 (host)
-
-컨트롤러가 바인딩할 네트워크 인터페이스를 지정합니다.
-
-#### 모든 인터페이스에서 접근 허용 (기본값)
-
-```yaml
-controller:
-  type: http-server
-  host: 0.0.0.0  # 기본값
-  port: 8080
-```
-
-- 외부에서 접근 가능
-- 개발 환경 또는 네트워크에 노출할 때 사용
-
-#### 로컬호스트에서만 접근 허용
-
-```yaml
-controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-```
-
-- 같은 머신에서만 접근 가능
-- 리버스 프록시 뒤에서 실행하거나 보안이 중요한 경우 사용
-
-### 포트 (port)
-
-컨트롤러 API 서버가 사용할 포트를 지정합니다.
-
-```yaml
-controller:
-  type: http-server
-  port: 8080  # 기본값
-```
-
-### 기본 경로 (base_path)
-
-모든 API 엔드포인트의 접두사를 설정합니다.
-
-#### 기본 경로 없음 (기본값)
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  # base_path 없음
-```
-
-엔드포인트:
-- `POST /workflows/runs`
-- `GET /workflows`
-- `GET /tasks/{task_id}`
-
-#### 기본 경로 지정
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  base_path: /api
-```
-
-엔드포인트:
-- `POST /api/workflows/runs`
-- `GET /api/workflows`
-- `GET /api/tasks/{task_id}`
-
-### 리버스 프록시 설정
-
-Nginx나 Caddy 같은 리버스 프록시 뒤에서 실행하는 경우입니다.
-
-#### model-compose 설정
-
-```yaml
-controller:
-  type: http-server
-  host: 127.0.0.1  # 프록시에서만 접근
-  port: 8080
-  base_path: /ai   # 프록시 경로와 일치
-```
-
-#### Nginx 설정 예시
-
-```nginx
-server {
-    listen 80;
-    server_name example.com;
-
-    location /ai/ {
-        proxy_pass http://127.0.0.1:8080/ai/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-이제 외부에서 `http://example.com/ai/workflows/runs`로 접속하면, Nginx가 이를 내부의 `http://127.0.0.1:8080/ai/workflows/runs`로 전달합니다.
-
----
-
 ## 6.3 동시 실행 제어
 
 `max_concurrent_count` 설정은 HTTP 서버와 MCP 서버 모두에서 사용 가능하며, 컨트롤러 레벨에서 동시에 실행할 수 있는 워크플로우 수를 제한합니다.
@@ -695,29 +588,29 @@ components:
 
 컨트롤러가 바인딩할 네트워크 인터페이스를 지정합니다.
 
-#### 모든 인터페이스에서 접근 허용 (기본값)
+#### 로컬호스트에서만 접근 허용 (기본값)
 
 ```yaml
 controller:
   type: http-server
-  host: 0.0.0.0  # 기본값
+  host: 127.0.0.1  # 기본값
+  port: 8080       # 기본값
+```
+
+- 같은 머신에서만 접근 가능
+- 리버스 프록시 뒤에서 실행하거나 보안이 중요한 경우 사용
+
+#### 모든 인터페이스에서 접근 허용
+
+```yaml
+controller:
+  type: http-server
+  host: 0.0.0.0
   port: 8080
 ```
 
 - 외부에서 접근 가능
 - 개발 환경 또는 네트워크에 노출할 때 사용
-
-#### 로컬호스트에서만 접근 허용
-
-```yaml
-controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-```
-
-- 같은 머신에서만 접근 가능
-- 리버스 프록시 뒤에서 실행하거나 보안이 중요한 경우 사용
 
 ### 포트 (port)
 
@@ -726,7 +619,7 @@ controller:
 ```yaml
 controller:
   type: http-server
-  port: 8080  # 기본값
+  port: 8080
 ```
 
 ### 기본 경로 (base_path)

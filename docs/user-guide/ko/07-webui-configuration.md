@@ -55,13 +55,13 @@ controller:
   base_path: /api
   webui:
     driver: gradio  # 기본값 (생략 가능)
-    host: 0.0.0.0   # 기본값
+    host: 127.0.0.1 # 기본값
     port: 8081      # 기본값
 ```
 
 설정 옵션:
 - `driver`: 웹 UI 드라이버 (기본값: `gradio`)
-- `host`: 웹 UI 서버가 바인딩할 호스트 주소 (기본값: `0.0.0.0`)
+- `host`: 웹 UI 서버가 바인딩할 호스트 주소 (기본값: `127.0.0.1`)
 - `port`: 웹 UI 서버 포트 (기본값: `8081`, 컨트롤러 포트와 달라야 함)
 
 ### UI 자동 생성
@@ -144,14 +144,14 @@ controller:
   base_path: /api
   webui:
     driver: static     # 필수
-    host: 0.0.0.0      # 기본값
+    host: 127.0.0.1    # 기본값
     port: 8081         # 기본값
     static_dir: webui  # 기본값
 ```
 
 설정 옵션:
 - `driver`: `static` (필수, gradio가 기본값이므로 반드시 지정 필요)
-- `host`: 웹 UI 서버가 바인딩할 호스트 주소 (기본값: `0.0.0.0`)
+- `host`: 웹 UI 서버가 바인딩할 호스트 주소 (기본값: `127.0.0.1`)
 - `port`: 웹 UI 서버 포트 (기본값: `8081`)
 - `static_dir`: 정적 파일이 있는 디렉토리 경로 (기본값: `webui`)
 

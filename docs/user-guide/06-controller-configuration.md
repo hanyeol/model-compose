@@ -588,29 +588,29 @@ components:
 
 Specifies the network interface the controller binds to.
 
-#### Allow Access from All Interfaces (Default)
+#### Allow Access from Localhost Only (Default)
 
 ```yaml
 controller:
   type: http-server
-  host: 0.0.0.0  # Default
+  host: 127.0.0.1  # Default
+  port: 8080       # Default
+```
+
+- Accessible only from the same machine
+- Use when running behind a reverse proxy or when security is critical
+
+#### Allow Access from All Interfaces
+
+```yaml
+controller:
+  type: http-server
+  host: 0.0.0.0
   port: 8080
 ```
 
 - Accessible from external sources
 - Use for development environment or when exposing to network
-
-#### Allow Access from Localhost Only
-
-```yaml
-controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-```
-
-- Accessible only from the same machine
-- Use when running behind a reverse proxy or when security is critical
 
 ### Port
 

@@ -686,7 +686,7 @@ component:
   endpoint: https://api.example.com/v1/process
   method: POST
   retry:
-    max_attempts: 3
+    max_retry_count: 3
     delay: 1000  # 1초
     backoff: 2   # 지수 백오프
   headers:

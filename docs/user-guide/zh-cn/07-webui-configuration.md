@@ -55,13 +55,13 @@ controller:
   base_path: /api
   webui:
     driver: gradio  # 默认（可省略）
-    host: 0.0.0.0   # 默认
+    host: 127.0.0.1 # 默认
     port: 8081      # 默认
 ```
 
 配置选项：
 - `driver`：Web UI 驱动（默认：`gradio`）
-- `host`：Web UI 服务器绑定的主机地址（默认：`0.0.0.0`）
+- `host`：Web UI 服务器绑定的主机地址（默认：`127.0.0.1`）
 - `port`：Web UI 服务器端口（默认：`8081`，必须与控制器端口不同）
 
 ### 自动 UI 生成
@@ -144,14 +144,14 @@ controller:
   base_path: /api
   webui:
     driver: static     # 必需
-    host: 0.0.0.0      # 默认
+    host: 127.0.0.1    # 默认
     port: 8081         # 默认
     static_dir: webui  # 默认
 ```
 
 配置选项：
 - `driver`：`static`（必需，因为 gradio 是默认值，所以必须指定）
-- `host`：Web UI 服务器绑定的主机地址（默认：`0.0.0.0`）
+- `host`：Web UI 服务器绑定的主机地址（默认：`127.0.0.1`）
 - `port`：Web UI 服务器端口（默认：`8081`）
 - `static_dir`：包含静态文件的目录路径（默认：`webui`）
 

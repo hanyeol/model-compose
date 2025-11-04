@@ -604,7 +604,7 @@ workflow:
       component: external-api
       on_error:
         action: retry
-        max_attempts: 3
+        max_retry_count: 3
         backoff: exponential
 ```
 

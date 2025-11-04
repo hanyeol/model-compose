@@ -53,7 +53,7 @@ logger:            # loggers: [ ... ] 대신
 controller:
   type: http-server
   port: 8080                           # 기본값: 8080
-  host: 0.0.0.0                        # 기본값: 0.0.0.0
+  host: 0.0.0.0                        # 기본값: 127.0.0.1
   base_path: /api                      # 기본값: /
   max_concurrency: 10                  # 기본값: 무제한
 

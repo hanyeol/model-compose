@@ -847,7 +847,7 @@ workflows:
       - id: api-call
         component: external-api
         retry:
-          max_attempts: 3
+          max_retry_count: 3
           delay: 1000  # milliseconds
           backoff: exponential
         input: ${input}
@@ -906,7 +906,7 @@ workflows:
       - id: try-gpt4o
         component: gpt4o
         retry:
-          max_attempts: 2
+          max_retry_count: 2
           delay: 500
         input:
           messages: ${input.messages}
@@ -1067,7 +1067,7 @@ workflows:
       - id: important-task
         component: critical-service
         retry:
-          max_attempts: 3
+          max_retry_count: 3
           delay: 1000
         on_error: continue
 

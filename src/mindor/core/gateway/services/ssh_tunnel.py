@@ -6,6 +6,7 @@ from mindor.dsl.schema.gateway import SshTunnelGatewayConfig
 from ..base import GatewayService, GatewayType, register_gateway
 from mindor.core.utils.ssh_client import SshClient
 from mindor.core.logger import logging
+import asyncio
 
 if TYPE_CHECKING:
     pass
@@ -15,9 +16,10 @@ class SshTunnelGateway(GatewayService):
     def __init__(self, id: str, config: SshTunnelGatewayConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.ssh_client: Optional[SshClient] = None
+        self.client: Optional[SshClient] = None
         self.local_ports: List[int] = []
         self.remote_ports: List[int] = []
+        self._shutdown_event: Optional[asyncio.Event] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "paramiko" ]
@@ -39,13 +41,14 @@ class SshTunnelGateway(GatewayService):
             f"Establishing SSH tunnel to {self.config.connection.host}:{self.config.connection.port}"
         )
 
-        # Create SSH client
-        self.ssh_client = SshClient(self.config.connection)
-        await self.ssh_client.connect()
+        self._shutdown_event = asyncio.Event()
+
+        self.client = SshClient(self.config.connection)
+        await self.client.connect()
 
         # Start remote port forwarding for each port mapping
         for remote_port, local_port in self.config.port:
-            actual_remote_port = await self.ssh_client.start_remote_port_forwarding(
+            actual_remote_port = await self.client.start_remote_port_forwarding(
                 remote_port=remote_port,
                 local_port=local_port,
                 local_host="localhost"
@@ -58,14 +61,22 @@ class SshTunnelGateway(GatewayService):
                 f"Remote port forwarding started: {self.config.connection.host}:{remote_port} -> localhost:{local_port}"
             )
 
+        # Keep the SSH connection alive until shutdown event is set
+        await self._shutdown_event.wait()
+
     async def _shutdown(self) -> None:
         """Stop SSH tunnel and cleanup"""
-        if self.ssh_client:
+        # Signal the _serve task to stop
+        if self._shutdown_event:
+            self._shutdown_event.set()
+
+        if self.client:
             logging.info(
                 f"Stopping SSH tunnel to {self.config.connection.host}:{self.config.connection.port}"
             )
 
-            await self.ssh_client.close()
-            self.ssh_client = None
+            await self.client.close()
+            self.client = None
             self.local_ports = []
             self.remote_ports = []
+            self._shutdown_event = None

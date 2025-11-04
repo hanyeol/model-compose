@@ -2,12 +2,12 @@
 SSH client integration tests
 
 Configure via environment variables:
-    export SSH_TEST_HOST=your-ssh-server.com
-    export SSH_TEST_PORT=22
-    export SSH_TEST_USER=your-username
-    export SSH_TEST_KEYFILE=~/.ssh/id_rsa
+    export TEST_SSH_HOST=your-ssh-server.com
+    export TEST_SSH_PORT=22
+    export TEST_SSH_USER=your-username
+    export TEST_SSH_KEYFILE=~/.ssh/id_rsa
     # OR
-    export SSH_TEST_PASSWORD=your-password
+    export TEST_SSH_PASSWORD=your-password
 
 Run tests:
     pytest tests/core/utils/test_ssh_client.py -v -s
@@ -26,11 +26,11 @@ def anyio_backend():
     return "asyncio"
 
 # SSH server configuration from environment
-SSH_HOST     = os.getenv("SSH_TEST_HOST", "localhost")
-SSH_PORT     = int(os.getenv("SSH_TEST_PORT", "22"))
-SSH_USER     = os.getenv("SSH_TEST_USER", "test")
-SSH_KEYFILE  = os.getenv("SSH_TEST_KEYFILE", "~/.ssh/id_rsa")
-SSH_PASSWORD = os.getenv("SSH_TEST_PASSWORD", "")
+SSH_HOST     = os.getenv("TEST_SSH_HOST", "localhost")
+SSH_PORT     = int(os.getenv("TEST_SSH_PORT", "22"))
+SSH_USER     = os.getenv("TEST_SSH_USER", "test")
+SSH_KEYFILE  = os.getenv("TEST_SSH_KEYFILE", "~/.ssh/id_rsa")
+SSH_PASSWORD = os.getenv("TEST_SSH_PASSWORD", "")
 
 def find_free_port():
     """Find a free local port"""

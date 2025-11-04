@@ -1,3 +1,6 @@
 .env
-.docker
 logs
+*.log
+__pycache__/
+*.pyc
+.docker

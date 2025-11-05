@@ -189,10 +189,16 @@ gateway:
       keyfile: "/path/to/private/key"
 ```
 
-**Port Format:** `"remote_port:local_port"`
-- The remote port is exposed on the SSH server
-- Traffic is forwarded to the local port
-- Multiple port mappings can be specified as an array
+**Port Formats:**
+
+The `port` field supports multiple flexible formats:
+
+1. **Integer**: `8080` → Forwards remote port 8080 to localhost:8080
+2. **Port:Port**: `"9834:8080"` → Forwards remote port 9834 to localhost:8080
+3. **Port:Host**: `"8080:192.168.1.107"` → Forwards remote port 8080 to 192.168.1.107:8080
+4. **Port:Host:Port**: `"9834:192.168.1.107:3000"` → Forwards remote port 9834 to 192.168.1.107:3000
+
+Multiple port mappings can be specified as an array.
 
 **Accessing Public Addresses:**
 Use `${gateway:LOCAL_PORT.public_address}` to access the public address (returns `remote-host:remote-port`).
@@ -351,6 +357,26 @@ gateway:
 ```
 
 Creates an SSH tunnel using password authentication with password stored in environment variable.
+
+### SSH Tunnel with Custom Local Host
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "8080:192.168.1.107"          # Remote 8080 -> 192.168.1.107:8080
+    - "9834:192.168.1.107:3000"     # Remote 9834 -> 192.168.1.107:3000
+    - "9835:example.local:8090"     # Remote 9835 -> example.local:8090
+  connection:
+    host: tunnel-server.example.com
+    port: 22
+    auth:
+      type: keyfile
+      username: tunnel-user
+      keyfile: ~/.ssh/tunnel_key
+```
+
+Forwards remote ports to specific hosts in the local network, useful for exposing services running on other machines in your local network.
 
 ### Multiple Gateways
 

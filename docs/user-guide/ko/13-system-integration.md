@@ -643,7 +643,7 @@ ngrok는 로컬 서버를 공개 URL로 노출하는 터널링 서비스입니�
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8080                          # 터널링할 로컬 포트
+  port: 8080  # 터널링할 로컬 포트
 ```
 
 이 설정은 로컬 포트 8080을 ngrok 공개 URL로 노출합니다.
@@ -655,9 +655,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8080                            # 첫 번째 로컬 포트
-    - 8090                            # 두 번째 로컬 포트
-    - 3000                            # 세 번째 로컬 포트
+    - 8080  # 첫 번째 로컬 포트
+    - 8090  # 두 번째 로컬 포트
+    - 3000  # 세 번째 로컬 포트
 ```
 
 각 포트는 고유한 공개 URL을 받습니다 (예: `https://abc123.ngrok.io`, `https://def456.ngrok.io`, `https://ghi789.ngrok.io`).
@@ -668,7 +668,7 @@ gateway:
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # 리스너 포트와 동일
+  port: 8090  # 리스너 포트와 동일
 
 listener:
   type: http-callback
@@ -707,9 +707,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8090                            # 콜백 리스너
-    - 8091                            # 상태 웹훅
-    - 8092                            # 관리자 인터페이스
+    - 8090  # 콜백 리스너
+    - 8091  # 상태 웹훅
+    - 8092  # 관리자 인터페이스
 
 components:
   external-service:
@@ -751,7 +751,7 @@ Cloudflare Tunnel (이전 Argo Tunnel)은 무제한 대역폭으로 무료 사�
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080                          # 터널링할 로컬 포트
+  port: 8080  # 터널링할 로컬 포트
 ```
 
 이 설정은 로컬 포트 8080을 Cloudflare Tunnel 공개 URL로 노출합니다.
@@ -763,9 +763,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8080                            # 첫 번째 로컬 포트
-    - 8090                            # 두 번째 로컬 포트
-    - 3000                            # 세 번째 로컬 포트
+    - 8080  # 첫 번째 로컬 포트
+    - 8090  # 두 번째 로컬 포트
+    - 3000  # 세 번째 로컬 포트
 ```
 
 각 포트는 고유한 공개 URL을 받습니다 (예: `https://abc-def.trycloudflare.com`, `https://ghi-jkl.trycloudflare.com`, `https://mno-pqr.trycloudflare.com`).
@@ -807,9 +807,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8090                            # 콜백 리스너
-    - 8091                            # 상태 웹훅
-    - 3000                            # 프론트엔드 애플리케이션
+    - 8090  # 콜백 리스너
+    - 8091  # 상태 웹훅
+    - 3000  # 프론트엔드 애플리케이션
 
 components:
   external-service:
@@ -879,15 +879,24 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**포트 포워딩 형식:**
+
+`port` 필드는 다양한 유연한 형식을 지원합니다:
+
+1. **정수**: `8090` → 원격 포트 8090을 localhost:8090으로 포워딩
+2. **포트:포트**: `"9834:8090"` → 원격 포트 9834를 localhost:8090으로 포워딩
+3. **포트:호스트**: `"8090:192.168.1.107"` → 원격 포트 8090을 192.168.1.107:8090으로 포워딩
+4. **포트:호스트:포트**: `"9834:192.168.1.107:3000"` → 원격 포트 9834를 192.168.1.107:3000으로 포워딩
+
 **다중 포트 포워딩:**
 
 ```yaml
 gateway:
   type: ssh-tunnel
   port:
-    - "9834:8090"  # 첫 번째 포트 포워딩
-    - "9835:8091"  # 두 번째 포트 포워딩
-    - "9836:8092"  # 세 번째 포트 포워딩
+    - "9834:8090"  # 원격 9834 -> localhost:8090
+    - "9835:8091"  # 원격 9835 -> localhost:8091
+    - "9836:8092"  # 원격 9836 -> localhost:8092
   connection:
     host: remote-server.com
     port: 22
@@ -897,12 +906,32 @@ gateway:
       keyfile: ~/.ssh/id_rsa
 ```
 
+**로컬 네트워크의 다른 호스트로 포워딩:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "8080:192.168.1.107"          # 원격 8080 -> 192.168.1.107:8080
+    - "9834:192.168.1.107:3000"     # 원격 9834 -> 192.168.1.107:3000
+    - "9835:example.local:8090"     # 원격 9835 -> example.local:8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+로컬 네트워크의 다른 머신에서 실행 중인 서비스를 노출할 때 유용합니다.
+
 **간단한 포트 설정 (로컬과 원격 포트 동일):**
 
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8090  # 원격 포트 8090 -> 로컬 포트 8090
+  port: 8090  # 원격 포트 8090 -> localhost:8090
   connection:
     host: remote-server.com
     port: 22
@@ -917,6 +946,7 @@ SSH 터널은 다음과 같은 경우에 유용합니다:
 - 방화벽이 ngrok/Cloudflare를 차단할 때
 - 기업 환경에서 승인된 서버만 사용해야 할 때
 - 고정된 IP 주소나 포트가 필요할 때
+- 로컬 네트워크의 다른 머신에 있는 서비스를 노출할 때
 
 ### 13.4.5 게이트웨이 고급 설정
 
@@ -1053,7 +1083,7 @@ model-compose up
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8090                          # 리스너 포트와 동일
+  port: 8090  # 리스너 포트와 동일
 
 listener:
   type: http-callback
@@ -1110,7 +1140,7 @@ Slack 앱 설정:
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # 리스너 포트와 동일
+  port: 8090  # 리스너 포트와 동일
 
 listener:
   type: http-callback
@@ -1175,7 +1205,7 @@ workflow:
         size: ${input.size}
       output:
         task_id: ${output.task_id}
-        image_url: ${output.url}        # 콜백에서 받은 URL
+        image_url: ${output.url}  # 콜백에서 받은 URL
         width: ${output.width}
         height: ${output.height}
 
@@ -1234,7 +1264,7 @@ sequenceDiagram
 ```yaml
 gateway:
   type: http-tunnel
-  driver: ngrok                       # 개발 중에는 ngrok 사용
+  driver: ngrok  # 개발 중에는 ngrok 사용
   port: 8080
 
 listener:
@@ -1249,7 +1279,7 @@ listener:
 controller:
   type: http-server
   host: 0.0.0.0
-  port: 443                           # HTTPS
+  port: 443  # HTTPS
   # SSL 설정 추가
 
 listener:
@@ -1278,7 +1308,7 @@ components:
 components:
   service:
     type: http-client
-    timeout: 300000                   # 5분 타임아웃
+    timeout: 300000  # 5분 타임아웃
     body:
       callback_url: ${listener.url}
 ```
@@ -1342,10 +1372,10 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}         # 작업 식별자
-        status: ${body.status}           # 작업 상태
-        timestamp: ${body.timestamp}     # 콜백 수신 시간
-        data: ${body}                    # 전체 페이로드 저장 (디버깅용)
+        task_id: ${body.task_id}      # 작업 식별자
+        status: ${body.status}        # 작업 상태
+        timestamp: ${body.timestamp}  # 콜백 수신 시간
+        data: ${body}                 # 전체 페이로드 저장 (디버깅용)
 ```
 
 이렇게 저장된 정보는 다음과 같은 목적으로 활용됩니다:
@@ -1408,11 +1438,11 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}                        # 작업 ID
-        result: ${body.result}                          # 실제 결과 데이터
+        task_id: ${body.task_id}                       # 작업 ID
+        result: ${body.result}                         # 실제 결과 데이터
         metrics:
-          processing_time: ${body.processing_time_ms}   # 실제 처리 시간 (ms)
-          queue_time: ${body.queue_time_ms}             # 큐 대기 시간 (ms)
+          processing_time: ${body.processing_time_ms}  # 실제 처리 시간 (ms)
+          queue_time: ${body.queue_time_ms}            # 큐 대기 시간 (ms)
 ```
 
 이 메트릭을 사용하여:

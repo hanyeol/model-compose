@@ -643,7 +643,7 @@ ngrok is a tunneling service that exposes local servers with public URLs.
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8080                          # Local port to tunnel
+  port: 8080  # Local port to tunnel
 ```
 
 This exposes local port 8080 through ngrok public URL.
@@ -655,9 +655,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8080                            # First local port
-    - 8090                            # Second local port
-    - 3000                            # Third local port
+    - 8080  # First local port
+    - 8090  # Second local port
+    - 3000  # Third local port
 ```
 
 Each port gets its own unique public URL (e.g., `https://abc123.ngrok.io`, `https://def456.ngrok.io`, `https://ghi789.ngrok.io`).
@@ -668,7 +668,7 @@ Each port gets its own unique public URL (e.g., `https://abc123.ngrok.io`, `http
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # Same as listener port
+  port: 8090  # Same as listener port
 
 listener:
   type: http-callback
@@ -707,9 +707,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8090                            # Callback listener
-    - 8091                            # Status webhook
-    - 8092                            # Admin interface
+    - 8090  # Callback listener
+    - 8091  # Status webhook
+    - 8092  # Admin interface
 
 components:
   external-service:
@@ -751,7 +751,7 @@ Cloudflare Tunnel (formerly Argo Tunnel) is a stable tunneling service available
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080                          # Local port to tunnel
+  port: 8080  # Local port to tunnel
 ```
 
 This exposes local port 8080 through Cloudflare Tunnel public URL.
@@ -763,9 +763,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8080                            # First local port
-    - 8090                            # Second local port
-    - 3000                            # Third local port
+    - 8080  # First local port
+    - 8090  # Second local port
+    - 3000  # Third local port
 ```
 
 Each port gets its own unique public URL (e.g., `https://abc-def.trycloudflare.com`, `https://ghi-jkl.trycloudflare.com`, `https://mno-pqr.trycloudflare.com`).
@@ -807,9 +807,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8090                            # Callback listener
-    - 8091                            # Status webhook
-    - 3000                            # Frontend application
+    - 8090  # Callback listener
+    - 8091  # Status webhook
+    - 3000  # Frontend application
 
 components:
   external-service:
@@ -879,15 +879,24 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**Port forwarding formats:**
+
+The `port` field supports multiple flexible formats:
+
+1. **Integer**: `8090` → Forwards remote port 8090 to localhost:8090
+2. **Port:Port**: `"9834:8090"` → Forwards remote port 9834 to localhost:8090
+3. **Port:Host**: `"8090:192.168.1.107"` → Forwards remote port 8090 to 192.168.1.107:8090
+4. **Port:Host:Port**: `"9834:192.168.1.107:3000"` → Forwards remote port 9834 to 192.168.1.107:3000
+
 **Multiple port forwarding:**
 
 ```yaml
 gateway:
   type: ssh-tunnel
   port:
-    - "9834:8090"  # First port forwarding
-    - "9835:8091"  # Second port forwarding
-    - "9836:8092"  # Third port forwarding
+    - "9834:8090"  # Remote 9834 -> localhost:8090
+    - "9835:8091"  # Remote 9835 -> localhost:8091
+    - "9836:8092"  # Remote 9836 -> localhost:8092
   connection:
     host: remote-server.com
     port: 22
@@ -897,12 +906,32 @@ gateway:
       keyfile: ~/.ssh/id_rsa
 ```
 
+**Forwarding to other hosts in local network:**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "8080:192.168.1.107"       # Remote 8080 -> 192.168.1.107:8080
+    - "9834:192.168.1.107:3000"  # Remote 9834 -> 192.168.1.107:3000
+    - "9835:example.local:8090"  # Remote 9835 -> example.local:8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+This is useful for exposing services running on other machines in your local network.
+
 **Simple port setup (same local and remote port):**
 
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8090  # Remote port 8090 -> Local port 8090
+  port: 8090  # Remote port 8090 -> localhost:8090
   connection:
     host: remote-server.com
     port: 22
@@ -917,6 +946,7 @@ SSH tunnels are useful when:
 - Firewalls block ngrok/Cloudflare
 - Corporate environments require approved servers only
 - Fixed IP addresses or ports are needed
+- Exposing services on other machines in local network
 
 ### 13.4.5 Advanced Gateway Configuration
 
@@ -926,7 +956,7 @@ SSH tunnels are useful when:
 gateway:
   type: http-tunnel
   driver: ngrok
-  runtime: native                     # or docker
+  runtime: native  # or docker
   port: 8080
 ```
 
@@ -1053,7 +1083,7 @@ This setup works as follows:
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8090                          # Same as listener port
+  port: 8090  # Same as listener port
 
 listener:
   type: http-callback
@@ -1110,7 +1140,7 @@ Using listeners and gateways together allows safe testing of external webhooks i
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # Same as listener port
+  port: 8090  # Same as listener port
 
 listener:
   type: http-callback
@@ -1175,7 +1205,7 @@ workflow:
         size: ${input.size}
       output:
         task_id: ${output.task_id}
-        image_url: ${output.url}        # URL from callback
+        image_url: ${output.url}  # URL from callback
         width: ${output.width}
         height: ${output.height}
 
@@ -1234,7 +1264,7 @@ sequenceDiagram
 ```yaml
 gateway:
   type: http-tunnel
-  driver: ngrok                       # Use ngrok during development
+  driver: ngrok  # Use ngrok during development
   port: 8080
 
 listener:
@@ -1249,7 +1279,7 @@ listener:
 controller:
   type: http-server
   host: 0.0.0.0
-  port: 443                           # HTTPS
+  port: 443  # HTTPS
   # Add SSL configuration
 
 listener:
@@ -1278,7 +1308,7 @@ Set timeouts so async tasks don't wait indefinitely:
 components:
   service:
     type: http-client
-    timeout: 300000                   # 5 minute timeout
+    timeout: 300000  # 5 minute timeout
     body:
       callback_url: ${gateway:8090.public_url}/callback
 ```
@@ -1342,10 +1372,10 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}                              # Task ID
-        status: ${body.status}                                # Task status
-        timestamp: ${body.timestamp}                          # Callback receipt time
-        data: ${body}                                         # Store full payload (for debugging)
+        task_id: ${body.task_id}      # Task ID
+        status: ${body.status}        # Task status
+        timestamp: ${body.timestamp}  # Callback receipt time
+        data: ${body}                 # Store full payload (for debugging)
 ```
 
 This stored information is used for:
@@ -1408,11 +1438,11 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}                              # Task ID
-        result: ${body.result}                                # Actual result data
+        task_id: ${body.task_id}  # Task ID
+        result: ${body.result}    # Actual result data
         metrics:
-          processing_time: ${body.processing_time_ms}         # Actual processing time (ms)
-          queue_time: ${body.queue_time_ms}                   # Queue wait time (ms)
+          processing_time: ${body.processing_time_ms}  # Actual processing time (ms)
+          queue_time: ${body.queue_time_ms}            # Queue wait time (ms)
           total_time: ${body.processing_time_ms + body.queue_time_ms}  # Total time
 ```
 

@@ -70,17 +70,17 @@ listener:
   type: http-callback
   host: 0.0.0.0
   port: 8090
-  path: /webhook/completed           # 回调路径
-  method: POST                        # HTTP 方法
-  identify_by: ${body.task_id}       # 任务标识符
-  status: ${body.status}              # 状态字段
-  success_when:                       # 成功状态值
+  path: /webhook/completed      # 回调路径
+  method: POST                  # HTTP 方法
+  identify_by: ${body.task_id}  # 任务标识符
+  status: ${body.status}        # 状态字段
+  success_when:                 # 成功状态值
     - "completed"
     - "success"
-  fail_when:                          # 失败状态值
+  fail_when:                    # 失败状态值
     - "failed"
     - "error"
-  result: ${body.result}              # 结果提取路径
+  result: ${body.result}        # 结果提取路径
 ```
 
 **多个回调端点：**
@@ -90,7 +90,7 @@ listener:
   type: http-callback
   host: 0.0.0.0
   port: 8090
-  base_path: /webhooks                # 通用基础路径
+  base_path: /webhooks  # 通用基础路径
   callbacks:
     # 图像生成完成回调
     - path: /image/completed
@@ -142,9 +142,9 @@ listener:
   port: 8090
   path: /batch/completed
   method: POST
-  bulk: true                          # 启用批量模式
-  item: ${body.results}               # 结果数组路径
-  identify_by: ${item.task_id}        # 每个项目的标识符
+  bulk: true                    # 启用批量模式
+  item: ${body.results}         # 结果数组路径
+  identify_by: ${item.task_id}  # 每个项目的标识符
   status: ${item.status}
   success_when: ["completed"]
   result: ${item.data}
@@ -177,7 +177,7 @@ listener:
   type: http-callback
   host: 0.0.0.0
   port: 8090
-  max_concurrent_count: 10            # 最大并发回调处理数
+  max_concurrent_count: 10  # 最大并发回调处理数
   path: /callback
   method: POST
 ```
@@ -187,7 +187,7 @@ listener:
 ```yaml
 listener:
   type: http-callback
-  runtime: native                     # 或 docker
+  runtime: native  # 或 docker
   host: 0.0.0.0
   port: 8090
   path: /callback
@@ -205,8 +205,8 @@ listener:
   host: 0.0.0.0
   port: 8090
   path: /callback
-  identify_by: ${body.task_id}        # 识别哪个工作流
-  result: ${body.result}              # 提取结果
+  identify_by: ${body.task_id}  # 识别哪个工作流
+  result: ${body.result}        # 提取结果
 ```
 
 **工作流执行流程：**
@@ -259,7 +259,7 @@ sequenceDiagram
 listener:
   path: /webhook
   identify_by: ${body.task_id}
-  result: ${body.output.url}          # 嵌套字段访问
+  result: ${body.output.url}  # 嵌套字段访问
 ```
 
 **多字段提取：**
@@ -280,7 +280,7 @@ listener:
 ```yaml
 listener:
   path: /webhook
-  identify_by: ${query.task_id}       # 从 URL 查询提取
+  identify_by: ${query.task_id}  # 从 URL 查询提取
   result: ${body}
 ```
 
@@ -643,7 +643,7 @@ ngrok 是一个隧道服务，通过公共 URL 暴露本地服务器。
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8080                          # 要隧道的本地端口
+  port: 8080  # 要隧道的本地端口
 ```
 
 这将通过 ngrok 公共 URL 暴露本地端口 8080。
@@ -655,9 +655,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8080                            # 第一个本地端口
-    - 8090                            # 第二个本地端口
-    - 3000                            # 第三个本地端口
+    - 8080  # 第一个本地端口
+    - 8090  # 第二个本地端口
+    - 3000  # 第三个本地端口
 ```
 
 每个端口获得自己唯一的公共 URL（例如 `https://abc123.ngrok.io`、`https://def456.ngrok.io`、`https://ghi789.ngrok.io`）。
@@ -668,7 +668,7 @@ gateway:
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # 与监听器端口相同
+  port: 8090  # 与监听器端口相同
 
 listener:
   type: http-callback
@@ -707,9 +707,9 @@ gateway:
   type: http-tunnel
   driver: ngrok
   port:
-    - 8090                            # 回调监听器
-    - 8091                            # 状态 Webhook
-    - 8092                            # 管理界面
+    - 8090  # 回调监听器
+    - 8091  # 状态 Webhook
+    - 8092  # 管理界面
 
 components:
   external-service:
@@ -751,7 +751,7 @@ Cloudflare Tunnel（以前称为 Argo Tunnel）是一个稳定的隧道服务，
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080                          # 要隧道的本地端口
+  port: 8080  # 要隧道的本地端口
 ```
 
 这将通过 Cloudflare Tunnel 公共 URL 暴露本地端口 8080。
@@ -763,9 +763,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8080                            # 第一个本地端口
-    - 8090                            # 第二个本地端口
-    - 3000                            # 第三个本地端口
+    - 8080  # 第一个本地端口
+    - 8090  # 第二个本地端口
+    - 3000  # 第三个本地端口
 ```
 
 每个端口获得自己唯一的公共 URL（例如 `https://abc-def.trycloudflare.com`、`https://ghi-jkl.trycloudflare.com`、`https://mno-pqr.trycloudflare.com`）。
@@ -807,9 +807,9 @@ gateway:
   type: http-tunnel
   driver: cloudflare
   port:
-    - 8090                            # 回调监听器
-    - 8091                            # 状态 Webhook
-    - 3000                            # 前端应用
+    - 8090  # 回调监听器
+    - 8091  # 状态 Webhook
+    - 3000  # 前端应用
 
 components:
   external-service:
@@ -879,15 +879,24 @@ gateway:
       password: ${env.SSH_PASSWORD}
 ```
 
+**端口转发格式：**
+
+`port` 字段支持多种灵活格式：
+
+1. **整数**: `8090` → 将远程端口 8090 转发到 localhost:8090
+2. **端口:端口**: `"9834:8090"` → 将远程端口 9834 转发到 localhost:8090
+3. **端口:主机**: `"8090:192.168.1.107"` → 将远程端口 8090 转发到 192.168.1.107:8090
+4. **端口:主机:端口**: `"9834:192.168.1.107:3000"` → 将远程端口 9834 转发到 192.168.1.107:3000
+
 **多端口转发：**
 
 ```yaml
 gateway:
   type: ssh-tunnel
   port:
-    - "9834:8090"  # 第一个端口转发
-    - "9835:8091"  # 第二个端口转发
-    - "9836:8092"  # 第三个端口转发
+    - "9834:8090"  # 远程 9834 -> localhost:8090
+    - "9835:8091"  # 远程 9835 -> localhost:8091
+    - "9836:8092"  # 远程 9836 -> localhost:8092
   connection:
     host: remote-server.com
     port: 22
@@ -896,6 +905,26 @@ gateway:
       username: user
       keyfile: ~/.ssh/id_rsa
 ```
+
+**转发到本地网络中的其他主机：**
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "8080:192.168.1.107"       # 远程 8080 -> 192.168.1.107:8080
+    - "9834:192.168.1.107:3000"  # 远程 9834 -> 192.168.1.107:3000
+    - "9835:example.local:8090"  # 远程 9835 -> example.local:8090
+  connection:
+    host: remote-server.com
+    port: 22
+    auth:
+      type: keyfile
+      username: user
+      keyfile: ~/.ssh/id_rsa
+```
+
+这对于暴露在本地网络中其他机器上运行的服务很有用。
 
 **简单端口设置（本地和远程端口相同）：**
 
@@ -917,6 +946,7 @@ SSH 隧道在以下情况下很有用：
 - 防火墙阻止 ngrok/Cloudflare
 - 企业环境仅允许批准的服务器
 - 需要固定 IP 地址或端口
+- 暴露本地网络中其他机器上的服务
 
 ### 13.4.5 高级网关配置
 
@@ -926,7 +956,7 @@ SSH 隧道在以下情况下很有用：
 gateway:
   type: http-tunnel
   driver: ngrok
-  runtime: native                     # 或 docker
+  runtime: native  # 或 docker
   port: 8080
 ```
 
@@ -1053,7 +1083,7 @@ model-compose up
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8090                          # 与监听器端口相同
+  port: 8090  # 与监听器端口相同
 
 listener:
   type: http-callback
@@ -1110,7 +1140,7 @@ Slack 应用设置：
 gateway:
   type: http-tunnel
   driver: ngrok
-  port: 8090                          # 与监听器端口相同
+  port: 8090  # 与监听器端口相同
 
 listener:
   type: http-callback
@@ -1175,7 +1205,7 @@ workflow:
         size: ${input.size}
       output:
         task_id: ${output.task_id}
-        image_url: ${output.url}        # 来自回调的 URL
+        image_url: ${output.url}  # 来自回调的 URL
         width: ${output.width}
         height: ${output.height}
 
@@ -1234,7 +1264,7 @@ sequenceDiagram
 ```yaml
 gateway:
   type: http-tunnel
-  driver: ngrok                       # 开发期间使用 ngrok
+  driver: ngrok  # 开发期间使用 ngrok
   port: 8080
 
 listener:
@@ -1249,7 +1279,7 @@ listener:
 controller:
   type: http-server
   host: 0.0.0.0
-  port: 443                           # HTTPS
+  port: 443  # HTTPS
   # 添加 SSL 配置
 
 listener:
@@ -1278,7 +1308,7 @@ components:
 components:
   service:
     type: http-client
-    timeout: 300000                   # 5 分钟超时
+    timeout: 300000  # 5 分钟超时
     body:
       callback_url: ${gateway:8090.public_url}/callback
 ```
@@ -1342,10 +1372,10 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}                              # 任务 ID
-        status: ${body.status}                                # 任务状态
-        timestamp: ${body.timestamp}                          # 回调接收时间
-        data: ${body}                                         # 存储完整负载（用于调试）
+        task_id: ${body.task_id}      # 任务 ID
+        status: ${body.status}        # 任务状态
+        timestamp: ${body.timestamp}  # 回调接收时间
+        data: ${body}                 # 存储完整负载（用于调试）
 ```
 
 这些存储的信息用于：
@@ -1408,11 +1438,11 @@ listener:
     - path: /webhook
       identify_by: ${body.task_id}
       result:
-        task_id: ${body.task_id}                              # 任务 ID
-        result: ${body.result}                                # 实际结果数据
+        task_id: ${body.task_id}  # 任务 ID
+        result: ${body.result}    # 实际结果数据
         metrics:
-          processing_time: ${body.processing_time_ms}         # 实际处理时间（毫秒）
-          queue_time: ${body.queue_time_ms}                   # 队列等待时间（毫秒）
+          processing_time: ${body.processing_time_ms}  # 实际处理时间（毫秒）
+          queue_time: ${body.queue_time_ms}            # 队列等待时间（毫秒）
           total_time: ${body.processing_time_ms + body.queue_time_ms}  # 总时间
 ```
 

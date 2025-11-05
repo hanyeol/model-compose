@@ -46,17 +46,17 @@ class SshTunnelGateway(GatewayService):
         await self.client.connect()
 
         # Start remote port forwarding for each port mapping
-        for remote_port, local_port in self.config.port:
+        for remote_port, local_host, local_port in self.config.port:
             actual_remote_port = await self.client.start_remote_port_forwarding(
                 remote_port=remote_port,
                 local_port=local_port,
-                local_host="localhost"
+                local_host=local_host
             )
 
             self.ports[local_port] = actual_remote_port
 
             logging.info(
-                f"Remote port forwarding started: {self.config.connection.host}:{remote_port} -> localhost:{local_port}"
+                f"Remote port forwarding started: {self.config.connection.host}:{remote_port} -> {local_host}:{local_port}"
             )
 
         # Keep the SSH connection alive until shutdown event is set

@@ -13,8 +13,8 @@ class SshClient:
     """SSH client with remote port forwarding support"""
     shared_instance: Optional["SshClient"] = None
 
-    def __init__(self, connection_config: SshConnectionConfig):
-        self.config: SshConnectionConfig = connection_config
+    def __init__(self, config: SshConnectionConfig):
+        self.config: SshConnectionConfig = config
         self.client: Optional[paramiko.SSHClient] = None
         self.transport: Optional[paramiko.Transport] = None
         self.port_forwards: List[Tuple[int, int]] = []
@@ -199,8 +199,8 @@ class SshClient:
         return self.client is not None and self.transport is not None and self.transport.is_active()
 
     @classmethod
-    def get_shared_instance(cls, connection_config: SshConnectionConfig) -> "SshClient":
+    def get_shared_instance(cls, config: SshConnectionConfig) -> "SshClient":
         """Get or create shared SSH client instance"""
         if not cls.shared_instance:
-            cls.shared_instance = SshClient(connection_config)
+            cls.shared_instance = SshClient(config)
         return cls.shared_instance

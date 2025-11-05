@@ -11,4 +11,12 @@ class HttpTunnelGatewayDriver(str, Enum):
 class CommonHttpTunnelGatewayConfig(CommonGatewayConfig):
     type: Literal[GatewayType.HTTP_TUNNEL]
     driver: HttpTunnelGatewayDriver = Field(..., description="HTTP tunneling service provider.")
-    port: int = Field(default=8090, ge=1, le=65535, description="Local port to tunnel through the gateway to the public.")
+    port: List[int] = Field(..., min_length=1, description="One or more local ports to tunnel through the gateway to the public.")
+    
+    @model_validator(mode="before")
+    def normalize_port(cls, values):
+        port = values.get("port", 8090)  # Default to 8090 if not specified
+        if not isinstance(port, list):
+            port = [ port ]
+        values["port"] = port
+        return values

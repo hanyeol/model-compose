@@ -29,14 +29,18 @@ class HttpTunnelGateway(GatewayService):
         return self.driver.get_setup_requirements()
 
     def get_context(self, port: int) -> Optional[Dict[str, Any]]:
-        if port == self.config.port:
+        public_url = self.driver.get_public_url(port)
+
+        if public_url:
             return {
-                "public_url": self.driver.public_url
+                "driver": self.config.driver.value,
+                "public_url": public_url
             }
+
         return None
 
     def serves_port(self, port: int) -> bool:
-        return port == self.config.port
+        return bool(self.driver.get_public_url(port))
 
     async def _serve(self) -> None:
         await self.driver.serve()

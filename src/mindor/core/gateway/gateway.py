@@ -22,4 +22,5 @@ def find_gateway_by_port(port: int) -> Optional[GatewayService]:
     for gateway in GatewayInstances.values():
         if gateway.serves_port(port):
             return gateway
+
     return None

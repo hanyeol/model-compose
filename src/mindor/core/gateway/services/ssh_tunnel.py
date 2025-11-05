@@ -17,23 +17,22 @@ class SshTunnelGateway(GatewayService):
         super().__init__(id, config, daemon)
 
         self.client: Optional[SshClient] = None
-        self.local_ports: List[int] = []
-        self.remote_ports: List[int] = []
+        self.ports: Dict[int, int] = {}  # {local_port: remote_port}
         self._shutdown_event: Optional[asyncio.Event] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "paramiko" ]
 
     def get_context(self, port: int) -> Optional[Dict[str, Any]]:
-        if port in self.local_ports:
-            index = self.local_ports.index(port)
+        remote_port = self.ports.get(port)
+        if remote_port is not None:
             return {
-                "public_address": f"{self.config.connection.host}:{self.remote_ports[index]}"
+                "public_address": f"{self.config.connection.host}:{remote_port}"
             }
         return None
 
     def serves_port(self, port: int) -> bool:
-        return port in self.local_ports
+        return port in self.ports
 
     async def _serve(self) -> None:
         """Establish SSH tunnel and start remote port forwarding"""
@@ -54,8 +53,7 @@ class SshTunnelGateway(GatewayService):
                 local_host="localhost"
             )
 
-            self.local_ports.append(local_port)
-            self.remote_ports.append(actual_remote_port)
+            self.ports[local_port] = actual_remote_port
 
             logging.info(
                 f"Remote port forwarding started: {self.config.connection.host}:{remote_port} -> localhost:{local_port}"
@@ -77,6 +75,5 @@ class SshTunnelGateway(GatewayService):
 
             await self.client.close()
             self.client = None
-            self.local_ports = []
-            self.remote_ports = []
+            self.ports = {}
             self._shutdown_event = None

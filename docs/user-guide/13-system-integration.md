@@ -842,7 +842,6 @@ The format `${gateway:PORT.public_url}` provides the public URL for each exposed
 | Stability | High | Very high |
 | Speed | Fast | Very fast |
 | URL lifetime | Session-based | Session-based |
-| Multiple ports | Yes | Yes |
 
 ### 13.4.4 SSH Tunnel
 

@@ -10,7 +10,12 @@ Gateways provide tunneling services that expose local ports to external networks
 gateway:
   type: http-tunnel | ssh-tunnel
   runtime: native | docker
-  port: 8090
+  port: 8090                    # Single port
+  # OR
+  port:                         # Multiple ports
+    - 8090
+    - 8091
+    - 8092
   # ... type-specific configuration
 ```
 
@@ -66,7 +71,7 @@ gateway:
 |-------|------|---------|-------------|
 | `type` | string | **required** | Gateway type: `http-tunnel` or `ssh-tunnel` |
 | `runtime` | string | `native` | Runtime environment: `native` or `docker` |
-| `port` | integer | `8090` | Local port to tunnel through the gateway |
+| `port` | integer or array | `8090` | Local port(s) to tunnel through the gateway. Can be a single port number or an array of ports |
 
 ## HTTP Tunnel Configuration
 
@@ -74,6 +79,7 @@ gateway:
 
 Uses ngrok service to create HTTP tunnels.
 
+**Single port:**
 ```yaml
 gateway:
   type: http-tunnel
@@ -82,18 +88,37 @@ gateway:
   runtime: native
 ```
 
+**Multiple ports:**
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8080
+    - 8090
+    - 3000
+  runtime: native
+```
+
+Each port gets its own unique public URL (e.g., `https://abc123.ngrok.io`, `https://def456.ngrok.io`, `https://ghi789.ngrok.io`).
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Must be `ngrok` |
+| `port` | integer or array | **required** | Local port(s) to expose. Can be single port or array of ports |
 
 **Prerequisites:**
 - ngrok CLI must be installed and configured
 - ngrok account and authtoken (for persistent tunnels)
 
+**Accessing Public URLs:**
+Use `${gateway:PORT.public_url}` to access the public URL for each port in your configuration.
+
 ### Cloudflare Driver
 
 Uses Cloudflare tunnels to expose local services.
 
+**Single port:**
 ```yaml
 gateway:
   type: http-tunnel
@@ -102,22 +127,42 @@ gateway:
   runtime: native
 ```
 
+**Multiple ports:**
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8080
+    - 8090
+    - 3000
+  runtime: native
+```
+
+Each port gets its own unique public URL (e.g., `https://abc-def.trycloudflare.com`, `https://ghi-jkl.trycloudflare.com`).
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Must be `cloudflare` |
+| `port` | integer or array | **required** | Local port(s) to expose. Can be single port or array of ports |
 
 **Prerequisites:**
 - Cloudflare tunnel CLI (cloudflared) must be installed
 - Cloudflare account with tunnel configured
 
+**Accessing Public URLs:**
+Use `${gateway:PORT.public_url}` to access the public URL for each port in your configuration.
+
 ## SSH Tunnel Configuration
 
 Creates secure SSH tunnels through remote servers.
 
+**Single port:**
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8080"              # Remote port 9834 -> Local port 8080
   connection:
     host: tunnel-server.example.com
     port: 22
@@ -126,6 +171,31 @@ gateway:
       username: tunnel-user
       keyfile: "/path/to/private/key"
 ```
+
+**Multiple ports:**
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8080"              # Remote port 9834 -> Local port 8080
+    - "9835:8090"              # Remote port 9835 -> Local port 8090
+    - "9836:3000"              # Remote port 9836 -> Local port 3000
+  connection:
+    host: tunnel-server.example.com
+    port: 22
+    auth:
+      type: keyfile
+      username: tunnel-user
+      keyfile: "/path/to/private/key"
+```
+
+**Port Format:** `"remote_port:local_port"`
+- The remote port is exposed on the SSH server
+- Traffic is forwarded to the local port
+- Multiple port mappings can be specified as an array
+
+**Accessing Public Addresses:**
+Use `${gateway:LOCAL_PORT.public_address}` to access the public address (returns `remote-host:remote-port`).
 
 ### Connection Settings
 
@@ -170,7 +240,7 @@ auth:
 
 ## Configuration Examples
 
-### Simple Ngrok Tunnel
+### Simple Ngrok Tunnel (Single Port)
 
 ```yaml
 gateway:
@@ -181,7 +251,24 @@ gateway:
 
 Exposes local port 8080 through ngrok tunnel with a random public URL.
 
-### Cloudflare Tunnel
+### Ngrok Tunnel with Multiple Ports
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8080    # Main API
+    - 8081    # Admin panel
+    - 3000    # Frontend app
+```
+
+Exposes three local ports through separate ngrok tunnels. Access URLs via:
+- `${gateway:8080.public_url}` for the main API
+- `${gateway:8081.public_url}` for the admin panel
+- `${gateway:3000.public_url}` for the frontend app
+
+### Cloudflare Tunnel (Single Port)
 
 ```yaml
 gateway:
@@ -193,12 +280,28 @@ gateway:
 
 Creates a Cloudflare tunnel for local port 8080.
 
-### SSH Tunnel with Key Authentication
+### Cloudflare Tunnel with Multiple Ports
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8090    # Callback listener
+    - 8091    # Status endpoint
+    - 3000    # Web interface
+  runtime: native
+```
+
+Each port gets its own Cloudflare tunnel URL.
+
+### SSH Tunnel with Key Authentication (Single Port)
 
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8080"    # Remote 9834 -> Local 8080
   runtime: native
   connection:
     host: bastion.example.com
@@ -211,12 +314,33 @@ gateway:
 
 Creates an SSH tunnel through bastion.example.com using SSH key authentication.
 
+### SSH Tunnel with Multiple Ports
+
+```yaml
+gateway:
+  type: ssh-tunnel
+  port:
+    - "9834:8080"    # Remote 9834 -> Local 8080
+    - "9835:8090"    # Remote 9835 -> Local 8090
+    - "9836:3000"    # Remote 9836 -> Local 3000
+  connection:
+    host: bastion.example.com
+    port: 22
+    auth:
+      type: keyfile
+      username: deploy
+      keyfile: ~/.ssh/tunnel_key
+```
+
+Exposes multiple local ports through different remote ports on the SSH server.
+
 ### SSH Tunnel with Password Authentication
 
 ```yaml
 gateway:
   type: ssh-tunnel
-  port: 8080
+  port:
+    - "9834:8080"
   connection:
     host: vpn-server.company.com
     port: 2222

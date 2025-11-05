@@ -637,7 +637,7 @@ workflow:
 
 ngrok는 로컬 서버를 공개 URL로 노출하는 터널링 서비스입니다.
 
-**기본 설정:**
+**기본 설정 (단일 포트):**
 
 ```yaml
 gateway:
@@ -648,7 +648,21 @@ gateway:
 
 이 설정은 로컬 포트 8080을 ngrok 공개 URL로 노출합니다.
 
-**전체 예제:**
+**다중 포트 설정:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8080                            # 첫 번째 로컬 포트
+    - 8090                            # 두 번째 로컬 포트
+    - 3000                            # 세 번째 로컬 포트
+```
+
+각 포트는 고유한 공개 URL을 받습니다 (예: `https://abc123.ngrok.io`, `https://def456.ngrok.io`, `https://ghi789.ngrok.io`).
+
+**단일 포트 전체 예제:**
 
 ```yaml
 gateway:
@@ -672,7 +686,7 @@ components:
     method: POST
     body:
       data: ${input.data}
-      # gateway:8090.public_url을 사용하여 공개 URL 생성
+      # gateway:8090.public_url을 사용하여 공개 URL 접근
       callback_url: ${gateway:8090.public_url}/callback
       callback_id: ${context.run_id}
     output: ${response}
@@ -686,27 +700,137 @@ workflow:
       output: ${output}
 ```
 
-실행 흐름:
-1. 게이트웨이 시작: ngrok가 로컬 포트 8090을 공개 URL로 노출 (예: `https://abc123.ngrok.io`)
-2. 리스너 시작: 포트 8090에서 콜백 대기
-3. 워크플로우 실행: `${gateway:8090.public_url}`이 `https://abc123.ngrok.io`로 치환됨
-4. 외부 서비스에 `https://abc123.ngrok.io/callback` 콜백 URL 전달
+**다중 포트 사용 예제:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8090                            # 콜백 리스너
+    - 8091                            # 상태 웹훅
+    - 8092                            # 관리자 인터페이스
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      admin_url: ${gateway:8092.public_url}/admin
+    output: ${response}
+```
+
+**게이트웨이 URL 접근:**
+
+`${gateway:PORT.public_url}` 형식으로 각 노출된 포트의 공개 URL을 제공합니다:
+- `${gateway:8090.public_url}` → `https://abc123.ngrok.io`
+- `${gateway:8091.public_url}` → `https://def456.ngrok.io`
+- `${gateway:8092.public_url}` → `https://ghi789.ngrok.io`
+
+**실행 흐름:**
+1. 게이트웨이 시작: ngrok가 로컬 포트를 공개 URL로 노출
+2. 리스너 시작: 설정된 포트에서 콜백 대기
+3. 워크플로우 실행: `${gateway:PORT.public_url}`이 실제 공개 URL로 치환됨
+4. 외부 서비스에 콜백 URL 전달
 5. 외부 서비스가 작업 완료 후 공개 URL로 콜백 전송
-6. ngrok가 요청을 로컬 포트 8090으로 전달
+6. ngrok가 요청을 해당 로컬 포트로 전달
 7. 리스너가 콜백 수신 후 워크플로우에 결과 전달
 
 ### 13.4.3 HTTP 터널 - Cloudflare
 
-Cloudflare Tunnel은 무료로 사용할 수 있는 안정적인 터널링 서비스입니다.
+Cloudflare Tunnel (이전 Argo Tunnel)은 무제한 대역폭으로 무료 사용 가능한 안정적인 터널링 서비스입니다.
 
-**기본 설정:**
+**기본 설정 (단일 포트):**
 
 ```yaml
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080
+  port: 8080                          # 터널링할 로컬 포트
 ```
+
+이 설정은 로컬 포트 8080을 Cloudflare Tunnel 공개 URL로 노출합니다.
+
+**다중 포트 설정:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8080                            # 첫 번째 로컬 포트
+    - 8090                            # 두 번째 로컬 포트
+    - 3000                            # 세 번째 로컬 포트
+```
+
+각 포트는 고유한 공개 URL을 받습니다 (예: `https://abc-def.trycloudflare.com`, `https://ghi-jkl.trycloudflare.com`, `https://mno-pqr.trycloudflare.com`).
+
+**콜백과 함께 사용하는 전체 예제:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port: 8090
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      # gateway:8090.public_url을 사용하여 공개 URL 접근
+      callback_url: ${gateway:8090.public_url}/callback
+      callback_id: ${context.run_id}
+    output: ${response}
+```
+
+**다중 포트 사용 예제:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8090                            # 콜백 리스너
+    - 8091                            # 상태 웹훅
+    - 3000                            # 프론트엔드 애플리케이션
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      app_url: ${gateway:3000.public_url}
+    output: ${response}
+```
+
+**게이트웨이 URL 접근:**
+
+`${gateway:PORT.public_url}` 형식으로 각 노출된 포트의 공개 URL을 제공합니다:
+- `${gateway:8090.public_url}` → `https://abc-def.trycloudflare.com`
+- `${gateway:8091.public_url}` → `https://ghi-jkl.trycloudflare.com`
+- `${gateway:3000.public_url}` → `https://mno-pqr.trycloudflare.com`
 
 **ngrok vs Cloudflare 비교:**
 
@@ -717,6 +841,8 @@ gateway:
 | URL 형식 | `https://random.ngrok.io` | `https://random.trycloudflare.com` |
 | 안정성 | 높음 | 매우 높음 |
 | 속도 | 빠름 | 매우 빠름 |
+| URL 수명 | 세션 기반 | 세션 기반 |
+| 다중 포트 | 지원 | 지원 |
 
 ### 13.4.4 SSH 터널
 

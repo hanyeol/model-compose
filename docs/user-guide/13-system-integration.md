@@ -637,7 +637,7 @@ Gateways are needed in these scenarios:
 
 ngrok is a tunneling service that exposes local servers with public URLs.
 
-**Basic configuration:**
+**Basic configuration (single port):**
 
 ```yaml
 gateway:
@@ -648,7 +648,21 @@ gateway:
 
 This exposes local port 8080 through ngrok public URL.
 
-**Complete example:**
+**Multiple ports configuration:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8080                            # First local port
+    - 8090                            # Second local port
+    - 3000                            # Third local port
+```
+
+Each port gets its own unique public URL (e.g., `https://abc123.ngrok.io`, `https://def456.ngrok.io`, `https://ghi789.ngrok.io`).
+
+**Complete example with single port:**
 
 ```yaml
 gateway:
@@ -672,7 +686,7 @@ components:
     method: POST
     body:
       data: ${input.data}
-      # Use gateway:8090.public_url to generate public URL
+      # Use gateway:8090.public_url to access public URL
       callback_url: ${gateway:8090.public_url}/callback
       callback_id: ${context.run_id}
     output: ${response}
@@ -686,27 +700,137 @@ workflow:
       output: ${output}
 ```
 
-Execution flow:
-1. Gateway starts: ngrok exposes local port 8090 with public URL (e.g., `https://abc123.ngrok.io`)
-2. Listener starts: Waiting for callbacks on port 8090
-3. Workflow executes: `${gateway:8090.public_url}` is replaced with `https://abc123.ngrok.io`
-4. Callback URL `https://abc123.ngrok.io/callback` sent to external service
+**Example with multiple ports:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8090                            # Callback listener
+    - 8091                            # Status webhook
+    - 8092                            # Admin interface
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      admin_url: ${gateway:8092.public_url}/admin
+    output: ${response}
+```
+
+**Accessing gateway URLs:**
+
+The format `${gateway:PORT.public_url}` provides the public URL for each exposed port:
+- `${gateway:8090.public_url}` → `https://abc123.ngrok.io`
+- `${gateway:8091.public_url}` → `https://def456.ngrok.io`
+- `${gateway:8092.public_url}` → `https://ghi789.ngrok.io`
+
+**Execution flow:**
+1. Gateway starts: ngrok exposes local port(s) with public URL(s)
+2. Listener starts: Waiting for callbacks on configured port(s)
+3. Workflow executes: `${gateway:PORT.public_url}` is replaced with actual public URL
+4. Callback URL sent to external service
 5. External service sends callback to public URL after completion
-6. ngrok forwards request to local port 8090
+6. ngrok forwards request to corresponding local port
 7. Listener receives callback and delivers result to workflow
 
 ### 13.4.3 HTTP Tunnel - Cloudflare
 
-Cloudflare Tunnel is a stable tunneling service available for free.
+Cloudflare Tunnel (formerly Argo Tunnel) is a stable tunneling service available for free with unlimited bandwidth.
 
-**Basic configuration:**
+**Basic configuration (single port):**
 
 ```yaml
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080
+  port: 8080                          # Local port to tunnel
 ```
+
+This exposes local port 8080 through Cloudflare Tunnel public URL.
+
+**Multiple ports configuration:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8080                            # First local port
+    - 8090                            # Second local port
+    - 3000                            # Third local port
+```
+
+Each port gets its own unique public URL (e.g., `https://abc-def.trycloudflare.com`, `https://ghi-jkl.trycloudflare.com`, `https://mno-pqr.trycloudflare.com`).
+
+**Complete example with callback:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port: 8090
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      # Use gateway:8090.public_url to access public URL
+      callback_url: ${gateway:8090.public_url}/callback
+      callback_id: ${context.run_id}
+    output: ${response}
+```
+
+**Example with multiple ports:**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8090                            # Callback listener
+    - 8091                            # Status webhook
+    - 3000                            # Frontend application
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      app_url: ${gateway:3000.public_url}
+    output: ${response}
+```
+
+**Accessing gateway URLs:**
+
+The format `${gateway:PORT.public_url}` provides the public URL for each exposed port:
+- `${gateway:8090.public_url}` → `https://abc-def.trycloudflare.com`
+- `${gateway:8091.public_url}` → `https://ghi-jkl.trycloudflare.com`
+- `${gateway:3000.public_url}` → `https://mno-pqr.trycloudflare.com`
 
 **ngrok vs Cloudflare comparison:**
 
@@ -717,6 +841,8 @@ gateway:
 | URL format | `https://random.ngrok.io` | `https://random.trycloudflare.com` |
 | Stability | High | Very high |
 | Speed | Fast | Very fast |
+| URL lifetime | Session-based | Session-based |
+| Multiple ports | Yes | Yes |
 
 ### 13.4.4 SSH Tunnel
 

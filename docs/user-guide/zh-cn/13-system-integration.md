@@ -637,7 +637,7 @@ workflow:
 
 ngrok 是一个隧道服务，通过公共 URL 暴露本地服务器。
 
-**基本配置：**
+**基本配置（单端口）：**
 
 ```yaml
 gateway:
@@ -648,7 +648,21 @@ gateway:
 
 这将通过 ngrok 公共 URL 暴露本地端口 8080。
 
-**完整示例：**
+**多端口配置：**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8080                            # 第一个本地端口
+    - 8090                            # 第二个本地端口
+    - 3000                            # 第三个本地端口
+```
+
+每个端口获得自己唯一的公共 URL（例如 `https://abc123.ngrok.io`、`https://def456.ngrok.io`、`https://ghi789.ngrok.io`）。
+
+**单端口完整示例：**
 
 ```yaml
 gateway:
@@ -672,7 +686,7 @@ components:
     method: POST
     body:
       data: ${input.data}
-      # 使用 gateway:8090.public_url 生成公共 URL
+      # 使用 gateway:8090.public_url 访问公共 URL
       callback_url: ${gateway:8090.public_url}/callback
       callback_id: ${context.run_id}
     output: ${response}
@@ -686,27 +700,137 @@ workflow:
       output: ${output}
 ```
 
-执行流程：
-1. 网关启动：ngrok 使用公共 URL 暴露本地端口 8090（例如 `https://abc123.ngrok.io`）
-2. 监听器启动：在端口 8090 上等待回调
-3. 工作流执行：`${gateway:8090.public_url}` 被替换为 `https://abc123.ngrok.io`
-4. 回调 URL `https://abc123.ngrok.io/callback` 发送到外部服务
+**多端口使用示例：**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: ngrok
+  port:
+    - 8090                            # 回调监听器
+    - 8091                            # 状态 Webhook
+    - 8092                            # 管理界面
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      admin_url: ${gateway:8092.public_url}/admin
+    output: ${response}
+```
+
+**访问网关 URL：**
+
+格式 `${gateway:PORT.public_url}` 为每个暴露的端口提供公共 URL：
+- `${gateway:8090.public_url}` → `https://abc123.ngrok.io`
+- `${gateway:8091.public_url}` → `https://def456.ngrok.io`
+- `${gateway:8092.public_url}` → `https://ghi789.ngrok.io`
+
+**执行流程：**
+1. 网关启动：ngrok 使用公共 URL 暴露本地端口
+2. 监听器启动：在配置的端口上等待回调
+3. 工作流执行：`${gateway:PORT.public_url}` 被替换为实际公共 URL
+4. 回调 URL 发送到外部服务
 5. 外部服务完成后向公共 URL 发送回调
-6. ngrok 将请求转发到本地端口 8090
+6. ngrok 将请求转发到相应的本地端口
 7. 监听器接收回调并将结果传递给工作流
 
 ### 13.4.3 HTTP 隧道 - Cloudflare
 
-Cloudflare Tunnel 是一个稳定的隧道服务，可免费使用。
+Cloudflare Tunnel（以前称为 Argo Tunnel）是一个稳定的隧道服务，可免费使用且带宽无限制。
 
-**基本配置：**
+**基本配置（单端口）：**
 
 ```yaml
 gateway:
   type: http-tunnel
   driver: cloudflare
-  port: 8080
+  port: 8080                          # 要隧道的本地端口
 ```
+
+这将通过 Cloudflare Tunnel 公共 URL 暴露本地端口 8080。
+
+**多端口配置：**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8080                            # 第一个本地端口
+    - 8090                            # 第二个本地端口
+    - 3000                            # 第三个本地端口
+```
+
+每个端口获得自己唯一的公共 URL（例如 `https://abc-def.trycloudflare.com`、`https://ghi-jkl.trycloudflare.com`、`https://mno-pqr.trycloudflare.com`）。
+
+**带回调的完整示例：**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port: 8090
+
+listener:
+  type: http-callback
+  host: 0.0.0.0
+  port: 8090
+  path: /callback
+  identify_by: ${body.task_id}
+  result: ${body.result}
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      # 使用 gateway:8090.public_url 访问公共 URL
+      callback_url: ${gateway:8090.public_url}/callback
+      callback_id: ${context.run_id}
+    output: ${response}
+```
+
+**多端口使用示例：**
+
+```yaml
+gateway:
+  type: http-tunnel
+  driver: cloudflare
+  port:
+    - 8090                            # 回调监听器
+    - 8091                            # 状态 Webhook
+    - 3000                            # 前端应用
+
+components:
+  external-service:
+    type: http-client
+    base_url: https://api.external-service.com
+    path: /process
+    method: POST
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      status_url: ${gateway:8091.public_url}/status
+      app_url: ${gateway:3000.public_url}
+    output: ${response}
+```
+
+**访问网关 URL：**
+
+格式 `${gateway:PORT.public_url}` 为每个暴露的端口提供公共 URL：
+- `${gateway:8090.public_url}` → `https://abc-def.trycloudflare.com`
+- `${gateway:8091.public_url}` → `https://ghi-jkl.trycloudflare.com`
+- `${gateway:3000.public_url}` → `https://mno-pqr.trycloudflare.com`
 
 **ngrok vs Cloudflare 对比：**
 
@@ -717,6 +841,8 @@ gateway:
 | URL 格式 | `https://random.ngrok.io` | `https://random.trycloudflare.com` |
 | 稳定性 | 高 | 非常高 |
 | 速度 | 快 | 非常快 |
+| URL 生命周期 | 基于会话 | 基于会话 |
+| 多端口 | 支持 | 支持 |
 
 ### 13.4.4 SSH 隧道
 

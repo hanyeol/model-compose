@@ -136,16 +136,16 @@ gateway:
 
 ### Using Gateway Context
 
-Access the public address in your configuration:
+Access the public URL in your configuration:
 
 ```yaml
 component:
   body:
-    callback_url: ${gateway:8090.public_address}/callback
+    callback_url: ${gateway:8090.public_url}/callback
     # Resolves to: https://abc123.ngrok.io/callback
 ```
 
-The format is: `${gateway:LOCAL_PORT.public_address}`
+The format is: `${gateway:LOCAL_PORT.public_url}`
 - Returns: `https://random-id.ngrok.io` (or your custom domain)
 
 ### Listener Configuration
@@ -171,7 +171,7 @@ component:
   path: /process
   body:
     data: ${input.data}
-    callback_url: ${gateway:8090.public_address}/callback
+    callback_url: ${gateway:8090.public_url}/callback
     task_id: ${context.run_id}
   completion:
     type: callback
@@ -259,9 +259,9 @@ gateway:
 
 Access each tunnel:
 ```yaml
-callback_url: ${gateway:8090.public_address}/callback
-admin_url: ${gateway:8091.public_address}/admin
-metrics_url: ${gateway:8092.public_address}/metrics
+callback_url: ${gateway:8090.public_url}/callback
+admin_url: ${gateway:8091.public_url}/admin
+metrics_url: ${gateway:8092.public_url}/metrics
 ```
 
 ### Custom Subdomain (Requires Paid Plan)

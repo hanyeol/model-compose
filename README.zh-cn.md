@@ -108,7 +108,7 @@ API 运行在 `http://localhost:8080`，Web UI 运行在 `http://localhost:8081`
 > 💡 探索更多工作流请访问[示例](examples/README.md)，详细内容请阅读[用户指南](docs/user-guide/zh-cn/README.md)。
 
 ---
-## 💡 核心能力
+## 💡 核心功能
 
 ### 🖥️ 内置 Web UI
 只需添加 2 行即可启用 Web 界面：

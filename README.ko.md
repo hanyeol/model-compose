@@ -108,7 +108,7 @@ API는 `http://localhost:8080`에서, Web UI는 `http://localhost:8081`에서 �
 > 💡 더 많은 워크플로우는 [예제](examples/README.ko.md)를, 자세한 내용은 [사용자 가이드](docs/user-guide/ko/README.md)를 참조하세요.
 
 ---
-## 💡 핵심 역량
+## 💡 핵심 기능
 
 ### 🖥️ 내장 Web UI
 단 2줄만 추가하여 웹 인터페이스 활성화:
@@ -128,7 +128,7 @@ controller:
 타입을 `mcp-server`로 설정하기만 하면 워크플로우가 Model Context Protocol을 통해 즉시 액세스 가능해집니다.
 
 ### 🐳 Docker 배포
-내장 Docker 지원으로 어디서나 배포:
+Docker 기반의 배포를 지원:
 ```yaml
 controller:
   runtime: docker

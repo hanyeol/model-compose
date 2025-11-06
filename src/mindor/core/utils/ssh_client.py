@@ -1,20 +1,82 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.transport.ssh import SshConnectionConfig, SshKeyfileAuthConfig, SshPasswordAuthConfig
+from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Union, Any
 from mindor.core.logger import logging
 import asyncio
 import os
 import threading
+from enum import Enum
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     import paramiko
+
+class SshAuthType(str, Enum):
+    """SSH authentication type"""
+    KEYFILE = "keyfile"
+    PASSWORD = "password"
+
+@dataclass
+class SshAuthParams:
+    """Base SSH authentication parameters"""
+    type: SshAuthType
+
+    def to_params(self) -> Dict[str, Any]:
+        raise NotImplementedError("Subclasses must implement to_params()")
+
+@dataclass
+class SshKeyfileAuthParams(SshAuthParams):
+    """SSH keyfile authentication parameters"""
+    username: str
+    keyfile: str
+
+    def __init__(self, username: str, keyfile: str):
+        self.type = SshAuthType.KEYFILE
+        self.username = username
+        self.keyfile = keyfile
+
+    def to_params(self) -> Dict[str, Any]:
+        return {
+            "username": self.username,
+            "key_filename": os.path.expanduser(self.keyfile)
+        }
+
+@dataclass
+class SshPasswordAuthParams(SshAuthParams):
+    """SSH password authentication parameters"""
+    username: str
+    password: str
+
+    def __init__(self, username: str, password: str):
+        self.type = SshAuthType.PASSWORD
+        self.username = username
+        self.password = password
+
+    def to_params(self) -> Dict[str, Any]:
+        return {
+            "username": self.username,
+            "password": self.password
+        }
+
+@dataclass
+class SshConnectionParams:
+    """SSH connection parameters"""
+    host: str
+    auth: Union[SshKeyfileAuthParams, SshPasswordAuthParams]
+    port: int = 22
+
+    def to_params(self) -> Dict[str, Any]:
+        return {
+            "hostname": self.host, 
+            "port": self.port, 
+            **self.auth.to_params()
+        }
 
 class SshClient:
     """SSH client with remote port forwarding support"""
     shared_instance: Optional["SshClient"] = None
 
-    def __init__(self, config: SshConnectionConfig):
-        self.config: SshConnectionConfig = config
+    def __init__(self, params: SshConnectionParams):
+        self.params: SshConnectionParams = params
         self.client: Optional[paramiko.SSHClient] = None
         self.transport: Optional[paramiko.Transport] = None
         self.port_forwards: List[Tuple[int, int]] = []
@@ -36,32 +98,15 @@ class SshClient:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            connect_params = {
-                "hostname": self.config.host,
-                "port": self.config.port,
-                "username": self.config.auth.username,
-            }
-            self._configure_auth(connect_params)
-
-            logging.debug(f"Connecting to {self.config.host}:{self.config.port}...")
-            client.connect(**connect_params)
-            logging.debug(f"SSH connection established to {self.config.host}:{self.config.port}")
+            logging.debug(f"Connecting to {self.params.host}:{self.params.port}...")
+            client.connect(**self.params.to_params())
+            logging.debug(f"SSH connection established to {self.params.host}:{self.params.port}")
 
             return client
 
         self.client = await asyncio.to_thread(_connect)
         self.transport = self.client.get_transport()
         self._shutdown_event = threading.Event()
-
-    def _configure_auth(self, connect_params: Dict[str, Any]) -> None:
-        if isinstance(self.config.auth, SshKeyfileAuthConfig):
-            keyfile_path = os.path.expanduser(self.config.auth.keyfile)
-            connect_params["key_filename"] = keyfile_path
-            return
-
-        if isinstance(self.config.auth, SshPasswordAuthConfig):
-            connect_params["password"] = self.config.auth.password
-            return
 
     async def start_remote_port_forwarding(
         self,
@@ -89,7 +134,7 @@ class SshClient:
             )
 
             logging.debug(
-                f"Remote port forwarding: {self.config.host}:{actual_remote_port} -> "
+                f"Remote port forwarding: {self.params.host}:{actual_remote_port} -> "
                 f"{local_host}:{local_port}"
             )
 
@@ -183,7 +228,7 @@ class SshClient:
 
             if self.client:
                 self.client.close()
-                logging.debug(f"SSH connection closed to {self.config.host}:{self.config.port}")
+                logging.debug(f"SSH connection closed to {self.params.host}:{self.params.port}")
 
         if self.client:
             await asyncio.to_thread(_close)
@@ -199,8 +244,8 @@ class SshClient:
         return self.client is not None and self.transport is not None and self.transport.is_active()
 
     @classmethod
-    def get_shared_instance(cls, config: SshConnectionConfig) -> "SshClient":
+    def get_shared_instance(cls, params: SshConnectionParams) -> "SshClient":
         """Get or create shared SSH client instance"""
         if not cls.shared_instance:
-            cls.shared_instance = SshClient(config)
+            cls.shared_instance = SshClient(params)
         return cls.shared_instance

@@ -17,8 +17,12 @@ import pytest
 import os
 import asyncio
 import socket
-from mindor.core.utils.ssh_client import SshClient
-from mindor.dsl.schema.transport.ssh import SshConnectionConfig, SshKeyfileAuthConfig, SshPasswordAuthConfig
+from mindor.core.utils.ssh_client import (
+    SshClient,
+    SshConnectionParams,
+    SshKeyfileAuthParams,
+    SshPasswordAuthParams
+)
 
 # Configure anyio to use only asyncio backend (disable trio)
 @pytest.fixture
@@ -45,36 +49,34 @@ class TestSshClient:
     """SSH client integration tests"""
 
     @pytest.fixture
-    def keyfile_connection_config(self):
-        """SSH config with keyfile authentication"""
-        return SshConnectionConfig(
+    def keyfile_connection_params(self):
+        """SSH params with keyfile authentication"""
+        return SshConnectionParams(
             host=SSH_HOST,
             port=SSH_PORT,
-            auth=SshKeyfileAuthConfig(
-                type="keyfile",
+            auth=SshKeyfileAuthParams(
                 username=SSH_USER,
                 keyfile=SSH_KEYFILE
             )
         )
 
     @pytest.fixture
-    def password_connection_config(self):
-        """SSH config with password authentication"""
-        return SshConnectionConfig(
+    def password_connection_params(self):
+        """SSH params with password authentication"""
+        return SshConnectionParams(
             host=SSH_HOST,
             port=SSH_PORT,
-            auth=SshPasswordAuthConfig(
-                type="password",
+            auth=SshPasswordAuthParams(
                 username=SSH_USER,
                 password=SSH_PASSWORD
             )
         )
 
-    def test_create_instance(self, keyfile_connection_config):
+    def test_create_instance(self, keyfile_connection_params):
         """Test SSH client instance creation"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
-        assert client.config == keyfile_connection_config
+        assert client.params == keyfile_connection_params
         assert client.client is None
         assert client.transport is None
         assert client.port_forwards == []
@@ -82,9 +84,9 @@ class TestSshClient:
         assert client._forward_threads == []
 
     @pytest.mark.anyio
-    async def test_connect_with_keyfile(self, keyfile_connection_config):
+    async def test_connect_with_keyfile(self, keyfile_connection_params):
         """Test real SSH connection with keyfile"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         try:
             await client.connect()
@@ -97,9 +99,9 @@ class TestSshClient:
 
     @pytest.mark.anyio
     @pytest.mark.skipif(not SSH_PASSWORD, reason="Password auth not configured")
-    async def test_connect_with_password(self, password_connection_config):
+    async def test_connect_with_password(self, password_connection_params):
         """Test real SSH connection with password"""
-        client = SshClient(password_connection_config)
+        client = SshClient(password_connection_params)
 
         try:
             await client.connect()
@@ -110,9 +112,9 @@ class TestSshClient:
             await client.close()
 
     @pytest.mark.anyio
-    async def test_is_connected(self, keyfile_connection_config):
+    async def test_is_connected(self, keyfile_connection_params):
         """Test is_connected returns correct status"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         # Before connection
         assert not client.is_connected()
@@ -127,18 +129,18 @@ class TestSshClient:
             assert not client.is_connected()
 
     @pytest.mark.anyio
-    async def test_context_manager(self, keyfile_connection_config):
+    async def test_context_manager(self, keyfile_connection_params):
         """Test using SSH client as context manager"""
-        async with SshClient(keyfile_connection_config) as client:
+        async with SshClient(keyfile_connection_params) as client:
             assert client.is_connected()
 
         # Connection should be closed after context
         assert not client.is_connected()
 
     @pytest.mark.anyio
-    async def test_remote_port_forwarding(self, keyfile_connection_config):
+    async def test_remote_port_forwarding(self, keyfile_connection_params):
         """Test real remote port forwarding"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         # Start a simple local server
         local_port = find_free_port()
@@ -171,9 +173,9 @@ class TestSshClient:
             server_socket.close()
 
     @pytest.mark.anyio
-    async def test_multiple_port_forwards(self, keyfile_connection_config):
+    async def test_multiple_port_forwards(self, keyfile_connection_params):
         """Test multiple remote port forwards"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         # Create multiple local servers
         num_forwards = 3
@@ -211,9 +213,9 @@ class TestSshClient:
                 s.close()
 
     @pytest.mark.anyio
-    async def test_close(self, keyfile_connection_config):
+    async def test_close(self, keyfile_connection_params):
         """Test closing SSH connection"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         local_port = find_free_port()
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -243,9 +245,9 @@ class TestSshClient:
             server_socket.close()
 
     @pytest.mark.anyio
-    async def test_reconnect_after_close(self, keyfile_connection_config):
+    async def test_reconnect_after_close(self, keyfile_connection_params):
         """Test reconnecting after closing connection"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         # First connection
         await client.connect()
@@ -259,9 +261,9 @@ class TestSshClient:
         await client.close()
 
     @pytest.mark.anyio
-    async def test_dynamic_port_allocation(self, keyfile_connection_config):
+    async def test_dynamic_port_allocation(self, keyfile_connection_params):
         """Test remote port forwarding with dynamic port (0)"""
-        client = SshClient(keyfile_connection_config)
+        client = SshClient(keyfile_connection_params)
 
         local_port = find_free_port()
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -288,13 +290,13 @@ class TestSshClient:
             await client.close()
             server_socket.close()
 
-    def test_get_shared_instance(self, keyfile_connection_config):
+    def test_get_shared_instance(self, keyfile_connection_params):
         """Test getting shared instance"""
         # Clear any existing shared instance
         SshClient.shared_instance = None
 
-        instance1 = SshClient.get_shared_instance(keyfile_connection_config)
-        instance2 = SshClient.get_shared_instance(keyfile_connection_config)
+        instance1 = SshClient.get_shared_instance(keyfile_connection_params)
+        instance2 = SshClient.get_shared_instance(keyfile_connection_params)
 
         # Verify same instance is returned
         assert instance1 is instance2

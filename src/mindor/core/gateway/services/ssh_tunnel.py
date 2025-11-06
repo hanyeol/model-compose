@@ -2,10 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
-from mindor.dsl.schema.gateway import SshTunnelGatewayConfig
-from ..base import GatewayService, GatewayType, register_gateway
-from mindor.core.utils.ssh_client import SshClient
+from mindor.dsl.schema.gateway import SshTunnelGatewayConfig, SshConnectionConfig, SshAuthConfig
+from mindor.core.utils.ssh_client import SshClient, SshConnectionParams, SshAuthParams, SshKeyfileAuthParams, SshPasswordAuthParams
 from mindor.core.logger import logging
+from ..base import GatewayService, GatewayType, register_gateway
 import asyncio
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ class SshTunnelGateway(GatewayService):
 
         self._shutdown_event = asyncio.Event()
 
-        self.client = SshClient(self.config.connection)
+        self.client = SshClient(self._build_connection_params(self.config.connection))
         await self.client.connect()
 
         # Start remote port forwarding for each port mapping
@@ -61,6 +61,28 @@ class SshTunnelGateway(GatewayService):
 
         # Keep the SSH connection alive until shutdown event is set
         await self._shutdown_event.wait()
+
+    def _build_connection_params(self, config: SshConnectionConfig) -> SshConnectionParams:
+        return SshConnectionParams(
+            host=config.host,
+            port=config.port,
+            auth=self._build_auth_params(config.auth)
+        )
+    
+    def _build_auth_params(self, config: SshAuthConfig) -> SshAuthParams:
+        if config.type.value == "keyfile":
+            return SshKeyfileAuthParams(
+                username=config.username,
+                keyfile=config.keyfile
+            )
+        
+        if config.type.value == "password":
+            return SshPasswordAuthParams(
+                username=config.username,
+                password=config.password
+            )
+
+        raise ValueError(f"Unknown SSH auth type: {config.type}")
 
     async def _shutdown(self) -> None:
         """Stop SSH tunnel and cleanup"""

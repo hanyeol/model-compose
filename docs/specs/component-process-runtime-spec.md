@@ -84,19 +84,7 @@ components:
 
 **이점**: 각 모델이 독립적인 GPU 사용
 
-### 3. 크래시 격리
-```yaml
-component:
-  type: google-adk-agent
-  runtime:
-    type: process
-    restart_policy: always
-  agent_name: ExperimentalAgent
-```
-
-**이점**: 에이전트 크래시 시 메인 서버는 계속 실행
-
-### 4. 블로킹 작업 분리
+### 3. 블로킹 작업 분리
 ```yaml
 component:
   type: shell
@@ -163,9 +151,10 @@ RuntimeConfig
 from enum import Enum
 
 class RuntimeType(str, Enum):
-    EMBEDDED = "embedded"  # Runs embedded in main process (기존 NATIVE)
-    PROCESS = "process"    # Runs in separate process (NEW)
-    DOCKER = "docker"      # Runs in Docker container
+    NATIVE   = "native"
+    EMBEDDED = "embedded"
+    PROCESS  = "process"
+    DOCKER   = "docker"
 ```
 
 ### 2. ProcessRuntimeConfig
@@ -177,16 +166,12 @@ from typing import Literal, Optional, Dict, List
 from pydantic import BaseModel, Field
 from .common import RuntimeType, CommonRuntimeConfig
 
-class RestartPolicy(str, Enum):
-    """프로세스 재시작 정책"""
-    NO = "no"
-    ALWAYS = "always"
-    ON_FAILURE = "on-failure"
-
 class IPCMethod(str, Enum):
     """프로세스 간 통신 방식"""
-    QUEUE = "queue"          # multiprocessing.Queue
-    SOCKET = "socket"        # Unix socket
+    QUEUE = "queue"          # multiprocessing.Queue (cross-platform)
+    UNIX_SOCKET = "unix_socket"  # Unix socket (Linux/macOS only)
+    NAMED_PIPE = "named_pipe"    # Named pipes (Windows only)
+    TCP_SOCKET = "tcp_socket"    # TCP socket on localhost (cross-platform)
 
 class ProcessRuntimeConfig(CommonRuntimeConfig):
     """
@@ -205,17 +190,7 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
         description="작업 디렉토리"
     )
 
-    # 생명주기 관리
-    restart_policy: RestartPolicy = Field(
-        default=RestartPolicy.NO,
-        description="재시작 정책"
-    )
-
-    restart_max_retries: int = Field(
-        default=3,
-        description="최대 재시작 횟수 (on-failure일 때)"
-    )
-
+    # 타임아웃 설정
     start_timeout: int = Field(
         default=60,
         description="시작 타임아웃 (초)"
@@ -234,7 +209,17 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
 
     socket_path: Optional[str] = Field(
         None,
-        description="Unix 소켓 경로 (ipc_method=socket일 때)"
+        description="Unix 소켓 경로 (ipc_method=unix_socket일 때)"
+    )
+
+    pipe_name: Optional[str] = Field(
+        None,
+        description="Named pipe 이름 (ipc_method=named_pipe일 때, Windows only)"
+    )
+
+    tcp_port: Optional[int] = Field(
+        None,
+        description="TCP 소켓 포트 (ipc_method=tcp_socket일 때)"
     )
 
     # 리소스 제한
@@ -246,17 +231,6 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
     cpu_limit: Optional[float] = Field(
         None,
         description="CPU 제한 (코어 수, 예: 2.0)"
-    )
-
-    # 헬스체크
-    healthcheck_interval: int = Field(
-        default=10,
-        description="헬스체크 주기 (초)"
-    )
-
-    healthcheck_timeout: int = Field(
-        default=5,
-        description="헬스체크 타임아웃 (초)"
     )
 ```
 
@@ -271,8 +245,9 @@ from .impl import EmbeddedRuntimeConfig, DockerRuntimeConfig, ProcessRuntimeConf
 
 RuntimeConfig = Annotated[
     Union[
-        EmbeddedRuntimeConfig,  # 기존 NativeRuntimeConfig에서 rename
-        ProcessRuntimeConfig,   # NEW
+        NativeRuntimeConfig,
+        EmbeddedRuntimeConfig,
+        ProcessRuntimeConfig,
         DockerRuntimeConfig
     ],
     Field(discriminator="type")
@@ -304,7 +279,7 @@ from typing import Literal, Any, Optional
 from pydantic import BaseModel
 import time
 
-class MessageType(str, Enum):
+class IpcMessageType(str, Enum):
     START = "start"
     STOP = "stop"
     RUN = "run"
@@ -314,9 +289,9 @@ class MessageType(str, Enum):
     STATUS = "status"
     LOG = "log"
 
-class IPCMessage(BaseModel):
+class IpcMessage(BaseModel):
     """프로세스 간 통신 메시지"""
-    type: MessageType
+    type: IpcMessageType
     request_id: str
     payload: Optional[Dict[str, Any]] = None
     timestamp: float = Field(default_factory=time.time)
@@ -401,7 +376,7 @@ from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.logger import logging
 from .worker import ProcessRuntimeWorker
-from .protocol import IPCMessage, MessageType
+from .protocol import IpcMessage, IpcMessageType
 
 class ProcessRuntimeProxy(ComponentService):
     """
@@ -465,12 +440,6 @@ class ProcessRuntimeProxy(ComponentService):
             self._handle_responses()
         )
 
-        # 헬스체크 시작
-        if self.process_config.healthcheck_interval > 0:
-            self.healthcheck_task = asyncio.create_task(
-                self._healthcheck_loop()
-            )
-
         await super()._start()
 
     async def _stop(self) -> None:
@@ -478,8 +447,8 @@ class ProcessRuntimeProxy(ComponentService):
         logging.info(f"Stopping subprocess for component {self.id}")
 
         # 종료 요청 전송
-        stop_message = IPCMessage(
-            type=MessageType.STOP,
+        stop_message = IpcMessage(
+            type=IpcMessageType.STOP,
             request_id=str(uuid.uuid4())
         )
         self.request_queue.put(stop_message.model_dump())
@@ -496,8 +465,6 @@ class ProcessRuntimeProxy(ComponentService):
                 self.subprocess.kill()
 
         # 태스크 취소
-        if self.healthcheck_task:
-            self.healthcheck_task.cancel()
         if self.response_handler_task:
             self.response_handler_task.cancel()
 
@@ -511,8 +478,8 @@ class ProcessRuntimeProxy(ComponentService):
         """액션 실행 요청을 서브프로세스로 전달"""
         request_id = str(uuid.uuid4())
 
-        message = IPCMessage(
-            type=MessageType.RUN,
+        message = IpcMessage(
+            type=IpcMessageType.RUN,
             request_id=request_id,
             payload={
                 "action_id": action.id,
@@ -541,14 +508,14 @@ class ProcessRuntimeProxy(ComponentService):
             try:
                 if not self.response_queue.empty():
                     message_dict = self.response_queue.get_nowait()
-                    message = IPCMessage(**message_dict)
+                    message = IpcMessage(**message_dict)
 
                     if message.request_id in self.pending_requests:
                         future = self.pending_requests[message.request_id]
 
-                        if message.type == MessageType.RESULT:
+                        if message.type == IpcMessageType.RESULT:
                             future.set_result(message.payload.get("output"))
-                        elif message.type == MessageType.ERROR:
+                        elif message.type == IpcMessageType.ERROR:
                             error = message.payload.get("error", "Unknown error")
                             future.set_exception(Exception(error))
 
@@ -558,38 +525,6 @@ class ProcessRuntimeProxy(ComponentService):
             except Exception as e:
                 logging.error(f"Error handling response: {e}")
 
-    async def _healthcheck_loop(self) -> None:
-        """주기적인 헬스체크"""
-        interval = self.process_config.healthcheck_interval
-        timeout = self.process_config.healthcheck_timeout
-
-        while True:
-            try:
-                await asyncio.sleep(interval)
-
-                request_id = str(uuid.uuid4())
-                message = IPCMessage(
-                    type=MessageType.HEARTBEAT,
-                    request_id=request_id
-                )
-
-                future = asyncio.get_event_loop().create_future()
-                self.pending_requests[request_id] = future
-
-                self.request_queue.put(message.model_dump())
-
-                try:
-                    await asyncio.wait_for(future, timeout=timeout)
-                except asyncio.TimeoutError:
-                    logging.warning(f"Process {self.id} not responding to healthcheck")
-                    if self.process_config.restart_policy != RestartPolicy.NO:
-                        await self._restart_process()
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Healthcheck error: {e}")
-
     async def _wait_for_ready(self) -> None:
         """서브프로세스 준비 대기"""
         timeout = self.process_config.start_timeout
@@ -598,9 +533,9 @@ class ProcessRuntimeProxy(ComponentService):
         while time.time() - start_time < timeout:
             if not self.response_queue.empty():
                 message_dict = self.response_queue.get()
-                message = IPCMessage(**message_dict)
+                message = IpcMessage(**message_dict)
 
-                if message.type == MessageType.RESULT and \
+                if message.type == IpcMessageType.RESULT and \
                    message.payload.get("status") == "ready":
                     logging.info(f"Subprocess {self.id} is ready")
                     return
@@ -610,12 +545,6 @@ class ProcessRuntimeProxy(ComponentService):
         raise TimeoutError(
             f"Process {self.id} did not start within {timeout}s"
         )
-
-    async def _restart_process(self) -> None:
-        """서브프로세스 재시작"""
-        logging.info(f"Restarting process {self.id}")
-        await self._stop()
-        await self._start()
 
     def _run_worker(
         self,
@@ -662,7 +591,7 @@ from mindor.core.component.component import create_component
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.logger import logging
-from .protocol import IPCMessage, MessageType
+from .protocol import IpcMessage, IpcMessageType
 
 class ProcessRuntimeWorker:
     """
@@ -707,8 +636,8 @@ class ProcessRuntimeWorker:
             logging.info(f"Component {self.component_id} started in subprocess")
 
             # 준비 완료 알림
-            ready_message = IPCMessage(
-                type=MessageType.RESULT,
+            ready_message = IpcMessage(
+                type=IpcMessageType.RESULT,
                 request_id="init",
                 payload={"status": "ready"}
             )
@@ -718,15 +647,15 @@ class ProcessRuntimeWorker:
             while self.running:
                 if not self.request_queue.empty():
                     message_dict = self.request_queue.get()
-                    message = IPCMessage(**message_dict)
+                    message = IpcMessage(**message_dict)
                     await self._handle_message(message)
 
                 await asyncio.sleep(0.01)
 
         except Exception as e:
             logging.error(f"Worker error: {e}")
-            error_message = IPCMessage(
-                type=MessageType.ERROR,
+            error_message = IpcMessage(
+                type=IpcMessageType.ERROR,
                 request_id="worker",
                 payload={"error": str(e)}
             )
@@ -737,35 +666,35 @@ class ProcessRuntimeWorker:
                 await self.component.stop()
                 await self.component.teardown()
 
-    async def _handle_message(self, message: IPCMessage) -> None:
+    async def _handle_message(self, message: IpcMessage) -> None:
         """메시지 처리"""
         try:
-            if message.type == MessageType.RUN:
+            if message.type == IpcMessageType.RUN:
                 action_id = message.payload["action_id"]
                 run_id = message.payload["run_id"]
                 input_data = message.payload["input"]
 
                 output = await self.component.run(action_id, run_id, input_data)
 
-                response = IPCMessage(
-                    type=MessageType.RESULT,
+                response = IpcMessage(
+                    type=IpcMessageType.RESULT,
                     request_id=message.request_id,
                     payload={"output": output}
                 )
                 self.response_queue.put(response.model_dump())
 
-            elif message.type == MessageType.HEARTBEAT:
-                response = IPCMessage(
-                    type=MessageType.RESULT,
+            elif message.type == IpcMessageType.HEARTBEAT:
+                response = IpcMessage(
+                    type=IpcMessageType.RESULT,
                     request_id=message.request_id,
                     payload={"status": "alive"}
                 )
                 self.response_queue.put(response.model_dump())
 
-            elif message.type == MessageType.STOP:
+            elif message.type == IpcMessageType.STOP:
                 self.running = False
-                response = IPCMessage(
-                    type=MessageType.RESULT,
+                response = IpcMessage(
+                    type=IpcMessageType.RESULT,
                     request_id=message.request_id,
                     payload={"status": "stopped"}
                 )
@@ -773,8 +702,8 @@ class ProcessRuntimeWorker:
 
         except Exception as e:
             logging.error(f"Error handling message: {e}")
-            error_response = IPCMessage(
-                type=MessageType.ERROR,
+            error_response = IpcMessage(
+                type=IpcMessageType.ERROR,
                 request_id=message.request_id,
                 payload={"error": str(e)}
             )
@@ -845,11 +774,8 @@ component:
     env:
       CUDA_VISIBLE_DEVICES: "0"
       PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
-    restart_policy: on-failure
-    restart_max_retries: 3
     start_timeout: 120
     stop_timeout: 30
-    healthcheck_interval: 10
   task: image-generation
   model: stabilityai/stable-diffusion-xl-base-1.0
 ```
@@ -887,7 +813,45 @@ workflows:
         action: generate
 ```
 
-### Example 4: Runtime 비교
+### Example 4: 플랫폼별 고성능 IPC 설정
+
+```yaml
+# Unix 시스템 (Linux/macOS)에서 고성능 IPC
+component:
+  type: model
+  runtime:
+    type: process
+    ipc_method: unix_socket
+    socket_path: /tmp/model-compose-{component_id}.sock
+  task: text-generation
+  model: meta-llama/Llama-3.1-70B
+```
+
+```yaml
+# Windows에서 고성능 IPC
+component:
+  type: model
+  runtime:
+    type: process
+    ipc_method: named_pipe
+    pipe_name: \\.\pipe\model-compose-{component_id}
+  task: text-generation
+  model: meta-llama/Llama-3.1-70B
+```
+
+```yaml
+# 크로스 플랫폼 TCP 소켓 (네트워크 오버헤드 있음)
+component:
+  type: model
+  runtime:
+    type: process
+    ipc_method: tcp_socket
+    tcp_port: 0  # 자동 포트 할당
+  task: text-generation
+  model: meta-llama/Llama-3.1-70B
+```
+
+### Example 5: Runtime 비교
 
 ```yaml
 components:
@@ -915,23 +879,6 @@ components:
     task: text-generation
 ```
 
-### Example 5: 크래시 격리와 재시작
-
-```yaml
-component:
-  type: google-adk-agent
-  runtime:
-    type: process
-    restart_policy: always
-    restart_max_retries: 5
-    healthcheck_interval: 10
-    healthcheck_timeout: 5
-  agent_name: ExperimentalAgent
-  model: gemini-2.5-flash
-  tools:
-    - type: code_executor
-    - type: google_search
-```
 
 ## File Structure
 
@@ -956,7 +903,7 @@ src/mindor/
     └── runtime/
         └── process/
             ├── __init__.py
-            ├── protocol.py             # IPCMessage, MessageType
+            ├── protocol.py             # IpcMessage, IpcMessageType
             ├── proxy.py                # ProcessRuntimeProxy
             └── worker.py               # ProcessRuntimeWorker
 ```
@@ -975,8 +922,8 @@ src/mindor/
   - `RuntimeConfig` union 업데이트
 
 - [ ] IPC 프로토콜 정의
-  - `IPCMessage` 모델
-  - `MessageType` enum
+  - `IpcMessage` 모델
+  - `IpcMessageType` enum
   - Protocol 문서화
 
 - [ ] Worker 구현
@@ -999,45 +946,16 @@ src/mindor/
 - 간단한 shell 컴포넌트 프로세스 분리 테스트
 - Model 컴포넌트 프로세스 분리 테스트
 
-### Phase 2: Lifecycle Management
-**목표**: 안정적인 생명주기 관리
-
-**Task List:**
-- [ ] 헬스체크 구현
-  - 주기적인 heartbeat 메시지
-  - 타임아웃 감지
-  - 프로세스 상태 모니터링
-
-- [ ] 재시작 정책
-  - `restart_policy: always`
-  - `restart_policy: on-failure`
-  - `restart_max_retries` 처리
-  - 재시작 간격 제어
-
-- [ ] Graceful shutdown
-  - Stop 메시지 전송
-  - 컴포넌트 정리 대기
-  - 타임아웃 처리
-  - 강제 종료 (terminate/kill)
-
-- [ ] 타임아웃 처리
-  - `start_timeout` 구현
-  - `stop_timeout` 구현
-  - `healthcheck_timeout` 구현
-
-**검증:**
-- 프로세스 크래시 시나리오 테스트
-- Graceful shutdown 테스트
-- 재시작 정책 테스트
-
-### Phase 3: Advanced Features
+### Phase 2: Advanced Features
 **목표**: 고급 기능 및 최적화
 
 **Task List:**
-- [ ] Unix 소켓 IPC 지원
-  - `ipc_method: socket` 구현
-  - 소켓 경로 관리
-  - 성능 벤치마크 (Queue vs Socket)
+- [ ] 고성능 IPC 지원
+  - `ipc_method: unix_socket` 구현 (Linux/macOS)
+  - `ipc_method: named_pipe` 구현 (Windows)
+  - `ipc_method: tcp_socket` 구현 (cross-platform fallback)
+  - 플랫폼별 자동 선택 로직
+  - 성능 벤치마크 (Queue vs Unix Socket vs Named Pipe)
 
 - [ ] 환경 변수 설정
   - `runtime.env` 적용
@@ -1060,7 +978,7 @@ src/mindor/
 - 리소스 제한 테스트
 - 로그 통합 테스트
 
-### Phase 4: Testing & Documentation
+### Phase 3: Testing & Documentation
 **목표**: 안정성 및 문서화
 
 **Task List:**
@@ -1074,7 +992,6 @@ src/mindor/
   - 실제 컴포넌트 테스트 (Model, Shell, Agent)
   - 워크플로우 통합 테스트
   - 다중 프로세스 테스트
-  - 재시작 시나리오 테스트
 
 - [ ] 성능 테스트
   - IPC 오버헤드 측정
@@ -1140,43 +1057,6 @@ async def test_proxy_run_action():
 
     await proxy.stop()
 
-@pytest.mark.asyncio
-async def test_proxy_healthcheck():
-    """헬스체크 테스트"""
-    proxy = create_test_proxy()
-    await proxy.start()
-
-    # 헬스체크 실행
-    await asyncio.sleep(11)  # healthcheck 주기보다 길게
-
-    # 프로세스가 살아있는지 확인
-    assert proxy.subprocess.is_alive()
-
-    await proxy.stop()
-
-@pytest.mark.asyncio
-async def test_proxy_restart_on_crash():
-    """크래시 시 재시작 테스트"""
-    config = ComponentConfig(
-        id="test",
-        type="model",
-        runtime=ProcessRuntimeConfig(
-            type="process",
-            restart_policy="always"
-        )
-    )
-
-    proxy = ProcessRuntimeProxy("test", config, global_configs, False)
-    await proxy.start()
-
-    # 프로세스 강제 종료
-    proxy.subprocess.kill()
-    await asyncio.sleep(2)
-
-    # 재시작 확인
-    assert proxy.subprocess.is_alive()
-
-    await proxy.stop()
 ```
 
 ### Integration Tests
@@ -1275,17 +1155,13 @@ async def test_gpu_isolation():
        await proxy.start()
    except TimeoutError:
        logging.error("Component failed to start within timeout")
-       # 재시작 정책에 따라 재시도
+       raise
    ```
 
 2. **프로세스 크래시**
    ```python
-   # Heartbeat 실패 감지
    if not subprocess.is_alive():
-       if restart_policy == "always":
-           await restart_process()
-       else:
-           raise ProcessCrashedError("Component process crashed")
+       raise ProcessCrashedError("Component process crashed")
    ```
 
 3. **IPC 통신 실패**
@@ -1294,15 +1170,13 @@ async def test_gpu_isolation():
        result = await send_request(message, timeout=30)
    except asyncio.TimeoutError:
        logging.error("IPC communication timeout")
-       # 프로세스 상태 확인 및 재시작
+       raise
    ```
 
 4. **리소스 부족**
    ```python
    # 메모리 제한 초과 시 OOM 킬러 작동
-   # 재시작 정책에 따라 복구 시도
-   if restart_policy == "on-failure":
-       await restart_process()
+   raise ResourceExhaustedError("Process killed due to resource limits")
    ```
 
 ### Error Response Format
@@ -1326,15 +1200,23 @@ async def test_gpu_isolation():
 
 ### IPC Overhead
 
-- **Queue 방식**:
-  - 안정적이지만 약간 느림 (직렬화 오버헤드)
-  - 작은 메시지에 적합
+Different IPC methods have varying performance characteristics:
 
-- **Socket 방식**:
-  - 더 빠르지만 구현 복잡
-  - 큰 데이터 전송에 유리
+| IPC Method | Platform | Speed | Overhead | Best For |
+|------------|----------|-------|----------|----------|
+| **queue** | All | Medium | Medium | Default, reliable cross-platform |
+| **unix_socket** | Linux/macOS | Fast | Low | High-performance on Unix systems |
+| **named_pipe** | Windows | Fast | Low | High-performance on Windows |
+| **tcp_socket** | All | Slow | High | Cross-platform with network overhead |
 
-**권장**: 기본은 Queue, 고성능 필요 시 Socket
+**권장사항**:
+- **기본 사용**: `queue` (모든 플랫폼에서 안정적)
+- **고성능 (Unix)**: `unix_socket` (Linux/macOS)
+- **고성능 (Windows)**: `named_pipe` (Windows 전용)
+- **플랫폼 자동 선택**:
+  ```python
+  ipc_method = "named_pipe" if platform.system() == "Windows" else "unix_socket"
+  ```
 
 ### Memory Isolation
 
@@ -1382,10 +1264,7 @@ async def test_gpu_isolation():
 
 ```python
 # 프로세스 상태
-process_status = "alive" | "dead" | "restarting"
-
-# 재시작 횟수
-restart_count = 0
+process_status = "alive" | "dead"
 
 # IPC 지연 시간
 ipc_latency_ms = 1.5
@@ -1406,18 +1285,8 @@ logger.info(
         "component_id": "heavy-model",
         "pid": 12345,
         "runtime_config": {
-            "env": {"CUDA_VISIBLE_DEVICES": "0"},
-            "restart_policy": "always"
+            "env": {"CUDA_VISIBLE_DEVICES": "0"}
         }
-    }
-)
-
-logger.warning(
-    "Process not responding to healthcheck",
-    extra={
-        "component_id": "heavy-model",
-        "pid": 12345,
-        "last_heartbeat": "2025-01-01T00:00:00Z"
     }
 )
 
@@ -1426,9 +1295,7 @@ logger.error(
     extra={
         "component_id": "heavy-model",
         "pid": 12345,
-        "exit_code": -11,
-        "restart_policy": "always",
-        "restart_count": 3
+        "exit_code": -11
     }
 )
 ```

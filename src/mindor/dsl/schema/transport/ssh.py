@@ -31,3 +31,4 @@ class SshConnectionConfig(BaseModel):
     host: str = Field(..., description="Host address of the SSH server to connect to.")
     port: int = Field(default=22, ge=1, le=65535, description="Port number used to connect to the SSH server.")
     auth: SshAuthConfig = Field(..., description="SSH authentication configuration.")
+    keepalive_interval: str = Field(default="10s", description="SSH keepalive interval. Set to '0s' to disable keepalive.")

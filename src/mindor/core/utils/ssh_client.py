@@ -63,11 +63,12 @@ class SshConnectionParams:
     host: str
     auth: Union[SshKeyfileAuthParams, SshPasswordAuthParams]
     port: int = 22
+    keepalive_interval: int = 0  # Send keepalive every N seconds (0 to disable)
 
     def to_params(self) -> Dict[str, Any]:
         return {
-            "hostname": self.host, 
-            "port": self.port, 
+            "hostname": self.host,
+            "port": self.port,
             **self.auth.to_params()
         }
 
@@ -100,6 +101,13 @@ class SshClient:
 
             logging.debug(f"Connecting to {self.params.host}:{self.params.port}...")
             client.connect(**self.params.to_params())
+
+            # Set keepalive if enabled
+            if self.params.keepalive_interval > 0:
+                transport = client.get_transport()
+                transport.set_keepalive(self.params.keepalive_interval)
+                logging.debug(f"SSH keepalive enabled: {self.params.keepalive_interval}s interval")
+
             logging.debug(f"SSH connection established to {self.params.host}:{self.params.port}")
 
             return client

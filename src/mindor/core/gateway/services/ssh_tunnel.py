@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig, SshConnectionConfig, SshAuthConfig
 from mindor.core.utils.ssh_client import SshClient, SshConnectionParams, SshAuthParams, SshKeyfileAuthParams, SshPasswordAuthParams
+from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import GatewayService, GatewayType, register_gateway
 import asyncio
@@ -66,7 +67,8 @@ class SshTunnelGateway(GatewayService):
         return SshConnectionParams(
             host=config.host,
             port=config.port,
-            auth=self._build_auth_params(config.auth)
+            auth=self._build_auth_params(config.auth),
+            keepalive_interval=int(parse_duration(config.keepalive_interval).total_seconds())
         )
     
     def _build_auth_params(self, config: SshAuthConfig) -> SshAuthParams:

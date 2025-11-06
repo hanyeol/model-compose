@@ -8,19 +8,19 @@ authors = [
 readme = "README.md"
 license = "MIT"
 dependencies = [
-    "click", 
-    "pyyaml", 
-    "pydantic", 
-    "python-dotenv", 
-    "aiohttp", 
-    "requests", 
-    "fastapi", 
+    "click",
+    "pyyaml",
+    "pydantic",
+    "python-dotenv",
+    "docker",
+    "aiohttp",
+    "requests",
+    "fastapi",
     "uvicorn",
     "mcp>=1.10.1",
     "ulid", 
     "gradio",
-    "Pillow",
-    "docker"
+    "Pillow"
 ]
 
 [project.scripts]

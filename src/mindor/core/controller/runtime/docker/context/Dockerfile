@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir \
     pyyaml \
     pydantic \
     python-dotenv \
+    docker \
     aiohttp \
     requests \
     fastapi \

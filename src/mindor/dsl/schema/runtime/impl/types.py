@@ -1,5 +1,6 @@
 from enum import Enum
 
 class RuntimeType(str, Enum):
-    NATIVE = "native"
-    DOCKER = "docker"
+    NATIVE   = "native"
+    EMBEDDED = "embedded"
+    DOCKER   = "docker"

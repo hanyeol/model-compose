@@ -3,10 +3,11 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from .impl import *
 
-RuntimeConfig = Annotated[ 
+RuntimeConfig = Annotated[
     Union[
         NativeRuntimeConfig,
-        DockerRuntimeConfig 
+        EmbeddedRuntimeConfig,
+        DockerRuntimeConfig
     ],
     Field(discriminator="type")
 ]

@@ -92,7 +92,7 @@ Many configuration objects share common properties:
 |----------|------|---------|-------------|
 | `id` | string | varies | Unique identifier |
 | `type` | string | required | Configuration type |
-| `runtime` | string | `native` | Runtime environment (`native` or `docker`) |
+| `runtime` | string | `embedded` | Runtime environment (`embedded` or `docker`) |
 | `max_concurrent_count` | integer | varies | Maximum concurrent operations |
 
 ## Getting Started

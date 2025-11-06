@@ -10,7 +10,7 @@ Components are reusable service definitions that perform specific tasks within w
 component:
   type: http-client | http-server | model | vector-store | shell | workflow | mcp-client | mcp-server | text-splitter
   id: component-id
-  runtime: native | docker
+  runtime: embedded | docker  # default: embedded
   max_concurrent_count: 1
   default: false
   # ... type-specific configuration
@@ -59,7 +59,7 @@ All components inherit these common properties from `CommonComponentConfig`:
 |-------|------|---------|-------------|
 | `id` | string | `__default__` | Unique identifier for the component |
 | `type` | string | **required** | Component type (see table above) |
-| `runtime` | string | `native` | Runtime environment: `native` or `docker` |
+| `runtime` | string | `embedded` | Runtime environment: `embedded` or `docker` |
 | `max_concurrent_count` | integer | `1` | Maximum concurrent actions this component can handle |
 | `default` | boolean | `false` | Whether to use this component when none is explicitly specified |
 
@@ -133,27 +133,60 @@ components:
 
 ## Runtime Configuration
 
-Components can run in different runtime environments:
+Components can run in different runtime environments. The runtime determines where and how the component executes.
 
-### Native Runtime
+### Embedded Runtime (Default)
+
+The default runtime that executes components in the current process.
+
 ```yaml
 component:
-  type: shell
-  runtime: native
-  command: python script.py
+  type: model
+  runtime: embedded  # or omit this line (embedded is default)
+  model: microsoft/DialoGPT-medium
 ```
 
-Runs directly on the host system with full access to local resources.
+**Characteristics:**
+- Runs in the same process as the controller
+- Fastest startup time and lowest overhead
+- Shares memory space with the main application
+- Best for lightweight tasks and quick operations
+
+**Use Cases:**
+- Simple API calls and HTTP requests
+- Lightweight data transformations
+- Quick model inference with small models
+- Components that need fast response times
 
 ### Docker Runtime
+
+Runs components in isolated Docker containers for enhanced security and reproducibility.
+
 ```yaml
 component:
   type: model
   runtime: docker
-  model: microsoft/DialoGPT-medium
+  model: meta-llama/Llama-3.1-70B
 ```
 
-Runs in isolated Docker containers for better security and reproducibility.
+**Characteristics:**
+- Complete process and resource isolation
+- Reproducible environment across deployments
+- Better security through containerization
+- Higher startup overhead
+
+**Use Cases:**
+- Production deployments requiring isolation
+- Large models that need resource limits
+- Components with specific dependency requirements
+- Multi-tenant scenarios requiring security
+
+### Choosing a Runtime
+
+| Runtime | Startup Speed | Isolation | Overhead | Best For |
+|---------|--------------|-----------|----------|----------|
+| **embedded** | Fast | None | Minimal | Default choice, lightweight tasks |
+| **docker** | Slow | High | High | Production, security-critical workloads |
 
 ## Concurrency Control
 

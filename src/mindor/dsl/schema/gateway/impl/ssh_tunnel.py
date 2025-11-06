@@ -36,4 +36,7 @@ class SshTunnelGatewayConfig(CommonGatewayConfig):
         if isinstance(value, int):
             return [value, "localhost", value]
 
+        if isinstance(value, list):
+            return value
+
         return None

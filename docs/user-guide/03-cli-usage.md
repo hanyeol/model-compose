@@ -363,9 +363,14 @@ model-compose up
 
 Environment variables are applied in the following order (highest priority first):
 
-1. Command line `-e` option
-2. `--env-file` files (later files take precedence)
-3. System environment variables
+1. **Command line `-e` option** - Highest priority
+2. **Current shell environment variables** - Medium priority
+3. **`--env-file` files** (later files override earlier ones) - Lowest priority
+
+This means:
+- Shell environment variables override `.env` file values
+- Command line `-e` arguments override everything
+- This allows flexible configuration across different deployment scenarios
 
 ### Security Recommendations
 

@@ -1,6 +1,7 @@
 from typing import Union, Dict, List
 from pathlib import Path
 from dotenv import dotenv_values
+import os
 
 def load_env_files(work_dir: Union[ str, Path ], env_files: List[Union[ str, Path ]]) -> Dict[str, str]:
     if len(env_files) == 0:
@@ -19,6 +20,9 @@ def load_env_files(work_dir: Union[ str, Path ], env_files: List[Union[ str, Pat
     return merged_env
 
 def merge_env_data(env: Dict[str, str], env_data: List[str]) -> Dict[str, str]:
+    # Merge current shell environment variables (overrides .env file values)
+    env.update(os.environ)
+
     for env_entry in env_data:
         if "=" not in env_entry:
             raise ValueError(f"Invalid env entry: {env_entry}")

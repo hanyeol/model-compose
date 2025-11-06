@@ -19,7 +19,7 @@ class DockerPortsResolver:
                 continue
 
             if isinstance(port, str):
-                target, published = port.split(":")
+                published, target = port.split(":")
                 ports[str(target)] = str(published)
                 continue
 

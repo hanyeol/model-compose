@@ -14,7 +14,7 @@ class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     user: Optional[str] = Field(default=None, description="Username for authentication.")
     password: Optional[str] = Field(default=None, description="Password for authentication.")
     database: Optional[str] = Field(default=None, description="Target database name.")
-    timeout: float = Field(default=30.0, description="Client operation timeout in seconds.")
+    timeout: str = Field(default="30s", description="Client operation timeout.")
     actions: List[MilvusVectorStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

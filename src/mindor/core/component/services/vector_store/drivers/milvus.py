@@ -5,6 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.streamer import AsyncStreamer
+from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
@@ -315,7 +316,7 @@ class MilvusVectorStoreService(VectorStoreService):
             user=self.config.user or "",
             password=self.config.password or "",
             db_name=self.config.database or "",
-            timeout=self.config.timeout
+            timeout=parse_duration(self.config.timeout).total_seconds()
         )
 
     async def _shutdown(self) -> None:

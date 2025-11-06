@@ -5,6 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, ChromaVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.streamer import AsyncStreamer
+from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
@@ -255,7 +256,8 @@ class ChromaVectorStoreService(VectorStoreService):
 
             return HttpClient(
                 **self._resolve_connection_params(),
-                **self._resolve_database_params()
+                **self._resolve_database_params(),
+                timeout=parse_duration(self.config.timeout).total_seconds()
             )
 
         if self.config.mode == "local":

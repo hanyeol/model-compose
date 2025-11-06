@@ -13,7 +13,7 @@ class QdrantVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     https: bool = Field(default=False, description="Use HTTPS for connections.")
     api_key: Optional[str] = Field(default=None, description="API key for authentication.")
     prefix: Optional[str] = Field(default=None, description="Prefix for collections.")
-    timeout: float = Field(default=5.0, description="Client operation timeout in seconds.")
+    timeout: str = Field(default="30s", description="Client operation timeout.")
     prefer_grpc: bool = Field(default=False, description="Prefer gRPC over HTTP/REST API.")
     actions: List[QdrantVectorStoreActionConfig] = Field(default_factory=list)
 

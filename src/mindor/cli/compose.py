@@ -14,6 +14,12 @@ def _load_compose_config(config_files: List[Path], env_files: List[Path], env_da
 
     return load_compose_config(".", config_files, env)
 
+def _get_version() -> str:
+    try:
+        return importlib.metadata.version("model-compose")
+    except importlib.metadata.PackageNotFoundError:
+        return "latest"
+
 @click.group()
 @click.option(
     "--file", "-f", "config_files", multiple=True,
@@ -21,7 +27,7 @@ def _load_compose_config(config_files: List[Path], env_files: List[Path], env_da
     help="Compose configuration files."
 )
 @click.version_option(
-    version=importlib.metadata.version("model-compose"),
+    version=_get_version(),
     message="%(prog)s %(version)s"
 )
 @click.pass_context

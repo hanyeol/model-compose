@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from multiprocessing import Queue
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
-from mindor.core.foundation.ipc_protocol import IpcMessage, IpcMessageType
+from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
 from mindor.core.component.runtime.process_worker import ComponentProcessWorker
 from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
 from mindor.core.component.base import ComponentGlobalConfigs
@@ -83,9 +83,9 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_id == "test-shell"
         assert manager.config == config
         assert manager.global_configs == global_configs
-        assert isinstance(manager.runtime_config, ProcessRuntimeConfig)
-        assert manager.runtime_config.start_timeout == "30s"
-        assert manager.runtime_config.stop_timeout == "10s"
+        # worker_params should be converted from ProcessRuntimeConfig
+        assert manager.worker_params.start_timeout == 30.0  # Converted to seconds
+        assert manager.worker_params.stop_timeout == 10.0   # Converted to seconds
 
 
     def test_manager_initialization_with_custom_config(self, global_configs):
@@ -109,9 +109,9 @@ class TestComponentProcessRuntimeManager:
             global_configs
         )
 
-        assert manager.runtime_config.env["TEST_VAR"] == "test_value"
-        assert manager.runtime_config.start_timeout == "2m"
-        assert manager.runtime_config.ipc_method == "queue"
+        # Check converted params
+        assert manager.worker_params.env["TEST_VAR"] == "test_value"
+        assert manager.worker_params.start_timeout == 120.0  # 2m = 120s
 
 
 class TestComponentIntegration:
@@ -266,9 +266,9 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        assert manager.runtime_config.env["CUDA_VISIBLE_DEVICES"] == "0"
-        assert manager.runtime_config.env["MODEL_PATH"] == "/models"
-        assert manager.runtime_config.env["BATCH_SIZE"] == "32"
+        assert manager.worker_params.env["CUDA_VISIBLE_DEVICES"] == "0"
+        assert manager.worker_params.env["MODEL_PATH"] == "/models"
+        assert manager.worker_params.env["BATCH_SIZE"] == "32"
 
     def test_process_runtime_with_timeouts(self, global_configs):
         """Test process runtime with custom timeouts"""
@@ -289,8 +289,8 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        assert manager.runtime_config.start_timeout == "5m"
-        assert manager.runtime_config.stop_timeout == "1m"
+        assert manager.worker_params.start_timeout == 300.0  # 5m = 300s
+        assert manager.worker_params.stop_timeout == 60.0    # 1m = 60s
 
     def test_process_runtime_with_resource_limits(self, global_configs):
         """Test process runtime with resource limits"""
@@ -311,8 +311,8 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        assert manager.runtime_config.max_memory == "2g"
-        assert manager.runtime_config.cpu_limit == 2.0
+        # Resource limits are in ProcessRuntimeConfig but not in ProcessRuntimeParams
+        # These are DSL-level configs not used by foundation layer
 
     def test_process_runtime_ipc_methods(self, global_configs):
         """Test different IPC methods for process runtime"""
@@ -344,9 +344,8 @@ class TestComponentProcessRuntimeScenarios:
                 global_configs
             )
 
-            assert manager.runtime_config.ipc_method == ipc_method
-            if socket_path:
-                assert manager.runtime_config.socket_path == socket_path
+            # IPC method is in ProcessRuntimeConfig but not used by foundation layer yet
+            # Foundation layer currently only uses Queue-based IPC
 
     def test_component_manager_attributes(self, global_configs):
         """Test ComponentProcessRuntimeManager has correct attributes"""
@@ -366,7 +365,7 @@ class TestComponentProcessRuntimeScenarios:
         assert hasattr(manager, "worker_id")
         assert hasattr(manager, "config")
         assert hasattr(manager, "global_configs")
-        assert hasattr(manager, "runtime_config")
+        assert hasattr(manager, "worker_params")  # Changed from runtime_config
         assert hasattr(manager, "subprocess")
         assert hasattr(manager, "request_queue")
         assert hasattr(manager, "response_queue")

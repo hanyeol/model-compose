@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Callable
-from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.logger import logging
-from .ipc_protocol import IpcMessage, IpcMessageType
+from .ipc_messages import IpcMessage, IpcMessageType
+from .process_worker import ProcessWorkerParams
 from multiprocessing import Process, Queue
 import asyncio, os, uuid, time
 
@@ -15,19 +15,19 @@ class ProcessRuntimeManager:
     def __init__(
         self,
         worker_id: str,
-        runtime_config: ProcessRuntimeConfig,
-        worker_factory: Callable[[str, Queue, Queue], Any]
+        worker_factory: Callable[[str, Queue, Queue], Any],
+        worker_params: ProcessWorkerParams = None
     ):
         """
         Args:
             worker_id: Worker identifier
-            runtime_config: Process runtime configuration
             worker_factory: Factory function to create worker instance
                            (worker_id, request_queue, response_queue) -> Worker
+            worker_params: Worker runtime parameters (optional, uses defaults if not provided)
         """
         self.worker_id = worker_id
-        self.runtime_config = runtime_config
         self.worker_factory = worker_factory
+        self.worker_params = worker_params or ProcessWorkerParams()
 
         self.subprocess: Optional[Process] = None
         self.request_queue: Optional[Queue] = None
@@ -50,8 +50,8 @@ class ProcessRuntimeManager:
             daemon=False
         )
 
-        if self.runtime_config.env:
-            for key, value in self.runtime_config.env.items():
+        if self.worker_params.env:
+            for key, value in self.worker_params.env.items():
                 os.environ[key] = value
 
         self.subprocess.start()
@@ -71,12 +71,10 @@ class ProcessRuntimeManager:
             type=IpcMessageType.STOP,
             request_id=str(uuid.uuid4())
         )
-        self.request_queue.put(stop_message.model_dump())
-
-        timeout_seconds = self._parse_timeout(self.runtime_config.stop_timeout)
+        self.request_queue.put(stop_message.to_params())
 
         try:
-            self.subprocess.join(timeout=timeout_seconds)
+            self.subprocess.join(timeout=self.worker_params.stop_timeout)
         except TimeoutError:
             logging.warning(f"Process {self.worker_id} did not stop gracefully, terminating")
             self.subprocess.terminate()
@@ -101,7 +99,7 @@ class ProcessRuntimeManager:
         future = asyncio.get_event_loop().create_future()
         self.pending_requests[request_id] = future
 
-        self.request_queue.put(message.model_dump())
+        self.request_queue.put(message.to_params())
 
         try:
             result = await future
@@ -134,8 +132,8 @@ class ProcessRuntimeManager:
 
     async def _wait_for_ready(self) -> None:
         """Wait for subprocess to be ready"""
-        timeout = self._parse_timeout(self.runtime_config.start_timeout)
         start_time = time.time()
+        timeout = self.worker_params.start_timeout
 
         while time.time() - start_time < timeout:
             if not self.response_queue.empty():
@@ -171,17 +169,3 @@ class ProcessRuntimeManager:
             pass
         finally:
             loop.close()
-
-    @staticmethod
-    def _parse_timeout(timeout_str: str) -> float:
-        """Parse timeout string (e.g., '60s', '2m') to seconds"""
-        timeout_str = timeout_str.strip().lower()
-
-        if timeout_str.endswith('s'):
-            return float(timeout_str[:-1])
-        elif timeout_str.endswith('m'):
-            return float(timeout_str[:-1]) * 60
-        elif timeout_str.endswith('h'):
-            return float(timeout_str[:-1]) * 3600
-        else:
-            return float(timeout_str)

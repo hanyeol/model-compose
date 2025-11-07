@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from multiprocessing import Queue
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 from mindor.dsl.schema.runtime.impl.process import IpcMethod
-from mindor.core.foundation.ipc_protocol import IpcMessage, IpcMessageType
-from mindor.core.foundation.process_worker import ProcessWorker
+from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
+from mindor.core.foundation.process_worker import ProcessWorker, ProcessWorkerParams
 from mindor.core.foundation.process_manager import ProcessRuntimeManager
 from mindor.core.component.runtime.process_worker import ComponentProcessWorker
 from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
@@ -301,7 +301,7 @@ class TestIpcProtocol:
             payload={ "status": "ready" }
         )
 
-        data = message.model_dump()
+        data = message.to_params()
 
         assert data["type"] == "result"
         assert data["request_id"] == "req-456"
@@ -325,37 +325,28 @@ class TestIpcProtocol:
         assert message.timestamp == 1234567890
 
 
-class TestProcessRuntimeManager:
-    """Test ProcessRuntimeManager utilities"""
+class TestProcessWorkerParams:
+    """Test ProcessWorkerParams data model"""
 
-    def test_timeout_parsing_seconds(self):
-        """Test parsing timeout in seconds"""
-        assert ProcessRuntimeManager._parse_timeout("30s") == 30.0
-        assert ProcessRuntimeManager._parse_timeout("1s") == 1.0
-        assert ProcessRuntimeManager._parse_timeout("120s") == 120.0
+    def test_default_params(self):
+        """Test default parameter values"""
+        params = ProcessWorkerParams()
 
-    def test_timeout_parsing_minutes(self):
-        """Test parsing timeout in minutes"""
-        assert ProcessRuntimeManager._parse_timeout("1m") == 60.0
-        assert ProcessRuntimeManager._parse_timeout("2m") == 120.0
-        assert ProcessRuntimeManager._parse_timeout("30m") == 1800.0
+        assert params.env == {}
+        assert params.start_timeout == 60.0
+        assert params.stop_timeout == 30.0
 
-    def test_timeout_parsing_hours(self):
-        """Test parsing timeout in hours"""
-        assert ProcessRuntimeManager._parse_timeout("1h") == 3600.0
-        assert ProcessRuntimeManager._parse_timeout("2h") == 7200.0
-        assert ProcessRuntimeManager._parse_timeout("0.5h") == 1800.0
+    def test_custom_params(self):
+        """Test custom parameter values"""
+        params = ProcessWorkerParams(
+            env={"TEST": "value"},
+            start_timeout=120.0,
+            stop_timeout=60.0
+        )
 
-    def test_timeout_parsing_raw_number(self):
-        """Test parsing raw number as seconds"""
-        assert ProcessRuntimeManager._parse_timeout("60") == 60.0
-        assert ProcessRuntimeManager._parse_timeout("120") == 120.0
-        assert ProcessRuntimeManager._parse_timeout("3.5") == 3.5
-
-    def test_timeout_parsing_with_whitespace(self):
-        """Test parsing timeout with whitespace"""
-        assert ProcessRuntimeManager._parse_timeout("  30s  ") == 30.0
-        assert ProcessRuntimeManager._parse_timeout(" 2m ") == 120.0
+        assert params.env == {"TEST": "value"}
+        assert params.start_timeout == 120.0
+        assert params.stop_timeout == 60.0
 
 
 class TestProcessWorker:
@@ -406,7 +397,7 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_id == "test-shell"
         assert manager.config == config
         assert manager.global_configs == global_configs
-        assert isinstance(manager.runtime_config, ProcessRuntimeConfig)
+        assert isinstance(manager.worker_params, ProcessWorkerParams)
 
     def test_manager_initialization_with_invalid_runtime(self, global_configs):
         """Test manager initialization fails with non-process runtime"""
@@ -515,16 +506,15 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_process_runtime_manager_lifecycle(self):
         """Test ProcessRuntimeManager start and stop"""
-        config = ProcessRuntimeConfig(
-            type="process",
-            start_timeout="5s",
-            stop_timeout="5s"
+        params = ProcessWorkerParams(
+            start_timeout=5.0,
+            stop_timeout=5.0
         )
 
         manager = ProcessRuntimeManager(
             "test-worker",
-            config,
-            create_math_worker
+            create_math_worker,
+            params
         )
 
         assert manager.worker_id == "test-worker"
@@ -544,16 +534,15 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_process_runtime_manager_execute_task(self):
         """Test executing tasks through ProcessRuntimeManager"""
-        config = ProcessRuntimeConfig(
-            type="process",
-            start_timeout="5s",
-            stop_timeout="5s"
+        params = ProcessWorkerParams(
+            start_timeout=5.0,
+            stop_timeout=5.0
         )
 
         manager = ProcessRuntimeManager(
             "math-worker",
-            config,
-            create_math_worker
+            create_math_worker,
+            params
         )
 
         await manager.start()
@@ -571,8 +560,8 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_process_runtime_manager_multiple_tasks(self):
         """Test executing multiple tasks sequentially"""
-        config = ProcessRuntimeConfig(type="process")
-        manager = ProcessRuntimeManager("counter-worker", config, create_counter_worker)
+        params = ProcessWorkerParams()
+        manager = ProcessRuntimeManager("counter-worker", create_counter_worker, params)
 
         await manager.start()
 
@@ -595,8 +584,7 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_ipc_message_roundtrip(self):
         """Test IPC message serialization and deserialization through queues"""
-        request_queue = Queue()
-        response_queue = Queue()
+        message_queue = Queue()
 
         original_message = IpcMessage(
             type=IpcMessageType.RUN,
@@ -608,9 +596,11 @@ class TestIpcCommunication:
             }
         )
 
-        request_queue.put(original_message.model_dump())
+        # Serialize and put into queue
+        message_queue.put(original_message.to_params())
 
-        message_dict = request_queue.get(timeout=1)
+        # Deserialize from queue
+        message_dict = message_queue.get(timeout=1)
         received_message = IpcMessage(**message_dict)
 
         assert received_message.type == original_message.type
@@ -621,8 +611,8 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_process_worker_error_handling(self):
         """Test error handling in process worker"""
-        config = ProcessRuntimeConfig(type="process")
-        manager = ProcessRuntimeManager("error-worker", config, create_error_worker)
+        params = ProcessWorkerParams()
+        manager = ProcessRuntimeManager("error-worker", create_error_worker, params)
 
         await manager.start()
 
@@ -639,11 +629,11 @@ class TestIpcCommunication:
     @pytest.mark.anyio
     async def test_concurrent_process_managers(self):
         """Test multiple ProcessRuntimeManagers running concurrently"""
-        config = ProcessRuntimeConfig(type="process")
+        params = ProcessWorkerParams()
 
-        manager1 = ProcessRuntimeManager("worker-1", config, create_math_worker)
-        manager2 = ProcessRuntimeManager("worker-2", config, create_counter_worker)
-        manager3 = ProcessRuntimeManager("worker-3", config, create_error_worker)
+        manager1 = ProcessRuntimeManager("worker-1", create_math_worker, params)
+        manager2 = ProcessRuntimeManager("worker-2", create_counter_worker, params)
+        manager3 = ProcessRuntimeManager("worker-3", create_error_worker, params)
 
         await manager1.start()
         await manager2.start()

@@ -150,6 +150,12 @@ controller:
   type: mcp-server
 ```
 
+### 🔄 Run Components in Separate Processes
+```yaml
+component:
+  runtime: process
+```
+
 ### 🐳 Deploy in Docker with 1 Line
 ```yaml
 controller:

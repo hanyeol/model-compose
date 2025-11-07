@@ -55,7 +55,7 @@ HuggingFace 등에서 제공하는 모델을 로컬에서 실행하며 transform
 ngrok, Cloudflare, SSH 터널로 로컬 서비스를 즉시 인터넷에 노출. 복잡한 네트워킹 설정 없이 웹훅 통합, Slack 봇, 퍼블릭 API 배포에 최적.
 
 ### 🐳 **컨테이너 네이티브 배포**
-런타임 설정, 볼륨 마운트, 환경 관리가 포함된 Docker 1급 지원. 최소 설정으로 모든 클라우드 제공자나 Kubernetes 클러스터에 배포.
+완벽한 Docker 지원으로 런타임 설정, 볼륨 마운트, 환경 관리 제공. 최소 설정으로 모든 클라우드 제공자나 Kubernetes 클러스터에 배포.
 
 ### 🎨 **즉시 사용 가능한 웹 UI**
 단 2줄로 비주얼 인터페이스 추가—Gradio 기반 채팅 UI 또는 커스텀 정적 프론트엔드 제공. 워크플로우 테스트, 실행 모니터링, 파이프라인 디버깅을 시각적으로.
@@ -148,6 +148,12 @@ controller:
 ```yaml
 controller:
   type: mcp-server
+```
+
+### 🔄 컴포넌트를 별도 프로세스로 실행
+```yaml
+component:
+  runtime: process
 ```
 
 ### 🐳 1줄로 Docker 배포

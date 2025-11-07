@@ -55,7 +55,7 @@
 使用 ngrok、Cloudflare 或 SSH 隧道立即将本地服务暴露到互联网。非常适合 Webhook 集成、Slack 机器人和公共 API 部署，无需复杂的网络配置。
 
 ### 🐳 **容器原生部署**
-一流的 Docker 支持，包含运行时配置、卷挂载和环境管理。以最少的配置部署到任何云提供商或 Kubernetes 集群。
+完善的 Docker 支持，包含运行时配置、卷挂载和环境管理。以最少的配置部署到任何云提供商或 Kubernetes 集群。
 
 ### 🎨 **即时 Web UI**
 只需 2 行添加可视化界面 — 获得 Gradio 驱动的聊天 UI 或提供自定义静态前端。可视化测试工作流、监控执行和调试管道。
@@ -148,6 +148,12 @@ controller:
 ```yaml
 controller:
   type: mcp-server
+```
+
+### 🔄 在独立进程中运行组件
+```yaml
+component:
+  runtime: process
 ```
 
 ### 🐳 1 行部署到 Docker

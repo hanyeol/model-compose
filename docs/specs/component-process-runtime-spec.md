@@ -4,6 +4,8 @@
 
 기존 `runtime: native`, `runtime: docker`와 일관성 있게 `runtime: process`를 추가하여 컴포넌트를 별도의 Python 프로세스에서 실행할 수 있는 기능에 대한 스펙입니다.
 
+> **Important**: When implementing this specification, you MUST follow the [Implementation Guidelines](#implementation-guidelines) section. All code must adhere to the coding standards, comment guidelines, and conventions specified there.
+
 ## Design Goals
 
 1. **일관된 아키텍처**: 기존 runtime 시스템 확장
@@ -43,10 +45,10 @@ runtime: docker
 embedded          process           docker
 (내장)            (분리)             (격리)
 │                 │                  │
-├─ 같은 메모리     ├─ 독립 메모리      ├─ 컨테이너
-├─ 같은 프로세스   ├─ 별도 프로세스    ├─ 가상화
-├─ 빠른 실행       ├─ 중간 오버헤드    ├─ 높은 오버헤드
-└─ 크래시 전파     └─ 크래시 격리     └─ 완전 격리
+├─ 같은 메모리       ├─ 독립 메모리      ├─ 컨테이너
+├─ 같은 프로세스     ├─ 별도 프로세스     ├─ 가상화
+├─ 빠른 실행        ├─ 중간 오버헤드     ├─ 높은 오버헤드
+└─ 크래시 전파       └─ 크래시 격리      └─ 완전 격리
 ```
 
 ## Use Cases
@@ -109,37 +111,66 @@ RuntimeConfig
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Main Process                            │
+│                      Main Process                           │
 │                                                             │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │          ComponentService                          │   │
-│  │                                                    │   │
-│  │  ┌──────────────┐         ┌──────────────┐       │   │
-│  │  │  Embedded    │         │   Process    │       │   │
-│  │  │  Execution   │         │   Proxy      │       │   │
-│  │  └──────────────┘         └───────┬──────┘       │   │
-│  │                                    │              │   │
-│  └────────────────────────────────────┼──────────────┘   │
-│                                       │                  │
-└───────────────────────────────────────┼──────────────────┘
-                                        │
-                                        │ IPC Communication
-                                        │ (Queue or Socket)
-                                        │
-┌───────────────────────────────────────┼──────────────────┐
-│                  Subprocess           │                  │
-│                                       │                  │
-│  ┌────────────────────────────────────▼──────────────┐  │
-│  │         ProcessRuntimeWorker                      │  │
-│  │                                                   │  │
-│  │  ┌─────────────────────────────────────────┐    │  │
-│  │  │  ComponentService Instance              │    │  │
-│  │  │  (Model, Agent, Shell, etc.)            │    │  │
-│  │  └─────────────────────────────────────────┘    │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │         ComponentService (예: ModelService)          │   │
+│  │                                                      │   │
+│  │  create_component()                                  │   │
+│  │       │                                              │   │
+│  │       ├─ __init__() - 컴포넌트 인스턴스 생성          │   │
+│  │       │   └─ self._process_manager = None           │   │
+│  │       │                                              │   │
+│  │       └─ start() ◄── Runtime 체크 (여기서!)          │   │
+│  │            │                                         │   │
+│  │            ├─ if ProcessRuntimeConfig:               │   │
+│  │            │    ProcessRuntimeManager 생성            │   │
+│  │            │          │                              │   │
+│  │            │          ├─ start() ──────┐             │   │
+│  │            │          └─ run()         │             │   │
+│  │            │                           │             │   │
+│  │            └─ else (Embedded):         │             │   │
+│  │                 super().start()        │             │   │
+│  │                 wait_until_ready()     │             │   │
+│  │                      │                 │             │   │
+│  │                      └─ _start()       │             │   │
+│  │                           │            │             │   │
+│  │                           └─ work_queue.start() 등   │   │
+│  │                                        │             │   │
+│  └────────────────────────────────────────┼─────────────┘   │
+│                                           │                 │
+└───────────────────────────────────────────┼─────────────────┘
+                                            │
+                          IPC Communication │
+                          (Queue or Socket) │
+                                            │
+┌───────────────────────────────────────────┼─────────────────┐
+│                   Subprocess              │                 │
+│                                           │                 │
+│  ┌────────────────────────────────────────▼──────────────┐  │
+│  │  ComponentProcessWorker (extends ProcessWorker)       │  │
+│  │  - _initialize(): 컴포넌트 생성 및 시작                │  │
+│  │  - _execute_task(): 액션 실행                         │  │
+│  │  - _cleanup(): 컴포넌트 정리                          │  │
+│  │                                                       │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  ComponentService (Embedded Runtime)            │  │  │
+│  │  │  - _run() 등 서브클래스 구현 실행                │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**핵심 포인트:**
+1. `create_component()`는 runtime 타입과 무관하게 실제 컴포넌트 타입(Model, Shell 등) 인스턴스 생성
+2. `component.start()`에서 runtime 체크 수행 (중요!)
+3. Process runtime인 경우:
+   - `ProcessRuntimeManager` 생성 및 시작
+   - `wait_until_ready()` 호출 안 함 (별도 프로세스이므로)
+4. Embedded runtime인 경우:
+   - 기존 플로우: `super().start()` → `_start()` → `wait_until_ready()`
+   - work_queue 등 기존 로직 실행
 
 ## Schema Definition
 
@@ -166,12 +197,12 @@ from typing import Literal, Optional, Dict, List
 from pydantic import BaseModel, Field
 from .common import RuntimeType, CommonRuntimeConfig
 
-class IPCMethod(str, Enum):
+class IpcMethod(str, Enum):
     """프로세스 간 통신 방식"""
-    QUEUE = "queue"          # multiprocessing.Queue (cross-platform)
-    UNIX_SOCKET = "unix_socket"  # Unix socket (Linux/macOS only)
-    NAMED_PIPE = "named_pipe"    # Named pipes (Windows only)
-    TCP_SOCKET = "tcp_socket"    # TCP socket on localhost (cross-platform)
+    QUEUE       = "queue"        # multiprocessing.Queue (cross-platform)
+    UNIX_SOCKET = "unix-socket"  # Unix socket (Linux/macOS only)
+    NAMED_PIPE  = "named-pipe"   # Named pipes (Windows only)
+    TCP_SOCKET  = "tcp-socket"   # TCP socket on localhost (cross-platform)
 
 class ProcessRuntimeConfig(CommonRuntimeConfig):
     """
@@ -179,59 +210,19 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
     """
     type: Literal[RuntimeType.PROCESS]
 
-    # 환경 설정
-    env: Dict[str, str] = Field(
-        default_factory=dict,
-        description="환경 변수 (예: CUDA_VISIBLE_DEVICES)"
-    )
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+    working_dir: Optional[str] = Field(None, description="Working directory")
 
-    working_dir: Optional[str] = Field(
-        None,
-        description="작업 디렉토리"
-    )
+    start_timeout: str = Field(default="60s", description="Process start timeout")
+    stop_timeout: str = Field(default="30s", description="Process stop timeout")
 
-    # 타임아웃 설정
-    start_timeout: int = Field(
-        default=60,
-        description="시작 타임아웃 (초)"
-    )
+    ipc_method: IpcMethod = Field(default=IpcMethod.QUEUE, description="IPC method")
+    socket_path: Optional[str] = Field(None, description="Unix socket path (for unix-socket)")
+    pipe_name: Optional[str] = Field(None, description="Named pipe name (for named-pipe)")
+    tcp_port: Optional[int] = Field(None, description="TCP port (for tcp-socket)")
 
-    stop_timeout: int = Field(
-        default=30,
-        description="종료 타임아웃 (초)"
-    )
-
-    # 통신 설정
-    ipc_method: IPCMethod = Field(
-        default=IPCMethod.QUEUE,
-        description="프로세스 간 통신 방식"
-    )
-
-    socket_path: Optional[str] = Field(
-        None,
-        description="Unix 소켓 경로 (ipc_method=unix_socket일 때)"
-    )
-
-    pipe_name: Optional[str] = Field(
-        None,
-        description="Named pipe 이름 (ipc_method=named_pipe일 때, Windows only)"
-    )
-
-    tcp_port: Optional[int] = Field(
-        None,
-        description="TCP 소켓 포트 (ipc_method=tcp_socket일 때)"
-    )
-
-    # 리소스 제한
-    max_memory: Optional[str] = Field(
-        None,
-        description="최대 메모리 (예: '4GB', '512MB')"
-    )
-
-    cpu_limit: Optional[float] = Field(
-        None,
-        description="CPU 제한 (코어 수, 예: 2.0)"
-    )
+    max_memory: Optional[str] = Field(None, description="Maximum memory limit")
+    cpu_limit: Optional[float] = Field(None, description="CPU limit in cores")
 ```
 
 ### 3. RuntimeConfig Union 업데이트
@@ -254,9 +245,9 @@ RuntimeConfig = Annotated[
 ]
 ```
 
-### 4. EmbeddedRuntimeConfig (Rename)
+### 4. EmbeddedRuntimeConfig (신규)
 
-**Location**: `src/mindor/dsl/schema/runtime/impl/embedded.py` (기존 native.py에서 rename)
+**Location**: `src/mindor/dsl/schema/runtime/impl/embedded.py` (신규 파일)
 
 ```python
 from typing import Literal
@@ -265,36 +256,41 @@ from .common import RuntimeType, CommonRuntimeConfig
 class EmbeddedRuntimeConfig(CommonRuntimeConfig):
     """
     메인 프로세스에 내장되어 실행되는 런타임
-    (기존 NativeRuntimeConfig)
+    Component용 embedded runtime
     """
     type: Literal[RuntimeType.EMBEDDED]
 ```
+
+**참고**: 기존 `NativeRuntimeConfig`는 Controller에서 사용하므로 그대로 유지됩니다.
 
 ## IPC Communication Protocol
 
 ### Message Format
 
+**Location**: `src/mindor/core/foundation/ipc_protocol.py`
+
 ```python
 from typing import Literal, Any, Optional
-from pydantic import BaseModel
+from enum import Enum
+from pydantic import BaseModel, Field
 import time
 
 class IpcMessageType(str, Enum):
-    START = "start"
-    STOP = "stop"
-    RUN = "run"
-    RESULT = "result"
-    ERROR = "error"
+    START     = "start"
+    STOP      = "stop"
+    RUN       = "run"
+    RESULT    = "result"
+    ERROR     = "error"
     HEARTBEAT = "heartbeat"
-    STATUS = "status"
-    LOG = "log"
+    STATUS    = "status"
+    LOG       = "log"
 
 class IpcMessage(BaseModel):
     """프로세스 간 통신 메시지"""
     type: IpcMessageType
     request_id: str
     payload: Optional[Dict[str, Any]] = None
-    timestamp: float = Field(default_factory=time.time)
+    timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
 ```
 
 ### Example Messages
@@ -307,9 +303,9 @@ class IpcMessage(BaseModel):
     "payload": {
         "action_id": "generate",
         "run_id": "run-456",
-        "input": {"prompt": "Hello"}
+        "input": { "prompt": "Hello" }
     },
-    "timestamp": 1234567890.123
+    "timestamp": 1234567890123
 }
 
 # 실행 결과
@@ -317,9 +313,9 @@ class IpcMessage(BaseModel):
     "type": "result",
     "request_id": "req-123",
     "payload": {
-        "output": {"generated": "Hello! How can I help?"}
+        "output": { "generated": "Hello! How can I help?" }
     },
-    "timestamp": 1234567891.456
+    "timestamp": 1234567891456
 }
 
 # 에러 응답
@@ -329,7 +325,7 @@ class IpcMessage(BaseModel):
     "payload": {
         "error": "Model failed to load"
     },
-    "timestamp": 1234567891.789
+    "timestamp": 1234567891789
 }
 ```
 
@@ -342,14 +338,14 @@ Main Process                          Subprocess
      │                                      │ (컴포넌트 초기화)
      │◀─────── result (ready) ──────────────│
      │                                      │
-     │──────── run (action, input) ─────────▶│
+     │──────── run (action, input) ────────▶│
      │                                      │ (액션 실행)
      │◀─────── result (output) ─────────────│
      │                                      │
-     │──────── heartbeat ───────────────────▶│
-     │◀─────── result (alive) ───────────────│
+     │──────── heartbeat ──────────────────▶│
+     │◀─────── result (alive) ──────────────│
      │                                      │
-     │──────── stop ────────────────────────▶│
+     │──────── stop ───────────────────────▶│
      │                                      │ (컴포넌트 종료)
      │◀─────── result (stopped) ────────────│
      │                                      │
@@ -357,66 +353,63 @@ Main Process                          Subprocess
 
 ## Service Implementation
 
-### 1. ProcessRuntimeProxy
+### 1. ProcessRuntimeManager (Base Class)
 
-메인 프로세스에서 실행되며 서브프로세스와 통신합니다.
+범용 프로세스 런타임 매니저입니다. Component 맥락을 모르는 추상 계층입니다.
 
-**Location**: `src/mindor/core/runtime/process/proxy.py`
+**Location**: `src/mindor/core/foundation/process_manager.py`
 
 ```python
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 from multiprocessing import Process, Queue
 import asyncio
 import uuid
 import time
-from mindor.core.component.base import ComponentService, ComponentGlobalConfigs
-from mindor.core.component.context import ComponentActionContext
-from mindor.dsl.schema.component import ComponentConfig
-from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.logger import logging
-from .worker import ProcessRuntimeWorker
-from .protocol import IpcMessage, IpcMessageType
+from .ipc_protocol import IpcMessage, IpcMessageType
 
-class ProcessRuntimeProxy(ComponentService):
+
+class ProcessRuntimeManager:
     """
-    Process runtime에서 실행되는 컴포넌트를 위한 프록시
-    실제 컴포넌트는 별도 프로세스에서 실행됨
+    범용 프로세스 런타임 매니저
+    Component, Workflow 등 다양한 용도로 사용 가능
     """
 
     def __init__(
         self,
-        id: str,
-        config: ComponentConfig,
-        global_configs: ComponentGlobalConfigs,
-        daemon: bool
+        worker_id: str,
+        runtime_config: ProcessRuntimeConfig,
+        worker_factory: Callable[[str, Queue, Queue], Any]
     ):
-        super().__init__(id, config, global_configs, daemon)
+        """
+        Args:
+            worker_id: 워커 식별자
+            runtime_config: 프로세스 런타임 설정
+            worker_factory: 워커 인스턴스를 생성하는 팩토리 함수
+                           (worker_id, request_queue, response_queue) -> Worker
+        """
+        self.worker_id = worker_id
+        self.runtime_config = runtime_config
+        self.worker_factory = worker_factory
 
-        if not isinstance(config.runtime, ProcessRuntimeConfig):
-            raise ValueError("ProcessRuntimeProxy requires ProcessRuntimeConfig")
-
-        self.process_config: ProcessRuntimeConfig = config.runtime
         self.subprocess: Optional[Process] = None
         self.request_queue: Optional[Queue] = None
         self.response_queue: Optional[Queue] = None
         self.pending_requests: Dict[str, asyncio.Future] = {}
-        self.healthcheck_task: Optional[asyncio.Task] = None
         self.response_handler_task: Optional[asyncio.Task] = None
 
-    async def _start(self) -> None:
+    async def start(self) -> None:
         """서브프로세스 시작"""
         # IPC 큐 생성
-        self.request_queue = Queue()
+        self.request_queue  = Queue()
         self.response_queue = Queue()
 
         # 서브프로세스 생성 및 시작
         self.subprocess = Process(
             target=self._run_worker,
             args=(
-                self.id,
-                self.config,
-                self.global_configs,
+                self.worker_id,
                 self.request_queue,
                 self.response_queue
             ),
@@ -424,13 +417,13 @@ class ProcessRuntimeProxy(ComponentService):
         )
 
         # 환경 변수 설정
-        if self.process_config.env:
+        if self.runtime_config.env:
             import os
-            for key, value in self.process_config.env.items():
+            for key, value in self.runtime_config.env.items():
                 os.environ[key] = value
 
         self.subprocess.start()
-        logging.info(f"Started subprocess for component {self.id} (PID: {self.subprocess.pid})")
+        logging.info(f"Started subprocess for worker {self.worker_id} (PID: {self.subprocess.pid})")
 
         # 준비 완료 대기
         await self._wait_for_ready()
@@ -440,11 +433,9 @@ class ProcessRuntimeProxy(ComponentService):
             self._handle_responses()
         )
 
-        await super()._start()
-
-    async def _stop(self) -> None:
+    async def stop(self) -> None:
         """서브프로세스 종료"""
-        logging.info(f"Stopping subprocess for component {self.id}")
+        logging.info(f"Stopping subprocess for worker {self.worker_id}")
 
         # 종료 요청 전송
         stop_message = IpcMessage(
@@ -455,37 +446,27 @@ class ProcessRuntimeProxy(ComponentService):
 
         # 타임아웃과 함께 종료 대기
         try:
-            self.subprocess.join(timeout=self.process_config.stop_timeout)
+            self.subprocess.join(timeout=self.runtime_config.stop_timeout)
         except TimeoutError:
-            logging.warning(f"Process {self.id} did not stop gracefully, terminating")
+            logging.warning(f"Process {self.worker_id} did not stop gracefully, terminating")
             self.subprocess.terminate()
             self.subprocess.join(timeout=5)
             if self.subprocess.is_alive():
-                logging.error(f"Process {self.id} did not terminate, killing")
+                logging.error(f"Process {self.worker_id} did not terminate, killing")
                 self.subprocess.kill()
 
         # 태스크 취소
         if self.response_handler_task:
             self.response_handler_task.cancel()
 
-        await super()._stop()
-
-    async def _run(
-        self,
-        action: ActionConfig,
-        context: ComponentActionContext
-    ) -> Any:
-        """액션 실행 요청을 서브프로세스로 전달"""
+    async def execute(self, payload: Dict[str, Any]) -> Any:
+        """태스크 실행 요청을 서브프로세스로 전달"""
         request_id = str(uuid.uuid4())
 
         message = IpcMessage(
             type=IpcMessageType.RUN,
             request_id=request_id,
-            payload={
-                "action_id": action.id,
-                "run_id": context.run_id,
-                "input": context.input
-            }
+            payload=payload
         )
 
         # Future 생성
@@ -527,7 +508,7 @@ class ProcessRuntimeProxy(ComponentService):
 
     async def _wait_for_ready(self) -> None:
         """서브프로세스 준비 대기"""
-        timeout = self.process_config.start_timeout
+        timeout = self.runtime_config.start_timeout
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -537,20 +518,18 @@ class ProcessRuntimeProxy(ComponentService):
 
                 if message.type == IpcMessageType.RESULT and \
                    message.payload.get("status") == "ready":
-                    logging.info(f"Subprocess {self.id} is ready")
+                    logging.info(f"Subprocess {self.worker_id} is ready")
                     return
 
             await asyncio.sleep(0.5)
 
         raise TimeoutError(
-            f"Process {self.id} did not start within {timeout}s"
+            f"Process {self.worker_id} did not start within {timeout}s"
         )
 
     def _run_worker(
         self,
-        component_id: str,
-        config: ComponentConfig,
-        global_configs: ComponentGlobalConfigs,
+        worker_id: str,
         request_queue: Queue,
         response_queue: Queue
     ) -> None:
@@ -559,14 +538,8 @@ class ProcessRuntimeProxy(ComponentService):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        # 워커 실행
-        worker = ProcessRuntimeWorker(
-            component_id,
-            config,
-            global_configs,
-            request_queue,
-            response_queue
-        )
+        # 워커 팩토리를 통해 워커 생성
+        worker = self.worker_factory(worker_id, request_queue, response_queue)
 
         try:
             loop.run_until_complete(worker.run())
@@ -576,66 +549,115 @@ class ProcessRuntimeProxy(ComponentService):
             loop.close()
 ```
 
-### 2. ProcessRuntimeWorker
+### 2. ComponentProcessRuntimeManager
 
-서브프로세스에서 실제 컴포넌트를 실행합니다.
+Component 전용 프로세스 런타임 매니저입니다.
 
-**Location**: `src/mindor/core/runtime/process/worker.py`
+**Location**: `src/mindor/core/component/runtime/process_manager.py`
 
 ```python
 from typing import Any, Dict
 from multiprocessing import Queue
-import asyncio
+from mindor.core.foundation import ProcessRuntimeManager
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.component import create_component
+from mindor.core.component.runtime import ComponentProcessWorker
 from mindor.dsl.schema.component import ComponentConfig
-from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
-from mindor.core.logger import logging
-from .protocol import IpcMessage, IpcMessageType
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 
-class ProcessRuntimeWorker:
+
+class ComponentProcessRuntimeManager(ProcessRuntimeManager):
     """
-    서브프로세스에서 실제 컴포넌트를 실행하는 워커
+    Component 전용 프로세스 런타임 매니저
+    ComponentService의 _start() 시점에 생성됨
     """
 
     def __init__(
         self,
         component_id: str,
         config: ComponentConfig,
-        global_configs: ComponentGlobalConfigs,
+        global_configs: ComponentGlobalConfigs
+    ):
+        if not isinstance(config.runtime, ProcessRuntimeConfig):
+            raise ValueError("ComponentProcessRuntimeManager requires ProcessRuntimeConfig")
+
+        self.config = config
+        self.global_configs = global_configs
+
+        # 워커 팩토리 함수 정의
+        def worker_factory(worker_id: str, req_queue: Queue, res_queue: Queue):
+            return ComponentProcessWorker(
+                worker_id,
+                config,
+                global_configs,
+                req_queue,
+                res_queue
+            )
+
+        # 부모 클래스 초기화
+        super().__init__(
+            worker_id=component_id,
+            runtime_config=config.runtime,
+            worker_factory=worker_factory
+        )
+
+    async def run(
+        self,
+        action_id: str,
+        run_id: str,
+        input_data: Dict[str, Any]
+    ) -> Any:
+        """Component 액션 실행"""
+        payload = {
+            "action_id": action_id,
+            "run_id": run_id,
+            "input": input_data
+        }
+        return await self.execute(payload)
+```
+
+### 3. ProcessWorker (Base Class)
+
+범용 프로세스 워커 기반 클래스입니다. Component 뿐만 아니라 다양한 용도로 확장 가능합니다.
+
+**Location**: `src/mindor/core/foundation/process_worker.py`
+
+```python
+from typing import Any, Dict
+from abc import ABC, abstractmethod
+from multiprocessing import Queue
+import asyncio
+from mindor.core.logger import logging
+from .ipc_protocol import IpcMessage, IpcMessageType
+
+
+class ProcessWorker(ABC):
+    """
+    Base class for workers running in separate processes.
+
+    This is a generic process worker that can be extended for various use cases
+    beyond just components (e.g., workflow execution, data processing, etc.)
+    """
+
+    def __init__(
+        self,
+        worker_id: str,
         request_queue: Queue,
         response_queue: Queue
     ):
-        self.component_id = component_id
-        self.config = config
-        self.global_configs = global_configs
+        self.worker_id = worker_id
         self.request_queue = request_queue
         self.response_queue = response_queue
-        self.component = None
         self.running = True
 
     async def run(self) -> None:
-        """워커 메인 루프"""
+        """Main worker loop - handles initialization, message processing, and cleanup"""
         try:
-            # Embedded runtime으로 컴포넌트 생성
-            # (프로세스는 이미 분리되었으므로 embedded로 실행)
-            embedded_config = self.config.model_copy(deep=True)
-            embedded_config.runtime = EmbeddedRuntimeConfig(type="embedded")
+            # Initialize the worker
+            await self._initialize()
 
-            self.component = create_component(
-                self.component_id,
-                embedded_config,
-                self.global_configs,
-                daemon=True
-            )
+            logging.info(f"ProcessWorker {self.worker_id} initialized in subprocess")
 
-            # 컴포넌트 시작
-            await self.component.setup()
-            await self.component.start()
-
-            logging.info(f"Component {self.component_id} started in subprocess")
-
-            # 준비 완료 알림
+            # Send ready signal
             ready_message = IpcMessage(
                 type=IpcMessageType.RESULT,
                 request_id="init",
@@ -643,7 +665,7 @@ class ProcessRuntimeWorker:
             )
             self.response_queue.put(ready_message.model_dump())
 
-            # 요청 처리 루프
+            # Process messages
             while self.running:
                 if not self.request_queue.empty():
                     message_dict = self.request_queue.get()
@@ -662,19 +684,14 @@ class ProcessRuntimeWorker:
             self.response_queue.put(error_message.model_dump())
 
         finally:
-            if self.component:
-                await self.component.stop()
-                await self.component.teardown()
+            await self._cleanup()
 
     async def _handle_message(self, message: IpcMessage) -> None:
-        """메시지 처리"""
+        """Handle incoming messages from the main process"""
         try:
             if message.type == IpcMessageType.RUN:
-                action_id = message.payload["action_id"]
-                run_id = message.payload["run_id"]
-                input_data = message.payload["input"]
-
-                output = await self.component.run(action_id, run_id, input_data)
+                # Execute the task
+                output = await self._execute_task(message.payload)
 
                 response = IpcMessage(
                     type=IpcMessageType.RESULT,
@@ -708,41 +725,209 @@ class ProcessRuntimeWorker:
                 payload={"error": str(e)}
             )
             self.response_queue.put(error_response.model_dump())
+
+    @abstractmethod
+    async def _initialize(self) -> None:
+        """
+        Initialize the worker (e.g., load models, connect to services, etc.)
+
+        This method is called once when the worker process starts.
+        """
+        pass
+
+    @abstractmethod
+    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+        """
+        Execute a task with the given payload.
+
+        This is the main work method that subclasses should implement
+        to perform their specific work.
+
+        Args:
+            payload: Task-specific data from the main process
+
+        Returns:
+            Task result to be sent back to the main process
+        """
+        pass
+
+    @abstractmethod
+    async def _cleanup(self) -> None:
+        """
+        Clean up resources before the worker exits.
+
+        This method is called when the worker is stopping.
+        """
+        pass
 ```
 
-### 3. Component Factory 수정
+### 4. ComponentProcessWorker
 
-**Location**: `src/mindor/core/component/component.py`
+Component를 프로세스에서 실행하는 구체적 구현입니다.
+
+**Location**: `src/mindor/core/component/runtime/process_worker.py`
 
 ```python
-from mindor.dsl.schema.runtime import RuntimeType, ProcessRuntimeConfig
+from typing import Any, Dict
+from multiprocessing import Queue
+from mindor.core.foundation import ProcessWorker
+from mindor.core.component.base import ComponentGlobalConfigs
+from mindor.core.component.component import create_component
+from mindor.dsl.schema.component import ComponentConfig
+from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
+from mindor.core.logger import logging
 
-def create_component(
-    id: str,
-    config: ComponentConfig,
-    global_configs: ComponentGlobalConfigs,
-    daemon: bool
-) -> ComponentService:
-    try:
-        component = ComponentInstances.get(id)
-        if component:
-            return component
 
-        # Process runtime 체크
-        if isinstance(config.runtime, ProcessRuntimeConfig):
-            from mindor.core.runtime.process.proxy import ProcessRuntimeProxy
-            component = ProcessRuntimeProxy(id, config, global_configs, daemon)
+class ComponentProcessWorker(ProcessWorker):
+    """
+    Component를 서브프로세스에서 실행하는 워커
+    """
+
+    def __init__(
+        self,
+        component_id: str,
+        config: ComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        request_queue: Queue,
+        response_queue: Queue
+    ):
+        super().__init__(component_id, request_queue, response_queue)
+        self.config = config
+        self.global_configs = global_configs
+        self.component = None
+
+    async def _initialize(self) -> None:
+        """컴포넌트를 초기화하고 시작"""
+        # Embedded runtime으로 컴포넌트 생성
+        # (프로세스는 이미 분리되었으므로 embedded로 실행)
+        embedded_config = self.config.model_copy(deep=True)
+        embedded_config.runtime = EmbeddedRuntimeConfig(type="embedded")
+
+        self.component = create_component(
+            self.worker_id,
+            embedded_config,
+            self.global_configs,
+            daemon=True
+        )
+
+        # 컴포넌트 시작
+        await self.component.setup()
+        await self.component.start()
+
+        logging.info(f"Component {self.worker_id} started in subprocess")
+
+    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+        """컴포넌트 액션 실행"""
+        action_id = payload["action_id"]
+        run_id = payload["run_id"]
+        input_data = payload["input"]
+
+        output = await self.component.run(action_id, run_id, input_data)
+        return output
+
+    async def _cleanup(self) -> None:
+        """컴포넌트를 정리"""
+        if self.component:
+            await self.component.stop()
+            await self.component.teardown()
+```
+
+### 5. ComponentService Lifecycle 수정
+
+**Location**: `src/mindor/core/component/base.py`
+
+**참고**: `create_component()` 함수는 변경 없음 (runtime 타입과 무관하게 동작)
+
+```python
+class ComponentService(AsyncService):
+    """Base class for all component services"""
+
+    def __init__(self, id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+        super().__init__(daemon)
+        self.id = id
+        self.config = config
+        self.global_configs = global_configs
+        self.work_queue = None
+        self._process_manager = None  # Process runtime용
+
+        if self.config.max_concurrent_count > 0:
+            self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
+
+    async def start(self, background: bool = False) -> None:
+        """
+        Public start method - 여기서 runtime 타입에 따라 분기
+        """
+        # Process runtime인 경우 별도 프로세스에서 실행
+        if isinstance(self.config.runtime, ProcessRuntimeConfig):
+            from mindor.core.component.runtime import ComponentProcessRuntimeManager
+
+            self._process_manager = ComponentProcessRuntimeManager(
+                self.id,
+                self.config,
+                self.global_configs
+            )
+            await self._process_manager.start()
+            logging.info(f"Component {self.id} started in separate process")
         else:
-            # Embedded 또는 Docker runtime
-            if not ComponentRegistry:
-                from . import services
-            component = ComponentRegistry[config.type](id, config, global_configs, daemon)
+            # Embedded runtime - 기존 로직 실행
+            await super().start(background)
+            await self.wait_until_ready()
 
-        ComponentInstances[id] = component
-        return component
+    async def run(self, action_id: str, run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Public run method - runtime 타입에 따라 분기
+        """
+        # Process runtime인 경우 프로세스 매니저를 통해 실행
+        if self._process_manager:
+            return await self._process_manager.run(action_id, run_id, input)
 
-    except KeyError:
-        raise ValueError(f"Unsupported component type: {config.type}")
+        # Embedded runtime - 기존 로직
+        _, action = ActionResolver(self.config.actions).resolve(action_id)
+        context = ComponentActionContext(run_id, input)
+
+        if self.work_queue:
+            return await (await self.work_queue.schedule(action, context))
+
+        return await self._run(action, context)
+
+    async def _start(self) -> None:
+        """
+        Internal start method - Embedded runtime에서 실행
+        """
+        # Embedded runtime - 기존 로직 실행
+        if self.work_queue:
+            await self.work_queue.start()
+
+        await super()._start()
+
+    async def stop(self) -> None:
+        """
+        Public stop method - runtime 타입에 따라 분기
+        """
+        # Process runtime인 경우 프로세스 매니저 종료
+        if self._process_manager:
+            await self._process_manager.stop()
+        else:
+            # Embedded runtime - 기존 로직 실행
+            await super().stop()
+
+    async def _stop(self) -> None:
+        """
+        Internal stop method - Embedded runtime에서 실행
+        """
+        # Embedded runtime - 기존 로직 실행
+        if self.work_queue:
+            await self.work_queue.stop()
+
+        await super()._stop()
+
+    @abstractmethod
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        """
+        Internal run method - Embedded runtime에서 실행
+        서브클래스에서 구현
+        """
+        pass
 ```
 
 ## YAML Configuration Examples
@@ -774,8 +959,8 @@ component:
     env:
       CUDA_VISIBLE_DEVICES: "0"
       PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
-    start_timeout: 120
-    stop_timeout: 30
+    start_timeout: 2m
+    stop_timeout: 30s
   task: image-generation
   model: stabilityai/stable-diffusion-xl-base-1.0
 ```
@@ -821,7 +1006,7 @@ component:
   type: model
   runtime:
     type: process
-    ipc_method: unix_socket
+    ipc_method: unix-socket
     socket_path: /tmp/model-compose-{component_id}.sock
   task: text-generation
   model: meta-llama/Llama-3.1-70B
@@ -833,7 +1018,7 @@ component:
   type: model
   runtime:
     type: process
-    ipc_method: named_pipe
+    ipc_method: named-pipe
     pipe_name: \\.\pipe\model-compose-{component_id}
   task: text-generation
   model: meta-llama/Llama-3.1-70B
@@ -845,7 +1030,7 @@ component:
   type: model
   runtime:
     type: process
-    ipc_method: tcp_socket
+    ipc_method: tcp-socket
     tcp_port: 0  # 자동 포트 할당
   task: text-generation
   model: meta-llama/Llama-3.1-70B
@@ -893,19 +1078,93 @@ src/mindor/
 │               ├── __init__.py         # (수정) Export 업데이트
 │               ├── types.py            # (수정) EMBEDDED, PROCESS 추가
 │               ├── common.py
-│               ├── embedded.py         # (rename) native.py → embedded.py
+│               ├── native.py           # (기존) NativeRuntimeConfig (Controller용)
+│               ├── embedded.py         # (신규) EmbeddedRuntimeConfig (Component용)
 │               ├── process.py          # (신규) ProcessRuntimeConfig
 │               └── docker.py
 │
 └── core/
+    ├── foundation/
+    │   ├── __init__.py                 # (수정) Export 업데이트
+    │   ├── async_service.py            # (기존)
+    │   ├── ipc_protocol.py             # (신규) IpcMessage, IpcMessageType
+    │   ├── process_manager.py          # (신규) ProcessRuntimeManager (범용)
+    │   └── process_worker.py           # (신규) ProcessWorker 기반 클래스
+    │
     ├── component/
-    │   └── component.py                # (수정) Process runtime 체크
+    │   ├── component.py                # (변경 없음)
+    │   ├── base.py                     # (수정) ComponentService 메서드 수정
+    │   └── runtime/
+    │       ├── __init__.py
+    │       ├── process_manager.py      # (신규) ComponentProcessRuntimeManager
+    │       └── process_worker.py       # (신규) ComponentProcessWorker
+    │
     └── runtime/
-        └── process/
-            ├── __init__.py
-            ├── protocol.py             # IpcMessage, IpcMessageType
-            ├── proxy.py                # ProcessRuntimeProxy
-            └── worker.py               # ProcessRuntimeWorker
+        └── process/                    # (삭제 - component/runtime으로 이동)
+```
+
+**주요 변경사항:**
+- `ProcessRuntimeManager` 범용 기반 클래스를 `core/foundation`에 추가
+- `ProcessWorker` 기반 클래스를 `core/foundation`에 추가
+- `IpcMessage`, `IpcMessageType`을 `core/foundation/ipc_protocol.py`로 추가
+- `ComponentProcessRuntimeManager`를 `core/component/runtime/process_manager.py`에 구현
+- `ComponentProcessWorker`를 `core/component/runtime/process_worker.py`에 구현
+- `NativeRuntimeConfig`는 Controller용으로 유지
+- `EmbeddedRuntimeConfig`를 Component용으로 신규 추가
+- `ComponentService.base`에 `_start()`, `_stop()`, `run()` 메서드 수정
+- `create_component()`는 변경 없음
+
+## Implementation Guidelines
+
+### Code Style
+
+1. **Comments**
+   - Write all comments in English
+   - Avoid excessive comments
+   - Do not add comments where the code is self-explanatory
+   - Focus on "why" rather than "what" when commenting
+
+2. **Pydantic Models (Config Classes)**
+   - Follow existing codebase conventions
+   - Reference similar config files for consistent style
+   - Use Field() for default values and descriptions
+   - Maintain consistent ordering: required fields first, optional fields after
+
+3. **Code Organization**
+   - Keep methods focused and single-purpose
+   - Follow existing patterns in the codebase
+   - Use type hints consistently
+
+### Examples
+
+**Good - Minimal, necessary comments:**
+```python
+class ProcessRuntimeConfig(CommonRuntimeConfig):
+    type: Literal[RuntimeType.PROCESS]
+
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
+
+    # Timeout for process initialization (loading models, etc.)
+    start_timeout: str = Field(default="60s", description="Process start timeout")
+```
+
+**Bad - Excessive, redundant comments:**
+```python
+class ProcessRuntimeConfig(CommonRuntimeConfig):
+    # The type field
+    type: Literal[RuntimeType.PROCESS]
+
+    # Dictionary for environment variables
+    env: Dict[str, str] = Field(
+        default_factory=dict,  # Use factory for mutable default
+        description="Environment variables for the subprocess"
+    )
+
+    # Start timeout field - this is the timeout for starting
+    start_timeout: str = Field(
+        default="60s",  # Default is 60 seconds
+        description="Process start timeout in seconds"
+    )
 ```
 
 ## Implementation Plan
@@ -915,32 +1174,52 @@ src/mindor/
 
 **Task List:**
 - [ ] Runtime 스키마 확장
-  - `RuntimeType.EMBEDDED` 추가 (NATIVE rename)
+  - `RuntimeType.EMBEDDED` 추가
   - `RuntimeType.PROCESS` 추가
   - `ProcessRuntimeConfig` 정의
-  - `EmbeddedRuntimeConfig` (NativeRuntimeConfig rename)
+  - `EmbeddedRuntimeConfig` 신규 추가 (Component용)
+  - `NativeRuntimeConfig` 유지 (Controller용)
   - `RuntimeConfig` union 업데이트
 
-- [ ] IPC 프로토콜 정의
+- [ ] IPC 프로토콜 정의 (`core/foundation/ipc_protocol.py`)
   - `IpcMessage` 모델
   - `IpcMessageType` enum
   - Protocol 문서화
 
-- [ ] Worker 구현
-  - `ProcessRuntimeWorker` 기본 구조
-  - 요청/응답 처리
-  - 컴포넌트 생성 및 실행
+- [ ] ProcessWorker 기반 클래스 구현 (`core/foundation/process_worker.py`)
+  - 추상 메서드: `_initialize()`, `_execute_task()`, `_cleanup()`
+  - 공통 메시지 처리 로직
+  - 워커 생명주기 관리
 
-- [ ] Proxy 구현
-  - `ProcessRuntimeProxy` 기본 구조
+- [ ] ProcessRuntimeManager 범용 구현 (`core/foundation/process_manager.py`)
+  - Component 맥락 없는 범용 프로세스 매니저
+  - 워커 팩토리 패턴 사용
   - 프로세스 생성/관리
   - IPC 통신 (Queue 방식)
   - 요청/응답 매칭
 
-- [ ] Factory 수정
-  - Process runtime 체크
-  - Proxy 생성 로직
-  - Embedded runtime 호환성
+- [ ] ComponentProcessWorker 구현 (`core/runtime/process/worker.py`)
+  - `ProcessWorker` 상속
+  - 컴포넌트 생성 및 시작
+  - 액션 실행 로직
+
+- [ ] ComponentProcessRuntimeManager 구현 (`core/runtime/process/component_manager.py`)
+  - `ProcessRuntimeManager` 상속
+  - Component 전용 편의 메서드 (`run`)
+  - ComponentProcessWorker 팩토리 제공
+
+- [ ] ComponentService 수정 (`src/mindor/core/component/base.py`)
+  - `__init__()`에 `self._process_manager = None` 추가
+  - `start()` 메서드에 runtime 체크 로직 추가 (중요: _start()가 아님!)
+  - Process runtime인 경우:
+    - `ComponentProcessRuntimeManager` 생성 및 시작
+    - `wait_until_ready()` 호출 안 함
+  - Embedded runtime인 경우:
+    - 기존 플로우: `super().start()` → `_start()` → `wait_until_ready()`
+  - `stop()` 메서드에 runtime 분기 추가
+  - `_stop()` 메서드는 Embedded runtime 로직만 포함
+  - `run()` 메서드에 `_process_manager.run()` 호출 추가
+  - `_run()`은 기존 추상 메서드 그대로 유지
 
 **검증:**
 - 간단한 shell 컴포넌트 프로세스 분리 테스트
@@ -951,9 +1230,9 @@ src/mindor/
 
 **Task List:**
 - [ ] 고성능 IPC 지원
-  - `ipc_method: unix_socket` 구현 (Linux/macOS)
-  - `ipc_method: named_pipe` 구현 (Windows)
-  - `ipc_method: tcp_socket` 구현 (cross-platform fallback)
+  - `ipc_method: unix-socket` 구현 (Linux/macOS)
+  - `ipc_method: named-pipe` 구현 (Windows)
+  - `ipc_method: tcp-socket` 구현 (cross-platform fallback)
   - 플랫폼별 자동 선택 로직
   - 성능 벤치마크 (Queue vs Unix Socket vs Named Pipe)
 
@@ -1014,17 +1293,17 @@ src/mindor/
 
 ### Unit Tests
 
-**Location**: `tests/core/runtime/process/test_proxy.py`
+**Location**: `tests/core/runtime/process/test_manager.py`
 
 ```python
 import pytest
-from mindor.core.runtime.process.proxy import ProcessRuntimeProxy
+from mindor.core.runtime.process.manager import ProcessRuntimeManager
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 
 @pytest.mark.asyncio
-async def test_proxy_start_stop():
-    """프록시 시작/종료 테스트"""
+async def test_manager_start_stop():
+    """매니저 시작/종료 테스트"""
     config = ComponentConfig(
         id="test",
         type="model",
@@ -1033,30 +1312,83 @@ async def test_proxy_start_stop():
         model="gpt2"
     )
 
-    proxy = ProcessRuntimeProxy("test", config, global_configs, False)
+    manager = ProcessRuntimeManager("test", config, global_configs)
 
     # 시작
-    await proxy.start()
-    assert proxy.subprocess is not None
-    assert proxy.subprocess.is_alive()
+    await manager.start()
+    assert manager.subprocess is not None
+    assert manager.subprocess.is_alive()
 
     # 종료
-    await proxy.stop()
-    assert not proxy.subprocess.is_alive()
+    await manager.stop()
+    assert not manager.subprocess.is_alive()
 
 @pytest.mark.asyncio
-async def test_proxy_run_action():
+async def test_manager_run():
     """액션 실행 테스트"""
-    proxy = create_test_proxy()
-    await proxy.start()
+    manager = create_test_manager()
+    await manager.start()
 
-    result = await proxy.run("generate", "run-1", {"prompt": "Hello"})
+    result = await manager.run("generate", "run-1", {"prompt": "Hello"})
 
     assert result is not None
     assert "generated" in result
 
-    await proxy.stop()
+    await manager.stop()
 
+```
+
+**Location**: `tests/core/component/test_component_lifecycle.py`
+
+```python
+import pytest
+from mindor.core.component.component import create_component
+from mindor.dsl.schema.component import ComponentConfig
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
+
+@pytest.mark.asyncio
+async def test_component_process_runtime():
+    """Process runtime으로 컴포넌트 시작 테스트"""
+    config = ComponentConfig(
+        id="test-model",
+        type="model",
+        runtime=ProcessRuntimeConfig(type="process"),
+        task="text-generation",
+        model="gpt2"
+    )
+
+    # 컴포넌트 생성 (프로세스는 아직 시작 안됨)
+    component = create_component("test-model", config, global_configs, False)
+    assert component is not None
+    assert not hasattr(component, '_process_manager')
+
+    # 시작 (이 시점에 프로세스 시작)
+    await component.start()
+    assert hasattr(component, '_process_manager')
+    assert component._process_manager.subprocess.is_alive()
+
+    # 종료
+    await component.stop()
+    assert not component._process_manager.subprocess.is_alive()
+
+@pytest.mark.asyncio
+async def test_component_embedded_runtime():
+    """Embedded runtime으로 컴포넌트 시작 테스트"""
+    config = ComponentConfig(
+        id="test-model",
+        type="model",
+        runtime=EmbeddedRuntimeConfig(type="embedded"),
+        task="text-generation",
+        model="gpt2"
+    )
+
+    component = create_component("test-model", config, global_configs, False)
+
+    # 시작 (메인 프로세스에서 실행)
+    await component.start()
+    assert not hasattr(component, '_process_manager')
+
+    await component.stop()
 ```
 
 ### Integration Tests
@@ -1205,17 +1537,17 @@ Different IPC methods have varying performance characteristics:
 | IPC Method | Platform | Speed | Overhead | Best For |
 |------------|----------|-------|----------|----------|
 | **queue** | All | Medium | Medium | Default, reliable cross-platform |
-| **unix_socket** | Linux/macOS | Fast | Low | High-performance on Unix systems |
-| **named_pipe** | Windows | Fast | Low | High-performance on Windows |
-| **tcp_socket** | All | Slow | High | Cross-platform with network overhead |
+| **unix-socket** | Linux/macOS | Fast | Low | High-performance on Unix systems |
+| **named-pipe** | Windows | Fast | Low | High-performance on Windows |
+| **tcp-socket** | All | Slow | High | Cross-platform with network overhead |
 
 **권장사항**:
 - **기본 사용**: `queue` (모든 플랫폼에서 안정적)
-- **고성능 (Unix)**: `unix_socket` (Linux/macOS)
-- **고성능 (Windows)**: `named_pipe` (Windows 전용)
+- **고성능 (Unix)**: `unix-socket` (Linux/macOS)
+- **고성능 (Windows)**: `named-pipe` (Windows 전용)
 - **플랫폼 자동 선택**:
   ```python
-  ipc_method = "named_pipe" if platform.system() == "Windows" else "unix_socket"
+  ipc_method = "named-pipe" if platform.system() == "Windows" else "unix-socket"
   ```
 
 ### Memory Isolation

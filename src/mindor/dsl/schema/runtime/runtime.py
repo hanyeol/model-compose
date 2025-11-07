@@ -7,6 +7,7 @@ RuntimeConfig = Annotated[
     Union[
         NativeRuntimeConfig,
         EmbeddedRuntimeConfig,
+        ProcessRuntimeConfig,
         DockerRuntimeConfig
     ],
     Field(discriminator="type")

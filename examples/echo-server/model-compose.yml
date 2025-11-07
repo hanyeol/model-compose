@@ -14,6 +14,7 @@ workflow:
 
 component:
   type: http-server
+  runtime: process
   start: [ uvicorn, main:app, --reload, --port, "8000" ]
   port: 8000
   method: POST

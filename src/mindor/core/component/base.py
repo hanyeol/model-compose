@@ -5,6 +5,7 @@ from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation import AsyncService
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.logger import logging
@@ -50,15 +51,31 @@ class ComponentService(AsyncService):
         self.config: ComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
+        self._process_manager = None
 
         if self.config.max_concurrent_count > 0:
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     async def start(self, background: bool = False) -> None:
+        if isinstance(self.config.runtime, ProcessRuntimeConfig):
+            from mindor.core.component.runtime import ComponentProcessRuntimeManager
+
+            self._process_manager = ComponentProcessRuntimeManager(
+                self.id,
+                self.config,
+                self.global_configs
+            )
+            await self._process_manager.start()
+            logging.info(f"Component {self.id} started in separate process")
+            return
+        
         await super().start(background)
         await self.wait_until_ready()
 
     async def run(self, action_id: str, run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
+        if self._process_manager:
+            return await self._process_manager.run(action_id, run_id, input)
+
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(run_id, input)
 
@@ -66,6 +83,13 @@ class ComponentService(AsyncService):
             return await (await self.work_queue.schedule(action, context))
 
         return await self._run(action, context)
+
+    async def stop(self) -> None:
+        if self._process_manager:
+            await self._process_manager.stop()
+            return
+        
+        await super().stop()
 
     async def _start(self) -> None:
         if self.work_queue:

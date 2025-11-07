@@ -26,6 +26,12 @@ class DockerRuntimeLauncher:
         if not self.config.runtime.ports:
             self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
 
+        # Automatically add host.docker.internal for host machine access
+        if not self.config.runtime.extra_hosts:
+            self.config.runtime.extra_hosts = {}
+        if "host.docker.internal" not in self.config.runtime.extra_hosts:
+            self.config.runtime.extra_hosts["host.docker.internal"] = "host-gateway"
+
     async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 

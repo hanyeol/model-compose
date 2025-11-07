@@ -47,6 +47,7 @@ class DockerRuntimeConfig(CommonRuntimeConfig):
     # Networking
     ports: Optional[List[Union[str, int, DockerPortConfig]]] = Field(default=None, description="Port mappings.")
     networks: Optional[List[str]] = Field(default_factory=list, description="Networks to attach the container to.")
+    extra_hosts: Optional[Dict[str, str]] = Field(default=None, description="Extra hosts to add to /etc/hosts.")
     # Volumes
     volumes: Optional[List[Union[str, DockerVolumeConfig]]] = Field(default=None, description="Volume mounts.")
     # Environment variables

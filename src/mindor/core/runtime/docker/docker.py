@@ -105,6 +105,7 @@ class DockerRuntimeManager:
                     privileged=self.config.privileged,
                     security_opt=self.config.security_opt,
                     restart_policy={ "Name": self.config.restart },
+                    extra_hosts=self.config.extra_hosts,
                     tty=True, stdin_open=True, detach=True
                 )
             container.start()

@@ -30,13 +30,41 @@
 
 ## ✨ 주요 기능
 
-- 🎨 **노코드**: 순수 YAML 설정 — 코드 작성 불필요
-- 🔄 **조합 가능**: 재사용 가능한 컴포넌트와 멀티스텝 워크플로우
-- 🚀 **프로덕션 준비**: HTTP/MCP 서버 + Web UI + Docker 배포
-- 🔌 **무엇이든 연결**: 외부 AI 서비스, 로컬 모델, 벡터 스토어 등
-- ⚡ **스트림 & 확장**: 실시간 스트리밍 및 이벤트 기반 자동화
-- ⚙️ **설정**: 환경 변수, 유연한 구성
-- 🔗 **통합**: 웹훅, 터널링, HTTP 서버
+### 🎨 **노코드 AI 오케스트레이션**
+복잡한 AI 워크플로우를 순수 YAML로 정의—Python, JavaScript, 코딩 불필요. 여러 AI 서비스, 모델, API를 단순한 선언적 설정만으로 연결.
+
+### 🔗 **범용 AI 서비스 통합**
+모든 AI 제공자를 즉시 연결—OpenAI, Anthropic Claude, Google Gemini, ElevenLabs, Stability AI, Replicate, 또는 모든 커스텀 HTTP API. 단일 워크플로우에서 서비스를 자유롭게 조합.
+
+### 🖥️ **로컬 모델 실행**
+HuggingFace 등에서 제공하는 모델을 로컬에서 실행하며 transformers, PyTorch, 모델 서빙 프레임워크 네이티브 지원. LoRA/PEFT를 통한 파인튜닝, 커스텀 데이터셋 학습까지 모두 YAML 설정으로.
+
+### ⚡ **실시간 스트리밍**
+실시간 AI 응답을 위한 내장 SSE(Server-Sent Events) 스트리밍. OpenAI, Claude, 로컬 모델, 모든 스트리밍 API에서 자동 청킹 및 연결 관리.
+
+### 🔄 **고급 워크플로우 구성**
+조건부 로직, 데이터 변환, 병렬 실행이 가능한 다단계 파이프라인 구축. 강력한 변수 바인딩으로 작업 간 데이터 전달—`${input}`, `${response}`, `${env}`, 타입 변환 및 기본값 지원.
+
+### 🚀 **프로덕션 준비 완료 컨트롤러**
+한 줄만 바꾸면 HTTP REST API 또는 MCP(Model Context Protocol) 서버로 배포. 동시성 제어, 헬스 체크, 자동 API 문서화 포함.
+
+### 🎯 **이벤트 기반 아키텍처**
+비동기 워크플로우를 위한 HTTP Callback 리스너(이미지 생성, 비디오 처리). 웹훅 및 외부 이벤트를 위한 HTTP Trigger 리스너. 실세계 이벤트에 반응하는 AI 시스템 구축.
+
+### 🌐 **스마트 터널링 & 게이트웨이**
+ngrok, Cloudflare, SSH 터널로 로컬 서비스를 즉시 인터넷에 노출. 복잡한 네트워킹 설정 없이 웹훅 통합, Slack 봇, 퍼블릭 API 배포에 최적.
+
+### 🐳 **컨테이너 네이티브 배포**
+런타임 설정, 볼륨 마운트, 환경 관리가 포함된 Docker 1급 지원. 최소 설정으로 모든 클라우드 제공자나 Kubernetes 클러스터에 배포.
+
+### 🎨 **즉시 사용 가능한 웹 UI**
+단 2줄로 비주얼 인터페이스 추가—Gradio 기반 채팅 UI 또는 커스텀 정적 프론트엔드 제공. 워크플로우 테스트, 실행 모니터링, 파이프라인 디버깅을 시각적으로.
+
+### 🗄️ **RAG & 벡터 데이터베이스 지원**
+ChromaDB, Milvus, Pinecone, Weaviate 네이티브 통합. 임베딩 검색, 문서 인덱싱, 시맨틱 검색으로 검색 증강 생성(RAG) 시스템 구축.
+
+### 🔧 **유연한 컴포넌트 시스템**
+멀티 액션 지원이 포함된 재사용 가능한 컴포넌트. 한 번 정의하면 어디서나 사용. HTTP 클라이언트, 로컬 모델, 벡터 스토어, 쉘 명령, 커스텀 워크플로우를 자유롭게 조합.
 
 ---
 
@@ -105,37 +133,30 @@ model-compose up
 
 API는 `http://localhost:8080`에서, Web UI는 `http://localhost:8081`에서 실행됩니다 🎉
 
-> 💡 더 많은 워크플로우는 [예제](examples/README.ko.md)를, 자세한 내용은 [사용자 가이드](docs/user-guide/ko/README.md)를 참조하세요.
-
 ---
-## 💡 핵심 기능
 
-### 🖥️ 내장 Web UI
-단 2줄만 추가하여 웹 인터페이스 활성화:
+## 🎯 강력하지만 단순한 설정
+
+### 🖥️ 2줄로 Web UI 추가
 ```yaml
 controller:
   webui:
     port: 8081
 ```
-워크플로우를 테스트하고 모니터링할 수 있는 사용자 친화적 인터페이스를 즉시 사용할 수 있습니다. Gradio(기본값)와 커스텀 정적 프론트엔드를 지원합니다.
 
-### 🛰️ MCP 서버 지원
-한 줄만 변경하여 워크플로우를 MCP 도구로 변환:
+### 🛰️ 1줄로 MCP 서버 전환
 ```yaml
 controller:
   type: mcp-server
 ```
-타입을 `mcp-server`로 설정하기만 하면 워크플로우가 Model Context Protocol을 통해 즉시 액세스 가능해집니다.
 
-### 🐳 Docker 배포
-Docker 기반의 배포를 지원:
+### 🐳 1줄로 Docker 배포
 ```yaml
 controller:
   runtime: docker
 ```
-이미지, 볼륨, 포트, 환경 변수를 완전히 제어하며 격리된 컨테이너에서 워크플로우를 실행합니다.
 
-> 📖 자세한 설정은 [사용자 가이드](docs/user-guide/ko/README.md)를, 실행 가능한 샘플은 [예제](examples/README.ko.md)를 참조하세요.
+> 💡 더 많은 워크플로우는 [예제](examples/README.ko.md)를, 자세한 내용은 [사용자 가이드](docs/user-guide/ko/README.md)를 참조하세요.
 
 ---
 ## 🏗 아키텍처

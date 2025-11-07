@@ -30,13 +30,41 @@
 
 ## ✨ 主要特性
 
-- 🎨 **无代码**：纯 YAML 配置—无需编写代码
-- 🔄 **可组合**：可重用组件和多步骤工作流
-- 🚀 **生产就绪**：HTTP/MCP 服务器 + Web UI + Docker 部署
-- 🔌 **连接一切**：外部 AI 服务、本地模型、向量存储等
-- ⚡ **流式 & 扩展**：实时流式传输和事件驱动自动化
-- ⚙️ **配置**：环境变量、灵活设置
-- 🔗 **集成**：Webhook、隧道、HTTP 服务器
+### 🎨 **无代码 AI 编排**
+完全使用 YAML 定义复杂的 AI 工作流 — 无需 Python、JavaScript，无需编码。通过简单的声明式配置连接多个 AI 服务、模型和 API。
+
+### 🔗 **通用 AI 服务集成**
+开箱即用连接任何 AI 提供商 — OpenAI、Anthropic Claude、Google Gemini、ElevenLabs、Stability AI、Replicate 或任何自定义 HTTP API。在单个工作流中混合和匹配服务。
+
+### 🖥️ **本地模型执行**
+在本地运行 HuggingFace 等平台提供的模型，原生支持 transformers、PyTorch 和模型服务框架。通过 LoRA/PEFT 微调模型，使用自定义数据集训练，全部通过 YAML 配置完成。
+
+### ⚡ **实时流式传输**
+内置 SSE（服务器发送事件）流式传输，实现实时 AI 响应。支持 OpenAI、Claude、本地模型或任何流式 API 的自动分块和连接管理。
+
+### 🔄 **高级工作流组合**
+构建具有条件逻辑、数据转换和并行执行的多步骤管道。通过强大的变量绑定在作业之间传递数据 — `${input}`、`${response}`、`${env}`，支持类型转换和默认值。
+
+### 🚀 **生产就绪控制器**
+通过更改一行即可部署为 HTTP REST API 或 MCP（模型上下文协议）服务器。包括并发控制、健康检查和自动 API 文档。
+
+### 🎯 **事件驱动架构**
+用于异步工作流（图像生成、视频处理）的 HTTP 回调监听器。用于 Webhook 和外部事件的 HTTP 触发监听器。构建响应真实世界事件的反应式 AI 系统。
+
+### 🌐 **智能隧道和网关**
+使用 ngrok、Cloudflare 或 SSH 隧道立即将本地服务暴露到互联网。非常适合 Webhook 集成、Slack 机器人和公共 API 部署，无需复杂的网络配置。
+
+### 🐳 **容器原生部署**
+一流的 Docker 支持，包含运行时配置、卷挂载和环境管理。以最少的配置部署到任何云提供商或 Kubernetes 集群。
+
+### 🎨 **即时 Web UI**
+只需 2 行添加可视化界面 — 获得 Gradio 驱动的聊天 UI 或提供自定义静态前端。可视化测试工作流、监控执行和调试管道。
+
+### 🗄️ **RAG 和向量数据库就绪**
+与 ChromaDB、Milvus、Pinecone 和 Weaviate 原生集成。通过嵌入搜索、文档索引和语义检索构建检索增强生成（RAG）系统。
+
+### 🔧 **灵活的组件系统**
+具有多动作支持的可重用组件。定义一次，随处使用。以任何组合混合 HTTP 客户端、本地模型、向量存储、shell 命令和自定义工作流。
 
 ---
 
@@ -105,37 +133,30 @@ model-compose up
 
 API 运行在 `http://localhost:8080`，Web UI 运行在 `http://localhost:8081` 🎉
 
-> 💡 探索更多工作流请访问[示例](examples/README.md)，详细内容请阅读[用户指南](docs/user-guide/zh-cn/README.md)。
-
 ---
-## 💡 核心功能
 
-### 🖥️ 内置 Web UI
-只需添加 2 行即可启用 Web 界面：
+## 🎯 强大而简单
+
+### 🖥️ 2 行添加 Web UI
 ```yaml
 controller:
   webui:
     port: 8081
 ```
-立即获得用户友好的界面来测试和监控您的工作流。支持 Gradio（默认）和自定义静态前端。
 
-### 🛰️ MCP 服务器支持
-只需更改一行即可将工作流转换为 MCP 工具：
+### 🛰️ 1 行切换到 MCP 服务器
 ```yaml
 controller:
   type: mcp-server
 ```
-只需将类型设置为 `mcp-server`。您的工作流即可通过 Model Context Protocol 立即访问。
 
-### 🐳 Docker 部署
-内置 Docker 支持，随处部署：
+### 🐳 1 行部署到 Docker
 ```yaml
 controller:
   runtime: docker
 ```
-在隔离容器中运行工作流，完全控制镜像、卷、端口和环境变量。
 
-> 📖 详细配置请参阅[用户指南](docs/user-guide/zh-cn/README.md)，可运行示例请访问[示例](examples/README.md)。
+> 💡 探索更多工作流请访问[示例](examples/README.md)，详细内容请阅读[用户指南](docs/user-guide/zh-cn/README.md)。
 
 ---
 ## 🏗 架构

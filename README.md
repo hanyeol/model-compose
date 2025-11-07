@@ -30,13 +30,41 @@
 
 ## ✨ Features
 
-- 🎨 **No-Code**: Pure YAML configuration—no scripting required
-- 🔄 **Composable**: Reusable components and multi-step workflows
-- 🚀 **Production Ready**: HTTP/MCP servers + Web UI + Docker deployment
-- 🔌 **Connect Anything**: External AI services, local models, vector stores, and more
-- ⚡ **Stream & Scale**: Real-time streaming and event-driven automation
-- ⚙️ **Configuration**: Environment variables, flexible settings
-- 🔗 **Integration**: Webhooks, tunneling, HTTP servers
+### 🎨 **No-Code AI Orchestration**
+Define complex AI workflows entirely in YAML—no Python, no JavaScript, no coding required. Connect multiple AI services, models, and APIs through simple declarative configuration.
+
+### 🔗 **Universal AI Service Integration**
+Connect to any AI provider out of the box—OpenAI, Anthropic Claude, Google Gemini, ElevenLabs, Stability AI, Replicate, or any custom HTTP API. Mix and match services in a single workflow.
+
+### 🖥️ **Local Model Execution**
+Run models from HuggingFace and other sources locally with native support for transformers, PyTorch, and model serving frameworks. Fine-tune models with LoRA/PEFT, train with custom datasets, all through YAML configuration.
+
+### ⚡ **Real-Time Streaming**
+Built-in SSE (Server-Sent Events) streaming for real-time AI responses. Stream from OpenAI, Claude, local models, or any streaming API with automatic chunking and connection management.
+
+### 🔄 **Advanced Workflow Composition**
+Build multi-step pipelines with conditional logic, data transformation, and parallel execution. Pass data between jobs with powerful variable binding—`${input}`, `${response}`, `${env}`, with type conversion and defaults.
+
+### 🚀 **Production-Ready Controllers**
+Deploy as HTTP REST API or MCP (Model Context Protocol) server by changing one line. Includes concurrency control, health checks, and automatic API documentation.
+
+### 🎯 **Event-Driven Architecture**
+HTTP Callback listeners for async workflows (image generation, video processing). HTTP Trigger listeners for webhooks and external events. Build reactive AI systems that respond to real-world events.
+
+### 🌐 **Smart Tunneling & Gateways**
+Expose local services to the internet instantly with ngrok, Cloudflare, or SSH tunnels. Perfect for webhook integration, Slack bots, and public API deployment without complex networking.
+
+### 🐳 **Container-Native Deployment**
+First-class Docker support with runtime configuration, volume mounting, and environment management. Deploy to any cloud provider or Kubernetes cluster with minimal configuration.
+
+### 🎨 **Instant Web UI**
+Add a visual interface with just 2 lines—get Gradio-powered chat UI or serve custom static frontends. Test workflows, monitor executions, and debug pipelines visually.
+
+### 🗄️ **RAG & Vector Database Ready**
+Native integration with ChromaDB, Milvus, Pinecone, and Weaviate. Build retrieval-augmented generation (RAG) systems with embedding search, document indexing, and semantic retrieval.
+
+### 🔧 **Flexible Component System**
+Reusable components with multi-action support. Define once, use everywhere. Mix HTTP clients, local models, vector stores, shell commands, and custom workflows in any combination.
 
 ---
 
@@ -105,37 +133,30 @@ model-compose up
 
 Your API is now live at `http://localhost:8080` and Web UI at `http://localhost:8081` 🎉
 
-> 💡 Explore [examples](examples/README.md) for more workflows or read the [User Guide](docs/user-guide/README.md).
-
 ---
-## 💡 Key Capabilities
 
-### 🖥️ Built-in Web UI
-Add a web interface by adding just 2 lines to your YAML:
+## 🎯 Powerful Yet Simple
+
+### 🖥️ Add Web UI with 2 Lines
 ```yaml
 controller:
   webui:
     port: 8081
 ```
-Instantly get a user-friendly interface to test and monitor your workflows. Supports both Gradio (default) and custom static frontends.
 
-### 🛰️ MCP Server Ready
-Transform your workflows into MCP tools by changing one line:
+### 🛰️ Switch to MCP Server with 1 Line
 ```yaml
 controller:
   type: mcp-server
 ```
-Just set the type to `mcp-server`. Your workflows become instantly accessible via the Model Context Protocol.
 
-### 🐳 Docker Deployment
-Deploy anywhere with built-in Docker support:
+### 🐳 Deploy in Docker with 1 Line
 ```yaml
 controller:
   runtime: docker
 ```
-Run your workflows in isolated containers with full control over images, volumes, ports, and environment variables.
 
-> 📖 See the [User Guide](docs/user-guide/README.md) for detailed configuration and [Examples](examples/README.md) for ready-to-run samples.
+> 💡 Explore [examples](examples/README.md) for more workflows or read the [User Guide](docs/user-guide/README.md).
 
 ---
 ## 🏗 Architecture

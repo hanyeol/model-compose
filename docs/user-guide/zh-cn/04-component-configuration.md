@@ -543,7 +543,133 @@ graph LR
 
 ---
 
-## 4.5 组件最佳实践
+## 4.5 运行时配置
+
+组件可以在不同的运行时环境中执行，具体取决于您的需求。运行时决定了组件在何处以及如何运行。
+
+### 可用的运行时
+
+model-compose 支持三种运行时类型：
+
+| 运行时 | 隔离级别 | 速度 | 开销 | 适用场景 |
+|--------|---------|------|------|---------|
+| `embedded` | 无 | 快 | 最小 | 轻量级任务，默认选择 |
+| `process` | 进程级 | 中等 | 中等 | 重型模型，GPU 隔离 |
+| `docker` | 容器级 | 慢 | 高 | 生产部署 |
+
+### Embedded 运行时（默认）
+
+在与控制器相同的进程中运行组件。
+
+```yaml
+components:
+  - id: text-generator
+    type: model
+    runtime: embedded  # 或省略（embedded 是默认值）
+    task: text-generation
+    model: gpt2
+```
+
+**使用场景：**
+- 简单的 API 调用
+- 轻量级模型
+- 需要快速响应
+- 开发和测试
+
+### Process 运行时
+
+在独立的 Python 进程中运行组件，具有隔离的内存。
+
+```yaml
+components:
+  - id: heavy-model
+    type: model
+    runtime: process
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**使用场景：**
+- 大型模型（70B+ 参数）
+- 多 GPU 利用
+- 阻塞操作
+- 需要崩溃隔离
+
+**高级配置：**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+      start_timeout: 120
+      stop_timeout: 30
+    task: image-generation
+    model: stabilityai/stable-diffusion-xl-base-1.0
+```
+
+**多 GPU 示例：**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+    model: gpt2-large
+
+  - id: model-gpu-1
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "1"
+    model: stabilityai/stable-diffusion-v1-5
+
+workflows:
+  - id: multi-gpu-workflow
+    jobs:
+      - id: text
+        component: model-gpu-0
+        action: generate
+      - id: image
+        component: model-gpu-1
+        action: generate
+```
+
+### Docker 运行时
+
+在隔离的 Docker 容器中运行组件。
+
+```yaml
+components:
+  - id: isolated-model
+    type: model
+    runtime: docker
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**使用场景：**
+- 生产部署
+- 安全关键型工作负载
+- 可重现的环境
+- 多租户场景
+
+### 运行时选择指南
+
+**Embedded** → 大多数用例从这里开始
+**Process** → 当需要隔离或重型工作负载时升级
+**Docker** → 用于生产和安全要求
+
+---
+
+## 4.6 组件最佳实践
 
 ### 1. 清晰的命名
 

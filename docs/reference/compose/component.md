@@ -59,7 +59,7 @@ All components inherit these common properties from `CommonComponentConfig`:
 |-------|------|---------|-------------|
 | `id` | string | `__default__` | Unique identifier for the component |
 | `type` | string | **required** | Component type (see table above) |
-| `runtime` | string | `embedded` | Runtime environment: `embedded` or `docker` |
+| `runtime` | string | `embedded` | Runtime environment: `embedded`, `process`, or `docker` |
 | `max_concurrent_count` | integer | `1` | Maximum concurrent actions this component can handle |
 | `default` | boolean | `false` | Whether to use this component when none is explicitly specified |
 
@@ -158,6 +158,44 @@ component:
 - Quick model inference with small models
 - Components that need fast response times
 
+### Process Runtime
+
+Runs components in separate Python processes for process isolation while maintaining faster startup than Docker.
+
+```yaml
+component:
+  type: model
+  runtime: process
+  model: meta-llama/Llama-3.1-70B
+```
+
+**Characteristics:**
+- Runs in a separate Python process
+- Process-level memory and resource isolation
+- Faster startup than Docker, slower than embedded
+- Independent crash handling (one component crash won't affect others)
+
+**Use Cases:**
+- Heavy models that could consume significant memory
+- Multiple GPU utilization (separate processes for each GPU)
+- Blocking operations that shouldn't block the main event loop
+- Components that need isolation but don't require containers
+
+**Advanced Configuration:**
+
+```yaml
+component:
+  type: model
+  runtime:
+    type: process
+    env:
+      CUDA_VISIBLE_DEVICES: "0"
+      PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
+    start_timeout: 120
+    stop_timeout: 30
+  model: stabilityai/stable-diffusion-xl-base-1.0
+```
+
 ### Docker Runtime
 
 Runs components in isolated Docker containers for enhanced security and reproducibility.
@@ -186,6 +224,7 @@ component:
 | Runtime | Startup Speed | Isolation | Overhead | Best For |
 |---------|--------------|-----------|----------|----------|
 | **embedded** | Fast | None | Minimal | Default choice, lightweight tasks |
+| **process** | Medium | Process | Medium | Heavy models, GPU isolation, crash isolation |
 | **docker** | Slow | High | High | Production, security-critical workloads |
 
 ## Concurrency Control

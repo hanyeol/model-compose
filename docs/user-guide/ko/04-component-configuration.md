@@ -543,7 +543,133 @@ graph LR
 
 ---
 
-## 4.5 컴포넌트 모범 사례
+## 4.5 런타임 구성
+
+컴포넌트는 필요에 따라 다른 런타임 환경에서 실행할 수 있습니다. 런타임은 컴포넌트가 어디서 어떻게 실행되는지를 결정합니다.
+
+### 사용 가능한 런타임
+
+model-compose는 세 가지 런타임 타입을 지원합니다:
+
+| 런타임 | 격리 수준 | 속도 | 오버헤드 | 적합한 용도 |
+|--------|----------|------|----------|------------|
+| `embedded` | 없음 | 빠름 | 최소 | 가벼운 작업, 기본 선택 |
+| `process` | 프로세스 수준 | 중간 | 중간 | 무거운 모델, GPU 격리 |
+| `docker` | 컨테이너 수준 | 느림 | 높음 | 프로덕션 배포 |
+
+### Embedded 런타임 (기본값)
+
+컨트롤러와 같은 프로세스에서 컴포넌트를 실행합니다.
+
+```yaml
+components:
+  - id: text-generator
+    type: model
+    runtime: embedded  # 또는 생략 가능 (embedded가 기본값)
+    task: text-generation
+    model: gpt2
+```
+
+**사용 시기:**
+- 간단한 API 호출
+- 가벼운 모델
+- 빠른 응답 필요
+- 개발 및 테스트
+
+### Process 런타임
+
+별도의 Python 프로세스에서 컴포넌트를 실행하여 메모리를 격리합니다.
+
+```yaml
+components:
+  - id: heavy-model
+    type: model
+    runtime: process
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**사용 시기:**
+- 대형 모델 (70B+ 파라미터)
+- 다중 GPU 활용
+- 블로킹 작업
+- 크래시 격리 필요
+
+**고급 설정:**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+      start_timeout: 120
+      stop_timeout: 30
+    task: image-generation
+    model: stabilityai/stable-diffusion-xl-base-1.0
+```
+
+**다중 GPU 예시:**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+    model: gpt2-large
+
+  - id: model-gpu-1
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "1"
+    model: stabilityai/stable-diffusion-v1-5
+
+workflows:
+  - id: multi-gpu-workflow
+    jobs:
+      - id: text
+        component: model-gpu-0
+        action: generate
+      - id: image
+        component: model-gpu-1
+        action: generate
+```
+
+### Docker 런타임
+
+격리된 Docker 컨테이너에서 컴포넌트를 실행합니다.
+
+```yaml
+components:
+  - id: isolated-model
+    type: model
+    runtime: docker
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**사용 시기:**
+- 프로덕션 배포
+- 보안이 중요한 워크로드
+- 재현 가능한 환경
+- 멀티 테넌트 시나리오
+
+### 런타임 선택 가이드
+
+**Embedded** → 대부분의 사용 사례에서 시작
+**Process** → 격리 또는 무거운 워크로드가 필요할 때 업그레이드
+**Docker** → 프로덕션 및 보안 요구사항에 사용
+
+---
+
+## 4.6 컴포넌트 모범 사례
 
 ### 1. 명확한 네이밍
 

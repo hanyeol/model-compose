@@ -543,7 +543,133 @@ graph LR
 
 ---
 
-## 4.5 Component Best Practices
+## 4.5 Runtime Configuration
+
+Components can execute in different runtime environments depending on your needs. The runtime determines where and how components run.
+
+### Available Runtimes
+
+model-compose supports three runtime types:
+
+| Runtime | Isolation | Speed | Overhead | Best For |
+|---------|-----------|-------|----------|----------|
+| `embedded` | None | Fast | Minimal | Lightweight tasks, default choice |
+| `process` | Process-level | Medium | Medium | Heavy models, GPU isolation |
+| `docker` | Container-level | Slow | High | Production deployments |
+
+### Embedded Runtime (Default)
+
+Runs components in the same process as the controller.
+
+```yaml
+components:
+  - id: text-generator
+    type: model
+    runtime: embedded  # or omit (embedded is default)
+    task: text-generation
+    model: gpt2
+```
+
+**When to use:**
+- Simple API calls
+- Lightweight models
+- Fast response required
+- Development and testing
+
+### Process Runtime
+
+Runs components in separate Python processes with isolated memory.
+
+```yaml
+components:
+  - id: heavy-model
+    type: model
+    runtime: process
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**When to use:**
+- Large models (70B+ parameters)
+- Multiple GPU utilization
+- Blocking operations
+- Crash isolation needed
+
+**Advanced configuration:**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+      start_timeout: 120
+      stop_timeout: 30
+    task: image-generation
+    model: stabilityai/stable-diffusion-xl-base-1.0
+```
+
+**Multi-GPU example:**
+
+```yaml
+components:
+  - id: model-gpu-0
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+    model: gpt2-large
+
+  - id: model-gpu-1
+    type: model
+    runtime:
+      type: process
+      env:
+        CUDA_VISIBLE_DEVICES: "1"
+    model: stabilityai/stable-diffusion-v1-5
+
+workflows:
+  - id: multi-gpu-workflow
+    jobs:
+      - id: text
+        component: model-gpu-0
+        action: generate
+      - id: image
+        component: model-gpu-1
+        action: generate
+```
+
+### Docker Runtime
+
+Runs components in isolated Docker containers.
+
+```yaml
+components:
+  - id: isolated-model
+    type: model
+    runtime: docker
+    task: text-generation
+    model: meta-llama/Llama-3.1-70B
+```
+
+**When to use:**
+- Production deployments
+- Security-critical workloads
+- Reproducible environments
+- Multi-tenant scenarios
+
+### Runtime Selection Guide
+
+**Embedded** → Start here for most use cases
+**Process** → Upgrade when you need isolation or heavy workloads
+**Docker** → Use for production and security requirements
+
+---
+
+## 4.6 Component Best Practices
 
 ### 1. Clear Naming
 

@@ -52,7 +52,7 @@ Deploy as HTTP REST API or MCP (Model Context Protocol) server by changing one l
 HTTP Callback listeners for async workflows (image generation, video processing). HTTP Trigger listeners for webhooks and external events. Build reactive AI systems that respond to real-world events.
 
 ### 🌐 **Smart Tunneling & Gateways**
-Expose local services to the internet instantly with ngrok, Cloudflare, or SSH tunnels. Perfect for webhook integration, Slack bots, and public API deployment without complex networking.
+Expose local services to the internet instantly with ngrok, Cloudflare, or SSH tunnels. Perfect for webhook integration and public API deployment without complex networking.
 
 ### 🐳 **Container-Native Deployment**
 First-class Docker support with runtime configuration, volume mounting, and environment management. Deploy to any cloud provider or Kubernetes cluster with minimal configuration.

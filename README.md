@@ -45,7 +45,7 @@ Built-in SSE (Server-Sent Events) streaming for real-time AI responses. Stream f
 ### 🔄 **Advanced Workflow Composition**
 Build multi-step pipelines with conditional logic, data transformation, and parallel execution. Pass data between jobs with powerful variable binding—`${input}`, `${response}`, `${env}`, with type conversion and defaults.
 
-### 🚀 **Production-Ready Controllers**
+### 🚀 **Production-Ready Deployment**
 Deploy as HTTP REST API or MCP (Model Context Protocol) server by changing one line. Includes concurrency control, health checks, and automatic API documentation.
 
 ### 🎯 **Event-Driven Architecture**

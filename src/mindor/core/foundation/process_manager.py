@@ -102,8 +102,7 @@ class ProcessRuntimeManager:
         self.request_queue.put(message.to_params())
 
         try:
-            result = await future
-            return result
+            return await future
         finally:
             self.pending_requests.pop(request_id, None)
 
@@ -112,8 +111,7 @@ class ProcessRuntimeManager:
         while True:
             try:
                 if not self.response_queue.empty():
-                    message_dict = self.response_queue.get_nowait()
-                    message = IpcMessage(**message_dict)
+                    message = IpcMessage(**self.response_queue.get_nowait())
 
                     if message.request_id in self.pending_requests:
                         future = self.pending_requests[message.request_id]
@@ -137,19 +135,15 @@ class ProcessRuntimeManager:
 
         while time.time() - start_time < timeout:
             if not self.response_queue.empty():
-                message_dict = self.response_queue.get()
-                message = IpcMessage(**message_dict)
+                message = IpcMessage(**self.response_queue.get())
 
-                if message.type == IpcMessageType.RESULT and \
-                   message.payload.get("status") == "ready":
+                if message.type == IpcMessageType.RESULT and message.payload.get("status") == "ready":
                     logging.info(f"Subprocess {self.worker_id} is ready")
                     return
 
             await asyncio.sleep(0.5)
 
-        raise TimeoutError(
-            f"Process {self.worker_id} did not start within {timeout}s"
-        )
+        raise TimeoutError(f"Process {self.worker_id} did not start within {timeout}s")
 
     def _run_worker(
         self,

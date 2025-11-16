@@ -46,8 +46,7 @@ class ComponentProcessWorker(ProcessWorker):
         run_id = payload["run_id"]
         input_data = payload["input"]
 
-        output = await self.component.run(action_id, run_id, input_data)
-        return output
+        return await self.component.run(action_id, run_id, input_data)
 
     async def _cleanup(self) -> None:
         """Clean up the component"""

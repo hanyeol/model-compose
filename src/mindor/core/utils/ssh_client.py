@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class SshAuthType(str, Enum):
     """SSH authentication type"""
-    KEYFILE = "keyfile"
+    KEYFILE  = "keyfile"
     PASSWORD = "password"
 
 @dataclass
@@ -80,7 +80,7 @@ class SshClient:
         self.params: SshConnectionParams = params
         self.client: Optional[paramiko.SSHClient] = None
         self.transport: Optional[paramiko.Transport] = None
-        self.port_forwards: List[Tuple[int, int]] = []
+        self.port_forwards: Dict[int, Tuple[str, int]] = {}  # remote_port -> (local_host, local_port)
         self._shutdown_event: Optional[threading.Event] = None
         self._forward_threads: List[threading.Thread] = []
 
@@ -136,42 +136,54 @@ class SshClient:
         import paramiko
 
         def _start_forwarding():
+            # Define handler for this specific port forward
+            def port_forward_handler(channel, _, server_addr):
+                """Handler called when a connection is made to the forwarded port"""
+                server_port = server_addr[1]
+                if server_port in self.port_forwards:
+                    fwd_local_host, fwd_local_port = self.port_forwards[server_port]
+                    forward_thread = threading.Thread(
+                        target=self._handle_forward,
+                        args=(channel, fwd_local_host, fwd_local_port),
+                        daemon=True
+                    )
+                    forward_thread.start()
+                    self._forward_threads.append(forward_thread)
+                else:
+                    logging.warning(f"Unknown remote port: {server_port}, closing channel")
+                    channel.close()
+
+            # Register port mapping first (before request_port_forward)
+            # In case handler is called immediately
+            if remote_port == 0:
+                # For dynamic port allocation, we'll update the mapping after
+                pass
+            else:
+                self.port_forwards[remote_port] = (local_host, local_port)
+
             actual_remote_port = self.transport.request_port_forward(
                 address="0.0.0.0",  # Bind to all interfaces on remote
-                port=remote_port
+                port=remote_port,
+                handler=port_forward_handler
             )
+
+            # Update mapping with actual port if it was dynamically allocated
+            if actual_remote_port != remote_port:
+                if remote_port == 0:
+                    self.port_forwards[actual_remote_port] = (local_host, local_port)
+                else:
+                    # Should not happen, but handle just in case
+                    del self.port_forwards[remote_port]
+                    self.port_forwards[actual_remote_port] = (local_host, local_port)
 
             logging.debug(
                 f"Remote port forwarding: {self.params.host}:{actual_remote_port} -> "
                 f"{local_host}:{local_port}"
             )
 
-            def handler():
-                while self._shutdown_event and not self._shutdown_event.is_set():
-                    try:
-                        channel = self.transport.accept(timeout=1.0)
-                        if channel is None:
-                            continue
-
-                        forward_thread = threading.Thread(
-                            target=self._handle_forward,
-                            args=(channel, local_host, local_port),
-                            daemon=True
-                        )
-                        forward_thread.start()
-                    except Exception as e:
-                        if self._shutdown_event and not self._shutdown_event.is_set():
-                            logging.error(f"Error accepting connection: {e}")
-                        break
-
-            handler_thread = threading.Thread(target=handler, daemon=True)
-            handler_thread.start()
-            self._forward_threads.append(handler_thread)
-
             return actual_remote_port
 
         actual_remote_port = await asyncio.to_thread(_start_forwarding)
-        self.port_forwards.append((actual_remote_port, local_port))
 
         return actual_remote_port
 
@@ -181,40 +193,45 @@ class SshClient:
         local_host: str,
         local_port: int
     ) -> None:
-        """Handle a single forwarded connection"""
+        """Handle a single forwarded connection using select for bidirectional forwarding"""
         import socket
+        import select
 
+        local_socket = None
         try:
             local_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             local_socket.connect((local_host, local_port))
 
-            def forward_data(source, destination):
-                try:
-                    while True:
-                        data = source.recv(1024)
-                        if len(data) == 0:
-                            break
-                        destination.sendall(data)
-                except Exception:
-                    pass
-                finally:
-                    source.close()
-                    destination.close()
+            # Non-blocking bidirectional forwarding using select
+            while True:
+                # Wait for either socket to have data ready (1 second timeout)
+                r, _, _ = select.select([remote_channel, local_socket], [], [], 1.0)
 
-            threads = [
-                threading.Thread(target=forward_data, args=(remote_channel, local_socket), daemon=True),
-                threading.Thread(target=forward_data, args=(local_socket, remote_channel), daemon=True),
-            ]
+                # Forward data from remote to local
+                if remote_channel in r:
+                    data = remote_channel.recv(8192)
+                    if len(data) == 0:
+                        break
+                    local_socket.sendall(data)
 
-            for thread in threads:
-                thread.start()
+                # Forward data from local to remote
+                if local_socket in r:
+                    data = local_socket.recv(8192)
+                    if len(data) == 0:
+                        break
+                    remote_channel.sendall(data)
 
-            for thread in threads:
-                thread.join()
-
+        except socket.error as e:
+            logging.debug(f"Socket error in forward: {e}")
         except Exception as e:
             logging.error(f"Error handling forward connection: {e}")
         finally:
+            # Clean up connections
+            if local_socket:
+                try:
+                    local_socket.close()
+                except Exception:
+                    pass
             try:
                 remote_channel.close()
             except Exception:
@@ -227,7 +244,7 @@ class SshClient:
 
         def _close():
             # Cancel all remote port forwards
-            for remote_port, _ in self.port_forwards:
+            for remote_port in self.port_forwards.keys():
                 try:
                     self.transport.cancel_port_forward("0.0.0.0", remote_port)
                     logging.debug(f"Cancelled remote port forward on port {remote_port}")
@@ -243,7 +260,7 @@ class SshClient:
 
         self.client = None
         self.transport = None
-        self.port_forwards = []
+        self.port_forwards = {}
         self._forward_threads = []
         self._shutdown_event = None
 

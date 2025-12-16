@@ -1,0 +1,1528 @@
+{
+  "total_cases": 55,
+  "test_cases": [
+    {
+      "name": "basic_paragraph_split",
+      "input": {
+        "text": "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 30,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "First paragraph.",
+        "Second paragraph.",
+        "Third paragraph."
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          16,
+          17,
+          16
+        ]
+      }
+    },
+    {
+      "name": "short_text_no_split",
+      "input": {
+        "text": "Short text",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 100,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "Short text"
+      ],
+      "metadata": {
+        "num_chunks": 1,
+        "chunk_sizes": [
+          10
+        ]
+      }
+    },
+    {
+      "name": "long_continuous_text",
+      "input": {
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 100,
+        "chunk_overlap": 20
+      },
+      "expected_output": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "metadata": {
+        "num_chunks": 6,
+        "chunk_sizes": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ]
+      }
+    },
+    {
+      "name": "chunk_size_equals_text_length",
+      "input": {
+        "text": "Exactly twenty chars",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "Exactly twenty chars"
+      ],
+      "metadata": {
+        "num_chunks": 1,
+        "chunk_sizes": [
+          20
+        ]
+      }
+    },
+    {
+      "name": "chunk_size_one_less_than_text",
+      "input": {
+        "text": "Twenty one characters",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "Twenty one",
+        "characters"
+      ],
+      "metadata": {
+        "num_chunks": 2,
+        "chunk_sizes": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "name": "chunk_size_one_more_than_text",
+      "input": {
+        "text": "Nineteen characte",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "Nineteen characte"
+      ],
+      "metadata": {
+        "num_chunks": 1,
+        "chunk_sizes": [
+          17
+        ]
+      }
+    },
+    {
+      "name": "chunk_size_one",
+      "input": {
+        "text": "Hello World",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 1,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "H",
+        "e",
+        "l",
+        "l",
+        "o",
+        " ",
+        "W",
+        "o",
+        "r",
+        "l",
+        "d"
+      ],
+      "metadata": {
+        "num_chunks": 11,
+        "chunk_sizes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "name": "chunk_size_two",
+      "input": {
+        "text": "ABCDEFGH",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 2,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "AB",
+        "CD",
+        "EF",
+        "GH"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          2,
+          2,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "name": "overlap_equals_chunk_size",
+      "input": {
+        "text": "Word1 Word2 Word3 Word4 Word5",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 10,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "Word1",
+        "Word2",
+        "Word3",
+        "Word4",
+        "Word5"
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "name": "overlap_one_less_than_chunk",
+      "input": {
+        "text": "Part1\n\nPart2\n\nPart3\n\nPart4",
+        "separators": [
+          "\n\n",
+          ""
+        ],
+        "chunk_size": 10,
+        "chunk_overlap": 9
+      },
+      "expected_output": [
+        "Part1",
+        "Part2",
+        "Part3",
+        "Part4"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          5,
+          5,
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "name": "overlap_almost_equals_chunk",
+      "input": {
+        "text": "A B C D E F G H I J K L M N O P",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 10,
+        "chunk_overlap": 9
+      },
+      "expected_output": [
+        "A B C D E",
+        "B C D E F",
+        "C D E F G",
+        "D E F G H",
+        "E F G H I",
+        "F G H I J",
+        "G H I J K",
+        "H I J K L",
+        "I J K L M",
+        "J K L M N",
+        "K L M N O",
+        "L M N O P"
+      ],
+      "metadata": {
+        "num_chunks": 12,
+        "chunk_sizes": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ]
+      }
+    },
+    {
+      "name": "overlap_fifty_percent",
+      "input": {
+        "text": "Section A content\n\nSection B content\n\nSection C content",
+        "separators": [
+          "\n\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "Section A content",
+        "Section B content",
+        "Section C content"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          17,
+          17,
+          17
+        ]
+      }
+    },
+    {
+      "name": "overlap_seventy_five_percent",
+      "input": {
+        "text": "Data1 Data2 Data3 Data4 Data5 Data6",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 15
+      },
+      "expected_output": [
+        "Data1 Data2 Data3",
+        "Data2 Data3 Data4",
+        "Data3 Data4 Data5",
+        "Data4 Data5 Data6"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          17,
+          17,
+          17,
+          17
+        ]
+      }
+    },
+    {
+      "name": "overlap_one",
+      "input": {
+        "text": "AAAA\n\nBBBB\n\nCCCC\n\nDDDD",
+        "separators": [
+          "\n\n",
+          ""
+        ],
+        "chunk_size": 10,
+        "chunk_overlap": 1
+      },
+      "expected_output": [
+        "AAAA\n\nBBBB",
+        "CCCC",
+        "DDDD"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          10,
+          4,
+          4
+        ]
+      }
+    },
+    {
+      "name": "korean_basic_split",
+      "input": {
+        "text": "안녕하세요. 반갑습니다.\n\n한국어 텍스트 분할 테스트입니다.\n\n여러 문장을 포함합니다.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 30,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "안녕하세요. 반갑습니다.",
+        "한국어 텍스트 분할 테스트입니다.",
+        "여러 문장을 포함합니다."
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          13,
+          18,
+          13
+        ]
+      }
+    },
+    {
+      "name": "korean_long_text",
+      "input": {
+        "text": "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. ",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 50,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는",
+        "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는",
+        "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는",
+        "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다. 한국어는",
+        "한국어는 표음문자인 한글을 사용합니다. 한국어는 표음문자인 한글을 사용합니다."
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          48,
+          48,
+          48,
+          48,
+          43
+        ]
+      }
+    },
+    {
+      "name": "korean_english_mixed",
+      "input": {
+        "text": "안녕하세요 Hello\n\n반갑습니다 Nice to meet you\n\n한국어 Korean 영어 English",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 25,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "안녕하세요 Hello",
+        "반갑습니다 Nice to meet you",
+        "한국어 Korean 영어 English"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          11,
+          22,
+          21
+        ]
+      }
+    },
+    {
+      "name": "korean_single_char_chunks",
+      "input": {
+        "text": "가나다라마바사아자차카타파하",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 3,
+        "chunk_overlap": 1
+      },
+      "expected_output": [
+        "가나다",
+        "다라마",
+        "마바사",
+        "사아자",
+        "자차카",
+        "카타파",
+        "파하"
+      ],
+      "metadata": {
+        "num_chunks": 7,
+        "chunk_sizes": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "name": "korean_sentences",
+      "input": {
+        "text": "첫 번째 문장입니다. 두 번째 문장입니다. 세 번째 문장입니다. 네 번째 문장입니다.",
+        "separators": [
+          ". ",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 3
+      },
+      "expected_output": [
+        "첫 번째 문장입니다",
+        ". 두 번째 문장입니다",
+        ". 세 번째 문장입니다",
+        ". 네 번째 문장입니다."
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          10,
+          12,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "name": "korean_paragraph",
+      "input": {
+        "text": "인공지능은 현대 사회에서 중요한 역할을 합니다.\n\n머신러닝과 딥러닝 기술이 발전하고 있습니다.\n\n자연어 처리는 AI의 핵심 분야입니다.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 40,
+        "chunk_overlap": 8
+      },
+      "expected_output": [
+        "인공지능은 현대 사회에서 중요한 역할을 합니다.",
+        "머신러닝과 딥러닝 기술이 발전하고 있습니다.",
+        "자연어 처리는 AI의 핵심 분야입니다."
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          26,
+          24,
+          21
+        ]
+      }
+    },
+    {
+      "name": "markdown_document",
+      "input": {
+        "text": "# Title\n\n## Section 1\n\nThis is paragraph 1 with some text here.\n\nThis is paragraph 2 with more text.\n\n## Section 2\n\nAnother section with content here.\n\n- List item 1\n- List item 2\n- List item 3",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 80,
+        "chunk_overlap": 15
+      },
+      "expected_output": [
+        "# Title\n\n## Section 1\n\nThis is paragraph 1 with some text here.",
+        "This is paragraph 2 with more text.\n\n## Section 2",
+        "## Section 2\n\nAnother section with content here.",
+        "- List item 1\n- List item 2\n- List item 3"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          63,
+          49,
+          48,
+          41
+        ]
+      }
+    },
+    {
+      "name": "markdown_korean",
+      "input": {
+        "text": "# 제목\n\n## 첫 번째 섹션\n\n이것은 첫 번째 단락입니다.\n\n이것은 두 번째 단락입니다.\n\n## 두 번째 섹션\n\n- 항목 1\n- 항목 2\n- 항목 3",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 35,
+        "chunk_overlap": 7
+      },
+      "expected_output": [
+        "# 제목\n\n## 첫 번째 섹션\n\n이것은 첫 번째 단락입니다.",
+        "이것은 두 번째 단락입니다.\n\n## 두 번째 섹션",
+        "- 항목 1\n- 항목 2\n- 항목 3"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          33,
+          27,
+          20
+        ]
+      }
+    },
+    {
+      "name": "code_snippet",
+      "input": {
+        "text": "def function1():\n    x = 1\n    return x\n\ndef function2():\n    y = 2\n    return y\n\ndef function3():\n    z = 3\n    return z",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 50,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "def function1():\n    x = 1\n    return x",
+        "def function2():\n    y = 2\n    return y",
+        "def function3():\n    z = 3\n    return z"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          39,
+          39,
+          39
+        ]
+      }
+    },
+    {
+      "name": "code_with_docstring",
+      "input": {
+        "text": "def example():\n    \"\"\"\n    This is a docstring.\n    It has multiple lines.\n    \"\"\"\n    return True",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 30,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "def example():\n    \"\"\"",
+        "This is a docstring.",
+        "It has multiple lines.",
+        "\"\"\"\n    return True"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          22,
+          20,
+          22,
+          19
+        ]
+      }
+    },
+    {
+      "name": "newline_separator",
+      "input": {
+        "text": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
+        "separators": [
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "Line 1\nLine 2\nLine 3",
+        "Line 4\nLine 5"
+      ],
+      "metadata": {
+        "num_chunks": 2,
+        "chunk_sizes": [
+          20,
+          13
+        ]
+      }
+    },
+    {
+      "name": "multiple_sentences",
+      "input": {
+        "text": "First sentence here. Second sentence here. Third sentence here. Fourth sentence here. Fifth sentence here.",
+        "separators": [
+          ". ",
+          " ",
+          ""
+        ],
+        "chunk_size": 40,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "First sentence here",
+        ". Second sentence here",
+        ". Third sentence here",
+        ". Fourth sentence here",
+        ". Fifth sentence here."
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          19,
+          22,
+          21,
+          22,
+          22
+        ]
+      }
+    },
+    {
+      "name": "no_overlap",
+      "input": {
+        "text": "Part 1\n\nPart 2\n\nPart 3\n\nPart 4\n\nPart 5",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "Part 1\n\nPart 2",
+        "Part 3\n\nPart 4",
+        "Part 5"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          14,
+          14,
+          6
+        ]
+      }
+    },
+    {
+      "name": "small_chunks",
+      "input": {
+        "text": "The quick brown fox jumps over the lazy dog",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 15,
+        "chunk_overlap": 3
+      },
+      "expected_output": [
+        "The quick brown",
+        "fox jumps over",
+        "the lazy dog"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          15,
+          14,
+          12
+        ]
+      }
+    },
+    {
+      "name": "empty_text",
+      "input": {
+        "text": "",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 100,
+        "chunk_overlap": 10
+      },
+      "expected_output": [],
+      "metadata": {
+        "num_chunks": 0,
+        "chunk_sizes": []
+      }
+    },
+    {
+      "name": "single_word",
+      "input": {
+        "text": "Hello",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 100,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "Hello"
+      ],
+      "metadata": {
+        "num_chunks": 1,
+        "chunk_sizes": [
+          5
+        ]
+      }
+    },
+    {
+      "name": "complex_document",
+      "input": {
+        "text": "# Introduction\n\nThis is an introduction to the topic. It contains several sentences that explain the context.\n\n## Main Section\n\nThe main section contains detailed information:\n\n- Important point 1 that needs explanation\n- Important point 2 with additional details\n- Important point 3 for completeness\n\n### Subsection A\n\nHere we dive deeper into specific aspects.\n\n### Subsection B\n\nMore technical content here with examples.\n\n## Conclusion\n\nThe conclusion summarizes the key points.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 150,
+        "chunk_overlap": 30
+      },
+      "expected_output": [
+        "# Introduction\n\nThis is an introduction to the topic. It contains several sentences that explain the context.\n\n## Main Section",
+        "## Main Section\n\nThe main section contains detailed information:",
+        "- Important point 1 that needs explanation\n- Important point 2 with additional details\n- Important point 3 for completeness\n\n### Subsection A",
+        "### Subsection A\n\nHere we dive deeper into specific aspects.\n\n### Subsection B\n\nMore technical content here with examples.\n\n## Conclusion",
+        "## Conclusion\n\nThe conclusion summarizes the key points."
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          126,
+          64,
+          141,
+          137,
+          56
+        ]
+      }
+    },
+    {
+      "name": "space_separator_only",
+      "input": {
+        "text": "Word1 Word2 Word3 Word4 Word5 Word6 Word7 Word8 Word9 Word10",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 25,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "Word1 Word2 Word3 Word4",
+        "Word5 Word6 Word7 Word8",
+        "Word9 Word10"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          23,
+          23,
+          12
+        ]
+      }
+    },
+    {
+      "name": "large_overlap",
+      "input": {
+        "text": "Section A content here\n\nSection B content here\n\nSection C content here",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 30,
+        "chunk_overlap": 15
+      },
+      "expected_output": [
+        "Section A content here",
+        "Section B content here",
+        "Section C content here"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          22,
+          22,
+          22
+        ]
+      }
+    },
+    {
+      "name": "very_small_chunk_size",
+      "input": {
+        "text": "This is a test of very small chunks",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 8,
+        "chunk_overlap": 2
+      },
+      "expected_output": [
+        "This is",
+        "a test",
+        "of very",
+        "small",
+        "chunks"
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          7,
+          6,
+          7,
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "name": "consecutive_separators",
+      "input": {
+        "text": "Part1\n\n\n\nPart2\n\n\n\nPart3",
+        "separators": [
+          "\n\n",
+          "\n",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "Part1\n\n\n\nPart2",
+        "Part3"
+      ],
+      "metadata": {
+        "num_chunks": 2,
+        "chunk_sizes": [
+          14,
+          5
+        ]
+      }
+    },
+    {
+      "name": "mixed_content",
+      "input": {
+        "text": "Introduction paragraph here.\n\nSection 1: Details about topic A. Multiple sentences. More information.\n\nSection 2: Details about topic B.\n- Point 1\n- Point 2\n- Point 3\n\nConclusion paragraph.",
+        "separators": [
+          "\n\n",
+          "\n",
+          ". ",
+          " ",
+          ""
+        ],
+        "chunk_size": 70,
+        "chunk_overlap": 15
+      },
+      "expected_output": [
+        "Introduction paragraph here.",
+        "Section 1: Details about topic A. Multiple sentences",
+        ". More information.",
+        "Section 2: Details about topic B.\n- Point 1\n- Point 2\n- Point 3",
+        "Conclusion paragraph."
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          28,
+          52,
+          19,
+          63,
+          21
+        ]
+      }
+    },
+    {
+      "name": "numbers_and_special_chars",
+      "input": {
+        "text": "Item 1: Value $100\n\nItem 2: Value $200\n\nItem 3: Value $300",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 25,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "Item 1: Value $100",
+        "Item 2: Value $200",
+        "Item 3: Value $300"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          18,
+          18,
+          18
+        ]
+      }
+    },
+    {
+      "name": "long_words",
+      "input": {
+        "text": "Supercalifragilisticexpialidocious antidisestablishmentarianism pseudopseudohypoparathyroidism",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 30,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "Supercalifragilisticexpialidoc",
+        "lidocious",
+        "antidisestablishmentarianism",
+        "pseudopseudohypoparathyroidis",
+        "oidism"
+      ],
+      "metadata": {
+        "num_chunks": 5,
+        "chunk_sizes": [
+          30,
+          9,
+          28,
+          29,
+          6
+        ]
+      }
+    },
+    {
+      "name": "exact_chunk_size",
+      "input": {
+        "text": "This is exactly twenty chars!!!!!!!!!!!!!!!!!!!!!",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 25,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "This is exactly twenty",
+        "chars!!!!!!!!!!!!!!!!!!!",
+        "!!!!!!!"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          22,
+          24,
+          7
+        ]
+      }
+    },
+    {
+      "name": "korean_exact_chunk",
+      "input": {
+        "text": "정확히스무글자입니다여기까지",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 15,
+        "chunk_overlap": 0
+      },
+      "expected_output": [
+        "정확히스무글자입니다여기까지"
+      ],
+      "metadata": {
+        "num_chunks": 1,
+        "chunk_sizes": [
+          14
+        ]
+      }
+    },
+    {
+      "name": "korean_large_overlap",
+      "input": {
+        "text": "첫번째\n\n두번째\n\n세번째\n\n네번째",
+        "separators": [
+          "\n\n",
+          ""
+        ],
+        "chunk_size": 10,
+        "chunk_overlap": 8
+      },
+      "expected_output": [
+        "첫번째\n\n두번째",
+        "두번째\n\n세번째",
+        "세번째\n\n네번째"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "korean_poetry",
+      "input": {
+        "text": "봄이 오면\n산에 들에\n진달래 피네\n\n여름이 오면\n바다 가에\n파도가 치네",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 4
+      },
+      "expected_output": [
+        "봄이 오면\n산에 들에\n진달래 피네",
+        "여름이 오면\n바다 가에",
+        "파도가 치네"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          18,
+          12,
+          6
+        ]
+      }
+    },
+    {
+      "name": "korean_technical",
+      "input": {
+        "text": "파이썬은 프로그래밍 언어입니다. 자바스크립트도 인기있는 언어입니다. 타입스크립트는 자바스크립트의 확장입니다.",
+        "separators": [
+          ". ",
+          " ",
+          ""
+        ],
+        "chunk_size": 35,
+        "chunk_overlap": 8
+      },
+      "expected_output": [
+        "파이썬은 프로그래밍 언어입니다",
+        ". 자바스크립트도 인기있는 언어입니다",
+        ". 타입스크립트는 자바스크립트의 확장입니다."
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          16,
+          20,
+          24
+        ]
+      }
+    },
+    {
+      "name": "boundary_chunk_3_overlap_2",
+      "input": {
+        "text": "ABCDEFGHIJ",
+        "separators": [
+          ""
+        ],
+        "chunk_size": 3,
+        "chunk_overlap": 2
+      },
+      "expected_output": [
+        "ABC",
+        "BCD",
+        "CDE",
+        "DEF",
+        "EFG",
+        "FGH",
+        "GHI",
+        "HIJ"
+      ],
+      "metadata": {
+        "num_chunks": 8,
+        "chunk_sizes": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "name": "boundary_chunk_5_overlap_4",
+      "input": {
+        "text": "12345 67890 ABCDE FGHIJ",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 5,
+        "chunk_overlap": 4
+      },
+      "expected_output": [
+        "12345",
+        "6789",
+        "67890",
+        "ABCD",
+        "ABCDE",
+        "FGHI",
+        "FGHIJ"
+      ],
+      "metadata": {
+        "num_chunks": 7,
+        "chunk_sizes": [
+          5,
+          4,
+          5,
+          4,
+          5,
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "name": "many_small_parts",
+      "input": {
+        "text": "A\n\nB\n\nC\n\nD\n\nE\n\nF\n\nG\n\nH\n\nI\n\nJ",
+        "separators": [
+          "\n\n",
+          ""
+        ],
+        "chunk_size": 5,
+        "chunk_overlap": 1
+      },
+      "expected_output": [
+        "A\n\nB",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J"
+      ],
+      "metadata": {
+        "num_chunks": 9,
+        "chunk_sizes": [
+          4,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "name": "unicode_emojis",
+      "input": {
+        "text": "Hello 👋 World 🌍\n\nWelcome 🎉 to testing 🧪",
+        "separators": [
+          "\n\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 3
+      },
+      "expected_output": [
+        "Hello 👋 World 🌍",
+        "Welcome 🎉 to",
+        "to testing 🧪"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          15,
+          12,
+          12
+        ]
+      }
+    },
+    {
+      "name": "korean_emoji_mixed",
+      "input": {
+        "text": "안녕하세요 👋\n\n반갑습니다 😊\n\n테스트입니다 🧪",
+        "separators": [
+          "\n\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 15,
+        "chunk_overlap": 3
+      },
+      "expected_output": [
+        "안녕하세요 👋",
+        "반갑습니다 😊",
+        "테스트입니다 🧪"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          7,
+          7,
+          8
+        ]
+      }
+    },
+    {
+      "name": "very_long_word",
+      "input": {
+        "text": "A BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB C",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 20,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "A",
+        "BBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBBBBBBBBBBB",
+        "BBBBBBBBBBB",
+        "C"
+      ],
+      "metadata": {
+        "num_chunks": 9,
+        "chunk_sizes": [
+          1,
+          19,
+          20,
+          20,
+          20,
+          20,
+          20,
+          11,
+          1
+        ]
+      }
+    },
+    {
+      "name": "whitespace_variations",
+      "input": {
+        "text": "Word1  Word2   Word3    Word4",
+        "separators": [
+          " ",
+          ""
+        ],
+        "chunk_size": 15,
+        "chunk_overlap": 3
+      },
+      "expected_output": [
+        "Word1  Word2",
+        "Word3",
+        "Word4"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          12,
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "name": "json_like_text",
+      "input": {
+        "text": "{\"name\": \"John\", \"age\": 30}\n\n{\"name\": \"Jane\", \"age\": 25}\n\n{\"name\": \"Bob\", \"age\": 35}",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 40,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "{\"name\": \"John\", \"age\": 30}",
+        "{\"name\": \"Jane\", \"age\": 25}",
+        "{\"name\": \"Bob\", \"age\": 35}"
+      ],
+      "metadata": {
+        "num_chunks": 3,
+        "chunk_sizes": [
+          27,
+          27,
+          26
+        ]
+      }
+    },
+    {
+      "name": "log_entries",
+      "input": {
+        "text": "[2024-01-01] INFO: System started\n[2024-01-01] DEBUG: Loading config\n[2024-01-01] INFO: Ready\n[2024-01-01] ERROR: Failed",
+        "separators": [
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 40,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "[2024-01-01] INFO: System started",
+        "[2024-01-01] DEBUG: Loading config",
+        "[2024-01-01] INFO: Ready",
+        "[2024-01-01] ERROR: Failed"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          33,
+          34,
+          24,
+          26
+        ]
+      }
+    },
+    {
+      "name": "email_like_text",
+      "input": {
+        "text": "From: sender@example.com\nTo: recipient@example.com\nSubject: Test\n\nHello,\n\nThis is a test message.\n\nBest regards,\nSender",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 50,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "From: sender@example.com\nTo: recipient@example.com",
+        "Subject: Test",
+        "Hello,\n\nThis is a test message.",
+        "Best regards,\nSender"
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          50,
+          13,
+          31,
+          20
+        ]
+      }
+    },
+    {
+      "name": "korean_news_article",
+      "input": {
+        "text": "서울, 2024년 1월 1일\n\n인공지능 기술이 빠르게 발전하고 있다. 많은 기업들이 AI를 도입하고 있다.\n\n전문가들은 앞으로 더 많은 변화가 있을 것이라고 전망한다.\n\n정부도 관련 정책을 준비 중이다.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 45,
+        "chunk_overlap": 10
+      },
+      "expected_output": [
+        "서울, 2024년 1월 1일",
+        "인공지능 기술이 빠르게 발전하고 있다. 많은 기업들이 AI를 도입하고 있다.",
+        "전문가들은 앞으로 더 많은 변화가 있을 것이라고 전망한다.",
+        "정부도 관련 정책을 준비 중이다."
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          15,
+          42,
+          32,
+          18
+        ]
+      }
+    },
+    {
+      "name": "dialogue",
+      "input": {
+        "text": "A: 안녕하세요.\nB: 반갑습니다.\n\nA: 오늘 날씨가 좋네요.\nB: 네, 정말 좋습니다.\n\nA: 점심 드셨나요?\nB: 아직이요.",
+        "separators": [
+          "\n\n",
+          "\n",
+          " ",
+          ""
+        ],
+        "chunk_size": 25,
+        "chunk_overlap": 5
+      },
+      "expected_output": [
+        "A: 안녕하세요.\nB: 반갑습니다.",
+        "A: 오늘 날씨가 좋네요.",
+        "B: 네, 정말 좋습니다.",
+        "A: 점심 드셨나요?\nB: 아직이요."
+      ],
+      "metadata": {
+        "num_chunks": 4,
+        "chunk_sizes": [
+          19,
+          14,
+          14,
+          20
+        ]
+      }
+    }
+  ]
+}

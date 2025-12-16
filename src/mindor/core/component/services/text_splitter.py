@@ -14,7 +14,6 @@ class TextSplitterAction:
         separators     = await context.render_variable(self.config.separators)
         chunk_size     = await context.render_variable(self.config.chunk_size)
         chunk_overlap  = await context.render_variable(self.config.chunk_overlap)
-        maximize_chunk = await context.render_variable(self.config.maximize_chunk)
 
         return self._split_text(text, separators or ["\n\n", "\n", " ", ""], chunk_size, chunk_overlap)
 

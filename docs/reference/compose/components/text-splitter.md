@@ -11,7 +11,6 @@ component:
   chunk_size: 1000
   chunk_overlap: 200
   separators: [ "\n\n", "\n", " ", "" ]
-  maximize_chunk: true
 ```
 
 ## Configuration Options
@@ -33,7 +32,6 @@ Text splitter actions support the following options:
 | `chunk_size` | integer | `1000` | Maximum number of characters per chunk |
 | `chunk_overlap` | integer | `200` | Number of overlapping characters between chunks |
 | `separators` | array | `null` | Custom separators for splitting (defaults to standard text separators) |
-| `maximize_chunk` | boolean | `true` | Whether to combine parts to fill chunks to maximum size |
 | `stream` | boolean | `false` | Whether to stream chunks one by one instead of returning full list |
 
 ## Usage Examples
@@ -60,7 +58,6 @@ component:
   chunk_size: 500
   chunk_overlap: 50
   separators: [ "\n\n", "\n", ". ", " ", "" ]
-  maximize_chunk: true
   output:
     text_chunks: ${response.chunks}
     total_chunks: ${response.chunks | length}
@@ -77,7 +74,6 @@ component:
       chunk_size: 2000
       chunk_overlap: 100
       separators: [ "\n\n", "\n" ]
-      maximize_chunk: false
       output:
         paragraph_chunks: ${response.chunks}
     
@@ -86,7 +82,6 @@ component:
       chunk_size: 500
       chunk_overlap: 50
       separators: [ ". ", "! ", "? ", "\n" ]
-      maximize_chunk: true
       output:
         sentence_chunks: ${response.chunks}
         
@@ -95,7 +90,6 @@ component:
       chunk_size: 200
       chunk_overlap: 20
       separators: [ " ", "\n", "\t" ]
-      maximize_chunk: true
       output:
         word_chunks: ${response.chunks}
 ```
@@ -202,7 +196,6 @@ component:
   text: ${input.text}
   chunk_size: 1000
   chunk_overlap: 0      # No overlap - for independent chunk processing
-  maximize_chunk: true
 ```
 
 ### Moderate Overlap for Context Preservation
@@ -213,7 +206,6 @@ component:
   text: ${input.text}
   chunk_size: 1000
   chunk_overlap: 200    # 20% overlap - maintains context between chunks
-  maximize_chunk: true
 ```
 
 ### High Overlap for Semantic Continuity
@@ -224,7 +216,6 @@ component:
   text: ${input.text}
   chunk_size: 1000
   chunk_overlap: 400    # 40% overlap - ensures semantic continuity
-  maximize_chunk: true
 ```
 
 ## Integration with Vector Databases
@@ -333,7 +324,6 @@ components:
         chunk_size: 1200
         chunk_overlap: 120
         separators: [ "\n\n", "\n", ". ", " " ]
-        maximize_chunk: true
         output:
           processed_chunks: ${response.chunks}
 ```
@@ -476,7 +466,6 @@ component:
   chunk_size: ${input.max_chunk_size as integer | 1000}
   chunk_overlap: ${input.overlap_ratio as integer | 200}
   separators: ${input.custom_separators | ['\n\n', '\n', ' ', '']}
-  maximize_chunk: ${input.fill_chunks as boolean | true}
   streaming: ${input.enable_streaming as boolean | false}
 ```
 

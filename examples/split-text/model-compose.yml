@@ -8,7 +8,7 @@ controller:
 
 workflow:
   title: Text Chunk Splitter
-  description: Splits input text into smaller chunks based on separators, with optional overlap and chunk maximization.
+  description: Splits input text into smaller chunks based on separators with configurable overlap.
   input: ${input}
   output: ${output as json}
 
@@ -17,4 +17,3 @@ component:
   text: ${input.text as text}
   chunk_size: ${input.chunk_size as integer | 1000}
   chunk_overlap: ${input.chunk_overlap as integer | 200}
-  maximize_chunk: ${input.maximize_chunk as boolean | true}

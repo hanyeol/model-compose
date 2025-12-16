@@ -71,8 +71,7 @@ class TestTextSplitterBasicFunctionality:
         config = TextSplitterActionConfig(
             text=text,
             chunk_size=20,
-            chunk_overlap=0,
-            maximize_chunk=True
+            chunk_overlap=0
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -89,8 +88,7 @@ class TestTextSplitterBasicFunctionality:
             text=text,
             separators=["\n"],
             chunk_size=15,
-            chunk_overlap=0,
-            maximize_chunk=True
+            chunk_overlap=0
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -110,7 +108,6 @@ class TestTextSplitterSeparators:
             separators=["|"],
             chunk_size=10,
             chunk_overlap=0,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -144,7 +141,6 @@ class TestTextSplitterSeparators:
             text=text,
             chunk_size=20,
             chunk_overlap=0,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -163,7 +159,6 @@ class TestTextSplitterChunkSize:
             text=text,
             chunk_size=5,
             chunk_overlap=0,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -213,7 +208,6 @@ class TestTextSplitterOverlap:
             separators=["\n\n"],
             chunk_size=10,
             chunk_overlap=3,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -229,7 +223,6 @@ class TestTextSplitterOverlap:
             separators=["\n\n"],
             chunk_size=10,
             chunk_overlap=0,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -291,7 +284,6 @@ class TestTextSplitterEdgeCases:
             separators=["\n\n"],
             chunk_size=15,
             chunk_overlap=0,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -322,7 +314,6 @@ Another section with content."""
             separators=["\n\n", "\n", " "],
             chunk_size=50,
             chunk_overlap=10,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -337,7 +328,6 @@ Another section with content."""
             text=text,
             chunk_size=100,
             chunk_overlap=10,
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -358,7 +348,6 @@ class TestComprehensiveCases:
             separators=test_case["input"]["separators"],
             chunk_size=test_case["input"]["chunk_size"],
             chunk_overlap=test_case["input"]["chunk_overlap"],
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -376,7 +365,6 @@ class TestComprehensiveCases:
             separators=test_case["input"]["separators"],
             chunk_size=test_case["input"]["chunk_size"],
             chunk_overlap=test_case["input"]["chunk_overlap"],
-            maximize_chunk=True
         )
         action = TextSplitterAction(config)
         result = await action.run(mock_context)
@@ -395,7 +383,6 @@ class TestComprehensiveCases:
                 separators=test_case["input"]["separators"],
                 chunk_size=test_case["input"]["chunk_size"],
                 chunk_overlap=test_case["input"]["chunk_overlap"],
-                maximize_chunk=True
             )
             action = TextSplitterAction(config)
             result = await action.run(mock_context)

@@ -68,8 +68,7 @@ This workflow provides intelligent text segmentation capabilities that:
    model-compose run --input '{
      "text": "Document for embedding generation...",
      "chunk_size": 300,
-     "chunk_overlap": 50,
-     "maximize_chunk": false
+     "chunk_overlap": 50
    }'
    ```
 
@@ -117,7 +116,6 @@ graph TD
 | `text` | string | Yes | - | Text to split into chunks |
 | `chunk_size` | integer | No | `1000` | Maximum characters per chunk |
 | `chunk_overlap` | integer | No | `200` | Characters to overlap between chunks |
-| `maximize_chunk` | boolean | No | `true` | Optimize chunk size utilization |
 
 #### Output Format
 
@@ -136,7 +134,6 @@ input:
   text: ${input.text}
   chunk_size: ${input.chunk_size | 1000}
   chunk_overlap: ${input.chunk_overlap | 200}
-  maximize_chunk: ${input.maximize_chunk | true}
 ```
 
 ### AI Model Optimization
@@ -157,7 +154,6 @@ input:
   text: ${input.text}
   chunk_size: 500
   chunk_overlap: 50
-  maximize_chunk: false
 ```
 
 ### Document Type Optimization

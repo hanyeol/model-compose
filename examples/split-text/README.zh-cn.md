@@ -68,9 +68,7 @@
    model-compose run --input '{
      "text": "Document for embedding generation...",
      "chunk_size": 300,
-     "chunk_overlap": 50,
-     "maximize_chunk": false
-   }'
+     "chunk_overlap": 50}'
    ```
 
 ## 组件详情
@@ -117,7 +115,6 @@ graph TD
 | `text` | string | 是 | - | 要分割成块的文本 |
 | `chunk_size` | integer | 否 | `1000` | 每个块的最大字符数 |
 | `chunk_overlap` | integer | 否 | `200` | 块之间重叠的字符数 |
-| `maximize_chunk` | boolean | 否 | `true` | 优化块大小利用率 |
 
 #### 输出格式
 
@@ -136,7 +133,6 @@ input:
   text: ${input.text}
   chunk_size: ${input.chunk_size | 1000}
   chunk_overlap: ${input.chunk_overlap | 200}
-  maximize_chunk: ${input.maximize_chunk | true}
 ```
 
 ### AI 模型优化
@@ -157,7 +153,6 @@ input:
   text: ${input.text}
   chunk_size: 500
   chunk_overlap: 50
-  maximize_chunk: false
 ```
 
 ### 文档类型优化

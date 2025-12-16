@@ -153,32 +153,16 @@ class SshClient:
                     logging.warning(f"Unknown remote port: {server_port}, closing channel")
                     channel.close()
 
-            # Register port mapping first (before request_port_forward)
-            # In case handler is called immediately
-            if remote_port == 0:
-                # For dynamic port allocation, we'll update the mapping after
-                pass
-            else:
-                self.port_forwards[remote_port] = (local_host, local_port)
-
             actual_remote_port = self.transport.request_port_forward(
                 address="0.0.0.0",  # Bind to all interfaces on remote
                 port=remote_port,
                 handler=port_forward_handler
             )
 
-            # Update mapping with actual port if it was dynamically allocated
-            if actual_remote_port != remote_port:
-                if remote_port == 0:
-                    self.port_forwards[actual_remote_port] = (local_host, local_port)
-                else:
-                    # Should not happen, but handle just in case
-                    del self.port_forwards[remote_port]
-                    self.port_forwards[actual_remote_port] = (local_host, local_port)
+            self.port_forwards[actual_remote_port] = (local_host, local_port)
 
             logging.debug(
-                f"Remote port forwarding: {self.params.host}:{actual_remote_port} -> "
-                f"{local_host}:{local_port}"
+                f"Remote port forwarding: {self.params.host}:{actual_remote_port} -> {local_host}:{local_port}"
             )
 
             return actual_remote_port
@@ -205,7 +189,7 @@ class SshClient:
             # Non-blocking bidirectional forwarding using select
             while True:
                 # Wait for either socket to have data ready (1 second timeout)
-                r, _, _ = select.select([remote_channel, local_socket], [], [], 1.0)
+                r, _, _ = select.select([ remote_channel, local_socket ], [], [], 1.0)
 
                 # Forward data from remote to local
                 if remote_channel in r:

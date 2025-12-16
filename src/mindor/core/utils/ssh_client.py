@@ -167,9 +167,7 @@ class SshClient:
 
             return actual_remote_port
 
-        actual_remote_port = await asyncio.to_thread(_start_forwarding)
-
-        return actual_remote_port
+        return await asyncio.to_thread(_start_forwarding)
 
     def _handle_forward(
         self,

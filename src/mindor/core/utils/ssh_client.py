@@ -133,8 +133,6 @@ class SshClient:
         Returns:
             The actual remote port bound (may differ if remote_port was 0)
         """
-        import paramiko
-
         def _start_forwarding():
             # Define handler for this specific port forward
             def port_forward_handler(channel, _, server_addr):

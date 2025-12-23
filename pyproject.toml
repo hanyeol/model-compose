@@ -18,9 +18,11 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "mcp>=1.10.1",
-    "ulid", 
+    "ulid",
     "gradio",
-    "Pillow"
+    "Pillow",
+    "beautifulsoup4",
+    "lxml"
 ]
 
 [project.scripts]

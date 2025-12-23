@@ -1,13 +1,3 @@
-"""
-Tests for text_splitter component.
-
-This file contains both unit tests and comparison tests with langchain's TextSplitter behavior.
-The comparison tests use pre-generated expected results from langchain to avoid runtime dependency.
-
-To regenerate expected results, run:
-    python tests/core/component/services/generate_langchain_results.py
-"""
-
 import pytest
 import json
 import os
@@ -16,12 +6,10 @@ from mindor.core.component.services.text_splitter import TextSplitterAction
 from mindor.dsl.schema.action import TextSplitterActionConfig
 from mindor.core.component.context import ComponentActionContext
 
-
 # Configure anyio to use only asyncio backend
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
-
 
 @pytest.fixture
 def mock_context():
@@ -32,7 +20,6 @@ def mock_context():
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
     return context
-
 
 @pytest.fixture
 def test_cases():
@@ -45,7 +32,6 @@ def test_cases():
 
     with open(results_file, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 class TestTextSplitterBasicFunctionality:
     """Test basic text splitting functionality."""
@@ -195,7 +181,6 @@ class TestTextSplitterChunkSize:
         assert len(result) == 1
         assert result[0] == text
 
-
 class TestTextSplitterOverlap:
     """Test chunk overlap functionality."""
 
@@ -244,7 +229,6 @@ class TestTextSplitterOverlap:
         assert len(result) == 1
         assert result[0] == text
 
-
 class TestTextSplitterEdgeCases:
     """Test edge cases and special scenarios."""
 
@@ -290,7 +274,6 @@ class TestTextSplitterEdgeCases:
 
         assert len(result) > 0
 
-
 class TestTextSplitterRealWorldScenarios:
     """Test real-world text splitting scenarios."""
 
@@ -333,7 +316,6 @@ Another section with content."""
         result = await action.run(mock_context)
 
         assert len(result) > 1
-
 
 class TestComprehensiveCases:
     """Comprehensive test cases for TextSplitter."""

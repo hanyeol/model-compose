@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 ComponentConfig = Annotated[
-    Union[ 
-        HttpServerComponentConfig, 
+    Union[
+        HttpServerComponentConfig,
         HttpClientComponentConfig,
         McpServerComponentConfig,
         McpClientComponentConfig,
@@ -14,7 +14,8 @@ ComponentConfig = Annotated[
         WorkflowComponentConfig,
         ShellComponentConfig,
         TextSplitterComponentConfig,
-        ImageProcessorComponentConfig
+        ImageProcessorComponentConfig,
+        WebScraperComponentConfig
     ],
     Field(discriminator="type")
 ]

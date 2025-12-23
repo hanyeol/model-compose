@@ -14,6 +14,7 @@ class HttpClientComponentConfig(CommonComponentConfig):
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
             action_keys = set(HttpClientActionConfig.model_fields.keys()) - set(CommonComponentConfig.model_fields.keys())
+            action_keys = action_keys - { "headers" }
             if any(k in values for k in action_keys):
                 values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

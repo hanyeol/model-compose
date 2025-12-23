@@ -13,12 +13,10 @@ from mindor.dsl.schema.runtime.impl.docker import (
 from docker.errors import NotFound, DockerException
 from docker.types import Mount
 
-
 # Configure anyio to use only asyncio backend
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
-
 
 class TestDockerPortsResolver:
     """Test DockerPortsResolver class"""

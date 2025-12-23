@@ -2,7 +2,6 @@ import pytest
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig
 from mindor.dsl.schema.transport.ssh import SshKeyfileAuthConfig, SshPasswordAuthConfig
 
-
 class TestSshTunnelGatewayConfig:
     """Test SshTunnelGatewayConfig port normalization"""
 

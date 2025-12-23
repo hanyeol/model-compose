@@ -1,0 +1,134 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  - id: basic-scraper
+    type: web-scraper
+    url: ${input.url}
+    selector: ${input.selector | body}
+    extract_mode: text
+    enable_javascript: ${input.enable_javascript as boolean | false}
+    wait_for: ${input.wait_for}
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+  - id: link-extractor
+    type: web-scraper
+    url: ${input.url}
+    selector: a
+    extract_mode: attribute
+    attribute: href
+    multiple: true
+    enable_javascript: ${input.enable_javascript as boolean | false}
+    wait_for: ${input.wait_for}
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+  - id: form-scraper
+    type: web-scraper
+    url: ${input.url}
+    enable_javascript: true
+    submit:
+      selector: ${input.form_selector | form}
+      form:
+        input[name="username"]: ${input.username}
+        input[name="password"]: ${input.password}
+      wait_for: ${input.result_selector}
+    selector: ${input.content_selector}
+    extract_mode: text
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+  - id: multiple-scraper
+    type: web-scraper
+    url: ${input.url}
+    selector: ${input.selector}
+    extract_mode: text
+    multiple: true
+    headers:
+      User-Agent: Mozilla/5.0 (compatible; MyBot/1.0)
+    enable_javascript: ${input.enable_javascript as boolean | false}
+    wait_for: ${input.wait_for}
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+  - id: xpath-scraper
+    type: web-scraper
+    url: ${input.url}
+    xpath: ${input.xpath | //div[@class='content']//p}
+    extract_mode: text
+    multiple: true
+    enable_javascript: ${input.enable_javascript as boolean | false}
+    wait_for: ${input.wait_for}
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+  - id: html-scraper
+    type: web-scraper
+    url: ${input.url}
+    selector: ${input.selector | article}
+    extract_mode: html
+    enable_javascript: ${input.enable_javascript as boolean | false}
+    wait_for: ${input.wait_for}
+    extract_mode: ${input.extract_mode as select/text,html | text}
+    output: ${result}
+
+workflows:
+  - id: basic-scraping
+    title: Basic Web Scraping
+    description: Extract text content from a webpage using CSS selectors
+    jobs:
+      - id: scrape
+        component: basic-scraper
+        output:
+          content: ${output as text}
+
+  - id: extract-links
+    title: Extract Links from Webpage
+    description: Extract all links from a webpage using attribute extraction
+    jobs:
+      - id: scrape
+        component: link-extractor
+        output:
+          links: ${output as json}
+
+  - id: form-submission
+    title: Submit Form and Extract Results
+    description: Fill and submit a web form, then extract the resulting content
+    jobs:
+      - id: scrape
+        component: form-scraper
+        output:
+          result: ${output as text}
+
+  - id: multiple-elements
+    title: Extract Multiple Elements
+    description: Extract text from multiple elements matching a selector
+    jobs:
+      - id: scrape
+        component: multiple-scraper
+        output:
+          titles: ${output as json}
+
+  - id: xpath-extraction
+    title: Extract Content with XPath
+    description: Use XPath expressions to extract specific content from a webpage
+    jobs:
+      - id: scrape
+        component: xpath-scraper
+        output:
+          paragraphs: ${output as json}
+
+  - id: html-extraction
+    title: Extract HTML Markup
+    description: Extract HTML markup of specific elements for further processing
+    jobs:
+      - id: scrape
+        component: html-scraper
+        output:
+          html: ${output as text}

@@ -12,12 +12,10 @@ from mindor.core.component.runtime.process_manager import ComponentProcessRuntim
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 
-
 # Configure anyio to use only asyncio backend
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
-
 
 # Module-level worker factories for pickling support
 class MathWorker(ProcessWorker):
@@ -40,7 +38,6 @@ class MathWorker(ProcessWorker):
     async def _cleanup(self):
         pass
 
-
 class CounterWorker(ProcessWorker):
     """Worker that counts invocations"""
     def __init__(self, *args, **kwargs):
@@ -57,7 +54,6 @@ class CounterWorker(ProcessWorker):
     async def _cleanup(self):
         pass
 
-
 class ErrorWorker(ProcessWorker):
     """Worker that can raise errors"""
     async def _initialize(self):
@@ -71,21 +67,17 @@ class ErrorWorker(ProcessWorker):
     async def _cleanup(self):
         pass
 
-
 def create_math_worker(worker_id, req_queue, res_queue):
     """Factory function for MathWorker"""
     return MathWorker(worker_id, req_queue, res_queue)
-
 
 def create_counter_worker(worker_id, req_queue, res_queue):
     """Factory function for CounterWorker"""
     return CounterWorker(worker_id, req_queue, res_queue)
 
-
 def create_error_worker(worker_id, req_queue, res_queue):
     """Factory function for ErrorWorker"""
     return ErrorWorker(worker_id, req_queue, res_queue)
-
 
 @pytest.fixture
 def global_configs():
@@ -96,7 +88,6 @@ def global_configs():
         gateways=[],
         workflows=[]
     )
-
 
 class TestProcessRuntimeConfig:
     """Test ProcessRuntimeConfig schema"""
@@ -237,7 +228,6 @@ class TestProcessRuntimeConfig:
         assert config.max_memory == "4g"
         assert config.cpu_limit == 4.0
 
-
 class TestEmbeddedRuntimeConfig:
     """Test EmbeddedRuntimeConfig schema"""
 
@@ -252,7 +242,6 @@ class TestEmbeddedRuntimeConfig:
         config = EmbeddedRuntimeConfig(type="embedded")
 
         assert config.type == "embedded"
-
 
 class TestIpcProtocol:
     """Test IPC protocol message format"""
@@ -324,7 +313,6 @@ class TestIpcProtocol:
         assert message.payload["task"] == "test"
         assert message.timestamp == 1234567890
 
-
 class TestProcessWorkerParams:
     """Test ProcessWorkerParams data model"""
 
@@ -347,7 +335,6 @@ class TestProcessWorkerParams:
         assert params.env == {"TEST": "value"}
         assert params.start_timeout == 120.0
         assert params.stop_timeout == 60.0
-
 
 class TestProcessWorker:
     """Test ProcessWorker base class"""
@@ -374,7 +361,6 @@ class TestProcessWorker:
         assert worker.request_queue == request_queue
         assert worker.response_queue == response_queue
         assert worker.running is True
-
 
 class TestComponentProcessRuntimeManager:
     """Test ComponentProcessRuntimeManager"""
@@ -414,7 +400,6 @@ class TestComponentProcessRuntimeManager:
                 config,
                 global_configs
             )
-
 
 class TestIntegration:
     """Integration tests for process runtime"""
@@ -472,7 +457,6 @@ class TestIntegration:
         assert config1.runtime.env["DEVICE"] == "cpu"
         assert config2.runtime.env["DEVICE"] == "cuda:0"
         assert config1.runtime.type == config2.runtime.type == "process"
-
 
 class TestIpcCommunication:
     """Test actual IPC communication between processes"""

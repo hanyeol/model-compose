@@ -10,12 +10,10 @@ from mindor.core.component.component import create_component
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.action import ShellActionConfig
 
-
 # Configure anyio to use only asyncio backend
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
-
 
 @pytest.fixture
 def global_configs():
@@ -26,7 +24,6 @@ def global_configs():
         gateways=[],
         workflows=[]
     )
-
 
 class TestComponentProcessWorker:
     """Test ComponentProcessWorker class"""
@@ -56,7 +53,6 @@ class TestComponentProcessWorker:
         assert worker.global_configs == global_configs
         assert worker.component is None
         assert worker.running is True
-
 
 class TestComponentProcessRuntimeManager:
     """Test ComponentProcessRuntimeManager class"""
@@ -112,7 +108,6 @@ class TestComponentProcessRuntimeManager:
         # Check converted params
         assert manager.worker_params.env["TEST_VAR"] == "test_value"
         assert manager.worker_params.start_timeout == 120.0  # 2m = 120s
-
 
 class TestComponentIntegration:
     """Integration tests for component with process runtime"""
@@ -239,7 +234,6 @@ class TestComponentIntegration:
 
         assert component1.config.runtime.env["WORKER"] == "1"
         assert component2.config.runtime.env["WORKER"] == "2"
-
 
 class TestComponentProcessRuntimeScenarios:
     """Test various component process runtime scenarios"""
@@ -377,7 +371,6 @@ class TestComponentProcessRuntimeScenarios:
         assert manager.response_queue is None
         assert manager.pending_requests == {}
         assert manager.response_handler_task is None
-
 
 class TestComponentProcessRuntimeValidation:
     """Test validation and error handling"""

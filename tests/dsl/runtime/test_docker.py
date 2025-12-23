@@ -7,7 +7,6 @@ from mindor.dsl.schema.runtime.impl.docker import (
     DockerHealthCheck,
 )
 
-
 class TestDockerBuildConfig:
     """Test DockerBuildConfig schema"""
 
@@ -44,7 +43,6 @@ class TestDockerBuildConfig:
         assert config.pull is True
         assert config.shm_size == "2g"
 
-
 class TestDockerPortConfig:
     """Test DockerPortConfig schema"""
 
@@ -77,7 +75,6 @@ class TestDockerPortConfig:
 
         assert config.target == 53
         assert config.protocol == "udp"
-
 
 class TestDockerVolumeConfig:
     """Test DockerVolumeConfig schema"""
@@ -122,7 +119,6 @@ class TestDockerVolumeConfig:
         assert config.target == "/tmp"
         assert config.tmpfs == { "size": "100m" }
 
-
 class TestDockerHealthCheck:
     """Test DockerHealthCheck schema"""
 
@@ -159,7 +155,6 @@ class TestDockerHealthCheck:
         assert config.timeout == "5s"
         assert config.max_retry_count == 5
         assert config.start_period == "30s"
-
 
 class TestDockerRuntimeConfig:
     """Test DockerRuntimeConfig schema"""
@@ -394,7 +389,6 @@ class TestDockerRuntimeConfig:
 
         assert len(config.security_opt) == 2
         assert "no-new-privileges" in config.security_opt
-
 
 class TestDockerRuntimeConfigValidation:
     """Test DockerRuntimeConfig validation scenarios"""

@@ -1,18 +1,3 @@
-"""
-SSH client integration tests
-
-Configure via environment variables:
-    export TEST_SSH_HOST=your-ssh-server.com
-    export TEST_SSH_PORT=22
-    export TEST_SSH_USER=your-username
-    export TEST_SSH_KEYFILE=~/.ssh/id_rsa
-    # OR
-    export TEST_SSH_PASSWORD=your-password
-
-Run tests:
-    pytest tests/core/utils/test_ssh_client.py -v -s
-"""
-
 import pytest
 import os
 import asyncio

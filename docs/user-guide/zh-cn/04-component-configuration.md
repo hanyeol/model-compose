@@ -24,6 +24,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
 | `image-processor` | 处理图像 | 图像转换、调整大小等 |
+| `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 
 ### 组件选择指南
 
@@ -40,6 +41,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 文本分割 → `text-splitter`
 - 图像处理 → `image-processor`
 - 向量存储 → `vector-store`
+- 网页抓取 → `web-scraper`
 
 **工作流组合**
 - 子工作流 → `workflow`

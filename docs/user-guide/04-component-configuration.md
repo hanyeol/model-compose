@@ -24,6 +24,7 @@ model-compose provides various component types for performing different tasks.
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
 | `image-processor` | Process images | Image transformation, resizing, etc. |
+| `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 
 ### Component Selection Guide
 
@@ -40,6 +41,7 @@ model-compose provides various component types for performing different tasks.
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
 - Vector storage → `vector-store`
+- Web scraping → `web-scraper`
 
 **Workflow Composition**
 - Sub-workflows → `workflow`

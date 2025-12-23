@@ -24,6 +24,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `shell` | 셸 명령 실행 | 스크립트 실행, 시스템 명령 |
 | `text-splitter` | 텍스트 분할 | 문서를 청크로 분할 |
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈 등 |
+| `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
 
 ### 컴포넌트 선택 가이드
 
@@ -40,6 +41,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 텍스트 분할 → `text-splitter`
 - 이미지 처리 → `image-processor`
 - 벡터 저장 → `vector-store`
+- 웹 스크래핑 → `web-scraper`
 
 **워크플로우 조합**
 - 서브 워크플로우 → `workflow`

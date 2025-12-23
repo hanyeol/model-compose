@@ -231,8 +231,20 @@ class WebScraperComponent(ComponentService):
     def __init__(self, id: str, config: WebScraperComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "playwright", "bs4", "lxml" ]
+
+    async def _setup(self) -> None:
+        """Install playwright browsers after package installation."""
+        import subprocess
+        import sys
+
+        # Install playwright browsers (chromium, firefox, webkit)
+        subprocess.run(
+            [ sys.executable, "-m", "playwright", "install", "chromium" ],
+            check=True,
+            capture_output=True
+        )
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context)

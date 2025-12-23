@@ -22,7 +22,7 @@ async def install_package(package_spec: str) -> None:
     if process.returncode != 0:
         raise subprocess.CalledProcessError(
             process.returncode, 
-            [sys.executable, "-m", "pip", "install", package_spec],
+            [ sys.executable, "-m", "pip", "install", package_spec ],
             output=stdout,
             stderr=stderr
         )

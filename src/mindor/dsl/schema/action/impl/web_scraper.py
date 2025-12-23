@@ -19,6 +19,7 @@ class WebScraperSubmitConfig(BaseModel):
 class WebScraperActionConfig(CommonActionConfig):
     url: str = Field(..., description="URL to scrape")
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers to include in the request")
+    cookies: Dict[str, str] = Field(default_factory=dict, description="Cookies to include in the request")
     selector: Optional[str] = Field(default=None, description="CSS selector to extract elements")
     xpath: Optional[str] = Field(default=None, description="XPath expression to extract elements")
     extract_mode: Union[Literal[ "text", "html", "attribute" ], str] = Field(default="text", description="Extraction mode")

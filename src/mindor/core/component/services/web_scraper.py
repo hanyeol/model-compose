@@ -9,14 +9,16 @@ from lxml import etree
 import aiohttp
 
 class WebScraperAction:
-    def __init__(self, config: WebScraperActionConfig, headers: Dict[str, str], timeout: Optional[str]):
+    def __init__(self, config: WebScraperActionConfig, headers: Dict[str, str], cookies: Dict[str, str], timeout: Optional[str]):
         self.config: WebScraperActionConfig = config
         self.headers = headers
+        self.cookies = cookies
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext) -> Any:
         url               = await context.render_variable(self.config.url)
         headers           = await context.render_variable(self.config.headers)
+        cookies           = await context.render_variable(self.config.cookies)
         selector          = await context.render_variable(self.config.selector) if self.config.selector else None
         xpath             = await context.render_variable(self.config.xpath) if self.config.xpath else None
         extract_mode      = await context.render_variable(self.config.extract_mode)
@@ -26,15 +28,16 @@ class WebScraperAction:
         wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
 
-        # Merge headers: component headers + action headers
+        # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }
+        merged_cookies = { **self.cookies, **cookies }
         timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0).total_seconds()
 
         # Fetch HTML content (with optional form submission)
         if submit or enable_javascript:
-            html_content = await self._fetch_html_with_javascript(url, merged_headers, timeout, wait_for, submit)
+            html_content = await self._fetch_html_with_javascript(url, merged_headers, merged_cookies, timeout, wait_for, submit)
         else:
-            html_content = await self._fetch_html(url, merged_headers, timeout)
+            html_content = await self._fetch_html(url, merged_headers, merged_cookies, timeout)
 
         # Parse and extract
         if selector:
@@ -52,16 +55,36 @@ class WebScraperAction:
         self,
         url: str,
         headers: Dict[str, str],
+        cookies: Dict[str, str],
         timeout: float,
         wait_for: Optional[str],
         submit: Optional[Dict[str, Any]] = None
     ) -> str:
         """Fetch HTML content with JavaScript rendering using playwright. Optionally submit form before extraction."""
         from playwright.async_api import async_playwright
+        from urllib.parse import urlparse
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
+
+            # Convert cookies dict to playwright cookie format
+            parsed_url = urlparse(url)
+            cookie_list = [
+                {
+                    "name": name,
+                    "value": value,
+                    "domain": parsed_url.netloc,
+                    "path": "/"
+                }
+                for name, value in cookies.items()
+            ]
+
             web_context = await browser.new_context(extra_http_headers=headers)
+
+            # Add cookies to context
+            if cookie_list:
+                await web_context.add_cookies(cookie_list)
+
             page = await web_context.new_page()
 
             try:
@@ -115,9 +138,9 @@ class WebScraperAction:
             finally:
                 await browser.close()
 
-    async def _fetch_html(self, url: str, headers: Dict[str, str], timeout: float) -> str:
+    async def _fetch_html(self, url: str, headers: Dict[str, str], cookies: Dict[str, str], timeout: float) -> str:
         """Fetch HTML content using aiohttp."""
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(cookies=cookies) as session:
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
                 response.raise_for_status()
                 return await response.text()
@@ -212,4 +235,4 @@ class WebScraperComponent(ComponentService):
         return [ "playwright", "bs4", "lxml" ]
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await WebScraperAction(action, self.config.headers, self.config.timeout).run(context)
+        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context)

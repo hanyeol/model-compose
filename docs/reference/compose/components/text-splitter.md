@@ -32,7 +32,7 @@ Text splitter actions support the following options:
 | `chunk_size` | integer | `1000` | Maximum number of characters per chunk |
 | `chunk_overlap` | integer | `200` | Number of overlapping characters between chunks |
 | `separators` | array | `null` | Custom separators for splitting (defaults to standard text separators) |
-| `stream` | boolean | `false` | Whether to stream chunks one by one instead of returning full list |
+| `streaming` | boolean | `false` | Whether to stream chunks one by one instead of returning full list |
 
 ## Usage Examples
 
@@ -102,7 +102,7 @@ component:
   text: ${input.large_document}
   chunk_size: 1500
   chunk_overlap: 150
-  stream: true
+  streaming: true
   output:
     # Streaming output provides chunks one by one
     streaming_chunks: ${response.stream}
@@ -436,7 +436,7 @@ component:
   text: ${input.large_document}  # Multi-GB document
   chunk_size: 2000
   chunk_overlap: 200
-  stream: true
+  streaming: true
   output:
     # Process chunks as they become available
     chunk_stream: ${response.stream}

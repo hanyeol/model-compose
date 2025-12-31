@@ -43,7 +43,7 @@ class DockerMountsResolver:
                 mounts.append(Mount(target=target, source=source, type="bind"))
                 continue
 
-            if isinstance(volume, DockerVolumeConfig) and volume.type == "bind":
+            if isinstance(volume, DockerVolumeConfig):
                 mounts.append(self._get_volume_mount(volume))
                 continue
 

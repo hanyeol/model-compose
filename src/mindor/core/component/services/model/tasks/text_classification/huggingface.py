@@ -26,7 +26,7 @@ class HuggingfaceTextClassificationTaskAction:
 
         text = await self._prepare_input(context)
         is_single_input: bool = bool(not isinstance(text, list))
-        is_output_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
+        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 
@@ -59,12 +59,10 @@ class HuggingfaceTextClassificationTaskAction:
                         for predicted_index in predicted_indices:
                             predictions.append(labels[predicted_index] if labels else predicted_index)
 
-                if self.config.output and is_output_array_mode:
+                if uses_array_output:
                     rendered_outputs = []
                     for prediction in predictions:
-                        context.register_source("result[]", prediction)
-                        output = await context.render_variable(self.config.output, ignore_files=True)
-                        rendered_outputs.append(output)
+                        rendered_outputs.append(await self._render_output_item(context, prediction))
                     yield rendered_outputs
                 else:
                     yield predictions
@@ -72,10 +70,9 @@ class HuggingfaceTextClassificationTaskAction:
         if streaming:
             async def _stream_output_generator():
                 async for predictions in _predict():
-                    if not is_output_array_mode:
+                    if not uses_array_output:
                         for prediction in predictions:
-                            context.register_source("result", prediction)
-                            yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                            yield await self._render_output(context, prediction)
                     else:
                         for prediction in predictions:
                             yield prediction
@@ -85,16 +82,22 @@ class HuggingfaceTextClassificationTaskAction:
             async for predictions in _predict():
                 results.extend(predictions)
 
-            if not is_output_array_mode:
+            if not uses_array_output:
                 result = results[0] if is_single_input else results
-                context.register_source("result", result)
-
-                return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                return await self._render_output(context, result)
             else:
                 return results
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_variable(self.config.text)
+
+    async def _render_output_item(self, context: ComponentActionContext, prediction: Union[Dict[str, Any], str, int]) -> Any:
+        context.register_source("result[]", prediction)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else prediction
+
+    async def _render_output(self, context: ComponentActionContext, result: Union[Dict[str, Any], str, int, List[Union[Dict[str, Any], str, int]]]) -> Any:
+        context.register_source("result", result)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

@@ -78,21 +78,26 @@ class HuggingfaceImageToTextTaskAction:
             async def _stream_output_generator():
                 async for chunk in AsyncStreamer(streamer, loop):
                     if chunk:
-                        context.register_source("result[]", chunk)
-                        yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
+                        yield await self._render_output_chunk(context, chunk)
 
             return _stream_output_generator()
         else:
             result = results[0] if is_single_input else results
-            context.register_source("result", result)
-
-            return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            return await self._render_output(context, result)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Union[PILImage.Image, List[PILImage.Image]], Optional[Union[str, List[str]]]]:
         image = await context.render_image(self.config.image)
         text  = await context.render_variable(self.config.text)
         
         return image, text
+
+    async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
+        context.register_source("result[]", chunk)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
+
+    async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
+        context.register_source("result", result)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     async def _resolve_processor_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

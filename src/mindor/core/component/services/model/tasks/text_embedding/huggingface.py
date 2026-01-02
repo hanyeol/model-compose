@@ -26,7 +26,7 @@ class HuggingfaceTextEmbeddingTaskAction:
 
         text = await self._prepare_input(context)
         is_single_input: bool = bool(not isinstance(text, list))
-        is_output_array_mode: bool = context.contains_variable_reference("result[]", self.config.output)
+        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
         texts: List[str] = [ text ] if is_single_input else text
         results = []
 
@@ -54,12 +54,10 @@ class HuggingfaceTextEmbeddingTaskAction:
 
                 embeddings = embeddings.cpu().tolist()
 
-                if self.config.output and is_output_array_mode:
+                if uses_array_output:
                     rendered_outputs = []
                     for embedding in embeddings:
-                        context.register_source("result[]", embedding)
-                        output = await context.render_variable(self.config.output, ignore_files=True)
-                        rendered_outputs.append(output)
+                        rendered_outputs.append(await self._render_output_item(context, embedding))
                     yield rendered_outputs
                 else:
                     yield embeddings
@@ -67,10 +65,9 @@ class HuggingfaceTextEmbeddingTaskAction:
         if streaming:
             async def _stream_output_generator():
                 async for embeddings in _embed():
-                    if not is_output_array_mode:
+                    if not uses_array_output:
                         for embedding in embeddings:
-                            context.register_source("result", embedding)
-                            yield (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                            yield await self._render_output(context, embedding)
                     else:
                         for embedding in embeddings:
                             yield embedding
@@ -80,16 +77,22 @@ class HuggingfaceTextEmbeddingTaskAction:
             async for embeddings in _embed():
                 results.extend(embeddings)
 
-            if not is_output_array_mode:
+            if not uses_array_output:
                 result = results[0] if is_single_input else results
-                context.register_source("result", result)
-
-                return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+                return await self._render_output(context, result)
             else:
                 return results
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_variable(self.config.text)
+
+    async def _render_output_item(self, context: ComponentActionContext, embedding: List[float]) -> Any:
+        context.register_source("result[]", embedding)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else embedding
+
+    async def _render_output(self, context: ComponentActionContext, result: Union[List[float], List[List[float]]]) -> Any:
+        context.register_source("result", result)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

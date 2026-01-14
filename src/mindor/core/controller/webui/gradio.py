@@ -51,7 +51,7 @@ class GradioWebUIBuilder:
             output_components = [ self._build_output_component(variable) for variable in workflow.output ]
 
             if not output_components:
-                output_components = [ gr.Textbox(label="", lines=10, interactive=False, show_copy_button=True) ]
+                output_components = [ gr.Textbox(label="", lines=10, interactive=False) ]
 
             async def _run_workflow(*args):
                 input = await self._build_input_value(args, workflow.input)
@@ -162,13 +162,13 @@ class GradioWebUIBuilder:
         info = variable.get_annotation_value("description") or ""
 
         if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.BASE64 ]:
-            return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
+            return gr.Textbox(label=label, interactive=False, info=info)
 
         if variable.type in [ WorkflowVariableType.NUMBER, WorkflowVariableType.INTEGER ]:
-            return gr.Textbox(label=label, interactive=False, show_copy_button=True, info=info)
+            return gr.Textbox(label=label, interactive=False, info=info)
 
         if variable.type == WorkflowVariableType.TEXT:
-            return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, show_copy_button=True, info=info)
+            return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info)
 
         if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)

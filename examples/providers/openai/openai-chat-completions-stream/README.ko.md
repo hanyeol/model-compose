@@ -76,7 +76,7 @@
 - **API**: OpenAI GPT-4o Chat Completions
 - **엔드포인트**: `https://api.openai.com/v1/chat/completions`
 - **기능**:
-  - `streaming: true`를 사용한 실시간 스트리밍 응답
+  - `stream: true`를 사용한 실시간 스트리밍 응답
   - 응답 창의성을 위한 구성 가능한 temperature
   - 웹 애플리케이션을 위한 Server-Sent Events 출력 형식
   - 델타 콘텐츠 추출을 위한 JSON 스트림 파싱

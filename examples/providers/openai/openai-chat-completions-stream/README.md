@@ -76,7 +76,7 @@ This workflow provides a streaming chat interface that:
 - **API**: OpenAI GPT-4o Chat Completions
 - **Endpoint**: `https://api.openai.com/v1/chat/completions`
 - **Features**:
-  - Real-time streaming responses using `streaming: true`
+  - Real-time streaming responses using `stream: true`
   - Configurable temperature for response creativity
   - Server-Sent Events output format for web applications
   - JSON stream parsing for delta content extraction

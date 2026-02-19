@@ -76,7 +76,7 @@
 - **API**：OpenAI GPT-4o 聊天完成
 - **端点**：`https://api.openai.com/v1/chat/completions`
 - **特性**：
-  - 使用 `streaming: true` 的实时流式响应
+  - 使用 `stream: true` 的实时流式响应
   - 可配置温度以控制响应创造性
   - 用于 Web 应用程序的服务器发送事件输出格式
   - 用于增量内容提取的 JSON 流解析

@@ -7,8 +7,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Chat with vLLM server
-  description: Generate text responses using vLLM server
+  title: Chat with GLM-4.7 on vLLM
+  description: Generate text responses using GLM-4.7 model on vLLM server
   input: ${input}
   output: ${output as text;sse-text}
 
@@ -22,28 +22,31 @@ component:
         eval "$(pyenv init -)" &&
         (pyenv activate vllm 2>/dev/null || pyenv virtualenv $(python --version | cut -d' ' -f2) vllm) &&
         pyenv activate vllm &&
-        pip install vllm
+        pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
     start:
       - bash
       - -c
       - |
         eval "$(pyenv init -)" &&
         pyenv activate vllm &&
-        vllm serve Qwen/Qwen2-7B-Instruct
+        vllm serve zai-org/GLM-4.7-FP8
           --port 8000
-          --served-model-name qwen2-7b-instruct
-          --max-model-len 2048
+          --served-model-name glm-4.7
+          --max-model-len 16384
+          --gpu-memory-utilization 0.95
+          --speculative-config.method mtp
+          --speculative-config.num_speculative_tokens 1
   port: 8000
   method: POST
   path: /v1/chat/completions
   headers:
     Content-Type: application/json
   body:
-    model: qwen2-7b-instruct
+    model: glm-4.7
     messages:
       - role: user
         content: ${input.prompt as text}
-    max_tokens: 512
+    max_tokens: 4096
     temperature: ${input.temperature as number | 0.7}
     stream: true
   stream_format: json

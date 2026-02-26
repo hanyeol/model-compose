@@ -22,7 +22,7 @@ component:
         eval "$(pyenv init -)" &&
         (pyenv activate vllm 2>/dev/null || pyenv virtualenv $(python --version | cut -d' ' -f2) vllm) &&
         pyenv activate vllm &&
-        pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly/cu130
+        pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly/cu130/vllm
     start:
       - bash
       - -c

@@ -46,6 +46,6 @@ component:
         content: ${input.prompt as text}
     max_tokens: 512
     temperature: ${input.temperature as number | 0.7}
-    streaming: true
+    stream: true
   stream_format: json
   output: ${response[].choices[0].delta.content}

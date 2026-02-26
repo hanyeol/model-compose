@@ -29,8 +29,7 @@ component:
       - |
         eval "$(pyenv init -)" &&
         pyenv activate vllm &&
-        python -m vllm.entrypoints.openai.api_server
-          --model Qwen/Qwen2-7B-Instruct
+        vllm serve Qwen/Qwen2-7B-Instruct
           --port 8000
           --served-model-name qwen2-7b-instruct
           --max-model-len 2048
@@ -46,6 +45,6 @@ component:
         content: ${input.prompt as text}
     max_tokens: 512
     temperature: ${input.temperature as number | 0.7}
-    streaming: true
+    stream: true
   stream_format: json
   output: ${response[].choices[0].delta.content}

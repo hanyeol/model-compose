@@ -29,12 +29,12 @@ component:
       - |
         eval "$(pyenv init -)" &&
         pyenv activate vllm &&
-        vllm serve zai-org/GLM-4.7-FP8
-          --port 8000
-          --served-model-name glm-4.7
-          --max-model-len 16384
-          --gpu-memory-utilization 0.95
-          --speculative-config.method mtp
+        vllm serve zai-org/GLM-4.7-FP8 \
+          --port 8000 \
+          --served-model-name glm-4.7 \
+          --max-model-len 16384 \
+          --gpu-memory-utilization 0.95 \
+          --speculative-config.method mtp \
           --speculative-config.num_speculative_tokens 1
   port: 8000
   method: POST

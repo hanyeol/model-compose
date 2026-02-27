@@ -98,6 +98,16 @@ async def save_stream_to_temporary_file(stream: StreamResource, extension: Optio
     except Exception:
         return None
 
+async def save_bytes_to_temporary_file(data: bytes, extension: Optional[str]) -> Optional[str]:
+    try:
+        file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
+        file.write(data)
+        file.flush()
+        file.close()
+        return file.name
+    except Exception:
+        return None
+
 async def encode_stream_to_base64(stream: StreamResource) -> str:
     buffer = io.BytesIO()
     async with stream:

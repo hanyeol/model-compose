@@ -265,6 +265,9 @@ class HttpServerController(ControllerService):
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
+        if isinstance(state.output, bytes):
+            return Response(content=state.output, media_type="application/octet-stream")
+
         return JSONResponse(content=state.output)
 
     def _render_async_iterator(self, iterator: AsyncIterable[Any]) -> Response:

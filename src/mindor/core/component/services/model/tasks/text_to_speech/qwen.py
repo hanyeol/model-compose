@@ -35,6 +35,8 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
             ref_audio = await context.render_variable(self.config.ref_audio)
             ref_text  = await context.render_variable(self.config.ref_text)
 
+            ref_audio = await self._resolve_audio_path(ref_audio)
+
             wavs, sr = self.model.generate_voice_clone(
                 text=text, language=language, ref_audio=ref_audio, ref_text=ref_text,
             )
@@ -52,6 +54,26 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         audio_bytes = buffer.getvalue()
 
         return audio_bytes
+
+    async def _resolve_audio_path(self, value: Any) -> str:
+        from starlette.datastructures import UploadFile
+        from tempfile import NamedTemporaryFile
+
+        if isinstance(value, UploadFile):
+            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp.write(await value.read())
+            tmp.flush()
+            tmp.close()
+            return tmp.name
+
+        if isinstance(value, bytes):
+            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp.write(value)
+            tmp.flush()
+            tmp.close()
+            return tmp.name
+
+        return value
 
 class QwenTextToSpeechTaskService(TextToSpeechTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

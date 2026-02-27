@@ -78,12 +78,19 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
     def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
         import torch
         from qwen_tts import Qwen3TTSModel
+        from mindor.dsl.schema.component import HuggingfaceModelConfig
 
-        model_path = self._get_model_path()
         device = self._resolve_device()
 
+        # qwen_tts handles model downloading internally via from_pretrained(),
+        # so pass the repo ID directly instead of a snapshot_download() path.
+        if isinstance(self.config.model, HuggingfaceModelConfig):
+            model_id = self.config.model.repository
+        else:
+            model_id = self._get_model_path()
+
         model = Qwen3TTSModel.from_pretrained(
-            model_path,
+            model_id,
             device_map=device,
             dtype=torch.bfloat16,
         )

@@ -35,6 +35,10 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
             ref_audio = await context.render_variable(self.config.ref_audio)
             ref_text  = await context.render_variable(self.config.ref_text)
 
+            from starlette.datastructures import UploadFile
+            if isinstance(ref_audio, UploadFile):
+                ref_audio = ref_audio.file.name
+
             wavs, sr = self.model.generate_voice_clone(
                 text=text, language=language, ref_audio=ref_audio, ref_text=ref_text,
             )

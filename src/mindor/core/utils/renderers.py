@@ -1,7 +1,7 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
 from pydantic import BaseModel
 from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource
-from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, save_bytes_to_temporary_file
+from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
 from .image import load_image_from_stream, ImageStreamResource
@@ -124,11 +124,11 @@ class VariableRenderer:
         if format == "url" and isinstance(value, str):
             return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
+        if isinstance(value, bytes):
+            return await save_stream_to_temporary_file(BytesStreamResource(value), subtype)
+
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)
-
-        if isinstance(value, bytes):
-            return await save_bytes_to_temporary_file(value, subtype)
 
         return None
 

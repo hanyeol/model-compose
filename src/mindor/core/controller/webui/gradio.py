@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file, save_bytes_to_temporary_file
+from mindor.core.utils.streaming import save_stream_to_temporary_file, BytesStreamResource
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
@@ -284,6 +284,6 @@ class GradioWebUIBuilder:
             return await save_stream_to_temporary_file(value, subtype)
 
         if isinstance(value, bytes):
-            return await save_bytes_to_temporary_file(value, subtype)
+            return await save_stream_to_temporary_file(BytesStreamResource(value), subtype)
 
         return None

@@ -64,6 +64,28 @@ class UploadFileStreamResource(StreamResource):
                 break
             yield chunk
 
+class BytesStreamResource(StreamResource):
+    def __init__(self, data: bytes, content_type: Optional[str] = None, filename: Optional[str] = None):
+        super().__init__(content_type, filename)
+
+        self.data: bytes = data
+        self.stream: Optional[io.BytesIO] = None
+
+    async def close(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        if not self.stream:
+            self.stream = io.BytesIO(self.data)
+
+        while True:
+            chunk = self.stream.read(8192)
+            if not chunk:
+                break
+            yield chunk
+
 class Base64StreamResource(StreamResource):
     def __init__(self, encoded: str, content_type: Optional[str] = None, filename: Optional[str] = None):
         super().__init__(content_type, filename)
@@ -92,16 +114,6 @@ async def save_stream_to_temporary_file(stream: StreamResource, extension: Optio
         async with stream:
             async for chunk in stream:
                 file.write(chunk)
-        file.flush()
-        file.close()
-        return file.name
-    except Exception:
-        return None
-
-async def save_bytes_to_temporary_file(data: bytes, extension: Optional[str]) -> Optional[str]:
-    try:
-        file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
-        file.write(data)
         file.flush()
         file.close()
         return file.name

@@ -1,0 +1,26 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text to Speech (Generate)
+  description: Generate speech audio from text using a built-in voice with Qwen3-TTS.
+  input: ${input}
+  output: ${output as audio}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+  device: cuda:0
+  max_concurrent_count: 1
+  method: generate
+  text: ${input.text as text}
+  voice: ${input.voice | vivian}
+  instructions: ${input.instructions as text | ""}

@@ -250,6 +250,7 @@ model-compose 支持以下任务类型：
 | `image-to-text` | 图像描述 | 图像描述、VQA |
 | `image-generation` | 图像生成 | 文本到图像转换 |
 | `image-upscale` | 图像放大 | 分辨率增强 |
+| `text-to-speech` | 文本转语音 | 语音生成、克隆、设计 |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
 
 ### 8.3.1 text-generation
@@ -409,7 +410,102 @@ component:
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
 
-### 8.3.8 face-embedding
+### 8.3.8 text-to-speech
+
+从文本合成语音音频。此任务使用 `driver: custom` 和 `family` 字段选择模型系列，使用 `method` 字段选择生成方式。
+
+**可用方法：**
+
+| 方法 | 描述 | 必需字段 |
+|------|------|----------|
+| `generate` | 使用内置语音生成语音 | `voice`、`instructions`（可选） |
+| `clone` | 从参考音频克隆语音 | `ref_audio`、`ref_text` |
+| `design` | 从自然语言描述设计新语音 | `instructions` |
+
+**公共字段：**
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `method` | string | **必需** | 生成方式：`generate`、`clone`、`design` |
+| `text` | string/array | **必需** | 要合成为语音的文本 |
+| `language` | string | `null` | 文本语言（未指定时自动检测） |
+
+#### Generate 方法
+
+使用内置语音和可选的风格指令生成语音：
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+  device: cuda:0
+  method: generate
+  text: ${input.text as text}
+  voice: ${input.voice | vivian}
+  instructions: ${input.instructions | ""}
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `voice` | string | `vivian` | 内置语音名称 |
+| `instructions` | string | `""` | 情感/风格指令 |
+
+#### Clone 方法
+
+从参考音频克隆语音：
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+  device: cuda:0
+  method: clone
+  text: ${input.text as text}
+  ref_audio: ${input.ref_audio as audio}
+  ref_text: ${input.ref_text as text}
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `ref_audio` | string | **必需** | 用于语音克隆的参考音频路径或 URL |
+| `ref_text` | string | **必需** | 参考音频的转录文本 |
+
+#### Design 方法
+
+从自然语言描述设计新语音：
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+  device: cuda:0
+  method: design
+  text: ${input.text as text}
+  instructions: ${input.instructions as text}
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `instructions` | string | **必需** | 对所需语音的自然语言描述 |
+
+#### 支持的模型（Qwen 系列）
+
+| 模型 | 方法 | 描述 |
+|------|------|------|
+| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `generate` | 带风格控制的内置语音 |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 从参考音频克隆语音 |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 从文本描述设计语音 |
+
+### 8.3.9 face-embedding
 
 从人脸图像中提取特征向量。
 

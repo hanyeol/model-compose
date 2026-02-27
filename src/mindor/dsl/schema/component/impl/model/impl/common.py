@@ -14,6 +14,7 @@ class ModelTaskType(str, Enum):
     IMAGE_GENERATION    = "image-generation"
     IMAGE_UPSCALE       = "image-upscale"
     FACE_EMBEDDING      = "face-embedding"
+    TEXT_TO_SPEECH      = "text-to-speech"
 
 class ModelDriver(str, Enum):
     HUGGINGFACE = "huggingface"

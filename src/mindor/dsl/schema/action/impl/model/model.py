@@ -9,4 +9,5 @@ ModelActionConfig = Union[
     TextEmbeddingModelActionConfig,
     ImageToTextModelActionConfig,
     ImageUpscaleModelActionConfig,
+    TextToSpeechModelActionConfig,
 ]

@@ -250,6 +250,7 @@ model-compose supports the following task types:
 | `image-to-text` | Image captioning | Image description, VQA |
 | `image-generation` | Image generation | Text-to-image conversion |
 | `image-upscale` | Image upscaling | Resolution enhancement |
+| `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 
 ### 8.3.1 text-generation
@@ -409,7 +410,102 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 8.3.8 face-embedding
+### 8.3.8 text-to-speech
+
+Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to choose the generation method.
+
+**Available methods:**
+
+| Method | Description | Required Fields |
+|--------|-------------|-----------------|
+| `generate` | Generate speech using a built-in voice | `voice`, `instructions` (optional) |
+| `clone` | Clone a voice from reference audio | `ref_audio`, `ref_text` |
+| `design` | Design a new voice from a description | `instructions` |
+
+**Common fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `method` | string | **required** | Generation method: `generate`, `clone`, `design` |
+| `text` | string/array | **required** | Text to synthesize into speech |
+| `language` | string | `null` | Language of the text (auto-detected if not specified) |
+
+#### Generate method
+
+Generate speech using a built-in voice with optional style instructions:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+  device: cuda:0
+  method: generate
+  text: ${input.text as text}
+  voice: ${input.voice | vivian}
+  instructions: ${input.instructions | ""}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice` | string | `vivian` | Built-in voice name |
+| `instructions` | string | `""` | Emotion/style instructions for the voice |
+
+#### Clone method
+
+Clone a voice from reference audio:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+  device: cuda:0
+  method: clone
+  text: ${input.text as text}
+  ref_audio: ${input.ref_audio as audio}
+  ref_text: ${input.ref_text as text}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `ref_audio` | string | **required** | Path or URL to the reference audio for voice cloning |
+| `ref_text` | string | **required** | Transcription text of the reference audio |
+
+#### Design method
+
+Design a new voice from a natural language description:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+  device: cuda:0
+  method: design
+  text: ${input.text as text}
+  instructions: ${input.instructions as text}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instructions` | string | **required** | Natural language description of the desired voice |
+
+#### Supported models (Qwen family)
+
+| Model | Method | Description |
+|-------|--------|-------------|
+| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `generate` | Built-in voices with style control |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
+
+### 8.3.9 face-embedding
 
 Extracts feature vectors from face images.
 

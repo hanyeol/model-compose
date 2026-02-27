@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 ModelComponentConfig = Annotated[
-    Union[ 
+    Union[
         TextGenerationModelComponentConfig,
         ChatCompletionModelComponentConfig,
         TextClassificationModelComponentConfig,
@@ -11,7 +11,8 @@ ModelComponentConfig = Annotated[
         ImageToTextModelComponentConfig,
         ImageGenerationModelComponentConfig,
         ImageUpscaleModelComponentConfig,
-        FaceEmbeddingeModelComponentConfig
+        FaceEmbeddingeModelComponentConfig,
+        TextToSpeechModelComponentConfig
     ],
     Field(discriminator="task")
 ]

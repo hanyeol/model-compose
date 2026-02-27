@@ -1,6 +1,6 @@
 # Model Component
 
-The model component enables loading and running AI/ML models locally using HuggingFace transformers. It supports various tasks including text generation, chat completion, text embedding, classification, translation, summarization, and image-to-text processing.
+The model component enables loading and running AI/ML models locally using HuggingFace transformers. It supports various tasks including text generation, chat completion, text embedding, classification, translation, summarization, image-to-text processing, and text-to-speech synthesis.
 
 ## Basic Configuration
 
@@ -22,7 +22,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-embedding`, `text-classification`, `translation`, `summarization`, `image-to-text` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-embedding`, `text-classification`, `translation`, `summarization`, `image-to-text`, `text-to-speech` |
 | `driver` | string | `huggingface` | Model provider (currently only HuggingFace supported) |
 | `model` | string/object | **required** | Model identifier or configuration object |
 | `cache_dir` | string | `null` | Directory to cache model files |
@@ -209,6 +209,106 @@ component:
   output:
     caption: ${response.generated_text}
 ```
+
+### Text to Speech
+
+Generate speech audio from text using TTS models. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to select the generation method.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `text-to-speech` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `qwen`) |
+| `model` | string | **required** | Model identifier |
+| `method` | string | **required** | Generation method: `generate`, `clone`, `design` |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `method` | string | **required** | TTS generation method |
+| `text` | string/array | **required** | Text to synthesize into speech |
+| `language` | string | `null` | Language of the text (auto-detected if not specified) |
+
+#### Method: `generate`
+
+Generate speech using a built-in voice with optional style instructions:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+  device: cuda:0
+  max_concurrent_count: 1
+  method: generate
+  text: ${input.text as text}
+  voice: ${input.voice | vivian}
+  instructions: ${input.instructions | ""}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice` | string | `vivian` | Built-in voice name |
+| `instructions` | string | `""` | Emotion/style instructions for the voice |
+
+#### Method: `clone`
+
+Clone a voice from reference audio and generate speech:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+  device: cuda:0
+  max_concurrent_count: 1
+  method: clone
+  text: ${input.text as text}
+  ref_audio: ${input.ref_audio as audio}
+  ref_text: ${input.ref_text as text}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `ref_audio` | string | **required** | Path or URL to the reference audio for voice cloning |
+| `ref_text` | string | **required** | Transcription text of the reference audio |
+
+#### Method: `design`
+
+Design a new voice from a natural language description and generate speech:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+  device: cuda:0
+  max_concurrent_count: 1
+  method: design
+  text: ${input.text as text}
+  instructions: ${input.instructions as text}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instructions` | string | **required** | Description of the desired voice |
+
+#### Supported Models (Qwen Family)
+
+| Model | Method | Description |
+|-------|--------|-------------|
+| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `generate` | Built-in voices with style control |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
 ## Multiple Actions
 
@@ -464,6 +564,9 @@ workflow:
 - **Image Captioning**: BLIP, ViT-GPT2
 - **Visual QA**: BLIP-VQA, ViLT
 
+### Text-to-Speech Models
+- **Qwen3-TTS**: Qwen3-TTS-12Hz-1.7B (CustomVoice, Base, VoiceDesign)
+
 ## Common Use Cases
 
 - **Text Generation**: Create articles, stories, code
@@ -474,3 +577,4 @@ workflow:
 - **Summarization**: Create summaries of long documents
 - **Code Generation**: Generate and complete code snippets
 - **Image Understanding**: Describe and analyze images
+- **Text-to-Speech**: Synthesize speech from text with voice generation, cloning, and design

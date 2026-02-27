@@ -250,6 +250,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `image-to-text` | 이미지 캡셔닝 | 이미지 설명 생성, VQA |
 | `image-generation` | 이미지 생성 | 텍스트→이미지 변환 |
 | `image-upscale` | 이미지 업스케일 | 해상도 향상 |
+| `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
 
 ### 8.3.1 text-generation
@@ -409,7 +410,102 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 8.3.8 face-embedding
+### 8.3.8 text-to-speech
+
+텍스트에서 음성 오디오를 합성합니다. 이 태스크는 `driver: custom`과 `family` 필드로 모델 패밀리를 선택하고, `method` 필드로 생성 방식을 선택합니다.
+
+**지원 메서드:**
+
+| 메서드 | 설명 | 필수 필드 |
+|--------|------|-----------|
+| `generate` | 내장 음성으로 음성 생성 | `voice`, `instructions` (선택) |
+| `clone` | 참조 오디오에서 음성 복제 | `ref_audio`, `ref_text` |
+| `design` | 자연어 설명으로 새로운 음성 디자인 | `instructions` |
+
+**공통 필드:**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `method` | string | **필수** | 생성 방식: `generate`, `clone`, `design` |
+| `text` | string/array | **필수** | 음성으로 합성할 텍스트 |
+| `language` | string | `null` | 텍스트 언어 (미지정 시 자동 감지) |
+
+#### Generate 메서드
+
+내장 음성을 사용하여 스타일 지시와 함께 음성을 생성합니다:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+  device: cuda:0
+  method: generate
+  text: ${input.text as text}
+  voice: ${input.voice | vivian}
+  instructions: ${input.instructions | ""}
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `voice` | string | `vivian` | 내장 음성 이름 |
+| `instructions` | string | `""` | 감정/스타일 지시 |
+
+#### Clone 메서드
+
+참조 오디오에서 음성을 복제합니다:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+  device: cuda:0
+  method: clone
+  text: ${input.text as text}
+  ref_audio: ${input.ref_audio as audio}
+  ref_text: ${input.ref_text as text}
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `ref_audio` | string | **필수** | 음성 복제를 위한 참조 오디오 경로 또는 URL |
+| `ref_text` | string | **필수** | 참조 오디오의 전사 텍스트 |
+
+#### Design 메서드
+
+자연어 설명으로 새로운 음성을 디자인합니다:
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: qwen
+  model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+  device: cuda:0
+  method: design
+  text: ${input.text as text}
+  instructions: ${input.instructions as text}
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `instructions` | string | **필수** | 원하는 음성에 대한 자연어 설명 |
+
+#### 지원 모델 (Qwen 패밀리)
+
+| 모델 | 메서드 | 설명 |
+|------|--------|------|
+| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `generate` | 스타일 제어가 가능한 내장 음성 |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 참조 오디오에서 음성 복제 |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 텍스트 설명으로 음성 디자인 |
+
+### 8.3.9 face-embedding
 
 얼굴 이미지에서 특징 벡터를 추출합니다.
 

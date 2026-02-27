@@ -93,6 +93,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
             model_id,
             device_map=device,
             dtype=torch.bfloat16,
+            trust_remote_code=True,
         )
 
         return model, device

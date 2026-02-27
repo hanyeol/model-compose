@@ -61,7 +61,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "qwen_tts", "soundfile" ]
+        return [ "torch", "transformers", "qwen_tts", "soundfile" ]
 
     async def _serve(self) -> None:
         try:

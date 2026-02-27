@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonModelComponentConfig, ModelTaskType, ModelDriver
 
-class ImageUpscaleModelArchitecture(str, Enum):
+class ImageUpscaleModelFamily(str, Enum):
     ESRGAN      = "esrgan"
     REAL_ESRGAN = "real-esrgan"
     LDSR        = "ldsr"
@@ -13,7 +13,7 @@ class ImageUpscaleModelArchitecture(str, Enum):
 class CommonImageUpscaleModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.IMAGE_UPSCALE]
     driver: ModelDriver = Field(default=ModelDriver.CUSTOM)
-    architecture: ImageUpscaleModelArchitecture = Field(..., description="Model architecture.")
+    family: ImageUpscaleModelFamily = Field(..., description="Model family.")
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

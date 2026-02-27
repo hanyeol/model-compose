@@ -9,5 +9,5 @@ ImageUpscaleModelComponentConfig = Annotated[
         LdsrImageUpscaleModelComponentConfig,
         SwinIRImageUpscaleModelComponentConfig,
     ],
-    Field(discriminator="architecture")
+    Field(discriminator="family")
 ]

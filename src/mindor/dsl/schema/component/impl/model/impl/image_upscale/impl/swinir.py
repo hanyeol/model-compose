@@ -3,10 +3,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import SwinIRImageUpscaleModelActionConfig
-from .common import CommonImageUpscaleModelComponentConfig, ImageUpscaleModelArchitecture
+from .common import CommonImageUpscaleModelComponentConfig, ImageUpscaleModelFamily
 
 class SwinIRImageUpscaleModelComponentConfig(CommonImageUpscaleModelComponentConfig):
-    architecture: Literal[ImageUpscaleModelArchitecture.SWINIR]
+    family: Literal[ImageUpscaleModelFamily.SWINIR]
     actions: List[SwinIRImageUpscaleModelActionConfig] = Field(default_factory=list)
 
     @classmethod

@@ -58,6 +58,7 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
     async def _resolve_audio_path(self, value: Any) -> str:
         from starlette.datastructures import UploadFile
         from tempfile import NamedTemporaryFile
+        import base64, os
 
         if isinstance(value, UploadFile):
             tmp = NamedTemporaryFile(suffix=".wav", delete=False)
@@ -69,6 +70,17 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         if isinstance(value, bytes):
             tmp = NamedTemporaryFile(suffix=".wav", delete=False)
             tmp.write(value)
+            tmp.flush()
+            tmp.close()
+            return tmp.name
+
+        if isinstance(value, str):
+            if os.path.isfile(value):
+                return value
+
+            # Assume base64-encoded audio data
+            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp.write(base64.b64decode(value))
             tmp.flush()
             tmp.close()
             return tmp.name

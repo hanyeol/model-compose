@@ -3,10 +3,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import LdsrImageUpscaleModelActionConfig
-from .common import CommonImageUpscaleModelComponentConfig, ImageUpscaleModelArchitecture
+from .common import CommonImageUpscaleModelComponentConfig, ImageUpscaleModelFamily
 
 class LdsrImageUpscaleModelComponentConfig(CommonImageUpscaleModelComponentConfig):
-    architecture: Literal[ImageUpscaleModelArchitecture.LDSR]
+    family: Literal[ImageUpscaleModelFamily.LDSR]
     actions: List[LdsrImageUpscaleModelActionConfig] = Field(default_factory=list)
 
     @classmethod

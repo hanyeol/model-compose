@@ -218,8 +218,10 @@ class TestWebScraperComponentConfig:
         config = WebScraperComponentConfig(
             id="scraper",
             type="web-scraper",
-            url="https://example.com",
-            selector=".article"
+            action={
+                "url": "https://example.com",
+                "selector": ".article"
+            }
         )
         assert len(config.actions) == 1
         assert config.actions[0].url == "https://example.com"

@@ -337,9 +337,11 @@ class TestHttpClientComponentConfig:
             id="client",
             type="http-client",
             base_url="https://api.example.com",
-            path="/v1/chat",
-            method="POST",
-            body={"model": "gpt-4"}
+            action={
+                "path": "/v1/chat",
+                "method": "POST",
+                "body": {"model": "gpt-4"}
+            }
         )
         assert len(config.actions) == 1
         assert config.actions[0].path == "/v1/chat"

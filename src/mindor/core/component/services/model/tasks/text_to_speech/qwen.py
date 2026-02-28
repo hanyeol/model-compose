@@ -13,6 +13,19 @@ import asyncio, io
 if TYPE_CHECKING:
     import torch
 
+QWEN_LANGUAGE_MAP: dict[str, str] = {
+    "en": "English",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "de": "German",
+    "fr": "French",
+    "ru": "Russian",
+    "pt": "Portuguese",
+    "es": "Spanish",
+    "it": "Italian",
+}
+
 class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
     def __init__(self, config: ModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, device)
@@ -23,12 +36,16 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         import soundfile as sf
 
         language = await context.render_variable(self.config.language)
+        language = self._resolve_language(language) if language else None
         samples, sample_rate = await self._synthesize(text, language, context)
 
         buffer = io.BytesIO()
         sf.write(buffer, samples[0], sample_rate, format="WAV")
 
         return buffer.getvalue()
+
+    def _resolve_language(self, language: Optional[str]) -> Optional[str]:
+        return QWEN_LANGUAGE_MAP.get(language.split("-")[0])
 
     @abstractmethod
     async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:

@@ -14,6 +14,9 @@ This reference guide provides comprehensive documentation for all configuration 
 - [Gateway](compose/gateway.md) - Tunneling and external access
 - [Logger](compose/logger.md) - Logging configuration and output management
 
+### Reference
+- [Language Codes](compose/language-codes.md) - Standardized language codes for multilingual components
+
 ### Components
 - [HTTP Client](compose/components/http-client.md) - External API integration
 - [HTTP Server](compose/components/http-server.md) - Web server hosting

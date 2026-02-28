@@ -238,7 +238,7 @@ Generate speech audio from text using TTS models. This task uses `driver: custom
 |-------|------|---------|-------------|
 | `method` | string | **required** | TTS generation method |
 | `text` | string/array | **required** | Text to synthesize into speech |
-| `language` | string | `null` | Language of the text (auto-detected if not specified) |
+| `language` | string | `null` | Language of the text using [standardized codes](../language-codes.md) |
 
 #### Method: `generate`
 

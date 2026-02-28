@@ -12,4 +12,4 @@ class TextToSpeechActionMethod(str, Enum):
 class CommonTextToSpeechModelActionConfig(CommonModelActionConfig):
     method: TextToSpeechActionMethod = Field(..., description="TTS generation method.")
     text: Union[str, List[str]] = Field(..., description="Text to synthesize into speech.")
-    language: Optional[Union[str, str]] = Field(default=None, description="Language of the text.")
+    language: Optional[Union[str, str]] = Field(default=None, description="Language of the text. Use ISO 639-1 / BCP 47 codes (e.g., 'en', 'ko', 'zh-CN').")

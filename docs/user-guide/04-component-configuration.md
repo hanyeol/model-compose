@@ -80,21 +80,22 @@ Components can be defined as single action or multi-action.
 
 #### Single Action Component
 
-A component that performs only one task:
+A component that performs only one task, with action-specific fields wrapped under `action:`:
 
 ```yaml
 components:
   - id: send-email
     type: http-client
-    endpoint: https://api.email.com/send
-    method: POST
-    headers:
-      Authorization: Bearer ${env.EMAIL_API_KEY}
-    body:
-      to: ${input.to}
-      subject: ${input.subject}
-      body: ${input.body}
-    output: ${response}
+    action:
+      endpoint: https://api.email.com/send
+      method: POST
+      headers:
+        Authorization: Bearer ${env.EMAIL_API_KEY}
+      body:
+        to: ${input.to}
+        subject: ${input.subject}
+        body: ${input.body}
+      output: ${response}
 ```
 
 Usage:
@@ -188,10 +189,11 @@ How to pass data to components:
 components:
   - id: translator
     type: http-client
-    endpoint: https://api.translate.com/v1/translate
-    body:
-      text: ${input.text}
-      target_lang: ${input.language}
+    action:
+      endpoint: https://api.translate.com/v1/translate
+      body:
+        text: ${input.text}
+        target_lang: ${input.language}
 ```
 
 Usage in workflow:
@@ -210,8 +212,9 @@ workflow:
 components:
   - id: processor
     type: http-client
-    endpoint: https://api.example.com/process
-    body: ${input}  # Pass entire input as-is
+    action:
+      endpoint: https://api.example.com/process
+      body: ${input}  # Pass entire input as-is
 ```
 
 ### Output Mapping
@@ -224,13 +227,14 @@ How to extract component results:
 components:
   - id: chatgpt
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-    output:
-      content: ${response.choices[0].message.content}
-      tokens: ${response.usage.total_tokens}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output:
+        content: ${response.choices[0].message.content}
+        tokens: ${response.usage.total_tokens}
 ```
 
 Usage in workflow:
@@ -249,8 +253,9 @@ workflow:
 components:
   - id: api-call
     type: http-client
-    endpoint: https://api.example.com/data
-    output: ${response}  # Full response
+    action:
+      endpoint: https://api.example.com/data
+      output: ${response}  # Full response
 ```
 
 #### With Type Conversion
@@ -259,8 +264,9 @@ components:
 components:
   - id: image-gen
     type: http-client
-    endpoint: https://api.images.com/generate
-    output: ${response.image as image/png;base64}
+    action:
+      endpoint: https://api.images.com/generate
+      output: ${response.image as image/png;base64}
 ```
 
 ### Input/Output Flow Example
@@ -269,19 +275,21 @@ components:
 components:
   - id: step1
     type: http-client
-    endpoint: https://api1.com/process
-    body:
-      data: ${input.raw_data}
-    output:
-      processed: ${response.result}
+    action:
+      endpoint: https://api1.com/process
+      body:
+        data: ${input.raw_data}
+      output:
+        processed: ${response.result}
 
   - id: step2
     type: http-client
-    endpoint: https://api2.com/analyze
-    body:
-      data: ${input.processed_data}
-    output:
-      analysis: ${response.insights}
+    action:
+      endpoint: https://api2.com/analyze
+      body:
+        data: ${input.processed_data}
+      output:
+        analysis: ${response.insights}
 
 workflow:
   jobs:
@@ -313,44 +321,47 @@ components:
   # OpenAI GPT-4o dedicated
   - id: gpt4o
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-      temperature: ${input.temperature | 0.7}
-    output:
-      content: ${response.choices[0].message.content}
-      tokens: ${response.usage.total_tokens}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        temperature: ${input.temperature | 0.7}
+      output:
+        content: ${response.choices[0].message.content}
+        tokens: ${response.usage.total_tokens}
 
   # Anthropic Claude dedicated
   - id: claude
     type: http-client
-    endpoint: https://api.anthropic.com/v1/messages
-    headers:
-      x-api-key: ${env.ANTHROPIC_API_KEY}
-      anthropic-version: "2023-06-01"
-      Content-Type: application/json
-    body:
-      model: claude-3-5-sonnet-20241022
-      messages: ${input.messages}
-      max_tokens: ${input.max_tokens | 1024}
-    output:
-      content: ${response.content[0].text}
+    action:
+      endpoint: https://api.anthropic.com/v1/messages
+      headers:
+        x-api-key: ${env.ANTHROPIC_API_KEY}
+        anthropic-version: "2023-06-01"
+        Content-Type: application/json
+      body:
+        model: claude-3-5-sonnet-20241022
+        messages: ${input.messages}
+        max_tokens: ${input.max_tokens | 1024}
+      output:
+        content: ${response.content[0].text}
 
   # TTS dedicated
   - id: elevenlabs-tts
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
-    headers:
-      xi-api-key: ${env.ELEVENLABS_API_KEY}
-      Content-Type: application/json
-    body:
-      text: ${input.text}
-      model_id: eleven_multilingual_v2
-    output: ${response as base64}
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
+      headers:
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+        Content-Type: application/json
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
 ```
 
 ### Pattern 2: Multi-Action Component
@@ -410,8 +421,9 @@ Compose complex logic by combining small components:
 components:
   - id: fetch-data
     type: http-client
-    endpoint: https://api.data.com/fetch
-    output: ${response.data}
+    action:
+      endpoint: https://api.data.com/fetch
+      output: ${response.data}
 
   - id: process-data
     type: shell
@@ -421,11 +433,12 @@ components:
 
   - id: save-result
     type: http-client
-    endpoint: https://api.storage.com/save
-    method: POST
-    body:
-      data: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.storage.com/save
+      method: POST
+      body:
+        data: ${input.data}
+      output: ${response}
 
 workflow:
   jobs:
@@ -471,11 +484,12 @@ Use different endpoints based on environment:
 components:
   - id: api-client
     type: http-client
-    endpoint: ${env.API_ENDPOINT}/process
-    headers:
-      Authorization: Bearer ${env.API_KEY}
-    body: ${input}
-    output: ${response}
+    action:
+      endpoint: ${env.API_ENDPOINT}/process
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+      body: ${input}
+      output: ${response}
 ```
 
 ```bash
@@ -695,13 +709,14 @@ components:
     type: http-client
     # Input: { text: string, target_lang: string }
     # Output: { translated: string, detected_lang: string }
-    endpoint: https://api.translate.com/v1/translate
-    body:
-      text: ${input.text}
-      target: ${input.target_lang}
-    output:
-      translated: ${response.translation}
-      detected_lang: ${response.source_language}
+    action:
+      endpoint: https://api.translate.com/v1/translate
+      body:
+        text: ${input.text}
+        target: ${input.target_lang}
+      output:
+        translated: ${response.translation}
+        detected_lang: ${response.source_language}
 ```
 
 ### 3. Use Environment Variables
@@ -711,17 +726,19 @@ components:
 components:
   - id: api-client
     type: http-client
-    endpoint: ${env.API_ENDPOINT}
-    headers:
-      Authorization: Bearer ${env.API_KEY}
+    action:
+      endpoint: ${env.API_ENDPOINT}
+      headers:
+        Authorization: Bearer ${env.API_KEY}
 
 # Bad - Hardcoding
 components:
   - id: api-client
     type: http-client
-    endpoint: https://api.example.com
-    headers:
-      Authorization: Bearer sk-hardcoded-key
+    action:
+      endpoint: https://api.example.com
+      headers:
+        Authorization: Bearer sk-hardcoded-key
 ```
 
 ---

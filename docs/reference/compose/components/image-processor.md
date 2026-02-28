@@ -7,11 +7,12 @@ The image processor component provides a comprehensive set of image manipulation
 ```yaml
 component:
   type: image-processor
-  method: resize
-  image: ${input.image}
-  width: 800
-  height: 600
-  scale_mode: fit
+  action:
+    method: resize
+    image: ${input.image}
+    width: 800
+    height: 600
+    scale_mode: fit
 ```
 
 ## Configuration Options
@@ -42,12 +43,13 @@ Resize images with different scaling modes:
 ```yaml
 component:
   type: image-processor
-  method: resize
-  image: ${input.image}
-  width: 1024
-  height: 768
-  scale_mode: fit
-  output: ${output}
+  action:
+    method: resize
+    image: ${input.image}
+    width: 1024
+    height: 768
+    scale_mode: fit
+    output: ${output}
 ```
 
 **Resize Configuration:**
@@ -71,13 +73,14 @@ Extract a rectangular region from an image:
 ```yaml
 component:
   type: image-processor
-  method: crop
-  image: ${input.image}
-  x: 100
-  y: 100
-  width: 400
-  height: 300
-  output: ${output}
+  action:
+    method: crop
+    image: ${input.image}
+    x: 100
+    y: 100
+    width: 400
+    height: 300
+    output: ${output}
 ```
 
 **Crop Configuration:**
@@ -96,11 +99,12 @@ Rotate an image by a specified angle:
 ```yaml
 component:
   type: image-processor
-  method: rotate
-  image: ${input.image}
-  angle: 45
-  expand: true
-  output: ${output}
+  action:
+    method: rotate
+    image: ${input.image}
+    angle: 45
+    expand: true
+    output: ${output}
 ```
 
 **Rotate Configuration:**
@@ -117,10 +121,11 @@ Flip an image horizontally or vertically:
 ```yaml
 component:
   type: image-processor
-  method: flip
-  image: ${input.image}
-  direction: horizontal
-  output: ${output}
+  action:
+    method: flip
+    image: ${input.image}
+    direction: horizontal
+    output: ${output}
 ```
 
 **Flip Configuration:**
@@ -136,9 +141,10 @@ Convert an image to grayscale:
 ```yaml
 component:
   type: image-processor
-  method: grayscale
-  image: ${input.image}
-  output: ${output}
+  action:
+    method: grayscale
+    image: ${input.image}
+    output: ${output}
 ```
 
 ### Blur
@@ -148,10 +154,11 @@ Apply Gaussian blur to an image:
 ```yaml
 component:
   type: image-processor
-  method: blur
-  image: ${input.image}
-  radius: 5.0
-  output: ${output}
+  action:
+    method: blur
+    image: ${input.image}
+    radius: 5.0
+    output: ${output}
 ```
 
 **Blur Configuration:**
@@ -167,10 +174,11 @@ Enhance image sharpness:
 ```yaml
 component:
   type: image-processor
-  method: sharpen
-  image: ${input.image}
-  factor: 2.0
-  output: ${output}
+  action:
+    method: sharpen
+    image: ${input.image}
+    factor: 2.0
+    output: ${output}
 ```
 
 **Sharpen Configuration:**
@@ -186,10 +194,11 @@ Adjust image brightness:
 ```yaml
 component:
   type: image-processor
-  method: adjust-brightness
-  image: ${input.image}
-  factor: 1.3
-  output: ${output}
+  action:
+    method: adjust-brightness
+    image: ${input.image}
+    factor: 1.3
+    output: ${output}
 ```
 
 **Brightness Configuration:**
@@ -205,10 +214,11 @@ Adjust image contrast:
 ```yaml
 component:
   type: image-processor
-  method: adjust-contrast
-  image: ${input.image}
-  factor: 1.5
-  output: ${output}
+  action:
+    method: adjust-contrast
+    image: ${input.image}
+    factor: 1.5
+    output: ${output}
 ```
 
 **Contrast Configuration:**
@@ -224,10 +234,11 @@ Adjust image color saturation:
 ```yaml
 component:
   type: image-processor
-  method: adjust-saturation
-  image: ${input.image}
-  factor: 1.2
-  output: ${output}
+  action:
+    method: adjust-saturation
+    image: ${input.image}
+    factor: 1.2
+    output: ${output}
 ```
 
 **Saturation Configuration:**
@@ -785,18 +796,19 @@ Image processor supports dynamic configuration:
 ```yaml
 component:
   type: image-processor
-  method: ${input.operation | resize}
-  image: ${input.image}
-  width: ${input.target_width as integer | 800}
-  height: ${input.target_height as integer | 600}
-  scale_mode: ${input.mode as select/fit,fill,stretch | fit}
-  # For adjustments
-  factor: ${input.adjustment_factor as number | 1.0}
-  # For rotation
-  angle: ${input.rotation_angle as number | 0}
-  expand: ${input.expand_canvas as boolean | false}
-  # For blur
-  radius: ${input.blur_radius as number | 2.0}
+  action:
+    method: ${input.operation | resize}
+    image: ${input.image}
+    width: ${input.target_width as integer | 800}
+    height: ${input.target_height as integer | 600}
+    scale_mode: ${input.mode as select/fit,fill,stretch | fit}
+    # For adjustments
+    factor: ${input.adjustment_factor as number | 1.0}
+    # For rotation
+    angle: ${input.rotation_angle as number | 0}
+    expand: ${input.expand_canvas as boolean | false}
+    # For blur
+    radius: ${input.blur_radius as number | 2.0}
 ```
 
 ## Best Practices

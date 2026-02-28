@@ -9,74 +9,80 @@ controller:
 components:
   - id: basic-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: ${input.selector | body}
-    extract_mode: text
-    enable_javascript: ${input.enable_javascript as boolean | false}
-    wait_for: ${input.wait_for}
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      selector: ${input.selector | body}
+      extract_mode: text
+      enable_javascript: ${input.enable_javascript as boolean | false}
+      wait_for: ${input.wait_for}
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
   - id: link-extractor
     type: web-scraper
-    url: ${input.url}
-    selector: a
-    extract_mode: attribute
-    attribute: href
-    multiple: true
-    enable_javascript: ${input.enable_javascript as boolean | false}
-    wait_for: ${input.wait_for}
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      selector: a
+      extract_mode: attribute
+      attribute: href
+      multiple: true
+      enable_javascript: ${input.enable_javascript as boolean | false}
+      wait_for: ${input.wait_for}
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
   - id: form-scraper
     type: web-scraper
-    url: ${input.url}
-    enable_javascript: true
-    submit:
-      selector: ${input.form_selector | form}
-      form:
-        input[name="username"]: ${input.username}
-        input[name="password"]: ${input.password}
-      wait_for: ${input.result_selector}
-    selector: ${input.content_selector}
-    extract_mode: text
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      enable_javascript: true
+      submit:
+        selector: ${input.form_selector | form}
+        form:
+          input[name="username"]: ${input.username}
+          input[name="password"]: ${input.password}
+        wait_for: ${input.result_selector}
+      selector: ${input.content_selector}
+      extract_mode: text
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
   - id: multiple-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: ${input.selector}
-    extract_mode: text
-    multiple: true
-    headers:
-      User-Agent: Mozilla/5.0 (compatible; MyBot/1.0)
-    enable_javascript: ${input.enable_javascript as boolean | false}
-    wait_for: ${input.wait_for}
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      selector: ${input.selector}
+      extract_mode: text
+      multiple: true
+      headers:
+        User-Agent: Mozilla/5.0 (compatible; MyBot/1.0)
+      enable_javascript: ${input.enable_javascript as boolean | false}
+      wait_for: ${input.wait_for}
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
   - id: xpath-scraper
     type: web-scraper
-    url: ${input.url}
-    xpath: ${input.xpath | //div[@class='content']//p}
-    extract_mode: text
-    multiple: true
-    enable_javascript: ${input.enable_javascript as boolean | false}
-    wait_for: ${input.wait_for}
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      xpath: ${input.xpath | //div[@class='content']//p}
+      extract_mode: text
+      multiple: true
+      enable_javascript: ${input.enable_javascript as boolean | false}
+      wait_for: ${input.wait_for}
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
   - id: html-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: ${input.selector | article}
-    extract_mode: html
-    enable_javascript: ${input.enable_javascript as boolean | false}
-    wait_for: ${input.wait_for}
-    extract_mode: ${input.extract_mode as select/text,html | text}
-    output: ${result}
+    action:
+      url: ${input.url}
+      selector: ${input.selector | article}
+      extract_mode: html
+      enable_javascript: ${input.enable_javascript as boolean | false}
+      wait_for: ${input.wait_for}
+      extract_mode: ${input.extract_mode as select/text,html | text}
+      output: ${result}
 
 workflows:
   - id: basic-scraping

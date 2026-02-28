@@ -8,11 +8,12 @@ The MCP (Model Context Protocol) client component enables invoking tools and ser
 component:
   type: mcp-client
   url: http://localhost:8080/mcp
-  tool: list-files
-  arguments:
-    directory: ${input.path}
-  headers:
-    Authorization: Bearer ${env.MCP_TOKEN}
+  action:
+    tool: list-files
+    arguments:
+      directory: ${input.path}
+    headers:
+      Authorization: Bearer ${env.MCP_TOKEN}
 ```
 
 ## Configuration Options
@@ -44,13 +45,14 @@ MCP client actions support the following options:
 component:
   type: mcp-client
   url: http://localhost:8080/mcp
-  tool: get-weather
-  arguments:
-    location: ${input.city}
-    units: metric
-  output:
-    temperature: ${response.current.temp}
-    condition: ${response.current.condition}
+  action:
+    tool: get-weather
+    arguments:
+      location: ${input.city}
+      units: metric
+    output:
+      temperature: ${response.current.temp}
+      condition: ${response.current.condition}
 ```
 
 ### File System Operations
@@ -248,11 +250,12 @@ MCP client handles various error conditions:
 component:
   type: mcp-client
   url: http://localhost:8080/mcp
-  tool: risky-operation
-  arguments:
-    data: ${input.data}
-  # Tool errors are propagated as workflow failures
-  # Use workflow error handling to manage failures
+  action:
+    tool: risky-operation
+    arguments:
+      data: ${input.data}
+    # Tool errors are propagated as workflow failures
+    # Use workflow error handling to manage failures
 ```
 
 ## Variable Interpolation
@@ -263,14 +266,15 @@ MCP client supports dynamic configuration:
 component:
   type: mcp-client
   url: ${env.MCP_SERVER_URL}
-  tool: ${input.operation_type}
-  arguments:
-    param1: ${input.value1}
-    param2: ${input.value2 as number}
-    param3: ${input.flag as boolean | false}
-  headers:
-    X-Request-ID: ${generate_uuid}
-    X-Timestamp: ${now}
+  action:
+    tool: ${input.operation_type}
+    arguments:
+      param1: ${input.value1}
+      param2: ${input.value2 as number}
+      param3: ${input.flag as boolean | false}
+    headers:
+      X-Request-ID: ${generate_uuid}
+      X-Timestamp: ${now}
 ```
 
 ## Best Practices

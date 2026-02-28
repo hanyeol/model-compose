@@ -205,11 +205,13 @@ body:
 components:
   - id: elevenlabs-adam
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb
-    # ... Adam voice configuration
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb
+      # ... Adam voice configuration
 
   - id: elevenlabs-rachel
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM
-    # ... Rachel voice configuration
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM
+      # ... Rachel voice configuration
 ```

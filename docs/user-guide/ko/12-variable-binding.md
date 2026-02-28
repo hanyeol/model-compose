@@ -135,8 +135,9 @@ ${response.data[0].id}      # 배열 인덱스
 components:
   - id: openai-api
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    output: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      output: ${response.choices[0].message.content}
 
 # 로컬 모델 - result 사용
 components:
@@ -144,7 +145,8 @@ components:
     type: model
     task: text-generation
     model: gpt2
-    output: ${result}
+    action:
+      output: ${result}
 
 # 벡터 스토어 - response 사용
 components:
@@ -158,8 +160,9 @@ components:
 components:
   - id: run-script
     type: shell
-    command: echo "Hello"
-    output: ${stdout}
+    action:
+      command: echo "Hello"
+      output: ${stdout}
 ```
 
 **핵심 규칙**:
@@ -391,10 +394,11 @@ workflow:
 
 component:
   type: http-client
-  body:
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    body:
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 ### 12.8.4 벡터 검색 결과 포맷
@@ -412,10 +416,11 @@ component:
 ```yaml
 component:
   type: http-client
-  headers:
-    Authorization: Bearer ${input.api_key | ${env.OPENAI_API_KEY}}
-  body:
-    model: ${input.model | ${env.DEFAULT_MODEL | "gpt-4o"}}
+  action:
+    headers:
+      Authorization: Bearer ${input.api_key | ${env.OPENAI_API_KEY}}
+    body:
+      model: ${input.model | ${env.DEFAULT_MODEL | "gpt-4o"}}
 ```
 
 ---

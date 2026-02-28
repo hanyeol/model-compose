@@ -187,9 +187,10 @@ gateway:
 
 ```yaml
 component:
-  body:
-    callback_url: http://${gateway:8090.public_address}/callback
-    # 다음으로 해석됨: http://your-server.example.com:9834/callback
+  action:
+    body:
+      callback_url: http://${gateway:8090.public_address}/callback
+      # 다음으로 해석됨: http://your-server.example.com:9834/callback
 ```
 
 형식: `${gateway:로컬_포트.public_address}`
@@ -214,18 +215,19 @@ component:
   type: http-server
   start: [ uvicorn, server:app, --reload, --port, "9000" ]
   port: 9000
-  method: POST
-  path: /process
-  body:
-    data: ${input.data}
-    callback_url: http://${gateway:8090.public_address}/callback
-    task_id: ${context.run_id}
-  completion:
-    type: callback
-    wait_for: ${context.run_id}
-  output:
-    task_id: ${response.task_id}
-    result: ${result}
+  action:
+    method: POST
+    path: /process
+    body:
+      data: ${input.data}
+      callback_url: http://${gateway:8090.public_address}/callback
+      task_id: ${context.run_id}
+    completion:
+      type: callback
+      wait_for: ${context.run_id}
+    output:
+      task_id: ${response.task_id}
+      result: ${result}
 ```
 
 ## 문제 해결

@@ -215,14 +215,15 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    max_length: 1024
-    num_beams: 1                # 탐욕적 검색으로 더 빠른 스트리밍
-    do_sample: false            # 결정론적 출력
-    streaming_buffer_size: 1    # 모든 토큰을 즉시 스트리밍
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      max_length: 1024
+      num_beams: 1                # 탐욕적 검색으로 더 빠른 스트리밍
+      do_sample: false            # 결정론적 출력
+      streaming_buffer_size: 1    # 모든 토큰을 즉시 스트리밍
 ```
 
 ### 사용자 정의 언어 구성
@@ -233,13 +234,14 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
-    ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: |
+      Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
+      ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ### 스트리밍 품질 대 속도 절충

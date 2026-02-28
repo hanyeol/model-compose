@@ -185,12 +185,13 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
-    ${input.text as text}
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: |
+      Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
+      ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ### 使用语言令牌
@@ -203,13 +204,14 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    <source_lang>${input.source_lang | "en"}</source_lang>
-    <target_lang>${input.target_lang | "es"}</target_lang>
-    ${input.text as text}
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: |
+      <source_lang>${input.source_lang | "en"}</source_lang>
+      <target_lang>${input.target_lang | "es"}</target_lang>
+      ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ### 批量翻译
@@ -239,14 +241,15 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: ${input.text as text}
-  params:
-    max_input_length: 1024
-    max_length: ${input.max_length as number | 1024}
-    num_beams: ${input.quality as number | 4}    # 更高的束 = 更好的质量
-    length_penalty: 1.0                           # 控制输出长度
-    no_repeat_ngram_size: 3                      # 防止重复
-    do_sample: false                             # 确定性输出
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      max_length: ${input.max_length as number | 1024}
+      num_beams: ${input.quality as number | 4}    # 更高的束 = 更好的质量
+      length_penalty: 1.0                           # 控制输出长度
+      no_repeat_ngram_size: 3                      # 防止重复
+      do_sample: false                             # 确定性输出
 ```
 
 ### 使用不同的模型
@@ -274,14 +277,15 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Original text (${input.source_lang | "English"}):
-    "${input.text as text}"
+  action:
+    text: |
+      Original text (${input.source_lang | "English"}):
+      "${input.text as text}"
 
-    Translation (${input.target_lang | "Spanish"}):
-  params:
-    max_input_length: 1024
-    do_sample: false
+      Translation (${input.target_lang | "Spanish"}):
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ## 故障排除
@@ -365,16 +369,17 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Context: This is a ${input.context | "casual"} conversation.
-    Translate from ${input.source_lang} to ${input.target_lang}:
+  action:
+    text: |
+      Context: This is a ${input.context | "casual"} conversation.
+      Translate from ${input.source_lang} to ${input.target_lang}:
 
-    "${input.text as text}"
+      "${input.text as text}"
 
-    Translation:
-  params:
-    max_input_length: 1024
-    do_sample: false
+      Translation:
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ## 模型变体

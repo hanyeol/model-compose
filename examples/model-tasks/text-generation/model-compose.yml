@@ -18,6 +18,7 @@ component:
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   max_concurrent_count: 1
-  text: ${input.prompt as text}
-  params:
-    max_output_length: 32768
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 32768

@@ -8,12 +8,13 @@ The vector store component enables storing, searching, and managing vector embed
 component:
   type: vector-store
   driver: chroma
-  collection: documents
-  method: insert
-  vector: ${input.embedding}
-  metadata: 
-    text: ${input.text}
-    source: ${input.source}
+  action:
+    collection: documents
+    method: insert
+    vector: ${input.embedding}
+    metadata:
+      text: ${input.text}
+      source: ${input.source}
 ```
 
 ## Configuration Options
@@ -118,17 +119,18 @@ Add new vectors to the store:
 component:
   type: vector-store
   driver: chroma
-  collection: documents
-  method: insert
-  vector: ${input.embedding}
-  vector_id: ${input.document_id}
-  metadata:
-    text: ${input.text}
-    category: ${input.category}
-    timestamp: ${now}
-  output:
-    inserted_id: ${response.id}
-    success: ${response.success}
+  action:
+    collection: documents
+    method: insert
+    vector: ${input.embedding}
+    vector_id: ${input.document_id}
+    metadata:
+      text: ${input.text}
+      category: ${input.category}
+      timestamp: ${now}
+    output:
+      inserted_id: ${response.id}
+      success: ${response.success}
 ```
 
 ### Update Vectors
@@ -139,16 +141,17 @@ Modify existing vectors and metadata:
 component:
   type: vector-store
   driver: chroma
-  collection: documents
-  method: update
-  vector_id: ${input.document_id}
-  vector: ${input.new_embedding}
-  metadata:
-    text: ${input.updated_text}
-    last_modified: ${now}
-  insert_if_not_exist: true
-  output:
-    updated: ${response.success}
+  action:
+    collection: documents
+    method: update
+    vector_id: ${input.document_id}
+    vector: ${input.new_embedding}
+    metadata:
+      text: ${input.updated_text}
+      last_modified: ${now}
+    insert_if_not_exist: true
+    output:
+      updated: ${response.success}
 ```
 
 ### Search Vectors
@@ -159,19 +162,20 @@ Find similar vectors using similarity search:
 component:
   type: vector-store
   driver: chroma
-  collection: documents
-  method: search
-  query: ${input.query_embedding}
-  top_k: 10
-  metric_type: COSINE
-  filter:
-    category: science
-    timestamp: 
-      gte: 2024-01-01
-  output_fields: [text, category, score]
-  output:
-    matches: ${response.results}
-    scores: ${response.scores}
+  action:
+    collection: documents
+    method: search
+    query: ${input.query_embedding}
+    top_k: 10
+    metric_type: COSINE
+    filter:
+      category: science
+      timestamp:
+        gte: 2024-01-01
+    output_fields: [text, category, score]
+    output:
+      matches: ${response.results}
+      scores: ${response.scores}
 ```
 
 ### Delete Vectors
@@ -182,16 +186,17 @@ Remove vectors from the store:
 component:
   type: vector-store
   driver: chroma
-  collection: documents
-  method: delete
-  vector_id: ${input.document_id}
-  # Or delete by filter:
-  filter:
-    category: outdated
-    timestamp:
-      lt: 2023-01-01
-  output:
-    deleted_count: ${response.deleted}
+  action:
+    collection: documents
+    method: delete
+    vector_id: ${input.document_id}
+    # Or delete by filter:
+    filter:
+      category: outdated
+      timestamp:
+        lt: 2023-01-01
+    output:
+      deleted_count: ${response.deleted}
 ```
 
 ## Multiple Actions Configuration
@@ -310,15 +315,16 @@ Process multiple vectors efficiently:
 component:
   type: vector-store
   driver: chroma
-  collection: bulk_documents
-  method: insert
-  vector: ${input.embedding_batch}  # Array of vectors
-  vector_id: ${input.id_batch}      # Array of IDs
-  metadata: ${input.metadata_batch} # Array of metadata
-  batch_size: 100
-  output:
-    inserted_count: ${response.count}
-    batch_results: ${response.results}
+  action:
+    collection: bulk_documents
+    method: insert
+    vector: ${input.embedding_batch}  # Array of vectors
+    vector_id: ${input.id_batch}      # Array of IDs
+    metadata: ${input.metadata_batch} # Array of metadata
+    batch_size: 100
+    output:
+      inserted_count: ${response.count}
+      batch_results: ${response.results}
 ```
 
 ## Integration with Text Embeddings
@@ -370,8 +376,9 @@ components:
     type: model
     task: text-embedding
     model: sentence-transformers/all-MiniLM-L6-v2
-    text: ${input.text}
-    
+    action:
+      text: ${input.text}
+
   - id: vector-store
     type: vector-store
     driver: chroma
@@ -495,11 +502,12 @@ component:
 component:
   type: vector-store
   driver: milvus
-  collection: large_corpus
-  method: search
-  # Use appropriate index for your data size
-  metric_type: L2
-  batch_size: 1000  # Process in batches for large operations
+  action:
+    collection: large_corpus
+    method: search
+    # Use appropriate index for your data size
+    metric_type: L2
+    batch_size: 1000  # Process in batches for large operations
 ```
 
 ### Memory Management
@@ -547,13 +555,14 @@ Vector store supports dynamic configuration:
 component:
   type: vector-store
   driver: ${env.VECTOR_DB_DRIVER | chroma}
-  collection: ${input.collection_name}
-  method: ${input.operation}
-  vector: ${input.embedding}
-  metadata:
-    timestamp: ${now}
-    user_id: ${input.user_id}
-    source: ${env.DATA_SOURCE}
+  action:
+    collection: ${input.collection_name}
+    method: ${input.operation}
+    vector: ${input.embedding}
+    metadata:
+      timestamp: ${now}
+      user_id: ${input.user_id}
+      source: ${env.DATA_SOURCE}
 ```
 
 ## Best Practices

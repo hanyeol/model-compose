@@ -7,9 +7,10 @@ The web scraper component enables extracting data from web pages using CSS selec
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: .content
-  extract_mode: text
+  action:
+    url: https://example.com
+    selector: .content
+    extract_mode: text
 ```
 
 ## Configuration Options
@@ -61,11 +62,12 @@ Extract text content using CSS selector:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/blog
-  selector: article.post-content
-  extract_mode: text
-  output:
-    content: ${result}
+  action:
+    url: https://example.com/blog
+    selector: article.post-content
+    extract_mode: text
+    output:
+      content: ${result}
 ```
 
 ### Extract Multiple Elements
@@ -75,12 +77,13 @@ Scrape multiple items from a list:
 ```yaml
 component:
   type: web-scraper
-  url: https://news.ycombinator.com
-  selector: .titleline > a
-  extract_mode: text
-  multiple: true
-  output:
-    titles: ${result}
+  action:
+    url: https://news.ycombinator.com
+    selector: .titleline > a
+    extract_mode: text
+    multiple: true
+    output:
+      titles: ${result}
 ```
 
 ### Extract Attributes
@@ -90,13 +93,14 @@ Get links from anchor tags:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: a.product-link
-  extract_mode: attribute
-  attribute: href
-  multiple: true
-  output:
-    product_urls: ${result}
+  action:
+    url: https://example.com
+    selector: a.product-link
+    extract_mode: attribute
+    attribute: href
+    multiple: true
+    output:
+      product_urls: ${result}
 ```
 
 ### Using XPath
@@ -106,11 +110,12 @@ Extract data using XPath expressions:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  xpath: //div[@class='price']/text()
-  extract_mode: text
-  output:
-    price: ${result}
+  action:
+    url: https://example.com
+    xpath: //div[@class='price']/text()
+    extract_mode: text
+    output:
+      price: ${result}
 ```
 
 ### JavaScript Rendering
@@ -120,13 +125,14 @@ Scrape dynamic content that requires JavaScript:
 ```yaml
 component:
   type: web-scraper
-  url: https://spa.example.com
-  enable_javascript: true
-  wait_for: .dynamic-content
-  selector: .data
-  extract_mode: text
-  output:
-    scraped_data: ${result}
+  action:
+    url: https://spa.example.com
+    enable_javascript: true
+    wait_for: .dynamic-content
+    selector: .data
+    extract_mode: text
+    output:
+      scraped_data: ${result}
 ```
 
 ### Cookie Injection
@@ -136,14 +142,15 @@ Scrape authenticated pages using cookies:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/dashboard
-  cookies:
-    session_id: ${env.SESSION_ID}
-    auth_token: ${env.AUTH_TOKEN}
-  selector: .user-data
-  extract_mode: text
-  output:
-    user_info: ${result}
+  action:
+    url: https://example.com/dashboard
+    cookies:
+      session_id: ${env.SESSION_ID}
+      auth_token: ${env.AUTH_TOKEN}
+    selector: .user-data
+    extract_mode: text
+    output:
+      user_info: ${result}
 ```
 
 ### Custom Headers
@@ -153,12 +160,13 @@ Include custom headers in requests:
 ```yaml
 component:
   type: web-scraper
-  url: https://api.example.com/data
-  headers:
-    User-Agent: "Mozilla/5.0 (Custom Bot)"
-    Accept-Language: "en-US"
-  selector: .api-response
-  extract_mode: text
+  action:
+    url: https://api.example.com/data
+    headers:
+      User-Agent: "Mozilla/5.0 (Custom Bot)"
+      Accept-Language: "en-US"
+    selector: .api-response
+    extract_mode: text
 ```
 
 ### Form Submission
@@ -168,19 +176,20 @@ Fill and submit forms before extraction:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/search
-  enable_javascript: true
-  submit:
-    selector: form#search-form
-    form:
-      input[name="q"]: ${input.search_query}
-      input[name="category"]: technology
-    wait_for: .search-results
-  selector: .result-item
-  extract_mode: text
-  multiple: true
-  output:
-    search_results: ${result}
+  action:
+    url: https://example.com/search
+    enable_javascript: true
+    submit:
+      selector: form#search-form
+      form:
+        input[name="q"]: ${input.search_query}
+        input[name="category"]: technology
+      wait_for: .search-results
+    selector: .result-item
+    extract_mode: text
+    multiple: true
+    output:
+      search_results: ${result}
 ```
 
 ## Multiple Actions Component
@@ -227,11 +236,12 @@ component:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/product/${input.product_id}
-  selector: .product-details
-  extract_mode: html
-  output:
-    details: ${result}
+  action:
+    url: https://example.com/product/${input.product_id}
+    selector: .product-details
+    extract_mode: html
+    output:
+      details: ${result}
 ```
 
 ### Scraping with Authentication
@@ -241,17 +251,18 @@ Combine cookies and headers for authenticated scraping:
 ```yaml
 component:
   type: web-scraper
-  url: https://secure.example.com/data
-  headers:
-    Authorization: Bearer ${env.API_TOKEN}
-    X-Request-ID: ${input.request_id}
-  cookies:
-    session_id: ${env.SESSION_ID}
-    preferences: ${input.user_prefs}
-  selector: .protected-content
-  extract_mode: text
-  output:
-    content: ${result}
+  action:
+    url: https://secure.example.com/data
+    headers:
+      Authorization: Bearer ${env.API_TOKEN}
+      X-Request-ID: ${input.request_id}
+    cookies:
+      session_id: ${env.SESSION_ID}
+      preferences: ${input.user_prefs}
+    selector: .protected-content
+    extract_mode: text
+    output:
+      content: ${result}
 ```
 
 ### Multi-Step Scraping
@@ -261,20 +272,21 @@ Scrape data after multiple interactions:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/search
-  enable_javascript: true
-  submit:
-    selector: form#search-form
-    form:
-      input[name="query"]: ${input.search_term}
-      select[name="filter"]: ${input.filter_option}
-    wait_for: .results-loaded
-  selector: .search-result
-  extract_mode: html
-  multiple: true
-  timeout: 60s
-  output:
-    results: ${result}
+  action:
+    url: https://example.com/search
+    enable_javascript: true
+    submit:
+      selector: form#search-form
+      form:
+        input[name="query"]: ${input.search_term}
+        select[name="filter"]: ${input.filter_option}
+      wait_for: .results-loaded
+    selector: .search-result
+    extract_mode: html
+    multiple: true
+    timeout: 60s
+    output:
+      results: ${result}
 ```
 
 ### Extract Full Page Content
@@ -284,10 +296,11 @@ Get the entire page content without selectors:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/article
-  extract_mode: text
-  output:
-    full_text: ${result}
+  action:
+    url: https://example.com/article
+    extract_mode: text
+    output:
+      full_text: ${result}
 ```
 
 ### Extract Raw HTML
@@ -297,11 +310,12 @@ Get HTML source of specific elements:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: article
-  extract_mode: html
-  output:
-    article_html: ${result}
+  action:
+    url: https://example.com
+    selector: article
+    extract_mode: html
+    output:
+      article_html: ${result}
 ```
 
 ## Integration with Workflows
@@ -330,21 +344,23 @@ workflows:
 components:
   - id: list-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: a.product-link
-    extract_mode: attribute
-    attribute: href
-    multiple: true
-    output:
-      links: ${result}
+    action:
+      url: ${input.url}
+      selector: a.product-link
+      extract_mode: attribute
+      attribute: href
+      multiple: true
+      output:
+        links: ${result}
 
   - id: detail-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: .product-description
-    extract_mode: text
-    output:
-      description: ${result}
+    action:
+      url: ${input.url}
+      selector: .product-description
+      extract_mode: text
+      output:
+        description: ${result}
 ```
 
 ### Scraping and Processing
@@ -371,11 +387,12 @@ workflows:
 components:
   - id: web-scraper
     type: web-scraper
-    url: ${input.url}
-    selector: .main-content
-    extract_mode: text
-    output:
-      content: ${result}
+    action:
+      url: ${input.url}
+      selector: .main-content
+      extract_mode: text
+      output:
+        content: ${result}
 ```
 
 ### Authenticated Scraping Pipeline
@@ -401,27 +418,29 @@ workflows:
 components:
   - id: login-form
     type: web-scraper
-    url: https://example.com/login
-    enable_javascript: true
-    submit:
-      selector: form#login-form
-      form:
-        input[name="username"]: ${input.username}
-        input[name="password"]: ${input.password}
-      wait_for: .dashboard
-    # Extract session cookie from browser context
-    output:
-      cookie: ${result}
+    action:
+      url: https://example.com/login
+      enable_javascript: true
+      submit:
+        selector: form#login-form
+        form:
+          input[name="username"]: ${input.username}
+          input[name="password"]: ${input.password}
+        wait_for: .dashboard
+      # Extract session cookie from browser context
+      output:
+        cookie: ${result}
 
   - id: protected-scraper
     type: web-scraper
-    url: https://example.com/protected/data
-    cookies:
-      session: ${input.session}
-    selector: .protected-content
-    extract_mode: text
-    output:
-      data: ${result}
+    action:
+      url: https://example.com/protected/data
+      cookies:
+        session: ${input.session}
+      selector: .protected-content
+      extract_mode: text
+      output:
+        data: ${result}
 ```
 
 ## Extract Modes Comparison
@@ -433,10 +452,11 @@ Extracts clean text content without HTML tags:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: .article
-  extract_mode: text
-  # Output: "This is the article content"
+  action:
+    url: https://example.com
+    selector: .article
+    extract_mode: text
+    # Output: "This is the article content"
 ```
 
 ### HTML Mode
@@ -446,10 +466,11 @@ Extracts full HTML including tags:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: .article
-  extract_mode: html
-  # Output: "<div class='article'>This is the article content</div>"
+  action:
+    url: https://example.com
+    selector: .article
+    extract_mode: html
+    # Output: "<div class='article'>This is the article content</div>"
 ```
 
 ### Attribute Mode
@@ -459,11 +480,12 @@ Extracts specific HTML attributes:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com
-  selector: img.product
-  extract_mode: attribute
-  attribute: src
-  # Output: "https://example.com/image.jpg"
+  action:
+    url: https://example.com
+    selector: img.product
+    extract_mode: attribute
+    attribute: src
+    # Output: "https://example.com/image.jpg"
 ```
 
 ## Timeout Configuration
@@ -559,13 +581,14 @@ Use variables for dynamic cookie values:
 ```yaml
 component:
   type: web-scraper
-  url: https://example.com/user/profile
-  cookies:
-    user_id: ${input.user_id}
-    session_token: ${input.session}
-    preferences: ${input.prefs | "default"}
-  selector: .user-data
-  extract_mode: text
+  action:
+    url: https://example.com/user/profile
+    cookies:
+      user_id: ${input.user_id}
+      session_token: ${input.session}
+      preferences: ${input.prefs | "default"}
+    selector: .user-data
+    extract_mode: text
 ```
 
 ## Best Practices
@@ -587,16 +610,17 @@ Web scraper supports dynamic configuration:
 ```yaml
 component:
   type: web-scraper
-  url: ${input.target_url}
-  selector: ${input.selector_pattern}
-  extract_mode: ${input.mode | "text"}
-  multiple: ${input.extract_multiple as boolean | false}
-  enable_javascript: ${input.needs_js as boolean | false}
-  headers:
-    User-Agent: ${input.user_agent | "Mozilla/5.0"}
-  cookies:
-    session: ${env.SESSION_COOKIE}
-    custom: ${input.custom_cookie}
+  action:
+    url: ${input.target_url}
+    selector: ${input.selector_pattern}
+    extract_mode: ${input.mode | "text"}
+    multiple: ${input.extract_multiple as boolean | false}
+    enable_javascript: ${input.needs_js as boolean | false}
+    headers:
+      User-Agent: ${input.user_agent | "Mozilla/5.0"}
+    cookies:
+      session: ${env.SESSION_COOKIE}
+      custom: ${input.custom_cookie}
 ```
 
 ## Common Use Cases

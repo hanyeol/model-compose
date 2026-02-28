@@ -187,7 +187,8 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x2.pth  # 2배 scaling용
   scale: 2
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ### 대체 모델 사용
@@ -202,7 +203,8 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: ESRGAN_x4.pth      # 원본 ESRGAN 모델
   scale: 4
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ## 문제 해결
@@ -227,10 +229,11 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x4.pth
   scale: 4
-  image: ${input.image as image}
-  params:
-    tile_size: 512        # 더 작은 타일로 처리
-    tile_pad: 10          # 가장자리 artifact 방지를 위한 패딩
+  action:
+    image: ${input.image as image}
+    params:
+      tile_size: 512        # 더 작은 타일로 처리
+      tile_pad: 10          # 가장자리 artifact 방지를 위한 패딩
 ```
 
 ## API 기반 솔루션과의 비교

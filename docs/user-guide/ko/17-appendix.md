@@ -44,6 +44,7 @@ workflow:          # workflows: [ ... ] 대신
 listener:          # listeners: [ ... ] 대신
 gateway:           # gateways: [ ... ] 대신
 logger:            # loggers: [ ... ] 대신
+action:            # actions: [ ... ] 대신 (컴포넌트 내에서)
 ```
 
 ### 17.1.2 컨트롤러 스키마
@@ -90,23 +91,11 @@ components:
     task: text-generation | chat-completion | translation | ...
     model: model-name-or-path
 
-    # 입력 (태스크별 상이)
-    text: ${input.text as text}
-    messages: [ ... ]
-    image: ${input.image as image}
-
     # 모델 설정
     device: cuda | cpu | mps
     dtype: float32 | float16 | bfloat16 | int8 | int4
     batch_size: 1
     streaming: false
-
-    # 파라미터
-    params:
-      max_output_length: 100
-      temperature: 0.7
-      top_p: 0.9
-      do_sample: true
 
     # LoRA 어댑터
     peft_adapters:
@@ -114,6 +103,19 @@ components:
         name: adapter-name
         model: path/to/adapter
         weight: 1.0
+
+    # 단일 액션
+    action:
+      # 입력 (태스크별 상이)
+      text: ${input.text as text}
+      messages: [ ... ]
+      image: ${input.image as image}
+      # 파라미터
+      params:
+        max_output_length: 100
+        temperature: 0.7
+        top_p: 0.9
+        do_sample: true
 ```
 
 **HTTP 클라이언트**:
@@ -122,26 +124,23 @@ components:
   - id: http-client-id
     type: http-client
 
-    # 엔드포인트
-    base_url: https://api.example.com   # 또는
-    endpoint: https://api.example.com/v1/resource
+    # 컴포넌트 레벨
+    base_url: https://api.example.com
 
-    # HTTP 설정
-    method: GET | POST | PUT | DELETE | PATCH
-    path: /resource
-    headers: { ... }
-    params: { ... }
-    body: { ... }
+    # 단일 액션
+    action:
+      endpoint: https://api.example.com/v1/resource
+      method: GET | POST | PUT | DELETE | PATCH
+      path: /resource
+      headers: { ... }
+      params: { ... }
+      body: { ... }
+      stream_format: json | text
+      timeout: 30
+      max_retries: 3
+      retry_delay: 1
 
-    # 스트리밍
-    stream_format: json | text
-
-    # 고급 설정
-    timeout: 30
-    max_retries: 3
-    retry_delay: 1
-
-    # 다중 액션
+    # 또는 다중 액션
     actions:
       - id: action-id
         path: /action-path
@@ -172,10 +171,11 @@ components:
       retries: 3
 
     # HTTP 클라이언트 설정 (서버 시작 후)
-    method: POST
-    path: /v1/completions
-    body: { ... }
-    stream_format: json
+    action:
+      method: POST
+      path: /v1/completions
+      body: { ... }
+      stream_format: json
 ```
 
 **벡터 스토어**:

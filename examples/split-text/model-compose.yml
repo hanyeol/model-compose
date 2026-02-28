@@ -14,6 +14,7 @@ workflow:
 
 component:
   type: text-splitter
-  text: ${input.text as text}
-  chunk_size: ${input.chunk_size as integer | 1000}
-  chunk_overlap: ${input.chunk_overlap as integer | 200}
+  action:
+    text: ${input.text as text}
+    chunk_size: ${input.chunk_size as integer | 1000}
+    chunk_overlap: ${input.chunk_overlap as integer | 200}

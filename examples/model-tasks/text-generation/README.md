@@ -204,12 +204,13 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  text: ${input.prompt as text}
-  params:
-    max_output_length: 1024
-    temperature: ${input.temperature as number | 0.7}
-    top_p: ${input.top_p as number | 0.9}
-    do_sample: true
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 1024
+      temperature: ${input.temperature as number | 0.7}
+      top_p: ${input.top_p as number | 0.9}
+      do_sample: true
 ```
 
 ### Input Templating
@@ -221,13 +222,14 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  text: |
-    ### Instruction:
-    ${input.instruction}
+  action:
+    text: |
+      ### Instruction:
+      ${input.instruction}
 
-    ### Response:
-  params:
-    max_output_length: 2048
+      ### Response:
+    params:
+      max_output_length: 2048
 ```
 
 ## Comparison with API-based Solutions
@@ -263,7 +265,8 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  text: ${input.template | "Generate text about: ${input.topic}"}
+  action:
+    text: ${input.template | "Generate text about: ${input.topic}"}
 ```
 
 ## Model Variants

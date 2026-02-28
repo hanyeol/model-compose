@@ -263,12 +263,13 @@ workflow:
 component:
   type: http-client
   # ... other config
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: |
-          Write an inspiring ${input.theme | "motivational"} quote.
-          Theme options: success, perseverance, leadership, creativity, growth
-          Aim for around 30 words.
+  action:
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: |
+            Write an inspiring ${input.theme | "motivational"} quote.
+            Theme options: success, perseverance, leadership, creativity, growth
+            Aim for around 30 words.
 ```

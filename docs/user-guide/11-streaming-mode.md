@@ -63,10 +63,11 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true                  # Enable streaming
-  params:
-    max_output_length: 150
+  action:
+    text: ${input.text as text}
+    params:
+      max_output_length: 150
 ```
 
 **Important Constraints:**
@@ -81,12 +82,13 @@ component:
   type: model
   task: text-generation
   model: gpt2
-  text: ${input.prompt as text}
   streaming: true
-  params:
-    max_output_length: 200
-    do_sample: false               # Deterministic generation (faster)
-    num_beams: 1                   # Disable beam search
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 200
+      do_sample: false               # Deterministic generation (faster)
+      num_beams: 1                   # Disable beam search
 ```
 
 **Output References:**
@@ -100,12 +102,13 @@ component:
   type: model
   task: chat-completion
   model: microsoft/DialoGPT-medium
-  messages:
-    - role: user
-      content: ${input.message as text}
   streaming: true
-  params:
-    max_output_length: 100
+  action:
+    messages:
+      - role: user
+        content: ${input.message as text}
+    params:
+      max_output_length: 100
 ```
 
 **Features:**
@@ -123,18 +126,19 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    stream: true                   # API parameter
-  stream_format: json              # Parse chunks as JSON
-  output: ${response[].choices[0].delta.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true                   # API parameter
+    stream_format: json              # Parse chunks as JSON
+    output: ${response[].choices[0].delta.content}
 ```
 
 **stream_format Options:**
@@ -173,16 +177,17 @@ component:
   port: 8000
   healthcheck:
     path: /health
-  method: POST
-  path: /v1/chat/completions
-  body:
-    model: qwen2-7b-instruct
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    method: POST
+    path: /v1/chat/completions
+    body:
+      model: qwen2-7b-instruct
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 ---
@@ -203,18 +208,19 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 **Workflow Output Formats:**
@@ -256,17 +262,19 @@ components:
     type: model
     task: translation
     model: Helsinki-NLP/opus-mt-ko-en
-    text: ${input.text as text}
     streaming: false
+    action:
+      text: ${input.text as text}
 
   - id: summarizer
     type: model
     task: text-generation
     model: facebook/bart-large-cnn
-    text: ${input.text as text}
     streaming: true                    # Only last job streams
-    params:
-      max_output_length: 150
+    action:
+      text: ${input.text as text}
+      params:
+        max_output_length: 150
 ```
 
 **Important:**
@@ -285,10 +293,11 @@ component:
   type: model
   task: text-generation
   model: gpt2
-  text: ${input.prompt as text}
   streaming: ${input.stream | false}   # Streaming determined by input
-  params:
-    max_output_length: 100
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 100
 ```
 
 **API Call Examples:**
@@ -487,10 +496,11 @@ component:
   type: model
   task: chat-completion
   model: gpt2
-  messages:
-    - role: user
-      content: ${input.prompt as text}
   streaming: true
+  action:
+    messages:
+      - role: user
+        content: ${input.prompt as text}
 ```
 
 Gradio Web UI automatically:
@@ -511,17 +521,18 @@ component:
   type: model
   task: text-generation
   model: gpt2
-  text: ${input.prompt as text}
   streaming: true
-  params:
-    # Performance optimization
-    do_sample: false               # Deterministic generation (no beam search)
-    num_beams: 1                   # Single beam
-    max_output_length: 100         # Appropriate length limit
+  action:
+    text: ${input.prompt as text}
+    params:
+      # Performance optimization
+      do_sample: false               # Deterministic generation (no beam search)
+      num_beams: 1                   # Single beam
+      max_output_length: 100         # Appropriate length limit
 
-    # Quality vs Speed balance
-    # top_p: 0.9                   # Use with sampling
-    # temperature: 0.8             # Use with sampling
+      # Quality vs Speed balance
+      # top_p: 0.9                   # Use with sampling
+      # temperature: 0.8             # Use with sampling
 ```
 
 **Impact by Setting:**
@@ -558,10 +569,11 @@ component:
   type: http-client
   base_url: https://api.openai.com/v1
   timeout: 60                      # 60 second timeout
-  path: /chat/completions
-  body:
-    stream: true
-  stream_format: json
+  action:
+    path: /chat/completions
+    body:
+      stream: true
+    stream_format: json
 ```
 
 ### 11.5.3 Memory Management
@@ -609,9 +621,10 @@ component:
   base_url: https://api.openai.com/v1
   max_retries: 3                   # Max 3 retries
   retry_delay: 1                   # 1 second wait
-  path: /chat/completions
-  body:
-    stream: true
+  action:
+    path: /chat/completions
+    body:
+      stream: true
 ```
 
 **Timeout Handling:**
@@ -621,9 +634,10 @@ component:
   type: http-client
   base_url: https://api.openai.com/v1
   timeout: 30                      # 30 second timeout
-  path: /chat/completions
-  body:
-    stream: true
+  action:
+    path: /chat/completions
+    body:
+      stream: true
 ```
 
 **Stream Interruption Handling:**
@@ -663,10 +677,11 @@ component:
   type: model
   task: translation
   model: Helsinki-NLP/opus-mt-ko-en
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_output_length: 512
+  action:
+    text: ${input.text as text}
+    params:
+      max_output_length: 512
 ```
 
 ### 11.6.2 OpenAI + Claude Combination
@@ -693,33 +708,35 @@ components:
   - id: openai-client
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt as text}
-      stream: true
-    stream_format: json
-    output: ${response[].choices[0].delta.content}
+    action:
+      path: /chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+        stream: true
+      stream_format: json
+      output: ${response[].choices[0].delta.content}
 
   - id: claude-client
     type: http-client
     base_url: https://api.anthropic.com/v1
-    path: /messages
-    headers:
-      x-api-key: ${env.ANTHROPIC_API_KEY}
-      anthropic-version: "2023-06-01"
-    body:
-      model: claude-3-5-sonnet-20241022
-      messages:
-        - role: user
-          content: ${input.prompt as text}
-      stream: true
-    stream_format: json
-    output: ${response[].delta.text}
+    action:
+      path: /messages
+      headers:
+        x-api-key: ${env.ANTHROPIC_API_KEY}
+        anthropic-version: "2023-06-01"
+      body:
+        model: claude-3-5-sonnet-20241022
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+        stream: true
+      stream_format: json
+      output: ${response[].delta.text}
 ```
 
 ### 11.6.3 Local Model Streaming Server
@@ -747,17 +764,18 @@ component:
   healthcheck:
     path: /health
     interval: 5s
-  method: POST
-  path: /v1/chat/completions
-  body:
-    model: llama-2-7b-chat
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    stream: true
-    max_tokens: 256
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    method: POST
+    path: /v1/chat/completions
+    body:
+      model: llama-2-7b-chat
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+      max_tokens: 256
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 ---

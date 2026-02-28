@@ -185,9 +185,10 @@ component:
   type: model
   task: image-to-text
   model: Salesforce/blip-image-captioning-large
-  image: ${input.image as image}
-  prompt: |
-    ${input.custom_prompt | "Describe this image in detail, focusing on colors, objects, and activities."}
+  action:
+    image: ${input.image as image}
+    prompt: |
+      ${input.custom_prompt | "Describe this image in detail, focusing on colors, objects, and activities."}
 ```
 
 ### Batch Processing
@@ -259,13 +260,14 @@ component:
   type: model
   task: image-to-text
   model: Salesforce/blip-image-captioning-large
-  image: ${input.image as image}
-  prompt: |
-    Context: ${input.context | "general description"}
-    Style: ${input.style | "detailed and objective"}
-    Focus: ${input.focus | "main subjects and activities"}
+  action:
+    image: ${input.image as image}
+    prompt: |
+      Context: ${input.context | "general description"}
+      Style: ${input.style | "detailed and objective"}
+      Focus: ${input.focus | "main subjects and activities"}
 
-    Please describe this image.
+      Please describe this image.
 ```
 
 ## Model Variants

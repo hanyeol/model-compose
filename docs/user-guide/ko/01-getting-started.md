@@ -37,7 +37,8 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
+    action:
+      path: /chat/completions
 
 workflows:
   - id: generate-text
@@ -151,18 +152,19 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 
 workflows:
   - id: generate-text
@@ -195,17 +197,18 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 ```
 - `chatgpt`라는 재사용 가능한 컴포넌트를 정의
 - OpenAI의 API를 호출하기 위한 HTTP 클라이언트 설정
@@ -466,11 +469,12 @@ jobs:
 데이터 흐름 예제:
 ```yaml
 component:
-  body:
-    prompt: ${input.user_prompt}  # 워크플로우 입력에서
-    api_key: ${env.API_KEY}       # 환경에서
-  output:
-    result: ${response.data}      # API 응답에서 추출
+  action:
+    body:
+      prompt: ${input.user_prompt}  # 워크플로우 입력에서
+      api_key: ${env.API_KEY}       # 환경에서
+    output:
+      result: ${response.data}      # API 응답에서 추출
 ```
 
 ### 모든 것을 함께 연결

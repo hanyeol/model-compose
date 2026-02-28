@@ -162,7 +162,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-mpnet-base-v2    # Higher quality, slower
-  text: ${input.text}
+  action:
+    text: ${input.text}
   # Output: 768 dimensions
 
 # Or for multilingual support:
@@ -178,7 +179,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.texts}  # Array of strings
+  action:
+    text: ${input.texts}  # Array of strings
 ```
 
 ### Model Parameters
@@ -190,11 +192,12 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text}
-  params:
-    device: auto        # 'cpu', 'cuda', or 'auto'
-    normalize: true     # Normalize output vectors
-    convert_to_numpy: true
+  action:
+    text: ${input.text}
+    params:
+      device: auto        # 'cpu', 'cuda', or 'auto'
+      normalize: true     # Normalize output vectors
+      convert_to_numpy: true
 ```
 
 ## Advanced Usage
@@ -226,8 +229,9 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.search_queries}
-  output: ${output as json}
+  action:
+    text: ${input.search_queries}
+    output: ${output as json}
 ```
 
 ## Model Comparison

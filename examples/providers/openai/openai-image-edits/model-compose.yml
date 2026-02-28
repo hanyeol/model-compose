@@ -12,19 +12,20 @@ workflow:
   input: ${input}
   output: ${output.image_data as image;base64}
 
-component: 
+component:
   type: http-client
-  endpoint: https://api.openai.com/v1/images/edits
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: multipart/form-data
-  body:
-    model: gpt-image-1
-    prompt: ${input.prompt}
-    image: ${input.image as image/png}
-    n: 1
-    size: ${input.size as select/auto,1024x1024,1536x1024,1024x1536 | auto}
-    output_format: png
-  output:
-    image_data: ${response.data[0].b64_json}
+  action:
+    endpoint: https://api.openai.com/v1/images/edits
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: multipart/form-data
+    body:
+      model: gpt-image-1
+      prompt: ${input.prompt}
+      image: ${input.image as image/png}
+      n: 1
+      size: ${input.size as select/auto,1024x1024,1536x1024,1024x1536 | auto}
+      output_format: png
+    output:
+      image_data: ${response.data[0].b64_json}

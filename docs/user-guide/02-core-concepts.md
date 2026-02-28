@@ -141,25 +141,26 @@ controller:
 
 ### Single Action Component
 
-The simplest form, where a component defines only one action:
+The simplest form, where a component defines only one action using `action:` (singular):
 
 ```yaml
 components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 ```
 
 ### Multiple Actions Component
@@ -210,14 +211,15 @@ Calls external APIs.
 ```yaml
 - id: api-call
   type: http-client
-  endpoint: https://api.example.com/v1/endpoint
-  method: POST
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body:
-    data: ${input.data}
-  output:
-    result: ${response.result}
+  action:
+    endpoint: https://api.example.com/v1/endpoint
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body:
+      data: ${input.data}
+    output:
+      result: ${response.result}
 ```
 
 #### 2. Model
@@ -270,12 +272,13 @@ Components receive input and generate output:
 ```yaml
 - id: translator
   type: http-client
-  endpoint: https://api.translate.com/v1/translate
-  body:
-    text: ${input.text}      # From input
-    target: ${input.language} # From input
-  output:
-    translated: ${response.translation}  # Extract to output
+  action:
+    endpoint: https://api.translate.com/v1/translate
+    body:
+      text: ${input.text}      # From input
+      target: ${input.language} # From input
+    output:
+      translated: ${response.translation}  # Extract to output
 ```
 
 ---
@@ -522,28 +525,30 @@ controller:
 components:
   - id: generate-quote
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.topic}
-    output:
-      quote: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.topic}
+      output:
+        quote: ${response.choices[0].message.content}
 
   - id: text-to-speech
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
-    headers:
-      xi-api-key: ${env.ELEVENLABS_API_KEY}
-      Content-Type: application/json
-    body:
-      text: ${input.text}
-      model_id: eleven_multilingual_v2
-    output: ${response as base64}
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
+      headers:
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+        Content-Type: application/json
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
 
 workflow:
   title: Quote to Voice
@@ -598,15 +603,16 @@ components:
   - id: gpt4o
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
 ```
 
 ### Job
@@ -653,17 +659,18 @@ components:
   - id: openai-chat
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      text: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        text: ${response.choices[0].message.content}
 
 # Workflow: Reuse the same component in multiple jobs
 workflows:

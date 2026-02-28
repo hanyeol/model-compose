@@ -67,29 +67,31 @@ All components inherit these common properties from `CommonComponentConfig`:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `actions` | array | `[]` | List of actions available within this component |
+| `action` | object | - | Single action definition for the component (shorthand for single-action components) |
+| `actions` | array | `[]` | List of actions available within this component (for multi-action components) |
 
-Components can define multiple actions, each with specific configurations for different operations.
+Components can define a single action using `action:` (singular) or multiple actions using `actions:` (plural). This is consistent with the `component:` / `components:` pattern used elsewhere.
 
 ## Component Usage Patterns
 
 ### Single Action Component
 
-For simple components with one primary action:
+For simple components with one primary action, wrap the action-specific fields under `action:`:
 
 ```yaml
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
 ```
 
 ### Multi-Action Component

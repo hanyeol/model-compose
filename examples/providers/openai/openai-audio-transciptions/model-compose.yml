@@ -20,12 +20,13 @@ workflow:
 components:
   - id: openai-speech-to-text
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/transcriptions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type:  multipart/form-data
-    body:
-      model: ${input.model as select/gpt-4o-transcribe,gpt-4o-mini-transcribe,whisper-1 | whisper-1}
-      file: ${input.file as audio}
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/audio/transcriptions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type:  multipart/form-data
+      body:
+        model: ${input.model as select/gpt-4o-transcribe,gpt-4o-mini-transcribe,whisper-1 | whisper-1}
+        file: ${input.file as audio}
+      output: ${response}

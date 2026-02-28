@@ -19,4 +19,5 @@ component:
   max_concurrent_count: 1
   family: insightface
   model: ./models/antelopev2
-  image: ${input.face_image as image}
+  action:
+    image: ${input.face_image as image}

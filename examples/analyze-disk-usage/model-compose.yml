@@ -29,22 +29,24 @@ workflow:
 components:
   - id: get-disk-usage
     type: shell
-    command: [ "df", "-h" ]
-    output: ${result.stdout}
+    action:
+      command: [ "df", "-h" ]
+      output: ${result.stdout}
 
   - id: gpt-4o
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: system
-          content: ${input.system_prompt}
-        - role: user
-          content: ${input.user_prompt}
-    output: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: system
+            content: ${input.system_prompt}
+          - role: user
+            content: ${input.user_prompt}
+      output: ${response.choices[0].message.content}

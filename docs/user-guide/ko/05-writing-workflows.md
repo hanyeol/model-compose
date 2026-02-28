@@ -91,17 +91,18 @@ workflows:
 components:
   - id: gpt4o
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      text: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        text: ${response.choices[0].message.content}
 
 workflows:
   - id: generate-text
@@ -251,28 +252,30 @@ graph TB
 components:
   - id: text-generator
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      text: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        text: ${response.choices[0].message.content}
 
   - id: text-to-speech
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
-    headers:
-      xi-api-key: ${env.ELEVENLABS_API_KEY}
-      Content-Type: application/json
-    body:
-      text: ${input.text}
-      model_id: eleven_multilingual_v2
-    output: ${response as base64}
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
+      headers:
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+        Content-Type: application/json
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
 
 workflows:
   - id: text-to-voice
@@ -579,37 +582,40 @@ If와 Switch Job을 사용하여 조건에 따른 실행 흐름을 제어하는 
 components:
   - id: content-moderator
     type: http-client
-    endpoint: https://api.openai.com/v1/moderations
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      input: ${input.text}
-    output:
-      flagged: ${response.results[0].flagged}
+    action:
+      endpoint: https://api.openai.com/v1/moderations
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        input: ${input.text}
+      output:
+        flagged: ${response.results[0].flagged}
 
   - id: text-processor
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.text}
-    output:
-      result: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.text}
+      output:
+        result: ${response.choices[0].message.content}
 
   - id: rejection-handler
     type: http-client
-    endpoint: https://api.example.com/log-rejection
-    method: POST
-    body:
-      text: ${input.text}
-      reason: "content_flagged"
-    output: ${response}
+    action:
+      endpoint: https://api.example.com/log-rejection
+      method: POST
+      body:
+        text: ${input.text}
+        reason: "content_flagged"
+      output: ${response}
 
 workflows:
   - id: safe-processing
@@ -666,31 +672,35 @@ graph TB
 components:
   - id: image-processor
     type: http-client
-    endpoint: https://api.example.com/process-image
-    body:
-      image: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.example.com/process-image
+      body:
+        image: ${input.data}
+      output: ${response}
 
   - id: video-processor
     type: http-client
-    endpoint: https://api.example.com/process-video
-    body:
-      video: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.example.com/process-video
+      body:
+        video: ${input.data}
+      output: ${response}
 
   - id: audio-processor
     type: http-client
-    endpoint: https://api.example.com/process-audio
-    body:
-      audio: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.example.com/process-audio
+      body:
+        audio: ${input.data}
+      output: ${response}
 
   - id: default-processor
     type: http-client
-    endpoint: https://api.example.com/process-unknown
-    body:
-      data: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.example.com/process-unknown
+      body:
+        data: ${input.data}
+      output: ${response}
 
 workflows:
   - id: media-processing
@@ -770,9 +780,9 @@ components:
     type: model
     task: text-generation
     model: facebook/bart-large-cnn
-    architecture: seq2seq
-    text: ${input.text}
     streaming: true  # 스트리밍 활성화
+    action:
+      text: ${input.text}
 ```
 
 #### HTTP 컴포넌트
@@ -783,15 +793,16 @@ components:
 components:
   - id: gpt4o-stream
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-      stream: true  # API에 스트리밍 요청
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        stream: true  # API에 스트리밍 요청
+      output: ${response}
 ```
 
 ### 워크플로우에서 사용
@@ -872,29 +883,31 @@ workflows:
 components:
   - id: gpt4o
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-    output:
-      text: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output:
+        text: ${response.choices[0].message.content}
 
   - id: claude
     type: http-client
-    endpoint: https://api.anthropic.com/v1/messages
-    headers:
-      x-api-key: ${env.ANTHROPIC_API_KEY}
-      anthropic-version: "2023-06-01"
-      Content-Type: application/json
-    body:
-      model: claude-3-5-sonnet-20241022
-      messages: ${input.messages}
-      max_tokens: 1024
-    output:
-      text: ${response.content[0].text}
+    action:
+      endpoint: https://api.anthropic.com/v1/messages
+      headers:
+        x-api-key: ${env.ANTHROPIC_API_KEY}
+        anthropic-version: "2023-06-01"
+        Content-Type: application/json
+      body:
+        model: claude-3-5-sonnet-20241022
+        messages: ${input.messages}
+        max_tokens: 1024
+      output:
+        text: ${response.content[0].text}
 
 workflows:
   - id: robust-chat

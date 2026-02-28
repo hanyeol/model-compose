@@ -682,14 +682,15 @@ components:
   external-service:
     type: http-client
     base_url: https://api.external-service.com
-    path: /process
-    method: POST
-    body:
-      data: ${input.data}
-      # 使用 gateway:8090.public_url 访问公共 URL
-      callback_url: ${gateway:8090.public_url}/callback
-      callback_id: ${context.run_id}
-    output: ${response}
+    action:
+      path: /process
+      method: POST
+      body:
+        data: ${input.data}
+        # 使用 gateway:8090.public_url 访问公共 URL
+        callback_url: ${gateway:8090.public_url}/callback
+        callback_id: ${context.run_id}
+      output: ${response}
 
 workflow:
   title: External Service with Gateway
@@ -715,14 +716,15 @@ components:
   external-service:
     type: http-client
     base_url: https://api.external-service.com
-    path: /process
-    method: POST
-    body:
-      data: ${input.data}
-      callback_url: ${gateway:8090.public_url}/callback
-      status_url: ${gateway:8091.public_url}/status
-      admin_url: ${gateway:8092.public_url}/admin
-    output: ${response}
+    action:
+      path: /process
+      method: POST
+      body:
+        data: ${input.data}
+        callback_url: ${gateway:8090.public_url}/callback
+        status_url: ${gateway:8091.public_url}/status
+        admin_url: ${gateway:8092.public_url}/admin
+      output: ${response}
 ```
 
 **访问网关 URL：**
@@ -790,14 +792,15 @@ components:
   external-service:
     type: http-client
     base_url: https://api.external-service.com
-    path: /process
-    method: POST
-    body:
-      data: ${input.data}
-      # 使用 gateway:8090.public_url 访问公共 URL
-      callback_url: ${gateway:8090.public_url}/callback
-      callback_id: ${context.run_id}
-    output: ${response}
+    action:
+      path: /process
+      method: POST
+      body:
+        data: ${input.data}
+        # 使用 gateway:8090.public_url 访问公共 URL
+        callback_url: ${gateway:8090.public_url}/callback
+        callback_id: ${context.run_id}
+      output: ${response}
 ```
 
 **多端口使用示例：**
@@ -815,14 +818,15 @@ components:
   external-service:
     type: http-client
     base_url: https://api.external-service.com
-    path: /process
-    method: POST
-    body:
-      data: ${input.data}
-      callback_url: ${gateway:8090.public_url}/callback
-      status_url: ${gateway:8091.public_url}/status
-      app_url: ${gateway:3000.public_url}
-    output: ${response}
+    action:
+      path: /process
+      method: POST
+      body:
+        data: ${input.data}
+        callback_url: ${gateway:8090.public_url}/callback
+        status_url: ${gateway:8091.public_url}/status
+        app_url: ${gateway:3000.public_url}
+      output: ${response}
 ```
 
 **访问网关 URL：**
@@ -975,13 +979,14 @@ gateway:
 components:
   service:
     type: http-client
-    body:
-      # 使用公共 URL（gateway:port.public_url 格式）
-      webhook_url: ${gateway:8080.public_url}/webhook
-      # 示例：https://abc123.ngrok.io/webhook
+    action:
+      body:
+        # 使用公共 URL（gateway:port.public_url 格式）
+        webhook_url: ${gateway:8080.public_url}/webhook
+        # 示例：https://abc123.ngrok.io/webhook
 
-      # 端口信息
-      local_port: ${gateway:8080.port}
+        # 端口信息
+        local_port: ${gateway:8080.port}
 ```
 
 **SSH 隧道：**
@@ -1002,10 +1007,11 @@ gateway:
 components:
   service:
     type: http-client
-    body:
-      # 使用公共地址（gateway:local_port.public_address 格式）
-      webhook_url: http://${gateway:8090.public_address}/webhook
-      # 示例：http://remote-server.com:9834/webhook
+    action:
+      body:
+        # 使用公共地址（gateway:local_port.public_address 格式）
+        webhook_url: http://${gateway:8090.public_address}/webhook
+        # 示例：http://remote-server.com:9834/webhook
 ```
 
 ### 13.4.6 真实示例：SSH 隧道
@@ -1036,21 +1042,22 @@ listener:
 component:
   type: http-client
   base_url: https://api.external-service.com
-  path: /process
-  method: POST
-  headers:
-    Content-Type: application/json
-  body:
-    data: ${input.data}
-    # 使用 SSH 隧道的公共地址
-    callback_url: http://${gateway:8090.public_address}/callback
-    task_id: ${context.run_id}
+  action:
+    path: /process
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      data: ${input.data}
+      # 使用 SSH 隧道的公共地址
+      callback_url: http://${gateway:8090.public_address}/callback
+      task_id: ${context.run_id}
+    output:
+      task_id: ${response.task_id}
+      result: ${result as json}
   completion:
     type: callback
     wait_for: ${context.run_id}
-  output:
-    task_id: ${response.task_id}
-    result: ${result as json}
 
 workflow:
   title: SSH Tunnel Gateway Example
@@ -1100,15 +1107,16 @@ components:
   slack-responder:
     type: http-client
     base_url: https://slack.com/api
-    path: /chat.postMessage
-    method: POST
-    headers:
-      Authorization: Bearer ${env.SLACK_BOT_TOKEN}
-      Content-Type: application/json
-    body:
-      channel: ${input.channel}
-      text: ${input.text}
-    output: ${response}
+    action:
+      path: /chat.postMessage
+      method: POST
+      headers:
+        Authorization: Bearer ${env.SLACK_BOT_TOKEN}
+        Content-Type: application/json
+      body:
+        channel: ${input.channel}
+        text: ${input.text}
+      output: ${response}
 
 workflow:
   title: Slack Event Handler
@@ -1164,34 +1172,36 @@ components:
   image-generator:
     type: http-client
     base_url: https://api.image-ai.com/v1
-    path: /generate
-    method: POST
-    headers:
-      Authorization: Bearer ${env.IMAGE_AI_KEY}
-    body:
-      prompt: ${input.prompt}
-      size: ${input.size | "1024x1024"}
-      # 网关公共 URL + 监听器路径
-      callback_url: ${gateway:8090.public_url}/webhooks/image/completed
-      task_id: ${context.run_id}
-    output:
-      task_id: ${response.task_id}
-      status: ${response.status}
+    action:
+      path: /generate
+      method: POST
+      headers:
+        Authorization: Bearer ${env.IMAGE_AI_KEY}
+      body:
+        prompt: ${input.prompt}
+        size: ${input.size | "1024x1024"}
+        # 网关公共 URL + 监听器路径
+        callback_url: ${gateway:8090.public_url}/webhooks/image/completed
+        task_id: ${context.run_id}
+      output:
+        task_id: ${response.task_id}
+        status: ${response.status}
 
   image-optimizer:
     type: http-client
     base_url: https://api.imageoptim.com
-    path: /optimize
-    method: POST
-    headers:
-      Authorization: Bearer ${env.IMAGEOPTIM_KEY}
-    body:
-      url: ${input.url}
-      quality: 85
-    output:
-      optimized_url: ${response.url}
-      original_size: ${response.original_size}
-      compressed_size: ${response.compressed_size}
+    action:
+      path: /optimize
+      method: POST
+      headers:
+        Authorization: Bearer ${env.IMAGEOPTIM_KEY}
+      body:
+        url: ${input.url}
+        quality: 85
+      output:
+        optimized_url: ${response.url}
+        original_size: ${response.original_size}
+        compressed_size: ${response.compressed_size}
 
 workflow:
   title: Image Generation and Optimization
@@ -1288,10 +1298,11 @@ listener:
 
 components:
   service:
-    body:
-      # 使用生产域名
-      callback_url: https://api.yourdomain.com/webhooks/callback
-      callback_id: ${context.run_id}
+    action:
+      body:
+        # 使用生产域名
+        callback_url: https://api.yourdomain.com/webhooks/callback
+        callback_id: ${context.run_id}
 ```
 
 ---
@@ -1309,8 +1320,9 @@ components:
   service:
     type: http-client
     timeout: 300000  # 5 分钟超时
-    body:
-      callback_url: ${gateway:8090.public_url}/callback
+    action:
+      body:
+        callback_url: ${gateway:8090.public_url}/callback
 ```
 
 **签名验证：**

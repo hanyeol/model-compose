@@ -18,7 +18,8 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seqpeft_adapters
-  text: ${input.text as text}
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false

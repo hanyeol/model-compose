@@ -141,25 +141,26 @@ controller:
 
 ### 단일 액션 컴포넌트
 
-가장 간단한 형태로, 컴포넌트가 하나의 액션만 정의하는 경우입니다:
+가장 간단한 형태로, 컴포넌트가 하나의 액션만 정의하는 경우 `action:` (단수형)을 사용합니다:
 
 ```yaml
 components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 ```
 
 ### 다중 액션 컴포넌트
@@ -599,15 +600,16 @@ components:
   - id: gpt4o
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
 ```
 
 ### 작업 (Job)
@@ -654,17 +656,18 @@ components:
   - id: openai-chat
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      text: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        text: ${response.choices[0].message.content}
 
 # 워크플로우: 동일한 컴포넌트를 여러 작업에서 재사용
 workflows:

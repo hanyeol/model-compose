@@ -44,6 +44,7 @@ workflow:          # Instead of workflows: [ ... ]
 listener:          # Instead of listeners: [ ... ]
 gateway:           # Instead of gateways: [ ... ]
 logger:            # Instead of loggers: [ ... ]
+action:            # Instead of actions: [ ... ] (within a component)
 ```
 
 ### 17.1.2 Controller Schema
@@ -90,11 +91,6 @@ components:
     task: text-generation | chat-completion | translation | ...
     model: model-name-or-path
 
-    # Input (varies by task)
-    text: ${input.text as text}
-    messages: [ ... ]
-    image: ${input.image as image}
-
     # Model configuration
     device: cuda | cpu | mps
     dtype: float32 | float16 | bfloat16 | int8 | int4
@@ -114,6 +110,12 @@ components:
         name: adapter-name
         model: path/to/adapter
         weight: 1.0
+
+    # Single action (action:) - input/output mapping
+    action:
+      text: ${input.text as text}
+      messages: [ ... ]
+      image: ${input.image as image}
 ```
 
 **HTTP Client**:
@@ -123,25 +125,24 @@ components:
     type: http-client
 
     # Endpoint
-    base_url: https://api.example.com   # Or
-    endpoint: https://api.example.com/v1/resource
-
-    # HTTP configuration
-    method: GET | POST | PUT | DELETE | PATCH
-    path: /resource
-    headers: { ... }
-    params: { ... }
-    body: { ... }
-
-    # Streaming
-    stream_format: json | text
+    base_url: https://api.example.com
 
     # Advanced configuration
     timeout: 30
     max_retries: 3
     retry_delay: 1
 
-    # Multiple actions
+    # Single action (action:)
+    action:
+      endpoint: https://api.example.com/v1/resource
+      method: GET | POST | PUT | DELETE | PATCH
+      path: /resource
+      headers: { ... }
+      params: { ... }
+      body: { ... }
+      stream_format: json | text
+
+    # Or multiple actions (actions:)
     actions:
       - id: action-id
         path: /action-path

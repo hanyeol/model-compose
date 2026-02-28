@@ -184,13 +184,14 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: ${input.text as text}
-  params:
-    max_input_length: 1024
-    min_length: ${input.min_length as number | 50}
-    max_length: ${input.max_length as number | 200}
-    length_penalty: 2.0
-    num_beams: 4
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      min_length: ${input.min_length as number | 50}
+      max_length: ${input.max_length as number | 200}
+      length_penalty: 2.0
+      num_beams: 4
 ```
 
 ### 使用不同的模型
@@ -218,14 +219,15 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: |
-    Document to summarize:
-    ${input.text as text}
+  action:
+    text: |
+      Document to summarize:
+      ${input.text as text}
 
-    Summary:
-  params:
-    max_input_length: 1024
-    top_p: 1.0
+      Summary:
+    params:
+      max_input_length: 1024
+      top_p: 1.0
 ```
 
 ## 故障排除
@@ -305,12 +307,13 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: ${input.text as text}
-  params:
-    max_input_length: 1024
-    max_length: ${input.target_length as number | 150}
-    num_beams: ${input.quality as number | 4}      # 更多束 = 更好的质量
-    length_penalty: ${input.length_penalty as number | 2.0}
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      max_length: ${input.target_length as number | 150}
+      num_beams: ${input.quality as number | 4}      # 更多束 = 更好的质量
+      length_penalty: ${input.length_penalty as number | 2.0}
 ```
 
 ## 模型变体

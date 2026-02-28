@@ -25,28 +25,29 @@ listener:
   identify_by: ${body.task_id}
   result: ${body.result}
 
-component:
-  type: http-server
-  start: [ uvicorn, server:app, --reload, --port, "9000" ]
-  port: 9000
-  method: POST
-  path: /process
-  headers:
-    Content-Type: application/json
-  body:
-    data: ${input.data}
-    # Use gateway's public address for callback
-    callback_url: http://${gateway:8090.public_address}/callback
-    task_id: ${context.run_id}
-  completion:
-    type: callback
-    wait_for: ${context.run_id}
-  output:
-    task_id: ${response.task_id}
-    result: ${result as json}
-
 workflow:
   title: SSH Tunnel Gateway Example
   description: Demonstrates using SSH tunnel to expose local callback listener to external services
   input: ${input}
   output: ${output}
+
+component:
+  type: http-server
+  start: [ uvicorn, server:app, --reload, --port, "9000" ]
+  port: 9000
+  action:
+    method: POST
+    path: /process
+    headers:
+      Content-Type: application/json
+    body:
+      data: ${input.data}
+      # Use gateway's public address for callback
+      callback_url: http://${gateway:8090.public_address}/callback
+      task_id: ${context.run_id}
+    completion:
+      type: callback
+      wait_for: ${context.run_id}
+    output:
+      task_id: ${response.task_id}
+      result: ${result as json}

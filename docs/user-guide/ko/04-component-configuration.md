@@ -80,21 +80,22 @@ components:
 
 #### 단일 액션 컴포넌트
 
-하나의 작업만 수행하는 컴포넌트:
+하나의 작업만 수행하는 컴포넌트는 액션 관련 필드를 `action:` 아래에 감쌉니다:
 
 ```yaml
 components:
   - id: send-email
     type: http-client
-    endpoint: https://api.email.com/send
-    method: POST
-    headers:
-      Authorization: Bearer ${env.EMAIL_API_KEY}
-    body:
-      to: ${input.to}
-      subject: ${input.subject}
-      body: ${input.body}
-    output: ${response}
+    action:
+      endpoint: https://api.email.com/send
+      method: POST
+      headers:
+        Authorization: Bearer ${env.EMAIL_API_KEY}
+      body:
+        to: ${input.to}
+        subject: ${input.subject}
+        body: ${input.body}
+      output: ${response}
 ```
 
 사용:
@@ -188,10 +189,11 @@ workflow:
 components:
   - id: translator
     type: http-client
-    endpoint: https://api.translate.com/v1/translate
-    body:
-      text: ${input.text}
-      target_lang: ${input.language}
+    action:
+      endpoint: https://api.translate.com/v1/translate
+      body:
+        text: ${input.text}
+        target_lang: ${input.language}
 ```
 
 워크플로우에서 사용:
@@ -210,8 +212,9 @@ workflow:
 components:
   - id: processor
     type: http-client
-    endpoint: https://api.example.com/process
-    body: ${input}  # 전체 입력을 그대로 전달
+    action:
+      endpoint: https://api.example.com/process
+      body: ${input}  # 전체 입력을 그대로 전달
 ```
 
 ### 출력 매핑
@@ -224,13 +227,14 @@ components:
 components:
   - id: chatgpt
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-    output:
-      content: ${response.choices[0].message.content}
-      tokens: ${response.usage.total_tokens}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output:
+        content: ${response.choices[0].message.content}
+        tokens: ${response.usage.total_tokens}
 ```
 
 워크플로우에서 사용:
@@ -249,8 +253,9 @@ workflow:
 components:
   - id: api-call
     type: http-client
-    endpoint: https://api.example.com/data
-    output: ${response}  # 전체 응답
+    action:
+      endpoint: https://api.example.com/data
+      output: ${response}  # 전체 응답
 ```
 
 #### 타입 변환과 함께
@@ -259,8 +264,9 @@ components:
 components:
   - id: image-gen
     type: http-client
-    endpoint: https://api.images.com/generate
-    output: ${response.image as base64}
+    action:
+      endpoint: https://api.images.com/generate
+      output: ${response.image as base64}
 ```
 
 ### 입출력 흐름 예제
@@ -269,19 +275,21 @@ components:
 components:
   - id: step1
     type: http-client
-    endpoint: https://api1.com/process
-    body:
-      data: ${input.raw_data}
-    output:
-      processed: ${response.result}
+    action:
+      endpoint: https://api1.com/process
+      body:
+        data: ${input.raw_data}
+      output:
+        processed: ${response.result}
 
   - id: step2
     type: http-client
-    endpoint: https://api2.com/analyze
-    body:
-      data: ${input.processed_data}
-    output:
-      analysis: ${response.insights}
+    action:
+      endpoint: https://api2.com/analyze
+      body:
+        data: ${input.processed_data}
+      output:
+        analysis: ${response.insights}
 
 workflow:
   jobs:
@@ -313,44 +321,47 @@ components:
   # OpenAI GPT-4o 전용
   - id: gpt4o
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages: ${input.messages}
-      temperature: ${input.temperature | 0.7}
-    output:
-      content: ${response.choices[0].message.content}
-      tokens: ${response.usage.total_tokens}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        temperature: ${input.temperature | 0.7}
+      output:
+        content: ${response.choices[0].message.content}
+        tokens: ${response.usage.total_tokens}
 
   # Anthropic Claude 전용
   - id: claude
     type: http-client
-    endpoint: https://api.anthropic.com/v1/messages
-    headers:
-      x-api-key: ${env.ANTHROPIC_API_KEY}
-      anthropic-version: "2023-06-01"
-      Content-Type: application/json
-    body:
-      model: claude-3-5-sonnet-20241022
-      messages: ${input.messages}
-      max_tokens: ${input.max_tokens | 1024}
-    output:
-      content: ${response.content[0].text}
+    action:
+      endpoint: https://api.anthropic.com/v1/messages
+      headers:
+        x-api-key: ${env.ANTHROPIC_API_KEY}
+        anthropic-version: "2023-06-01"
+        Content-Type: application/json
+      body:
+        model: claude-3-5-sonnet-20241022
+        messages: ${input.messages}
+        max_tokens: ${input.max_tokens | 1024}
+      output:
+        content: ${response.content[0].text}
 
   # 음성 합성 전용
   - id: elevenlabs-tts
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
-    headers:
-      xi-api-key: ${env.ELEVENLABS_API_KEY}
-      Content-Type: application/json
-    body:
-      text: ${input.text}
-      model_id: eleven_multilingual_v2
-    output: ${response as base64}
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
+      headers:
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+        Content-Type: application/json
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
 ```
 
 ### 패턴 2: 다중 액션 컴포넌트
@@ -410,8 +421,9 @@ workflow:
 components:
   - id: fetch-data
     type: http-client
-    endpoint: https://api.data.com/fetch
-    output: ${response.data}
+    action:
+      endpoint: https://api.data.com/fetch
+      output: ${response.data}
 
   - id: process-data
     type: shell
@@ -421,11 +433,12 @@ components:
 
   - id: save-result
     type: http-client
-    endpoint: https://api.storage.com/save
-    method: POST
-    body:
-      data: ${input.data}
-    output: ${response}
+    action:
+      endpoint: https://api.storage.com/save
+      method: POST
+      body:
+        data: ${input.data}
+      output: ${response}
 
 workflow:
   jobs:
@@ -471,11 +484,12 @@ graph LR
 components:
   - id: api-client
     type: http-client
-    endpoint: ${env.API_ENDPOINT}/process
-    headers:
-      Authorization: Bearer ${env.API_KEY}
-    body: ${input}
-    output: ${response}
+    action:
+      endpoint: ${env.API_ENDPOINT}/process
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+      body: ${input}
+      output: ${response}
 ```
 
 ```bash
@@ -695,13 +709,14 @@ components:
     type: http-client
     # Input: { text: string, target_lang: string }
     # Output: { translated: string, detected_lang: string }
-    endpoint: https://api.translate.com/v1/translate
-    body:
-      text: ${input.text}
-      target: ${input.target_lang}
-    output:
-      translated: ${response.translation}
-      detected_lang: ${response.source_language}
+    action:
+      endpoint: https://api.translate.com/v1/translate
+      body:
+        text: ${input.text}
+        target: ${input.target_lang}
+      output:
+        translated: ${response.translation}
+        detected_lang: ${response.source_language}
 ```
 
 ### 3. 환경 변수 사용
@@ -711,17 +726,19 @@ components:
 components:
   - id: api-client
     type: http-client
-    endpoint: ${env.API_ENDPOINT}
-    headers:
-      Authorization: Bearer ${env.API_KEY}
+    action:
+      endpoint: ${env.API_ENDPOINT}
+      headers:
+        Authorization: Bearer ${env.API_KEY}
 
 # Bad - 하드코딩
 components:
   - id: api-client
     type: http-client
-    endpoint: https://api.example.com
-    headers:
-      Authorization: Bearer sk-hardcoded-key
+    action:
+      endpoint: https://api.example.com
+      headers:
+        Authorization: Bearer sk-hardcoded-key
 ```
 
 ---

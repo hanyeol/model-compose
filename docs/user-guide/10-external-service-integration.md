@@ -18,19 +18,20 @@ Use GPT-4o, GPT-4, and GPT-3.5 models for text generation tasks.
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    temperature: ${input.temperature as number | 0.7}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      temperature: ${input.temperature as number | 0.7}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 #### Available Models
@@ -75,19 +76,20 @@ DALL-E 3 and DALL-E 2 for AI image generation.
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /images/generations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: dall-e-3
-    prompt: ${input.prompt as text}
-    size: ${input.size | "1024x1024"}
-    quality: ${input.quality | "standard"}
-    n: 1
-  output:
-    image_url: ${response.data[0].url}
+  action:
+    path: /images/generations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: dall-e-3
+      prompt: ${input.prompt as text}
+      size: ${input.size | "1024x1024"}
+      quality: ${input.quality | "standard"}
+      n: 1
+    output:
+      image_url: ${response.data[0].url}
 ```
 
 #### Available Options
@@ -113,16 +115,17 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /audio/speech
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: tts-1
-    voice: ${input.voice | "alloy"}
-    input: ${input.text as text}
-  output: ${response as base64}
+  action:
+    path: /audio/speech
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: tts-1
+      voice: ${input.voice | "alloy"}
+      input: ${input.text as text}
+    output: ${response as base64}
 ```
 
 **Available Voices:**
@@ -134,16 +137,17 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /audio/transcriptions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: whisper-1
-    file: ${input.audio as base64}
-    language: ${input.language | "en"}
-  output:
-    text: ${response.text}
+  action:
+    path: /audio/transcriptions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: whisper-1
+      file: ${input.audio as base64}
+      language: ${input.language | "en"}
+    output:
+      text: ${response.text}
 ```
 
 ---
@@ -158,20 +162,21 @@ Claude API provides state-of-the-art language models.
 component:
   type: http-client
   base_url: https://api.anthropic.com/v1
-  path: /messages
-  method: POST
-  headers:
-    x-api-key: ${env.ANTHROPIC_API_KEY}
-    anthropic-version: "2023-06-01"
-    Content-Type: application/json
-  body:
-    model: claude-3-5-sonnet-20241022
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    max_tokens: ${input.max_tokens as number | 1024}
-  output:
-    message: ${response.content[0].text}
+  action:
+    path: /messages
+    method: POST
+    headers:
+      x-api-key: ${env.ANTHROPIC_API_KEY}
+      anthropic-version: "2023-06-01"
+      Content-Type: application/json
+    body:
+      model: claude-3-5-sonnet-20241022
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      max_tokens: ${input.max_tokens as number | 1024}
+    output:
+      message: ${response.content[0].text}
 ```
 
 ### Available Models
@@ -216,16 +221,17 @@ Google Gemini provides multimodal AI capabilities.
 component:
   type: http-client
   base_url: https://generativelanguage.googleapis.com/v1beta
-  path: /models/gemini-pro:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    path: /models/gemini-pro:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 ### Available Models
@@ -243,19 +249,20 @@ component:
 component:
   type: http-client
   base_url: https://generativelanguage.googleapis.com/v1beta
-  path: /models/gemini-pro-vision:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-          - inline_data:
-              mime_type: image/jpeg
-              data: ${input.image as base64}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    path: /models/gemini-pro-vision:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+            - inline_data:
+                mime_type: image/jpeg
+                data: ${input.image as base64}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 ### Environment Variables
@@ -276,18 +283,19 @@ ElevenLabs provides high-quality text-to-speech services.
 component:
   type: http-client
   base_url: https://api.elevenlabs.io/v1
-  path: /text-to-speech/${input.voice_id}
-  method: POST
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-    Content-Type: application/json
-  body:
-    text: ${input.text as text}
-    model_id: eleven_multilingual_v2
-    voice_settings:
-      stability: ${input.stability | 0.5}
-      similarity_boost: ${input.similarity_boost | 0.75}
-  output: ${response as base64}
+  action:
+    path: /text-to-speech/${input.voice_id}
+    method: POST
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+      Content-Type: application/json
+    body:
+      text: ${input.text as text}
+      model_id: eleven_multilingual_v2
+      voice_settings:
+        stability: ${input.stability | 0.5}
+        similarity_boost: ${input.similarity_boost | 0.75}
+    output: ${response as base64}
 ```
 
 ### Available Models
@@ -306,11 +314,12 @@ Use the List Voices API to get available voices:
 component:
   type: http-client
   base_url: https://api.elevenlabs.io/v1
-  path: /voices
-  method: GET
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-  output: ${response.voices}
+  action:
+    path: /voices
+    method: GET
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+    output: ${response.voices}
 ```
 
 ### Environment Variables
@@ -331,18 +340,19 @@ Stability AI provides Stable Diffusion models for image generation.
 component:
   type: http-client
   base_url: https://api.stability.ai/v2beta
-  path: /stable-image/generate/sd3
-  method: POST
-  headers:
-    Authorization: Bearer ${env.STABILITY_API_KEY}
-    Content-Type: application/json
-  body:
-    prompt: ${input.prompt as text}
-    model: sd3-large
-    aspect_ratio: ${input.aspect_ratio | "1:1"}
-    output_format: ${input.output_format | "png"}
-  output:
-    image: ${response.image as base64}
+  action:
+    path: /stable-image/generate/sd3
+    method: POST
+    headers:
+      Authorization: Bearer ${env.STABILITY_API_KEY}
+      Content-Type: application/json
+    body:
+      prompt: ${input.prompt as text}
+      model: sd3-large
+      aspect_ratio: ${input.aspect_ratio | "1:1"}
+      output_format: ${input.output_format | "png"}
+    output:
+      image: ${response.image as base64}
 ```
 
 ### Available Models
@@ -383,16 +393,17 @@ Replicate provides access to various open-source AI models.
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: ${input.model_version}
-    input: ${input.params}
-  output:
-    prediction_id: ${response.id}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: ${input.model_version}
+      input: ${input.params}
+    output:
+      prediction_id: ${response.id}
 ```
 
 ### Example: FLUX Image Generation
@@ -401,20 +412,21 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "black-forest-labs/flux-schnell"
-    input:
-      prompt: ${input.prompt as text}
-      num_outputs: 1
-      aspect_ratio: "1:1"
-  output:
-    prediction_id: ${response.id}
-    status: ${response.status}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "black-forest-labs/flux-schnell"
+      input:
+        prompt: ${input.prompt as text}
+        num_outputs: 1
+        aspect_ratio: "1:1"
+    output:
+      prediction_id: ${response.id}
+      status: ${response.status}
 ```
 
 ### Example: Llama 3 Text Generation
@@ -423,19 +435,20 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "meta/meta-llama-3-70b-instruct"
-    input:
-      prompt: ${input.prompt as text}
-      max_tokens: 512
-      temperature: 0.7
-  output:
-    prediction_id: ${response.id}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "meta/meta-llama-3-70b-instruct"
+      input:
+        prompt: ${input.prompt as text}
+        max_tokens: 512
+        temperature: 0.7
+    output:
+      prediction_id: ${response.id}
 ```
 
 ### Polling for Results
@@ -444,13 +457,14 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions/${input.prediction_id}
-  method: GET
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-  output:
-    status: ${response.status}
-    result: ${response.output}
+  action:
+    path: /predictions/${input.prediction_id}
+    method: GET
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+    output:
+      status: ${response.status}
+      result: ${response.output}
 ```
 
 ### Environment Variables
@@ -471,13 +485,14 @@ Integrate any REST API using the `http-client` component.
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /v1/endpoint
-  method: POST
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-    Content-Type: application/json
-  body: ${input}
-  output: ${response}
+  action:
+    path: /v1/endpoint
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+      Content-Type: application/json
+    body: ${input}
+    output: ${response}
 ```
 
 ### Authentication Methods
@@ -509,13 +524,14 @@ headers:
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /search
-  method: GET
-  params:
-    q: ${input.query}
-    limit: 10
-    offset: ${input.offset | 0}
-  output: ${response}
+  action:
+    path: /search
+    method: GET
+    params:
+      q: ${input.query}
+      limit: 10
+      offset: ${input.offset | 0}
+    output: ${response}
 ```
 
 ### Multi-Action Component
@@ -644,13 +660,14 @@ External APIs typically have rate limits on requests. Exceeding these limits can
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
   rate_limit:
     requests_per_minute: 60    # Maximum 60 requests per minute
     requests_per_day: 10000    # Maximum 10,000 requests per day
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body: ${input}
+  action:
+    endpoint: https://api.example.com/v1/process
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body: ${input}
 ```
 
 **Add delays in workflows:**
@@ -707,16 +724,17 @@ Record API request IDs and metadata for debugging and tracking:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body: ${input}
-  output:
-    response: ${response}
-    request_id: ${response.id}       # Request ID for tracking
-    model: ${response.model}         # Model used
-    created: ${response.created}     # Timestamp
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body: ${input}
+    output:
+      response: ${response}
+      request_id: ${response.id}       # Request ID for tracking
+      model: ${response.model}         # Model used
+      created: ${response.created}     # Timestamp
 ```
 
 This information is useful for:

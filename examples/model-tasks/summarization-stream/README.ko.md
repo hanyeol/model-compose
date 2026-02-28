@@ -197,15 +197,16 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    min_length: 30
-    max_length: 150
-    num_beams: 1                # 탐욕적 검색으로 빠른 스트리밍
-    do_sample: true             # 다양성을 위한 샘플링 활성화
-    temperature: 0.7            # 무작위성 제어
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      min_length: 30
+      max_length: 150
+      num_beams: 1                # 탐욕적 검색으로 빠른 스트리밍
+      do_sample: true             # 다양성을 위한 샘플링 활성화
+      temperature: 0.7            # 무작위성 제어
 ```
 
 ### 커스텀 스트리밍 형식
@@ -222,8 +223,9 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
+  action:
+    text: ${input.text as text}
 ```
 
 ### 버퍼 크기 제어
@@ -233,12 +235,13 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
-  params:
-    streaming_buffer_size: 1    # 모든 토큰 스트리밍
-    # 또는
-    streaming_buffer_size: 5    # 스트리밍 전 5개 토큰 버퍼링
+  action:
+    text: ${input.text as text}
+    params:
+      streaming_buffer_size: 1    # 모든 토큰 스트리밍
+      # 또는
+      streaming_buffer_size: 5    # 스트리밍 전 5개 토큰 버퍼링
 ```
 
 ## 문제 해결

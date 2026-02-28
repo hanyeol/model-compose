@@ -262,11 +262,12 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  text: ${input.prompt as text}
-  params:
-    max_output_length: 32768
-    temperature: 0.7
-    top_p: 0.9
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 32768
+      temperature: 0.7
+      top_p: 0.9
 ```
 
 **주요 파라미터:**
@@ -285,14 +286,15 @@ component:
   type: model
   task: chat-completion
   model: HuggingFaceTB/SmolLM3-3B
-  messages:
-    - role: system
-      content: ${input.system_prompt}
-    - role: user
-      content: ${input.user_prompt}
-  params:
-    max_output_length: 2048
-    temperature: 0.7
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+    params:
+      max_output_length: 2048
+      temperature: 0.7
 ```
 
 **메시지 형식:**
@@ -308,10 +310,11 @@ component:
   type: model
   task: text-classification
   model: distilbert-base-uncased-finetuned-sst-2-english
-  text: ${input.text as text}
-  output:
-    label: ${result.label}
-    score: ${result.score}
+  action:
+    text: ${input.text as text}
+    output:
+      label: ${result.label}
+      score: ${result.score}
 ```
 
 ### 8.3.4 text-embedding
@@ -323,9 +326,10 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text as text}
-  output:
-    embedding: ${result.embedding}
+  action:
+    text: ${input.text as text}
+    output:
+      embedding: ${result.embedding}
 ```
 
 사용 예제 (RAG 시스템):
@@ -358,8 +362,9 @@ component:
   task: image-to-text
   model: Salesforce/blip-image-captioning-large
   architecture: blip
-  image: ${input.image as image}
-  prompt: ${input.prompt as text}
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}
 ```
 
 **지원 아키텍처:**
@@ -377,11 +382,12 @@ component:
   task: image-generation
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
-  prompt: ${input.prompt as text}
-  params:
-    width: 1024
-    height: 1024
-    num_inference_steps: 50
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      width: 1024
+      height: 1024
+      num_inference_steps: 50
 ```
 
 **지원 아키텍처:**
@@ -399,9 +405,10 @@ component:
   task: image-upscale
   architecture: real-esrgan
   model: RealESRGAN_x4plus
-  image: ${input.image as image}
-  params:
-    scale: 4
+  action:
+    image: ${input.image as image}
+    params:
+      scale: 4
 ```
 
 **지원 아키텍처:**
@@ -442,10 +449,11 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
   device: cuda:0
-  method: generate
-  text: ${input.text as text}
-  voice: ${input.voice | vivian}
-  instructions: ${input.instructions | ""}
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | vivian}
+    instructions: ${input.instructions | ""}
 ```
 
 | 필드 | 타입 | 기본값 | 설명 |
@@ -465,10 +473,11 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
   device: cuda:0
-  method: clone
-  text: ${input.text as text}
-  ref_audio: ${input.ref_audio as audio}
-  ref_text: ${input.ref_text as text}
+  action:
+    method: clone
+    text: ${input.text as text}
+    ref_audio: ${input.ref_audio as audio}
+    ref_text: ${input.ref_text as text}
 ```
 
 | 필드 | 타입 | 기본값 | 설명 |
@@ -488,9 +497,10 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
   device: cuda:0
-  method: design
-  text: ${input.text as text}
-  instructions: ${input.instructions as text}
+  action:
+    method: design
+    text: ${input.text as text}
+    instructions: ${input.instructions as text}
 ```
 
 | 필드 | 타입 | 기본값 | 설명 |
@@ -514,7 +524,8 @@ component:
   type: model
   task: face-embedding
   model: buffalo_l
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ---
@@ -637,7 +648,8 @@ component:
       name: alpaca
       model: tloen/alpaca-lora-7b
       weight: 1.0
-  text: ${input.prompt as text}
+  action:
+    text: ${input.prompt as text}
 ```
 
 ### 다중 LoRA 어댑터
@@ -661,7 +673,8 @@ component:
       name: assistant
       model: plncmm/guanaco-lora-7b
       weight: 0.8
-  text: ${input.prompt as text}
+  action:
+    text: ${input.prompt as text}
 ```
 
 ### 어댑터 가중치

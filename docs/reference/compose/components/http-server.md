@@ -9,12 +9,13 @@ component:
   type: http-server
   port: 8000
   start: [ uvicorn, main:app, --reload ]
-  path: /api/endpoint
-  method: POST
-  headers:
-    Content-Type: application/json
-  body:
-    message: ${input.message}
+  action:
+    path: /api/endpoint
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      message: ${input.message}
 ```
 
 ## Configuration Options
@@ -72,14 +73,15 @@ component:
   type: http-server
   start: [ uvicorn, main:app, --reload ]
   port: 8000
-  method: POST
-  path: /echo
-  headers:
-    Content-Type: application/json
-  body:
-    text: ${input.text}
-  output:
-    text: ${response.echo.text}
+  action:
+    method: POST
+    path: /echo
+    headers:
+      Content-Type: application/json
+    body:
+      text: ${input.text}
+    output:
+      text: ${response.echo.text}
 ```
 
 ### Server with Multiple Endpoints
@@ -134,7 +136,7 @@ component:
   port: 3000
   manage:
     scripts:
-      install: 
+      install:
         - [ npm, install ]
         - [ npm, run, build ]
       clean: [ rm, -rf, node_modules, dist ]
@@ -143,13 +145,14 @@ component:
     env:
       NODE_ENV: production
       API_URL: http://localhost:8080
-  path: /api/webhook
-  method: POST
-  headers:
-    Content-Type: application/json
-  body:
-    received: ${input}
-    processed: true
+  action:
+    path: /api/webhook
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      received: ${input}
+      processed: true
 ```
 
 ## Asynchronous Completion
@@ -164,22 +167,23 @@ Monitor request status by polling a completion endpoint:
 component:
   type: http-server
   port: 8000
-  path: /long-task
-  method: POST
-  body:
-    task_id: ${generate_id}
-    data: ${input.data}
-  completion:
-    type: polling
-    path: /status/${response.task_id}
-    method: GET
-    status: status
-    success_when: [ completed, finished ]
-    fail_when: [ failed, error ]
-    interval: 5s
-    timeout: 300s
-  output:
-    result: ${response.result}
+  action:
+    path: /long-task
+    method: POST
+    body:
+      task_id: ${generate_id}
+      data: ${input.data}
+    completion:
+      type: polling
+      path: /status/${response.task_id}
+      method: GET
+      status: status
+      success_when: [ completed, finished ]
+      fail_when: [ failed, error ]
+      interval: 5s
+      timeout: 300s
+    output:
+      result: ${response.result}
 ```
 
 **Polling Configuration:**
@@ -206,17 +210,18 @@ Wait for external callback notification:
 component:
   type: http-server
   port: 8000
-  path: /async-task
-  method: POST
-  body:
-    task_id: ${generate_id}
-    callback_url: https://myapp.com/callback
-    data: ${input.data}
-  completion:
-    type: callback
-    wait_for: ${response.task_id}
-  output:
-    result: ${response.result}
+  action:
+    path: /async-task
+    method: POST
+    body:
+      task_id: ${generate_id}
+      callback_url: https://myapp.com/callback
+      data: ${input.data}
+    completion:
+      type: callback
+      wait_for: ${response.task_id}
+    output:
+      result: ${response.result}
 ```
 
 **Callback Configuration:**
@@ -301,8 +306,9 @@ component:
       FLASK_APP: app.py
       FLASK_ENV: development
   port: 5000
-  path: /api/data
-  method: POST
+  action:
+    path: /api/data
+    method: POST
 ```
 
 ### With Docker Containers
@@ -360,13 +366,14 @@ HTTP server supports dynamic configuration:
 component:
   type: http-server
   port: ${env.SERVER_PORT as integer | 8000}
-  path: /api/${input.version}
-  headers:
-    Authorization: Bearer ${env.API_TOKEN}
-  body:
-    user_id: ${input.user_id}
-    data: ${input.data}
-    timestamp: ${now}
+  action:
+    path: /api/${input.version}
+    headers:
+      Authorization: Bearer ${env.API_TOKEN}
+    body:
+      user_id: ${input.user_id}
+      data: ${input.data}
+      timestamp: ${now}
 ```
 
 ## Best Practices

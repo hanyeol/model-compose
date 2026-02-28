@@ -187,7 +187,8 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x2.pth  # For 2x scaling
   scale: 2
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ### Using Alternative Models
@@ -202,7 +203,8 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: ESRGAN_x4.pth      # Original ESRGAN model
   scale: 4
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ### Batch Processing Configuration
@@ -240,10 +242,11 @@ component:
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x4.pth
   scale: 4
-  image: ${input.image as image}
-  params:
-    tile_size: 512        # Process in smaller tiles
-    tile_pad: 10          # Padding to avoid edge artifacts
+  action:
+    image: ${input.image as image}
+    params:
+      tile_size: 512        # Process in smaller tiles
+      tile_pad: 10          # Padding to avoid edge artifacts
 ```
 
 ## Comparison with API-based Solutions

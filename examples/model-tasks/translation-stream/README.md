@@ -215,14 +215,15 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    max_length: 1024
-    num_beams: 1                # Faster streaming with greedy search
-    do_sample: false            # Deterministic output
-    streaming_buffer_size: 1    # Stream every token immediately
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      max_length: 1024
+      num_beams: 1                # Faster streaming with greedy search
+      do_sample: false            # Deterministic output
+      streaming_buffer_size: 1    # Stream every token immediately
 ```
 
 ### Custom Language Configuration
@@ -233,13 +234,14 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
-    ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: |
+      Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
+      ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ### Streaming Quality vs Speed Trade-offs

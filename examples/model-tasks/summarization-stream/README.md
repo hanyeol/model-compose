@@ -197,15 +197,16 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    min_length: 30
-    max_length: 150
-    num_beams: 1                # Faster streaming with greedy search
-    do_sample: true             # Enable sampling for variety
-    temperature: 0.7            # Control randomness
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      min_length: 30
+      max_length: 150
+      num_beams: 1                # Faster streaming with greedy search
+      do_sample: true             # Enable sampling for variety
+      temperature: 0.7            # Control randomness
 ```
 
 ### Custom Streaming Format
@@ -222,8 +223,9 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
+  action:
+    text: ${input.text as text}
 ```
 
 ### Buffer Size Control
@@ -233,12 +235,13 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
-  params:
-    streaming_buffer_size: 1    # Stream every token
-    # or
-    streaming_buffer_size: 5    # Buffer 5 tokens before streaming
+  action:
+    text: ${input.text as text}
+    params:
+      streaming_buffer_size: 1    # Stream every token
+      # or
+      streaming_buffer_size: 5    # Buffer 5 tokens before streaming
 ```
 
 ## Troubleshooting

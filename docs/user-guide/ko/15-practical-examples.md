@@ -44,19 +44,20 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    temperature: ${input.temperature as number | 0.7}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      temperature: ${input.temperature as number | 0.7}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 **환경 변수 설정** (`.env`):
@@ -101,18 +102,19 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 **특징**:
@@ -189,17 +191,18 @@ workflow:
 components:
   - id: openai-text-to-speech
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/speech
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
-      input: ${input.text}
-      voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
-      response_format: mp3
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/audio/speech
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
+        input: ${input.text}
+        voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
+        response_format: mp3
+      output: ${response}
 ```
 
 **지원 음성**:
@@ -249,35 +252,37 @@ components:
   - id: write-inspiring-quote
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: |
-            Write an inspiring quote similar to the example below.
-            Don't say anything else—just give me the quote.
-            Aim for around 30 words.
-            Example – Never give up. If there's something you want to become, be proud of it. Give yourself a chance.
-            Don't think you're worthless—there's nothing to gain from that. Aim high. That's how life should be lived.
-    output:
-      quote: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: |
+              Write an inspiring quote similar to the example below.
+              Don't say anything else—just give me the quote.
+              Aim for around 30 words.
+              Example – Never give up. If there's something you want to become, be proud of it. Give yourself a chance.
+              Don't think you're worthless—there's nothing to gain from that. Aim high. That's how life should be lived.
+      output:
+        quote: ${response.choices[0].message.content}
 
   - id: text-to-speech
     type: http-client
-    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
-    method: POST
-    headers:
-      Content-Type: application/json
-      xi-api-key: ${env.ELEVENLABS_API_KEY}
-    body:
-      text: ${input.text}
-      model_id: eleven_multilingual_v2
-    output: ${response as base64}
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
+      method: POST
+      headers:
+        Content-Type: application/json
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
 ```
 
 **환경 변수**:
@@ -336,8 +341,9 @@ component:
   task: image-to-text
   model: Salesforce/blip-image-captioning-large
   architecture: blip
-  image: ${input.image as image}
-  prompt: ${input.prompt as text}
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}
 ```
 
 **실행 예제**:
@@ -376,17 +382,18 @@ workflow:
 component:
   id: dalle-edit
   type: http-client
-  endpoint: https://api.openai.com/v1/images/edits
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    image: ${input.image as image}
-    mask: ${input.mask as image}
-    prompt: ${input.prompt as text}
-    n: ${input.n as integer | 1}
-    size: ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
-  output: ${response.data[0].url}
+  action:
+    endpoint: https://api.openai.com/v1/images/edits
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      image: ${input.image as image}
+      mask: ${input.mask as image}
+      prompt: ${input.prompt as text}
+      n: ${input.n as integer | 1}
+      size: ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
+    output: ${response.data[0].url}
 ```
 
 **사용 시나리오**:
@@ -483,7 +490,8 @@ components:
     type: model
     task: text-embedding
     model: sentence-transformers/all-MiniLM-L6-v2
-    text: ${input.text}
+    action:
+      text: ${input.text}
 ```
 
 **API 사용 예제**:
@@ -548,7 +556,8 @@ components:
     type: model
     task: text-embedding
     model: sentence-transformers/all-MiniLM-L6-v2
-    text: ${input.text}
+    action:
+      text: ${input.text}
 
   - id: milvus-store
     type: vector-store
@@ -566,18 +575,19 @@ components:
   - id: llm
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: system
-          content: Answer based on the following context: ${input.context}
-        - role: user
-          content: ${input.query}
-    output: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: system
+            content: Answer based on the following context: ${input.context}
+          - role: user
+            content: ${input.query}
+      output: ${response.choices[0].message.content}
 ```
 
 **특징**:
@@ -754,17 +764,18 @@ component:
   id: gpt4o
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 **동작 흐름**:
@@ -824,36 +835,39 @@ components:
     type: model
     task: image-to-text
     model: Salesforce/blip-image-captioning-large
-    image: ${input.image as image}
-    output:
-      text: ${result}
+    action:
+      image: ${input.image as image}
+      output:
+        text: ${result}
 
   - id: gpt4o
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      message: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        message: ${response.choices[0].message.content}
 
   - id: tts
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/speech
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: tts-1
-      input: ${input.text}
-      voice: nova
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/audio/speech
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: tts-1
+        input: ${input.text}
+        voice: nova
+      output: ${response}
 ```
 
 **3단계 파이프라인**:
@@ -920,35 +934,38 @@ workflow:
 components:
   - id: whisper
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/transcriptions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      file: ${input.audio as audio}
-      model: whisper-1
-    output:
-      text: ${response.text}
+    action:
+      endpoint: https://api.openai.com/v1/audio/transcriptions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        file: ${input.audio as audio}
+        model: whisper-1
+      output:
+        text: ${response.text}
 
   - id: translator
     type: model
     task: translation
     model: Helsinki-NLP/opus-mt-en-ko
-    text: ${input.text as text}
-    output:
-      text: ${result}
+    action:
+      text: ${input.text as text}
+      output:
+        text: ${result}
 
   - id: tts
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/speech
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: tts-1
-      input: ${input.text}
-      voice: nova
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/audio/speech
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: tts-1
+        input: ${input.text}
+        voice: nova
+      output: ${response}
 ```
 
 **4단계 파이프라인**:

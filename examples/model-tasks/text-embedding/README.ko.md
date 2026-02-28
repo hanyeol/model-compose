@@ -162,7 +162,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-mpnet-base-v2    # 더 높은 품질, 느림
-  text: ${input.text}
+  action:
+    text: ${input.text}
   # 출력: 768 차원
 
 # 또는 다국어 지원:
@@ -178,7 +179,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.texts}  # 문자열 배열
+  action:
+    text: ${input.texts}  # 문자열 배열
 ```
 
 ### 모델 매개변수
@@ -190,11 +192,12 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text}
-  params:
-    device: auto        # 'cpu', 'cuda', 또는 'auto'
-    normalize: true     # 출력 벡터 정규화
-    convert_to_numpy: true
+  action:
+    text: ${input.text}
+    params:
+      device: auto        # 'cpu', 'cuda', 또는 'auto'
+      normalize: true     # 출력 벡터 정규화
+      convert_to_numpy: true
 ```
 
 ## 고급 사용
@@ -226,8 +229,9 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.search_queries}
-  output: ${output as json}
+  action:
+    text: ${input.search_queries}
+    output: ${output as json}
 ```
 
 ## 모델 비교

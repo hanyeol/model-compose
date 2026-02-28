@@ -9,10 +9,11 @@ component:
   type: mcp-server
   port: 8080
   start: [ python, mcp_server.py ]
-  tool: process-text
-  arguments:
-    text: ${input.text}
-    operation: normalize
+  action:
+    tool: process-text
+    arguments:
+      text: ${input.text}
+      operation: normalize
 ```
 
 ## Configuration Options
@@ -70,12 +71,13 @@ component:
     working_dir: ./mcp-tools
     env:
       MCP_PORT: 8080
-  tool: process-text
-  arguments:
-    text: ${input.text}
-    operation: ${input.operation | normalize}
-  output:
-    result: ${response.processed_text}
+  action:
+    tool: process-text
+    arguments:
+      text: ${input.text}
+      operation: ${input.operation | normalize}
+    output:
+      result: ${response.processed_text}
 ```
 
 ### Multi-Tool MCP Server
@@ -447,13 +449,14 @@ component:
   type: mcp-server
   port: ${env.MCP_PORT as integer | 8080}
   base_path: /api/${env.API_VERSION | v1}
-  tool: ${input.tool_name}
-  arguments:
-    param1: ${input.value1}
-    param2: ${input.value2 as number}
-    timestamp: ${now}
-  headers:
-    X-Request-ID: ${generate_uuid}
+  action:
+    tool: ${input.tool_name}
+    arguments:
+      param1: ${input.value1}
+      param2: ${input.value2 as number}
+      timestamp: ${now}
+    headers:
+      X-Request-ID: ${generate_uuid}
 ```
 
 ## Best Practices

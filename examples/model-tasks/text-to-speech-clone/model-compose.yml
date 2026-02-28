@@ -20,7 +20,8 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
   device: cuda:0
   max_concurrent_count: 1
-  method: clone
-  text: ${input.text as text}
-  ref_audio: ${input.ref_audio as audio}
-  ref_text: ${input.ref_text as text}
+  action:
+    method: clone
+    text: ${input.text as text}
+    ref_audio: ${input.ref_audio as audio}
+    ref_text: ${input.ref_text as text}

@@ -183,9 +183,10 @@ component:
   task: text-classification
   model: cardiffnlp/twitter-roberta-base-sentiment-latest  # 감정 분석
   labels: ["negative", "neutral", "positive"]
-  text: ${input.text}
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
 ```
 
 ### 인기 있는 분류 모델
@@ -218,12 +219,13 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.text}
-  params:
-    return_probabilities: true
-    device: auto
-    max_length: 512
-    truncation: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
+      device: auto
+      max_length: 512
+      truncation: true
 ```
 
 ## 고급 사용법
@@ -235,9 +237,10 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.texts}  # 문자열 배열
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.texts}  # 문자열 배열
+    params:
+      return_probabilities: true
 ```
 
 ### 다중 모델 분류 파이프라인

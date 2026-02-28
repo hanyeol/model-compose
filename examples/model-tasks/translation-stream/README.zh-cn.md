@@ -215,14 +215,15 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    max_length: 1024
-    num_beams: 1                # 更快的贪婪搜索流式传输
-    do_sample: false            # 确定性输出
-    streaming_buffer_size: 1    # 立即流式传输每个令牌
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      max_length: 1024
+      num_beams: 1                # 更快的贪婪搜索流式传输
+      do_sample: false            # 确定性输出
+      streaming_buffer_size: 1    # 立即流式传输每个令牌
 ```
 
 ### 自定义语言配置
@@ -233,13 +234,14 @@ component:
   task: text-generation
   model: alirezamsh/small100
   architecture: seq2seq
-  text: |
-    Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
-    ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    do_sample: false
+  action:
+    text: |
+      Translate from ${input.source_lang | "English"} to ${input.target_lang | "Spanish"}:
+      ${input.text as text}
+    params:
+      max_input_length: 1024
+      do_sample: false
 ```
 
 ### 流式质量与速度的权衡

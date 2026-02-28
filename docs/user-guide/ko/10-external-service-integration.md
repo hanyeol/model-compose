@@ -18,19 +18,20 @@ GPT 모델을 사용한 대화형 텍스트 생성입니다.
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    temperature: ${input.temperature as number | 0.7}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      temperature: ${input.temperature as number | 0.7}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 환경 변수 설정:
@@ -44,23 +45,24 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.openai.com/v1/chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: system
-        content: "You are a helpful assistant."
-      - role: user
-        content: ${input.prompt as text}
-    temperature: 0.7
-    max_tokens: 1000
-  output:
-    message: ${response.choices[0].message.content}
-    tokens: ${response.usage.total_tokens}
+  action:
+    endpoint: https://api.openai.com/v1/chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: system
+          content: "You are a helpful assistant."
+        - role: user
+          content: ${input.prompt as text}
+      temperature: 0.7
+      max_tokens: 1000
+    output:
+      message: ${response.choices[0].message.content}
+      tokens: ${response.usage.total_tokens}
 ```
 
 **사용 가능한 모델:**
@@ -85,20 +87,21 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.openai.com/v1/images/generations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: dall-e-3
-    prompt: ${input.prompt}
-    n: 1
-    size: 1024x1024
-    quality: standard
-    response_format: url
-  output:
-    image_url: ${response.data[0].url}
+  action:
+    endpoint: https://api.openai.com/v1/images/generations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: dall-e-3
+      prompt: ${input.prompt}
+      n: 1
+      size: 1024x1024
+      quality: standard
+      response_format: url
+    output:
+      image_url: ${response.data[0].url}
 ```
 
 **DALL-E 2 사용:**
@@ -106,19 +109,20 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.openai.com/v1/images/generations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: dall-e-2
-    prompt: ${input.prompt}
-    n: 1
-    size: 1024x1024
-    response_format: url
-  output:
-    image_url: ${response.data[0].url}
+  action:
+    endpoint: https://api.openai.com/v1/images/generations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: dall-e-2
+      prompt: ${input.prompt}
+      n: 1
+      size: 1024x1024
+      response_format: url
+    output:
+      image_url: ${response.data[0].url}
 ```
 
 **다중 액션 컴포넌트:**
@@ -166,17 +170,18 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.openai.com/v1/audio/speech
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: tts-1
-    input: ${input.text}
-    voice: nova
-    response_format: mp3
-  output: ${response as audio}
+  action:
+    endpoint: https://api.openai.com/v1/audio/speech
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: tts-1
+      input: ${input.text}
+      voice: nova
+      response_format: mp3
+    output: ${response as audio}
 ```
 
 **사용 가능한 음성:**
@@ -193,16 +198,17 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.openai.com/v1/audio/transcriptions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: whisper-1
-    file: ${input.audio_file as file}
-    language: ko
-  output:
-    text: ${response.text}
+  action:
+    endpoint: https://api.openai.com/v1/audio/transcriptions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: whisper-1
+      file: ${input.audio_file as file}
+      language: ko
+    output:
+      text: ${response.text}
 ```
 
 ---
@@ -216,20 +222,21 @@ Anthropic의 Claude 모델을 사용합니다.
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.anthropic.com/v1/messages
-  method: POST
-  headers:
-    x-api-key: ${env.ANTHROPIC_API_KEY}
-    anthropic-version: "2023-06-01"
-    Content-Type: application/json
-  body:
-    model: claude-3-5-sonnet-20241022
-    max_tokens: 1024
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-  output:
-    message: ${response.content[0].text}
+  action:
+    endpoint: https://api.anthropic.com/v1/messages
+    method: POST
+    headers:
+      x-api-key: ${env.ANTHROPIC_API_KEY}
+      anthropic-version: "2023-06-01"
+      Content-Type: application/json
+    body:
+      model: claude-3-5-sonnet-20241022
+      max_tokens: 1024
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+    output:
+      message: ${response.content[0].text}
 ```
 
 환경 변수 설정:
@@ -250,21 +257,22 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.anthropic.com/v1/messages
-  method: POST
-  headers:
-    x-api-key: ${env.ANTHROPIC_API_KEY}
-    anthropic-version: "2023-06-01"
-    Content-Type: application/json
-  body:
-    model: claude-3-5-sonnet-20241022
-    max_tokens: 2048
-    system: "You are a helpful AI assistant."
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-  output:
-    message: ${response.content[0].text}
+  action:
+    endpoint: https://api.anthropic.com/v1/messages
+    method: POST
+    headers:
+      x-api-key: ${env.ANTHROPIC_API_KEY}
+      anthropic-version: "2023-06-01"
+      Content-Type: application/json
+    body:
+      model: claude-3-5-sonnet-20241022
+      max_tokens: 2048
+      system: "You are a helpful AI assistant."
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+    output:
+      message: ${response.content[0].text}
 ```
 
 **주요 파라미터:**
@@ -284,18 +292,19 @@ Google의 Gemini 모델을 사용합니다.
 ```yaml
 component:
   type: http-client
-  endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  headers:
-    Content-Type: application/json
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    headers:
+      Content-Type: application/json
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 환경 변수 설정:
@@ -315,21 +324,22 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  headers:
-    Content-Type: application/json
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-          - inline_data:
-              mime_type: image/jpeg
-              data: ${input.image as base64}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    headers:
+      Content-Type: application/json
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+            - inline_data:
+                mime_type: image/jpeg
+                data: ${input.image as base64}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 **생성 설정:**
@@ -337,21 +347,22 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-    generationConfig:
-      temperature: 0.7
-      topK: 40
-      topP: 0.95
-      maxOutputTokens: 1024
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+      generationConfig:
+        temperature: 0.7
+        topK: 40
+        topP: 0.95
+        maxOutputTokens: 1024
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 ---
@@ -365,17 +376,18 @@ ElevenLabs는 고품질 음성 합성 서비스를 제공합니다.
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
-  method: POST
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-    Content-Type: application/json
-  params:
-    output_format: mp3_44100_128
-  body:
-    text: ${input.text}
-    model_id: eleven_multilingual_v2
-  output: ${response as audio}
+  action:
+    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
+    method: POST
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+      Content-Type: application/json
+    params:
+      output_format: mp3_44100_128
+    body:
+      text: ${input.text}
+      model_id: eleven_multilingual_v2
+    output: ${response as audio}
 ```
 
 환경 변수 설정:
@@ -395,22 +407,23 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
-  method: POST
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-    Content-Type: application/json
-  params:
-    output_format: mp3_44100_192
-  body:
-    text: ${input.text}
-    model_id: eleven_multilingual_v2
-    voice_settings:
-      stability: 0.5
-      similarity_boost: 0.75
-      style: 0.0
-      use_speaker_boost: true
-  output: ${response as audio}
+  action:
+    endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}
+    method: POST
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+      Content-Type: application/json
+    params:
+      output_format: mp3_44100_192
+    body:
+      text: ${input.text}
+      model_id: eleven_multilingual_v2
+      voice_settings:
+        stability: 0.5
+        similarity_boost: 0.75
+        style: 0.0
+        use_speaker_boost: true
+    output: ${response as audio}
 ```
 
 **출력 포맷:**
@@ -440,18 +453,19 @@ Stability AI의 Stable Diffusion 모델을 사용합니다.
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.stability.ai/v2beta/stable-image/generate/sd3
-  method: POST
-  headers:
-    Authorization: Bearer ${env.STABILITY_API_KEY}
-    Content-Type: multipart/form-data
-  body:
-    prompt: ${input.prompt}
-    model: sd3-large
-    aspect_ratio: "1:1"
-    output_format: png
-  output:
-    image: ${response.image as base64}
+  action:
+    endpoint: https://api.stability.ai/v2beta/stable-image/generate/sd3
+    method: POST
+    headers:
+      Authorization: Bearer ${env.STABILITY_API_KEY}
+      Content-Type: multipart/form-data
+    body:
+      prompt: ${input.prompt}
+      model: sd3-large
+      aspect_ratio: "1:1"
+      output_format: png
+    output:
+      image: ${response.image as base64}
 ```
 
 환경 변수 설정:
@@ -470,22 +484,23 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image
-  method: POST
-  headers:
-    Authorization: Bearer ${env.STABILITY_API_KEY}
-    Content-Type: application/json
-  body:
-    text_prompts:
-      - text: ${input.prompt}
-        weight: 1
-    cfg_scale: 7
-    height: 1024
-    width: 1024
-    steps: 30
-    samples: 1
-  output:
-    image: ${response.artifacts[0].base64}
+  action:
+    endpoint: https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image
+    method: POST
+    headers:
+      Authorization: Bearer ${env.STABILITY_API_KEY}
+      Content-Type: application/json
+    body:
+      text_prompts:
+        - text: ${input.prompt}
+          weight: 1
+      cfg_scale: 7
+      height: 1024
+      width: 1024
+      steps: 30
+      samples: 1
+    output:
+      image: ${response.artifacts[0].base64}
 ```
 
 **주요 파라미터:**
@@ -505,17 +520,18 @@ Replicate는 다양한 AI 모델을 API로 제공하는 플랫폼입니다.
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.replicate.com/v1/predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: ${input.model_version}
-    input: ${input.params}
-  output:
-    prediction_id: ${response.id}
-    status: ${response.status}
+  action:
+    endpoint: https://api.replicate.com/v1/predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: ${input.model_version}
+      input: ${input.params}
+    output:
+      prediction_id: ${response.id}
+      status: ${response.status}
 ```
 
 환경 변수 설정:
@@ -529,19 +545,20 @@ model-compose up
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.replicate.com/v1/predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "black-forest-labs/flux-schnell"
-    input:
-      prompt: ${input.prompt}
-      num_inference_steps: 4
-      guidance_scale: 0
-  output:
-    prediction_id: ${response.id}
+  action:
+    endpoint: https://api.replicate.com/v1/predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "black-forest-labs/flux-schnell"
+      input:
+        prompt: ${input.prompt}
+        num_inference_steps: 4
+        guidance_scale: 0
+    output:
+      prediction_id: ${response.id}
 ```
 
 **Llama 3 텍스트 생성:**
@@ -549,19 +566,20 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.replicate.com/v1/predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "meta/meta-llama-3-70b-instruct"
-    input:
-      prompt: ${input.prompt}
-      max_new_tokens: 512
-      temperature: 0.7
-  output:
-    prediction_id: ${response.id}
+  action:
+    endpoint: https://api.replicate.com/v1/predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "meta/meta-llama-3-70b-instruct"
+      input:
+        prompt: ${input.prompt}
+        max_new_tokens: 512
+        temperature: 0.7
+    output:
+      prediction_id: ${response.id}
 ```
 
 **인기 모델:**
@@ -581,18 +599,19 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
-  method: POST
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-    Content-Type: application/json
-  body:
-    input: ${input.data}
-    options:
-      param1: value1
-      param2: ${input.param2}
-  output:
-    result: ${response.result}
+  action:
+    endpoint: https://api.example.com/v1/process
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+      Content-Type: application/json
+    body:
+      input: ${input.data}
+      options:
+        param1: value1
+        param2: ${input.param2}
+    output:
+      result: ${response.result}
 ```
 
 **인증 방식:**
@@ -653,15 +672,16 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/search
-  method: GET
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  params:
-    q: ${input.query}
-    limit: ${input.limit | 10}
-    offset: ${input.offset | 0}
-  output: ${response.results}
+  action:
+    endpoint: https://api.example.com/v1/search
+    method: GET
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    params:
+      q: ${input.query}
+      limit: ${input.limit | 10}
+      offset: ${input.offset | 0}
+    output: ${response.results}
 ```
 
 **타임아웃 설정:**
@@ -669,13 +689,14 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
-  method: POST
   timeout: 30000  # 30초
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body: ${input}
-  output: ${response}
+  action:
+    endpoint: https://api.example.com/v1/process
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body: ${input}
+    output: ${response}
 ```
 
 **재시도 설정:**
@@ -683,16 +704,17 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
-  method: POST
   retry:
     max_retry_count: 3
     delay: 1000  # 1초
     backoff: 2   # 지수 백오프
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body: ${input}
-  output: ${response}
+  action:
+    endpoint: https://api.example.com/v1/process
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body: ${input}
+    output: ${response}
 ```
 
 ---
@@ -745,13 +767,14 @@ workflow:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
   rate_limit:
     requests_per_minute: 60    # 분당 최대 60회 요청
     requests_per_day: 10000    # 일당 최대 10,000회 요청
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body: ${input}
+  action:
+    endpoint: https://api.example.com/v1/process
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body: ${input}
 ```
 
 **워크플로우에서 지연 추가:**
@@ -808,16 +831,17 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body: ${input}
-  output:
-    response: ${response}
-    request_id: ${response.id}       # API 요청 추적용 ID
-    model: ${response.model}         # 사용된 모델
-    created: ${response.created}     # 타임스탬프
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body: ${input}
+    output:
+      response: ${response}
+      request_id: ${response.id}       # API 요청 추적용 ID
+      model: ${response.model}         # 사용된 모델
+      created: ${response.created}     # 타임스탬프
 ```
 
 이 정보는 다음과 같은 경우에 유용합니다:

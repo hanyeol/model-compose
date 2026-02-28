@@ -15,6 +15,14 @@ class CommonComponentConfig(BaseModel):
     actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions available within this component.")
 
     @model_validator(mode="before")
+    def inflate_single_action(cls, values: Dict[str, Any]):
+        if "actions" not in values:
+            action_values = values.pop("action", None)
+            if action_values:
+                values["actions"] = [ action_values ]
+        return values
+
+    @model_validator(mode="before")
     def inflate_runtime(cls, values: Dict[str, Any]):
         runtime = values.get("runtime")
         if runtime is None or isinstance(runtime, str):

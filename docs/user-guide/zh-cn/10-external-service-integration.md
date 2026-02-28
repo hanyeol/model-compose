@@ -18,19 +18,20 @@ OpenAI API提供各种AI服务，包括聊天补全、图像生成和音频处�
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    temperature: ${input.temperature as number | 0.7}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      temperature: ${input.temperature as number | 0.7}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 #### 可用模型
@@ -75,19 +76,20 @@ DALL-E 3和DALL-E 2用于AI图像生成。
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /images/generations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: dall-e-3
-    prompt: ${input.prompt as text}
-    size: ${input.size | "1024x1024"}
-    quality: ${input.quality | "standard"}
-    n: 1
-  output:
-    image_url: ${response.data[0].url}
+  action:
+    path: /images/generations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: dall-e-3
+      prompt: ${input.prompt as text}
+      size: ${input.size | "1024x1024"}
+      quality: ${input.quality | "standard"}
+      n: 1
+    output:
+      image_url: ${response.data[0].url}
 ```
 
 #### 可用选项
@@ -113,16 +115,17 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /audio/speech
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: tts-1
-    voice: ${input.voice | "alloy"}
-    input: ${input.text as text}
-  output: ${response as base64}
+  action:
+    path: /audio/speech
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: tts-1
+      voice: ${input.voice | "alloy"}
+      input: ${input.text as text}
+    output: ${response as base64}
 ```
 
 **可用声音：**
@@ -134,16 +137,17 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /audio/transcriptions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: whisper-1
-    file: ${input.audio as base64}
-    language: ${input.language | "en"}
-  output:
-    text: ${response.text}
+  action:
+    path: /audio/transcriptions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: whisper-1
+      file: ${input.audio as base64}
+      language: ${input.language | "en"}
+    output:
+      text: ${response.text}
 ```
 
 ---
@@ -158,20 +162,21 @@ Claude API提供最先进的语言模型。
 component:
   type: http-client
   base_url: https://api.anthropic.com/v1
-  path: /messages
-  method: POST
-  headers:
-    x-api-key: ${env.ANTHROPIC_API_KEY}
-    anthropic-version: "2023-06-01"
-    Content-Type: application/json
-  body:
-    model: claude-3-5-sonnet-20241022
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    max_tokens: ${input.max_tokens as number | 1024}
-  output:
-    message: ${response.content[0].text}
+  action:
+    path: /messages
+    method: POST
+    headers:
+      x-api-key: ${env.ANTHROPIC_API_KEY}
+      anthropic-version: "2023-06-01"
+      Content-Type: application/json
+    body:
+      model: claude-3-5-sonnet-20241022
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      max_tokens: ${input.max_tokens as number | 1024}
+    output:
+      message: ${response.content[0].text}
 ```
 
 ### 可用模型
@@ -216,16 +221,17 @@ Google Gemini提供多模态AI能力。
 component:
   type: http-client
   base_url: https://generativelanguage.googleapis.com/v1beta
-  path: /models/gemini-pro:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    path: /models/gemini-pro:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 ### 可用模型
@@ -243,19 +249,20 @@ component:
 component:
   type: http-client
   base_url: https://generativelanguage.googleapis.com/v1beta
-  path: /models/gemini-pro-vision:generateContent
-  method: POST
-  params:
-    key: ${env.GOOGLE_API_KEY}
-  body:
-    contents:
-      - parts:
-          - text: ${input.prompt as text}
-          - inline_data:
-              mime_type: image/jpeg
-              data: ${input.image as base64}
-  output:
-    message: ${response.candidates[0].content.parts[0].text}
+  action:
+    path: /models/gemini-pro-vision:generateContent
+    method: POST
+    params:
+      key: ${env.GOOGLE_API_KEY}
+    body:
+      contents:
+        - parts:
+            - text: ${input.prompt as text}
+            - inline_data:
+                mime_type: image/jpeg
+                data: ${input.image as base64}
+    output:
+      message: ${response.candidates[0].content.parts[0].text}
 ```
 
 ### 环境变量
@@ -276,18 +283,19 @@ ElevenLabs提供高质量的文本转语音服务。
 component:
   type: http-client
   base_url: https://api.elevenlabs.io/v1
-  path: /text-to-speech/${input.voice_id}
-  method: POST
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-    Content-Type: application/json
-  body:
-    text: ${input.text as text}
-    model_id: eleven_multilingual_v2
-    voice_settings:
-      stability: ${input.stability | 0.5}
-      similarity_boost: ${input.similarity_boost | 0.75}
-  output: ${response as base64}
+  action:
+    path: /text-to-speech/${input.voice_id}
+    method: POST
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+      Content-Type: application/json
+    body:
+      text: ${input.text as text}
+      model_id: eleven_multilingual_v2
+      voice_settings:
+        stability: ${input.stability | 0.5}
+        similarity_boost: ${input.similarity_boost | 0.75}
+    output: ${response as base64}
 ```
 
 ### 可用模型
@@ -306,11 +314,12 @@ component:
 component:
   type: http-client
   base_url: https://api.elevenlabs.io/v1
-  path: /voices
-  method: GET
-  headers:
-    xi-api-key: ${env.ELEVENLABS_API_KEY}
-  output: ${response.voices}
+  action:
+    path: /voices
+    method: GET
+    headers:
+      xi-api-key: ${env.ELEVENLABS_API_KEY}
+    output: ${response.voices}
 ```
 
 ### 环境变量
@@ -331,18 +340,19 @@ Stability AI为图像生成提供Stable Diffusion模型。
 component:
   type: http-client
   base_url: https://api.stability.ai/v2beta
-  path: /stable-image/generate/sd3
-  method: POST
-  headers:
-    Authorization: Bearer ${env.STABILITY_API_KEY}
-    Content-Type: application/json
-  body:
-    prompt: ${input.prompt as text}
-    model: sd3-large
-    aspect_ratio: ${input.aspect_ratio | "1:1"}
-    output_format: ${input.output_format | "png"}
-  output:
-    image: ${response.image as base64}
+  action:
+    path: /stable-image/generate/sd3
+    method: POST
+    headers:
+      Authorization: Bearer ${env.STABILITY_API_KEY}
+      Content-Type: application/json
+    body:
+      prompt: ${input.prompt as text}
+      model: sd3-large
+      aspect_ratio: ${input.aspect_ratio | "1:1"}
+      output_format: ${input.output_format | "png"}
+    output:
+      image: ${response.image as base64}
 ```
 
 ### 可用模型
@@ -383,16 +393,17 @@ Replicate提供对各种开源AI模型的访问。
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: ${input.model_version}
-    input: ${input.params}
-  output:
-    prediction_id: ${response.id}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: ${input.model_version}
+      input: ${input.params}
+    output:
+      prediction_id: ${response.id}
 ```
 
 ### 示例：FLUX图像生成
@@ -401,20 +412,21 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "black-forest-labs/flux-schnell"
-    input:
-      prompt: ${input.prompt as text}
-      num_outputs: 1
-      aspect_ratio: "1:1"
-  output:
-    prediction_id: ${response.id}
-    status: ${response.status}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "black-forest-labs/flux-schnell"
+      input:
+        prompt: ${input.prompt as text}
+        num_outputs: 1
+        aspect_ratio: "1:1"
+    output:
+      prediction_id: ${response.id}
+      status: ${response.status}
 ```
 
 ### 示例：Llama 3文本生成
@@ -423,19 +435,20 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-    Content-Type: application/json
-  body:
-    version: "meta/meta-llama-3-70b-instruct"
-    input:
-      prompt: ${input.prompt as text}
-      max_tokens: 512
-      temperature: 0.7
-  output:
-    prediction_id: ${response.id}
+  action:
+    path: /predictions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+      Content-Type: application/json
+    body:
+      version: "meta/meta-llama-3-70b-instruct"
+      input:
+        prompt: ${input.prompt as text}
+        max_tokens: 512
+        temperature: 0.7
+    output:
+      prediction_id: ${response.id}
 ```
 
 ### 轮询结果
@@ -444,13 +457,14 @@ component:
 component:
   type: http-client
   base_url: https://api.replicate.com/v1
-  path: /predictions/${input.prediction_id}
-  method: GET
-  headers:
-    Authorization: Bearer ${env.REPLICATE_API_TOKEN}
-  output:
-    status: ${response.status}
-    result: ${response.output}
+  action:
+    path: /predictions/${input.prediction_id}
+    method: GET
+    headers:
+      Authorization: Bearer ${env.REPLICATE_API_TOKEN}
+    output:
+      status: ${response.status}
+      result: ${response.output}
 ```
 
 ### 环境变量
@@ -471,13 +485,14 @@ export REPLICATE_API_TOKEN=r8_...
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /v1/endpoint
-  method: POST
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-    Content-Type: application/json
-  body: ${input}
-  output: ${response}
+  action:
+    path: /v1/endpoint
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+      Content-Type: application/json
+    body: ${input}
+    output: ${response}
 ```
 
 ### 认证方法
@@ -509,13 +524,14 @@ headers:
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /search
-  method: GET
-  params:
-    q: ${input.query}
-    limit: 10
-    offset: ${input.offset | 0}
-  output: ${response}
+  action:
+    path: /search
+    method: GET
+    params:
+      q: ${input.query}
+      limit: 10
+      offset: ${input.offset | 0}
+    output: ${response}
 ```
 
 ### 多操作组件
@@ -644,13 +660,14 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://api.example.com/v1/process
   rate_limit:
     requests_per_minute: 60    # 每分钟最多60个请求
     requests_per_day: 10000    # 每天最多10,000个请求
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body: ${input}
+  action:
+    endpoint: https://api.example.com/v1/process
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body: ${input}
 ```
 
 **在工作流中添加延迟：**
@@ -707,16 +724,17 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body: ${input}
-  output:
-    response: ${response}
-    request_id: ${response.id}       # 用于跟踪的请求ID
-    model: ${response.model}         # 使用的模型
-    created: ${response.created}     # 时间戳
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body: ${input}
+    output:
+      response: ${response}
+      request_id: ${response.id}       # 用于跟踪的请求ID
+      model: ${response.model}         # 使用的模型
+      created: ${response.created}     # 时间戳
 ```
 
 此信息用于：

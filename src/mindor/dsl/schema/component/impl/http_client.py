@@ -10,15 +10,6 @@ class HttpClientComponentConfig(CommonComponentConfig):
     headers: Dict[str, Any] = Field(default_factory=dict, description="Default HTTP headers to include in all requests.")
     actions: List[HttpClientActionConfig] = Field(default_factory=list)
 
-    @model_validator(mode="before")
-    def inflate_single_action(cls, values: Dict[str, Any]):
-        if "actions" not in values:
-            action_keys = set(HttpClientActionConfig.model_fields.keys()) - set(CommonComponentConfig.model_fields.keys())
-            action_keys = action_keys - { "headers" }
-            if any(k in values for k in action_keys):
-                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
-        return values
-
     @model_validator(mode="after")
     def validate_baseurl_for_actions(self):
         for action in self.actions:

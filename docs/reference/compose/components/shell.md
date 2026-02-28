@@ -7,11 +7,12 @@ The shell component enables executing system commands and shell scripts within y
 ```yaml
 component:
   type: shell
-  command: [ ls, -la, /tmp ]
-  working_dir: /home/user
-  timeout: 30.0
-  env:
-    PATH: /usr/local/bin:/usr/bin:/bin
+  action:
+    command: [ ls, -la, /tmp ]
+    working_dir: /home/user
+    timeout: 30.0
+    env:
+      PATH: /usr/local/bin:/usr/bin:/bin
 ```
 
 ## Configuration Options
@@ -61,10 +62,11 @@ Shell actions support the following options:
 ```yaml
 component:
   type: shell
-  command: [df, -h]
-  output:
-    disk_usage: ${result.stdout}
-    exit_code: ${result.exit_code}
+  action:
+    command: [df, -h]
+    output:
+      disk_usage: ${result.stdout}
+      exit_code: ${result.exit_code}
 ```
 
 ### File System Operations
@@ -72,14 +74,15 @@ component:
 ```yaml
 component:
   type: shell
-  command: [ find, /var/log, -name, "*.log", -mtime, "+7" ]
-  working_dir: /tmp
-  timeout: 60.0
-  env:
-    LANG: en_US.UTF-8
-  output:
-    old_log_files: ${result.stdout}
-    error_output: ${result.stderr}
+  action:
+    command: [ find, /var/log, -name, "*.log", -mtime, "+7" ]
+    working_dir: /tmp
+    timeout: 60.0
+    env:
+      LANG: en_US.UTF-8
+    output:
+      old_log_files: ${result.stdout}
+      error_output: ${result.stderr}
 ```
 
 ### Multiple Shell Actions
@@ -307,13 +310,14 @@ Access command output and error streams:
 ```yaml
 component:
   type: shell
-  command: [ python3, script.py ]
-  output:
-    stdout_content: ${result.stdout}
-    stderr_content: ${result.stderr}
-    exit_code: ${result.exit_code}
-    success: ${result.exit_code == 0}
-    command_duration: ${result.duration}
+  action:
+    command: [ python3, script.py ]
+    output:
+      stdout_content: ${result.stdout}
+      stderr_content: ${result.stderr}
+      exit_code: ${result.exit_code}
+      success: ${result.exit_code == 0}
+      command_duration: ${result.duration}
 ```
 
 ### Output Processing
@@ -323,12 +327,13 @@ Process command output with transformations:
 ```yaml
 component:
   type: shell
-  command: [ ps, aux ]
-  output:
-    # Extract specific information from ps output
-    process_count: ${result.stdout | lines | length}
-    cpu_usage_lines: ${result.stdout | lines | grep('python')}
-    memory_info: ${result.stdout | extract_memory_info}
+  action:
+    command: [ ps, aux ]
+    output:
+      # Extract specific information from ps output
+      process_count: ${result.stdout | lines | length}
+      cpu_usage_lines: ${result.stdout | lines | grep('python')}
+      memory_info: ${result.stdout | extract_memory_info}
 ```
 
 ## Security and Safety
@@ -524,12 +529,13 @@ Shell components support dynamic configuration:
 ```yaml
 component:
   type: shell
-  command: [ ${env.BACKUP_TOOL | rsync}, -av, ${input.source_dir}, ${input.dest_dir} ]
-  working_dir: ${env.WORK_DIR | /tmp}
-  timeout: ${input.timeout as float | 300.0}
-  env:
-    BACKUP_DATE: ${now | date_format('%Y-%m-%d')}
-    USER_ID: ${input.user_id}
+  action:
+    command: [ ${env.BACKUP_TOOL | rsync}, -av, ${input.source_dir}, ${input.dest_dir} ]
+    working_dir: ${env.WORK_DIR | /tmp}
+    timeout: ${input.timeout as float | 300.0}
+    env:
+      BACKUP_DATE: ${now | date_format('%Y-%m-%d')}
+      USER_ID: ${input.user_id}
 ```
 
 ## Best Practices

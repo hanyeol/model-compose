@@ -197,15 +197,16 @@ component:
   task: text-generation
   model: facebook/bart-large-cnn
   architecture: seq2seq
-  text: ${input.text as text}
   streaming: true
-  params:
-    max_input_length: 1024
-    min_length: 30
-    max_length: 150
-    num_beams: 1                # 使用贪婪搜索加快流式
-    do_sample: true             # 启用采样以增加多样性
-    temperature: 0.7            # 控制随机性
+  action:
+    text: ${input.text as text}
+    params:
+      max_input_length: 1024
+      min_length: 30
+      max_length: 150
+      num_beams: 1                # 使用贪婪搜索加快流式
+      do_sample: true             # 启用采样以增加多样性
+      temperature: 0.7            # 控制随机性
 ```
 
 ### 自定义流式格式
@@ -222,8 +223,9 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
+  action:
+    text: ${input.text as text}
 ```
 
 ### 缓冲区大小控制
@@ -233,12 +235,13 @@ component:
   type: model
   task: text-generation
   model: facebook/bart-large-cnn
-  text: ${input.text as text}
   streaming: true
-  params:
-    streaming_buffer_size: 1    # 流式传输每个词元
-    # 或
-    streaming_buffer_size: 5    # 在流式传输前缓冲 5 个词元
+  action:
+    text: ${input.text as text}
+    params:
+      streaming_buffer_size: 1    # 流式传输每个词元
+      # 或
+      streaming_buffer_size: 5    # 在流式传输前缓冲 5 个词元
 ```
 
 ## 故障排除

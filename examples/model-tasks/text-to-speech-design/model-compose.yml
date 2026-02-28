@@ -20,6 +20,7 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
   device: cuda:0
   max_concurrent_count: 1
-  method: design
-  text: ${input.text as text}
-  instructions: ${input.instructions as text}
+  action:
+    method: design
+    text: ${input.text as text}
+    instructions: ${input.instructions as text}

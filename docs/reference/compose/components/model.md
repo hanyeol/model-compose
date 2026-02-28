@@ -9,10 +9,11 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  prompt: ${input.prompt}
-  params:
-    max_output_length: 1024
-    temperature: 0.7
+  action:
+    prompt: ${input.prompt}
+    params:
+      max_output_length: 1024
+      temperature: 0.7
 ```
 
 ## Configuration Options
@@ -67,16 +68,17 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  prompt: ${input.prompt}
-  params:
-    max_output_length: 2048
-    temperature: 0.8
-    top_p: 0.9
-    top_k: 50
-    do_sample: true
-    num_return_sequences: 1
-  output:
-    generated_text: ${response.generated_text}
+  action:
+    prompt: ${input.prompt}
+    params:
+      max_output_length: 2048
+      temperature: 0.8
+      top_p: 0.9
+      top_k: 50
+      do_sample: true
+      num_return_sequences: 1
+    output:
+      generated_text: ${response.generated_text}
 ```
 
 **Text Generation Parameters:**
@@ -102,17 +104,18 @@ component:
   type: model
   task: chat-completion
   model: HuggingFaceTB/SmolLM3-3B
-  messages:
-    - role: system
-      content: ${input.system_prompt}
-    - role: user
-      content: ${input.user_message}
-  params:
-    max_output_length: 1024
-    temperature: 0.7
-    top_p: 0.9
-  output:
-    response: ${response.message.content}
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_message}
+    params:
+      max_output_length: 1024
+      temperature: 0.7
+      top_p: 0.9
+    output:
+      response: ${response.message.content}
 ```
 
 **Message Format:**
@@ -140,10 +143,11 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text}
-  output:
-    embedding: ${response.embedding}
-    dimensions: ${response.embedding | length}
+  action:
+    text: ${input.text}
+    output:
+      embedding: ${response.embedding}
+      dimensions: ${response.embedding | length}
 ```
 
 ### Text Classification
@@ -155,12 +159,13 @@ component:
   type: model
   task: text-classification
   model: cardiffnlp/twitter-roberta-base-sentiment-latest
-  text: ${input.text}
   labels: [ positive, negative, neutral ]
-  output:
-    predicted_label: ${response.label}
-    confidence: ${response.score}
-    all_scores: ${response.scores}
+  action:
+    text: ${input.text}
+    output:
+      predicted_label: ${response.label}
+      confidence: ${response.score}
+      all_scores: ${response.scores}
 ```
 
 ### Translation
@@ -172,11 +177,12 @@ component:
   type: model
   task: translation
   model: Helsinki-NLP/opus-mt-en-fr
-  text: ${input.text}
   source_language: en
   target_language: fr
-  output:
-    translated_text: ${response.translation_text}
+  action:
+    text: ${input.text}
+    output:
+      translated_text: ${response.translation_text}
 ```
 
 ### Summarization
@@ -188,12 +194,13 @@ component:
   type: model
   task: summarization
   model: facebook/bart-large-cnn
-  text: ${input.article_text}
-  params:
-    max_output_length: 150
-    min_output_length: 50
-  output:
-    summary: ${response.summary_text}
+  action:
+    text: ${input.article_text}
+    params:
+      max_output_length: 150
+      min_output_length: 50
+    output:
+      summary: ${response.summary_text}
 ```
 
 ### Image-to-Text
@@ -205,9 +212,10 @@ component:
   type: model
   task: image-to-text
   model: Salesforce/blip-image-captioning-base
-  image: ${input.image_url}
-  output:
-    caption: ${response.generated_text}
+  action:
+    image: ${input.image_url}
+    output:
+      caption: ${response.generated_text}
 ```
 
 ### Text to Speech
@@ -245,10 +253,11 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
   device: cuda:0
   max_concurrent_count: 1
-  method: generate
-  text: ${input.text as text}
-  voice: ${input.voice | vivian}
-  instructions: ${input.instructions | ""}
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | vivian}
+    instructions: ${input.instructions | ""}
 ```
 
 | Field | Type | Default | Description |
@@ -269,10 +278,11 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
   device: cuda:0
   max_concurrent_count: 1
-  method: clone
-  text: ${input.text as text}
-  ref_audio: ${input.ref_audio as audio}
-  ref_text: ${input.ref_text as text}
+  action:
+    method: clone
+    text: ${input.text as text}
+    ref_audio: ${input.ref_audio as audio}
+    ref_text: ${input.ref_text as text}
 ```
 
 | Field | Type | Default | Description |
@@ -293,9 +303,10 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
   device: cuda:0
   max_concurrent_count: 1
-  method: design
-  text: ${input.text as text}
-  instructions: ${input.instructions as text}
+  action:
+    method: design
+    text: ${input.text as text}
+    instructions: ${input.instructions as text}
 ```
 
 | Field | Type | Default | Description |
@@ -419,15 +430,16 @@ component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
-  prompt: ${input.prompt}
-  params:
-    max_output_length: 4096
-    temperature: 0.8
-    do_sample: true
-    # Enable streaming for real-time generation
-    stream: true
-  output:
-    generated_text: ${response.generated_text}
+  action:
+    prompt: ${input.prompt}
+    params:
+      max_output_length: 4096
+      temperature: 0.8
+      do_sample: true
+      # Enable streaming for real-time generation
+      stream: true
+    output:
+      generated_text: ${response.generated_text}
 ```
 
 ### Batch Processing
@@ -437,11 +449,12 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text_list}  # Array of texts
-  params:
-    batch_size: 32
-  output:
-    embeddings: ${response.embeddings}
+  action:
+    text: ${input.text_list}  # Array of texts
+    params:
+      batch_size: 32
+    output:
+      embeddings: ${response.embeddings}
 ```
 
 ### Custom Stop Sequences
@@ -451,13 +464,14 @@ component:
   type: model
   task: text-generation
   model: codegen-350M
-  prompt: "def ${input.function_name}(${input.parameters}):\n"
-  params:
-    max_output_length: 512
-    temperature: 0.2
-    stop_sequences: [ "\ndef ", "\nclass ", "\n\n" ]
-  output:
-    generated_function: ${response.generated_text}
+  action:
+    prompt: "def ${input.function_name}(${input.parameters}):\n"
+    params:
+      max_output_length: 512
+      temperature: 0.2
+      stop_sequences: [ "\ndef ", "\nclass ", "\n\n" ]
+    output:
+      generated_function: ${response.generated_text}
 ```
 
 ## Error Handling
@@ -494,11 +508,12 @@ component:
   type: model
   task: text-generation
   model: ${env.MODEL_NAME | HuggingFaceTB/SmolLM3-3B}
-  prompt: ${input.prompt}
-  params:
-    max_output_length: ${input.max_length as integer | 1024}
-    temperature: ${input.creativity as float | 0.7}
-    device: ${env.COMPUTE_DEVICE | cpu}
+  action:
+    prompt: ${input.prompt}
+    params:
+      max_output_length: ${input.max_length as integer | 1024}
+      temperature: ${input.creativity as float | 0.7}
+      device: ${env.COMPUTE_DEVICE | cpu}
 ```
 
 ## Best Practices

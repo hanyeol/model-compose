@@ -37,14 +37,15 @@ component:
           --trust-remote-code \
           --enforce-eager
   port: 8091
-  method: POST
-  path: /v1/audio/speech
-  headers:
-    Content-Type: application/json
-  body:
-    input: ${input.text as text}
-    voice: ${input.voice | vivian}
-    language: ${input.language | Auto}
-    instructions: ${input.instructions | ""}
-    response_format: wav
-  output: ${response}
+  action:
+    method: POST
+    path: /v1/audio/speech
+    headers:
+      Content-Type: application/json
+    body:
+      input: ${input.text as text}
+      voice: ${input.voice | vivian}
+      language: ${input.language | Auto}
+      instructions: ${input.instructions | ""}
+      response_format: wav
+    output: ${response}

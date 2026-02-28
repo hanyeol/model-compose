@@ -183,9 +183,10 @@ component:
   task: text-classification
   model: cardiffnlp/twitter-roberta-base-sentiment-latest  # Sentiment analysis
   labels: ["negative", "neutral", "positive"]
-  text: ${input.text}
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
 ```
 
 ### Popular Classification Models
@@ -218,12 +219,13 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.text}
-  params:
-    return_probabilities: true
-    device: auto
-    max_length: 512
-    truncation: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
+      device: auto
+      max_length: 512
+      truncation: true
 ```
 
 ## Advanced Usage
@@ -235,9 +237,10 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.texts}  # Array of strings
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.texts}  # Array of strings
+    params:
+      return_probabilities: true
 ```
 
 ### Multi-Model Classification Pipeline

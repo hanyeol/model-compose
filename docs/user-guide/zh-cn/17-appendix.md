@@ -44,6 +44,7 @@ workflow:          # 替代 workflows: [ ... ]
 listener:          # 替代 listeners: [ ... ]
 gateway:           # 替代 gateways: [ ... ]
 logger:            # 替代 loggers: [ ... ]
+action:            # 替代 actions: [ ... ]（在组件内部）
 ```
 
 ### 17.1.2 控制器架构
@@ -90,23 +91,11 @@ components:
     task: text-generation | chat-completion | translation | ...
     model: model-name-or-path
 
-    # 输入（根据任务而异）
-    text: ${input.text as text}
-    messages: [ ... ]
-    image: ${input.image as image}
-
     # 模型配置
     device: cuda | cpu | mps
     dtype: float32 | float16 | bfloat16 | int8 | int4
     batch_size: 1
     streaming: false
-
-    # 参数
-    params:
-      max_output_length: 100
-      temperature: 0.7
-      top_p: 0.9
-      do_sample: true
 
     # LoRA 适配器
     peft_adapters:
@@ -114,6 +103,19 @@ components:
         name: adapter-name
         model: path/to/adapter
         weight: 1.0
+
+    # 单个操作
+    action:
+      # 输入（根据任务而异）
+      text: ${input.text as text}
+      messages: [ ... ]
+      image: ${input.image as image}
+      # 参数
+      params:
+        max_output_length: 100
+        temperature: 0.7
+        top_p: 0.9
+        do_sample: true
 ```
 
 **HTTP 客户端**：
@@ -122,26 +124,23 @@ components:
   - id: http-client-id
     type: http-client
 
-    # 端点
-    base_url: https://api.example.com   # 或
-    endpoint: https://api.example.com/v1/resource
+    # 组件级别
+    base_url: https://api.example.com
 
-    # HTTP 配置
-    method: GET | POST | PUT | DELETE | PATCH
-    path: /resource
-    headers: { ... }
-    params: { ... }
-    body: { ... }
+    # 单个操作
+    action:
+      endpoint: https://api.example.com/v1/resource
+      method: GET | POST | PUT | DELETE | PATCH
+      path: /resource
+      headers: { ... }
+      params: { ... }
+      body: { ... }
+      stream_format: json | text
+      timeout: 30
+      max_retries: 3
+      retry_delay: 1
 
-    # 流式传输
-    stream_format: json | text
-
-    # 高级配置
-    timeout: 30
-    max_retries: 3
-    retry_delay: 1
-
-    # 多个操作
+    # 或多个操作
     actions:
       - id: action-id
         path: /action-path
@@ -172,10 +171,11 @@ components:
       retries: 3
 
     # HTTP 客户端配置（服务器启动后）
-    method: POST
-    path: /v1/completions
-    body: { ... }
-    stream_format: json
+    action:
+      method: POST
+      path: /v1/completions
+      body: { ... }
+      stream_format: json
 ```
 
 **向量存储**：

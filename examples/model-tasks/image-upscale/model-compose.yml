@@ -22,4 +22,5 @@ component:
     filename: RealESRGAN_x4.pth
   scale: 4
   max_concurrent_count: 1
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}

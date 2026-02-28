@@ -19,5 +19,6 @@ component:
   model: Salesforce/blip-image-captioning-large
   architecture: blip
   max_concurrent_count: 1
-  image: ${input.image as image}
-  prompt: ${input.prompt as text}
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}

@@ -18,14 +18,15 @@ workflow:
 components:
   - id: openai-text-to-speech
     type: http-client
-    endpoint: https://api.openai.com/v1/audio/speech
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
-      input: ${input.text}
-      voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
-      response_format: mp3
-    output: ${response}
+    action:
+      endpoint: https://api.openai.com/v1/audio/speech
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
+        input: ${input.text}
+        voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
+        response_format: mp3
+      output: ${response}

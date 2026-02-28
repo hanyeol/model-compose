@@ -263,12 +263,13 @@ workflow:
 component:
   type: http-client
   # ... 其他配置
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: |
-          写一条励志的 ${input.theme | "motivational"} 名言。
-          主题选项：success、perseverance、leadership、creativity、growth
-          目标约 30 个单词。
+  action:
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: |
+            写一条励志的 ${input.theme | "motivational"} 名言。
+            主题选项：success、perseverance、leadership、creativity、growth
+            目标约 30 个单词。
 ```

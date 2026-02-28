@@ -140,9 +140,10 @@ Access the public URL in your configuration:
 
 ```yaml
 component:
-  body:
-    callback_url: ${gateway:8090.public_url}/callback
-    # Resolves to: https://abc123.ngrok.io/callback
+  action:
+    body:
+      callback_url: ${gateway:8090.public_url}/callback
+      # Resolves to: https://abc123.ngrok.io/callback
 ```
 
 The format is: `${gateway:LOCAL_PORT.public_url}`
@@ -167,18 +168,19 @@ component:
   type: http-server
   start: [ uvicorn, server:app, --reload, --port, "9000" ]
   port: 9000
-  method: POST
-  path: /process
-  body:
-    data: ${input.data}
-    callback_url: ${gateway:8090.public_url}/callback
-    task_id: ${context.run_id}
-  completion:
-    type: callback
-    wait_for: ${context.run_id}
-  output:
-    task_id: ${response.task_id}
-    result: ${result}
+  action:
+    method: POST
+    path: /process
+    body:
+      data: ${input.data}
+      callback_url: ${gateway:8090.public_url}/callback
+      task_id: ${context.run_id}
+    completion:
+      type: callback
+      wait_for: ${context.run_id}
+    output:
+      task_id: ${response.task_id}
+      result: ${result}
 ```
 
 ## Troubleshooting

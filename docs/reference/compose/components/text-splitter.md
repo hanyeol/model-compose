@@ -7,10 +7,11 @@ The text splitter component enables splitting large text documents into smaller,
 ```yaml
 component:
   type: text-splitter
-  text: ${input.document}
-  chunk_size: 1000
-  chunk_overlap: 200
-  separators: [ "\n\n", "\n", " ", "" ]
+  action:
+    text: ${input.document}
+    chunk_size: 1000
+    chunk_overlap: 200
+    separators: [ "\n\n", "\n", " ", "" ]
 ```
 
 ## Configuration Options
@@ -41,12 +42,13 @@ Text splitter actions support the following options:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.document_text}
-  chunk_size: 1000
-  chunk_overlap: 200
-  output:
-    chunks: ${response.chunks}
-    chunk_count: ${response.chunks | length}
+  action:
+    text: ${input.document_text}
+    chunk_size: 1000
+    chunk_overlap: 200
+    output:
+      chunks: ${response.chunks}
+      chunk_count: ${response.chunks | length}
 ```
 
 ### Custom Separator Splitting
@@ -54,13 +56,14 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.article}
-  chunk_size: 500
-  chunk_overlap: 50
-  separators: [ "\n\n", "\n", ". ", " ", "" ]
-  output:
-    text_chunks: ${response.chunks}
-    total_chunks: ${response.chunks | length}
+  action:
+    text: ${input.article}
+    chunk_size: 500
+    chunk_overlap: 50
+    separators: [ "\n\n", "\n", ". ", " ", "" ]
+    output:
+      text_chunks: ${response.chunks}
+      total_chunks: ${response.chunks | length}
 ```
 
 ### Multiple Splitting Strategies
@@ -99,13 +102,14 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.large_document}
-  chunk_size: 1500
-  chunk_overlap: 150
-  streaming: true
-  output:
-    # Streaming output provides chunks one by one
-    streaming_chunks: ${response.stream}
+  action:
+    text: ${input.large_document}
+    chunk_size: 1500
+    chunk_overlap: 150
+    streaming: true
+    output:
+      # Streaming output provides chunks one by one
+      streaming_chunks: ${response.stream}
 ```
 
 ## Separator Strategies
@@ -117,17 +121,18 @@ Use hierarchical separators to maintain document structure:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.structured_document}
-  separators: [
-    "\n\n\n",    # Major sections
-    "\n\n",      # Paragraphs
-    "\n",        # Lines
-    ". ",        # Sentences
-    " ",         # Words
-    ""           # Characters (last resort)
-  ]
-  chunk_size: 1000
-  chunk_overlap: 100
+  action:
+    text: ${input.structured_document}
+    separators: [
+      "\n\n\n",    # Major sections
+      "\n\n",      # Paragraphs
+      "\n",        # Lines
+      ". ",        # Sentences
+      " ",         # Words
+      ""           # Characters (last resort)
+    ]
+    chunk_size: 1000
+    chunk_overlap: 100
 ```
 
 ### Document-Type Specific Separators
@@ -137,17 +142,18 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.markdown_content}
-  separators: [
-    "\n## ",     # Sections
-    "\n### ",    # Subsections
-    "\n\n",      # Paragraphs
-    "\n",        # Lines
-    " ",         # Words
-    ""
-  ]
-  chunk_size: 800
-  chunk_overlap: 80
+  action:
+    text: ${input.markdown_content}
+    separators: [
+      "\n## ",     # Sections
+      "\n### ",    # Subsections
+      "\n\n",      # Paragraphs
+      "\n",        # Lines
+      " ",         # Words
+      ""
+    ]
+    chunk_size: 800
+    chunk_overlap: 80
 ```
 
 #### Code Documents
@@ -155,17 +161,18 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.source_code}
-  separators: [
-    "\nclass ",      # Class definitions
-    "\ndef ",        # Function definitions
-    "\n\n",          # Empty lines
-    "\n",            # Line breaks
-    " ",             # Spaces
-    ""
-  ]
-  chunk_size: 1200
-  chunk_overlap: 100
+  action:
+    text: ${input.source_code}
+    separators: [
+      "\nclass ",      # Class definitions
+      "\ndef ",        # Function definitions
+      "\n\n",          # Empty lines
+      "\n",            # Line breaks
+      " ",             # Spaces
+      ""
+    ]
+    chunk_size: 1200
+    chunk_overlap: 100
 ```
 
 #### Academic Papers
@@ -173,17 +180,18 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.research_paper}
-  separators: [
-    "\n# ",          # Main sections
-    "\n## ",         # Subsections
-    "\n\n",          # Paragraphs
-    ". ",            # Sentences
-    " ",             # Words
-    ""
-  ]
-  chunk_size: 1500
-  chunk_overlap: 150
+  action:
+    text: ${input.research_paper}
+    separators: [
+      "\n# ",          # Main sections
+      "\n## ",         # Subsections
+      "\n\n",          # Paragraphs
+      ". ",            # Sentences
+      " ",             # Words
+      ""
+    ]
+    chunk_size: 1500
+    chunk_overlap: 150
 ```
 
 ## Chunk Overlap Strategies
@@ -193,9 +201,10 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.text}
-  chunk_size: 1000
-  chunk_overlap: 0      # No overlap - for independent chunk processing
+  action:
+    text: ${input.text}
+    chunk_size: 1000
+    chunk_overlap: 0      # No overlap - for independent chunk processing
 ```
 
 ### Moderate Overlap for Context Preservation
@@ -203,9 +212,10 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.text}
-  chunk_size: 1000
-  chunk_overlap: 200    # 20% overlap - maintains context between chunks
+  action:
+    text: ${input.text}
+    chunk_size: 1000
+    chunk_overlap: 200    # 20% overlap - maintains context between chunks
 ```
 
 ### High Overlap for Semantic Continuity
@@ -213,9 +223,10 @@ component:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.text}
-  chunk_size: 1000
-  chunk_overlap: 400    # 40% overlap - ensures semantic continuity
+  action:
+    text: ${input.text}
+    chunk_size: 1000
+    chunk_overlap: 400    # 40% overlap - ensures semantic continuity
 ```
 
 ## Integration with Vector Databases
@@ -253,16 +264,18 @@ workflows:
 components:
   - id: text-splitter
     type: text-splitter
-    text: ${input.document}
-    chunk_size: 1000
-    chunk_overlap: 200
-    separators: [ "\n\n", "\n", ". ", " ", "" ]
-    
+    action:
+      text: ${input.document}
+      chunk_size: 1000
+      chunk_overlap: 200
+      separators: [ "\n\n", "\n", ". ", " ", "" ]
+
   - id: embedding-model
     type: model
     task: text-embedding
     model: sentence-transformers/all-MiniLM-L6-v2
-    text: ${input.texts}
+    action:
+      text: ${input.texts}
     
   - id: vector-store
     type: vector-store
@@ -416,14 +429,15 @@ workflows:
 components:
   - id: text-splitter
     type: text-splitter
-    text: ${input.text}
-    chunk_size: 1000
-    chunk_overlap: 100
-    output:
-      chunks: ${response.chunks}
-      # Additional quality metrics
-      avg_chunk_length: ${response.chunks | map(length) | avg}
-      chunk_lengths: ${response.chunks | map(length)}
+    action:
+      text: ${input.text}
+      chunk_size: 1000
+      chunk_overlap: 100
+      output:
+        chunks: ${response.chunks}
+        # Additional quality metrics
+        avg_chunk_length: ${response.chunks | map(length) | avg}
+        chunk_lengths: ${response.chunks | map(length)}
 ```
 
 ### Streaming for Large Documents
@@ -433,13 +447,14 @@ Handle very large documents with streaming:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.large_document}  # Multi-GB document
-  chunk_size: 2000
-  chunk_overlap: 200
-  streaming: true
-  output:
-    # Process chunks as they become available
-    chunk_stream: ${response.stream}
+  action:
+    text: ${input.large_document}  # Multi-GB document
+    chunk_size: 2000
+    chunk_overlap: 200
+    streaming: true
+    output:
+      # Process chunks as they become available
+      chunk_stream: ${response.stream}
 ```
 
 ## Overlap Visualization
@@ -462,11 +477,12 @@ Text splitter supports dynamic configuration:
 ```yaml
 component:
   type: text-splitter
-  text: ${input.document_text}
-  chunk_size: ${input.max_chunk_size as integer | 1000}
-  chunk_overlap: ${input.overlap_ratio as integer | 200}
-  separators: ${input.custom_separators | ['\n\n', '\n', ' ', '']}
-  streaming: ${input.enable_streaming as boolean | false}
+  action:
+    text: ${input.document_text}
+    chunk_size: ${input.max_chunk_size as integer | 1000}
+    chunk_overlap: ${input.overlap_ratio as integer | 200}
+    separators: ${input.custom_separators | ['\n\n', '\n', ' ', '']}
+    streaming: ${input.enable_streaming as boolean | false}
 ```
 
 ## Best Practices

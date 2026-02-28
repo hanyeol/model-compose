@@ -162,7 +162,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-mpnet-base-v2    # 质量更高，速度较慢
-  text: ${input.text}
+  action:
+    text: ${input.text}
   # 输出：768 维
 
 # 或用于多语言支持：
@@ -178,7 +179,8 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.texts}  # 字符串数组
+  action:
+    text: ${input.texts}  # 字符串数组
 ```
 
 ### 模型参数
@@ -190,11 +192,12 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.text}
-  params:
-    device: auto        # 'cpu'、'cuda' 或 'auto'
-    normalize: true     # 归一化输出向量
-    convert_to_numpy: true
+  action:
+    text: ${input.text}
+    params:
+      device: auto        # 'cpu'、'cuda' 或 'auto'
+      normalize: true     # 归一化输出向量
+      convert_to_numpy: true
 ```
 
 ## 高级用法
@@ -226,8 +229,9 @@ component:
   type: model
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
-  text: ${input.search_queries}
-  output: ${output as json}
+  action:
+    text: ${input.search_queries}
+    output: ${output as json}
 ```
 
 ## 模型比较

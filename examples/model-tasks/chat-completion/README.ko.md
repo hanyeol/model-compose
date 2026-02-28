@@ -196,16 +196,17 @@ component:
   type: model
   task: chat-completion
   model: HuggingFaceTB/SmolLM3-3B
-  messages:
-    - role: system
-      content: ${input.system_prompt}
-    - role: user
-      content: ${input.user_prompt}
-  params:
-    max_length: 2048
-    temperature: ${input.temperature as number | 0.7}
-    do_sample: true
-    pad_token_id: 50256
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+    params:
+      max_length: 2048
+      temperature: ${input.temperature as number | 0.7}
+      do_sample: true
+      pad_token_id: 50256
 ```
 
 ### 다중 턴 대화
@@ -217,15 +218,16 @@ component:
   type: model
   task: chat-completion
   model: HuggingFaceTB/SmolLM3-3B
-  messages:
-    - role: system
-      content: ${input.system_prompt | "You are a helpful assistant."}
-    - role: user
-      content: ${input.conversation_history[0].content}
-    - role: assistant
-      content: ${input.conversation_history[0].response}
-    - role: user
-      content: ${input.user_prompt}
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt | "You are a helpful assistant."}
+      - role: user
+        content: ${input.conversation_history[0].content}
+      - role: assistant
+        content: ${input.conversation_history[0].response}
+      - role: user
+        content: ${input.user_prompt}
 ```
 
 ## 문제 해결

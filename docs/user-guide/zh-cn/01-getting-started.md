@@ -37,7 +37,8 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
+    action:
+      path: /chat/completions
 
 workflows:
   - id: generate-text
@@ -151,18 +152,19 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 
 workflows:
   - id: generate-text
@@ -195,17 +197,18 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 ```
 - 定义一个名为 `chatgpt` 的可重用组件
 - 配置 HTTP 客户端来调用 OpenAI 的 API
@@ -463,11 +466,12 @@ jobs:
 数据流示例：
 ```yaml
 component:
-  body:
-    prompt: ${input.user_prompt}  # 来自工作流输入
-    api_key: ${env.API_KEY}       # 来自环境
-  output:
-    result: ${response.data}      # 从 API 响应中提取
+  action:
+    body:
+      prompt: ${input.user_prompt}  # 来自工作流输入
+      api_key: ${env.API_KEY}       # 来自环境
+    output:
+      result: ${response.data}      # 从 API 响应中提取
 ```
 
 ### 综合起来

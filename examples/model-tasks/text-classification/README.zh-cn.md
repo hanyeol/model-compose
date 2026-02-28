@@ -183,9 +183,10 @@ component:
   task: text-classification
   model: cardiffnlp/twitter-roberta-base-sentiment-latest  # 情感分析
   labels: ["negative", "neutral", "positive"]
-  text: ${input.text}
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
 ```
 
 ### 常用分类模型
@@ -218,12 +219,13 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.text}
-  params:
-    return_probabilities: true
-    device: auto
-    max_length: 512
-    truncation: true
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true
+      device: auto
+      max_length: 512
+      truncation: true
 ```
 
 ## 高级用法
@@ -235,9 +237,10 @@ component:
   task: text-classification
   model: martin-ha/toxic-comment-model
   labels: [ "non-toxic", "toxic" ]
-  text: ${input.texts}  # 字符串数组
-  params:
-    return_probabilities: true
+  action:
+    text: ${input.texts}  # 字符串数组
+    params:
+      return_probabilities: true
 ```
 
 ### 多模型分类管道

@@ -37,7 +37,8 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
+    action:
+      path: /chat/completions
 
 workflows:
   - id: generate-text
@@ -151,18 +152,19 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-      Content-Type: application/json
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 
 workflows:
   - id: generate-text
@@ -195,17 +197,18 @@ components:
   - id: chatgpt
     type: http-client
     base_url: https://api.openai.com/v1
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      response: ${response.choices[0].message.content}
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+      output:
+        response: ${response.choices[0].message.content}
 ```
 - Defines a reusable component called `chatgpt`
 - Configures an HTTP client to call OpenAI's API
@@ -463,11 +466,12 @@ Common variable sources:
 Example data flow:
 ```yaml
 component:
-  body:
-    prompt: ${input.user_prompt}  # From workflow input
-    api_key: ${env.API_KEY}       # From environment
-  output:
-    result: ${response.data}      # Extract from API response
+  action:
+    body:
+      prompt: ${input.user_prompt}  # From workflow input
+      api_key: ${env.API_KEY}       # From environment
+    output:
+      result: ${response.data}      # Extract from API response
 ```
 
 ### Putting It All Together

@@ -181,13 +181,14 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 component:
   type: model
   task: image-upscale
-  architecture: real-esrgan
+  family: real-esrgan
   model:
     provider: huggingface
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x2.pth  # 用于 2 倍缩放
   scale: 2
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ### 使用替代模型
@@ -196,13 +197,14 @@ component:
 component:
   type: model
   task: image-upscale
-  architecture: esrgan
+  family: esrgan
   model:
     provider: huggingface
     repository: ai-forever/Real-ESRGAN
     filename: ESRGAN_x4.pth      # 原始 ESRGAN 模型
   scale: 4
-  image: ${input.image as image}
+  action:
+    image: ${input.image as image}
 ```
 
 ### 批量处理配置
@@ -234,16 +236,17 @@ workflow:
 component:
   type: model
   task: image-upscale
-  architecture: real-esrgan
+  family: real-esrgan
   model:
     provider: huggingface
     repository: ai-forever/Real-ESRGAN
     filename: RealESRGAN_x4.pth
   scale: 4
-  image: ${input.image as image}
-  params:
-    tile_size: 512        # 以较小的瓦片处理
-    tile_pad: 10          # 填充以避免边缘伪影
+  action:
+    image: ${input.image as image}
+    params:
+      tile_size: 512        # 以较小的瓦片处理
+      tile_pad: 10          # 填充以避免边缘伪影
 ```
 
 ## 与基于 API 的解决方案的比较

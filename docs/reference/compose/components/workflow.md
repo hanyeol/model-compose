@@ -7,10 +7,11 @@ The workflow component enables invoking and orchestrating other workflows within
 ```yaml
 component:
   type: workflow
-  workflow: process-documents
-  input:
-    documents: ${input.document_list}
-    options: ${input.processing_options}
+  action:
+    workflow: process-documents
+    input:
+      documents: ${input.document_list}
+      options: ${input.processing_options}
 ```
 
 ## Configuration Options
@@ -38,13 +39,14 @@ Workflow actions support the following options:
 ```yaml
 component:
   type: workflow
-  workflow: text-processing
-  input:
-    text: ${input.document_text}
-    language: en
-  output:
-    processed_text: ${response.result}
-    metadata: ${response.metadata}
+  action:
+    workflow: text-processing
+    input:
+      text: ${input.document_text}
+      language: en
+    output:
+      processed_text: ${response.result}
+      metadata: ${response.metadata}
 ```
 
 ### Multiple Workflow Actions
@@ -506,13 +508,14 @@ Workflow components support dynamic configuration:
 ```yaml
 component:
   type: workflow
-  workflow: ${input.selected_workflow | default-workflow}
-  input:
-    data: ${input.workflow_data}
-    options:
-      processing_mode: ${env.PROCESSING_MODE | standard}
-      max_retries: ${input.retry_count as integer | 3}
-      timeout: ${input.timeout_seconds as integer | 300}
+  action:
+    workflow: ${input.selected_workflow | default-workflow}
+    input:
+      data: ${input.workflow_data}
+      options:
+        processing_mode: ${env.PROCESSING_MODE | standard}
+        max_retries: ${input.retry_count as integer | 3}
+        timeout: ${input.timeout_seconds as integer | 300}
 ```
 
 ## Best Practices

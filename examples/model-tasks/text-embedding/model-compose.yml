@@ -18,4 +18,5 @@ component:
   task: text-embedding
   model: sentence-transformers/all-MiniLM-L6-v2
   max_concurrent_count: 1
-  text: ${input.text}
+  action:
+    text: ${input.text}

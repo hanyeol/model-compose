@@ -17,11 +17,12 @@ component:
   runtime: process
   start: [ uvicorn, main:app, --reload, --port, "8000" ]
   port: 8000
-  method: POST
-  path: /echo
-  headers:
-    Content-Type: application/json
-  body:
-    text: ${input.text}
-  output: 
-    text: ${response.echo.text}
+  action:
+    method: POST
+    path: /echo
+    headers:
+      Content-Type: application/json
+    body:
+      text: ${input.text}
+    output:
+      text: ${response.echo.text}

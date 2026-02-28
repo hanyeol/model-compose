@@ -35,17 +35,18 @@ component:
           --served-model-name qwen2-7b-instruct \
           --max-model-len 2048
   port: 8000
-  method: POST
-  path: /v1/chat/completions
-  headers:
-    Content-Type: application/json
-  body:
-    model: qwen2-7b-instruct
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    max_tokens: 512
-    temperature: ${input.temperature as number | 0.7}
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    method: POST
+    path: /v1/chat/completions
+    headers:
+      Content-Type: application/json
+    body:
+      model: qwen2-7b-instruct
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      max_tokens: 512
+      temperature: ${input.temperature as number | 0.7}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}

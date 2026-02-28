@@ -46,18 +46,19 @@ HTTP client actions support the following options:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 ### Multiple Actions Component
@@ -99,12 +100,13 @@ component:
 ```yaml
 component:
   type: http-client
-  endpoint: https://httpbin.org/post
-  method: POST
-  headers:
-    Content-Type: application/json
-  body:
-    data: ${input.payload}
+  action:
+    endpoint: https://httpbin.org/post
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      data: ${input.payload}
 ```
 
 ### Query Parameters
@@ -113,15 +115,16 @@ component:
 component:
   type: http-client
   base_url: https://api.weather.com
-  path: /v1/current
-  method: GET
-  params:
-    key: ${env.WEATHER_API_KEY}
-    q: ${input.city}
-    aqi: yes
-  output:
-    temperature: ${response.current.temp_c}
-    condition: ${response.current.condition.text}
+  action:
+    path: /v1/current
+    method: GET
+    params:
+      key: ${env.WEATHER_API_KEY}
+      q: ${input.city}
+      aqi: yes
+    output:
+      temperature: ${response.current.temp_c}
+      condition: ${response.current.condition.text}
 ```
 
 ### Streaming Responses
@@ -130,17 +133,18 @@ component:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  stream_format: server-sent-events
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt}
-    stream: true
+  action:
+    path: /chat/completions
+    method: POST
+    stream_format: server-sent-events
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+      stream: true
 ```
 
 ## Asynchronous Completion
@@ -155,22 +159,23 @@ Monitor request status by polling a completion endpoint:
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /jobs
-  method: POST
-  body:
-    task: ${input.task_type}
-    data: ${input.data}
-  completion:
-    type: polling
-    path: /jobs/${response.job_id}
-    method: GET
-    status: status
-    success_when: [ completed, finished ]
-    fail_when: [ failed, error ]
-    interval: 5s
-    timeout: 300s
-  output:
-    result: ${response.result}
+  action:
+    path: /jobs
+    method: POST
+    body:
+      task: ${input.task_type}
+      data: ${input.data}
+    completion:
+      type: polling
+      path: /jobs/${response.job_id}
+      method: GET
+      status: status
+      success_when: [ completed, finished ]
+      fail_when: [ failed, error ]
+      interval: 5s
+      timeout: 300s
+    output:
+      result: ${response.result}
 ```
 
 **Polling Configuration:**
@@ -198,16 +203,17 @@ Wait for external callback notification:
 component:
   type: http-client
   base_url: https://api.example.com
-  path: /jobs
-  method: POST
-  body:
-    task: ${input.task_type}
-    callback_url: https://myapp.com/callback
-  completion:
-    type: callback
-    wait_for: ${response.job_id}
-  output:
-    result: ${response.result}
+  action:
+    path: /jobs
+    method: POST
+    body:
+      task: ${input.task_type}
+      callback_url: https://myapp.com/callback
+    completion:
+      type: callback
+      wait_for: ${response.job_id}
+    output:
+      result: ${response.result}
 ```
 
 **Callback Configuration:**
@@ -283,13 +289,14 @@ HTTP client supports dynamic configuration:
 component:
   type: http-client
   base_url: ${env.API_BASE_URL}
-  path: /users/${input.user_id}
-  headers:
-    Authorization: Bearer ${env.API_KEY}
-  body:
-    name: ${input.name}
-    age: ${input.age as number}
-    active: ${input.active as boolean | true}
+  action:
+    path: /users/${input.user_id}
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body:
+      name: ${input.name}
+      age: ${input.age as number}
+      active: ${input.active as boolean | true}
 ```
 
 ## Best Practices

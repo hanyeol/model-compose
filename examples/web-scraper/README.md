@@ -263,8 +263,9 @@ Change the `extract_mode` to extract different types of content:
 ```yaml
 component:
   type: web-scraper
-  extract_mode: text    # Options: text, html, attribute
-  attribute: href       # Required when extract_mode is "attribute"
+  action:
+    extract_mode: text    # Options: text, html, attribute
+    attribute: href       # Required when extract_mode is "attribute"
 ```
 
 ### Adding Custom Headers

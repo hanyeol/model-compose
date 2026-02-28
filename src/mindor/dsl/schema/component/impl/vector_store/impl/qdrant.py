@@ -1,7 +1,6 @@
 from typing import Literal, Optional, Dict, List, Any
 from pydantic import Field, model_validator
 from mindor.dsl.schema.action import QdrantVectorStoreActionConfig
-from mindor.dsl.utils.annotation import get_model_union_keys
 from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
 
 class QdrantVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
@@ -21,12 +20,4 @@ class QdrantVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     def validate_url_or_host(cls, values: Dict[str, Any]):
         if values.get("url") and values.get("host"):
             raise ValueError("Either 'url' or 'host' should be set, but not both")
-        return values
-
-    @model_validator(mode="before")
-    def inflate_single_action(cls, values: Dict[str, Any]):
-        if "actions" not in values:
-            action_keys = set(get_model_union_keys(QdrantVectorStoreActionConfig)) - set(CommonVectorStoreComponentConfig.model_fields.keys())
-            if any(k in values for k in action_keys):
-                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
         return values

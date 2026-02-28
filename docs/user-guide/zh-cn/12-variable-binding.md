@@ -122,8 +122,9 @@ ${response.data[0].id}      # 数组索引
 components:
   - id: openai-api
     type: http-client
-    endpoint: https://api.openai.com/v1/chat/completions
-    output: ${response.choices[0].message.content}
+    action:
+      endpoint: https://api.openai.com/v1/chat/completions
+      output: ${response.choices[0].message.content}
 
 # 本地模型 - 使用 result
 components:
@@ -131,7 +132,8 @@ components:
     type: model
     task: text-generation
     model: gpt2
-    output: ${result}
+    action:
+      output: ${result}
 
 # Vector store - 使用 response
 components:
@@ -145,8 +147,9 @@ components:
 components:
   - id: run-script
     type: shell
-    command: echo "Hello"
-    output: ${stdout}
+    action:
+      command: echo "Hello"
+      output: ${stdout}
 ```
 
 **关键规则**:
@@ -378,10 +381,11 @@ workflow:
 
 component:
   type: http-client
-  body:
-    stream: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    body:
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 ### 12.8.4 向量搜索结果格式
@@ -399,10 +403,11 @@ component:
 ```yaml
 component:
   type: http-client
-  headers:
-    Authorization: Bearer ${input.api_key | ${env.OPENAI_API_KEY}}
-  body:
-    model: ${input.model | ${env.DEFAULT_MODEL | "gpt-4o"}}
+  action:
+    headers:
+      Authorization: Bearer ${input.api_key | ${env.OPENAI_API_KEY}}
+    body:
+      model: ${input.model | ${env.DEFAULT_MODEL | "gpt-4o"}}
 ```
 
 ---

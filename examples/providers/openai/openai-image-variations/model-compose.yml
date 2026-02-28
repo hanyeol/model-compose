@@ -12,18 +12,19 @@ workflow:
   input: ${input}
   output: ${output.image_data as image;base64}
 
-component: 
+component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /images/variations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: multipart/form-data
-  body:
-    image: ${input.image as image/png}
-    n: 1
-    size: 1024x1024
-    response_format: b64_json
-  output:
-    image_data: ${response.data[0].b64_json}
+  action:
+    path: /images/variations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: multipart/form-data
+    body:
+      image: ${input.image as image/png}
+      n: 1
+      size: 1024x1024
+      response_format: b64_json
+    output:
+      image_data: ${response.data[0].b64_json}

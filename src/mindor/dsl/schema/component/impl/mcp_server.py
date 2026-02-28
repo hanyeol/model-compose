@@ -43,10 +43,3 @@ class McpServerComponentConfig(CommonComponentConfig):
             values["manage"] = { key: values.pop(key) for key in McpServerManageScripts.model_fields.keys() if key in values }
         return values
 
-    @model_validator(mode="before")
-    def inflate_single_action(cls, values: Dict[str, Any]):
-        if "actions" not in values:
-            action_keys = set(McpServerActionConfig.model_fields.keys()) - set(CommonComponentConfig.model_fields.keys())
-            if any(k in values for k in action_keys):
-                values["actions"] = [ { k: values.pop(k) for k in action_keys if k in values } ]
-        return values

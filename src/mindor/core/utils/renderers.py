@@ -8,7 +8,7 @@ from .image import load_image_from_stream, ImageStreamResource
 from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
-import re, json, base64
+import os, re, json, base64
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int]], Awaitable[Any]]):
@@ -159,3 +159,21 @@ class ImageValueRenderer:
             return [ await self._render_element(item) for item in element ]
         
         return element if isinstance(element, PILImage.Image) else None
+
+class FileValueRenderer:
+    async def render(self, value: Any) -> Optional[str]:
+        if isinstance(value, UploadFile):
+            return await save_stream_to_temporary_file(UploadFileStreamResource(value))
+
+        if isinstance(value, bytes):
+            return await save_stream_to_temporary_file(BytesStreamResource(value))
+
+        if isinstance(value, StreamResource):
+            return await save_stream_to_temporary_file(value)
+
+        if isinstance(value, str):
+            if os.path.isfile(value):
+                return value
+            return await save_stream_to_temporary_file(Base64StreamResource(value))
+
+        return value

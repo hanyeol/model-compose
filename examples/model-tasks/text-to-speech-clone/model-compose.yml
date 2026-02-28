@@ -7,7 +7,7 @@ controller:
     port: 8081
 
 workflow:
-  title: Text to Speech (Clone)
+  title: Text to Speech with Voice Cloning
   description: Clone a voice from reference audio and generate speech using Qwen3-TTS.
   input: ${input}
   output: ${output as audio}

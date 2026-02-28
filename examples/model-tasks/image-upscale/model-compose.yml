@@ -15,7 +15,7 @@ workflow:
 component:
   type: model
   task: image-upscale
-  architecture: real-esrgan
+  family: real-esrgan
   model:
     provider: huggingface
     repository: ai-forever/Real-ESRGAN

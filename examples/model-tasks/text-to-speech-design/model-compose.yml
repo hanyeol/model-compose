@@ -7,8 +7,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Text to Speech (Design)
-  description: Design a new voice from a natural language description and generate speech using Qwen3-TTS.
+  title: Text to Speech with Voice Design
+  description: Design a new voice from a description and generate speech using Qwen3-TTS.
   input: ${input}
   output: ${output as audio}
 

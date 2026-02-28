@@ -18,7 +18,7 @@ workflow:
         seconds: ${output.usage.seconds}
 
 components:
-  openai-speech-to-text:
+  - id: openai-speech-to-text
     type: http-client
     endpoint: https://api.openai.com/v1/audio/transcriptions
     method: POST

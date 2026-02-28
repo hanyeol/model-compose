@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, FileValueRenderer
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
 
@@ -19,6 +19,9 @@ class ComponentActionContext:
 
     async def render_image(self, value: Any) -> Optional[PILImage.Image]:
         return await ImageValueRenderer().render(await self.render_variable(value))
+
+    async def render_file(self, value: Any) -> Optional[str]:
+        return await FileValueRenderer().render(await self.render_variable(value))
 
     def contains_variable_reference(self, key: str, value: Any) -> bool:
         return self.renderer.contains_reference(key, value)

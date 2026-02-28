@@ -31,7 +31,6 @@ component:
       weight: 0.8
   max_concurrent_count: 1
   text: ${input.prompt as text}
-
   params:
     max_output_length: 2048
     temperature: 0.7

@@ -22,7 +22,7 @@ class TextToSpeechTaskAction:
         results = []
 
         for t in texts:
-            audio_bytes = await self._synthesize(t, context)
+            audio_bytes = await self._generate(t, context)
             results.append(audio_bytes)
 
         return results[0] if is_single_input else results
@@ -31,7 +31,7 @@ class TextToSpeechTaskAction:
         return await context.render_variable(self.config.text)
 
     @abstractmethod
-    async def _synthesize(self, text: str, context: ComponentActionContext) -> bytes:
+    async def _generate(self, text: str, context: ComponentActionContext) -> bytes:
         pass
 
 class TextToSpeechTaskService(ModelTaskService):

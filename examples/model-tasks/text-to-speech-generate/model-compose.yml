@@ -7,8 +7,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Text to Speech (Generate)
-  description: Generate speech audio from text using a built-in voice with Qwen3-TTS.
+  title: Text to Speech with Preset Voice
+  description: Generate speech audio from text using a preset voice with Qwen3-TTS.
   input: ${input}
   output: ${output as audio}
 
@@ -20,7 +20,8 @@ component:
   model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
   device: cuda:0
   max_concurrent_count: 1
-  method: generate
-  text: ${input.text as text}
-  voice: ${input.voice | vivian}
-  instructions: ${input.instructions as text | ""}
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | vivian}
+    instructions: ${input.instructions as text | ""}

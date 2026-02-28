@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
-from mindor.dsl.schema.component import ModelComponentConfig
+from abc import abstractmethod
+from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.core.logger import logging
 from ...base import ComponentActionContext
 from .common import TextToSpeechTaskService, TextToSpeechTaskAction
-import asyncio
-import io
+import asyncio, io
 
 if TYPE_CHECKING:
     import torch
@@ -19,73 +19,54 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         self.model = model
 
-    async def _synthesize(self, text: str, context: ComponentActionContext) -> bytes:
+    async def _generate(self, text: str, context: ComponentActionContext) -> bytes:
         import soundfile as sf
 
         language = await context.render_variable(self.config.language)
-
-        if self.config.method == TextToSpeechActionMethod.GENERATE:
-            voice        = await context.render_variable(self.config.voice)
-            instructions = await context.render_variable(self.config.instructions)
-
-            wavs, sr = self.model.generate_custom_voice(
-                text=text, language=language, speaker=voice, instruct=instructions,
-            )
-        elif self.config.method == TextToSpeechActionMethod.CLONE:
-            ref_audio = await context.render_variable(self.config.ref_audio)
-            ref_text  = await context.render_variable(self.config.ref_text)
-
-            ref_audio = await self._resolve_audio_path(ref_audio)
-
-            wavs, sr = self.model.generate_voice_clone(
-                text=text, language=language, ref_audio=ref_audio, ref_text=ref_text,
-            )
-        elif self.config.method == TextToSpeechActionMethod.DESIGN:
-            instructions = await context.render_variable(self.config.instructions)
-
-            wavs, sr = self.model.generate_voice_design(
-                text=text, language=language, instruct=instructions,
-            )
-        else:
-            raise ValueError(f"Unknown method: {self.config.method}")
+        samples, sample_rate = await self._synthesize(text, language, context)
 
         buffer = io.BytesIO()
-        sf.write(buffer, wavs[0], sr, format="WAV")
-        audio_bytes = buffer.getvalue()
+        sf.write(buffer, samples[0], sample_rate, format="WAV")
 
-        return audio_bytes
+        return buffer.getvalue()
 
-    async def _resolve_audio_path(self, value: Any) -> str:
-        from starlette.datastructures import UploadFile
-        from tempfile import NamedTemporaryFile
-        import base64, os
+    @abstractmethod
+    async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:
+        pass
 
-        if isinstance(value, UploadFile):
-            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
-            tmp.write(await value.read())
-            tmp.flush()
-            tmp.close()
-            return tmp.name
+class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
+    async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:
+        voice        = await context.render_variable(self.config.voice)
+        instructions = await context.render_variable(self.config.instructions)
 
-        if isinstance(value, bytes):
-            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
-            tmp.write(value)
-            tmp.flush()
-            tmp.close()
-            return tmp.name
+        return self.model.generate_custom_voice(
+            text=text, 
+            language=language,
+            speaker=voice,
+            instruct=instructions,
+        )
 
-        if isinstance(value, str):
-            if os.path.isfile(value):
-                return value
+class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
+    async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:
+        ref_audio = await context.render_file(self.config.ref_audio)
+        ref_text  = await context.render_variable(self.config.ref_text)
 
-            # Assume base64-encoded audio data
-            tmp = NamedTemporaryFile(suffix=".wav", delete=False)
-            tmp.write(base64.b64decode(value))
-            tmp.flush()
-            tmp.close()
-            return tmp.name
+        return self.model.generate_voice_clone(
+            text=text,
+            language=language,
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+        )
 
-        return value
+class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):
+    async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:
+        instructions = await context.render_variable(self.config.instructions)
+
+        return self.model.generate_voice_design(
+            text=text,
+            language=language,
+            instruct=instructions,
+        )
 
 class QwenTextToSpeechTaskService(TextToSpeechTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -95,7 +76,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "torch", "transformers", "qwen_tts", "soundfile" ]
+        return [ "transformers", "qwen_tts", "soundfile" ]
 
     async def _serve(self) -> None:
         try:
@@ -110,11 +91,8 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         self.device = None
 
     def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
-        import torch
         from qwen_tts import Qwen3TTSModel
-        from mindor.dsl.schema.component import HuggingfaceModelConfig
-
-        device = self._resolve_device()
+        import torch
 
         # qwen_tts handles model downloading internally via from_pretrained(),
         # so pass the repo ID directly instead of a snapshot_download() path.
@@ -123,6 +101,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         else:
             model_id = self._get_model_path()
 
+        device = self._resolve_device()
         model = Qwen3TTSModel.from_pretrained(
             model_id,
             device_map=device,
@@ -133,4 +112,13 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         return model, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await QwenTextToSpeechTaskAction(action, self.model, self.device).run(context)
+        if action.method == TextToSpeechActionMethod.GENERATE:
+            return await QwenTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context)
+
+        if action.method == TextToSpeechActionMethod.CLONE:
+            return await QwenTextToSpeechCloneTaskAction(action, self.model, self.device).run(context)
+
+        if action.method == TextToSpeechActionMethod.DESIGN:
+            return await QwenTextToSpeechDesignTaskAction(action, self.model, self.device).run(context)
+
+        raise ValueError(f"Unknown method: {action.method}")

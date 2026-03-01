@@ -70,6 +70,7 @@ def up_command(
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+            raise SystemExit(1)
     asyncio.run(_async_command())
 
 @click.command(name="down")
@@ -104,6 +105,7 @@ def down_command(
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+            raise SystemExit(1)
     asyncio.run(_async_command())
 
 @click.command(name="start")
@@ -138,6 +140,7 @@ def start_command(
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+            raise SystemExit(1)
     asyncio.run(_async_command())
 
 @click.command(name="stop")
@@ -172,6 +175,7 @@ def stop_command(
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+            raise SystemExit(1)
     asyncio.run(_async_command())
 
 @click.command(name="run")
@@ -227,6 +231,7 @@ def run_command(
                     click.echo(state.output)
         except json.JSONDecodeError:
             click.echo("❌ Invalid JSON provided for --input", err=True)
+            raise SystemExit(1)
         except Exception as e:
             if verbose:
                 import traceback
@@ -234,13 +239,68 @@ def run_command(
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+            raise SystemExit(1)
     asyncio.run(_async_command())
+
+@click.command(name="validate")
+@click.option(
+    "--env-file", "env_files", multiple=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=False,
+    help="Path to a .env file containing environment variables."
+)
+@click.option(
+    "--env", "-e", "env_data", multiple=True,
+    help="Environment variable in the form KEY=VALUE. Repeatable."
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
+@click.pass_context
+def validate_command(
+    ctx: click.Context,
+    env_files: List[Path],
+    env_data: List[str],
+    verbose: bool
+) -> None:
+    """Validate the compose configuration without starting any services."""
+    from mindor.core.compose import validate_compose_config
+    config_files = ctx.obj.get("config_files", [])
+    try:
+        config = _load_compose_config(config_files, env_files, env_data)
+        errors = validate_compose_config(config)
+
+        if errors:
+            click.echo("❌ Configuration has semantic errors:\n", err=True)
+            for error in errors:
+                click.echo(f"  - {error}", err=True)
+            raise SystemExit(1)
+        else:
+            summary_parts = [f"controller: {config.controller.type.value}"]
+            if config.components:
+                summary_parts.append(f"{len(config.components)} component(s)")
+            if config.workflows:
+                summary_parts.append(f"{len(config.workflows)} workflow(s)")
+            if config.listeners:
+                summary_parts.append(f"{len(config.listeners)} listener(s)")
+            if config.gateways:
+                summary_parts.append(f"{len(config.gateways)} gateway(s)")
+            if config.loggers:
+                summary_parts.append(f"{len(config.loggers)} logger(s)")
+            click.echo(f"✅ Configuration is valid ({', '.join(summary_parts)})")
+    except Exception as e:
+        if verbose:
+            import traceback
+            click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+            traceback.print_exc()
+        else:
+            click.echo(f"❌ {e}", err=True)
+        raise SystemExit(1)
 
 compose_command.add_command(up_command)
 compose_command.add_command(down_command)
 compose_command.add_command(start_command)
 compose_command.add_command(stop_command)
 compose_command.add_command(run_command)
+compose_command.add_command(validate_command)
 
 if __name__ == "__main__":
     compose_command()

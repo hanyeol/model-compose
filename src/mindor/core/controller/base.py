@@ -18,12 +18,13 @@ from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
+from mindor.core.utils.time import parse_duration
 from .runtime.specs import ControllerRuntimeSpecs
 from .runtime.native import NativeRuntimeLauncher
 from .runtime.docker import DockerRuntimeLauncher
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, os, threading
+import asyncio, ulid, os, logging, threading
 
 class TaskStatus(str, Enum):
     PENDING    = "pending"
@@ -74,6 +75,8 @@ class ControllerService(AsyncService):
         self.task_queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
+        self._inflight_tasks: Set[asyncio.Task] = set()
+        self._shutting_down: bool = False
 
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
@@ -145,6 +148,9 @@ class ControllerService(AsyncService):
             return
 
     async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
+        if self._shutting_down:
+            raise RuntimeError("Service is shutting down")
+
         task_id = ulid.ulid()
         state = TaskState(task_id=task_id, status=TaskStatus.PENDING)
         with self.task_states_lock:
@@ -156,7 +162,9 @@ class ControllerService(AsyncService):
             else:
                 state = await self._run_workflow(task_id, workflow_id, input)
         else:
-            asyncio.create_task(self._run_workflow(task_id, workflow_id, input))
+            task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input))
+            self._inflight_tasks.add(task)
+            task.add_done_callback(self._inflight_tasks.discard)
 
         return state
 
@@ -181,8 +189,20 @@ class ControllerService(AsyncService):
         await super()._start()
 
     async def _stop(self) -> None:
+        self._shutting_down = True
+        timeout = parse_duration(self.config.shutdown_timeout).total_seconds()
+
+        if self._inflight_tasks:
+            logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))
+            done, pending = await asyncio.wait(self._inflight_tasks, timeout=timeout)
+            if pending:
+                logging.warning("Cancelling %d task(s) that did not complete within timeout", len(pending))
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+
         if self.task_queue:
-            await self.task_queue.stop()
+            await self.task_queue.stop(timeout=timeout)
 
         if self.daemon:
             await self._stop_components()

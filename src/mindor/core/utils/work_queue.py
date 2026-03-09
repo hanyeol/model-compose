@@ -8,11 +8,25 @@ class WorkQueue:
         self.handler: Callable[..., Awaitable[Any]] = handler
         self.workers: List[asyncio.Task] = []
         self.stopped: bool = False
+        self.draining: bool = False
+        self._active_count: int = 0
+        self._active_zero_event: asyncio.Event = None
 
     async def _worker(self):
         while not self.stopped:
             try:
                 args, kwargs, future = await self.queue.get()
+
+                if self.draining:
+                    if not future.done():
+                        future.set_exception(RuntimeError("Service is shutting down"))
+                    self.queue.task_done()
+                    continue
+
+                self._active_count += 1
+                if self._active_zero_event.is_set():
+                    self._active_zero_event.clear()
+
                 try:
                     result = await self.handler(*args, **kwargs)
                     future.set_result(result)
@@ -20,6 +34,9 @@ class WorkQueue:
                     future.set_exception(e)
                 finally:
                     self.queue.task_done()
+                    self._active_count -= 1
+                    if self._active_count == 0:
+                        self._active_zero_event.set()
             except asyncio.CancelledError:
                 break
 
@@ -29,6 +46,10 @@ class WorkQueue:
 
         self.queue = asyncio.Queue()
         self.stopped = False
+        self.draining = False
+        self._active_count = 0
+        self._active_zero_event = asyncio.Event()
+        self._active_zero_event.set()
 
         for _ in range(self.max_concurrent_count):
             self.workers.append(asyncio.create_task(self._worker()))
@@ -37,20 +58,44 @@ class WorkQueue:
         if not self.queue:
             raise ValueError("Queue not started")
 
+        if self.draining or self.stopped:
+            raise RuntimeError("Queue is shutting down")
+
         future = asyncio.get_running_loop().create_future()
         await self.queue.put((args, kwargs, future))
-        
+
         return future
 
-    async def stop(self):
+    async def stop(self, timeout: float = 30.0):
         if not self.queue:
-            raise ValueError("Queue already stopped or not started")
-        
+            return
+
+        # Phase 1: drain — reject new work, wait for active handlers to finish
+        self.draining = True
+
+        if self._active_count > 0:
+            self._active_zero_event.clear()
+            try:
+                await asyncio.wait_for(self._active_zero_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                pass
+
+        # Phase 2: force-stop
         self.stopped = True
         for worker in self.workers:
             worker.cancel()
 
         await asyncio.gather(*self.workers, return_exceptions=True)
+
+        # Reject remaining queued items
+        while not self.queue.empty():
+            try:
+                args, kwargs, future = self.queue.get_nowait()
+                if not future.done():
+                    future.set_exception(RuntimeError("Service shut down"))
+                self.queue.task_done()
+            except asyncio.QueueEmpty:
+                break
 
         self.workers = []
         self.queue = None

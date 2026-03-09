@@ -216,7 +216,12 @@ class HttpServerController(ControllerService):
         if workflow_id not in self.workflow_schemas:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
 
-        state = await self.run_workflow(workflow_id, body.input, body.wait_for_completion)
+        try:
+            state = await self.run_workflow(workflow_id, body.input, body.wait_for_completion)
+        except RuntimeError as e:
+            if "shutting down" in str(e):
+                raise HTTPException(status_code=503, detail="Service is shutting down")
+            raise
 
         if body.output_only and not body.wait_for_completion:
             raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")

@@ -5,7 +5,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.workflow.tool import WorkflowToolGenerator
+from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
@@ -38,12 +38,12 @@ class McpServerController(ControllerService):
 
     def _configure_tools(self) -> None:
         for workflow_id, workflow in self.workflow_schemas.items():
-            fn, description = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
+            tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
             self.app.add_tool(
-                fn=fn,
+                fn=tool.fn,
                 name=workflow.name or workflow_id,
                 title=workflow.title,
-                description=description,
+                description=self._build_tool_description(tool),
                 annotations=None
             )
 
@@ -92,6 +92,17 @@ class McpServerController(ControllerService):
             return await save_stream_to_temporary_file(value, subtype)
 
         return None
+
+    def _build_tool_description(self, tool: WorkflowTool) -> str:
+        lines = [tool.description or ""]
+
+        if tool.parameters:
+            lines.append("")
+            lines.append("Args:")
+            for param in tool.parameters:
+                lines.append(f"    {param.name} ({param.type}): {param.description or ''}")
+
+        return "\n".join(lines)
 
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(

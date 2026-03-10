@@ -1,12 +1,26 @@
 from typing import Optional, Dict, List, Tuple, Callable, Awaitable, Any
+from dataclasses import dataclass
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 import re
 
 _invalid_function_chars_regex = re.compile(r"[^a-zA-Z0-9_]")
 
+@dataclass
+class WorkflowToolParameter:
+    name: str
+    type: str
+    description: Optional[str]
+    default: Optional[Any]
+
+@dataclass
+class WorkflowTool:
+    fn: Callable[[Any], Awaitable[Any]]
+    description: Optional[str]
+    parameters: List[WorkflowToolParameter]
+
 class WorkflowToolGenerator():
-    def generate(self, workflow_id: str, workflow: WorkflowSchema, runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> Tuple[Callable[[Any], Awaitable[Any]], str]:
+    def generate(self, workflow_id: str, workflow: WorkflowSchema, runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> WorkflowTool:
         async def _run_workflow(input: Any, workflow_id=workflow_id) -> Any:
             return await runner(workflow_id, input)
 
@@ -19,7 +33,11 @@ class WorkflowToolGenerator():
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }
         exec(compile(code, f"<string>", "exec"), context)
 
-        return (context[f"_run_workflow_{safe_workflow_id}"], self._generate_description(workflow))
+        return WorkflowTool(
+            fn=context[f"_run_workflow_{safe_workflow_id}"],
+            description=workflow.description or workflow.title,
+            parameters=self._generate_parameters(workflow)
+        )
 
     async def _build_input_value(self, arguments: List[Any], workflow: WorkflowSchema) -> Any:
         input: Dict[str, Any] = {}
@@ -36,35 +54,18 @@ class WorkflowToolGenerator():
 
         return value if value != "" else None
 
-    def _generate_description(self, workflow: WorkflowSchema) -> str:
-        lines = []
+    def _generate_parameters(self, workflow: WorkflowSchema) -> List[WorkflowToolParameter]:
+        return [
+            WorkflowToolParameter(
+                name=variable.name or "input",
+                type=self._get_type(variable),
+                description=variable.get_annotation_value("description"),
+                default=variable.default
+            )
+            for variable in workflow.input
+        ]
 
-        lines.append(workflow.description or workflow.title or "")
-        lines.append("")
-        lines.append("Args:")
-
-        for variable in workflow.input:
-            name, type = variable.name or "input", self._get_docstring_type(variable)
-            description = variable.get_annotation_value("description") or ""
-            lines.append(f"    {name} ({type}): {description}")
-
-        lines.append("")
-        lines.append("Returns:")
-
-        if len(workflow.output) == 1 and not workflow.output[0].name:
-            variable = workflow.output[0]
-            name, type = variable.name or "output", self._get_docstring_type(variable)
-            description = variable.get_annotation_value("description") or ""
-            lines.append(f"    {name} ({type}): {description}")
-        else:
-            for variable in workflow.output:
-                name, type = variable.name or "output", self._get_docstring_type(variable)
-                description = variable.get_annotation_value("description") or ""
-                lines.append(f"    {name} ({type}): {description}")
-
-        return "\n".join(lines)
-
-    def _get_docstring_type(self, variable: WorkflowVariableConfig) -> str:
+    def _get_type(self, variable: WorkflowVariableConfig) -> str:
         if variable.type == WorkflowVariableType.OBJECTS:
             return "list[dict]"
 

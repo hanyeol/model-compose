@@ -39,5 +39,9 @@ class ComposeManager:
 
         return state
 
+    async def resume_workflow(self, task_id: str, job_id: str, data: Any = None) -> TaskState:
+        await self.controller.resume_workflow(task_id, job_id, data)
+        return await self.controller.wait_for_terminal_state(task_id)
+
     async def _save_output(self, output: Any, path: str) -> None:
         pass

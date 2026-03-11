@@ -4,6 +4,7 @@ from pathlib import Path
 import click
 import asyncio
 import json
+import sys
 
 def _load_compose_config(config_files: List[Path], env_files: List[Path], env_data: List[str]):
     from mindor.dsl.loader import load_compose_config
@@ -202,6 +203,7 @@ def stop_command(
     required=False,
     help="Path to save the output result as a file."
 )
+@click.option("--auto-resume", is_flag=True, help="Automatically resume interrupts without prompting.")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
 def run_command(
@@ -211,15 +213,29 @@ def run_command(
     env_files: List[Path],
     env_data: List[str],
     output_path: Optional[Path],
+    auto_resume: bool,
     verbose: bool
 ) -> None:
-    from mindor.core.compose import run_workflow
+    from mindor.core.compose.manager import ComposeManager
+    from mindor.core.controller.base import TaskStatus
+    from mindor.cli.interrupt import prompt_for_interrupt
     config_files = ctx.obj.get("config_files", [])
     async def _async_command():
         try:
             config = _load_compose_config(config_files, env_files, env_data)
             input = json.loads(input_json) if input_json else {}
-            state = await run_workflow(config, workflow_id or "__default__", input, output_path, verbose)
+            is_tty = sys.stdin.isatty()
+
+            manager = ComposeManager(config, daemon=False)
+            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose)
+
+            while state.status == TaskStatus.INTERRUPTED:
+                if not auto_resume and not is_tty:
+                    click.echo("❌ Workflow interrupted but no TTY available. Use --auto-resume to skip.", err=True)
+                    raise SystemExit(1)
+                answer = None if auto_resume else prompt_for_interrupt(state)
+                state = await manager.resume_workflow(state.task_id, state.interrupt.job_id, answer)
+
             if isinstance(state.output, (dict, list)) or state.error:
                 click.echo(json.dumps(
                     state.output or state.error,
@@ -229,6 +245,9 @@ def run_command(
             else:
                 if state.output is not None:
                     click.echo(state.output)
+        except click.exceptions.Abort:
+            click.echo("\nInterrupt cancelled by user.", err=True)
+            raise SystemExit(130)
         except json.JSONDecodeError:
             click.echo("❌ Invalid JSON provided for --input", err=True)
             raise SystemExit(1)

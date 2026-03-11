@@ -1,0 +1,33 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Shell Command Executor with Human Review
+  description: Executes a shell command after pausing for human approval using an interrupt point.
+  jobs:
+    - id: run-command
+      component: shell-executor
+      input:
+        command: ls -la
+      interrupt:
+        before:
+          message: "About to execute: ls -la"
+          metadata:
+            command: ls -la
+        after:
+          message: "Command finished. Review the output above."
+      output:
+        result: ${output as text}
+
+component:
+  id: shell-executor
+  type: shell
+  action:
+    command: ["sh", "-c", "${input.command}"]
+    timeout: 10.0
+    output: ${result.stdout}

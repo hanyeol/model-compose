@@ -15,7 +15,8 @@ class WorkflowAction:
         workflow = self._create_workflow(self.config.workflow)
         input = await context.render_variable(self.config.input)
 
-        output = await workflow.run(context.run_id, input)
+        interrupt_handler = context.workflow.interrupt_handler if context.workflow else None
+        output = await workflow.run(context.run_id, input, interrupt_handler)
         context.register_source("output", output)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output

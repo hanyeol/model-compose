@@ -3,8 +3,7 @@ from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
 from mindor.core.workflow.interrupt import InterruptHandler
 
 class WorkflowContext:
-    def __init__(self, task_id: str, input: Dict[str, Any],
-                 interrupt_handler: Optional[InterruptHandler] = None):
+    def __init__(self, task_id: str, input: Dict[str, Any], interrupt_handler: Optional[InterruptHandler] = None):
         self.task_id: str = task_id
         self.input: Dict[str, Any] = input
         self.context: Dict[str, Any] = { "task_id": task_id }

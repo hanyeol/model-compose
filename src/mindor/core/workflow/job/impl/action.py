@@ -36,7 +36,7 @@ class ActionJob(Job):
                 if answer is not None:
                     input = answer
 
-            output = await component.run(self.config.action, run_id, input)
+            output = await component.run(self.config.action, run_id, input, workflow=context)
             context.register_source("output", output)
 
             if self.config.interrupt and self.config.interrupt.after:
@@ -59,16 +59,16 @@ class ActionJob(Job):
 
         return output
 
-    async def _interrupt(self, context: WorkflowContext, phase: str, config: ActionInterruptPointConfig) -> Any:
-        if config.condition:
-            input  = await context.render_variable(config.condition.input)
-            value  = await context.render_variable(config.condition.value)
-            if not evaluate_condition(config.condition.operator, input, value):
+    async def _interrupt(self, context: WorkflowContext, phase: str, point: ActionInterruptPointConfig) -> Any:
+        if point.condition:
+            input  = await context.render_variable(point.condition.input)
+            value  = await context.render_variable(point.condition.value)
+            if not evaluate_condition(point.condition.operator, input, value):
                 logging.debug("[task-%s] Job '%s' interrupt at '%s' phase skipped: condition not met.", context.task_id, self.id, phase)
                 return None
 
-        message  = (await context.render_variable(config.message) ) if config.message  else None
-        metadata = (await context.render_variable(config.metadata)) if config.metadata else None
+        message  = (await context.render_variable(point.message) ) if point.message  else None
+        metadata = (await context.render_variable(point.metadata)) if point.metadata else None
 
         loop = asyncio.get_running_loop()
         future = loop.create_future()

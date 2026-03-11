@@ -48,7 +48,7 @@ class AgentAction:
                     if not tool_calls:
                         break
 
-                    tool_messages = await asyncio.gather(*[self._execute_tool_call(tc) for tc in tool_calls])
+                    tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
                     for tool_message in tool_messages:
                         messages.append(tool_message)
                         yield tool_message
@@ -66,20 +66,20 @@ class AgentAction:
             if not tool_calls:
                 break
 
-            tool_messages = await asyncio.gather(*[self._execute_tool_call(tc) for tc in tool_calls])
+            tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
             for tool_message in tool_messages:
                 messages.append(tool_message)
 
         return messages
 
-    async def _execute_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
         tool_name = tool_call["function"]["name"]
         tool_arguments = tool_call["function"].get("arguments", {})
         if isinstance(tool_arguments, str):
             tool_arguments = json.loads(tool_arguments)
 
         if tool_name in self.tools:
-            result = await self.tools[tool_name].fn(**tool_arguments)
+            result = await self.tools[tool_name].fn(**tool_arguments, context=context.workflow)
             content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
         else:
             content = f"Error: Unknown tool '{tool_name}'"
@@ -189,6 +189,8 @@ class AgentComponent(ComponentService):
 
         return tools
 
-    async def _run_workflow(self, workflow_id: str, input: Any) -> Any:
+    async def _run_workflow(self, workflow_id: str, input: Any, context=None) -> Any:
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
-        return await workflow.run(ulid.ulid(), input)
+        task_id = context.task_id if context else ulid.ulid()
+        interrupt_handler = context.interrupt_handler if context else None
+        return await workflow.run(task_id, input, interrupt_handler)

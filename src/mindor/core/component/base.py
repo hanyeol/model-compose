@@ -72,12 +72,12 @@ class ComponentService(AsyncService):
         await super().start(background)
         await self.wait_until_ready()
 
-    async def run(self, action_id: str, run_id: str, input: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None) -> Dict[str, Any]:
         if self._process_manager:
             return await self._process_manager.run(action_id, run_id, input)
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentActionContext(run_id, input)
+        context = ComponentActionContext(run_id, input, workflow=workflow)
 
         if self.work_queue:
             return await (await self.work_queue.schedule(action, context))

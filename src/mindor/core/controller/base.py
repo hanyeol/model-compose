@@ -363,7 +363,7 @@ class ControllerService(AsyncService):
 
         try:
             workflow = self._create_workflow(workflow_id)
-            interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, workflow)
+            interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id)
 
             output = await workflow.run(task_id, input, interrupt_handler)
             state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output)
@@ -397,17 +397,13 @@ class ControllerService(AsyncService):
                 return state
             await event.wait()
 
-    def _attach_interrupt_handler(self, task_id: str, workflow_id: str, workflow: Workflow) -> Optional[InterruptHandler]:
-        if workflow.uses_interrupts():
-            handler = self._create_interrupt_handler(task_id, workflow_id)
-            self.interrupt_handlers[task_id] = handler
-            return handler
-
-        return None
+    def _attach_interrupt_handler(self, task_id: str, workflow_id: str) -> InterruptHandler:
+        handler = self._create_interrupt_handler(task_id, workflow_id)
+        self.interrupt_handlers[task_id] = handler
+        return handler
 
     def _detach_interrupt_handler(self, task_id: str) -> None:
-        if task_id in self.interrupt_handlers:
-            del self.interrupt_handlers[task_id]
+        del self.interrupt_handlers[task_id]
 
     def _create_interrupt_handler(self, task_id: str, workflow_id: str) -> InterruptHandler:
         async def on_interrupt(point: InterruptPoint):

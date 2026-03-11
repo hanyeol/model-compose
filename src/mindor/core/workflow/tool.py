@@ -21,16 +21,16 @@ class WorkflowTool:
     parameters: List[WorkflowToolParameter]
 
 class WorkflowToolGenerator():
-    def generate(self, workflow_id: str, workflow: WorkflowSchema, runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> WorkflowTool:
-        async def _run_workflow(input: Any, workflow_id=workflow_id) -> Any:
-            return await runner(workflow_id, input)
+    def generate(self, workflow_id: str, workflow: WorkflowSchema, runner: Callable[[str, Any, Any], Awaitable[Any]]) -> WorkflowTool:
+        async def _run_workflow(workflow_id, input: Any, context=None) -> Any:
+            return await runner(workflow_id, input, context)
 
         async def _build_input_value(arguments, workflow=workflow) -> Any:
             return await self._build_input_value(arguments, workflow)
 
         safe_workflow_id = re.sub(_invalid_function_chars_regex, "_", workflow_id)
         arguments = ",".join([ variable.name or "input" for variable in workflow.input ])
-        code = f"async def _run_workflow_{safe_workflow_id}({arguments}): return await _run_workflow(await _build_input_value([{arguments}]))"
+        code = f"async def _run_workflow_{safe_workflow_id}({arguments}, context=None): return await _run_workflow('{workflow_id}', await _build_input_value([{arguments}]), context=context)"
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }
         exec(compile(code, f"<string>", "exec"), context)
 

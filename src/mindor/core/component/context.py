@@ -1,12 +1,19 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, FileValueRenderer
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
 
+if TYPE_CHECKING:
+    from mindor.core.workflow.context import WorkflowContext
+
 class ComponentActionContext:
-    def __init__(self, run_id: str, input: Dict[str, Any]):
+    def __init__(self, run_id: str, input: Dict[str, Any], workflow: Optional[WorkflowContext] = None):
         self.run_id: str = run_id
         self.input: Dict[str, Any] = input
+        self.workflow: Optional[WorkflowContext] = workflow
         self.context: Dict[str, Any] = { "run_id": run_id }
         self.sources: Dict[str, Any] = {}
         self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)

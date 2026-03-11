@@ -51,7 +51,7 @@ class ImageUpscaleTaskAction:
         
         raise ValueError(f"Unsupported color format: {color_format}")
 
-    def _downsample_image(self, image: PILImage.Image, method: Literal["lanczos", "bicubic"], scale: int = 4) -> PILImage.Image:
+    def _downsample_image(self, image: PILImage.Image, method: Literal[ "lanczos", "bicubic" ], scale: int = 4) -> PILImage.Image:
         downsample_size = (max(1, image.size[0] // scale), max(1, image.size[1] // scale))
         
         if method not in _resample_map:

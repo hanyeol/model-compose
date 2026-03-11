@@ -6,6 +6,7 @@ from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from .context import WorkflowContext
+from .interrupt import InterruptHandler
 from .job import Job, RoutingTarget, create_job
 import asyncio
 
@@ -168,14 +169,17 @@ class Workflow:
         self.config: WorkflowConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    async def run(self, task_id: str, input: Dict[str, Any]) -> Any:
+    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: Optional[InterruptHandler] = None) -> Any:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
-        context = WorkflowContext(task_id, input)
+        context = WorkflowContext(task_id, input, interrupt_handler)
 
         return await runner.run(context)
 
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()
+
+    def uses_interrupts(self) -> bool:
+        return any(getattr(job, "interrupt", None) for job in self.config.jobs)
 
 def create_workflow(id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs) -> Workflow:
     return Workflow(id, config, global_configs)

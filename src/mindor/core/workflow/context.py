@@ -1,13 +1,16 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
+from mindor.core.workflow.interrupt import InterruptHandler
 
 class WorkflowContext:
-    def __init__(self, task_id: str, input: Dict[str, Any]):
+    def __init__(self, task_id: str, input: Dict[str, Any],
+                 interrupt_handler: Optional[InterruptHandler] = None):
         self.task_id: str = task_id
         self.input: Dict[str, Any] = input
         self.context: Dict[str, Any] = { "task_id": task_id }
         self.sources: Dict[str, Any] = { "jobs": {} }
         self.renderer = VariableRenderer(self._resolve_source)
+        self.interrupt_handler: Optional[InterruptHandler] = interrupt_handler
 
     def complete_job(self, job_id: str, output: Any) -> None:
         self.sources["jobs"][job_id] = { "output": output }

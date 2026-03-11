@@ -29,9 +29,11 @@ class WorkQueue:
 
                 try:
                     result = await self.handler(*args, **kwargs)
-                    future.set_result(result)
+                    if not future.done():
+                        future.set_result(result)
                 except Exception as e:
-                    future.set_exception(e)
+                    if not future.done():
+                        future.set_exception(e)
                 finally:
                     self.queue.task_done()
                     self._active_count -= 1

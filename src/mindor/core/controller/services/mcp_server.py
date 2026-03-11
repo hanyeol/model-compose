@@ -10,7 +10,7 @@ from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_client import create_stream_with_url
-from ..base import ControllerService, ControllerType, TaskState, register_controller
+from ..base import ControllerService, ControllerType, TaskState, TaskStatus, register_controller
 from mcp.server.fastmcp.server import FastMCP
 from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent
 import uvicorn, json
@@ -47,10 +47,56 @@ class McpServerController(ControllerService):
                 annotations=None
             )
 
+        self._configure_resume_tool()
+
+    def _configure_resume_tool(self) -> None:
+        async def resume_workflow(task_id: str, job_id: str, data: str = "") -> List[ContentBlock]:
+            parsed_data = json.loads(data) if data else None
+            try:
+                await self.resume_workflow(task_id, job_id, parsed_data)
+            except ValueError as e:
+                return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+            state = await self.wait_for_terminal_state(task_id)
+            return await self._build_state_response(state)
+
+        self.app.add_tool(
+            fn=resume_workflow,
+            name="resume_workflow",
+            title="Resume an interrupted workflow",
+            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.\n\nArgs:\n    task_id (str): The task ID of the interrupted workflow\n    job_id (str): The job ID where the interrupt occurred\n    data (str): Optional JSON string with modified data to resume with",
+            annotations=None
+        )
+
     async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any) -> List[ContentBlock]:
         state = await self.run_workflow(workflow_id, input, wait_for_completion=True)
-        workflow = self.workflow_schemas[workflow_id]
-        return await self._build_output_value(state, workflow)
+        return await self._build_state_response(state)
+
+    async def _build_state_response(self, state: TaskState) -> List[ContentBlock]:
+        if state.status == TaskStatus.INTERRUPTED:
+            return [TextContent(type="text", text=json.dumps({
+                "status": "interrupted",
+                "task_id": state.task_id,
+                "interrupt": {
+                    "job_id": state.interrupt.job_id,
+                    "phase": state.interrupt.phase,
+                    "message": state.interrupt.message,
+                    "metadata": state.interrupt.metadata
+                }
+            }))]
+
+        if state.status == TaskStatus.FAILED:
+            return [TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error}))]
+
+        workflow = self.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
+        if workflow:
+            return await self._build_output_value(state, workflow)
+
+        if state.output is None:
+            return [TextContent(type="text", text=json.dumps({"status": "completed"}))]
+        if isinstance(state.output, (dict, list)):
+            return [TextContent(type="text", text=json.dumps(state.output))]
+        return [TextContent(type="text", text=str(state.output))]
 
     async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> List[ContentBlock]:
         output: List[ContentBlock] = []

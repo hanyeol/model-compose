@@ -13,7 +13,7 @@ from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource
-from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, register_controller
+from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, InterruptState, register_controller
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -27,11 +27,33 @@ class WorkflowRunRequestBody(BaseModel):
     wait_for_completion: bool = True
     output_only: bool = False
 
+class WorkflowResumeRequestBody(BaseModel):
+    job_id: str
+    data: Optional[Any] = None
+
+class InterruptResult(BaseModel):
+    job_id: str
+    phase: Literal[ "before", "after" ]
+    message: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def from_instance(cls, instance: InterruptState) -> Self:
+        return cls(
+            job_id=instance.job_id,
+            phase=instance.phase,
+            message=instance.message,
+            metadata=instance.metadata,
+            input=instance.input,
+            output=instance.output
+        )
+
 class TaskResult(BaseModel):
     task_id: str
-    status: Literal[ "pending", "processing", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
     output: Optional[Any] = None
     error: Optional[Any] = None
+    interrupt: Optional[InterruptResult] = None
 
     @classmethod
     def from_instance(cls, instance: TaskState) -> Self:
@@ -39,7 +61,8 @@ class TaskResult(BaseModel):
             task_id=instance.task_id,
             status=instance.status,
             output=instance.output,
-            error=instance.error
+            error=instance.error,
+            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None
         )
 
     @classmethod
@@ -188,6 +211,17 @@ class HttpServerController(ControllerService):
             
             return self._render_task_response(state, output_only)
 
+        @self.router.post("/tasks/{task_id}/resume")
+        async def resume_task(
+            task_id: str,
+            body: WorkflowResumeRequestBody = Body(...)
+        ):
+            try:
+                state = await self.resume_workflow(task_id, body.job_id, body.data)
+                return JSONResponse(content=TaskResult.to_dict(state))
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
         @self.router.get("/health")
         async def health_check():
             return JSONResponse(content={ "status": "ok" })
@@ -255,7 +289,7 @@ class HttpServerController(ControllerService):
         return JSONResponse(content=TaskResult.to_dict(state))
 
     def _render_task_output(self, state: TaskState) -> Response:
-        if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING ]:
+        if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED ]:
             raise HTTPException(status_code=202, detail="Task is still in progress.")
 
         if state.status == TaskStatus.FAILED:

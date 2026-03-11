@@ -1,0 +1,95 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    title: Disk Analyzer Agent
+    description: An autonomous agent that uses shell commands to analyze system disk usage and provide detailed recommendations.
+    component: disk-analyzer
+    input:
+      question: ${input.question as text | Analyze the disk usage of this system and identify any issues.}
+    output: ${output[-1].content as markdown}
+
+  - id: get-disk-usage
+    private: true
+    name: get_disk_usage
+    description: Get overall disk usage information for all mounted filesystems using df -h.
+    jobs:
+      - component: disk-usage
+        output: ${output as text}
+
+  - id: get-directory-sizes
+    private: true
+    name: get_directory_sizes
+    description: Get the total size of a specific directory using du -sh.
+    jobs:
+      - component: directory-sizes
+        input:
+          path: ${input.path @(description Absolute path of the directory to measure)}
+        output: ${output as text}
+
+  - id: list-files
+    private: true
+    name: list_files
+    description: List files and directories with details (permissions, size, date) in a given path using ls -la.
+    jobs:
+      - component: file-lister
+        input:
+          path: ${input.path @(description Absolute path of the directory to list)}
+        output: ${output as text}
+
+components:
+  - id: disk-analyzer
+    type: agent
+    tools:
+      - get-disk-usage
+      - get-directory-sizes
+      - list-files
+    max_iteration_count: 10
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: You are a system administrator assistant. Analyze disk usage using the available tools and provide detailed recommendations for managing disk space.
+      user_prompt: ${input.question}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: disk-usage
+    type: shell
+    action:
+      command: [ df, -h ]
+      output: ${result.stdout}
+
+  - id: directory-sizes
+    type: shell
+    action:
+      command: [ du, -sh, "${input.path}" ]
+      timeout: 30.0
+      output: ${result.stdout}
+
+  - id: file-lister
+    type: shell
+    action:
+      command: [ ls, -la, "${input.path}" ]
+      output: ${result.stdout}

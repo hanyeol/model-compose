@@ -12,6 +12,7 @@ model-compose provides various component types for performing different tasks.
 
 | Type | Purpose | Main Use Cases |
 |------|---------|---------------|
+| `agent` | Autonomous AI agent | ReAct loop with tool use via workflows |
 | `http-client` | External API calls | REST API integration for OpenAI, ElevenLabs, etc. |
 | `http-server` | Provide HTTP service | Implement custom HTTP API endpoints |
 | `mcp-server` | Provide MCP service | Implement Model Context Protocol server |
@@ -42,6 +43,9 @@ model-compose provides various component types for performing different tasks.
 - Image processing → `image-processor`
 - Vector storage → `vector-store`
 - Web scraping → `web-scraper`
+
+**AI Agents**
+- Autonomous tool-using agents → `agent`
 
 **Workflow Composition**
 - Sub-workflows → `workflow`

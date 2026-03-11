@@ -92,12 +92,12 @@ class HttpServerAction:
         response, result = await client.request(path or "", method, params, body, headers), None
 
         if isinstance(response, HttpEventStreamResource) and context.contains_variable_reference("response[]", self.config.output):
-            async def _stream_generator(stream: HttpEventStreamResource):
+            async def _stream_output_generator(stream: HttpEventStreamResource):
                 async for chunk in stream:
                     context.register_source("response[]", self._convert_stream_chunk(chunk))
                     yield await context.render_variable(self.config.output, ignore_files=True)
 
-            return _stream_generator(response)
+            return _stream_output_generator(response)
 
         context.register_source("response", response)
 
@@ -105,12 +105,12 @@ class HttpServerAction:
             result = await self.completion.run(context, client)
 
             if isinstance(result, HttpEventStreamResource) and context.contains_variable_reference("result[]", self.config.output):
-                async def _stream_generator(stream: HttpEventStreamResource):
+                async def _stream_output_generator(stream: HttpEventStreamResource):
                     async for chunk in stream:
                         context.register_source("result[]", self._convert_stream_chunk(chunk))
                         yield await context.render_variable(self.config.output, ignore_files=True)
 
-                return _stream_generator(result)
+                return _stream_output_generator(result)
 
             context.register_source("result", result)
 

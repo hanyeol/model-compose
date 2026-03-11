@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: http-client | http-server | model | vector-store | shell | workflow | mcp-client | mcp-server | text-splitter
+  type: agent | http-client | http-server | model | vector-store | shell | workflow | mcp-client | mcp-server | text-splitter
   id: component-id
   runtime: embedded | docker  # default: embedded
   max_concurrent_count: 1
@@ -39,6 +39,7 @@ Model-compose supports the following component types:
 
 | Type | Description | Documentation |
 |------|-------------|---------------|
+| `agent` | Autonomous AI agent with tool use | [agent.md](components/agent.md) |
 | `http-client` | HTTP client for making API requests | [http-client.md](components/http-client.md) |
 | `http-server` | HTTP server for hosting services | [http-server.md](components/http-server.md) |
 | `mcp-client` | MCP (Model Context Protocol) client | [mcp-client.md](components/mcp-client.md) |

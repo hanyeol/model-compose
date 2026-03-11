@@ -1,0 +1,133 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    title: Multi-Tool Assistant Agent
+    description: A versatile assistant agent that combines web search, weather lookup, calculator, and clock tools to answer a wide range of questions.
+    component: assistant
+    input:
+      question: ${input.question as text}
+    output:
+      answer: ${output[-1].content as markdown}
+      messages: ${output as json}
+
+  - id: search-web
+    private: true
+    name: search_web
+    description: Search the web for information on a given query. Returns relevant results with titles, URLs, and snippets.
+    jobs:
+      - component: tavily
+        input:
+          query: ${input.query @(description The search query string)}
+          max_results: ${input.max_results as integer | 5 @(description Maximum number of search results)}
+        output: ${output as json}
+
+  - id: get-weather
+    private: true
+    name: get_weather
+    description: Get the current weather for a city. Returns temperature, humidity, wind speed, and weather description.
+    jobs:
+      - component: weather-api
+        input:
+          city: ${input.city @(description City name, e.g. "Tokyo" or "London,UK")}
+        output: ${output as json}
+
+  - id: run-calculation
+    private: true
+    name: run_calculation
+    description: Execute a Python expression to perform mathematical calculations. The expression should be a valid Python print statement, e.g. "print(2 ** 10)".
+    jobs:
+      - component: calculator
+        input:
+          expression: ${input.expression @(description Python expression to evaluate, e.g. "print(2 ** 10)")}
+        output: ${output as text}
+
+  - id: get-current-time
+    private: true
+    name: get_current_time
+    description: Get the current date and time with timezone information.
+    jobs:
+      - component: clock
+        output: ${output as text}
+
+components:
+  - id: assistant
+    type: agent
+    tools:
+      - search-web
+      - get-weather
+      - run-calculation
+      - get-current-time
+    max_iteration_count: 10
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: You are a versatile assistant with access to web search, weather, calculator, and clock tools. Use the appropriate tools to answer the user's question accurately.
+      user_prompt: ${input.question}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: tavily
+    type: http-client
+    action:
+      endpoint: https://api.tavily.com/search
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        api_key: ${env.TAVILY_API_KEY}
+        query: ${input.query}
+        max_results: ${input.max_results}
+      output: ${response.results}
+
+  - id: weather-api
+    type: http-client
+    action:
+      endpoint: https://api.openweathermap.org/data/2.5/weather
+      method: GET
+      params:
+        q: ${input.city}
+        appid: ${env.OPENWEATHER_API_KEY}
+        units: metric
+      output:
+        city: ${response.name}
+        temperature: ${response.main.temp}
+        feels_like: ${response.main.feels_like}
+        humidity: ${response.main.humidity}
+        description: ${response.weather[0].description}
+        wind_speed: ${response.wind.speed}
+
+  - id: calculator
+    type: shell
+    action:
+      command: [ python3, -c, "${input.expression}" ]
+      timeout: 10.0
+      output: ${result.stdout}
+
+  - id: clock
+    type: shell
+    action:
+      command: [ date, "+%Y-%m-%d %H:%M:%S %Z" ]
+      output: ${result.stdout}

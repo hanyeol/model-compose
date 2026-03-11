@@ -14,3 +14,4 @@ class ComponentType(str, Enum):
     TEXT_SPLITTER   = "text-splitter"
     IMAGE_PROCESSOR = "image-processor"
     WEB_SCRAPER     = "web-scraper"
+    AGENT           = "agent"

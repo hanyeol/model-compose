@@ -71,7 +71,7 @@ class ControllerService(AsyncService):
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.loggers: List[LoggerConfig] = loggers
-        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components)
+        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components, exclude_private=True)
         self.task_queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
@@ -84,12 +84,12 @@ class ControllerService(AsyncService):
     async def launch_services(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
-                await self._start_loggers()
+                await self._start_loggers(verbose)
                 await NativeRuntimeLauncher().launch_detached()
                 await self._stop_loggers()
                 return
 
-            await self._start_loggers()
+            await self._start_loggers(verbose)
             await self._setup_listeners()
             await self._setup_gateways()
             await self._setup_components()
@@ -106,7 +106,7 @@ class ControllerService(AsyncService):
 
     async def terminate_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
-            await self._start_loggers()
+            await self._start_loggers(verbose)
             await NativeRuntimeLauncher().stop()
             await self._teardown_components()
             await self._teardown_gateways()
@@ -122,7 +122,7 @@ class ControllerService(AsyncService):
 
     async def start_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
-            await self._start_loggers()
+            await self._start_loggers(verbose)
             await self.start()
             await self.wait_until_stopped()
             await self._stop_loggers()
@@ -136,7 +136,7 @@ class ControllerService(AsyncService):
 
     async def stop_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
-            await self._start_loggers()
+            await self._start_loggers(verbose)
             await NativeRuntimeLauncher().stop()
             await self._stop_loggers()
             return
@@ -261,8 +261,8 @@ class ControllerService(AsyncService):
     async def _stop_components(self) -> None:
         await asyncio.gather(*[ component.stop() for component in self._create_components() ])
 
-    async def _start_loggers(self) -> None:
-        await asyncio.gather(*[ logger.start() for logger in self._create_loggers() ])
+    async def _start_loggers(self, verbose: bool = False) -> None:
+        await asyncio.gather(*[ logger.start() for logger in self._create_loggers(verbose) ])
 
     async def _stop_loggers(self) -> None:
         await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
@@ -283,8 +283,8 @@ class ControllerService(AsyncService):
         global_configs = self._get_component_global_configs()
         return [ create_component(component.id or "__default__", component, global_configs, self.daemon) for component in self.components ]
     
-    def _create_loggers(self) -> List[LoggerService]:
-        return [ create_logger(f"logger-{index}", config, self.daemon) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
+    def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
+        return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
 
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)

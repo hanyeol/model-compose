@@ -12,6 +12,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 | 类型 | 用途 | 主要用例 |
 |------|---------|---------------|
+| `agent` | 自主 AI 代理 | 通过工作流作为工具的 ReAct 循环 |
 | `http-client` | 外部 API 调用 | 集成 OpenAI、ElevenLabs 等 REST API |
 | `http-server` | 提供 HTTP 服务 | 实现自定义 HTTP API 端点 |
 | `mcp-server` | 提供 MCP 服务 | 实现模型上下文协议服务器 |
@@ -42,6 +43,9 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 图像处理 → `image-processor`
 - 向量存储 → `vector-store`
 - 网页抓取 → `web-scraper`
+
+**AI 代理**
+- 使用工具的自主代理 → `agent`
 
 **工作流组合**
 - 子工作流 → `workflow`

@@ -26,7 +26,7 @@ class ControllerWebUI(AsyncService):
 
         self.config: ControllerWebUIConfig = config
         self.controller: ControllerConfig = controller
-        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(workflows, components)
+        self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(workflows, components, exclude_private=True)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)

@@ -12,3 +12,4 @@ from .shell import *
 from .text_splitter import *
 from .image_processor import *
 from .web_scraper import *
+from .agent import *

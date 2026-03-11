@@ -1,0 +1,120 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    title: RAG Assistant Agent
+    description: An autonomous agent that searches and adds knowledge to a vector store to answer questions using Retrieval-Augmented Generation.
+    component: rag-assistant
+    input:
+      question: ${input.question as text}
+    output:
+      answer: ${output[-1].content as markdown}
+      messages: ${output as json}
+
+  - id: search-knowledge
+    private: true
+    description: Search the knowledge base for relevant information. Returns the most similar documents with their text content and source.
+    jobs:
+      - id: embed-query
+        component: gpt-4o
+        action: embedding
+        input:
+          text: ${input.query @(description The search query to find relevant knowledge)}
+        output: ${output}
+
+      - id: search
+        component: vector-store
+        action: search
+        input:
+          vector: ${jobs.embed-query.output}
+        output: ${output as json}
+        depends_on: [ embed-query ]
+
+  - id: add-knowledge
+    private: true
+    name: add_knowledge
+    description: Add a new piece of knowledge to the knowledge base for future retrieval.
+    jobs:
+      - id: embed-text
+        component: gpt-4o
+        action: embedding
+        input:
+          text: ${input.text @(description The text content to add to the knowledge base)}
+        output: ${output}
+
+      - id: insert
+        component: vector-store
+        action: insert
+        input:
+          vector: ${jobs.embed-text.output}
+          metadata:
+            text: ${input.text}
+            source: ${input.source | user-input @(description Source or origin of the knowledge)}
+        output: ${output as json}
+        depends_on: [ embed-text ]
+
+components:
+  - id: rag-assistant
+    type: agent
+    tools:
+      - search-knowledge
+      - add-knowledge
+    max_iteration_count: 5
+    action:
+      model:
+        component: gpt-4o
+        action: chat
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: You are a knowledge assistant. Search the knowledge base for relevant information to answer questions. Add new knowledge when the user provides information to remember.
+      user_prompt: ${input.question}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    actions:
+      - id: chat
+        path: /chat/completions
+        method: POST
+        headers:
+          Authorization: Bearer ${env.OPENAI_API_KEY}
+          Content-Type: application/json
+        body:
+          model: gpt-4o
+          messages: ${input.messages}
+          tools: ${input.tools}
+        output: ${response.choices[0].message}
+
+      - id: embedding
+        path: /embeddings
+        method: POST
+        headers:
+          Authorization: Bearer ${env.OPENAI_API_KEY}
+          Content-Type: application/json
+        body:
+          model: text-embedding-3-small
+          input: ${input.text}
+        output: ${response.data[0].embedding}
+
+  - id: vector-store
+    type: vector-store
+    driver: chroma
+    actions:
+      - id: search
+        collection: knowledge
+        method: search
+        query: ${input.vector}
+        output_fields: [ text, source ]
+
+      - id: insert
+        collection: knowledge
+        method: insert
+        vector: ${input.vector}
+        metadata: ${input.metadata}

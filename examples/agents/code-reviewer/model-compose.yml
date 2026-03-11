@@ -1,0 +1,105 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    title: Code Reviewer Agent
+    description: An autonomous agent that reads files, lists directories, and searches code to perform code reviews and provide improvement suggestions.
+    component: code-reviewer
+    input:
+      request: ${input.request as text}
+      target_path: ${input.target_path as text | .}
+    output:
+      answer: ${output[-1].content as markdown}
+      messages: ${output as json}
+
+  - id: read-file
+    private: true
+    name: read_file
+    description: Read and return the contents of a file at the given path.
+    jobs:
+      - component: file-reader
+        input:
+          path: ${input.path @(description Path of the file to read)}
+        output: ${output as text}
+
+  - id: list-directory
+    private: true
+    name: list_directory
+    description: List all files and directories with details (permissions, size, date) at the given path.
+    jobs:
+      - component: dir-lister
+        input:
+          path: ${input.path @(description Path of the directory to list)}
+        output: ${output as text}
+
+  - id: search-code
+    private: true
+    name: search_code
+    description: Search for a pattern in files recursively under the given path using grep. Returns matching lines with file paths and line numbers.
+    jobs:
+      - component: code-searcher
+        input:
+          pattern: ${input.pattern @(description The search pattern or regex to look for)}
+          path: ${input.path | . @(description Directory path to search in)}
+        output: ${output as text}
+
+components:
+  - id: code-reviewer
+    type: agent
+    tools:
+      - read-file
+      - list-directory
+      - search-code
+    max_iteration_count: 15
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: You are a code review assistant. Explore the codebase by reading files, listing directories, and searching code, then provide a detailed review with improvement suggestions.
+      user_prompt: |
+        Target path: ${input.target_path}
+        Request: ${input.request}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: file-reader
+    type: shell
+    action:
+      command: [ cat, "${input.path}" ]
+      timeout: 10.0
+      output: ${result.stdout}
+
+  - id: dir-lister
+    type: shell
+    action:
+      command: [ ls, -la, "${input.path}" ]
+      timeout: 10.0
+      output: ${result.stdout}
+
+  - id: code-searcher
+    type: shell
+    action:
+      command: [ grep, -rn, "${input.pattern}", "${input.path}" ]
+      timeout: 30.0
+      output: ${result.stdout}

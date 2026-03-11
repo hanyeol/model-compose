@@ -45,7 +45,7 @@ class WorkflowVariableResolver:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[([0-9]+)\])?         # key: input, result[], result[0], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?        # key: input, result[], result[0], result[-1], etc.
                     (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
@@ -286,12 +286,13 @@ class WorkflowSchema:
     def __init__(
         self,
         workflow_id: str,
-        name: Optional[str], 
-        title: Optional[str], 
-        description: Optional[str], 
-        input: List[WorkflowVariableConfig], 
+        name: Optional[str],
+        title: Optional[str],
+        description: Optional[str],
+        input: List[WorkflowVariableConfig],
         output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
-        default: bool
+        default: bool,
+        private: bool = False
     ):
         self.workflow_id: str = workflow_id
         self.name: Optional[str] = name
@@ -300,19 +301,23 @@ class WorkflowSchema:
         self.input: List[WorkflowVariableConfig] = input
         self.output: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = output
         self.default: bool = default
+        self.private: bool = private
 
-def create_workflow_schemas(workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> Dict[str, WorkflowSchema]:
+def create_workflow_schemas(workflows: List[WorkflowConfig], components: List[ComponentConfig], exclude_private: bool = False) -> Dict[str, WorkflowSchema]:
     schema: Dict[str, WorkflowSchema] = {}
 
     for workflow in workflows:
+        if exclude_private and workflow.private:
+            continue
         schema[workflow.id] = WorkflowSchema(
             workflow_id=workflow.id,
             name=workflow.name,
-            title=workflow.title, 
+            title=workflow.title,
             description=workflow.description,
             input=WorkflowInputVariableResolver().resolve(workflow, workflows, components),
             output=WorkflowOutputVariableResolver().resolve(workflow, workflows, components),
-            default=workflow.default
+            default=workflow.default,
+            private=workflow.private
         )
 
     return schema

@@ -12,6 +12,7 @@ class WorkflowToolParameter:
     type: str
     description: Optional[str]
     default: Optional[Any]
+    required: bool
 
 @dataclass
 class WorkflowTool:
@@ -60,7 +61,8 @@ class WorkflowToolGenerator():
                 name=variable.name or "input",
                 type=self._get_type(variable),
                 description=variable.get_annotation_value("description"),
-                default=variable.default
+                default=variable.default,
+                required=variable.required
             )
             for variable in workflow.input
         ]

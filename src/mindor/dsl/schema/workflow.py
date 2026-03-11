@@ -66,6 +66,7 @@ class WorkflowConfig(BaseModel):
     description: Optional[str] = Field(default=None, description="Description of workflow.")
     jobs: List[JobConfig] = Field(default_factory=list, description="List of jobs that define the execution steps.")
     default: bool = Field(default=False, description="Whether this workflow should be used as the default.")
+    private: bool = Field(default=False, description="Whether this workflow is private and should not be exposed externally.")
 
     @model_validator(mode="before")
     def normalize_jobs(cls, values: Dict[str, Any]):

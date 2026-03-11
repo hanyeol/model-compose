@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.shell import run_command_streaming, run_command
+from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import os
@@ -14,15 +15,18 @@ class ShellAction:
 
     async def run(self, context: ComponentActionContext) -> Any:
         working_dir = await self._resolve_working_directory()
+        command = await context.render_variable(self.config.command)
         env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
-        result = await self._run_command(self.config.command, working_dir, env, self.config.timeout)
+        result = await self._run_command(command, working_dir, env, self.config.timeout)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
     
     async def _run_command(self, command: List[str], working_dir: str, env: Dict[str, str], timeout: Optional[float]) -> Dict[str, Any]:
+        logging.debug("[shell] Running command: %s (cwd: %s)", " ".join(command), working_dir)
         stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
+        logging.debug("[shell] Command exited with code %d", exit_code)
 
         return {
             "stdout": stdout.decode().strip(),

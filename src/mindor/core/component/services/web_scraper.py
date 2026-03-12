@@ -73,7 +73,7 @@ class WebScraperAction:
                 {
                     "name": name,
                     "value": value,
-                    "domain": parsed_url.netloc,
+                    "domain": parsed_url.hostname,
                     "path": "/"
                 }
                 for name, value in cookies.items()

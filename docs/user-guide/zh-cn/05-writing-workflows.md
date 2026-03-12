@@ -414,7 +414,21 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 
 ### Action 作业
 
-执行组件的默认作业类型。
+执行组件的默认作业类型。省略 `type` 时，作业将作为 action 作业处理。
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `component` | `string` 或 object | `"__default__"` | 要运行的组件。可以是引用已定义组件的字符串 ID，或内联组件配置对象。 |
+| `action` | `string` | `"__default__"` | 要在组件上调用的动作。对于具有多个动作的组件，指定要调用的动作。 |
+| `input` | any | `null` | 提供给组件的输入数据。支持变量绑定（`${input.field}`、`${jobs.*.output}`）。 |
+| `output` | any | `null` | 输出映射。提取并重组组件的输出，供后续作业使用。 |
+| `repeat_count` | `int` 或 `string` | `1` | 组件执行的重复次数。最小为 1。支持变量绑定。 |
+| `interrupt` | object | `null` | 人机协作中断配置。参见下方 [Interrupt](#interrupt人机协作)。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+
+#### 基本结构
 
 ```yaml
 jobs:
@@ -427,36 +441,196 @@ jobs:
       result: ${output}
 ```
 
+#### 内联组件
+
+不必通过 ID 引用预定义的组件，可以内联定义组件：
+
+```yaml
+jobs:
+  - id: my-task
+    component:
+      type: http-client
+      action:
+        endpoint: https://api.example.com/run
+        body:
+          data: ${input.data}
+        output: ${response.result}
+```
+
+#### 重复执行
+
+使用相同的输入多次运行组件。结果收集到数组中：
+
+```yaml
+jobs:
+  - id: generate-variants
+    component: text-generator
+    input:
+      prompt: ${input.prompt}
+    repeat_count: 3
+```
+
+`repeat_count` 也支持变量绑定：
+
+```yaml
+repeat_count: ${input.count}
+```
+
+#### Interrupt（人机协作）
+
+Action 作业支持 `interrupt` 字段，可在指定的点暂停工作流执行，等待外部输入后继续。这使得审批门控、数据审核、交互式编辑等人机协作模式成为可能。
+
+**基本结构：**
+
+```yaml
+jobs:
+  - id: my-task
+    component: my-component
+    input: ${input}
+    interrupt:
+      before: true   # 组件执行前暂停
+      after: true    # 组件执行后暂停
+```
+
+**中断阶段：**
+
+| 阶段 | 时机 | 恢复数据效果 |
+|------|------|-------------|
+| `before` | 组件运行前 | 替换作业的输入 |
+| `after` | 组件运行后 | 替换作业的输出 |
+
+**配置选项：**
+
+每个阶段可以接受 `true`（始终中断）或详细配置：
+
+```yaml
+interrupt:
+  before:
+    message: "处理前请检查输入"
+    metadata:
+      preview: ${input.data}
+  after:
+    condition:
+      operator: gt
+      input: ${output.confidence}
+      value: 0.5
+    message: "置信度较低的结果，请审核。"
+```
+
+- **`message`**：中断触发时向用户或客户端显示的消息。
+- **`metadata`**：传递给客户端的结构化数据（如预览数据、选项）。
+- **`condition`**：中断触发的可选条件。使用与 [If 作业](#if-作业) 相同的运算符（`eq`、`neq`、`gt`、`gte`、`lt`、`lte`、`in`、`not-in`、`match`）。省略时始终触发中断。
+
+**任务状态：**
+
+当工作流到达中断点时，任务状态按以下方式转换：
+
+```
+PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
+```
+
+任务将保持 `INTERRUPTED` 状态，直到通过 CLI、HTTP API 或 MCP 工具恢复。
+
+**通过 HTTP API 恢复：**
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{"job_id": "my-task", "data": {"revised": "value"}}'
+```
+
+**通过 CLI 恢复：**
+
+使用 `model-compose run` 时，CLI 会在中断点自动提示输入。使用 `--auto-resume` 可跳过提示。详情请参阅 [第 3 章：CLI 使用](./03-cli-usage.md#中断处理)。
+
+**示例：需要人工审批的 Shell 命令执行：**
+
+```yaml
+workflow:
+  jobs:
+    - id: run-command
+      component: shell-executor
+      input:
+        command: ls -la
+      interrupt:
+        before:
+          message: "即将执行：ls -la"
+          metadata:
+            command: ls -la
+        after:
+          message: "命令执行完毕，请审核上方输出。"
+      output:
+        result: ${output as text}
+
+component:
+  id: shell-executor
+  type: shell
+  action:
+    command: ["sh", "-c", "${input.command}"]
+    output: ${result.stdout}
+```
+
+结构图：
+```mermaid
+graph LR
+    start(["开始"]) --> before{"中断<br/>(before)"}
+    before -->|恢复| exec["执行<br/>组件"]
+    exec --> after{"中断<br/>(after)"}
+    after -->|恢复| done(["完成"])
+```
+
 ### If 作业
 
-根据条件分支到不同的作业。
+根据条件分支到不同的作业。条件按顺序评估，第一个匹配的条件决定路由目标。
 
-#### 基本结构
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `conditions` | `IfCondition[]` | `[]` | 按顺序评估的条件列表。 |
+| `otherwise` | `string` | `null` | 没有条件匹配时路由到的作业 ID。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+
+**IfCondition 字段：**
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `operator` | `string` | `"eq"` | 比较运算符（见下方）。 |
+| `input` | any | `null` | 要评估的值。支持变量绑定。 |
+| `value` | any | `null` | 要比较的值。支持变量绑定。 |
+| `if_true` | `string` | `null` | 条件为真时路由到的作业 ID。 |
+| `if_false` | `string` | `null` | 条件为假时路由到的作业 ID。 |
+
+#### 支持的运算符
+
+| 运算符 | 说明 |
+|--------|------|
+| `eq` | 等于 |
+| `neq` | 不等于 |
+| `gt` | 大于 |
+| `gte` | 大于或等于 |
+| `lt` | 小于 |
+| `lte` | 小于或等于 |
+| `in` | 包含 |
+| `not-in` | 不包含 |
+| `starts-with` | 以...开始 |
+| `ends-with` | 以...结束 |
+| `match` | 正则表达式匹配 |
+
+#### 单条件（简写）
+
+只有一个条件时，可以直接在作业上写条件字段，无需用 `conditions` 包裹：
 
 ```yaml
 jobs:
   - id: condition-check
     type: if
-    operator: eq          # 比较运算符
+    operator: eq
     input: ${input.value}
     value: "expected"
     if_true: job-when-true
     if_false: job-when-false
 ```
-
-#### 支持的运算符
-
-- `eq`: 等于
-- `neq`: 不等于
-- `gt`: 大于
-- `gte`: 大于或等于
-- `lt`: 小于
-- `lte`: 小于或等于
-- `in`: 包含
-- `not-in`: 不包含
-- `starts-with`: 以...开始
-- `ends-with`: 以...结束
-- `match`: 正则表达式匹配
 
 #### 多个条件
 
@@ -478,9 +652,37 @@ jobs:
 
 ### Switch 作业
 
-根据值路由到多个路径之一。
+根据值的精确匹配路由到多个路径之一。类似于 switch-case 语句。
 
-#### 基本结构
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `input` | any | `null` | 与 case 比较的值。支持变量绑定。 |
+| `cases` | `SwitchCase[]` | `[]` | 要评估的 case 列表。 |
+| `otherwise` | `string` | `null` | 没有 case 匹配时路由到的作业 ID。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+
+**SwitchCase 字段：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `value` | `string` | 与 input 比较的值。 |
+| `then` | `string` | 值匹配时路由到的作业 ID。 |
+
+#### 单 case（简写）
+
+```yaml
+jobs:
+  - id: check-type
+    type: switch
+    input: ${input.type}
+    value: "image"
+    then: process-image
+    otherwise: process-other
+```
+
+#### 多 case
 
 ```yaml
 jobs:
@@ -499,19 +701,34 @@ jobs:
 
 ### Delay 作业
 
-等待指定的持续时间或直到特定时间。
+等待指定的持续时间或直到特定时间。通过 `mode` 字段选择两种模式。
 
-#### 时间间隔等待 (time-interval)
+#### 字段 (time-interval)
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | `"time-interval"` | - | 等待指定时长。 |
+| `duration` | `number` 或 `string` | - | 等待时间（毫秒）。支持变量绑定。 |
+| `output` | any | `null` | 可选的输出映射。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
 
 ```yaml
 jobs:
   - id: wait
     type: delay
     mode: time-interval
-    duration: 5000  # 毫秒
+    duration: 5000  # 5 秒
 ```
 
-#### 等待到特定时间 (specific-time)
+#### 字段 (specific-time)
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | `"specific-time"` | - | 等待到特定日期/时间。 |
+| `time` | `datetime` 或 `string` | - | 目标日期和时间（ISO 8601 格式）。支持变量绑定。 |
+| `timezone` | `string` | `null` | 时区标识符（如 `"Asia/Seoul"`、`"UTC"`）。 |
+| `output` | any | `null` | 可选的输出映射。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
 
 ```yaml
 jobs:
@@ -519,12 +736,19 @@ jobs:
     type: delay
     mode: specific-time
     time: "2024-12-25T09:00:00"
-    timezone: "Asia/Seoul"  # 可选
+    timezone: "Asia/Seoul"
 ```
 
 ### Filter 作业
 
-提取数据的部分并重组为新形状。
+提取数据的部分并重组为新形状。不执行任何组件——仅使用变量绑定转换数据。
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `output` | any | `null` | 定义新数据形状的输出映射。使用变量绑定从工作流输入或前一个作业的输出中提取值。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
 
 ```yaml
 jobs:
@@ -538,33 +762,48 @@ jobs:
 
 ### Random Router 作业
 
-随机选择多个作业之一。使用 `weight` 来调整每个路由的概率。
+随机选择多个作业之一。支持均匀分布（等概率）和加权分布（自定义概率）模式。
 
-#### 均等分布 (50:50)
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | `"uniform"` 或 `"weighted"` | `"uniform"` | 路由模式。`uniform` 为等概率；`weighted` 使用每个路由的 `weight` 字段。 |
+| `routings` | `Routing[]` | `[]` | 可能的路由目标列表。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+
+**Routing 字段：**
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `target` | `string` | - | 目标作业 ID。 |
+| `weight` | `number` | `null` | 加权模式中的相对权重。均匀模式下忽略。 |
+
+#### 均匀分布
 
 ```yaml
 jobs:
   - id: ab-test
     type: random-router
-    routes:
-      - id: variant-a
-        weight: 50
-      - id: variant-b
-        weight: 50
+    mode: uniform
+    routings:
+      - target: variant-a
+      - target: variant-b
 ```
 
-#### 不均等分布 (70:20:10)
+#### 加权分布 (70:20:10)
 
 ```yaml
 jobs:
   - id: traffic-split
     type: random-router
-    routes:
-      - id: primary-model
+    mode: weighted
+    routings:
+      - target: primary-model
         weight: 70
-      - id: experimental-model
+      - target: experimental-model
         weight: 20
-      - id: fallback-model
+      - target: fallback-model
         weight: 10
 ```
 

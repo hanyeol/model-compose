@@ -237,6 +237,7 @@ model-compose run [워크플로우ID] [옵션]
 - `--env-file <파일>`: 환경 변수 파일 지정 (반복 가능)
 - `-e`, `--env <KEY=VALUE>`: 환경 변수 직접 지정 (반복 가능)
 - `-o`, `--output <파일>`: 출력을 파일로 저장
+- `--auto-resume`: 인터럽트 발생 시 프롬프트 없이 자동으로 재개
 - `-v`, `--verbose`: 상세 출력 활성화
 
 ### 예제
@@ -286,6 +287,34 @@ model-compose -f config.yml run my-workflow \
   --output output.json \
   --verbose
 ```
+
+### 인터럽트 처리
+
+워크플로우의 job에 `interrupt` 설정이 있으면, `run` 명령어는 실행을 일시 중지하고 사용자 입력을 요청합니다:
+
+```
+--- Interrupted (job: run-command, phase: before) ---
+
+About to execute: ls -la
+{"command": "ls -la"}
+
+✋ Action required — press Enter to continue, or type an answer (JSON or text):
+```
+
+**동작:**
+- 입력 없이 Enter를 누르면 원래 데이터로 계속 진행
+- JSON을 입력하면 job의 입력(before 단계) 또는 출력(after 단계)을 대체
+- 일반 텍스트를 입력하면 문자열 값으로 전달
+
+**비대화형 모드:**
+
+TTY가 없는 환경(예: CI/CD 파이프라인)에서는 `--auto-resume`을 사용하여 모든 인터럽트 프롬프트를 건너뛰고 원래 데이터로 계속 진행합니다:
+
+```bash
+model-compose run my-workflow --input '{"data": "test"}' --auto-resume
+```
+
+`--auto-resume` 없이 TTY가 없으면 종료 코드 1로 종료됩니다.
 
 ### 출력 형식
 
@@ -584,7 +613,7 @@ done
 | `down` | 서비스 종료 및 정리 | `--env-file`, `-v` |
 | `start` | 서비스 시작 | `--env-file`, `-v` |
 | `stop` | 서비스 중지 | `--env-file`, `-v` |
-| `run` | 워크플로우 실행 | `-i`, `-o`, `--env-file`, `-v` |
+| `run` | 워크플로우 실행 | `-i`, `-o`, `--auto-resume`, `--env-file`, `-v` |
 
 ### 전역 옵션
 
@@ -608,6 +637,7 @@ done
 |------|------|------|
 | `--input` | `-i` | 입력 JSON 데이터 |
 | `--output` | `-o` | 출력 파일 경로 |
+| `--auto-resume` | - | 인터럽트 프롬프트 자동 건너뛰기 |
 
 ---
 

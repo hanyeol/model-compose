@@ -241,6 +241,7 @@ GET /api/tasks/{task_id}?output_only=true
 Task 상태:
 - `pending`: 대기 중 (아직 실행되지 않음)
 - `processing`: 실행 중
+- `interrupted`: 사용자 입력 대기 중 ([Task 재개](#task-재개) 참조)
 - `completed`: 성공적으로 완료됨
 - `failed`: 실행 중 오류 발생
 
@@ -264,6 +265,20 @@ curl http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T
   "status": "completed",
   "output": {
     "message": "Hello! How can I help you today?"
+  }
+}
+```
+
+인터럽트된 경우 응답:
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "interrupted",
+  "interrupt": {
+    "job_id": "review-step",
+    "phase": "before",
+    "message": "Please review the generated content before proceeding.",
+    "metadata": { "draft": "..." }
   }
 }
 ```
@@ -301,6 +316,37 @@ HTTP/1.1 500 Internal Server Error
 {"detail": "Connection timeout"}
 ```
 
+#### Task 재개
+```
+POST /api/tasks/{task_id}/resume
+```
+
+인터럽트된 워크플로우를 재개합니다. Task가 `interrupted` 상태일 때, 이 요청을 보내 답변을 제공하고 실행을 계속합니다.
+
+요청 본문 파라미터:
+- `job_id` (string, 필수): 인터럽트 응답에서 받은 job ID
+- `answer` (any, optional): 워크플로우에 전달할 답변 데이터 (JSON 또는 문자열)
+
+요청 예시:
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_id": "review-step",
+    "answer": "approved"
+  }'
+```
+
+응답 예시 (재개됨):
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "processing"
+}
+```
+
+재개 후, `GET /api/tasks/{task_id}`로 폴링하여 완료, 다른 인터럽트, 또는 실패 여부를 확인합니다.
+
 #### Health Check
 ```
 GET /api/health
@@ -322,7 +368,7 @@ GET /api/health
 워크플로우를 실행하면 내부적으로 Task가 생성됩니다:
 
 1. **Task 생성**: 워크플로우 실행 시 ULID 기반의 고유한 `task_id`가 생성됩니다
-2. **Task 상태 추적**: Task는 4가지 상태(`pending`, `processing`, `completed`, `failed`)를 가집니다
+2. **Task 상태 추적**: Task는 5가지 상태(`pending`, `processing`, `interrupted`, `completed`, `failed`)를 가집니다
 3. **Task 캐싱**: 완료된 Task는 1시간 동안 메모리에 캐시되어 `/api/tasks/{task_id}` 엔드포인트로 조회 가능합니다
 
 #### 동기 vs 비동기 실행

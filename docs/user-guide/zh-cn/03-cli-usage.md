@@ -107,6 +107,7 @@ model-compose run workflow-id -f model-compose.yml --input '{"text": "Hello"}'
 - `-f, --file FILE`: 指定配置文件
 - `--env-file FILE`: 指定环境变量文件
 - `-e, --env KEY=VALUE`: 设置环境变量
+- `--auto-resume`: 自动跳过中断提示，无需用户确认即可继续
 
 **示例:**
 
@@ -129,6 +130,34 @@ model-compose run chatbot \
   -e OPENAI_API_KEY=sk-proj-... \
   --input '{"prompt": "Hello"}'
 ```
+
+**中断处理:**
+
+当工作流中的 job 配置了 `interrupt` 时，`run` 命令会暂停执行并提示用户输入:
+
+```
+--- Interrupted (job: run-command, phase: before) ---
+
+About to execute: ls -la
+{"command": "ls -la"}
+
+✋ Action required — press Enter to continue, or type an answer (JSON or text):
+```
+
+**行为:**
+- 直接按 Enter(不输入)将使用原始数据继续执行
+- 输入 JSON 可替换 job 的输入(before 阶段)或输出(after 阶段)
+- 输入普通文本将作为字符串值传递
+
+**非交互模式:**
+
+在没有 TTY 的环境中(如 CI/CD 流水线)，使用 `--auto-resume` 跳过所有中断提示，使用原始数据继续执行:
+
+```bash
+model-compose run my-workflow --input '{"data": "test"}' --auto-resume
+```
+
+如果没有 `--auto-resume` 且没有 TTY，命令将以退出码 1 退出。
 
 ---
 

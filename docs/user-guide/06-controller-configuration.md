@@ -241,6 +241,7 @@ Retrieves the status and result of an asynchronously executed workflow.
 Task states:
 - `pending`: Waiting (not yet started)
 - `processing`: Currently executing
+- `interrupted`: Waiting for user input (see [Resume Task](#resume-task))
 - `completed`: Successfully completed
 - `failed`: Failed during execution
 
@@ -264,6 +265,20 @@ Response when completed:
   "status": "completed",
   "output": {
     "message": "Hello! How can I help you today?"
+  }
+}
+```
+
+Response when interrupted:
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "interrupted",
+  "interrupt": {
+    "job_id": "review-step",
+    "phase": "before",
+    "message": "Please review the generated content before proceeding.",
+    "metadata": { "draft": "..." }
   }
 }
 ```
@@ -301,6 +316,37 @@ HTTP/1.1 500 Internal Server Error
 {"detail": "Connection timeout"}
 ```
 
+#### Resume Task
+```
+POST /api/tasks/{task_id}/resume
+```
+
+Resumes an interrupted workflow. When a task is in `interrupted` status, send this request to provide an answer and continue execution.
+
+Request body parameters:
+- `job_id` (string, required): The job ID from the interrupt response
+- `answer` (any, optional): Answer data to pass to the workflow (JSON or string)
+
+Request example:
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_id": "review-step",
+    "answer": "approved"
+  }'
+```
+
+Response example (completed):
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "processing"
+}
+```
+
+After resuming, poll `GET /api/tasks/{task_id}` to check for completion, another interrupt, or failure.
+
 #### Health Check
 ```
 GET /api/health
@@ -322,7 +368,7 @@ Response example:
 When a workflow is executed, a Task is created internally:
 
 1. **Task Creation**: A unique `task_id` based on ULID is generated when executing a workflow
-2. **Task State Tracking**: Tasks have 4 states (`pending`, `processing`, `completed`, `failed`)
+2. **Task State Tracking**: Tasks have 5 states (`pending`, `processing`, `interrupted`, `completed`, `failed`)
 3. **Task Caching**: Completed tasks are cached in memory for 1 hour and can be queried via the `/api/tasks/{task_id}` endpoint
 
 #### Synchronous vs Asynchronous Execution

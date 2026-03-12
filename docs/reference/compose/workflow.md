@@ -8,7 +8,7 @@ Workflows define the execution logic and data flow for your model-compose applic
 
 ```yaml
 workflow:
-  id: __default__
+  id: main
   title: My Workflow
   description: Description of what this workflow does
   jobs:

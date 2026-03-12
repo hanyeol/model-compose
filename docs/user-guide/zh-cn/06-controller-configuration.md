@@ -241,6 +241,7 @@ GET /api/tasks/{task_id}?output_only=true
 任务状态：
 - `pending`: 等待中（尚未开始）
 - `processing`: 当前正在执行
+- `interrupted`: 等待用户输入（参见[恢复任务](#恢复任务)）
 - `completed`: 成功完成
 - `failed`: 执行期间失败
 
@@ -264,6 +265,20 @@ curl http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T
   "status": "completed",
   "output": {
     "message": "Hello! How can I help you today?"
+  }
+}
+```
+
+中断时的响应：
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "interrupted",
+  "interrupt": {
+    "job_id": "review-step",
+    "phase": "before",
+    "message": "Please review the generated content before proceeding.",
+    "metadata": { "draft": "..." }
   }
 }
 ```
@@ -301,6 +316,37 @@ HTTP/1.1 500 Internal Server Error
 {"detail": "Connection timeout"}
 ```
 
+#### 恢复任务
+```
+POST /api/tasks/{task_id}/resume
+```
+
+恢复中断的工作流。当任务处于 `interrupted` 状态时，发送此请求提供答案并继续执行。
+
+请求体参数：
+- `job_id` (string, 必填): 中断响应中的 job ID
+- `answer` (any, 可选): 传递给工作流的答案数据（JSON 或字符串）
+
+请求示例：
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_id": "review-step",
+    "answer": "approved"
+  }'
+```
+
+响应示例（已恢复）：
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "status": "processing"
+}
+```
+
+恢复后，通过 `GET /api/tasks/{task_id}` 轮询检查完成、另一个中断或失败。
+
 #### 健康检查
 ```
 GET /api/health
@@ -322,7 +368,7 @@ GET /api/health
 当执行工作流时，会在内部创建一个任务：
 
 1. **任务创建**: 执行工作流时会生成一个基于 ULID 的唯一 `task_id`
-2. **任务状态跟踪**: 任务有 4 种状态（`pending`、`processing`、`completed`、`failed`）
+2. **任务状态跟踪**: 任务有 5 种状态（`pending`、`processing`、`interrupted`、`completed`、`failed`）
 3. **任务缓存**: 已完成的任务在内存中缓存 1 小时，可以通过 `/api/tasks/{task_id}` 端点查询
 
 #### 同步 vs 异步执行

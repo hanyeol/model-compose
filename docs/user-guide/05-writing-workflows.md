@@ -414,7 +414,21 @@ model-compose provides various job types to support different task patterns.
 
 ### Action Job
 
-The default job type that executes a component.
+The default job type that executes a component. If `type` is omitted, the job is treated as an action job.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `component` | `string` or object | `"__default__"` | The component to run. Either a string ID referencing a defined component, or an inline component config object. |
+| `action` | `string` | `"__default__"` | The action to invoke on the component. For components with multiple actions, specify which one to call. |
+| `input` | any | `null` | Input data supplied to the component. Supports variable binding (`${input.field}`, `${jobs.*.output}`). |
+| `output` | any | `null` | Output mapping. Extracts and reshapes the component's output for use by subsequent jobs. |
+| `repeat_count` | `int` or `string` | `1` | Number of times to repeat the component execution. Must be at least 1. Supports variable binding. |
+| `interrupt` | object | `null` | Human-in-the-loop interrupt configuration. See [Interrupt](#interrupt-human-in-the-loop) below. |
+| `depends_on` | `string[]` | `[]` | List of job IDs that must complete before this job runs. |
+
+#### Basic Structure
 
 ```yaml
 jobs:
@@ -427,36 +441,196 @@ jobs:
       result: ${output}
 ```
 
+#### Inline Component
+
+Instead of referencing a predefined component by ID, you can define the component inline:
+
+```yaml
+jobs:
+  - id: my-task
+    component:
+      type: http-client
+      action:
+        endpoint: https://api.example.com/run
+        body:
+          data: ${input.data}
+        output: ${response.result}
+```
+
+#### Repeat Execution
+
+Run a component multiple times with the same input. Results are collected into an array:
+
+```yaml
+jobs:
+  - id: generate-variants
+    component: text-generator
+    input:
+      prompt: ${input.prompt}
+    repeat_count: 3
+```
+
+The `repeat_count` also supports variable binding:
+
+```yaml
+repeat_count: ${input.count}
+```
+
+#### Interrupt (Human-in-the-Loop)
+
+Action jobs support an `interrupt` field that pauses workflow execution at defined points and waits for external input before continuing. This enables human-in-the-loop patterns such as approval gates, data review, or interactive editing.
+
+**Basic structure:**
+
+```yaml
+jobs:
+  - id: my-task
+    component: my-component
+    input: ${input}
+    interrupt:
+      before: true   # Pause before component executes
+      after: true    # Pause after component executes
+```
+
+**Interrupt phases:**
+
+| Phase | Timing | Resume data effect |
+|-------|--------|-------------------|
+| `before` | Before the component runs | Replaces the job's input |
+| `after` | After the component runs | Replaces the job's output |
+
+**Configuration options:**
+
+Each phase accepts either `true` (always interrupt) or a detailed configuration:
+
+```yaml
+interrupt:
+  before:
+    message: "Review the input before processing"
+    metadata:
+      preview: ${input.data}
+  after:
+    condition:
+      operator: gt
+      input: ${output.confidence}
+      value: 0.5
+    message: "Low confidence result. Please review."
+```
+
+- **`message`**: A message displayed to the user or client when the interrupt fires.
+- **`metadata`**: Structured data passed to the client (e.g., preview data, options).
+- **`condition`**: An optional condition that must evaluate to true for the interrupt to fire. Uses the same operators as [If Job](#if-job) (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not-in`, `match`). If omitted, the interrupt always fires.
+
+**Task states:**
+
+When a workflow hits an interrupt, the task transitions through these states:
+
+```
+PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
+```
+
+The task remains in the `INTERRUPTED` state until it is resumed via the CLI, HTTP API, or MCP tool.
+
+**Resuming via HTTP API:**
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{"job_id": "my-task", "data": {"revised": "value"}}'
+```
+
+**Resuming via CLI:**
+
+When using `model-compose run`, the CLI automatically prompts for input at interrupt points. Use `--auto-resume` to skip prompts. See [Chapter 3: CLI Usage](./03-cli-usage.md#interrupt-handling) for details.
+
+**Example: Shell command with human approval:**
+
+```yaml
+workflow:
+  jobs:
+    - id: run-command
+      component: shell-executor
+      input:
+        command: ls -la
+      interrupt:
+        before:
+          message: "About to execute: ls -la"
+          metadata:
+            command: ls -la
+        after:
+          message: "Command finished. Review the output above."
+      output:
+        result: ${output as text}
+
+component:
+  id: shell-executor
+  type: shell
+  action:
+    command: ["sh", "-c", "${input.command}"]
+    output: ${result.stdout}
+```
+
+Structure diagram:
+```mermaid
+graph LR
+    start(["Start"]) --> before{"Interrupt<br/>(before)"}
+    before -->|resumed| exec["Execute<br/>component"]
+    exec --> after{"Interrupt<br/>(after)"}
+    after -->|resumed| done(["Done"])
+```
+
 ### If Job
 
-Branch to different jobs based on a condition.
+Branch to different jobs based on a condition. Conditions are evaluated in order; the first match determines the routing target.
 
-#### Basic Structure
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `conditions` | `IfCondition[]` | `[]` | List of conditions to evaluate in order. |
+| `otherwise` | `string` | `null` | Job ID to route to if no conditions matched. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+
+**IfCondition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `operator` | `string` | `"eq"` | Comparison operator (see below). |
+| `input` | any | `null` | Value to evaluate. Supports variable binding. |
+| `value` | any | `null` | Value to compare against. Supports variable binding. |
+| `if_true` | `string` | `null` | Job ID to route to when the condition is true. |
+| `if_false` | `string` | `null` | Job ID to route to when the condition is false. |
+
+#### Supported Operators
+
+| Operator | Description |
+|----------|-------------|
+| `eq` | Equal |
+| `neq` | Not equal |
+| `gt` | Greater than |
+| `gte` | Greater than or equal |
+| `lt` | Less than |
+| `lte` | Less than or equal |
+| `in` | Contained in value |
+| `not-in` | Not contained in value |
+| `starts-with` | Starts with |
+| `ends-with` | Ends with |
+| `match` | Regex match |
+
+#### Single Condition (Shorthand)
+
+When there is only one condition, you can write the condition fields directly on the job without wrapping in `conditions`:
 
 ```yaml
 jobs:
   - id: condition-check
     type: if
-    operator: eq          # Comparison operator
+    operator: eq
     input: ${input.value}
     value: "expected"
     if_true: job-when-true
     if_false: job-when-false
 ```
-
-#### Supported Operators
-
-- `eq`: Equal
-- `neq`: Not equal
-- `gt`: Greater than
-- `gte`: Greater than or equal
-- `lt`: Less than
-- `lte`: Less than or equal
-- `in`: Contains
-- `not-in`: Does not contain
-- `starts-with`: Starts with
-- `ends-with`: Ends with
-- `match`: Regex match
 
 #### Multiple Conditions
 
@@ -478,9 +652,37 @@ jobs:
 
 ### Switch Job
 
-Route to one of many paths based on a value.
+Route to one of many paths based on exact value matching. Like a switch-case statement.
 
-#### Basic Structure
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input` | any | `null` | Value to match against cases. Supports variable binding. |
+| `cases` | `SwitchCase[]` | `[]` | List of cases to evaluate. |
+| `otherwise` | `string` | `null` | Job ID to route to if no cases match. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+
+**SwitchCase fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value` | `string` | Value to match against the input. |
+| `then` | `string` | Job ID to route to if the value matches. |
+
+#### Single Case (Shorthand)
+
+```yaml
+jobs:
+  - id: check-type
+    type: switch
+    input: ${input.type}
+    value: "image"
+    then: process-image
+    otherwise: process-other
+```
+
+#### Multiple Cases
 
 ```yaml
 jobs:
@@ -499,19 +701,34 @@ jobs:
 
 ### Delay Job
 
-Wait for a specified duration or until a specific time.
+Wait for a specified duration or until a specific time. Has two modes selected by the `mode` field.
 
-#### Time Interval Wait (time-interval)
+#### Fields (time-interval)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | `"time-interval"` | - | Wait for a duration. |
+| `duration` | `number` or `string` | - | Time to wait in milliseconds. Supports variable binding. |
+| `output` | any | `null` | Optional output mapping. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
 
 ```yaml
 jobs:
   - id: wait
     type: delay
     mode: time-interval
-    duration: 5000  # milliseconds
+    duration: 5000  # 5 seconds
 ```
 
-#### Wait Until Specific Time (specific-time)
+#### Fields (specific-time)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | `"specific-time"` | - | Wait until a specific date/time. |
+| `time` | `datetime` or `string` | - | Target date and time (ISO 8601 format). Supports variable binding. |
+| `timezone` | `string` | `null` | Timezone identifier (e.g., `"Asia/Seoul"`, `"UTC"`). |
+| `output` | any | `null` | Optional output mapping. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
 
 ```yaml
 jobs:
@@ -519,12 +736,19 @@ jobs:
     type: delay
     mode: specific-time
     time: "2024-12-25T09:00:00"
-    timezone: "Asia/Seoul"  # Optional
+    timezone: "Asia/Seoul"
 ```
 
 ### Filter Job
 
-Extract parts of data and restructure into a new shape.
+Extract parts of data and restructure into a new shape. Does not execute any component — it only transforms data using variable bindings.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `output` | any | `null` | Output mapping that defines the new data shape. Uses variable binding to extract values from workflow input or previous job outputs. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
 
 ```yaml
 jobs:
@@ -538,33 +762,48 @@ jobs:
 
 ### Random Router Job
 
-Randomly select one of multiple jobs. Use `weight` to adjust the probability of each route.
+Randomly select one of multiple jobs. Supports uniform (equal probability) and weighted (custom probability) modes.
 
-#### Equal Distribution (50:50)
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | `"uniform"` or `"weighted"` | `"uniform"` | Routing mode. `uniform` gives equal probability; `weighted` uses the `weight` field of each route. |
+| `routings` | `Routing[]` | `[]` | List of possible routing destinations. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+
+**Routing fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `target` | `string` | - | Destination job ID. |
+| `weight` | `number` | `null` | Relative weight for weighted mode. Ignored in uniform mode. |
+
+#### Uniform Distribution
 
 ```yaml
 jobs:
   - id: ab-test
     type: random-router
-    routes:
-      - id: variant-a
-        weight: 50
-      - id: variant-b
-        weight: 50
+    mode: uniform
+    routings:
+      - target: variant-a
+      - target: variant-b
 ```
 
-#### Unequal Distribution (70:20:10)
+#### Weighted Distribution (70:20:10)
 
 ```yaml
 jobs:
   - id: traffic-split
     type: random-router
-    routes:
-      - id: primary-model
+    mode: weighted
+    routings:
+      - target: primary-model
         weight: 70
-      - id: experimental-model
+      - target: experimental-model
         weight: 20
-      - id: fallback-model
+      - target: fallback-model
         weight: 10
 ```
 

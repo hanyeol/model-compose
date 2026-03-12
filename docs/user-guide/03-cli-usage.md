@@ -237,6 +237,7 @@ model-compose run [workflow-id] [options]
 - `--env-file <file>`: Specify environment variable file (repeatable)
 - `-e`, `--env <KEY=VALUE>`: Set environment variable directly (repeatable)
 - `-o`, `--output <file>`: Save output to file
+- `--auto-resume`: Automatically resume interrupts without prompting
 - `-v`, `--verbose`: Enable verbose output
 
 ### Examples
@@ -286,6 +287,34 @@ model-compose -f config.yml run my-workflow \
   --output output.json \
   --verbose
 ```
+
+### Interrupt Handling
+
+When a workflow contains jobs with `interrupt` configuration, the `run` command pauses execution and prompts for user input:
+
+```
+--- Interrupted (job: run-command, phase: before) ---
+
+About to execute: ls -la
+{"command": "ls -la"}
+
+✋ Action required — press Enter to continue, or type an answer (JSON or text):
+```
+
+**Behavior:**
+- Press Enter without input to continue with the original data
+- Enter JSON to replace the job's input (before phase) or output (after phase)
+- Enter plain text to pass as a string value
+
+**Non-interactive mode:**
+
+If no TTY is available (e.g., in CI/CD pipelines), use `--auto-resume` to skip all interrupt prompts and continue with original data:
+
+```bash
+model-compose run my-workflow --input '{"data": "test"}' --auto-resume
+```
+
+Without `--auto-resume` and no TTY, the command exits with code 1.
 
 ### Output Format
 
@@ -584,7 +613,7 @@ done
 | `down` | Stop and clean up services | `--env-file`, `-v` |
 | `start` | Start services | `--env-file`, `-v` |
 | `stop` | Stop services | `--env-file`, `-v` |
-| `run` | Execute workflow | `-i`, `-o`, `--env-file`, `-v` |
+| `run` | Execute workflow | `-i`, `-o`, `--auto-resume`, `--env-file`, `-v` |
 
 ### Global Options
 
@@ -608,6 +637,7 @@ done
 |--------|-------|-------------|
 | `--input` | `-i` | Input JSON data |
 | `--output` | `-o` | Output file path |
+| `--auto-resume` | - | Skip interrupt prompts automatically |
 
 ---
 

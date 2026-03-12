@@ -191,7 +191,7 @@ pip install -e .[dev]
 ---
 
 ## 📄 许可证
-MIT License © 2025 Hanyeol Cho.
+MIT License © 2025-2026 Hanyeol Cho.
 
 ---
 

@@ -1,0 +1,142 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    default: true
+    title: Human-in-the-Loop Agent
+    description: >
+      An agent that manages files with human approval.
+      Dangerous operations (write, delete) require human confirmation before execution,
+      while safe operations (read, list) run without interruption.
+    component: file-manager
+    input:
+      request: ${input.request as text | List the files in the current directory.}
+    output: ${output[-1].content as markdown}
+
+  # Safe tools — no interrupt
+  - id: read-file
+    private: true
+    name: read_file
+    description: Read the contents of a file at the given path.
+    jobs:
+      - component: file-reader
+        input:
+          path: ${input.path @(description Absolute path of the file to read)}
+        output: ${output as text}
+
+  - id: list-directory
+    private: true
+    name: list_directory
+    description: List files and directories at the given path.
+    jobs:
+      - component: directory-lister
+        input:
+          path: ${input.path | . @(description Absolute path of the directory to list)}
+        output: ${output as text}
+
+  # Dangerous tools — interrupt before execution for human approval
+  - id: write-file
+    private: true
+    name: write_file
+    description: Write content to a file. Creates the file if it does not exist, overwrites if it does. Requires human approval.
+    jobs:
+      - component: file-writer
+        input:
+          path: ${input.path @(description Absolute path of the file to write)}
+          content: ${input.content @(description Content to write to the file)}
+        interrupt:
+          before:
+            message: "The agent wants to write to a file. Please review and approve."
+            metadata:
+              path: ${input.path}
+              content: ${input.content}
+        output: ${output as text}
+
+  - id: delete-file
+    private: true
+    name: delete_file
+    description: Delete a file at the given path. Requires human approval.
+    jobs:
+      - component: file-deleter
+        input:
+          path: ${input.path @(description Absolute path of the file to delete)}
+        interrupt:
+          before:
+            message: "The agent wants to delete a file. Please review and approve."
+            metadata:
+              path: ${input.path}
+        output: ${output as text}
+
+components:
+  - id: file-manager
+    type: agent
+    tools:
+      - read-file
+      - list-directory
+      - write-file
+      - delete-file
+    max_iteration_count: 15
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You are a file management assistant. You help users read, list, write, and delete files.
+
+        Important rules:
+        - Always use the provided tools to perform operations. Do NOT ask the user for confirmation — dangerous operations already have a built-in human approval step.
+        - Just call the tool directly. The system will pause and ask the user for approval before executing write or delete operations.
+        - Use list_directory and read_file to understand the current state before making changes.
+        - Never operate outside the paths the user specifies.
+      user_prompt: ${input.request}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: file-reader
+    type: shell
+    action:
+      command: [ "cat", "${input.path}" ]
+      timeout: 5.0
+      output: ${result.stdout}
+
+  - id: directory-lister
+    type: shell
+    action:
+      command: [ "ls", "-la", "${input.path}" ]
+      timeout: 5.0
+      output: ${result.stdout}
+
+  - id: file-writer
+    type: shell
+    action:
+      command: [ "sh", "-c", "cat > '${input.path}' << 'CONTENT_EOF'\n${input.content}\nCONTENT_EOF" ]
+      timeout: 5.0
+      output: "Successfully wrote to ${input.path}"
+
+  - id: file-deleter
+    type: shell
+    action:
+      command: [ "rm", "${input.path}" ]
+      timeout: 5.0
+      output: "Successfully deleted ${input.path}"

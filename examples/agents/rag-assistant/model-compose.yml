@@ -8,6 +8,7 @@ controller:
 
 workflows:
   - id: main
+    default: true
     title: RAG Assistant Agent
     description: An autonomous agent that searches and adds knowledge to a vector store to answer questions using Retrieval-Augmented Generation.
     component: rag-assistant

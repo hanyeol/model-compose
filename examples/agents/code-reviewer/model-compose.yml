@@ -8,6 +8,7 @@ controller:
 
 workflows:
   - id: main
+    default: true
     title: Code Reviewer Agent
     description: An autonomous agent that reads files, lists directories, and searches code to perform code reviews and provide improvement suggestions.
     component: code-reviewer

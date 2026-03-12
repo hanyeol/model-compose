@@ -8,6 +8,7 @@ controller:
 
 workflows:
   - id: main
+    default: true
     title: Web Researcher Agent
     description: An autonomous agent that searches the web and fetches pages to research a topic and provide a comprehensive answer.
     component: research-agent

@@ -8,6 +8,7 @@ controller:
 
 workflows:
   - id: main
+    default: true
     title: Disk Analyzer Agent
     description: An autonomous agent that uses shell commands to analyze system disk usage and provide detailed recommendations.
     component: disk-analyzer

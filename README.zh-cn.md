@@ -104,6 +104,12 @@ controller:
   webui:
     port: 8081
 
+workflows:
+  - id: chat
+    default: true
+    jobs:
+      - component: chatgpt
+
 components:
   - id: chatgpt
     type: http-client
@@ -117,12 +123,6 @@ components:
       messages:
         - role: user
           content: ${input.prompt}
-
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
 ```
 
 创建 `.env` 文件：

@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriver
 from mindor.dsl.schema.component import ComponentConfig
@@ -38,14 +38,14 @@ class ControllerWebUI(AsyncService):
         if self.config.driver == ControllerWebUIDriver.GRADIO:
             blocks = GradioWebUIBuilder().build(
                 workflow_schemas=self.workflow_schemas,
-                workflow_runner=self._run_workflow
+                runner=lambda: self.runner
             )
             self.app = mount_gradio_app(self.app, blocks, path="")
             return
 
         if self.config.driver == ControllerWebUIDriver.STATIC:
             static_files = StaticFiles(
-                directory=Path(self.config.static_dir).resolve(), 
+                directory=Path(self.config.static_dir).resolve(),
                 html=True
             )
             self.app.mount("/", static_files, name="static")
@@ -65,12 +65,7 @@ class ControllerWebUI(AsyncService):
             await self.runner.close()
             self.server = None
             self.runner = None
-    
+
     async def _shutdown(self) -> None:
         if self.server:
             self.server.should_exit = True
-
-    async def _run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
-        if self.runner:
-            return await self.runner.run_workflow(workflow_id, input, self.workflow_schemas[workflow_id])
-        return None

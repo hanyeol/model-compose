@@ -29,7 +29,7 @@ class WorkflowRunRequestBody(BaseModel):
 
 class WorkflowResumeRequestBody(BaseModel):
     job_id: str
-    data: Optional[Any] = None
+    answer: Optional[Any] = None
 
 class InterruptResult(BaseModel):
     job_id: str
@@ -43,9 +43,7 @@ class InterruptResult(BaseModel):
             job_id=instance.job_id,
             phase=instance.phase,
             message=instance.message,
-            metadata=instance.metadata,
-            input=instance.input,
-            output=instance.output
+            metadata=instance.metadata
         )
 
 class TaskResult(BaseModel):
@@ -217,7 +215,7 @@ class HttpServerController(ControllerService):
             body: WorkflowResumeRequestBody = Body(...)
         ):
             try:
-                state = await self.resume_workflow(task_id, body.job_id, body.data)
+                state = await self.resume_workflow(task_id, body.job_id, body.answer)
                 return JSONResponse(content=TaskResult.to_dict(state))
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
@@ -290,7 +288,7 @@ class HttpServerController(ControllerService):
 
     def _render_task_output(self, state: TaskState) -> Response:
         if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED ]:
-            raise HTTPException(status_code=202, detail="Task is still in progress.")
+            return JSONResponse(status_code=202, content=TaskResult.to_dict(state))
 
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))

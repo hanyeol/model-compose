@@ -18,7 +18,7 @@ def prompt_for_interrupt(state: TaskState) -> Any:
         click.echo(json.dumps(interrupt.metadata, indent=2, ensure_ascii=False), err=True)
 
     click.echo("", err=True)
-    click.echo("✋ Action required — press Enter to continue, or type a response (JSON or text):", err=True)
+    click.echo("✋ Action required — press Enter to continue, or type an answer (JSON or text):", err=True)
     raw = input()
 
     if not raw:

@@ -17,6 +17,15 @@ class McpControllerClient(ControllerClient):
     async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
         return await self._call_tool(workflow_id or "__workflow__", input, workflow)
 
+    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> dict:
+        raise NotImplementedError("MCP client does not support workflow interrupts")
+
+    async def wait_for_completion(self, task_id: str) -> dict:
+        raise NotImplementedError("MCP client does not support workflow interrupts")
+
+    async def get_task_output(self, task_id: str) -> Any:
+        raise NotImplementedError("MCP client does not support workflow interrupts")
+
     async def close(self) -> None:
         await self.client.close()
 

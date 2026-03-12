@@ -1,6 +1,10 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
+
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file, BytesStreamResource
 from mindor.core.utils.http_request import create_upload_file
@@ -10,6 +14,9 @@ from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
 import gradio as gr
 import json, re
+
+if TYPE_CHECKING:
+    from mindor.core.controller.runner import ControllerRunner
 
 _variable_name_regex = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
@@ -22,40 +29,62 @@ class GradioWebUIBuilder:
     def __init__(self):
         self.field_resolver: FieldResolver = FieldResolver()
 
-    def build(self, workflow_schemas: Dict[str, WorkflowSchema], workflow_runner: Callable[[Optional[str], Any], Awaitable[Any]]) -> gr.Blocks:
+    def build(self, workflow_schemas: Dict[str, WorkflowSchema], runner: Callable[[], ControllerRunner]) -> gr.Blocks:
         with gr.Blocks() as blocks:
             for workflow_id, workflow in workflow_schemas.items():
-                async def _run_workflow(input: Any, workflow_id=workflow_id) -> Any:
-                    return await workflow_runner(workflow_id, input)
-
                 if len(workflow_schemas) > 1:
                     with gr.Tab(label=workflow.name or workflow_id):
-                        self._build_workflow_section(workflow, _run_workflow)
+                        self._build_workflow_section(workflow_id, workflow, runner)
                 else:
-                    self._build_workflow_section(workflow, _run_workflow)
+                    self._build_workflow_section(workflow_id, workflow, runner)
 
         return blocks
 
-    def _build_workflow_section(self, workflow: WorkflowSchema, runner: Callable[[Any], Awaitable[Any]]) -> gr.Column:
+    def _build_workflow_section(self,
+        workflow_id: str,
+        workflow: WorkflowSchema,
+        runner: Callable[[], ControllerRunner]
+    ) -> gr.Column:
         with gr.Column() as section:
             gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")
 
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
 
-            gr.Markdown("#### 📥 Input Parameters")
+            gr.Markdown("#### Input Parameters")
             input_components = [ self._build_input_component(variable) for variable in workflow.input ]
+            
             run_button = gr.Button("🚀 Run Workflow", variant="primary")
 
-            gr.Markdown("#### 📤 Output Values")
+            # Interrupt panel (hidden by default)
+            interrupt_state = gr.State(value=None)
+            with gr.Column(visible=False) as interrupt_panel:
+                interrupt_message = gr.Markdown("")
+                interrupt_metadata = gr.JSON(label="Metadata", visible=False)
+                interrupt_answer = gr.Textbox(label="Answer", lines=2, placeholder="Press Resume to continue, or type an answer (JSON or text)")
+                resume_button = gr.Button("▶️ Resume", variant="primary")
+
+            interrupt_outputs = [ interrupt_state, interrupt_panel, interrupt_message, interrupt_metadata, interrupt_answer ]
+
+            gr.Markdown("#### Output Values")
             output_components = [ self._build_output_component(variable) for variable in workflow.output ]
 
             if not output_components:
                 output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
+            output_components = self._flatten_output_components(output_components)
+
             async def _run_workflow(*args):
-                input = await self._build_input_value(args, workflow.input)
-                output = await runner(input)
+                input  = await self._build_input_value(args, workflow.input)
+                output = await runner().run_workflow(workflow_id, input, workflow)
+
+                # Check if the result is an interrupted TaskResult
+                if isinstance(output, dict) and output.get("status") == "interrupted" and "task_id" in output:
+                    yield self._build_interrupt_updates(output) + tuple(gr.update() for _ in output_components)
+                    return
+
+                # Clear interrupt panel for normal results
+                clear_interrupt = self._clear_interrupt_updates()
 
                 if len(workflow.output) == 1 and self._is_streaming_variable(workflow.output[0]):
                     buffer = "" if workflow.output[0].type == WorkflowVariableType.TEXT else []
@@ -65,16 +94,64 @@ class GradioWebUIBuilder:
                             buffer += chunk[0] or ""
                         else:
                             buffer.append(chunk[0])
-                        yield buffer
+                        yield clear_interrupt + (buffer,)
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
-                    yield output[0] if len(output) == 1 else output
+                    result = output[0] if len(output) == 1 else output
+                    if isinstance(result, (list, tuple)):
+                        yield clear_interrupt + tuple(result)
+                    else:
+                        yield clear_interrupt + (result,)
+
+            async def _resume_workflow(state: Optional[Dict[str, str]], answer_text: str):
+                task_id, job_id = state["task_id"], state["job_id"]
+
+                # Parse answer: try JSON first, fallback to string
+                answer = answer_text
+                if answer_text:
+                    try:
+                        answer = json.loads(answer_text)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
+                result = await runner().wait_for_completion(task_id)
+
+                if result.get("status") == "interrupted":
+                    yield self._build_interrupt_updates(result) + tuple(gr.update() for _ in output_components)
+                    return
+
+                clear_interrupt = self._clear_interrupt_updates()
+
+                if result.get("status") == "failed":
+                    raise gr.Error(str(result.get("error", "Workflow failed")))
+
+                # Completed — fetch output
+                output = await runner().get_task_output(task_id)
+                if workflow.output and output is not None:
+                    output = await self._flatten_output_value(output, workflow.output)
+                    result = output[0] if len(output) == 1 else output
+                else:
+                    result = output
+
+                if result is None:
+                    yield clear_interrupt + tuple(gr.update() for _ in output_components)
+                elif isinstance(result, (list, tuple)):
+                    yield clear_interrupt + tuple(result)
+                else:
+                    yield clear_interrupt + (result,)
 
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=self._flatten_output_components(output_components)
+                outputs=interrupt_outputs + output_components
+            )
+
+            resume_button.click(
+                fn=_resume_workflow,
+                inputs=[interrupt_state, interrupt_answer],
+                outputs=interrupt_outputs + output_components
             )
 
         return section
@@ -148,6 +225,29 @@ class GradioWebUIBuilder:
 
         return value if value != "" else None
 
+    def _build_interrupt_updates(self, result: dict) -> tuple:
+        interrupt = result.get("interrupt", {})
+        state = { "task_id": result["task_id"], "job_id": interrupt.get("job_id") }
+        message = interrupt.get("message") or "The workflow is waiting for your input."
+        metadata = interrupt.get("metadata")
+
+        return (
+            state,
+            gr.update(visible=True),
+            gr.update(value=message),
+            gr.update(value=metadata, visible=metadata is not None),
+            gr.update(value=""),
+        )
+
+    def _clear_interrupt_updates(self) -> tuple:
+        return (
+            None,
+            gr.update(visible=False),
+            gr.update(value=""),
+            gr.update(value=None, visible=False),
+            gr.update(value=""),
+        )
+
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):
             groups: List[ComponentGroup] = []
@@ -196,7 +296,7 @@ class GradioWebUIBuilder:
             else:
                 flattened.append(item)
         return flattened
-    
+
     async def _flatten_output_value(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
         flattened = []
         for variable in variables:

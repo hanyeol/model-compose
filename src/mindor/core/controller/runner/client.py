@@ -8,7 +8,19 @@ class ControllerClient(ABC):
         self.config: ControllerConfig = config
 
     @abstractmethod
-    async def run_workflow(self, workflow_id: Optional[str], input: Any) -> Any:
+    async def run_workflow(self, workflow_id: Optional[str], input: Any, workflow: WorkflowSchema) -> Any:
+        pass
+
+    @abstractmethod
+    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> dict:
+        pass
+
+    @abstractmethod
+    async def wait_for_completion(self, task_id: str) -> dict:
+        pass
+
+    @abstractmethod
+    async def get_task_output(self, task_id: str) -> Any:
         pass
 
     @abstractmethod

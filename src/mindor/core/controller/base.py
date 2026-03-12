@@ -191,7 +191,7 @@ class ControllerService(AsyncService):
 
         return state
 
-    async def resume_workflow(self, task_id: str, job_id: str, data: Any = None) -> TaskState:
+    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> TaskState:
         with self.task_states_lock:
             state = self.task_states.get(task_id)
 
@@ -208,7 +208,7 @@ class ControllerService(AsyncService):
         if not handler:
             raise ValueError(f"No active interrupt handler for task '{task_id}'")
 
-        success = handler.resolve(task_id, job_id, data)
+        success = handler.resolve(task_id, job_id, answer)
         if not success:
             raise ValueError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
 

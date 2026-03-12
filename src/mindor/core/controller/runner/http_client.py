@@ -4,6 +4,7 @@ from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.http_client import HttpClient
 from .client import ControllerClient
 from starlette.datastructures import UploadFile
+import asyncio
 
 class HttpControllerClient(ControllerClient):
     def __init__(self, config: ControllerConfig):
@@ -30,6 +31,20 @@ class HttpControllerClient(ControllerClient):
             }
 
         return await self.client.request("/workflows/runs", "POST", None, body, headers)
+
+    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> dict:
+        body = { "job_id": job_id, "answer": answer }
+        return await self.client.request(f"/tasks/{task_id}/resume", "POST", None, body, { "Content-Type": "application/json" })
+
+    async def wait_for_completion(self, task_id: str) -> dict:
+        while True:
+            result = await self.client.request(f"/tasks/{task_id}", "GET")
+            if isinstance(result, dict) and result.get("status") in ("interrupted", "completed", "failed"):
+                return result
+            await asyncio.sleep(0.5)
+
+    async def get_task_output(self, task_id: str) -> Any:
+        return await self.client.request(f"/tasks/{task_id}", "GET", params={ "output_only": "true" })
 
     async def close(self) -> None:
         await self.client.close()

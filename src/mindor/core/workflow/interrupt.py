@@ -28,7 +28,7 @@ class InterruptHandler:
 
         return await point.future
 
-    def resolve(self, task_id: str, job_id: str, data: Any) -> bool:
+    def resolve(self, task_id: str, job_id: str, answer: Any) -> bool:
         with self._lock:
             point = self._pop_point(task_id, job_id)
 
@@ -36,7 +36,7 @@ class InterruptHandler:
             return False
 
         loop = point.future.get_loop()
-        loop.call_soon_threadsafe(point.future.set_result, data)
+        loop.call_soon_threadsafe(point.future.set_result, answer)
 
         return True
 

@@ -27,5 +27,14 @@ class ControllerRunner:
     async def run_workflow(self, workflow_id: Optional[str], input: Any, schema: WorkflowSchema) -> Any:
         return await self.client.run_workflow(workflow_id, input, schema)
 
+    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> dict:
+        return await self.client.resume_workflow(task_id, job_id, answer)
+
+    async def wait_for_completion(self, task_id: str) -> dict:
+        return await self.client.wait_for_completion(task_id)
+
+    async def get_task_output(self, task_id: str) -> Any:
+        return await self.client.get_task_output(task_id)
+
     async def close(self) -> None:
         await self.client.close()

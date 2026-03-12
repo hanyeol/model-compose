@@ -50,12 +50,12 @@ class McpServerController(ControllerService):
         self._configure_resume_tool()
 
     def _configure_resume_tool(self) -> None:
-        async def resume_workflow(task_id: str, job_id: str, data: str = "") -> List[ContentBlock]:
-            parsed_data = json.loads(data) if data else None
+        async def resume_workflow(task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
+            parsed_answer = json.loads(answer) if answer else None
             try:
-                await self.resume_workflow(task_id, job_id, parsed_data)
+                await self.resume_workflow(task_id, job_id, parsed_answer)
             except ValueError as e:
-                return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+                return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
 
             state = await self.wait_for_terminal_state(task_id)
             return await self._build_state_response(state)
@@ -64,7 +64,7 @@ class McpServerController(ControllerService):
             fn=resume_workflow,
             name="resume_workflow",
             title="Resume an interrupted workflow",
-            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.\n\nArgs:\n    task_id (str): The task ID of the interrupted workflow\n    job_id (str): The job ID where the interrupt occurred\n    data (str): Optional JSON string with modified data to resume with",
+            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.\n\nArgs:\n    task_id (str): The task ID of the interrupted workflow\n    job_id (str): The job ID where the interrupt occurred\n    answer (str): Optional JSON string with answer to resume with",
             annotations=None
         )
 

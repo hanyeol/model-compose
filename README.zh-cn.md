@@ -36,6 +36,12 @@
 ### 🔗 **通用 AI 服务集成**
 开箱即用连接任何 AI 提供商 — OpenAI、Anthropic Claude、Google Gemini、ElevenLabs、Stability AI、Replicate 或任何自定义 HTTP API。在单个工作流中混合和匹配服务。
 
+### 🤖 **智能体组件**
+构建将工作流作为工具使用的自主 AI 智能体。智能体能够推理、规划并通过动态调用其他工作流执行多步骤任务——全部通过 YAML 声明式定义。
+
+### ✋ **人机协作**
+通过中断配置为任何工作流添加审批关卡和用户输入步骤。工作流暂停后，通过 CLI、Web UI 或 API 提示用户输入，然后无缝恢复——非常适合审核、内容审查和监督式 AI 管道。
+
 ### 🖥️ **本地模型执行**
 在本地运行 HuggingFace 等平台提供的模型，原生支持 transformers、PyTorch 和模型服务框架。通过 LoRA/PEFT 微调模型，使用自定义数据集训练，全部通过 YAML 配置完成。
 

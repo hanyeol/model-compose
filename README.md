@@ -36,6 +36,12 @@ Define complex AI workflows entirely in YAML—no Python, no JavaScript, no codi
 ### 🔗 **Universal AI Service Integration**
 Connect to any AI provider out of the box—OpenAI, Anthropic Claude, Google Gemini, ElevenLabs, Stability AI, Replicate, or any custom HTTP API. Mix and match services in a single workflow.
 
+### 🤖 **Agent Components**
+Build autonomous AI agents that use workflows as tools. Agents can reason, plan, and execute multi-step tasks by dynamically invoking other workflows—all defined declaratively in YAML.
+
+### ✋ **Human-in-the-Loop**
+Add approval gates and user input steps to any workflow with interrupt configuration. Workflows pause, prompt for human input via CLI, Web UI, or API, and resume seamlessly—perfect for review, moderation, and supervised AI pipelines.
+
 ### 🖥️ **Local Model Execution**
 Run models from HuggingFace and other sources locally with native support for transformers, PyTorch, and model serving frameworks. Fine-tune models with LoRA/PEFT, train with custom datasets, all through YAML configuration.
 

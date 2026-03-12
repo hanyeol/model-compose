@@ -122,7 +122,11 @@ class WebScraperAction:
                                 await element.click()
                     else:
                         # No selector/xpath: find and submit the first form
-                        await page.evaluate("document.querySelector('form').submit()")
+                        element = await page.query_selector("form")
+                        if element:
+                            await element.evaluate("form => form.submit()")
+                        else:
+                            raise ValueError("No <form> element found on the page to submit")
 
                     # Wait for navigation or specific element after submit
                     if wait_for:
@@ -232,7 +236,7 @@ class WebScraperComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "playwright", "bs4", "lxml" ]
+        return [ "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:
         """Install playwright browsers after package installation."""

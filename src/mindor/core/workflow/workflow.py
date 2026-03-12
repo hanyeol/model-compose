@@ -178,8 +178,5 @@ class Workflow:
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()
 
-    def uses_interrupts(self) -> bool:
-        return any(getattr(job, "interrupt", None) for job in self.config.jobs)
-
 def create_workflow(id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs) -> Workflow:
     return Workflow(id, config, global_configs)

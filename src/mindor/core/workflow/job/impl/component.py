@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.job import ActionJobConfig, ActionInterruptPointConfig, JobType
+from mindor.dsl.schema.job import ComponentJobConfig, ComponentInterruptPointConfig, JobType
 from mindor.core.evaluator.condition import evaluate_condition
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
@@ -10,9 +10,9 @@ from ..base import Job, JobType, WorkflowContext, RoutingTarget, register_job
 from datetime import datetime
 import asyncio, ulid
 
-@register_job(JobType.ACTION)
-class ActionJob(Job):
-    def __init__(self, id: str, config: ActionJobConfig, global_configs: ComponentGlobalConfigs):
+@register_job(JobType.COMPONENT)
+class ComponentJob(Job):
+    def __init__(self, id: str, config: ComponentJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
@@ -28,7 +28,7 @@ class ActionJob(Job):
             run_id: str = ulid.ulid()
 
             job_time_tracker = TimeTracker()
-            logging.debug("[task-%s] Action 'run-%s' started for job '%s'", context.task_id, run_id, self.id)
+            logging.debug("[task-%s] Component 'run-%s' started for job '%s'", context.task_id, run_id, self.id)
 
             if self.config.interrupt and self.config.interrupt.before:
                 logging.info("[task-%s] Job '%s' interrupted at 'before' phase.", context.task_id, self.id)
@@ -46,7 +46,7 @@ class ActionJob(Job):
                     output = answer
                 context.register_source("output", output)
 
-            logging.debug("[task-%s] Action 'run-%s' completed in %.2f seconds.", context.task_id, run_id, job_time_tracker.elapsed())
+            logging.debug("[task-%s] Component 'run-%s' completed in %.2f seconds.", context.task_id, run_id, job_time_tracker.elapsed())
 
             output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
             outputs.append(output)
@@ -59,7 +59,7 @@ class ActionJob(Job):
 
         return output
 
-    async def _interrupt(self, context: WorkflowContext, phase: str, point: ActionInterruptPointConfig) -> Any:
+    async def _interrupt(self, context: WorkflowContext, phase: str, point: ComponentInterruptPointConfig) -> Any:
         if point.condition:
             input  = await context.render_variable(point.condition.input)
             value  = await context.render_variable(point.condition.value)
@@ -90,5 +90,5 @@ class ActionJob(Job):
     def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
         if isinstance(component, str):
             return ComponentResolver(self.global_configs.components).resolve(component)
-    
+
         return id, component

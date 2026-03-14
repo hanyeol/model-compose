@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.dsl.schema.job import ActionJobConfig, OutputJobConfig
+from mindor.dsl.schema.job import ComponentJobConfig, OutputJobConfig
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.component import ComponentResolver, ActionResolver
@@ -204,7 +204,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
         variables: List[WorkflowVariable] = []
 
         for job in workflow.jobs:
-            if isinstance(job, ActionJobConfig) and (not job.input or job.input == "${input}"):
+            if isinstance(job, ComponentJobConfig) and (not job.input or job.input == "${input}"):
                 if isinstance(job.component, str):
                     _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
                     if component:
@@ -245,12 +245,12 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 continue
 
             job_variables: List[WorkflowVariable] = variables
-            repeat_count: int = job.repeat_count if isinstance(job, ActionJobConfig) and isinstance(job.repeat_count, int) else 0
+            repeat_count: int = job.repeat_count if isinstance(job, ComponentJobConfig) and isinstance(job.repeat_count, int) else 0
 
             if repeat_count > 1:
                 variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
-            if isinstance(job, ActionJobConfig) and (not job.output or job.output == "${output}"):
+            if isinstance(job, ComponentJobConfig) and (not job.output or job.output == "${output}"):
                 if isinstance(job.component, str):
                     _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
                     if component:

@@ -1,5 +1,5 @@
 from .common import *
-from .action import *
+from .component import *
 from .delay import *
 from .if_ import *
 from .switch import *

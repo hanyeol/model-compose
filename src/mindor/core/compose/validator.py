@@ -1,6 +1,6 @@
 from typing import Dict, List, Set
 from mindor.dsl.schema.compose import ComposeConfig
-from mindor.dsl.schema.job.impl.action import ActionJobConfig
+from mindor.dsl.schema.job.impl.component import ComponentJobConfig
 from mindor.dsl.schema.action.impl.workflow import WorkflowActionConfig
 from mindor.dsl.schema.listener.impl.http_trigger import HttpTriggerListenerConfig
 from mindor.dsl.schema.component.impl.workflow import WorkflowComponentConfig
@@ -70,7 +70,7 @@ class ComposeValidator:
 
         for wi, workflow in enumerate(self.config.workflows):
             for ji, job in enumerate(workflow.jobs):
-                if not isinstance(job, ActionJobConfig):
+                if not isinstance(job, ComponentJobConfig):
                     continue
                 if not isinstance(job.component, str):
                     continue
@@ -91,7 +91,7 @@ class ComposeValidator:
 
         for wi, workflow in enumerate(self.config.workflows):
             for ji, job in enumerate(workflow.jobs):
-                if not isinstance(job, ActionJobConfig):
+                if not isinstance(job, ComponentJobConfig):
                     continue
 
                 action_ref = job.action

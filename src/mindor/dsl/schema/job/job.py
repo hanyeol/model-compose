@@ -4,7 +4,7 @@ from .impl import *
 
 JobConfig = Annotated[
     Union[ 
-        ActionJobConfig,
+        ComponentJobConfig,
         DelayJobConfig,
         IfJobConfig,
         SwitchJobConfig,

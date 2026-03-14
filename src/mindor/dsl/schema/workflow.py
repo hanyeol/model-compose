@@ -2,7 +2,6 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
-from mindor.dsl.utils.annotation import get_model_union_keys
 from .job import JobConfig, JobType, DelayJobMode
 
 class WorkflowVariableType(str, Enum):
@@ -79,16 +78,16 @@ class WorkflowConfig(BaseModel):
     @classmethod
     def inflate_single_job(cls, values: Dict[str, Any]):
         if "jobs" not in values:
-            job_keys = set(get_model_union_keys(JobConfig)) - set(WorkflowConfig.model_fields.keys())
-            if any(k in values for k in job_keys):
-                values["jobs"] = [ { k: values.pop(k) for k in job_keys if k in values } ]
+            job_values = values.pop("job", None)
+            if job_values:
+                values["jobs"] = [ job_values ]
         return values
 
     @classmethod
     def fill_missing_job_type(cls, jobs: List[Any]):
         for job in jobs:
             if "type" not in job:
-                job["type"] = JobType.ACTION
+                job["type"] = JobType.COMPONENT
 
     @classmethod
     def fill_missing_delay_job_mode(cls, jobs: List[Any]):

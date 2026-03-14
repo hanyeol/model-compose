@@ -31,6 +31,31 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
         else:
             return await self._serve_quick_tunnel()
 
+    async def _shutdown(self) -> None:
+        seen = set()
+        for process in self.processes.values():
+            if id(process) in seen:
+                continue
+            seen.add(id(process))
+
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    async with asyncio.timeout(5):
+                        await process.wait()
+                except TimeoutError:
+                    process.kill()
+                    await process.wait()
+
+        self.processes = None
+
+        if self._tmp_config_path:
+            try:
+                os.unlink(self._tmp_config_path)
+            except OSError:
+                pass
+            self._tmp_config_path = None
+
     async def _serve_quick_tunnel(self) -> Dict[int, str]:
         urls: Dict[int, str] = {}
 
@@ -113,31 +138,6 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
 
     def _is_named_tunnel(self) -> bool:
         return bool(self.config.token or self.config.tunnel)
-
-    async def _shutdown(self) -> None:
-        seen = set()
-        for process in self.processes.values():
-            if id(process) in seen:
-                continue
-            seen.add(id(process))
-
-            if process.returncode is None:
-                process.terminate()
-                try:
-                    async with asyncio.timeout(5):
-                        await process.wait()
-                except TimeoutError:
-                    process.kill()
-                    await process.wait()
-
-        self.processes = None
-
-        if self._tmp_config_path:
-            try:
-                os.unlink(self._tmp_config_path)
-            except OSError:
-                pass
-            self._tmp_config_path = None
 
     async def _wait_for_quick_tunnel_url(self, process: asyncio.subprocess.Process) -> Optional[str]:
         try:

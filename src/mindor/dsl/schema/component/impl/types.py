@@ -15,3 +15,4 @@ class ComponentType(str, Enum):
     IMAGE_PROCESSOR = "image-processor"
     WEB_SCRAPER     = "web-scraper"
     AGENT           = "agent"
+    WEB_BROWSER     = "web-browser"

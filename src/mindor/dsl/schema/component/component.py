@@ -16,7 +16,8 @@ ComponentConfig = Annotated[
         TextSplitterComponentConfig,
         ImageProcessorComponentConfig,
         WebScraperComponentConfig,
-        AgentComponentConfig
+        AgentComponentConfig,
+        WebBrowserComponentConfig
     ],
     Field(discriminator="type")
 ]

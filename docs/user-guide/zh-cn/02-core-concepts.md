@@ -140,7 +140,7 @@ workflows:
 
 ### Job 类型
 
-**1. Action Job(操作作业 - 默认)**
+**1. Component Job(组件作业 - 默认)**
 - 执行组件
 - 处理输入/输出
 - 最常见的类型

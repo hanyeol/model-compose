@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Text to Speech with Voice Cloning
   description: Clone a voice from reference audio and generate speech using Qwen3-TTS.
-  input: ${input}
-  output: ${output as audio}
+  job:
+    input: ${input}
+    output: ${output as audio}
 
 component:
   type: model

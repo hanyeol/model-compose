@@ -22,8 +22,9 @@ listener:
 workflow:
   title: Ngrok HTTP Tunnel Gateway Example
   description: Demonstrates using ngrok to expose local callback listener to external services
-  input: ${input}
-  output: ${output}
+  job:
+    input: ${input}
+    output: ${output}
 
 component:
   type: http-server

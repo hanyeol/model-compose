@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Generate Text Embedding
   description: Generate a text embedding vector using a sentence transformers model.
-  input: ${input}
-  output: 
-    embedding: ${output as json}
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
 
 component:
   type: model

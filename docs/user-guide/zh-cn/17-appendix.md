@@ -280,7 +280,7 @@ workflows:
 ```yaml
 # 1. 操作作业（默认 - 执行组件）
 - id: job1
-  type: action           # 可以省略（默认）
+  type: component        # 可以省略（默认）
   component: component-id
   action: action-id      # 可选：用于多操作组件
   input: ${input}

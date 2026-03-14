@@ -10,57 +10,63 @@ workflows:
   - id: label-detection
     title: Detect Labels in Image
     description: Detect and extract labels from an image using Google Cloud Vision API.
-    action: label-detection
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
     default: true
+    job:
+      action: label-detection
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
   - id: text-detection
     title: Detect Text in Image (OCR)
     description: Extract text from an image using Optical Character Recognition.
-    action: text-detection
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
+    job:
+      action: text-detection
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
   - id: face-detection
     title: Detect Faces in Image
     description: Detect faces and facial features in an image.
-    action: face-detection
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
+    job:
+      action: face-detection
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
   - id: object-localization
     title: Localize Objects in Image
     description: Detect and localize multiple objects in an image.
-    action: object-localization
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
+    job:
+      action: object-localization
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
   - id: landmark-detection
     title: Detect Landmarks in Image
     description: Detect popular landmarks in an image.
-    action: landmark-detection
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
+    job:
+      action: landmark-detection
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
   - id: logo-detection
     title: Detect Logos in Image
     description: Detect company logos in an image.
-    action: logo-detection
-    input:
-      image: ${input.image as image}
-      max_results: ${input.max_results as integer | 10}
-    output: ${output}
+    job:
+      action: logo-detection
+      input:
+        image: ${input.image as image}
+        max_results: ${input.max_results as integer | 10}
+      output: ${output}
 
 component:
   type: http-client

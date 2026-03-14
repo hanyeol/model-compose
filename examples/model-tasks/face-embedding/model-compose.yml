@@ -9,9 +9,10 @@ controller:
 workflow:
   title:
   description:
-  input: ${input}
-  output: 
-    embedding: ${output as json}
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
 
 component:
   type: model

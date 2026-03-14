@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Upscale Image
   description: Upscale input images using a pretrained super-resolution model.
-  input: ${input}
-  output: ${output as image}
+  job:
+    input: ${input}
+    output: ${output as image}
 
 component:
   type: model

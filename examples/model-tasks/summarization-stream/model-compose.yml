@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Summarize Text
   description: Generate a concise and informative summary from a longer input text using a pretrained language model.
-  input: ${input}
-  output: ${output as text;sse-text}
+  job:
+    input: ${input}
+    output: ${output as text;sse-text}
 
 component:
   type: model

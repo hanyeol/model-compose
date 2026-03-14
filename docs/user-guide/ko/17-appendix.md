@@ -278,9 +278,9 @@ workflows:
 
 **작업 타입**:
 ```yaml
-# 1. Action 작업 (기본 - 컴포넌트 실행)
+# 1. Component 작업 (기본 - 컴포넌트 실행)
 - id: job1
-  type: action           # 생략 가능 (기본값)
+  type: component        # 생략 가능 (기본값)
   component: component-id
   action: action-id      # 선택: 다중 액션 컴포넌트용
   input: ${input}

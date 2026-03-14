@@ -56,14 +56,14 @@ workflows:
 
 Workflows support different job types for various execution patterns:
 
-### Action Job (`action`)
+### Component Job (`component`)
 
 Execute a component action - the most common job type.
 
 ```yaml
 jobs:
   - id: api-call
-    type: action
+    type: component
     component: http-client
     action: post-data
     input:
@@ -74,7 +74,7 @@ jobs:
 **Configuration:**
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | `action` | Job type (can be omitted, defaults to action) |
+| `type` | string | `component` | Job type (can be omitted, defaults to component) |
 | `component` | string/object | `"__default__"` | Component to execute |
 | `action` | string | `"__default__"` | Action to invoke on the component |
 | `input` | any | `null` | Input data for the component |

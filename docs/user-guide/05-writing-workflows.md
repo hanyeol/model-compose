@@ -403,18 +403,18 @@ model-compose provides various job types to support different task patterns.
 
 | Type | Purpose | Description |
 |------|---------|-------------|
-| `action` | Component execution | Invoke a component to perform a task (default type) |
+| `component` | Component execution | Invoke a component to perform a task (default type) |
 | `if` | Conditional branching | Route to different jobs based on a condition |
 | `switch` | Multi-way branching | Route to one of many paths based on a value |
 | `delay` | Wait | Wait for a specified duration |
 | `filter` | Data restructuring | Extract and restructure data into a new shape |
 | `random-router` | Random routing | Randomly select one job |
 
-> **Note**: If `type` is not specified, it defaults to `action`.
+> **Note**: If `type` is not specified, it defaults to `component`.
 
-### Action Job
+### Component Job
 
-The default job type that executes a component. If `type` is omitted, the job is treated as an action job.
+The default job type that executes a component. If `type` is omitted, the job is treated as a component job.
 
 #### Fields
 
@@ -433,7 +433,7 @@ The default job type that executes a component. If `type` is omitted, the job is
 ```yaml
 jobs:
   - id: my-task
-    type: action  # Optional (default)
+    type: component  # Optional (default)
     component: my-component
     action: my-action  # For multi-action components
     input: ${input}
@@ -478,7 +478,7 @@ repeat_count: ${input.count}
 
 #### Interrupt (Human-in-the-Loop)
 
-Action jobs support an `interrupt` field that pauses workflow execution at defined points and waits for external input before continuing. This enables human-in-the-loop patterns such as approval gates, data review, or interactive editing.
+Component jobs support an `interrupt` field that pauses workflow execution at defined points and waits for external input before continuing. This enables human-in-the-loop patterns such as approval gates, data review, or interactive editing.
 
 **Basic structure:**
 

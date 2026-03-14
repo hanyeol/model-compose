@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Text to Speech with Preset Voice
   description: Generate speech audio from text using a preset voice with Qwen3-TTS.
-  input: ${input}
-  output: ${output as audio}
+  job:
+    input: ${input}
+    output: ${output as audio}
 
 component:
   type: model

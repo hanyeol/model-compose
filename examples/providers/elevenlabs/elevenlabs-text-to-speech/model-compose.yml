@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Generate Speech with ElevenLabs AI
   description: Convert input text into realistic speech using ElevenLabs' multilingual voice model.
-  component: elevenlabs-text-to-speech
-  input: ${input}
-  output: ${output as audio}
+  job:
+    component: elevenlabs-text-to-speech
+    input: ${input}
+    output: ${output as audio}
 
 components:
   - id: elevenlabs-text-to-speech

@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Translate Text
   description: Translate the input text into another language using a pretrained translation model.
-  input: ${input}
-  output:
-    translated: ${output}
+  job:
+    input: ${input}
+    output:
+      translated: ${output}
 
 component:
   type: model

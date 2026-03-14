@@ -403,18 +403,18 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 
 | 类型 | 用途 | 说明 |
 |------|---------|-------------|
-| `action` | 组件执行 | 调用组件执行任务（默认类型） |
+| `component` | 组件执行 | 调用组件执行任务（默认类型） |
 | `if` | 条件分支 | 根据条件路由到不同的作业 |
 | `switch` | 多路分支 | 根据值路由到多个路径之一 |
 | `delay` | 等待 | 等待指定的持续时间 |
 | `filter` | 数据重组 | 提取和重组数据为新形状 |
 | `random-router` | 随机路由 | 随机选择一个作业 |
 
-> **注意**: 如果未指定 `type`，则默认为 `action`。
+> **注意**: 如果未指定 `type`，则默认为 `component`。
 
-### Action 作业
+### Component 作业
 
-执行组件的默认作业类型。省略 `type` 时，作业将作为 action 作业处理。
+执行组件的默认作业类型。省略 `type` 时，作业将作为 component 作业处理。
 
 #### 字段
 
@@ -433,7 +433,7 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 ```yaml
 jobs:
   - id: my-task
-    type: action  # 可选（默认）
+    type: component  # 可选（默认）
     component: my-component
     action: my-action  # 对于多动作组件
     input: ${input}
@@ -478,7 +478,7 @@ repeat_count: ${input.count}
 
 #### Interrupt（人机协作）
 
-Action 作业支持 `interrupt` 字段，可在指定的点暂停工作流执行，等待外部输入后继续。这使得审批门控、数据审核、交互式编辑等人机协作模式成为可能。
+Component 作业支持 `interrupt` 字段，可在指定的点暂停工作流执行，等待外部输入后继续。这使得审批门控、数据审核、交互式编辑等人机协作模式成为可能。
 
 **基本结构：**
 

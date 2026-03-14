@@ -1,0 +1,221 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    default: true
+    title: Web3 Airdrop Hunter Agent
+    description: An autonomous agent that uses APIs and web scraping to find the latest airdrop opportunities and DeFi yield information.
+    component: hunter-agent
+    input:
+      question: ${input.question as text}
+    output:
+      answer: ${output[-1].content as markdown}
+      messages: ${output as json}
+
+  - id: fetch-defi-yields
+    private: true
+    name: fetch_defi_yields
+    description: Fetch top DeFi yield farming pools from DeFiLlama API. Returns a JSON list of pools sorted by TVL, each with project, chain, symbol, tvlUsd, apy, apyBase, apyReward, and pool URL. This is the most reliable data source for DeFi yields.
+    jobs:
+      - component: defillama-yields
+        input:
+          chain: ${input.chain | all @(description Filter by blockchain chain name e.g. "Ethereum", "Arbitrum", "Solana". Use "all" for all chains.)}
+        output: ${output as json}
+
+  - id: fetch-defi-protocols
+    private: true
+    name: fetch_defi_protocols
+    description: Fetch top DeFi protocols from DeFiLlama API. Returns a JSON list of protocols with name, chain, tvl, change_1d, change_7d, and category. Useful for understanding the DeFi landscape.
+    jobs:
+      - component: defillama-protocols
+        input:
+          category: ${input.category | all @(description Filter by category e.g. "Dexes", "Lending", "Bridge". Use "all" for all categories.)}
+        output: ${output as json}
+
+  - id: fetch-hottest-airdrops
+    private: true
+    name: fetch_hottest_airdrops
+    description: Fetch the hottest airdrops list from airdrops.io. Returns a JSON list of airdrop project names currently trending. Use this as your primary source for airdrop information.
+    jobs:
+      - id: titles
+        component: airdrops-io-titles
+        input:
+          query: ${input.query | all @(description Ignored, pass any value)}
+        output:
+          airdrop_names: ${output as json}
+
+  - id: fetch-page
+    private: true
+    name: fetch_page
+    description: Fetch and extract the main text content from a web page URL. Use this to read the contents of a crypto information page. Note that some sites (CoinMarketCap, DappRadar) may block scraping with Cloudflare, so prefer API-based tools when available.
+    jobs:
+      - component: page-scraper
+        input:
+          url: ${input.url @(description The URL of the web page to fetch)}
+        output: ${output as text}
+
+  - id: extract-links
+    private: true
+    name: extract_links
+    description: Extract all hyperlinks (href URLs) from a web page. Returns a JSON list of URLs found on the page.
+    jobs:
+      - component: link-scraper
+        input:
+          url: ${input.url @(description The URL of the web page to extract links from)}
+        output: ${output as json}
+
+  - id: extract-elements
+    private: true
+    name: extract_elements
+    description: Extract text content from specific elements on a web page using a CSS selector. Returns a JSON list of matched element texts.
+    jobs:
+      - component: element-scraper
+        input:
+          url: ${input.url @(description The URL of the web page)}
+          selector: ${input.selector @(description CSS selector to target elements, e.g. "h2", "table tr", "li")}
+        output: ${output as json}
+
+components:
+  - id: hunter-agent
+    type: agent
+    tools:
+      - fetch-hottest-airdrops
+      - fetch-defi-yields
+      - fetch-defi-protocols
+      - fetch-page
+      - extract-links
+      - extract-elements
+    max_iteration_count: 10
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You are a Web3 airdrop and DeFi yield research agent. Your job is to gather crypto information and compile a comprehensive list of current opportunities.
+
+        ## Available Tools & Data Sources
+
+        ### Airdrop tools:
+        - fetch_hottest_airdrops: Get trending airdrop project names from airdrops.io (no parameters needed, just pass any dummy value)
+
+        ### DeFi API tools (reliable):
+        - fetch_defi_yields: Get top DeFi yield pools from DeFiLlama API (APY, TVL, chain, protocol)
+        - fetch_defi_protocols: Get top DeFi protocols from DeFiLlama API (TVL, category, chain)
+
+        ### General web scraping tools:
+        - fetch_page: Get text content from a URL (use for airdrop detail pages on airdrops.io)
+        - extract_elements: Extract elements using CSS selectors
+        - extract_links: Get all links from a page
+
+        IMPORTANT: Do NOT scrape CoinMarketCap, DappRadar, or DeFiLlama web pages — they use Cloudflare. Use the API tools instead.
+
+        ## Strategy
+        1. Start with fetch_hottest_airdrops to get current trending airdrops.
+        2. Use fetch_defi_yields to get DeFi yield data.
+        3. Optionally use fetch_page on specific airdrops.io detail pages (e.g. https://airdrops.io/projectname/) for more details.
+        4. If scraping, use simple tag-based CSS selectors. DO NOT guess class names.
+        5. If a scrape fails or returns empty, skip and move on.
+        6. Compile all gathered data into a well-organized report.
+
+        ## Output Format
+        Present your findings as a well-organized markdown report with:
+        - Active airdrops with project name, estimated value, requirements, and deadline if available
+        - Top DeFi yield opportunities with protocol, chain, APY, and TVL
+        - Risk notes or caveats for each opportunity
+        - Source attribution for each piece of data
+
+        Always remind users to DYOR (Do Your Own Research) and verify information before participating.
+      user_prompt: ${input.question}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  # --- API-based components (reliable, no Cloudflare issues) ---
+
+  - id: defillama-yields
+    type: http-client
+    action:
+      endpoint: https://yields.llama.fi/pools
+      method: GET
+      output:
+        pools: ${response.data[:20]}
+
+  - id: defillama-protocols
+    type: http-client
+    action:
+      endpoint: https://api.llama.fi/protocols
+      method: GET
+      output:
+        protocols: ${response[:20]}
+
+  # --- Airdrop scraping components ---
+
+  - id: airdrops-io-titles
+    type: web-scraper
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+    timeout: "30s"
+    action:
+      url: https://airdrops.io
+      selector: h3
+      extract_mode: text
+      multiple: true
+      output: ${result}
+
+  # --- General web scraping components ---
+
+  - id: page-scraper
+    type: web-scraper
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+    timeout: "30s"
+    action:
+      url: ${input.url}
+      selector: body
+      extract_mode: text
+      output: ${result}
+
+  - id: link-scraper
+    type: web-scraper
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+    timeout: "30s"
+    action:
+      url: ${input.url}
+      selector: a[href]
+      extract_mode: attribute
+      attribute: href
+      multiple: true
+      output: ${result}
+
+  - id: element-scraper
+    type: web-scraper
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+    timeout: "30s"
+    action:
+      url: ${input.url}
+      selector: ${input.selector}
+      extract_mode: text
+      multiple: true
+      output: ${result}

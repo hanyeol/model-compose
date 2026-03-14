@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Generate Chat Messages
   description: Generate chat messages based on a given role message using a pretrained language model.
-  input: ${input}
-  output:
-    generated: ${output}
+  job:
+    input: ${input}
+    output:
+      generated: ${output}
 
 component:
   type: model

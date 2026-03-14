@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Chat with OpenAI GPT-4o
   description: Generate text responses using OpenAI’s GPT-4o
-  input: ${input}
-  output: ${output as text;sse-text}
+  job:
+    input: ${input}
+    output: ${output as text;sse-text}
 
 component:
   type: http-client

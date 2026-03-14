@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Chat with Grok
   description: Generate text responses using Grok
-  input: ${input}
-  output: ${output}
+  job:
+    input: ${input}
+    output: ${output}
 
 component:
   type: http-client

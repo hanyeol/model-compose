@@ -28,8 +28,9 @@ listener:
 workflow:
   title: SSH Tunnel Gateway Example
   description: Demonstrates using SSH tunnel to expose local callback listener to external services
-  input: ${input}
-  output: ${output}
+  job:
+    input: ${input}
+    output: ${output}
 
 component:
   type: http-server

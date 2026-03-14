@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Generate Text from Image
   description: Generate text based on a given image using a pretrained vision model.
-  input: ${input}
-  output:
-    generated: ${output}
+  job:
+    input: ${input}
+    output:
+      generated: ${output}
 
 component:
   type: model

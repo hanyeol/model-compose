@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Text to Speech with Qwen3-TTS
   description: Generate speech audio from text using Qwen3-TTS via vLLM-Omni
-  input: ${input}
-  output: ${output as audio}
+  job:
+    input: ${input}
+    output: ${output as audio}
 
 component:
   type: http-server

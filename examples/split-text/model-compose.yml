@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Text Chunk Splitter
   description: Splits input text into smaller chunks based on separators with configurable overlap.
-  input: ${input}
-  output: ${output as json}
+  job:
+    input: ${input}
+    output: ${output as json}
 
 component:
   type: text-splitter

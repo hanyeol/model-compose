@@ -10,82 +10,92 @@ workflows:
   - id: resize
     title: Resize Image
     description: Resize image with fit, fill, or stretch mode
-    component: image-processor
-    action: resize
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: resize
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: crop
     title: Crop Image
     description: Crop a rectangular region from an image
-    component: image-processor
-    action: crop
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: crop
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: rotate
     title: Rotate Image
     description: Rotate image by a specified angle
-    component: image-processor
-    action: rotate
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: rotate
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: flip
     title: Flip Image
     description: Flip image horizontally or vertically
-    component: image-processor
-    action: flip
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: flip
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: grayscale
     title: Convert to Grayscale
     description: Convert image to grayscale
-    component: image-processor
-    action: grayscale
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: grayscale
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: blur
     title: Blur Image
     description: Apply Gaussian blur to image
-    component: image-processor
-    action: blur
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: blur
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: sharpen
     title: Sharpen Image
     description: Enhance image sharpness
-    component: image-processor
-    action: sharpen
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: sharpen
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: adjust-brightness
     title: Adjust Brightness
     description: Adjust image brightness
-    component: image-processor
-    action: adjust-brightness
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: adjust-brightness
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: adjust-contrast
     title: Adjust Contrast
     description: Adjust image contrast
-    component: image-processor
-    action: adjust-contrast
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: adjust-contrast
+      input: ${input}
+      output: ${output as image;base64}
 
   - id: adjust-saturation
     title: Adjust Saturation
     description: Adjust image saturation
-    component: image-processor
-    action: adjust-saturation
-    input: ${input}
-    output: ${output as image;base64}
+    job:
+      component: image-processor
+      action: adjust-saturation
+      input: ${input}
+      output: ${output as image;base64}
 
 components:
   - id: image-processor

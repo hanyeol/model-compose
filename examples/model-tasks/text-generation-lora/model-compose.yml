@@ -9,9 +9,10 @@ controller:
 workflow:
   title: Generate Text with LoRA Adapters
   description: Generate text using a base model enhanced with multiple LoRA adapters for style and domain adaptation.
-  input: ${input}
-  output:
-    generated: ${output}
+  job:
+    input: ${input}
+    output:
+      generated: ${output}
 
 component:
   type: model

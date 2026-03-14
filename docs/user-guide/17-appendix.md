@@ -279,9 +279,9 @@ workflows:
 
 **Job Types**:
 ```yaml
-# 1. Action job (default - executes component)
+# 1. Component job (default - executes component)
 - id: job1
-  type: action           # Can be omitted (default)
+  type: component        # Can be omitted (default)
   component: component-id
   action: action-id      # Optional: for multi-action components
   input: ${input}

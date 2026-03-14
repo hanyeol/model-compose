@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Text to Speech with Voice Design
   description: Design a new voice from a description and generate speech using Qwen3-TTS.
-  input: ${input}
-  output: ${output as audio}
+  job:
+    input: ${input}
+    output: ${output as audio}
 
 component:
   type: model

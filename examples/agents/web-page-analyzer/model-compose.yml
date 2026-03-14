@@ -1,0 +1,121 @@
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    default: true
+    title: Web Page Analyzer Agent
+    description: An agent that scrapes and analyzes web pages using web-scraper tools. Give it a URL and a question about the page.
+    component: analyzer-agent
+    input:
+      question: ${input.question as text}
+    output:
+      answer: ${output[-1].content as markdown}
+      messages: ${output as json}
+
+  - id: fetch-page
+    private: true
+    name: fetch_page
+    description: Fetch and extract the main text content from a web page URL.
+    jobs:
+      - component: page-scraper
+        input:
+          url: ${input.url @(description The URL of the web page to fetch)}
+        output: ${output as text}
+
+  - id: extract-links
+    private: true
+    name: extract_links
+    description: Extract all hyperlinks (href URLs) from a web page. Returns a JSON list of URLs found on the page.
+    jobs:
+      - component: link-scraper
+        input:
+          url: ${input.url @(description The URL of the web page to extract links from)}
+        output: ${output as json}
+
+  - id: extract-elements
+    private: true
+    name: extract_elements
+    description: Extract text content from specific elements on a web page using a CSS selector. Returns a JSON list of matched element texts.
+    jobs:
+      - component: element-scraper
+        input:
+          url: ${input.url @(description The URL of the web page)}
+          selector: ${input.selector @(description CSS selector to target elements, e.g. "h2", ".title", "#main p")}
+        output: ${output as json}
+
+components:
+  - id: analyzer-agent
+    type: agent
+    tools:
+      - fetch-page
+      - extract-links
+      - extract-elements
+    max_iteration_count: 10
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You are a web page analysis assistant. You have tools to scrape and analyze web pages:
+        - fetch_page: Get the full text content of a page
+        - extract_links: Get all links from a page
+        - extract_elements: Extract specific elements using CSS selectors (e.g. "h2", "article p", ".summary")
+
+        Strategy:
+        1. Always start with fetch_page to get the full text content and understand the page structure.
+        2. If you need to extract specific elements with extract_elements but don't know the exact CSS selector, DO NOT guess class names. Instead, use simple tag-based selectors first (e.g. "h1", "h2", "p", "li") or broad selectors (e.g. "a", "table tr").
+        3. If a selector returns empty results, try a simpler/broader selector rather than guessing another class name.
+        4. Use extract_links to get all URLs from a page when needed.
+
+        Provide your analysis in a clear, well-organized format.
+      user_prompt: ${input.question}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: page-scraper
+    type: web-scraper
+    action:
+      url: ${input.url}
+      selector: body
+      extract_mode: text
+      output: ${result}
+
+  - id: link-scraper
+    type: web-scraper
+    action:
+      url: ${input.url}
+      selector: a[href]
+      extract_mode: attribute
+      attribute: href
+      multiple: true
+      output: ${result}
+
+  - id: element-scraper
+    type: web-scraper
+    action:
+      url: ${input.url}
+      selector: ${input.selector}
+      extract_mode: text
+      multiple: true
+      output: ${result}

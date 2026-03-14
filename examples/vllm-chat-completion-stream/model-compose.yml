@@ -9,8 +9,9 @@ controller:
 workflow:
   title: Chat with vLLM server
   description: Generate text responses using vLLM server
-  input: ${input}
-  output: ${output as text;sse-text}
+  job:
+    input: ${input}
+    output: ${output as text;sse-text}
 
 component:
   type: http-server

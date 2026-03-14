@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from typing import Optional, Dict, List, Any, Callable
 from .websocket_client import WebSocketClient
 import aiohttp, asyncio, itertools
-
 
 class CdpClient:
     """
@@ -47,7 +48,7 @@ class CdpClient:
         future: asyncio.Future = loop.create_future()
         self._pending[cmd_id] = future
 
-        message = {"id": cmd_id, "method": method, "params": params or {}}
+        message = { "id": cmd_id, "method": method, "params": params or {} }
         await self._ws.send_message(message)
 
         try:
@@ -97,13 +98,13 @@ class CdpClient:
         port: int,
         target_index: int = 0,
         timeout: float = 30.0,
-    ) -> "CdpClient":
+    ) -> CdpClient:
         """Discover the debugger URL by querying /json on the HTTP DevTools port."""
         async with aiohttp.ClientSession() as session:
             async with session.get(f"http://{host}:{port}/json") as response:
                 targets = await response.json(content_type=None)
 
-        page_targets = [t for t in targets if t.get("type") == "page"]
+        page_targets = [ t for t in targets if t.get("type") == "page" ]
         if not page_targets:
             raise ConnectionError(f"No 'page' target found at {host}:{port}.")
         if target_index >= len(page_targets):

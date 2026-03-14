@@ -287,10 +287,89 @@ class WebBrowserSession:
         else:
             return f"""(function() {{ const els = {get_els}; return els.length ? ({get_els}).map({map_fn})[0] : null; }})()"""
 
+class WebBrowserAction:
+    def __init__(self, config: ActionConfig, default_timeout: float):
+        self.config: ActionConfig = config
+        self.default_timeout: float = default_timeout
+
+    async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
+        timeout_raw = await context.render_variable(self.config.timeout) if self.config.timeout else None
+        timeout = parse_duration(timeout_raw).total_seconds() if timeout_raw else self.default_timeout
+
+        result = await self._dispatch(context, session, timeout)
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+
+    async def _dispatch(self, context: ComponentActionContext, session: WebBrowserSession, timeout: float) -> Any:
+        action = self.config
+
+        if isinstance(action, WebBrowserNavigateActionConfig):
+            url = await context.render_variable(action.url)
+            wait_until = await context.render_variable(action.wait_until)
+            return await session.navigate(url, wait_until, timeout)
+
+        if isinstance(action, WebBrowserClickActionConfig):
+            selector = await context.render_variable(action.selector) if action.selector else None
+            xpath = await context.render_variable(action.xpath) if action.xpath else None
+            x = await context.render_variable(action.x) if action.x is not None else None
+            y = await context.render_variable(action.y) if action.y is not None else None
+            return await session.click(selector, xpath, x, y, timeout)
+
+        if isinstance(action, WebBrowserTypeActionConfig):
+            selector = await context.render_variable(action.selector) if action.selector else None
+            xpath = await context.render_variable(action.xpath) if action.xpath else None
+            text = await context.render_variable(action.text)
+            clear_first = await context.render_variable(action.clear_first)
+            return await session.type_text(selector, xpath, text, bool(clear_first), timeout)
+
+        if isinstance(action, WebBrowserScreenshotActionConfig):
+            full_page = await context.render_variable(action.full_page)
+            selector = await context.render_variable(action.selector) if action.selector else None
+            fmt = await context.render_variable(action.format)
+            quality = await context.render_variable(action.quality) if action.quality is not None else None
+            return await session.screenshot(bool(full_page), selector, fmt, quality)
+
+        if isinstance(action, WebBrowserEvaluateActionConfig):
+            expression = await context.render_variable(action.expression)
+            await_promise = await context.render_variable(action.await_promise)
+            return await session.evaluate(expression, bool(await_promise))
+
+        if isinstance(action, WebBrowserWaitForActionConfig):
+            selector = await context.render_variable(action.selector) if action.selector else None
+            xpath = await context.render_variable(action.xpath) if action.xpath else None
+            condition = await context.render_variable(action.condition)
+            return await session.wait_for(selector, xpath, condition, timeout)
+
+        if isinstance(action, WebBrowserExtractActionConfig):
+            selector = await context.render_variable(action.selector) if action.selector else None
+            xpath = await context.render_variable(action.xpath) if action.xpath else None
+            extract_mode = await context.render_variable(action.extract_mode)
+            attribute = await context.render_variable(action.attribute) if action.attribute else None
+            multiple = await context.render_variable(action.multiple)
+            return await session.extract(selector, xpath, extract_mode, attribute, bool(multiple))
+
+        if isinstance(action, WebBrowserGetCookiesActionConfig):
+            urls = await context.render_variable(action.urls) if action.urls else None
+            return await session.get_cookies(urls)
+
+        if isinstance(action, WebBrowserSetCookiesActionConfig):
+            cookies = await context.render_variable(action.cookies)
+            return await session.set_cookies(cookies)
+
+        if isinstance(action, WebBrowserScrollActionConfig):
+            selector = await context.render_variable(action.selector) if action.selector else None
+            x = await context.render_variable(action.x)
+            y = await context.render_variable(action.y)
+            return await session.scroll(selector, x, y)
+
+        raise ValueError(f"Unknown web-browser action: {action}")
+
 @register_component(ComponentType.WEB_BROWSER)
 class WebBrowserComponent(ComponentService):
     def __init__(self, id: str, config: WebBrowserComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
         super().__init__(id, config, global_configs, daemon)
+
         self.session: Optional[WebBrowserSession] = None
 
     async def _start(self) -> None:
@@ -306,73 +385,7 @@ class WebBrowserComponent(ComponentService):
             self.session = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        timeout_raw = await context.render_variable(action.timeout) if action.timeout else None
-        timeout = parse_duration(timeout_raw).total_seconds() if timeout_raw else self.session.default_timeout
-
-        if isinstance(action, WebBrowserNavigateActionConfig):
-            url = await context.render_variable(action.url)
-            wait_until = await context.render_variable(action.wait_until)
-            result = await self.session.navigate(url, wait_until, timeout)
-
-        elif isinstance(action, WebBrowserClickActionConfig):
-            selector = await context.render_variable(action.selector) if action.selector else None
-            xpath = await context.render_variable(action.xpath) if action.xpath else None
-            x = int(await context.render_variable(action.x)) if action.x is not None else None
-            y = int(await context.render_variable(action.y)) if action.y is not None else None
-            result = await self.session.click(selector, xpath, x, y, timeout)
-
-        elif isinstance(action, WebBrowserTypeActionConfig):
-            selector = await context.render_variable(action.selector) if action.selector else None
-            xpath = await context.render_variable(action.xpath) if action.xpath else None
-            text = await context.render_variable(action.text)
-            clear_first = await context.render_variable(action.clear_first)
-            result = await self.session.type_text(selector, xpath, text, bool(clear_first), timeout)
-
-        elif isinstance(action, WebBrowserScreenshotActionConfig):
-            full_page = await context.render_variable(action.full_page)
-            selector = await context.render_variable(action.selector) if action.selector else None
-            fmt = await context.render_variable(action.format)
-            quality = int(await context.render_variable(action.quality)) if action.quality is not None else None
-            result = await self.session.screenshot(bool(full_page), selector, fmt, quality)
-
-        elif isinstance(action, WebBrowserEvaluateActionConfig):
-            expression = await context.render_variable(action.expression)
-            await_promise = await context.render_variable(action.await_promise)
-            result = await self.session.evaluate(expression, bool(await_promise))
-
-        elif isinstance(action, WebBrowserWaitForActionConfig):
-            selector = await context.render_variable(action.selector) if action.selector else None
-            xpath = await context.render_variable(action.xpath) if action.xpath else None
-            condition = await context.render_variable(action.condition)
-            result = await self.session.wait_for(selector, xpath, condition, timeout)
-
-        elif isinstance(action, WebBrowserExtractActionConfig):
-            selector = await context.render_variable(action.selector) if action.selector else None
-            xpath = await context.render_variable(action.xpath) if action.xpath else None
-            extract_mode = await context.render_variable(action.extract_mode)
-            attribute = await context.render_variable(action.attribute) if action.attribute else None
-            multiple = await context.render_variable(action.multiple)
-            result = await self.session.extract(selector, xpath, extract_mode, attribute, bool(multiple))
-
-        elif isinstance(action, WebBrowserGetCookiesActionConfig):
-            urls = await context.render_variable(action.urls) if action.urls else None
-            result = await self.session.get_cookies(urls)
-
-        elif isinstance(action, WebBrowserSetCookiesActionConfig):
-            cookies = await context.render_variable(action.cookies)
-            result = await self.session.set_cookies(cookies)
-
-        elif isinstance(action, WebBrowserScrollActionConfig):
-            selector = await context.render_variable(action.selector) if action.selector else None
-            x = int(await context.render_variable(action.x))
-            y = int(await context.render_variable(action.y))
-            result = await self.session.scroll(selector, x, y)
-
-        else:
-            raise ValueError(f"Unknown web-browser action: {action}")
-
-        context.register_source("result", result)
-        return (await context.render_variable(action.output, ignore_files=True)) if action.output else result
+        return await WebBrowserAction(action, self.session.default_timeout).run(context, self.session)
 
     async def _create_cdp_client(self, timeout: float) -> CdpClient:
         if self.config.cdp_endpoint:

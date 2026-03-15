@@ -20,7 +20,7 @@ class ModelTaskService(AsyncService):
         self.id: str = id
         self.config: ModelComponentConfig = config
         self._model_loaded: bool = False
-        self._load_lock: asyncio.Lock = asyncio.Lock()
+        self._model_load_lock: asyncio.Lock = asyncio.Lock()
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "torch" ]
@@ -29,7 +29,7 @@ class ModelTaskService(AsyncService):
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
         if not self._model_loaded:
-            async with self._load_lock:
+            async with self._model_load_lock:
                 if not self._model_loaded:
                     self._load_model_on_demand()
 

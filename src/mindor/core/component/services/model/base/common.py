@@ -19,6 +19,8 @@ class ModelTaskService(AsyncService):
 
         self.id: str = id
         self.config: ModelComponentConfig = config
+        self._model_loaded: bool = False
+        self._load_lock: asyncio.Lock = asyncio.Lock()
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "torch" ]
@@ -26,10 +28,40 @@ class ModelTaskService(AsyncService):
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
+        if not self._model_loaded:
+            async with self._load_lock:
+                if not self._model_loaded:
+                    self._load_model_on_demand()
+
         async def _run():
             return await self._run(action, context, loop)
 
         return await self.run_in_thread(_run)
+
+    async def _serve(self) -> None:
+        if self.config.preload:
+            self._load_model()
+            self._model_loaded = True
+        else:
+            logging.info(f"Component '{self.id}': model will be loaded on demand")
+
+    async def _shutdown(self) -> None:
+        if self._model_loaded:
+            self._unload_model()
+            self._model_loaded = False
+
+    def _load_model_on_demand(self) -> None:
+        logging.info(f"Component '{self.id}': loading model on demand...")
+        self._load_model()
+        self._model_loaded = True
+
+    @abstractmethod
+    def _load_model(self) -> None:
+        pass
+
+    @abstractmethod
+    def _unload_model(self) -> None:
+        pass
 
     @abstractmethod
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:

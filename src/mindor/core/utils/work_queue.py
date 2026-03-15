@@ -1,4 +1,5 @@
 from typing import Callable, Awaitable, Tuple, Dict, List, Any
+from .active_counter import ActiveCounter
 import asyncio
 
 class WorkQueue:
@@ -9,8 +10,7 @@ class WorkQueue:
         self.workers: List[asyncio.Task] = []
         self.stopped: bool = False
         self.draining: bool = False
-        self._active_count: int = 0
-        self._active_zero_event: asyncio.Event = None
+        self._active_counter: ActiveCounter = ActiveCounter()
 
     async def _worker(self):
         while not self.stopped:
@@ -23,9 +23,7 @@ class WorkQueue:
                     self.queue.task_done()
                     continue
 
-                self._active_count += 1
-                if self._active_zero_event.is_set():
-                    self._active_zero_event.clear()
+                self._active_counter.acquire()
 
                 try:
                     result = await self.handler(*args, **kwargs)
@@ -36,9 +34,7 @@ class WorkQueue:
                         future.set_exception(e)
                 finally:
                     self.queue.task_done()
-                    self._active_count -= 1
-                    if self._active_count == 0:
-                        self._active_zero_event.set()
+                    self._active_counter.release()
             except asyncio.CancelledError:
                 break
 
@@ -49,9 +45,8 @@ class WorkQueue:
         self.queue = asyncio.Queue()
         self.stopped = False
         self.draining = False
-        self._active_count = 0
-        self._active_zero_event = asyncio.Event()
-        self._active_zero_event.set()
+
+        self._active_counter.reset()
 
         for _ in range(self.max_concurrent_count):
             self.workers.append(asyncio.create_task(self._worker()))
@@ -70,17 +65,15 @@ class WorkQueue:
 
     async def stop(self, timeout: float = 30.0):
         if not self.queue:
-            return
+            raise ValueError("Queue not started")
 
         # Phase 1: drain — reject new work, wait for active handlers to finish
         self.draining = True
 
-        if self._active_count > 0:
-            self._active_zero_event.clear()
-            try:
-                await asyncio.wait_for(self._active_zero_event.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
-                pass
+        try:
+            await self._active_counter.wait_for_zero(timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
 
         # Phase 2: force-stop
         self.stopped = True

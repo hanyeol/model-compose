@@ -8,6 +8,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation import AsyncService
 from mindor.core.utils.work_queue import WorkQueue
+from mindor.core.utils.active_counter import ActiveCounter
 from mindor.core.logger import logging
 from .context import ComponentActionContext
 
@@ -52,6 +53,7 @@ class ComponentService(AsyncService):
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
         self._process_manager = None
+        self._active_counter: ActiveCounter = ActiveCounter()
 
         if self.config.max_concurrent_count > 0:
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
@@ -82,7 +84,11 @@ class ComponentService(AsyncService):
         if self.work_queue:
             return await (await self.work_queue.schedule(action, context))
 
-        return await self._run(action, context)
+        self._active_counter.acquire()
+        try:
+            return await self._run(action, context)
+        finally:
+            self._active_counter.release()
 
     async def stop(self) -> None:
         if self._process_manager:
@@ -101,6 +107,7 @@ class ComponentService(AsyncService):
         if self.work_queue:
             await self.work_queue.stop()
 
+        await self._active_counter.wait_for_zero()
         await super()._stop()
 
     async def _serve(self) -> None:

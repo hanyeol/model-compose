@@ -129,17 +129,12 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
             "accelerate"
         ]
 
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            self.tokenizer = self._load_pretrained_tokenizer()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and tokenizer loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
+    def _load_model(self) -> None:
+        self.model = self._load_pretrained_model()
+        self.tokenizer = self._load_pretrained_tokenizer()
+        self.device = self._get_model_device(self.model)
 
-    async def _shutdown(self) -> None:
+    def _unload_model(self) -> None:
         self.model = None
         self.tokenizer = None
         self.device = None
@@ -202,17 +197,12 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
             "accelerate"
         ]
 
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            self.processor = self._load_pretrained_processor()
-            self.device = self._get_model_device(self.model)
-            logging.info(f"Model and processor loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
+    def _load_model(self) -> None:
+        self.model = self._load_pretrained_model()
+        self.processor = self._load_pretrained_processor()
+        self.device = self._get_model_device(self.model)
 
-    async def _shutdown(self) -> None:
+    def _unload_model(self) -> None:
         self.model = None
         self.processor = None
         self.device = None

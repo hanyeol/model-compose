@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.component import ModelComponentConfig, DeviceMode
-from mindor.core.logger import logging
 from .common import ModelTaskService
 
 if TYPE_CHECKING:
@@ -22,18 +21,12 @@ class UnslothModelTaskService(ModelTaskService):
             "torch"
         ]
 
-    async def _serve(self) -> None:
-        try:
-            self.model, self.tokenizer = self._load_pretrained_model()
-            logging.info(f"Model and tokenizer loaded successfully: {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
+    def _load_model(self) -> None:
+        self.model, self.tokenizer = self._load_pretrained_model()
 
-    async def _shutdown(self) -> None:
+    def _unload_model(self) -> None:
         self.model = None
         self.tokenizer = None
-        self.device = None
 
     def _load_pretrained_model(self) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         from unsloth import FastLanguageModel

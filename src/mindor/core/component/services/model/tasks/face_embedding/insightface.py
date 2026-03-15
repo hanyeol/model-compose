@@ -51,6 +51,9 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
             logging.error(f"Failed to load model '{self.config.model}': {e}")
             raise
 
+    async def _shutdown(self) -> None:
+        pass
+
     def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis
 
@@ -105,9 +108,6 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
 
     def _get_device_id(self) -> int:
         return 0
-
-    async def _shutdown(self) -> None:
-        pass
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context)

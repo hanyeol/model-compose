@@ -1,6 +1,6 @@
 [project]
 name = "model-compose"
-version = "0.4.27"
+version = "0.4.28"
 description = "model-compose: Declarative AI Workflow Orchestrator"
 authors = [
     { name = "Hanyeol Cho", email = "hanyeol.cho@gmail.com" }
@@ -16,6 +16,7 @@ dependencies = [
     "aiohttp",
     "requests",
     "fastapi",
+    "websockets",
     "uvicorn",
     "mcp>=1.10.1",
     "ulid",

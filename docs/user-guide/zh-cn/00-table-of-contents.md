@@ -212,6 +212,13 @@
   - 13.5.2 [架构图](./13-system-integration.md#1352-架构图)
   - 13.5.3 [生产环境考虑](./13-system-integration.md#1353-生产环境考虑)
 - 13.6 [系统集成最佳实践](./13-system-integration.md#136-系统集成最佳实践)
+- 13.7 [系统 - 基础设施管理](./13-system-integration.md#137-系统---基础设施管理)
+  - 13.7.1 [系统概述](./13-system-integration.md#1371-系统概述)
+  - 13.7.2 [Docker Compose 系统](./13-system-integration.md#1372-docker-compose-系统)
+  - 13.7.3 [多个系统](./13-system-integration.md#1373-多个系统)
+  - 13.7.4 [完整示例：浏览器自动化](./13-system-integration.md#1374-完整示例浏览器自动化)
+  - 13.7.5 [生命周期顺序](./13-system-integration.md#1375-生命周期顺序)
+  - 13.7.6 [前提条件](./13-system-integration.md#1376-前提条件)
 
 ## 14. [部署](./14-deployment.md)
 - 14.1 [本地执行](./14-deployment.md#141-本地执行)

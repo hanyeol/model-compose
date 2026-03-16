@@ -1465,6 +1465,152 @@ Use these metrics to:
 
 ---
 
+## 13.7 Systems - Infrastructure Management
+
+Systems provide declarative management of infrastructure services (such as Docker Compose stacks) that your components depend on. When you run `model-compose up`, systems are started automatically before components; when you run `model-compose down`, they are stopped after components.
+
+### 13.7.1 Systems Overview
+
+Systems are useful when your components require external infrastructure:
+
+- Database servers (PostgreSQL, Redis, etc.)
+- Browser automation (Chromium + noVNC)
+- Message queues (RabbitMQ, Kafka, etc.)
+- Any service defined in a Docker Compose file
+
+Without systems, you would need to manually run `docker compose up -d` before starting model-compose. With systems, this is handled automatically.
+
+### 13.7.2 Docker Compose System
+
+The `docker-compose` system type manages services defined in Docker Compose files.
+
+**Basic configuration:**
+
+```yaml
+system:
+  type: docker-compose
+  file: docker-compose.yml
+  wait: true
+  wait_timeout: 60s
+```
+
+This runs `docker compose -f docker-compose.yml up -d --wait` on startup and `docker compose -f docker-compose.yml down` on shutdown.
+
+**Configuration options:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | **required** | Must be `docker-compose` |
+| `file` | string | - | Path to a single docker-compose file |
+| `files` | array | `[]` | Paths to multiple docker-compose files |
+| `project_name` | string | - | Docker Compose project name (`-p` flag) |
+| `profiles` | array | - | Docker Compose profiles to activate |
+| `env_file` | string | - | Path to environment file |
+| `build` | boolean | `false` | Build images before starting (`--build`) |
+| `wait` | boolean | `true` | Wait for services to be healthy (`--wait`) |
+| `wait_timeout` | string | `60s` | Timeout for health check waiting |
+
+### 13.7.3 Multiple Systems
+
+You can define multiple systems when different infrastructure stacks are needed:
+
+```yaml
+systems:
+  - id: database
+    type: docker-compose
+    file: docker-compose.db.yml
+    wait: true
+
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.browser.yml
+    wait: true
+    wait_timeout: 120s
+```
+
+### 13.7.4 Complete Example: Browser Automation
+
+This example shows how systems integrate with components to automate browser tasks:
+
+```yaml
+systems:
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.yml
+    wait: true
+    wait_timeout: 60s
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: extract-text
+        method: extract
+        selector: "${input.selector}"
+        extract_mode: text
+
+workflows:
+  - id: scrape
+    title: Web Scraper
+    input:
+      - id: url
+        type: string
+      - id: selector
+        type: string
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: extract
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on: [navigate]
+```
+
+**What happens when you run `model-compose up`:**
+
+1. System `browser-infra` starts: `docker compose up -d --wait`
+2. Docker Compose starts Chromium and noVNC containers
+3. model-compose waits until containers are healthy
+4. Component `browser` connects to Chromium on port 9222
+5. Controller starts accepting workflow requests
+
+**What happens when you run `model-compose down`:**
+
+1. Controller stops
+2. Component `browser` disconnects
+3. System `browser-infra` stops: `docker compose down`
+
+### 13.7.5 Lifecycle Order
+
+Systems follow a specific lifecycle order relative to other sections:
+
+```
+Startup:  Systems → Gateways → Listeners → Components → Controller
+Shutdown: Controller → Components → Listeners → Gateways → Systems
+```
+
+Systems start first because they provide the infrastructure that other sections depend on, and stop last to ensure graceful shutdown.
+
+### 13.7.6 Prerequisites
+
+- **Docker** must be installed and available in PATH
+- **Docker Compose** plugin must be available (`docker compose` subcommand)
+
+---
+
 ## Next Steps
 
 Experiment with these scenarios:
@@ -1472,6 +1618,7 @@ Experiment with these scenarios:
 - Testing webhooks in local environment
 - Slack/Discord bot development
 - Payment gateway webhook handling
+- Browser automation with Docker Compose systems
 
 ---
 

@@ -10,6 +10,7 @@ This reference guide provides comprehensive documentation for all configuration 
 - [Component](compose/component.md) - Reusable service definitions and common properties
 
 ### Infrastructure & Services
+- [System](compose/system.md) - Infrastructure service management (Docker Compose)
 - [Listener](compose/listener.md) - Webhook and callback handling
 - [Gateway](compose/gateway.md) - Tunneling and external access
 - [Logger](compose/logger.md) - Logging configuration and output management
@@ -42,15 +43,18 @@ controller:
 workflow:  # or workflows: for multiple
   # ... workflow configuration
 
-# Component definitions  
+# Component definitions
 component:  # or components: for multiple
   # ... component configuration
 
 # Infrastructure services (optional)
+system:     # or systems: for multiple
+  # ... system configuration (e.g., docker-compose)
+
 listener:   # or listeners: for multiple
   # ... listener configuration
-  
-gateway:    # or gateways: for multiple  
+
+gateway:    # or gateways: for multiple
   # ... gateway configuration
 
 logger:     # or loggers: for multiple

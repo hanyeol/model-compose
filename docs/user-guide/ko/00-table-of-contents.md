@@ -215,6 +215,13 @@
   - 13.5.2 [아키텍처 다이어그램](./13-system-integration.md#1352-아키텍처-다이어그램)
   - 13.5.3 [프로덕션 환경 고려사항](./13-system-integration.md#1353-프로덕션-환경-고려사항)
 - 13.6 [시스템 통합 모범 사례](./13-system-integration.md#136-시스템-통합-모범-사례)
+- 13.7 [시스템 - 인프라 관리](./13-system-integration.md#137-시스템---인프라-관리)
+  - 13.7.1 [시스템 개요](./13-system-integration.md#1371-시스템-개요)
+  - 13.7.2 [Docker Compose 시스템](./13-system-integration.md#1372-docker-compose-시스템)
+  - 13.7.3 [복수 시스템](./13-system-integration.md#1373-복수-시스템)
+  - 13.7.4 [전체 예제: 브라우저 자동화](./13-system-integration.md#1374-전체-예제-브라우저-자동화)
+  - 13.7.5 [라이프사이클 순서](./13-system-integration.md#1375-라이프사이클-순서)
+  - 13.7.6 [전제 조건](./13-system-integration.md#1376-전제-조건)
 
 ## 14. [배포](./14-deployment.md)
 - 14.1 [로컬 실행](./14-deployment.md#141-로컬-실행)

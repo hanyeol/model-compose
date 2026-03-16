@@ -1465,6 +1465,152 @@ listener:
 
 ---
 
+## 13.7 系统 - 基础设施管理
+
+系统提供对组件所依赖的基础设施服务（如 Docker Compose 栈）的声明式管理。运行 `model-compose up` 时，系统会在组件之前自动启动；运行 `model-compose down` 时，系统会在组件之后自动停止。
+
+### 13.7.1 系统概述
+
+当组件需要外部基础设施时，系统非常有用：
+
+- 数据库服务器（PostgreSQL、Redis 等）
+- 浏览器自动化（Chromium + noVNC）
+- 消息队列（RabbitMQ、Kafka 等）
+- Docker Compose 文件中定义的任何服务
+
+没有系统功能时，您需要在启动 model-compose 之前手动运行 `docker compose up -d`。使用系统后，这一过程将自动处理。
+
+### 13.7.2 Docker Compose 系统
+
+`docker-compose` 系统类型管理 Docker Compose 文件中定义的服务。
+
+**基本配置：**
+
+```yaml
+system:
+  type: docker-compose
+  file: docker-compose.yml
+  wait: true
+  wait_timeout: 60s
+```
+
+启动时执行 `docker compose -f docker-compose.yml up -d --wait`，关闭时执行 `docker compose -f docker-compose.yml down`。
+
+**配置选项：**
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `type` | string | **必需** | 必须为 `docker-compose` |
+| `file` | string | - | docker-compose 文件路径（单个） |
+| `files` | array | `[]` | docker-compose 文件路径（多个） |
+| `project_name` | string | - | Docker Compose 项目名称（`-p` 标志） |
+| `profiles` | array | - | 要激活的 Docker Compose 配置文件 |
+| `env_file` | string | - | 环境变量文件路径 |
+| `build` | boolean | `false` | 启动前构建镜像（`--build`） |
+| `wait` | boolean | `true` | 等待服务健康检查通过（`--wait`） |
+| `wait_timeout` | string | `60s` | 健康检查等待超时时间 |
+
+### 13.7.3 多个系统
+
+当需要不同的基础设施栈时，可以定义多个系统：
+
+```yaml
+systems:
+  - id: database
+    type: docker-compose
+    file: docker-compose.db.yml
+    wait: true
+
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.browser.yml
+    wait: true
+    wait_timeout: 120s
+```
+
+### 13.7.4 完整示例：浏览器自动化
+
+此示例展示了系统如何与组件集成以自动化浏览器任务：
+
+```yaml
+systems:
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.yml
+    wait: true
+    wait_timeout: 60s
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: extract-text
+        method: extract
+        selector: "${input.selector}"
+        extract_mode: text
+
+workflows:
+  - id: scrape
+    title: 网页抓取器
+    input:
+      - id: url
+        type: string
+      - id: selector
+        type: string
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: extract
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on: [navigate]
+```
+
+**运行 `model-compose up` 时：**
+
+1. 系统 `browser-infra` 启动：`docker compose up -d --wait`
+2. Docker Compose 启动 Chromium 和 noVNC 容器
+3. model-compose 等待容器健康检查通过
+4. 组件 `browser` 连接到端口 9222 上的 Chromium
+5. 控制器开始接受工作流请求
+
+**运行 `model-compose down` 时：**
+
+1. 控制器停止
+2. 组件 `browser` 断开连接
+3. 系统 `browser-infra` 停止：`docker compose down`
+
+### 13.7.5 生命周期顺序
+
+系统与其他部分遵循特定的生命周期顺序：
+
+```
+启动：系统 → 网关 → 监听器 → 组件 → 控制器
+关闭：控制器 → 组件 → 监听器 → 网关 → 系统
+```
+
+系统最先启动，因为它们提供其他部分所依赖的基础设施；最后停止以确保安全关闭。
+
+### 13.7.6 前提条件
+
+- **Docker** 必须已安装并在 PATH 中可用
+- **Docker Compose** 插件必须可用（`docker compose` 子命令）
+
+---
+
 ## 下一步
 
 尝试这些场景：
@@ -1472,6 +1618,7 @@ listener:
 - 在本地环境中测试 Webhook
 - Slack/Discord bot 开发
 - 支付网关 Webhook 处理
+- 使用 Docker Compose 系统的浏览器自动化
 
 ---
 

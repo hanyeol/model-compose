@@ -990,6 +990,327 @@ graph TD
 
 ---
 
+## 15.7 Browser Automation
+
+### 15.7.1 Web Scraping with CAPTCHA Fallback
+
+**Goal**: Navigate to a page, detect CAPTCHAs, pause for human resolution via noVNC, then extract content
+
+**Prerequisites**:
+
+Start a headless Chrome with noVNC:
+
+```bash
+docker run -d -p 9222:9222 -p 6080:6080 \
+  chromedp/headless-shell:latest
+```
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: scrape-with-fallback
+    title: Scrape with CAPTCHA Fallback
+    input:
+      - id: url
+        type: string
+        description: Target URL to scrape
+      - id: selector
+        type: string
+        description: CSS selector for content extraction
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: detect-captcha
+        component: browser
+        action: check-captcha
+        interrupt:
+          after:
+            condition:
+              operator: eq
+              input: ${output}
+              value: true
+            message: >
+              CAPTCHA detected! Please solve it via noVNC at:
+              http://localhost:6080/vnc.html
+        depends_on: [ navigate ]
+
+      - id: extract
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on: [ detect-captcha ]
+        output:
+          content: "${output as text}"
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    novnc_url: "http://localhost:6080/vnc.html"
+    timeout: 30s
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: check-captcha
+        method: evaluate
+        expression: >
+          !!(document.querySelector('[id*=captcha],[class*=captcha]')
+            || document.querySelector('iframe[src*=captcha]')
+            || document.querySelector('#cf-challenge-running'))
+
+      - id: extract-text
+        method: extract
+        selector: "${input.selector}"
+        extract_mode: text
+```
+
+**Workflow**:
+1. Navigate to the target URL
+2. Evaluate JavaScript to detect CAPTCHA elements
+3. If CAPTCHA found, workflow interrupts and shows noVNC URL for human resolution
+4. After human resolves CAPTCHA, workflow resumes and extracts content
+
+**Workflow Diagram**:
+
+```mermaid
+graph TD
+    A[User Input<br/>url, selector] -->|① Navigate| B[Job 1: navigate<br/>web-browser]
+    B -->|② Check CAPTCHA| C[Job 2: detect-captcha<br/>evaluate JS]
+    C -->|③ CAPTCHA found?| D{Interrupt?}
+    D -->|Yes| E[Human resolves via noVNC<br/>http://localhost:6080]
+    E -->|Resume| F[Job 3: extract<br/>extract text]
+    D -->|No| F
+    F -->|④ Return content| G[Result<br/>content: extracted text]
+```
+
+### 15.7.2 Login and Scrape Protected Content
+
+**Goal**: Automate login to a website and extract protected content
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: login-and-scrape
+    title: Login then Scrape
+    input:
+      - id: login_url
+        type: string
+      - id: username
+        type: string
+      - id: password
+        type: string
+      - id: content_url
+        type: string
+      - id: selector
+        type: string
+    jobs:
+      - id: open-login
+        component: browser
+        action: navigate
+        input:
+          url: ${input.login_url}
+
+      - id: fill-username
+        component: browser
+        action: type-text
+        input:
+          selector: "input[name='username']"
+          text: ${input.username}
+        depends_on: [ open-login ]
+
+      - id: fill-password
+        component: browser
+        action: type-text
+        input:
+          selector: "input[name='password']"
+          text: ${input.password}
+        depends_on: [ fill-username ]
+
+      - id: submit
+        component: browser
+        action: click
+        input:
+          selector: "button[type='submit']"
+        depends_on: [ fill-password ]
+
+      - id: navigate-content
+        component: browser
+        action: navigate
+        input:
+          url: ${input.content_url}
+        depends_on: [ submit ]
+
+      - id: extract-content
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on: [ navigate-content ]
+        output:
+          content: ${output as text}
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    timeout: 30s
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: type-text
+        method: input-text
+        selector: "${input.selector}"
+        text: "${input.text}"
+
+      - id: click
+        method: click
+        selector: "${input.selector}"
+
+      - id: extract-text
+        method: extract
+        selector: "${input.selector}"
+        extract_mode: text
+```
+
+**6-Step Pipeline**:
+1. Navigate to login page
+2. Fill username field
+3. Fill password field
+4. Click submit button
+5. Navigate to protected content page
+6. Extract content with CSS selector
+
+### 15.7.3 AI-Powered Web Content Analysis
+
+**Goal**: Navigate to a page, extract content, and analyze it with GPT-4o
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: analyze-page
+    title: Analyze Web Page with AI
+    input:
+      - id: url
+        type: string
+        description: URL to analyze
+      - id: question
+        type: string
+        description: Question to ask about the page content
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: extract
+        component: browser
+        action: extract-body
+        depends_on: [ navigate ]
+
+      - id: analyze
+        component: gpt4o
+        input:
+          context: ${jobs.extract.output.content}
+          question: ${input.question}
+        depends_on: [ extract ]
+        output:
+          answer: ${output.message}
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    timeout: 30s
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: extract-body
+        method: extract
+        selector: "body"
+        extract_mode: text
+        output:
+          content: ${result}
+
+  - id: gpt4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: system
+            content: |
+              Answer questions based on the following web page content:
+              ${input.context}
+          - role: user
+            content: ${input.question}
+      output:
+        message: ${response.choices[0].message.content}
+```
+
+**3-Stage Pipeline**:
+1. **Navigate**: Load the target page and wait for network idle
+2. **Extract**: Pull all text content from the page body
+3. **Analyze**: Send content to GPT-4o with the user's question
+
+**Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[User Input<br/>url, question] -->|① Navigate| B[Job 1: navigate<br/>web-browser]
+    B -->|② Extract text| C[Job 2: extract<br/>body text]
+    C -->|③ Page content + question| D[Job 3: analyze<br/>GPT-4o]
+    D -->|④ AI analysis| E[Result<br/>answer: AI response]
+```
+
+---
+
 ## Next Steps
 
 Practice:

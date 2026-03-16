@@ -1464,6 +1464,152 @@ listener:
 
 ---
 
+## 13.7 시스템 - 인프라 관리
+
+시스템은 컴포넌트가 의존하는 인프라 서비스(예: Docker Compose 스택)를 선언적으로 관리합니다. `model-compose up` 실행 시 시스템이 컴포넌트보다 먼저 자동으로 시작되고, `model-compose down` 실행 시 컴포넌트 이후에 자동으로 중지됩니다.
+
+### 13.7.1 시스템 개요
+
+컴포넌트가 외부 인프라를 필요로 할 때 시스템이 유용합니다:
+
+- 데이터베이스 서버 (PostgreSQL, Redis 등)
+- 브라우저 자동화 (Chromium + noVNC)
+- 메시지 큐 (RabbitMQ, Kafka 등)
+- Docker Compose 파일에 정의된 모든 서비스
+
+시스템 없이는 model-compose를 시작하기 전에 수동으로 `docker compose up -d`를 실행해야 합니다. 시스템을 사용하면 이 과정이 자동으로 처리됩니다.
+
+### 13.7.2 Docker Compose 시스템
+
+`docker-compose` 시스템 타입은 Docker Compose 파일에 정의된 서비스를 관리합니다.
+
+**기본 설정:**
+
+```yaml
+system:
+  type: docker-compose
+  file: docker-compose.yml
+  wait: true
+  wait_timeout: 60s
+```
+
+시작 시 `docker compose -f docker-compose.yml up -d --wait`를 실행하고, 종료 시 `docker compose -f docker-compose.yml down`을 실행합니다.
+
+**설정 옵션:**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `type` | string | **필수** | `docker-compose` |
+| `file` | string | - | docker-compose 파일 경로 (단일) |
+| `files` | array | `[]` | docker-compose 파일 경로 (복수) |
+| `project_name` | string | - | Docker Compose 프로젝트 이름 (`-p` 플래그) |
+| `profiles` | array | - | 활성화할 Docker Compose 프로필 |
+| `env_file` | string | - | 환경 변수 파일 경로 |
+| `build` | boolean | `false` | 시작 전 이미지 빌드 (`--build`) |
+| `wait` | boolean | `true` | 서비스 헬스 체크 대기 (`--wait`) |
+| `wait_timeout` | string | `60s` | 헬스 체크 대기 타임아웃 |
+
+### 13.7.3 복수 시스템
+
+서로 다른 인프라 스택이 필요할 때 여러 시스템을 정의할 수 있습니다:
+
+```yaml
+systems:
+  - id: database
+    type: docker-compose
+    file: docker-compose.db.yml
+    wait: true
+
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.browser.yml
+    wait: true
+    wait_timeout: 120s
+```
+
+### 13.7.4 전체 예제: 브라우저 자동화
+
+시스템과 컴포넌트를 통합하여 브라우저 작업을 자동화하는 예제입니다:
+
+```yaml
+systems:
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.yml
+    wait: true
+    wait_timeout: 60s
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    actions:
+      - id: navigate
+        method: navigate
+        url: "${input.url}"
+        wait_until: networkidle
+
+      - id: extract-text
+        method: extract
+        selector: "${input.selector}"
+        extract_mode: text
+
+workflows:
+  - id: scrape
+    title: 웹 스크래퍼
+    input:
+      - id: url
+        type: string
+      - id: selector
+        type: string
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: extract
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on: [navigate]
+```
+
+**`model-compose up` 실행 시:**
+
+1. 시스템 `browser-infra` 시작: `docker compose up -d --wait`
+2. Docker Compose가 Chromium과 noVNC 컨테이너 시작
+3. model-compose가 컨테이너 헬스 체크 완료까지 대기
+4. 컴포넌트 `browser`가 포트 9222의 Chromium에 연결
+5. 컨트롤러가 워크플로우 요청 수신 시작
+
+**`model-compose down` 실행 시:**
+
+1. 컨트롤러 중지
+2. 컴포넌트 `browser` 연결 해제
+3. 시스템 `browser-infra` 중지: `docker compose down`
+
+### 13.7.5 라이프사이클 순서
+
+시스템은 다른 섹션과 특정 순서로 실행됩니다:
+
+```
+시작: 시스템 → 게이트웨이 → 리스너 → 컴포넌트 → 컨트롤러
+종료: 컨트롤러 → 컴포넌트 → 리스너 → 게이트웨이 → 시스템
+```
+
+시스템은 다른 섹션이 의존하는 인프라를 제공하므로 가장 먼저 시작되고, 안전한 종료를 위해 가장 마지막에 중지됩니다.
+
+### 13.7.6 전제 조건
+
+- **Docker**가 설치되어 PATH에 있어야 합니다
+- **Docker Compose** 플러그인이 사용 가능해야 합니다 (`docker compose` 서브커맨드)
+
+---
+
 ## 다음 단계
 
 실습해보세요:
@@ -1471,6 +1617,7 @@ listener:
 - 로컬 환경에서 웹훅 테스트
 - Slack/Discord 봇 개발
 - 결제 게이트웨이 웹훅 처리
+- Docker Compose 시스템을 활용한 브라우저 자동화
 
 ---
 

@@ -3,6 +3,7 @@ from mindor.dsl.schema.controller import McpServerControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.system import SystemConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
@@ -24,10 +25,11 @@ class McpServerController(ControllerService):
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
+        systems: List[SystemConfig],
         loggers: List[LoggerConfig],
         daemon: bool
     ):
-        super().__init__(config, workflows, components, listeners, gateways, loggers, daemon)
+        super().__init__(config, workflows, components, listeners, gateways, systems, loggers, daemon)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastMCP = FastMCP(self.config.name, **{

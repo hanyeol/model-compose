@@ -5,6 +5,7 @@ from mindor.dsl.schema.controller import ControllerConfig, ControllerType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.system import SystemConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
@@ -12,6 +13,7 @@ from mindor.core.foundation import AsyncService
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway
+from mindor.core.system import SystemService, create_system
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 from mindor.core.logger import LoggerService, create_logger
@@ -71,6 +73,7 @@ class ControllerService(AsyncService):
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
+        systems: List[SystemConfig],
         loggers: List[LoggerConfig],
         daemon: bool
     ):
@@ -81,6 +84,7 @@ class ControllerService(AsyncService):
         self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
+        self.systems: List[SystemConfig] = systems
         self.loggers: List[LoggerConfig] = loggers
         self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components, exclude_private=True)
         self.task_queue: Optional[WorkQueue] = None
@@ -103,6 +107,7 @@ class ControllerService(AsyncService):
                 return
 
             await self._start_loggers(verbose)
+            await self._setup_systems()
             await self._setup_listeners()
             await self._setup_gateways()
             await self._setup_components()
@@ -124,6 +129,7 @@ class ControllerService(AsyncService):
             await self._teardown_components()
             await self._teardown_gateways()
             await self._teardown_listeners()
+            await self._teardown_systems()
             await self._stop_loggers()
             return
 
@@ -231,8 +237,9 @@ class ControllerService(AsyncService):
             await self.task_queue.start()
 
         if self.daemon:
-            await self._start_gateways()
+            await self._start_systems()
             await self._start_listeners()
+            await self._start_gateways()
             await self._start_components()
 
             if self.config.webui:
@@ -260,8 +267,9 @@ class ControllerService(AsyncService):
 
         if self.daemon:
             await self._stop_components()
-            await self._stop_listeners()
             await self._stop_gateways()
+            await self._stop_listeners()
+            await self._stop_systems()
 
             if self.config.webui:
                 await self._stop_webui()
@@ -278,6 +286,18 @@ class ControllerService(AsyncService):
             await asyncio.sleep(interval)
 
         os.unlink(stop_file)
+
+    async def _setup_systems(self) -> None:
+        await asyncio.gather(*[ system.setup() for system in self._create_systems() ])
+
+    async def _teardown_systems(self) -> None:
+        await asyncio.gather(*[ system.teardown() for system in self._create_systems() ])
+
+    async def _start_systems(self) -> None:
+        await asyncio.gather(*[ system.start() for system in self._create_systems() ])
+
+    async def _stop_systems(self) -> None:
+        await asyncio.gather(*[ system.stop() for system in self._create_systems() ])
 
     async def _setup_listeners(self) -> None:
         await asyncio.gather(*[ listener.setup() for listener in self._create_listeners() ])
@@ -332,6 +352,9 @@ class ControllerService(AsyncService):
     
     def _create_gateways(self) -> List[GatewayService]:
         return [ create_gateway(f"gateway-{index}", config, self.daemon) for index, config in enumerate(self.gateways) ]
+
+    def _create_systems(self) -> List[SystemService]:
+        return [ create_system(config.id or f"system-{index}", config, self.daemon) for index, config in enumerate(self.systems) ]
 
     def _create_components(self) -> List[ComponentService]:
         global_configs = self._get_component_global_configs()

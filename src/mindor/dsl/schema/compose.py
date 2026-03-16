@@ -6,6 +6,7 @@ from .controller import ControllerConfig
 from .component import ComponentConfig
 from .listener import ListenerConfig
 from .gateway import GatewayConfig
+from .system import SystemConfig
 from .workflow import WorkflowConfig
 from .logger import LoggerConfig
 
@@ -14,6 +15,7 @@ class ComposeConfig(BaseModel):
     components: List[ComponentConfig] = Field(default_factory=list, description="List of reusable components that define API calls, model tasks, or other operations")
     listeners: List[ListenerConfig] = Field(default_factory=list, description="List of listeners for handling asynchronous responses from external services.")
     gateways: List[GatewayConfig] = Field(default_factory=list, description="List of gateway services for tunneling local endpoints to public.")
+    systems: List[SystemConfig] = Field(default_factory=list, description="List of external systems (e.g. docker-compose) to manage alongside the controller lifecycle.")
     workflows: List[WorkflowConfig] = Field(default_factory=list, description="List of workflows that define sequences of jobs and their execution flow.")
     loggers: List[LoggerConfig] = Field(default_factory=list, description="List of logger configurations for capturing and storing execution logs.")
 
@@ -47,6 +49,14 @@ class ComposeConfig(BaseModel):
             workflow_values = values.pop("workflow", None)
             if workflow_values:
                 values["workflows"] = [ workflow_values ]
+        return values
+
+    @model_validator(mode="before")
+    def inflate_single_system(cls, values: Dict[str, Any]):
+        if "systems" not in values:
+            system_values = values.pop("system", None)
+            if system_values:
+                values["systems"] = [ system_values ]
         return values
 
     @model_validator(mode="before")

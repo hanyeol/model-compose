@@ -3,6 +3,7 @@ from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
+from mindor.dsl.schema.system import SystemConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.logger import LoggerConfig
 from .base import ControllerService, ControllerRegistry, TaskStatus
@@ -13,12 +14,13 @@ def create_controller(
     components: List[ComponentConfig],
     listeners: List[ListenerConfig],
     gateways: List[GatewayConfig],
+    systems: List[SystemConfig],
     loggers: List[LoggerConfig],
     daemon: bool
 ) -> ControllerService:
     try:
         if not ControllerRegistry:
             from . import services
-        return ControllerRegistry[config.type](config, workflows, components, listeners, gateways, loggers, daemon)
+        return ControllerRegistry[config.type](config, workflows, components, listeners, gateways, systems, loggers, daemon)
     except KeyError:
         raise ValueError(f"Unsupported controller type: {config.type}")

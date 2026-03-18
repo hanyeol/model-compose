@@ -1,45 +1,40 @@
-from typing import Optional, List, Any
-from mindor.dsl.schema.controller import McpServerControllerConfig
-from mindor.dsl.schema.component import ComponentConfig
-from mindor.dsl.schema.listener import ListenerConfig
-from mindor.dsl.schema.gateway import GatewayConfig
-from mindor.dsl.schema.system import SystemConfig
-from mindor.dsl.schema.logger import LoggerConfig
-from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableType, WorkflowVariableFormat
+from __future__ import annotations
+from typing import TYPE_CHECKING, Optional, List, Any
+from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, ControllerAdapterType
+from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_client import create_stream_with_url
-from ..base import ControllerService, ControllerType, TaskState, TaskStatus, register_controller
+from mindor.core.controller.base import TaskState, TaskStatus
+from ..base import ControllerAdapterService, register_controller_adapter
 from mcp.server.fastmcp.server import FastMCP
 from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent
 import uvicorn, json
 
-@register_controller(ControllerType.MCP_SERVER)
-class McpServerController(ControllerService):
+if TYPE_CHECKING:
+    from mindor.core.controller.base import ControllerService
+
+@register_controller_adapter(ControllerAdapterType.MCP_SERVER)
+class McpServerControllerAdapter(ControllerAdapterService):
     def __init__(
         self,
-        config: McpServerControllerConfig,
-        workflows: List[WorkflowConfig],
-        components: List[ComponentConfig],
-        listeners: List[ListenerConfig],
-        gateways: List[GatewayConfig],
-        systems: List[SystemConfig],
-        loggers: List[LoggerConfig],
+        config: McpServerControllerAdapterConfig,
+        controller: "ControllerService",
         daemon: bool
     ):
-        super().__init__(config, workflows, components, listeners, gateways, systems, loggers, daemon)
+        super().__init__(config, controller, daemon)
 
         self.server: Optional[uvicorn.Server] = None
-        self.app: FastMCP = FastMCP(self.config.name, **{
+        self.app: FastMCP = FastMCP(self.controller.config.name, **{
             "streamable_http_path": self.config.base_path or "/"
         })
 
         self._configure_tools()
 
     def _configure_tools(self) -> None:
-        for workflow_id, workflow in self.workflow_schemas.items():
+        for workflow_id, workflow in self.controller.workflow_schemas.items():
             tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
             self.app.add_tool(
                 fn=tool.fn,
@@ -55,11 +50,11 @@ class McpServerController(ControllerService):
         async def resume_workflow(task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
             parsed_answer = json.loads(answer) if answer else None
             try:
-                await self.resume_workflow(task_id, job_id, parsed_answer)
+                await self.controller.resume_workflow(task_id, job_id, parsed_answer)
             except ValueError as e:
                 return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
 
-            state = await self.wait_for_terminal_state(task_id)
+            state = await self.controller.wait_for_terminal_state(task_id)
             return await self._build_state_response(state)
 
         self.app.add_tool(
@@ -71,7 +66,7 @@ class McpServerController(ControllerService):
         )
 
     async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any) -> List[ContentBlock]:
-        state = await self.run_workflow(workflow_id, input, wait_for_completion=True)
+        state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True)
         return await self._build_state_response(state)
 
     async def _build_state_response(self, state: TaskState) -> List[ContentBlock]:
@@ -90,7 +85,7 @@ class McpServerController(ControllerService):
         if state.status == TaskStatus.FAILED:
             return [TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error}))]
 
-        workflow = self.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
+        workflow = self.controller.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
         if workflow:
             return await self._build_output_value(state, workflow)
 

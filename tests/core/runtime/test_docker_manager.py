@@ -9,6 +9,8 @@ from mindor.dsl.schema.runtime.impl.docker import (
     DockerRuntimeConfig,
     DockerPortConfig,
     DockerVolumeConfig,
+    DockerVolumeOptionsConfig,
+    DockerTmpfsOptionsConfig,
 )
 from docker.errors import NotFound, DockerException
 from docker.types import Mount
@@ -187,14 +189,15 @@ class TestDockerMountsResolver:
                 type="volume",
                 source="my-volume",
                 target="/data",
-                volume={ "nocopy": "true" }
+                volume=DockerVolumeOptionsConfig(nocopy=True)
             )
         ])
         result = resolver.resolve()
 
-        # Named volumes (type="volume") are not added to mounts in current implementation
-        # Only bind mounts are processed
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0]["Target"] == "/data"
+        assert result[0]["Source"] == "my-volume"
+        assert result[0]["Type"] == "volume"
 
     def test_resolve_tmpfs_volume_config(self):
         """Test resolving tmpfs volume configuration"""
@@ -206,9 +209,9 @@ class TestDockerMountsResolver:
         ])
         result = resolver.resolve()
 
-        # tmpfs volumes are not added to mounts in current implementation
-        # Only bind mounts are processed
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0]["Target"] == "/tmp"
+        assert result[0]["Type"] == "tmpfs"
 
     def test_resolve_mixed_volume_formats(self):
         """Test resolving mixed volume formats"""

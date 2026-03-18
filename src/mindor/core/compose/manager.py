@@ -9,9 +9,9 @@ class ComposeManager:
             self.config.controller,
             self.config.workflows,
             self.config.components,
+            self.config.systems,
             self.config.listeners,
             self.config.gateways,
-            self.config.systems,
             self.config.loggers,
             daemon
         )

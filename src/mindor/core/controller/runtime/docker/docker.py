@@ -15,16 +15,20 @@ class DockerRuntimeLauncher:
         self._configure_runtime_config()
 
     def _configure_runtime_config(self) -> None:
+        adapter_ports = [ adapter.port for adapter in self.config.adapters if hasattr(adapter, 'port') ]
+        first_port = adapter_ports[0] if adapter_ports else 8080
+
         if not self.config.runtime.image:
             if not self.config.runtime.build:
                 self.config.runtime.build = DockerBuildConfig(context=".docker", dockerfile="Dockerfile")
-            self.config.runtime.image = f"mindor/controller-{self.config.port}:latest"
+            self.config.runtime.image = f"mindor/controller-{first_port}:latest"
 
         if not self.config.runtime.container_name:
-            self.config.runtime.container_name = self.config.name or f"mindor-controller-{self.config.port}"
+            self.config.runtime.container_name = self.config.name or f"mindor-controller-{first_port}"
 
         if not self.config.runtime.ports:
-            self.config.runtime.ports = [ port for port in [ self.config.port, getattr(self.config.webui, "port", None) ] if port ]
+            webui_port = getattr(self.config.webui, "port", None)
+            self.config.runtime.ports = list(set(adapter_ports + ([webui_port] if webui_port else [])))
 
         # Automatically add host.docker.internal for host machine access
         if not self.config.runtime.extra_hosts:
@@ -47,7 +51,7 @@ class DockerRuntimeLauncher:
                 if not await docker.exists_image():
                     raise RuntimeError("Docker image pull completed, but image is still missing.")
                 logging.info("Docker image pulled successfully.")
- 
+
         if not await docker.exists_image():
             logging.debug("Building Docker image locally. This may take a few minutes...")
             try:
@@ -88,7 +92,7 @@ class DockerRuntimeLauncher:
         # Copy context files
         context_files_root = Path(__file__).resolve().parent / "context"
         shutil.copytree(
-            src=context_files_root, 
+            src=context_files_root,
             dst=context_dir
         )
 
@@ -96,8 +100,8 @@ class DockerRuntimeLauncher:
         source_files_root = Path(mindor.__file__).resolve().parent
         target_dir = context_dir / "src" / source_files_root.name
         shutil.copytree(
-            src=source_files_root, 
-            dst=target_dir, 
+            src=source_files_root,
+            dst=target_dir,
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
         )
 

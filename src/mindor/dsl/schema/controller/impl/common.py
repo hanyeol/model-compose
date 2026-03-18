@@ -2,17 +2,25 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.runtime import RuntimeConfig, RuntimeType
-from .types import ControllerType
+from ..adapter import ControllerAdapterConfig
 from ..webui import ControllerWebUIConfig, ControllerWebUIDriver
 
 class CommonControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
-    type: ControllerType = Field(..., description="Type of controller to run.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
     max_concurrent_count: int = Field(default=0, description="Maximum number of tasks that can be executed concurrently.")
     shutdown_timeout: str = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
     threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
     webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")
+    adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="List of adapters that expose the controller via different protocols.")
+
+    @model_validator(mode="before")
+    def inflate_single_adapter(cls, values: Dict[str, Any]):
+        if "adapters" not in values:
+            adapter_values = values.pop("adapter", None)
+            if adapter_values:
+                values["adapters"] = [ adapter_values ]
+        return values
 
     @model_validator(mode="before")
     def inflate_runtime(cls, values: Dict[str, Any]):

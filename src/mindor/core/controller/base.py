@@ -1,7 +1,8 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING, Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
 from dataclasses import dataclass
-from mindor.dsl.schema.controller import ControllerConfig, ControllerType
+from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
@@ -29,6 +30,9 @@ from threading import Lock
 from pathlib import Path
 import asyncio, ulid, os, logging, threading
 
+if TYPE_CHECKING:
+    from mindor.core.adapter.base import ControllerAdapterService
+
 class TaskStatus(str, Enum):
     PENDING     = "pending"
     PROCESSING  = "processing"
@@ -55,7 +59,7 @@ class TaskState:
 class ControllerService(AsyncService):
     _shared_instance: Optional["ControllerService"] = None
     _shared_instance_lock = threading.Lock()
-    
+
     def __new__(cls, *args, **kwargs):
         with cls._shared_instance_lock:
             if cls._shared_instance is None:
@@ -71,9 +75,9 @@ class ControllerService(AsyncService):
         config: ControllerConfig,
         workflows: List[WorkflowConfig],
         components: List[ComponentConfig],
+        systems: List[SystemConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        systems: List[SystemConfig],
         loggers: List[LoggerConfig],
         daemon: bool
     ):
@@ -94,6 +98,7 @@ class ControllerService(AsyncService):
         self.task_events: Dict[str, asyncio.Event] = {}
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
+        self._adapters: List["ControllerAdapterService"] = []
 
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
@@ -242,6 +247,9 @@ class ControllerService(AsyncService):
             await self._start_gateways()
             await self._start_components()
 
+            self._adapters = self._create_adapters()
+            await self._start_adapters()
+
             if self.config.webui:
                 await self._start_webui()
 
@@ -266,6 +274,7 @@ class ControllerService(AsyncService):
             await self.task_queue.stop(timeout=timeout)
 
         if self.daemon:
+            await self._stop_adapters()
             await self._stop_components()
             await self._stop_gateways()
             await self._stop_listeners()
@@ -275,6 +284,16 @@ class ControllerService(AsyncService):
                 await self._stop_webui()
 
         await super()._stop()
+
+    async def _serve(self) -> None:
+        if self._adapters:
+            adapter_tasks = [ adapter.daemon_task for adapter in self._adapters if adapter.daemon_task ]
+            if adapter_tasks:
+                await asyncio.gather(*adapter_tasks)
+
+    async def _shutdown(self) -> None:
+        for adapter in self._adapters:
+            await adapter._shutdown()
 
     async def _watch_stop_request(self, interval: float = 1.0) -> None:
         stop_file = Path.cwd() / ".stop"
@@ -341,15 +360,25 @@ class ControllerService(AsyncService):
     async def _stop_loggers(self) -> None:
         await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
 
+    async def _start_adapters(self) -> None:
+        await asyncio.gather(*[ adapter.start() for adapter in self._adapters ])
+
+    async def _stop_adapters(self) -> None:
+        await asyncio.gather(*[ adapter.stop() for adapter in self._adapters ])
+
     async def _start_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().start() ])
 
     async def _stop_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().stop() ])
 
+    def _create_adapters(self) -> List["ControllerAdapterService"]:
+        from mindor.core.adapter import create_controller_adapter
+        return [ create_controller_adapter(config, self, self.daemon) for config in self.config.adapters ]
+
     def _create_listeners(self) -> List[ListenerService]:
         return [ create_listener(f"listener-{index}", config, self.daemon) for index, config in enumerate(self.listeners) ]
-    
+
     def _create_gateways(self) -> List[GatewayService]:
         return [ create_gateway(f"gateway-{index}", config, self.daemon) for index, config in enumerate(self.gateways) ]
 
@@ -359,7 +388,7 @@ class ControllerService(AsyncService):
     def _create_components(self) -> List[ComponentService]:
         global_configs = self._get_component_global_configs()
         return [ create_component(component.id or "__default__", component, global_configs, self.daemon) for component in self.components ]
-    
+
     def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
         return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
 
@@ -460,11 +489,3 @@ class ControllerService(AsyncService):
         event = self.task_events.get(task_id)
         if event:
             event.set()
-
-def register_controller(type: ControllerType):
-    def decorator(cls: Type[ControllerService]) -> Type[ControllerService]:
-        ControllerRegistry[type] = cls
-        return cls
-    return decorator
-
-ControllerRegistry: Dict[ControllerType, Type[ControllerService]] = {}

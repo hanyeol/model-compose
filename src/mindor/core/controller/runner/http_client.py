@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.http_client import HttpClient
 from .client import ControllerClient
@@ -7,7 +7,7 @@ from starlette.datastructures import UploadFile
 import asyncio
 
 class HttpControllerClient(ControllerClient):
-    def __init__(self, config: ControllerConfig):
+    def __init__(self, config: HttpServerControllerAdapterConfig):
         super().__init__(config)
 
         self.client: HttpClient = HttpClient(self._resolve_controller_url(), timeout=3600)
@@ -51,7 +51,7 @@ class HttpControllerClient(ControllerClient):
 
     def _resolve_controller_url(self) -> str:
         return f"http://localhost:{self.config.port}" + (self.config.base_path or "")
-    
+
     def _flatten_for_multipart(self, data: Dict[str, Any], key: str = "") -> List[Tuple[str, Any]]:
         flattened = []
 
@@ -79,11 +79,11 @@ class HttpControllerClient(ControllerClient):
     def _contains_upload_file(self, value: Any) -> bool:
         if isinstance(value, UploadFile):
             return True
-        
+
         if isinstance(value, dict):
             return any(self._contains_upload_file(v) for v in value.values())
-        
+
         if isinstance(value, list):
             return any(self._contains_upload_file(v) for v in value)
-        
+
         return False

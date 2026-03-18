@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.controller import ControllerConfig
+from mindor.dsl.schema.controller import McpServerControllerAdapterConfig
 from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
@@ -9,7 +9,7 @@ from .client import ControllerClient
 import json, os
 
 class McpControllerClient(ControllerClient):
-    def __init__(self, config: ControllerConfig):
+    def __init__(self, config: McpServerControllerAdapterConfig):
         super().__init__(config)
 
         self.client: McpClient = McpClient(self._resolve_controller_url())
@@ -38,7 +38,7 @@ class McpControllerClient(ControllerClient):
         if len(workflow.output) == 1 and not workflow.output[0].name:
             content, variable = contents[0], workflow.output[0]
             return await self._convert_output_value(content, variable.type, variable.subtype, variable.format)
-        
+
         output = {}
         for content, variable in zip(contents, workflow.output):
             output[variable.name or "output"] = await self._convert_output_value(content, variable.type, variable.subtype, variable.format)

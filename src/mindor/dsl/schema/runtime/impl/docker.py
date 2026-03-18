@@ -20,14 +20,22 @@ class DockerPortConfig(BaseModel):
     protocol: Optional[Literal[ "tcp", "udp" ]] = Field(default="tcp", description="Protocol.")
     mode: Optional[Literal[ "host", "ingress" ]] = Field(default=None, description="Publishing mode.")
 
+class DockerVolumeOptionsConfig(BaseModel):
+    nocopy: bool = Field(default=False, description="Disable copying data from container path when volume is created.")
+    labels: Optional[Dict[str, str]] = Field(default=None, description="Metadata labels for the volume.")
+
+class DockerTmpfsOptionsConfig(BaseModel):
+    size: Optional[int] = Field(default=None, description="Size of the tmpfs mount in bytes.")
+    mode: Optional[int] = Field(default=None, description="File mode of the tmpfs in octal (e.g. 1777).")
+
 class DockerVolumeConfig(BaseModel):
     type: Optional[Literal[ "bind", "volume", "tmpfs" ]] = Field(default=None, description="Volume type.")
     target: str = Field(..., description="Target path inside the container.")
     source: Optional[str] = Field(default=None, description="Source path or volume name on the host.")
     read_only: Optional[bool] = Field(default=None, description="Mount as read-only.")
     bind: Optional[Dict[str, Union[str, bool]]] = Field(default=None, description="Bind options.")
-    volume: Optional[Dict[str, str]] = Field(default=None, description="Volume options.")
-    tmpfs: Optional[Dict[str, Union[str, int]]] = Field(default=None, description="tmpfs mount options.")
+    volume: Optional[DockerVolumeOptionsConfig] = Field(default=None, description="Volume options.")
+    tmpfs: Optional[DockerTmpfsOptionsConfig] = Field(default=None, description="tmpfs mount options.")
 
 class DockerHealthCheck(BaseModel):
     test: Union[str, List[str]] = Field(..., description="Health check command.")

@@ -4,6 +4,7 @@ from mindor.core.logger import logging
 from docker.models.containers import Container
 from docker.types import Mount, DeviceRequest
 from docker.errors import DockerException, NotFound
+from pathlib import Path
 import docker, sys, asyncio, signal, time
 
 class DockerPortsResolver:
@@ -35,25 +36,22 @@ class DockerMountsResolver:
         self.volumes: Optional[List[Union[str, DockerVolumeConfig]]] = volumes
 
     def resolve(self) -> List[Mount]:
-        mounts: List[Mount] = []
+        return [ self._get_volume_mount(volume) for volume in self.volumes or [] ]
 
-        for volume in self.volumes or []:
-            if isinstance(volume, str):
-                source, target = volume.split(":")
-                mounts.append(Mount(target=target, source=source, type="bind"))
-                continue
+    def _get_volume_mount(self, volume: Union[str, DockerVolumeConfig]) -> Mount:
+        if isinstance(volume, str):
+            source, target, mode, *_ = volume.split(":") + [ None ]
+            return Mount(
+                target=target,
+                source=str(Path(source).resolve()),
+                type="bind",
+                read_only=mode == "ro"
+            )
 
-            if isinstance(volume, DockerVolumeConfig):
-                mounts.append(self._get_volume_mount(volume))
-                continue
-
-        return mounts
-    
-    def _get_volume_mount(self, volume: DockerVolumeConfig) -> Mount:
         if volume.type == "bind":
             return Mount(
                 target=volume.target,
-                source=volume.source,
+                source=str(Path(volume.source).resolve()),
                 type="bind",
                 read_only=volume.read_only or False
             )
@@ -64,14 +62,17 @@ class DockerMountsResolver:
                 source=volume.source,
                 type="volume",
                 read_only=volume.read_only or False,
-                volume_options=volume.volume or {}
+                no_copy=getattr(volume.volume, "nocopy", False),
+                labels=getattr(volume.volume, "labels", None),
             )
-        
+
         if volume.type == "tmpfs":
             return Mount(
                 target=volume.target,
+                source="",
                 type="tmpfs",
-                tmpfs_options=volume.tmpfs or {}
+                tmpfs_size=getattr(volume.tmpfs, "size", None),
+                tmpfs_mode=getattr(volume.tmpfs, "mode", None),
             )
 
 class DockerRuntimeManager:

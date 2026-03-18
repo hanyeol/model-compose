@@ -1,26 +1,27 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, AsyncIterable, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING, Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, AsyncIterable, Any
 from types import AsyncGeneratorType
 from typing_extensions import Self
 from pydantic import BaseModel
-from mindor.dsl.schema.controller import HttpServerControllerConfig
-from mindor.dsl.schema.component import ComponentConfig
-from mindor.dsl.schema.listener import ListenerConfig
-from mindor.dsl.schema.gateway import GatewayConfig
-from mindor.dsl.schema.system import SystemConfig
-from mindor.dsl.schema.logger import LoggerConfig
-from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource
-from ..base import ControllerService, ControllerType, WorkflowSchema, TaskState, TaskStatus, InterruptState, register_controller
+from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
+from mindor.core.workflow.schema import WorkflowSchema
+from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from PIL import Image as PILImage
 import uvicorn
+
+if TYPE_CHECKING:
+    from mindor.core.controller.base import ControllerService
 
 class WorkflowRunRequestBody(BaseModel):
     workflow_id: Optional[str] = None
@@ -142,35 +143,30 @@ class WorkflowSchemaResult(BaseModel):
             return WorkflowVariableGroupResult.from_instance(variable)
         return WorkflowVariableResult.from_instance(variable)
 
-@register_controller(ControllerType.HTTP_SERVER)
-class HttpServerController(ControllerService):
+@register_controller_adapter(ControllerAdapterType.HTTP_SERVER)
+class HttpServerControllerAdapter(ControllerAdapterService):
     def __init__(
         self,
-        config: HttpServerControllerConfig,
-        workflows: List[WorkflowConfig],
-        components: List[ComponentConfig],
-        listeners: List[ListenerConfig],
-        gateways: List[GatewayConfig],
-        systems: List[SystemConfig],
-        loggers: List[LoggerConfig],
+        config: HttpServerControllerAdapterConfig,
+        controller: "ControllerService",
         daemon: bool
     ):
-        super().__init__(config, workflows, components, listeners, gateways, systems, loggers, daemon)
+        super().__init__(config, controller, daemon)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.router: APIRouter = APIRouter()
-        
+
         self._configure_server()
         self._configure_routes()
         self.app.include_router(self.router, prefix=self.config.base_path or "")
 
     def _configure_server(self) -> None:
         self.app.add_middleware(
-            CORSMiddleware, 
-            allow_origins=[self.config.origins], 
-            allow_credentials=True, 
-            allow_methods=["*"], 
+            CORSMiddleware,
+            allow_origins=[self.config.origins],
+            allow_credentials=True,
+            allow_methods=["*"],
             allow_headers=["*"],
         )
 
@@ -180,18 +176,18 @@ class HttpServerController(ControllerService):
             include_schema: bool = False
         ):
             if include_schema:
-                return self._render_workflow_schemas(self.workflow_schemas)
+                return self._render_workflow_schemas(self.controller.workflow_schemas)
 
-            return self._render_workflow_list(self.workflow_schemas)
+            return self._render_workflow_list(self.controller.workflow_schemas)
 
         @self.router.get("/workflows/{workflow_id}/schema")
         async def get_workflow_schema(
             workflow_id: str
         ):
-            if workflow_id not in self.workflow_schemas:
+            if workflow_id not in self.controller.workflow_schemas:
                 raise HTTPException(status_code=404, detail="Workflow not found.")
 
-            return self._render_workflow_schema(self.workflow_schemas[workflow_id])
+            return self._render_workflow_schema(self.controller.workflow_schemas[workflow_id])
 
         @self.router.post("/workflows/runs")
         async def run_workflow(
@@ -204,11 +200,11 @@ class HttpServerController(ControllerService):
             task_id: str,
             output_only: bool = False
         ):
-            state = self.get_task_state(task_id)
+            state = self.controller.get_task_state(task_id)
 
             if not state:
                 raise HTTPException(status_code=404, detail="Task not found.")
-            
+
             return self._render_task_response(state, output_only)
 
         @self.router.post("/tasks/{task_id}/resume")
@@ -217,7 +213,7 @@ class HttpServerController(ControllerService):
             body: WorkflowResumeRequestBody = Body(...)
         ):
             try:
-                state = await self.resume_workflow(task_id, body.job_id, body.answer)
+                state = await self.controller.resume_workflow(task_id, body.job_id, body.answer)
                 return JSONResponse(content=TaskResult.to_dict(state))
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
@@ -237,7 +233,7 @@ class HttpServerController(ControllerService):
             await self.server.serve()
         finally:
             self.server = None
- 
+
     async def _shutdown(self) -> None:
         if self.server:
             self.server.should_exit = True
@@ -247,11 +243,11 @@ class HttpServerController(ControllerService):
 
         workflow_id = body.workflow_id or "__default__"
 
-        if workflow_id not in self.workflow_schemas:
+        if workflow_id not in self.controller.workflow_schemas:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
 
         try:
-            state = await self.run_workflow(workflow_id, body.input, body.wait_for_completion)
+            state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion)
         except RuntimeError as e:
             if "shutting down" in str(e):
                 raise HTTPException(status_code=503, detail="Service is shutting down")
@@ -321,8 +317,8 @@ class HttpServerController(ControllerService):
     def _render_stream_resource(self, resource: StreamResource) -> Response:
         return StreamingResponse(
             resource,
-            media_type=resource.content_type, 
-            headers=self._build_stream_resource_headers(resource), 
+            media_type=resource.content_type,
+            headers=self._build_stream_resource_headers(resource),
             background=BackgroundTask(resource.close)
         )
 

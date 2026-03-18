@@ -5,7 +5,7 @@ from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
-from mindor.dsl.schema.runtime import ProcessRuntimeConfig
+from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
@@ -53,26 +53,32 @@ class ComponentService(AsyncService):
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
         self._process_manager = None
+        self._docker_manager = None
         self._active_counter: ActiveCounter = ActiveCounter()
 
         if self.config.max_concurrent_count > 0:
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     async def start(self, background: bool = False) -> None:
-        if isinstance(self.config.runtime, ProcessRuntimeConfig):
-            from mindor.core.component.runtime import ComponentProcessRuntimeManager
-
-            self._process_manager = ComponentProcessRuntimeManager(
-                self.id,
-                self.config,
-                self.global_configs
-            )
-            await self._process_manager.start()
-            logging.info(f"Component {self.id} started in separate process")
+        if self.config.runtime.type == RuntimeType.PROCESS:
+            await self._start_process_runtime()
             return
-        
+
+        if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._start_docker_runtime()
+
         await super().start(background)
         await self.wait_until_ready()
+
+    async def stop(self) -> None:
+        if self._process_manager:
+            await self._stop_process_runtime()
+            return
+
+        await super().stop()
+
+        if self._docker_manager:
+            await self._stop_docker_runtime()
 
     async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None) -> Dict[str, Any]:
         if self._process_manager:
@@ -89,13 +95,6 @@ class ComponentService(AsyncService):
             return await self._run(action, context)
         finally:
             self._active_counter.release()
-
-    async def stop(self) -> None:
-        if self._process_manager:
-            await self._process_manager.stop()
-            return
-        
-        await super().stop()
 
     async def _start(self) -> None:
         if self.work_queue:
@@ -122,10 +121,35 @@ class ComponentService(AsyncService):
     @abstractmethod
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
-  
+
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         logging.info(f"Installing required module: {package_spec}")
         await super()._install_package(package_spec, repository)
+
+    async def _start_process_runtime(self) -> None:
+        from mindor.core.component.runtime import ComponentProcessRuntimeManager
+        self._process_manager = ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
+        await self._process_manager.start()
+        logging.info(f"Component '{self.id}' started with process runtime")
+
+    async def _stop_process_runtime(self) -> None:
+        await self._process_manager.stop()
+        logging.info(f"Component '{self.id}' process runtime stopped")
+
+    async def _start_docker_runtime(self) -> None:
+        from mindor.core.runtime.docker import DockerRuntimeManager
+        self._docker_manager = DockerRuntimeManager(self.config.runtime, verbose=False)
+        if not await self._docker_manager.exists_image():
+            await self._docker_manager.pull_image()
+        if await self._docker_manager.exists_container():
+            await self._docker_manager.remove_container(force=True)
+        await self._docker_manager.start_container(detach=True)
+        logging.info(f"Component '{self.id}' started with Docker runtime")
+
+    async def _stop_docker_runtime(self) -> None:
+        await self._docker_manager.stop_container()
+        await self._docker_manager.remove_container(force=True)
+        logging.info(f"Component '{self.id}' Docker container stopped")
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

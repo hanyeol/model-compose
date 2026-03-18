@@ -1,7 +1,8 @@
 controller:
-  type: mcp-server
-  base_path: /mcp
-  port: 8080
+  adapter:
+    type: mcp-server
+    base_path: /mcp
+    port: 8080
   webui:
     driver: gradio
     port: 8081

@@ -1,0 +1,199 @@
+controller:
+  adapter:
+    type: http-server
+    base_path: /api
+    port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: scrape-with-fallback
+    title: Scrape with CAPTCHA Fallback
+    description: >
+      Navigate to a URL, detect CAPTCHA, pause for human resolution via
+      noVNC, then extract content.
+    input:
+      - id: url
+        type: string
+        description: Target URL to scrape
+      - id: selector
+        type: string
+        description: CSS selector for content extraction
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url}
+
+      - id: detect-captcha
+        component: browser
+        action: check-captcha
+        interrupt:
+          after:
+            condition:
+              operator: eq
+              input: ${output}
+              value: true
+            message: >
+              CAPTCHA detected! Please solve it via noVNC at: http://localhost:6080/vnc.html
+              Click Resume when done.
+            metadata:
+              novnc_url: http://localhost:6080/vnc.html
+              target_url: ${input.url}
+        depends_on:
+          - navigate
+
+      - id: extract
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on:
+          - detect-captcha
+        output:
+          content: ${output as text}
+
+  - id: login-and-scrape
+    title: Login then Scrape
+    description: >
+      Fill login form, handle possible CAPTCHA, then extract protected content.
+    input:
+      - id: login_url
+        type: string
+      - id: username
+        type: string
+      - id: password
+        type: string
+      - id: content_url
+        type: string
+      - id: selector
+        type: string
+    jobs:
+      - id: open-login
+        component: browser
+        action: navigate
+        input:
+          url: ${input.login_url}
+
+      - id: fill-username
+        component: browser
+        action: type-text
+        input:
+          selector: "input[name='username'], input[type='email']"
+          text: ${input.username}
+        depends_on:
+          - open-login
+
+      - id: fill-password
+        component: browser
+        action: type-text
+        input:
+          selector: "input[name='password'], input[type='password']"
+          text: ${input.password}
+        depends_on:
+          - fill-username
+
+      - id: submit
+        component: browser
+        action: click
+        input:
+          selector: "button[type='submit'], input[type='submit']"
+        depends_on:
+          - fill-password
+
+      - id: check-login-captcha
+        component: browser
+        action: check-captcha
+        interrupt:
+          after:
+            condition:
+              operator: eq
+              input: ${output}
+              value: true
+            message: >
+              CAPTCHA or MFA detected on login page. Please complete it via noVNC:
+              http://localhost:6080/vnc.html
+            metadata:
+              novnc_url: http://localhost:6080/vnc.html
+        depends_on:
+          - submit
+
+      - id: navigate-content
+        component: browser
+        action: navigate
+        input:
+          url: ${input.content_url}
+        depends_on:
+          - check-login-captcha
+
+      - id: extract-content
+        component: browser
+        action: extract-text
+        input:
+          selector: ${input.selector}
+        depends_on:
+          - navigate-content
+        output:
+          content: ${output as text}
+
+systems:
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.yml
+    wait: true
+    wait_timeout: 60s
+
+components:
+  - id: browser
+    type: web-browser
+    host: localhost
+    port: 9222
+    novnc_url: http://localhost:6080/vnc.html
+    timeout: 30s
+    actions:
+      - id: navigate
+        method: navigate
+        url: ${input.url}
+        wait_until: networkidle
+
+      - id: check-captcha
+        method: evaluate
+        expression: >
+          !!(document.querySelector('[id*=captcha],[class*=captcha],[class*=challenge]')
+          || document.querySelector('iframe[src*=captcha]')
+          || document.querySelector('#cf-challenge-running'))
+
+      - id: click
+        method: click
+        selector: ${input.selector}
+
+      - id: type-text
+        method: input-text
+        selector: ${input.selector}
+        text: ${input.text}
+
+      - id: screenshot
+        method: screenshot
+        full_page: false
+        format: png
+
+      - id: extract-text
+        method: extract
+        selector: ${input.selector}
+        extract_mode: text
+        multiple: false
+
+      - id: extract-html
+        method: extract
+        selector: ${input.selector}
+        extract_mode: html
+        multiple: false
+
+      - id: get-cookies
+        method: get-cookies
+
+      - id: evaluate
+        method: evaluate
+        expression: ${input.expression}

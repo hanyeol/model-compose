@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Docker Nginx Example
+  description: Serves static files from a local data directory using an Nginx container.
+  job:
+    input: ${input}
+    output:
+      message: ${output.content as text}
+
+component:
+  type: http-client
+  runtime:
+    type: docker
+    image: nginx:alpine
+    container_name: model-compose-nginx
+    ports:
+      - "8090:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    restart: unless-stopped
+  action:
+    method: GET
+    endpoint: http://localhost:8090/${input.path | index.html}
+    output:
+      content: ${response as text}

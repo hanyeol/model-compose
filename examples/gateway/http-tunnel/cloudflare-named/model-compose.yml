@@ -1,16 +1,18 @@
 controller:
   adapter:
     type: http-server
-    port: 8080
     base_path: /api
+    port: 8080
   webui:
     port: 8081
 
 gateway:
   type: http-tunnel
-  driver: ngrok
+  driver: cloudflare
+  token: ${env.CLOUDFLARE_TUNNEL_TOKEN}
+  hostname: app.example.com
   port:
-    - 8090  # Expose local port 8090 via ngrok tunnel
+    - 8090
 
 listener:
   type: http-callback
@@ -21,8 +23,8 @@ listener:
   result: ${body.result}
 
 workflow:
-  title: Ngrok HTTP Tunnel Gateway Example
-  description: Demonstrates using ngrok to expose local callback listener to external services
+  title: Cloudflare Named Tunnel Gateway Example
+  description: Demonstrates using a Cloudflare Named Tunnel with a fixed domain for production use
   job:
     input: ${input}
     output: ${output}
@@ -38,7 +40,6 @@ component:
       Content-Type: application/json
     body:
       data: ${input.data}
-      # Use gateway's public url for callback
       callback_url: ${gateway:8090.public_url}/callback
       task_id: ${context.run_id}
     completion:

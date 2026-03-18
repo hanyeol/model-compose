@@ -1,0 +1,78 @@
+controller:
+  adapter:
+    type: http-server
+    base_path: /api
+    port: 8080
+
+listener:
+  type: http-trigger
+  port: 8091
+  triggers:
+    - path: /webhook
+      method: POST
+      workflow: handle-message
+      input:
+        chat_id: ${body.message.chat.id}
+        text: ${body.message.text}
+        from: ${body.message.from.first_name}
+
+workflows:
+  - id: handle-message
+    title: Handle Telegram Message
+    description: Receives a Telegram message, generates a reply with GPT-4o, and sends it back.
+    jobs:
+      - id: generate-reply
+        component: openai-chat
+        input:
+          prompt: ${input.text}
+          from: ${input.from}
+        output:
+          reply: ${output.message}
+
+      - id: send-reply
+        component: telegram-send-message
+        input:
+          chat_id: ${input.chat_id}
+          text: ${jobs.generate-reply.output.reply}
+        output: ${output}
+        depends_on:
+          - generate-reply
+
+components:
+  - id: openai-chat
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: system
+            content: >
+              You are a helpful Telegram bot assistant.
+              The user's name is ${input.from}.
+              Keep your responses concise and friendly.
+          - role: user
+            content: ${input.prompt as text}
+      output:
+        message: ${response.choices[0].message.content}
+
+  - id: telegram-send-message
+    type: http-client
+    base_url: https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}
+    action:
+      path: /sendMessage
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        chat_id: ${input.chat_id}
+        text: ${input.text}
+        parse_mode: Markdown
+      output:
+        ok: ${response.ok}
+        message_id: ${response.result.message_id}

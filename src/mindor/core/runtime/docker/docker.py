@@ -41,11 +41,12 @@ class DockerMountsResolver:
     def _get_volume_mount(self, volume: Union[str, DockerVolumeConfig]) -> Mount:
         if isinstance(volume, str):
             source, target, mode, *_ = volume.split(":") + [ None ]
+            read_only = mode == "ro"
             return Mount(
                 target=target,
                 source=str(Path(source).resolve()),
                 type="bind",
-                read_only=mode == "ro"
+                read_only=read_only
             )
 
         if volume.type == "bind":

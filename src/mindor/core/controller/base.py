@@ -33,7 +33,7 @@ from pathlib import Path
 import asyncio, ulid, os, logging, threading
 
 if TYPE_CHECKING:
-    from mindor.core.adapter.base import ControllerAdapterService
+    from mindor.core.controller.adapters.base import ControllerAdapterService
 
 class TaskStatus(str, Enum):
     PENDING     = "pending"
@@ -383,7 +383,7 @@ class ControllerService(AsyncService):
         await asyncio.gather(*[ self._create_webui().stop() ])
 
     def _create_adapters(self) -> List["ControllerAdapterService"]:
-        from mindor.core.adapter import create_controller_adapter
+        from mindor.core.controller.adapters import create_controller_adapter
         return [ create_controller_adapter(config, self, self.daemon) for config in self.config.adapters ]
 
     def _create_listeners(self) -> List[ListenerService]:

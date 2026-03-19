@@ -16,7 +16,7 @@ workflow:
       message: ${output.content as text}
 
 component:
-  type: http-client
+  type: http-server
   runtime:
     type: docker
     image: nginx:alpine
@@ -26,8 +26,9 @@ component:
     volumes:
       - ./html:/usr/share/nginx/html:ro
     restart: unless-stopped
+  port: 8090
   action:
     method: GET
-    endpoint: http://localhost:8090/${input.path | index.html}
+    path: /${input.path | index.html}
     output:
       content: ${response as text}

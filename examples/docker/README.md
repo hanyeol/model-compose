@@ -8,7 +8,7 @@ This workflow provides a simple static file server that:
 
 1. **Docker Runtime**: Automatically starts and manages an Nginx container via component's Docker runtime
 2. **Volume Mounting**: Mounts a local `html` directory into the container for serving static files
-3. **HTTP Communication**: Demonstrates HTTP client communication with a Dockerized service
+3. **HTTP Communication**: Demonstrates HTTP server communication with a Dockerized service
 4. **Lightweight Image**: Uses `nginx:alpine` for minimal footprint (~40MB)
 
 ## Preparation
@@ -65,8 +65,8 @@ This workflow provides a simple static file server that:
 
 ## Component Details
 
-### HTTP Client Component (Default)
-- **Type**: HTTP client with Docker runtime
+### HTTP Server Component (Default)
+- **Type**: HTTP server with Docker runtime
 - **Docker Image**: `nginx:alpine`
 - **Container Name**: `model-compose-nginx`
 - **Port Mapping**: `8090:80` (host:container)
@@ -84,7 +84,7 @@ This workflow provides a simple static file server that:
 ```mermaid
 graph TD
     J1((Default<br/>job))
-    C1[HTTP Client<br/>component]
+    C1[HTTP Server<br/>component]
     D1[(Nginx<br/>container)]
 
     J1 --> C1
@@ -114,7 +114,7 @@ graph TD
 
 ```yaml
 component:
-  type: http-client
+  type: http-server
   runtime:
     type: docker
     image: nginx:alpine
@@ -124,16 +124,18 @@ component:
     volumes:
       - ./html:/usr/share/nginx/html:ro
     restart: unless-stopped
+  port: 8090
   action:
     method: GET
-    endpoint: http://localhost:8090/${input.path | index.html}
+    path: /${input.path | index.html}
     output:
       content: ${response as text}
 ```
 
 **Key points:**
 - The `runtime` section defines the Docker container configuration
-- The `action` section defines how the component communicates with the container
+- The `port` field specifies the port of the running container to connect to
+- The `action` section defines how the component communicates with the container via `path`
 - Volume mount uses `:ro` (read-only) for security
 
 ## Customization

@@ -13,5 +13,6 @@ ActionConfig = Union[
     TextSplitterActionConfig,
     ImageProcessorActionConfig,
     AgentActionConfig,
-    WebBrowserActionConfig
+    WebBrowserActionConfig,
+    VideoSceneDetectorActionConfig
 ]

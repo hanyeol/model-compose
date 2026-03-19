@@ -163,17 +163,18 @@ class ImageValueRenderer:
 class FileValueRenderer:
     async def render(self, value: Any) -> Optional[str]:
         if isinstance(value, UploadFile):
-            return await save_stream_to_temporary_file(UploadFileStreamResource(value))
+            extension = os.path.splitext(value.filename)[1].lstrip(".") if value.filename else None
+            return await save_stream_to_temporary_file(UploadFileStreamResource(value), extension)
 
         if isinstance(value, bytes):
-            return await save_stream_to_temporary_file(BytesStreamResource(value))
+            return await save_stream_to_temporary_file(BytesStreamResource(value), None)
 
         if isinstance(value, StreamResource):
-            return await save_stream_to_temporary_file(value)
+            return await save_stream_to_temporary_file(value, None)
 
         if isinstance(value, str):
             if os.path.isfile(value):
                 return value
-            return await save_stream_to_temporary_file(Base64StreamResource(value))
+            return await save_stream_to_temporary_file(Base64StreamResource(value), None)
 
         return value

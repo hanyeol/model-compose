@@ -16,3 +16,4 @@ class ComponentType(str, Enum):
     WEB_SCRAPER     = "web-scraper"
     AGENT           = "agent"
     WEB_BROWSER     = "web-browser"
+    VIDEO_SCENE_DETECTOR = "video-scene-detector"

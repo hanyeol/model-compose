@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | model | vector-store | shell | workflow | mcp-client | mcp-server | text-splitter | web-browser
+  type: agent | http-client | http-server | model | vector-store | video-scene-detector | shell | workflow | mcp-client | mcp-server | text-splitter | web-browser
   id: component-id
   runtime: embedded | docker  # default: embedded
   max_concurrent_count: 1
@@ -49,6 +49,7 @@ Model-compose supports the following component types:
 | `workflow` | Sub-workflow execution | [workflow.md](components/workflow.md) |
 | `shell` | Shell command execution | [shell.md](components/shell.md) |
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
+| `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 
 ## Common Configuration Properties

@@ -25,7 +25,9 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
 | `image-processor` | 处理图像 | 图像转换、调整大小等 |
+| `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
+| `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
 
 ### 组件选择指南
 
@@ -42,7 +44,11 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 文本分割 → `text-splitter`
 - 图像处理 → `image-processor`
 - 向量存储 → `vector-store`
+- 视频场景检测 → `video-scene-detector`
 - 网页抓取 → `web-scraper`
+
+**浏览器自动化**
+- 浏览器控制 (CDP) → `web-browser`
 
 **AI 代理**
 - 使用工具的自主代理 → `agent`

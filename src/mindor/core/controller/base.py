@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import TYPE_CHECKING
+
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
 from dataclasses import dataclass
 from mindor.dsl.schema.controller import ControllerConfig
@@ -67,7 +69,7 @@ class ControllerService(AsyncService):
         return cls._shared_instance
 
     @classmethod
-    def get_shared_instance(cls) -> Optional["ControllerService"]:
+    def get_shared_instance(cls) -> Optional[ControllerService]:
         return cls._shared_instance
 
     def __init__(
@@ -117,8 +119,12 @@ class ControllerService(AsyncService):
             await self._setup_gateways()
             await self._setup_components()
             await self.start()
-            await self.wait_until_stopped()
-            await self._stop_loggers()
+            try:
+                await self.wait_until_stopped()
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                await self._stop()
+            finally:
+                await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -148,8 +154,12 @@ class ControllerService(AsyncService):
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)
             await self.start()
-            await self.wait_until_stopped()
-            await self._stop_loggers()
+            try:
+                await self.wait_until_stopped()
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                await self._stop()
+            finally:
+                await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:

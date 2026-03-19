@@ -1,0 +1,77 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: detect-scenes
+    title: Detect Scenes (Adaptive)
+    description: Detect scene changes in a video using adaptive detector
+    job:
+      component: scene-detector
+      action: adaptive
+      output:
+        scenes: ${output as json}
+
+  - id: detect-scenes-content
+    title: Detect Scenes (Content)
+    description: Detect scene changes in a video using content-aware detector
+    job:
+      component: scene-detector
+      action: content
+      output:
+        scenes: ${output as json}
+
+  - id: detect-scenes-range
+    title: Detect Scenes (Time Range)
+    description: Detect scene changes within a specific time range
+    job:
+      component: scene-detector
+      action: with-range
+      output:
+        scenes: ${output as json}
+
+  - id: detect-scenes-ffmpeg
+    title: Detect Scenes (FFmpeg)
+    description: Detect scene changes using FFmpeg scene filter
+    job:
+      component: scene-detector-ffmpeg
+      output:
+        scenes: ${output as json}
+
+components:
+  - id: scene-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    actions:
+      - id: adaptive
+        video: ${input.video as file}
+        detector: adaptive
+        threshold: ${input.threshold as number | 27.0}
+        output: ${result as json}
+
+      - id: content
+        video: ${input.video as file}
+        detector: content
+        threshold: ${input.threshold as number | 27.0}
+        output: ${result as json}
+
+      - id: with-range
+        video: ${input.video as file}
+        detector: ${input.detector as select/adaptive,content,threshold,histogram,hash | adaptive}
+        threshold: ${input.threshold as number}
+        start_time: ${input.start_time}
+        end_time: ${input.end_time}
+        output: ${result as json}
+
+  - id: scene-detector-ffmpeg
+    type: video-scene-detector
+    driver: ffmpeg
+    action:
+      video: ${input.video as file}
+      threshold: ${input.threshold as number | 0.3}
+      output: ${result as json}

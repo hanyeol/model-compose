@@ -1,5 +1,6 @@
 from typing import Callable, Awaitable, Tuple, Dict, List, Any
 from .active_counter import ActiveCounter
+from mindor.core.errors import ShutdownError
 import asyncio
 
 class WorkQueue:
@@ -19,7 +20,7 @@ class WorkQueue:
 
                 if self.draining:
                     if not future.done():
-                        future.set_exception(RuntimeError("Service is shutting down"))
+                        future.set_exception(ShutdownError("Service is shutting down"))
                     self.queue.task_done()
                     continue
 
@@ -56,7 +57,7 @@ class WorkQueue:
             raise ValueError("Queue not started")
 
         if self.draining or self.stopped:
-            raise RuntimeError("Queue is shutting down")
+            raise ShutdownError("Queue is shutting down")
 
         future = asyncio.get_running_loop().create_future()
         await self.queue.put((args, kwargs, future))
@@ -87,7 +88,7 @@ class WorkQueue:
             try:
                 args, kwargs, future = self.queue.get_nowait()
                 if not future.done():
-                    future.set_exception(RuntimeError("Service shut down"))
+                    future.set_exception(ShutdownError("Service shut down"))
                 self.queue.task_done()
             except asyncio.QueueEmpty:
                 break

@@ -551,7 +551,246 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 동시 실행 제어
+## 6.3 큐 구독자 (Queue Subscriber)
+
+큐 구독자 컨트롤러는 메시지 큐(예: Redis)에서 작업을 가져와 워크플로우를 실행합니다. 여러 model-compose 인스턴스가 공유 큐에서 작업을 분산 처리하는 분산 워커 패턴에 사용됩니다.
+
+### 기본 구조
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+```
+
+### 예제: 분산 이미지 처리 워커
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflow: image-processing
+  max_concurrent: 2
+
+workflow:
+  title: Image Processing
+  input: ${input}
+  output: ${output}
+
+component:
+  type: http-client
+  base_url: https://api.openai.com/v1
+  path: /images/generations
+  method: POST
+  headers:
+    Authorization: Bearer ${env.OPENAI_API_KEY}
+    Content-Type: application/json
+  body:
+    model: dall-e-3
+    prompt: ${input.prompt}
+  output:
+    image_url: ${response.data[0].url}
+```
+
+### 동작 방식
+
+1. **Producer**가 `LPUSH`로 Redis 리스트에 작업 메시지를 푸시합니다
+2. **Worker** (queue-subscriber)가 `BRPOP`으로 작업을 가져옵니다
+3. **Worker**가 해당 워크플로우를 실행합니다
+4. **Worker**가 결과를 Redis에 저장(`SET`)하고 pub/sub으로 브로드캐스트(`PUBLISH`)합니다
+5. **Producer**가 `GET` 또는 `SUBSCRIBE`로 결과를 수신합니다
+
+### Task 메시지 포맷
+
+Producer가 큐에 푸시하는 JSON 메시지:
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "input": { "prompt": "산 위의 일몰" }
+}
+```
+
+- `task_id`: 논리적 작업 식별자 (재시도해도 동일)
+- `run_id`: 실행 인스턴스 고유 식별자
+- `input`: 워크플로우 입력 데이터
+
+### 결과 포맷
+
+워크플로우 실행 후, 워커가 결과를 저장하고 발행합니다:
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "status": "completed",
+  "output": { "image_url": "https://..." },
+  "worker_id": "01JXY..."
+}
+```
+
+결과 상태 값: `completed`, `failed`, `interrupted`
+
+### 큐 및 키 네이밍
+
+각 워크플로우는 `{queue_name}:{workflow_id}` 패턴으로 자체 큐를 갖습니다:
+
+```
+model-compose:tasks:image-processing   ← 작업 큐 (Redis List)
+model-compose:result:01JXYZ...        ← 결과 저장 (Redis String, TTL 적용)
+model-compose:result:01JXYZ...        ← 결과 알림 (Redis Pub/Sub 채널)
+```
+
+### 설정 옵션
+
+#### 공통 설정
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `driver` | string | **필수** | 큐 백엔드 드라이버 (`redis`) |
+| `queue_name` | string | `model-compose:tasks` | 작업 큐의 기본 이름 |
+| `result_prefix` | string | `model-compose:result:` | 결과 키 및 pub/sub 채널 접두사 |
+| `result_ttl` | integer | `3600` | 결과 항목 TTL(초). `0` = 만료 없음 |
+| `max_concurrent` | integer | `1` | 최대 동시 처리 작업 수 |
+| `worker_id` | string | 자동 | 워커 고유 식별자 (자동 ULID 생성) |
+| `workflows` | list | `["__default__"]` | 처리할 워크플로우 ID 목록 |
+
+#### Redis 드라이버 설정
+
+연결은 `url` 또는 `host`/`port`/`tls`로 설정할 수 있습니다. 둘을 동시에 사용할 수 없습니다.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `url` | string | `null` | Redis 연결 URL (예: `redis://localhost:6379`, TLS는 `rediss://...`) |
+| `host` | string | `localhost` | Redis 서버 호스트명 또는 IP 주소 |
+| `port` | integer | `6379` | Redis 서버 포트 번호 |
+| `tls` | boolean | `false` | TLS/SSL 연결 사용 |
+| `db` | integer | `0` | Redis 데이터베이스 번호 (0-15) |
+| `password` | string | `null` | Redis 비밀번호 |
+| `pop_timeout` | integer | `1` | BRPOP 타임아웃(초) |
+
+### 분산 워커 시나리오
+
+#### 시나리오 1: 단일 워크플로우 워커
+
+가장 간단한 구성 — 하나의 워커가 하나의 워크플로우를 처리:
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflow: text-summary
+  max_concurrent: 3
+```
+
+작업 푸시:
+```bash
+redis-cli LPUSH model-compose:tasks:text-summary \
+  '{"task_id":"t1","run_id":"r1","input":{"text":"..."}}'
+```
+
+#### 시나리오 2: 멀티 워크플로우 워커
+
+하나의 워커가 여러 워크플로우를 처리:
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflows:
+    - text-summary
+    - translation
+  max_concurrent: 5
+```
+
+#### 시나리오 3: 특화 워커
+
+작업 부하에 따라 다른 워커를 배포:
+
+```yaml
+# GPU 서버 — 이미지 생성만 처리
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://shared-redis:6379
+  workflow: image-generation
+  max_concurrent: 2
+
+# CPU 서버 — 텍스트 처리
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://shared-redis:6379
+  workflows:
+    - text-summary
+    - translation
+  max_concurrent: 10
+```
+
+### 결과 수신
+
+#### Pub/Sub 사용 (실시간)
+
+작업 푸시 전에 결과 채널을 구독:
+
+```bash
+# 터미널 1: 구독
+redis-cli SUBSCRIBE model-compose:result:run-001
+
+# 터미널 2: 작업 푸시
+redis-cli LPUSH model-compose:tasks:my-workflow \
+  '{"task_id":"t1","run_id":"run-001","input":{}}'
+```
+
+#### GET 사용 (폴링)
+
+작업 푸시 후 결과 키를 폴링:
+
+```bash
+redis-cli GET model-compose:result:run-001
+```
+
+### 프로덕션 설정
+
+host/port 사용:
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  host: redis.internal
+  port: 6379
+  password: ${env.REDIS_PASSWORD}
+  db: 2
+  queue_name: myapp:tasks
+  result_prefix: myapp:result:
+  result_ttl: 7200
+  worker_id: gpu-worker-01
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+URL 사용 (TLS 포함):
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+> **참고**: `redis` Python 패키지(`redis>=5.0.0`)가 필요합니다. model-compose의 의존성으로 포함되어 있습니다.
+
+---
+
+## 6.4 동시 실행 제어
 
 `max_concurrent_count` 설정은 HTTP 서버와 MCP 서버 모두에서 사용 가능하며, 컨트롤러 레벨에서 동시에 실행할 수 있는 워크플로우 수를 제한합니다.
 
@@ -628,7 +867,7 @@ components:
 
 ---
 
-## 6.4 포트 및 호스트 설정
+## 6.5 포트 및 호스트 설정
 
 ### 호스트 (host)
 
@@ -735,7 +974,7 @@ server {
 
 ---
 
-## 6.5 컨트롤러 모범 사례
+## 6.6 컨트롤러 모범 사례
 
 ### 1. 환경별 포트 설정
 

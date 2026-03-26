@@ -13,6 +13,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.errors import ShutdownError
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway
@@ -59,7 +60,7 @@ class TaskState:
     interrupt: Optional[InterruptState] = None
 
 class ControllerService(AsyncService):
-    _shared_instance: Optional["ControllerService"] = None
+    _shared_instance: Optional[ControllerService] = None
     _shared_instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
@@ -183,7 +184,7 @@ class ControllerService(AsyncService):
 
     async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
         if self._shutting_down:
-            raise RuntimeError("Service is shutting down")
+            raise ShutdownError("Service is shutting down")
 
         task_id = ulid.ulid()
         state = TaskState(task_id=task_id, status=TaskStatus.PENDING, workflow_id=workflow_id)

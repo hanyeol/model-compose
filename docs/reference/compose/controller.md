@@ -1,12 +1,12 @@
 # Controller Configuration Reference
 
-The controller section defines the server configuration for handling requests and managing workflows in model-compose. Controllers serve as the entry point for executing workflows and can be configured as HTTP servers or MCP (Model Context Protocol) servers.
+The controller section defines the server configuration for handling requests and managing workflows in model-compose. Controllers serve as the entry point for executing workflows and can be configured as HTTP servers, MCP (Model Context Protocol) servers, or queue subscribers for distributed task processing.
 
 ## Basic Structure
 
 ```yaml
 controller:
-  type: http-server | mcp-server
+  type: http-server | mcp-server | queue-subscriber
   name: optional-controller-name
   host: 0.0.0.0
   port: 8080
@@ -71,6 +71,185 @@ controller:
     port: 8081
 ```
 
+### Queue Subscriber (`queue-subscriber`)
+
+Creates a queue subscriber that consumes tasks from a message queue (e.g., Redis) and executes workflows. Used for distributed worker patterns where multiple model-compose instances process tasks from a shared queue.
+
+```yaml
+# Using URL
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+
+# Using host/port
+controller:
+  type: queue-subscriber
+  driver: redis
+  host: localhost
+  port: 6379
+```
+
+> **Note**: Unlike `http-server` and `mcp-server`, the `queue-subscriber` type does not expose HTTP endpoints. It operates as a background worker that pulls tasks from the queue.
+
+#### Queue Subscriber Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | **required** | Queue backend driver. Currently supported: `redis` |
+| `queue_name` | string | `model-compose:tasks` | Base name for task queues. Actual queue keys: `{queue_name}:{workflow_id}` |
+| `result_prefix` | string | `model-compose:result:` | Prefix for result keys and pub/sub channels |
+| `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` means no expiry |
+| `max_concurrent` | integer | `1` | Maximum number of tasks processed concurrently |
+| `worker_id` | string | `null` | Unique worker identifier. Auto-generated (ULID) if not set |
+| `workflows` | list | `["__default__"]` | Workflow IDs to handle. Each gets its own queue: `{queue_name}:{workflow_id}` |
+| `workflow` | string | - | Shorthand for single workflow. Inflated to `workflows: [value]` |
+
+#### Redis Driver Settings
+
+Connection can be configured using either `url` or `host`/`port`/`tls` fields. If both `url` and `host` are provided, validation will fail.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | `null` | Redis connection URL (e.g., `redis://localhost:6379`, `rediss://localhost:6379` for TLS). Mutually exclusive with `host` |
+| `host` | string | `localhost` | Redis server hostname or IP address. Mutually exclusive with `url` |
+| `port` | integer | `6379` | Redis server port number (1-65535) |
+| `tls` | boolean | `false` | Use TLS/SSL for connections (equivalent to `rediss://` protocol) |
+| `db` | integer | `0` | Redis database number (0-15) |
+| `password` | string | `null` | Redis password. Can also be specified in the URL |
+| `pop_timeout` | integer | `1` | BRPOP timeout in seconds before retrying |
+
+#### Data Flow
+
+```
+Producer                  Redis                    Worker (queue-subscriber)
+   │                        │                              │
+   │── LPUSH queue ────────>│                              │
+   │                        │<──────── BRPOP queue ────────│
+   │                        │                              │── run_workflow()
+   │                        │<──── SET result:<run_id> ────│
+   │                        │<── PUBLISH result:<run_id> ──│
+   │<── GET result:<run_id> │                              │
+   │<── SUBSCRIBE result:*  │                              │
+```
+
+#### Task Message Format (Producer → Queue)
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "input": { "text": "Hello" }
+}
+```
+
+- `task_id`: Logical task identifier (remains the same across retries)
+- `run_id`: Execution instance identifier (unique per publish)
+- `input`: Workflow input data
+
+#### Result Message Format (Worker → Redis)
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "status": "completed",
+  "output": { "message": "Hello!" },
+  "worker_id": "01JXY..."
+}
+```
+
+Result status values: `completed`, `failed`, `interrupted`
+
+When `interrupted`, the result includes an `interrupt` field:
+```json
+{
+  "status": "interrupted",
+  "interrupt": {
+    "job_id": "review-step",
+    "phase": "before",
+    "message": "Please review before proceeding.",
+    "metadata": {}
+  }
+}
+```
+
+#### Redis Key/Channel Reference
+
+| Key/Channel | Type | Description |
+|---|---|---|
+| `{queue_name}:{workflow_id}` | List | Task queue (LPUSH/BRPOP) |
+| `{result_prefix}{run_id}` | String | Result storage (with TTL) |
+| `{result_prefix}{run_id}` | Pub/Sub | Result notification channel |
+
+#### Examples
+
+**Single workflow worker:**
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflow: my-workflow
+  max_concurrent: 3
+```
+
+**Multi-workflow worker:**
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflows:
+    - text-summary
+    - translation
+  max_concurrent: 5
+```
+
+**Worker with custom queue and result settings:**
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  host: redis.internal
+  port: 6379
+  password: ${env.REDIS_PASSWORD}
+  db: 2
+  queue_name: myapp:tasks
+  result_prefix: myapp:result:
+  result_ttl: 7200
+  worker_id: gpu-worker-01
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+**TLS connection using URL:**
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+**TLS connection using host/port:**
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  host: redis.internal
+  port: 6380
+  tls: true
+  password: ${env.REDIS_PASSWORD}
+  db: 2
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
 ## Common Configuration Options
 
 ### Core Settings
@@ -78,7 +257,7 @@ controller:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | string | `null` | Optional name to identify the controller |
-| `type` | string | **required** | Controller type: `http-server` or `mcp-server` |
+| `type` | string | **required** | Controller type: `http-server`, `mcp-server`, or `queue-subscriber` |
 | `host` | string | `0.0.0.0` | Host address to bind the server to |
 | `port` | integer | `8080` | Port number for the server |
 | `base_path` | string | `null` | Base path prefix for all routes/endpoints |
@@ -217,6 +396,20 @@ controller:
     command: node server.js
     server_dir: frontend/server
     static_dir: frontend/dist
+```
+
+### Queue Subscriber with Redis
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  queue_name: model-compose:tasks
+  workflows:
+    - image-generation
+    - text-summary
+  max_concurrent: 4
+  result_ttl: 3600
 ```
 
 ## Usage Notes

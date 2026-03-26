@@ -6,6 +6,7 @@ from types import AsyncGeneratorType
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
+from mindor.core.errors import ShutdownError
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_response import HttpEventStreamer
@@ -146,11 +147,11 @@ class WorkflowSchemaResult(BaseModel):
         return WorkflowVariableResult.from_instance(variable)
 
 @register_controller_adapter(ControllerAdapterType.HTTP_SERVER)
-class HttpServerControllerAdapter(ControllerAdapterService):
+class HttpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
         self,
         config: HttpServerControllerAdapterConfig,
-        controller: "ControllerService",
+        controller: ControllerService,
         daemon: bool
     ):
         super().__init__(config, controller, daemon)
@@ -250,10 +251,8 @@ class HttpServerControllerAdapter(ControllerAdapterService):
 
         try:
             state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion)
-        except RuntimeError as e:
-            if "shutting down" in str(e):
-                raise HTTPException(status_code=503, detail="Service is shutting down")
-            raise
+        except ShutdownError:
+            raise HTTPException(status_code=503, detail="Service is shutting down")
 
         if body.output_only and not body.wait_for_completion:
             raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")

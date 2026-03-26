@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List, Any
+from typing import TYPE_CHECKING
+
+from typing import Optional, List, Any
 from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
@@ -17,11 +19,11 @@ if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
 
 @register_controller_adapter(ControllerAdapterType.MCP_SERVER)
-class McpServerControllerAdapter(ControllerAdapterService):
+class McpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
         self,
         config: McpServerControllerAdapterConfig,
-        controller: "ControllerService",
+        controller: ControllerService,
         daemon: bool
     ):
         super().__init__(config, controller, daemon)

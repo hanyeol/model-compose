@@ -551,7 +551,246 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 Concurrency Control
+## 6.3 Queue Subscriber
+
+The queue subscriber controller consumes tasks from a message queue (e.g., Redis) and executes workflows. This enables distributed worker patterns where multiple model-compose instances process tasks from a shared queue.
+
+### Basic Structure
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+```
+
+### Example: Distributed Image Processing Worker
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflow: image-processing
+  max_concurrent: 2
+
+workflow:
+  title: Image Processing
+  input: ${input}
+  output: ${output}
+
+component:
+  type: http-client
+  base_url: https://api.openai.com/v1
+  path: /images/generations
+  method: POST
+  headers:
+    Authorization: Bearer ${env.OPENAI_API_KEY}
+    Content-Type: application/json
+  body:
+    model: dall-e-3
+    prompt: ${input.prompt}
+  output:
+    image_url: ${response.data[0].url}
+```
+
+### How It Works
+
+1. **Producer** pushes a task message to a Redis list using `LPUSH`
+2. **Worker** (queue-subscriber) pops the task using `BRPOP`
+3. **Worker** executes the corresponding workflow
+4. **Worker** stores the result in Redis (`SET`) and broadcasts via pub/sub (`PUBLISH`)
+5. **Producer** retrieves the result using `GET` or `SUBSCRIBE`
+
+### Task Message Format
+
+Producers push JSON messages to the queue:
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "input": { "prompt": "A sunset over mountains" }
+}
+```
+
+- `task_id`: Logical task identifier (remains the same across retries)
+- `run_id`: Unique execution instance identifier
+- `input`: Workflow input data
+
+### Result Format
+
+After workflow execution, the worker stores and publishes the result:
+
+```json
+{
+  "task_id": "user-task-123",
+  "run_id": "01JXYZ...",
+  "status": "completed",
+  "output": { "image_url": "https://..." },
+  "worker_id": "01JXY..."
+}
+```
+
+Result status values: `completed`, `failed`, `interrupted`
+
+### Queue and Key Naming
+
+Each workflow gets its own queue using the pattern `{queue_name}:{workflow_id}`:
+
+```
+model-compose:tasks:image-processing   ← task queue (Redis List)
+model-compose:result:01JXYZ...        ← result storage (Redis String, with TTL)
+model-compose:result:01JXYZ...        ← result notification (Redis Pub/Sub channel)
+```
+
+### Configuration Options
+
+#### Common Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | **required** | Queue backend driver (`redis`) |
+| `queue_name` | string | `model-compose:tasks` | Base name for task queues |
+| `result_prefix` | string | `model-compose:result:` | Prefix for result keys and pub/sub channels |
+| `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` = no expiry |
+| `max_concurrent` | integer | `1` | Maximum concurrent task processing |
+| `worker_id` | string | auto | Unique worker identifier (auto-generated ULID) |
+| `workflows` | list | `["__default__"]` | Workflow IDs to handle |
+
+#### Redis Driver Settings
+
+Connection can be configured using either `url` or `host`/`port`/`tls`. Both cannot be used together.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | `null` | Redis connection URL (e.g., `redis://localhost:6379`, `rediss://...` for TLS) |
+| `host` | string | `localhost` | Redis server hostname or IP address |
+| `port` | integer | `6379` | Redis server port number |
+| `tls` | boolean | `false` | Use TLS/SSL for connections |
+| `db` | integer | `0` | Redis database number (0-15) |
+| `password` | string | `null` | Redis password |
+| `pop_timeout` | integer | `1` | BRPOP timeout in seconds |
+
+### Distributed Worker Scenarios
+
+#### Scenario 1: Single Workflow Worker
+
+The simplest setup — one worker type processes one workflow:
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflow: text-summary
+  max_concurrent: 3
+```
+
+Push tasks:
+```bash
+redis-cli LPUSH model-compose:tasks:text-summary \
+  '{"task_id":"t1","run_id":"r1","input":{"text":"..."}}'
+```
+
+#### Scenario 2: Multi-Workflow Worker
+
+A single worker handles multiple workflows:
+
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://localhost:6379
+  workflows:
+    - text-summary
+    - translation
+  max_concurrent: 5
+```
+
+#### Scenario 3: Specialized Workers
+
+Deploy different workers for different workloads:
+
+```yaml
+# GPU server — image generation only
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://shared-redis:6379
+  workflow: image-generation
+  max_concurrent: 2
+
+# CPU server — text processing
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: redis://shared-redis:6379
+  workflows:
+    - text-summary
+    - translation
+  max_concurrent: 10
+```
+
+### Consuming Results
+
+#### Using Pub/Sub (Real-time)
+
+Subscribe to the result channel before pushing the task:
+
+```bash
+# Terminal 1: Subscribe
+redis-cli SUBSCRIBE model-compose:result:run-001
+
+# Terminal 2: Push task
+redis-cli LPUSH model-compose:tasks:my-workflow \
+  '{"task_id":"t1","run_id":"run-001","input":{}}'
+```
+
+#### Using GET (Polling)
+
+Poll the result key after pushing:
+
+```bash
+redis-cli GET model-compose:result:run-001
+```
+
+### Production Configuration
+
+Using host/port:
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  host: redis.internal
+  port: 6379
+  password: ${env.REDIS_PASSWORD}
+  db: 2
+  queue_name: myapp:tasks
+  result_prefix: myapp:result:
+  result_ttl: 7200
+  worker_id: gpu-worker-01
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+Using URL (with TLS):
+```yaml
+controller:
+  type: queue-subscriber
+  driver: redis
+  url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+  workflows:
+    - image-generation
+  max_concurrent: 2
+```
+
+> **Note**: The `redis` Python package (`redis>=5.0.0`) must be installed. It is included as a dependency of model-compose.
+
+---
+
+## 6.4 Concurrency Control
 
 The `max_concurrent_count` setting is available for both HTTP and MCP servers, limiting the number of workflows that can execute concurrently at the controller level.
 
@@ -628,7 +867,7 @@ components:
 
 ---
 
-## 6.4 Port and Host Configuration
+## 6.5 Port and Host Configuration
 
 ### Host
 
@@ -735,7 +974,7 @@ Now external access to `http://example.com/ai/workflows/runs` is forwarded by Ng
 
 ---
 
-## 6.5 Controller Best Practices
+## 6.6 Controller Best Practices
 
 ### 1. Port Configuration by Environment
 

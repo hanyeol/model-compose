@@ -13,7 +13,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
         self._redis = None
 
     def _get_setup_requirements(self):
-        return ["redis>=5.0.0"]
+        return [ "redis>=5.0.0" ]
 
     async def _start(self) -> None:
         import redis.asyncio as aioredis

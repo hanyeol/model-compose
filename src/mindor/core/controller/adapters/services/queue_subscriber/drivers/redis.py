@@ -17,7 +17,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         self._redis = None
 
     def _get_setup_requirements(self):
-        return ["redis>=5.0.0"]
+        return [ "redis>=5.0.0" ]
         self._workers: list[asyncio.Task] = []
         self._stop_event: asyncio.Event = asyncio.Event()
         self._worker_id: str = config.worker_id or ulid.ulid()

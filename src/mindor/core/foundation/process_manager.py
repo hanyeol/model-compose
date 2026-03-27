@@ -137,7 +137,7 @@ class ProcessRuntimeManager:
             if not self.response_queue.empty():
                 message = IpcMessage(**self.response_queue.get())
 
-                if message.type == IpcMessageType.RESULT and message.payload.get("status") == "ready":
+                if message.type == IpcMessageType.STATUS and message.payload.get("status") == "ready":
                     logging.info(f"Subprocess {self.worker_id} is ready")
                     return
 

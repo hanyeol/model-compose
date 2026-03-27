@@ -636,12 +636,12 @@ Result status values: `completed`, `failed`, `interrupted`
 
 ### Queue and Key Naming
 
-Each workflow gets its own queue using the pattern `{queue_name}:{workflow_id}`:
+Each workflow gets its own queue using the pattern `{name}:{workflow_id}`:
 
 ```
-model-compose:tasks:image-processing   ← task queue (Redis List)
-model-compose:result:01JXYZ...        ← result storage (Redis String, with TTL)
-model-compose:result:01JXYZ...        ← result notification (Redis Pub/Sub channel)
+model-compose:tasks:image-processing              ← task queue (Redis List)
+model-compose:tasks:image-processing:01JXYZ...    ← result storage (Redis String, with TTL)
+model-compose:tasks:image-processing:01JXYZ...    ← result notification (Redis Pub/Sub channel)
 ```
 
 ### Configuration Options
@@ -651,8 +651,7 @@ model-compose:result:01JXYZ...        ← result notification (Redis Pub/Sub cha
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Queue backend driver (`redis`) |
-| `queue_name` | string | `model-compose:tasks` | Base name for task queues |
-| `result_prefix` | string | `model-compose:result:` | Prefix for result keys and pub/sub channels |
+| `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
 | `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` = no expiry |
 | `max_concurrent` | integer | `1` | Maximum concurrent task processing |
 | `worker_id` | string | auto | Unique worker identifier (auto-generated ULID) |
@@ -660,15 +659,15 @@ model-compose:result:01JXYZ...        ← result notification (Redis Pub/Sub cha
 
 #### Redis Driver Settings
 
-Connection can be configured using either `url` or `host`/`port`/`tls`. Both cannot be used together.
+Connection can be configured using either `url` or `host`/`port`/`secure`. Both cannot be used together.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `url` | string | `null` | Redis connection URL (e.g., `redis://localhost:6379`, `rediss://...` for TLS) |
 | `host` | string | `localhost` | Redis server hostname or IP address |
 | `port` | integer | `6379` | Redis server port number |
-| `tls` | boolean | `false` | Use TLS/SSL for connections |
-| `db` | integer | `0` | Redis database number (0-15) |
+| `secure` | boolean | `false` | Use TLS/SSL for connections |
+| `database` | integer | `0` | Redis database number (0-15) |
 | `password` | string | `null` | Redis password |
 | `pop_timeout` | integer | `1` | BRPOP timeout in seconds |
 
@@ -740,7 +739,7 @@ Subscribe to the result channel before pushing the task:
 
 ```bash
 # Terminal 1: Subscribe
-redis-cli SUBSCRIBE model-compose:result:run-001
+redis-cli SUBSCRIBE model-compose:tasks:my-workflow:run-001
 
 # Terminal 2: Push task
 redis-cli LPUSH model-compose:tasks:my-workflow \
@@ -752,7 +751,7 @@ redis-cli LPUSH model-compose:tasks:my-workflow \
 Poll the result key after pushing:
 
 ```bash
-redis-cli GET model-compose:result:run-001
+redis-cli GET model-compose:tasks:my-workflow:run-001
 ```
 
 ### Production Configuration
@@ -765,9 +764,8 @@ controller:
   host: redis.internal
   port: 6379
   password: ${env.REDIS_PASSWORD}
-  db: 2
-  queue_name: myapp:tasks
-  result_prefix: myapp:result:
+  database: 2
+  name: myapp:tasks
   result_ttl: 7200
   worker_id: gpu-worker-01
   workflows:
@@ -790,7 +788,110 @@ controller:
 
 ---
 
-## 6.4 Concurrency Control
+## 6.4 Queue Dispatch (Distributed Deployment)
+
+Queue dispatch enables a distributed deployment pattern where an HTTP/MCP entry point server delegates workflow execution to remote workers via a message queue, instead of running workflows locally.
+
+### Architecture
+
+```
+Client → [HTTP Server] → Redis LPUSH → [Worker A or B] → Redis PUBLISH → [HTTP Server] → Client
+         (entry point)                   (queue-subscriber)                 (result)
+```
+
+### Basic Configuration
+
+**Entry point server** (receives requests, dispatches to queue):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://localhost:6379
+```
+
+**Worker server** (consumes from queue, executes workflows):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
+```
+
+### How It Works
+
+1. Client sends an HTTP request to the entry point server
+2. `ControllerService.run_workflow()` pushes a task to Redis queue via `LPUSH`
+3. Entry point subscribes to the result channel via `SUBSCRIBE`
+4. A queue-subscriber worker pops the task via `BRPOP` and executes the workflow
+5. Worker stores the result (`SET`) and publishes it (`PUBLISH`)
+6. Entry point receives the result and returns it to the client
+
+The queue dispatch is **transparent** to adapters — HTTP and MCP server adapters require no changes.
+
+### Configuration Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | **required** | Queue backend driver (`redis`) |
+| `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
+| `timeout` | integer | `0` | Maximum time in seconds to wait for a result. `0` = no limit |
+
+Redis driver settings (`url` or `host`/`port`/`secure`) are the same as [Queue Subscriber](#63-queue-subscriber).
+
+### Example: Distributed Deployment
+
+Three servers: 1 entry point + 2 workers sharing a Redis instance.
+
+**Entry point** (`server-a/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://redis.internal:6379
+```
+
+**Worker 1** (`server-b/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://redis.internal:6379
+    workflow: image-generation
+    max_concurrent: 2
+
+workflow:
+  id: image-generation
+  # ... workflow definition
+```
+
+**Worker 2** (`server-c/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://redis.internal:6379
+    workflow: image-generation
+    max_concurrent: 2
+
+workflow:
+  id: image-generation
+  # ... workflow definition
+```
+
+Workers compete for tasks from the same queue — whichever pops first processes it.
+
+---
+
+## 6.5 Concurrency Control
 
 The `max_concurrent_count` setting is available for both HTTP and MCP servers, limiting the number of workflows that can execute concurrently at the controller level.
 
@@ -867,7 +968,7 @@ components:
 
 ---
 
-## 6.5 Port and Host Configuration
+## 6.6 Port and Host Configuration
 
 ### Host
 
@@ -974,7 +1075,7 @@ Now external access to `http://example.com/ai/workflows/runs` is forwarded by Ng
 
 ---
 
-## 6.6 Controller Best Practices
+## 6.7 Controller Best Practices
 
 ### 1. Port Configuration by Environment
 

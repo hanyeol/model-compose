@@ -18,9 +18,6 @@ class ComponentProcessRuntimeManager(ProcessRuntimeManager):
         config: ComponentConfig,
         global_configs: ComponentGlobalConfigs
     ):
-        if not isinstance(config.runtime, ProcessRuntimeConfig):
-            raise ValueError("ComponentProcessRuntimeManager requires ProcessRuntimeConfig")
-
         self.config = config
         self.global_configs = global_configs
 
@@ -35,11 +32,7 @@ class ComponentProcessRuntimeManager(ProcessRuntimeManager):
         # Convert ProcessRuntimeConfig to ProcessWorkerParams
         worker_params = self._convert_runtime_config(config.runtime)
 
-        super().__init__(
-            worker_id=component_id,
-            worker_factory=worker_factory,
-            worker_params=worker_params
-        )
+        super().__init__(component_id, worker_factory, worker_params)
 
     @staticmethod
     def _convert_runtime_config(config: ProcessRuntimeConfig) -> ProcessWorkerParams:

@@ -16,6 +16,9 @@ controller:
   threaded: false
   runtime:
     type: native | docker
+  queue:
+    driver: redis
+    url: redis://localhost:6379
   webui:
     driver: gradio | static | dynamic
     host: 0.0.0.0
@@ -97,25 +100,24 @@ controller:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Queue backend driver. Currently supported: `redis` |
-| `queue_name` | string | `model-compose:tasks` | Base name for task queues. Actual queue keys: `{queue_name}:{workflow_id}` |
-| `result_prefix` | string | `model-compose:result:` | Prefix for result keys and pub/sub channels |
+| `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
 | `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` means no expiry |
 | `max_concurrent` | integer | `1` | Maximum number of tasks processed concurrently |
 | `worker_id` | string | `null` | Unique worker identifier. Auto-generated (ULID) if not set |
-| `workflows` | list | `["__default__"]` | Workflow IDs to handle. Each gets its own queue: `{queue_name}:{workflow_id}` |
+| `workflows` | list | `["__default__"]` | Workflow IDs to handle. Each gets its own queue: `{name}:{workflow_id}` |
 | `workflow` | string | - | Shorthand for single workflow. Inflated to `workflows: [value]` |
 
 #### Redis Driver Settings
 
-Connection can be configured using either `url` or `host`/`port`/`tls` fields. If both `url` and `host` are provided, validation will fail.
+Connection can be configured using either `url` or `host`/`port`/`secure` fields. If both `url` and `host` are provided, validation will fail.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `url` | string | `null` | Redis connection URL (e.g., `redis://localhost:6379`, `rediss://localhost:6379` for TLS). Mutually exclusive with `host` |
 | `host` | string | `localhost` | Redis server hostname or IP address. Mutually exclusive with `url` |
 | `port` | integer | `6379` | Redis server port number (1-65535) |
-| `tls` | boolean | `false` | Use TLS/SSL for connections (equivalent to `rediss://` protocol) |
-| `db` | integer | `0` | Redis database number (0-15) |
+| `secure` | boolean | `false` | Use TLS/SSL for connections (equivalent to `rediss://` protocol) |
+| `database` | integer | `0` | Redis database number (0-15) |
 | `password` | string | `null` | Redis password. Can also be specified in the URL |
 | `pop_timeout` | integer | `1` | BRPOP timeout in seconds before retrying |
 
@@ -127,10 +129,10 @@ Producer                  Redis                    Worker (queue-subscriber)
    │── LPUSH queue ────────>│                              │
    │                        │<──────── BRPOP queue ────────│
    │                        │                              │── run_workflow()
-   │                        │<──── SET result:<run_id> ────│
-   │                        │<── PUBLISH result:<run_id> ──│
-   │<── GET result:<run_id> │                              │
-   │<── SUBSCRIBE result:*  │                              │
+   │                        │<── SET {name}:{wf}:{rid} ───│
+   │                        │<── PUBLISH {name}:{wf}:{rid} │
+   │<── GET {name}:{wf}:{rid}│                             │
+   │<── SUBSCRIBE {name}:*  │                              │
 ```
 
 #### Task Message Format (Producer → Queue)
@@ -178,9 +180,9 @@ When `interrupted`, the result includes an `interrupt` field:
 
 | Key/Channel | Type | Description |
 |---|---|---|
-| `{queue_name}:{workflow_id}` | List | Task queue (LPUSH/BRPOP) |
-| `{result_prefix}{run_id}` | String | Result storage (with TTL) |
-| `{result_prefix}{run_id}` | Pub/Sub | Result notification channel |
+| `{name}:{workflow_id}` | List | Task queue (LPUSH/BRPOP) |
+| `{name}:{workflow_id}:{run_id}` | String | Result storage (with TTL) |
+| `{name}:{workflow_id}:{run_id}` | Pub/Sub | Result notification channel |
 
 #### Examples
 
@@ -214,9 +216,8 @@ controller:
   host: redis.internal
   port: 6379
   password: ${env.REDIS_PASSWORD}
-  db: 2
-  queue_name: myapp:tasks
-  result_prefix: myapp:result:
+  database: 2
+  name: myapp:tasks
   result_ttl: 7200
   worker_id: gpu-worker-01
   workflows:
@@ -242,9 +243,9 @@ controller:
   driver: redis
   host: redis.internal
   port: 6380
-  tls: true
+  secure: true
   password: ${env.REDIS_PASSWORD}
-  db: 2
+  database: 2
   workflows:
     - image-generation
   max_concurrent: 2
@@ -354,6 +355,93 @@ webui:
 | `server_dir` | string | `webui/server` | Directory containing server source code and entry point |
 | `static_dir` | string | `webui/static` | Directory containing static HTML/CSS/JS files |
 
+## Queue Dispatch Configuration
+
+The `queue` section configures optional queue-based workflow dispatch. When configured, `run_workflow()` delegates execution to remote workers via a message queue instead of running workflows locally. This enables distributed deployment where an HTTP/MCP entry point dispatches work to separate queue-subscriber workers.
+
+```
+Client → [HTTP Server] → Redis LPUSH → [Worker A or B] → Redis PUBLISH → [HTTP Server] → Client
+         (entry point)                   (queue-subscriber)                 (result)
+```
+
+### Common Queue Dispatch Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | **required** | Queue backend driver. Currently supported: `redis` |
+| `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
+| `timeout` | integer | `0` | Maximum time in seconds to wait for a result from the queue. `0` means no limit |
+
+### Redis Driver Settings
+
+Connection can be configured using either `url` or `host`/`port`/`secure` fields. If both `url` and `host` are provided, validation will fail.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | `null` | Redis connection URL (e.g., `redis://localhost:6379`, `rediss://localhost:6379` for TLS). Mutually exclusive with `host` |
+| `host` | string | `localhost` | Redis server hostname or IP address. Mutually exclusive with `url` |
+| `port` | integer | `6379` | Redis server port number (1-65535) |
+| `secure` | boolean | `false` | Use TLS/SSL for connections (equivalent to `rediss://` protocol) |
+| `database` | integer | `0` | Redis database number (0-15) |
+| `password` | string | `null` | Redis password. Can also be specified in the URL |
+
+### Examples
+
+**Basic queue dispatch with URL:**
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://localhost:6379
+```
+
+**Queue dispatch with host/port:**
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    host: redis.internal
+    port: 6379
+    password: ${env.REDIS_PASSWORD}
+    database: 2
+    name: myapp:tasks
+    timeout: 600
+```
+
+**TLS connection:**
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+```
+
+### Data Flow
+
+```
+HTTP/MCP Adapter           ControllerService           Redis              Worker (queue-subscriber)
+    │                            │                       │                        │
+    │── run_workflow() ────────> │                       │                        │
+    │                            │── LPUSH queue ──────> │                        │
+    │                            │── SUBSCRIBE result ─> │                        │
+    │                            │                       │<──── BRPOP queue ──────│
+    │                            │                       │                        │── run_workflow()
+    │                            │                       │<── SET+PUBLISH result ─│
+    │                            │<── result message ────│                        │
+    │<── TaskState ──────────────│                       │                        │
+```
+
+> **Note**: The `queue` configuration shares the same message format and Redis key conventions as `queue-subscriber`. The entry point pushes tasks to `{name}:{workflow_id}` and subscribes to `{name}:{workflow_id}:{run_id}` for results. Workers (queue-subscriber) consume from the same queues and publish results to the same keys.
+
 ## Complete Examples
 
 ### HTTP Server with Gradio UI
@@ -404,12 +492,34 @@ controller:
   type: queue-subscriber
   driver: redis
   url: redis://localhost:6379
-  queue_name: model-compose:tasks
   workflows:
     - image-generation
     - text-summary
   max_concurrent: 4
   result_ttl: 3600
+```
+
+### Distributed Deployment (Entry Point + Workers)
+
+**Entry point server** (`model-compose.yml` on server A):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://redis.internal:6379
+```
+
+**Worker server** (`model-compose.yml` on server B & C):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://redis.internal:6379
+    max_concurrent: 4
 ```
 
 ## Usage Notes

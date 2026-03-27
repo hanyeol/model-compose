@@ -109,12 +109,6 @@ class ComponentService(AsyncService):
         await self._active_counter.wait_for_zero()
         await super()._stop()
 
-    async def _serve(self) -> None:
-        pass
-
-    async def _shutdown(self) -> None:
-        pass
-
     async def _is_ready(self) -> bool:
         return True
 

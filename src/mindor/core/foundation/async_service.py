@@ -1,6 +1,6 @@
 from typing import Optional, List, Callable, Awaitable, Any
-from abc import ABC, abstractmethod
-from mindor.core.utils.package import install_package, parse_requirement, is_requirement_satisfied
+from abc import ABC
+from .package import install_package, parse_requirement, is_requirement_satisfied
 from threading import Thread
 import asyncio, time
 
@@ -112,11 +112,9 @@ class AsyncService(ABC):
     async def _is_ready(self) -> bool:
         return True
 
-    @abstractmethod
     async def _serve(self) -> None:
         pass
 
-    @abstractmethod
     async def _shutdown(self) -> None:
         pass
 

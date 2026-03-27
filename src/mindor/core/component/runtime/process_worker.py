@@ -8,8 +8,6 @@ from mindor.core.logger import logging
 from multiprocessing import Queue
 
 class ComponentProcessWorker(ProcessWorker):
-    """Worker for running components in separate processes"""
-
     def __init__(
         self,
         component_id: str,
@@ -23,8 +21,7 @@ class ComponentProcessWorker(ProcessWorker):
         self.global_configs = global_configs
         self.component = None
 
-    async def _initialize(self) -> None:
-        """Initialize and start the component"""
+    async def _start(self) -> None:
         embedded_config = self.config.model_copy(deep=True)
         embedded_config.runtime = EmbeddedRuntimeConfig(type="embedded")
 
@@ -40,16 +37,14 @@ class ComponentProcessWorker(ProcessWorker):
 
         logging.info(f"Component {self.worker_id} started in subprocess")
 
-    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
-        """Execute component action"""
-        action_id = payload["action_id"]
-        run_id = payload["run_id"]
-        input_data = payload["input"]
-
-        return await self.component.run(action_id, run_id, input_data)
-
-    async def _cleanup(self) -> None:
-        """Clean up the component"""
+    async def _stop(self) -> None:
         if self.component:
             await self.component.stop()
             await self.component.teardown()
+
+    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+        action_id  = payload["action_id"]
+        run_id     = payload["run_id"]
+        input_data = payload["input"]
+
+        return await self.component.run(action_id, run_id, input_data)

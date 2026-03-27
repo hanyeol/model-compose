@@ -1,7 +1,6 @@
 from typing import Any, Dict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from mindor.core.logger import logging
 from .ipc_messages import IpcMessage, IpcMessageType
 from multiprocessing import Queue
 import asyncio
@@ -23,121 +22,81 @@ class ProcessWorker(ABC):
     This is a generic process worker that can be extended for various use cases
     beyond just components (e.g., workflow execution, data processing, etc.)
     """
-
-    def __init__(
-        self,
-        worker_id: str,
-        request_queue: Queue,
-        response_queue: Queue
-    ):
+    def __init__(self, worker_id: str, request_queue: Queue, response_queue: Queue):
         self.worker_id = worker_id
         self.request_queue = request_queue
         self.response_queue = response_queue
         self.running = True
 
     async def run(self) -> None:
-        """Main worker loop - handles initialization, message processing, and cleanup"""
         try:
-            await self._initialize()
+            await self._start()
+            self._notify_status("ready")
 
-            logging.info(f"ProcessWorker {self.worker_id} initialized in subprocess")
-
-            ready_message = IpcMessage(
-                type=IpcMessageType.RESULT,
-                request_id="init",
-                payload={"status": "ready"}
-            )
-            self.response_queue.put(ready_message.to_params())
-
+            loop = asyncio.get_event_loop()
             while self.running:
-                if not self.request_queue.empty():
-                    message_dict = self.request_queue.get()
-                    message = IpcMessage(**message_dict)
-                    await self._handle_message(message)
-
-                await asyncio.sleep(0.01)
-
+                request = await loop.run_in_executor(None, self.request_queue.get)
+                message = IpcMessage(**request)
+                try:
+                    result = await self._dispatch_message(message)
+                    self._send_result(message.request_id, result)
+                except Exception as e:
+                    self._send_error(message.request_id, str(e))
         except Exception as e:
-            logging.error(f"Worker error: {e}")
-            error_message = IpcMessage(
-                type=IpcMessageType.ERROR,
-                request_id="worker",
-                payload={"error": str(e)}
-            )
-            self.response_queue.put(error_message.to_params())
-
+            self._notify_error(str(e))
         finally:
-            await self._cleanup()
+            await self._stop()
 
-    async def _handle_message(self, message: IpcMessage) -> None:
-        """Handle incoming messages from the main process"""
-        try:
-            if message.type == IpcMessageType.RUN:
-                output = await self._execute_task(message.payload)
+    async def _dispatch_message(self, message: IpcMessage) -> Dict[str, Any]:
+        if message.type == IpcMessageType.RUN:
+            output = await self._execute_task(message.payload)
+            return { "output": output }
 
-                response = IpcMessage(
-                    type=IpcMessageType.RESULT,
-                    request_id=message.request_id,
-                    payload={"output": output}
-                )
-                self.response_queue.put(response.to_params())
+        if message.type == IpcMessageType.HEARTBEAT:
+            return { "status": "alive" }
 
-            elif message.type == IpcMessageType.HEARTBEAT:
-                response = IpcMessage(
-                    type=IpcMessageType.RESULT,
-                    request_id=message.request_id,
-                    payload={"status": "alive"}
-                )
-                self.response_queue.put(response.to_params())
+        if message.type == IpcMessageType.STOP:
+            self.running = False
+            return { "status": "stopped" }
 
-            elif message.type == IpcMessageType.STOP:
-                self.running = False
-                response = IpcMessage(
-                    type=IpcMessageType.RESULT,
-                    request_id=message.request_id,
-                    payload={"status": "stopped"}
-                )
-                self.response_queue.put(response.to_params())
+    def _send_result(self, request_id: str, payload: Dict[str, Any]) -> None:
+        message = IpcMessage(
+            type=IpcMessageType.RESULT,
+            request_id=request_id,
+            payload=payload
+        )
+        self.response_queue.put(message.to_params())
 
-        except Exception as e:
-            logging.error(f"Error handling message: {e}")
-            error_response = IpcMessage(
-                type=IpcMessageType.ERROR,
-                request_id=message.request_id,
-                payload={"error": str(e)}
-            )
-            self.response_queue.put(error_response.to_params())
+    def _send_error(self, request_id: str, error: str) -> None:
+        message = IpcMessage(
+            type=IpcMessageType.ERROR,
+            request_id=request_id,
+            payload={ "error": error }
+        )
+        self.response_queue.put(message.to_params())
+
+    def _notify_status(self, status: str) -> None:
+        message = IpcMessage(
+            type=IpcMessageType.STATUS,
+            payload={ "status": status }
+        )
+        self.response_queue.put(message.to_params())
+
+    def _notify_error(self, error: str) -> None:
+        message = IpcMessage(
+            type=IpcMessageType.ERROR,
+            payload={ "error": error }
+        )
+        self.response_queue.put(message.to_params())
 
     @abstractmethod
-    async def _initialize(self) -> None:
-        """
-        Initialize the worker (e.g., load models, connect to services, etc.)
+    async def _start(self) -> None:
+        pass
 
-        This method is called once when the worker process starts.
-        """
+    @abstractmethod
+    async def _stop(self) -> None:
         pass
 
     @abstractmethod
     async def _execute_task(self, payload: Dict[str, Any]) -> Any:
-        """
-        Execute a task with the given payload.
-
-        This is the main work method that subclasses should implement
-        to perform their specific work.
-
-        Args:
-            payload: Task-specific data from the main process
-
-        Returns:
-            Task result to be sent back to the main process
-        """
-        pass
-
-    @abstractmethod
-    async def _cleanup(self) -> None:
-        """
-        Clean up resources before the worker exits.
-
-        This method is called when the worker is stopping.
-        """
         pass

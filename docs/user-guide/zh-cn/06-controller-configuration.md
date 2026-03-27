@@ -636,12 +636,12 @@ Producer 推送到队列的 JSON 消息：
 
 ### 队列和键命名
 
-每个工作流使用 `{queue_name}:{workflow_id}` 模式获得自己的队列：
+每个工作流使用 `{name}:{workflow_id}` 模式获得自己的队列：
 
 ```
-model-compose:tasks:image-processing   ← 任务队列 (Redis List)
-model-compose:result:01JXYZ...        ← 结果存储 (Redis String, 带 TTL)
-model-compose:result:01JXYZ...        ← 结果通知 (Redis Pub/Sub 频道)
+model-compose:tasks:image-processing              ← 任务队列 (Redis List)
+model-compose:tasks:image-processing:01JXYZ...    ← 结果存储 (Redis String, 带 TTL)
+model-compose:tasks:image-processing:01JXYZ...    ← 结果通知 (Redis Pub/Sub 频道)
 ```
 
 ### 配置选项
@@ -651,8 +651,7 @@ model-compose:result:01JXYZ...        ← 结果通知 (Redis Pub/Sub 频道)
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `driver` | string | **必填** | 队列后端驱动程序（`redis`） |
-| `queue_name` | string | `model-compose:tasks` | 任务队列基本名称 |
-| `result_prefix` | string | `model-compose:result:` | 结果键和 pub/sub 频道前缀 |
+| `name` | string | `model-compose:tasks` | 任务队列基本名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
 | `result_ttl` | integer | `3600` | 结果条目 TTL（秒）。`0` = 不过期 |
 | `max_concurrent` | integer | `1` | 最大并发任务处理数 |
 | `worker_id` | string | 自动 | 工作者唯一标识符（自动生成 ULID） |
@@ -660,15 +659,15 @@ model-compose:result:01JXYZ...        ← 结果通知 (Redis Pub/Sub 频道)
 
 #### Redis 驱动设置
 
-连接可以通过 `url` 或 `host`/`port`/`tls` 配置。两者不能同时使用。
+连接可以通过 `url` 或 `host`/`port`/`secure` 配置。两者不能同时使用。
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `url` | string | `null` | Redis 连接 URL（例如 `redis://localhost:6379`，TLS 使用 `rediss://...`） |
 | `host` | string | `localhost` | Redis 服务器主机名或 IP 地址 |
 | `port` | integer | `6379` | Redis 服务器端口号 |
-| `tls` | boolean | `false` | 使用 TLS/SSL 连接 |
-| `db` | integer | `0` | Redis 数据库编号 (0-15) |
+| `secure` | boolean | `false` | 使用 TLS/SSL 连接 |
+| `database` | integer | `0` | Redis 数据库编号 (0-15) |
 | `password` | string | `null` | Redis 密码 |
 | `pop_timeout` | integer | `1` | BRPOP 超时时间（秒） |
 
@@ -740,7 +739,7 @@ controller:
 
 ```bash
 # 终端 1：订阅
-redis-cli SUBSCRIBE model-compose:result:run-001
+redis-cli SUBSCRIBE model-compose:tasks:my-workflow:run-001
 
 # 终端 2：推送任务
 redis-cli LPUSH model-compose:tasks:my-workflow \
@@ -752,7 +751,7 @@ redis-cli LPUSH model-compose:tasks:my-workflow \
 推送后轮询结果键：
 
 ```bash
-redis-cli GET model-compose:result:run-001
+redis-cli GET model-compose:tasks:my-workflow:run-001
 ```
 
 ### 生产环境配置
@@ -765,9 +764,8 @@ controller:
   host: redis.internal
   port: 6379
   password: ${env.REDIS_PASSWORD}
-  db: 2
-  queue_name: myapp:tasks
-  result_prefix: myapp:result:
+  database: 2
+  name: myapp:tasks
   result_ttl: 7200
   worker_id: gpu-worker-01
   workflows:
@@ -790,7 +788,110 @@ controller:
 
 ---
 
-## 6.4 并发控制
+## 6.4 队列分发（分布式部署）
+
+队列分发使 HTTP/MCP 入口服务器能够通过消息队列将工作流执行委派给远程工作节点，而不是在本地运行。
+
+### 架构
+
+```
+客户端 → [HTTP 服务器] → Redis LPUSH → [工作节点 A 或 B] → Redis PUBLISH → [HTTP 服务器] → 客户端
+          (入口点)                       (queue-subscriber)                   (结果)
+```
+
+### 基本配置
+
+**入口服务器**（接收请求，分发到队列）：
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://localhost:6379
+```
+
+**工作节点服务器**（从队列消费，执行工作流）：
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
+```
+
+### 工作原理
+
+1. 客户端向入口服务器发送 HTTP 请求
+2. `ControllerService.run_workflow()` 通过 `LPUSH` 将任务推送到 Redis 队列
+3. 入口点通过 `SUBSCRIBE` 订阅结果频道
+4. queue-subscriber 工作节点通过 `BRPOP` 获取任务并执行工作流
+5. 工作节点存储结果（`SET`）并发布（`PUBLISH`）
+6. 入口点接收结果并返回给客户端
+
+队列分发对适配器是**透明的** — HTTP 和 MCP 服务器适配器无需更改。
+
+### 配置选项
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `driver` | string | **必需** | 队列后端驱动（`redis`） |
+| `name` | string | `model-compose:tasks` | 任务队列基础名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
+| `timeout` | integer | `0` | 等待结果的最大时间（秒）。`0` = 无限制 |
+
+Redis 驱动设置（`url` 或 `host`/`port`/`secure`）与[队列订阅者](#63-队列订阅者)相同。
+
+### 示例：分布式部署
+
+3 台服务器：1 个入口点 + 2 个工作节点，共享 Redis。
+
+**入口点**（`server-a/model-compose.yml`）：
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+  queue:
+    driver: redis
+    url: redis://redis.internal:6379
+```
+
+**工作节点 1**（`server-b/model-compose.yml`）：
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://redis.internal:6379
+    workflow: image-generation
+    max_concurrent: 2
+
+workflow:
+  id: image-generation
+  # ... 工作流定义
+```
+
+**工作节点 2**（`server-c/model-compose.yml`）：
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://redis.internal:6379
+    workflow: image-generation
+    max_concurrent: 2
+
+workflow:
+  id: image-generation
+  # ... 工作流定义
+```
+
+工作节点竞争性地从同一队列中获取任务 — 先获取的节点处理它。
+
+---
+
+## 6.5 并发控制
 
 `max_concurrent_count` 设置适用于 HTTP 和 MCP 服务器，在控制器级别限制可以并发执行的工作流数量。
 
@@ -867,7 +968,7 @@ components:
 
 ---
 
-## 6.5 端口和主机配置
+## 6.6 端口和主机配置
 
 ### 主机
 
@@ -974,7 +1075,7 @@ server {
 
 ---
 
-## 6.6 控制器最佳实践
+## 6.7 控制器最佳实践
 
 ### 1. 按环境配置端口
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Callable, Awaitable
 from enum import Enum
 from dataclasses import dataclass
 from mindor.dsl.schema.controller import ControllerConfig
@@ -35,6 +35,7 @@ import asyncio, ulid, os, logging, threading
 
 if TYPE_CHECKING:
     from mindor.core.controller.adapters.base import ControllerAdapterService
+    from mindor.core.controller.queue import ControllerQueueService
 
 class TaskStatus(str, Enum):
     PENDING     = "pending"
@@ -99,12 +100,17 @@ class ControllerService(AsyncService):
         self.task_states_lock: Lock = Lock()
         self.interrupt_handlers: Dict[str, InterruptHandler] = {}
         self.task_events: Dict[str, asyncio.Event] = {}
+        self._adapters: List[ControllerAdapterService] = []
+        self._queue: Optional[ControllerQueueService] = None
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
-        self._adapters: List["ControllerAdapterService"] = []
 
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
+
+        if self.config.queue:
+            from mindor.core.controller.queue import ControllerQueueService
+            self._queue = ControllerQueueService(self.config.queue)
 
     async def launch_services(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
@@ -182,7 +188,7 @@ class ControllerService(AsyncService):
             await self._stop_loggers()
             return
 
-    async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True) -> TaskState:
+    async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True, on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> TaskState:
         if self._shutting_down:
             raise ShutdownError("Service is shutting down")
 
@@ -196,7 +202,7 @@ class ControllerService(AsyncService):
                 future = await self.task_queue.schedule(task_id, workflow_id, input)
                 task = asyncio.ensure_future(future)
             else:
-                task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input))
+                task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input, on_interrupt))
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(e))
             with self.task_states_lock:
@@ -252,6 +258,9 @@ class ControllerService(AsyncService):
         if self.task_queue:
             await self.task_queue.start()
 
+        if self._queue:
+            await self._queue.start()
+
         if self.daemon:
             await self._start_systems()
             await self._start_listeners()
@@ -283,6 +292,9 @@ class ControllerService(AsyncService):
 
         if self.task_queue:
             await self.task_queue.stop(timeout=timeout)
+
+        if self._queue:
+            await self._queue.stop()
 
         if self.daemon:
             await self._stop_adapters()
@@ -419,16 +431,17 @@ class ControllerService(AsyncService):
     def _get_default_logger_config(self) -> LoggerConfig:
         return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
 
-    async def _run_workflow(self, task_id: str, workflow_id: str, input: Dict[str, Any]) -> TaskState:
+    async def _run_workflow(self, task_id: str, workflow_id: str, input: Dict[str, Any], on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> TaskState:
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
 
         try:
-            workflow = self._create_workflow(workflow_id)
-            interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id)
-
-            output = await workflow.run(task_id, input, interrupt_handler)
+            interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt)
+            if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
+                output = await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
+            else:
+                output = await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler)
             state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output)
         except Exception as e:
             import traceback
@@ -460,16 +473,8 @@ class ControllerService(AsyncService):
                 return state
             await event.wait()
 
-    def _attach_interrupt_handler(self, task_id: str, workflow_id: str) -> InterruptHandler:
-        handler = self._create_interrupt_handler(task_id, workflow_id)
-        self.interrupt_handlers[task_id] = handler
-        return handler
-
-    def _detach_interrupt_handler(self, task_id: str) -> None:
-        del self.interrupt_handlers[task_id]
-
-    def _create_interrupt_handler(self, task_id: str, workflow_id: str) -> InterruptHandler:
-        async def on_interrupt(point: InterruptPoint):
+    def _attach_interrupt_handler(self, task_id: str, workflow_id: str, on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> InterruptHandler:
+        async def callback(point: InterruptPoint):
             interrupt = InterruptState(
                 job_id=point.job_id,
                 phase=point.phase,
@@ -481,7 +486,17 @@ class ControllerService(AsyncService):
                 self.task_states.set(task_id, state)
             self._notify_task_state_change(task_id)
 
-        return InterruptHandler(on_interrupt)
+            if on_interrupt:
+                answer = await on_interrupt(interrupt)
+                point.future.set_result(answer)
+
+        handler = InterruptHandler(callback)
+        self.interrupt_handlers[task_id] = handler
+
+        return handler
+
+    def _detach_interrupt_handler(self, task_id: str) -> None:
+        self.interrupt_handlers.pop(task_id, None)
 
     def _handle_task_failure(self, task_id: str, workflow_id: str, task: asyncio.Task) -> None:
         if task.cancelled() or task.exception() is None:

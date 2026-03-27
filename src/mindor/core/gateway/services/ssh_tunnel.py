@@ -9,9 +9,6 @@ from mindor.core.logger import logging
 from ..base import GatewayService, GatewayType, register_gateway
 import asyncio
 
-if TYPE_CHECKING:
-    pass
-
 @register_gateway(GatewayType.SSH_TUNNEL)
 class SshTunnelGateway(GatewayService):
     def __init__(self, id: str, config: SshTunnelGatewayConfig, daemon: bool):

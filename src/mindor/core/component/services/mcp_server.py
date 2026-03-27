@@ -64,9 +64,6 @@ class McpServerComponent(ComponentService):
         if self.config.manage.scripts.start:
             await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
 
-    async def _shutdown(self) -> None:
-        pass
-
     async def _is_ready(self) -> bool:
         try:
             _, writer = await asyncio.open_connection("localhost", self.config.port)

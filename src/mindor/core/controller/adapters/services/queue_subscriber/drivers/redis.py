@@ -15,6 +15,9 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     def __init__(self, config: RedisQueueSubscriberControllerAdapterConfig, controller: ControllerService, daemon: bool):
         super().__init__(config, controller, daemon)
         self._redis = None
+
+    def _get_setup_requirements(self):
+        return ["redis>=5.0.0"]
         self._workers: list[asyncio.Task] = []
         self._stop_event: asyncio.Event = asyncio.Event()
         self._worker_id: str = config.worker_id or ulid.ulid()
@@ -24,12 +27,12 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
 
         self._redis = aioredis.from_url(
             self._build_redis_url(),
-            db=self.config.db,
+            db=self.config.database,
             password=self.config.password,
             decode_responses=True,
         )
 
-        queue_keys = [ f"{self.config.queue_name}:{workflow}" for workflow in self.config.workflows ]
+        queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in self.config.workflows ]
         for index in range(self.config.max_concurrent):
             task = asyncio.create_task(self._consumer_loop(index, queue_keys))
             self._workers.append(task)
@@ -73,15 +76,32 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         task_id = message.get("task_id")
         run_id  = message.get("run_id")
         input   = message.get("input", {})
+        result_key = f"{self.config.name}:{workflow_id}:{run_id}"
+        resume_key = f"{result_key}:resume"
+
+        async def on_interrupt(interrupt):
+            await self._publish_result(workflow_id, run_id, {
+                "task_id": task_id,
+                "run_id": run_id,
+                "status": "interrupted",
+                "worker_id": self._worker_id,
+                "interrupt": {
+                    "job_id": interrupt.job_id,
+                    "phase": interrupt.phase,
+                    "message": interrupt.message,
+                    "metadata": interrupt.metadata,
+                },
+            })
+            return await self._wait_for_resume(resume_key)
 
         try:
-            state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True)
+            state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True, on_interrupt=on_interrupt)
             result = {
                 "task_id": task_id,
                 "run_id": run_id,
                 "status": state.status.value,
                 "worker_id": self._worker_id,
-                **(self._build_result_detail(state) or {}),
+                **(self._get_task_output(state) or {}),
             }
         except Exception as e:
             result = {
@@ -92,45 +112,24 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 "worker_id": self._worker_id,
             }
 
-        await self._publish_result(run_id, result)
+        await self._publish_result(workflow_id, run_id, result)
 
-    def _build_redis_url(self) -> str:
-        if not self.config.url:
-            scheme = "rediss" if self.config.tls else "redis"
-            return f"{scheme}://{self.config.host}:{self.config.port}"
-        
-        return self.config.url
+    async def _wait_for_resume(self, resume_key: str) -> Any:
+        pubsub = self._redis.pubsub()
+        await pubsub.subscribe(resume_key)
 
-    def _workflow_id_from_queue_key(self, queue_key: str) -> str:
-        prefix = self.config.queue_name + ":"
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    data = json.loads(message["data"])
+                    return data.get("answer")
+        finally:
+            await pubsub.unsubscribe(resume_key)
+            await pubsub.aclose()
 
-        if queue_key.startswith(prefix):
-            return queue_key[len(prefix):]
-
-        return queue_key
-
-    def _build_result_detail(self, state: TaskState) -> Optional[Dict[str, Any]]:
-        if state.status == TaskStatus.INTERRUPTED and state.interrupt:
-            return {
-                "interrupt": {
-                    "job_id": state.interrupt.job_id,
-                    "phase": state.interrupt.phase,
-                    "message": state.interrupt.message,
-                    "metadata": state.interrupt.metadata,
-                }
-            }
-
-        if state.status == TaskStatus.COMPLETED:
-            return { "output": state.output }
-
-        if state.status == TaskStatus.FAILED:
-            return { "error": state.error }
-
-        return None
-
-    async def _publish_result(self, run_id: str, result: Dict[str, Any]) -> None:
+    async def _publish_result(self, workflow_id: str, run_id: str, result: Dict[str, Any]) -> None:
         result_json = json.dumps(result, default=str)
-        result_key = f"{self.config.result_prefix}{run_id}"
+        result_key = f"{self.config.name}:{workflow_id}:{run_id}"
 
         if self.config.result_ttl > 0:
             await self._redis.setex(result_key, self.config.result_ttl, result_json)
@@ -138,3 +137,27 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             await self._redis.set(result_key, result_json)
 
         await self._redis.publish(result_key, result_json)
+
+    def _build_redis_url(self) -> str:
+        if not self.config.url:
+            scheme = "rediss" if self.config.secure else "redis"
+            return f"{scheme}://{self.config.host}:{self.config.port}"
+        
+        return self.config.url
+
+    def _workflow_id_from_queue_key(self, queue_key: str) -> str:
+        prefix = self.config.name + ":"
+
+        if queue_key.startswith(prefix):
+            return queue_key[len(prefix):]
+
+        return queue_key
+
+    def _get_task_output(self, state: TaskState) -> Optional[Dict[str, Any]]:
+        if state.status == TaskStatus.COMPLETED:
+            return { "output": state.output }
+
+        if state.status == TaskStatus.FAILED:
+            return { "error": state.error }
+
+        return None

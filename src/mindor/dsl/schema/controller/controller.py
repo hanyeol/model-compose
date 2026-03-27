@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.runtime import RuntimeConfig, RuntimeType
 from .adapter import ControllerAdapterConfig
+from .queue import ControllerQueueConfig, ControllerQueueDriver, RedisControllerQueueConfig
 from .webui import ControllerWebUIConfig, ControllerWebUIDriver
 
 class ControllerConfig(BaseModel):
@@ -11,6 +12,7 @@ class ControllerConfig(BaseModel):
     max_concurrent_count: int = Field(default=0, description="Maximum number of tasks that can be executed concurrently.")
     shutdown_timeout: str = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
     threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
+    queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue dispatch configuration for delegating workflow execution to remote workers.")
     webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")
     adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="List of adapters that expose the controller via different protocols.")
 

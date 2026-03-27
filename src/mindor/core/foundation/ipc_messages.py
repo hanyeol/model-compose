@@ -18,7 +18,7 @@ class IpcMessageType(str, Enum):
 class IpcMessage:
     """Message format for inter-process communication"""
     type: IpcMessageType
-    request_id: str
+    request_id: Optional[str] = None
     payload: Optional[Dict[str, Any]] = None
     timestamp: int = field(default_factory=lambda: int(time.time() * 1000))
 

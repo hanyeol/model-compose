@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Union, Literal, Dict, List, Tuple, Set, Annotated, Callable, Any
 from types import GeneratorType
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
@@ -169,7 +169,7 @@ class Workflow:
         self.config: WorkflowConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: Optional[InterruptHandler] = None) -> Any:
+    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler) -> Any:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
         context = WorkflowContext(task_id, input, interrupt_handler)
 

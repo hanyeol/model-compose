@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Dict, Optional, Any
-from abc import abstractmethod
 from mindor.dsl.schema.controller import QueueSubscriberDriver
 from mindor.dsl.schema.controller.adapter.impl.queue_subscriber.impl.common import CommonQueueSubscriberControllerAdapterConfig
 from mindor.core.foundation import AsyncService
@@ -15,14 +14,6 @@ class CommonQueueSubscriberControllerAdapterService(AsyncService):
         super().__init__(daemon)
         self.config = config
         self.controller = controller
-
-    @abstractmethod
-    async def _serve(self) -> None:
-        pass
-
-    @abstractmethod
-    async def _shutdown(self) -> None:
-        pass
 
 def register_queue_subscriber_controller_adapter_service(driver: QueueSubscriberDriver):
     def decorator(cls: Type[CommonQueueSubscriberControllerAdapterService]) -> Type[CommonQueueSubscriberControllerAdapterService]:

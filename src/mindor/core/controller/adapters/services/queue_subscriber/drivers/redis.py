@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
@@ -15,12 +15,12 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     def __init__(self, config: RedisQueueSubscriberControllerAdapterConfig, controller: ControllerService, daemon: bool):
         super().__init__(config, controller, daemon)
         self._redis = None
+        self._workers: List[asyncio.Task] = []
+        self._stop_event: asyncio.Event = asyncio.Event()
+        self._worker_id: str = config.worker_id or ulid.ulid()
 
     def _get_setup_requirements(self):
         return [ "redis>=5.0.0" ]
-        self._workers: list[asyncio.Task] = []
-        self._stop_event: asyncio.Event = asyncio.Event()
-        self._worker_id: str = config.worker_id or ulid.ulid()
 
     async def _serve(self) -> None:
         import redis.asyncio as aioredis

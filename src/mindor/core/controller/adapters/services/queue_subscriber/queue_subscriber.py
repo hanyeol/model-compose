@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from mindor.dsl.schema.controller import QueueSubscriberControllerAdapterConfig, QueueSubscriberDriver, ControllerAdapterType
-from ..base import ControllerAdapterService, register_controller_adapter
+from ...base import ControllerAdapterService, register_controller_adapter
 from .base import CommonQueueSubscriberControllerAdapterService, QueueSubscriberControllerAdapterServiceRegistry
 
 if TYPE_CHECKING:
@@ -29,6 +29,7 @@ class QueueSubscriberControllerAdapterService(ControllerAdapterService):
 
     async def _serve(self) -> None:
         await self.service.start()
+        await self.service.wait_until_stopped()
 
     async def _shutdown(self) -> None:
         await self.service.stop()

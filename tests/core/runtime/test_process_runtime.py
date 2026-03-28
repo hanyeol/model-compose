@@ -20,7 +20,10 @@ def anyio_backend():
 # Module-level worker factories for pickling support
 class MathWorker(ProcessWorker):
     """Worker for math operations"""
-    async def _initialize(self):
+    async def _start(self):
+        pass
+
+    async def _stop(self):
         pass
 
     async def _execute_task(self, payload):
@@ -35,37 +38,34 @@ class MathWorker(ProcessWorker):
         else:
             return { "error": "Unknown operation" }
 
-    async def _cleanup(self):
-        pass
-
 class CounterWorker(ProcessWorker):
     """Worker that counts invocations"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.count = 0
 
-    async def _initialize(self):
+    async def _start(self):
         self.count = 0
+
+    async def _stop(self):
+        pass
 
     async def _execute_task(self, payload):
         self.count += 1
         return { "count": self.count, "message": payload.get("message", "") }
 
-    async def _cleanup(self):
-        pass
-
 class ErrorWorker(ProcessWorker):
     """Worker that can raise errors"""
-    async def _initialize(self):
+    async def _start(self):
+        pass
+
+    async def _stop(self):
         pass
 
     async def _execute_task(self, payload):
         if payload.get("should_fail"):
             raise ValueError("Intentional error for testing")
         return { "status": "success" }
-
-    async def _cleanup(self):
-        pass
 
 def create_math_worker(worker_id, req_queue, res_queue):
     """Factory function for MathWorker"""
@@ -346,14 +346,14 @@ class TestProcessWorker:
 
         # Create a concrete implementation for testing
         class TestWorker(ProcessWorker):
-            async def _initialize(self):
+            async def _start(self):
+                pass
+
+            async def _stop(self):
                 pass
 
             async def _execute_task(self, payload):
                 return { "result": "success" }
-
-            async def _cleanup(self):
-                pass
 
         worker = TestWorker("test-worker", request_queue, response_queue)
 
@@ -472,14 +472,14 @@ class TestIpcCommunication:
                 super().__init__(worker_id, request_queue, response_queue)
                 self.initialized = False
 
-            async def _initialize(self):
+            async def _start(self):
                 self.initialized = True
+
+            async def _stop(self):
+                self.initialized = False
 
             async def _execute_task(self, payload):
                 return { "result": payload.get("value", 0) * 2 }
-
-            async def _cleanup(self):
-                self.initialized = False
 
         worker = SimpleWorker("test-worker", request_queue, response_queue)
 

@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+    workflows:
+      - echo
+
+workflow:
+  id: echo
+  title: Echo via Queue
+  description: Processes tasks received from Redis queue.
+  job:
+    component: echo
+    input:
+      text: ${input.text}
+    output:
+      text: ${output.text}
+
+component:
+  id: echo
+  type: shell
+  action:
+    command: [ "echo", "${input.text}" ]
+    output:
+      text: ${result.stdout}

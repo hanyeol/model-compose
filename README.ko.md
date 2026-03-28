@@ -54,6 +54,9 @@ HuggingFace 등에서 제공하는 모델을 로컬에서 실행하며 transform
 ### 🚀 **즉시 실전 배포 가능**
 한 줄만 바꾸면 HTTP REST API 또는 MCP(Model Context Protocol) 서버로 배포. 동시성 제어, 헬스 체크, 자동 API 문서화 포함.
 
+### 📡 **분산 워크플로우 실행**
+Redis 기반 큐 디스패치로 AI 워크로드를 여러 머신에 분산. Dispatcher 인스턴스가 워크플로우 요청을 원격 Subscriber로 라우팅—공유 파일시스템이나 코드 변경 없이. 워커를 추가하여 수평 확장.
+
 ### 🎯 **이벤트 기반 아키텍처**
 비동기 워크플로우를 위한 HTTP Callback 리스너(이미지 생성, 비디오 처리). 웹훅 및 외부 이벤트를 위한 HTTP Trigger 리스너. 실세계 이벤트에 반응하는 AI 시스템 구축.
 

@@ -54,6 +54,9 @@ Build multi-step pipelines with conditional logic, data transformation, and para
 ### 🚀 **Production-Ready Deployment**
 Deploy as HTTP REST API or MCP (Model Context Protocol) server by changing one line. Includes concurrency control, health checks, and automatic API documentation.
 
+### 📡 **Distributed Workflow Execution**
+Scale AI workloads across multiple machines using Redis-backed queue dispatch. Dispatcher instances route workflow requests to remote subscribers—no shared filesystem or code changes needed. Add workers to scale horizontally.
+
 ### 🎯 **Event-Driven Architecture**
 HTTP Callback listeners for async workflows (image generation, video processing). HTTP Trigger listeners for webhooks and external events. Build reactive AI systems that respond to real-world events.
 

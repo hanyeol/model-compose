@@ -66,8 +66,11 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 return result.get("output")
         finally:
-            await pubsub.unsubscribe(result_key)
-            await pubsub.aclose()
+            try:
+                await pubsub.unsubscribe(result_key)
+                await pubsub.aclose()
+            except asyncio.CancelledError:
+                pass
 
     def _build_redis_url(self) -> str:
         if not self.config.url:

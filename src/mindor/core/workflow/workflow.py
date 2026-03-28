@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
-from .context import WorkflowContext
+from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .job import Job, RoutingTarget, create_job
 import asyncio
@@ -69,7 +69,7 @@ class WorkflowResolver:
             if raise_on_error:
                 raise ValueError(f"Workflow not found: {workflow_id}")
             else:
-                return (None, None)
+                return None, None
 
         return workflow.id, workflow
 
@@ -169,9 +169,9 @@ class Workflow:
         self.config: WorkflowConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler) -> Any:
+    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler, workflow_delegate: WorkflowDelegate = None) -> Any:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
-        context = WorkflowContext(task_id, input, interrupt_handler)
+        context = WorkflowContext(task_id, input, interrupt_handler, workflow_delegate)
 
         return await runner.run(context)
 

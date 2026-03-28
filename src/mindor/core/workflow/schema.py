@@ -222,11 +222,13 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
 
     def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
-     
+
         if component.type == ComponentType.WORKFLOW:
             _, workflow = WorkflowResolver(workflows).resolve(action.workflow, raise_on_error=False)
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components))
+            else:
+                variables.extend(self._enumerate_input_variables(action, "input", internal=True))
         else:
             variables.extend(self._enumerate_input_variables(action, "input", internal=True))
 
@@ -271,9 +273,11 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         if component.type == ComponentType.WORKFLOW:
-            _, workflow = WorkflowResolver(workflows).resolve(action.workflow)
+            _, workflow = WorkflowResolver(workflows).resolve(action.workflow, raise_on_error=False)
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components, internal=True))
+            else:
+                variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
         else:
             variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
 

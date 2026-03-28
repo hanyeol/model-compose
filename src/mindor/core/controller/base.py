@@ -437,11 +437,13 @@ class ControllerService(AsyncService):
             self.task_states.set(task_id, state)
 
         try:
+            async def run_workflow(workflow_id, input, interrupt_handler):
+                if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
+                    return await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
+                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, run_workflow)
+
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt)
-            if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
-                output = await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
-            else:
-                output = await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler)
+            output = await run_workflow(workflow_id, input, interrupt_handler)
             state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output)
         except Exception as e:
             import traceback

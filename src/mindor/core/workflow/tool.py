@@ -21,7 +21,12 @@ class WorkflowTool:
     parameters: List[WorkflowToolParameter]
 
 class WorkflowToolGenerator():
-    def generate(self, workflow_id: str, workflow: WorkflowSchema, runner: Callable[[str, Any, Any], Awaitable[Any]]) -> WorkflowTool:
+    def generate(
+        self,
+        workflow_id: str,
+        workflow: WorkflowSchema,
+        runner: Callable[[str, Any, Any], Awaitable[Any]]
+    ) -> WorkflowTool:
         async def _run_workflow(workflow_id, input: Any, context=None) -> Any:
             return await runner(workflow_id, input, context)
 
@@ -48,7 +53,14 @@ class WorkflowToolGenerator():
 
         return input
 
-    async def _convert_input_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], default: Optional[Any]) -> Any:
+    async def _convert_input_value(
+        self,
+        value: Any,
+        type: WorkflowVariableType,
+        subtype: Optional[str],
+        format: Optional[WorkflowVariableFormat],
+        default: Optional[Any]
+    ) -> Any:
         if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
             if format and format != "path":
                 pass

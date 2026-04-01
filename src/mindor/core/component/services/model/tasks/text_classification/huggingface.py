@@ -15,7 +15,13 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextClassificationTaskAction:
-    def __init__(self, config: TextClassificationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(
+        self,
+        config: TextClassificationModelActionConfig,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+        device: torch.device
+    ):
         self.config: TextClassificationModelActionConfig = config
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
@@ -95,7 +101,11 @@ class HuggingfaceTextClassificationTaskAction:
         context.register_source("result[]", prediction)
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else prediction
 
-    async def _render_output(self, context: ComponentActionContext, result: Union[Dict[str, Any], str, int, List[Union[Dict[str, Any], str, int]]]) -> Any:
+    async def _render_output(
+        self,
+        context: ComponentActionContext,
+        result: Union[Dict[str, Any], str, int, List[Union[Dict[str, Any], str, int]]]
+    ) -> Any:
         context.register_source("result", result)
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
@@ -116,7 +126,12 @@ class HuggingfaceTextClassificationTaskAction:
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

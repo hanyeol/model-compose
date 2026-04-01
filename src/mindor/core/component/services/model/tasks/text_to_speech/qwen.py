@@ -128,7 +128,12 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
 
         return model, device
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
             return await QwenTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context)
 

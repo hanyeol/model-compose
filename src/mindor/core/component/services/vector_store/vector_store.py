@@ -14,7 +14,13 @@ class VectorStoreAction:
 
 @register_component(ComponentType.VECTOR_STORE)
 class VectorStoreComponent(ComponentService):
-    def __init__(self, id: str, config: VectorStoreComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: VectorStoreComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.service: VectorStoreService = self._create_service(self.config.driver)

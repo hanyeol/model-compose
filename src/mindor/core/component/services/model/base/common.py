@@ -64,7 +64,12 @@ class ModelTaskService(AsyncService):
         pass
 
     @abstractmethod
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         pass
 
     def _get_model_path(self) -> str:

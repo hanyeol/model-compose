@@ -15,7 +15,13 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextEmbeddingTaskAction:
-    def __init__(self, config: TextEmbeddingModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(
+        self,
+        config: TextEmbeddingModelActionConfig,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+        device: torch.device
+    ):
         self.config: TextEmbeddingModelActionConfig = config
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
@@ -134,7 +140,12 @@ class HuggingfaceTextEmbeddingTaskAction:
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

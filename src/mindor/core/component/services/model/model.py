@@ -14,7 +14,13 @@ class ModelAction:
 
 @register_component(ComponentType.MODEL)
 class ModelComponent(ComponentService):
-    def __init__(self, id: str, config: ModelComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: ModelComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.task_service: ModelTaskService = self._create_task_service(self.config.task, self.config.driver)

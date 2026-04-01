@@ -391,7 +391,13 @@ class WebBrowserAction:
 
 @register_component(ComponentType.WEB_BROWSER)
 class WebBrowserComponent(ComponentService):
-    def __init__(self, id: str, config: WebBrowserComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: WebBrowserComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.session: Optional[WebBrowserSession] = None

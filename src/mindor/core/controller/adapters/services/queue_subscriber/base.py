@@ -10,7 +10,12 @@ if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
 
 class CommonQueueSubscriberControllerAdapterService(AsyncService):
-    def __init__(self, config: CommonQueueSubscriberControllerAdapterConfig, controller: ControllerService, daemon: bool):
+    def __init__(
+        self,
+        config: CommonQueueSubscriberControllerAdapterConfig,
+        controller: ControllerService,
+        daemon: bool
+    ):
         super().__init__(daemon)
         self.config = config
         self.controller = controller

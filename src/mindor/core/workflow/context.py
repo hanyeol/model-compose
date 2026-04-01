@@ -5,7 +5,13 @@ from mindor.core.workflow.interrupt import InterruptHandler
 WorkflowDelegate = Callable[[str, Dict[str, Any], InterruptHandler], Awaitable[Any]]
 
 class WorkflowContext:
-    def __init__(self, task_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler, workflow_delegate: WorkflowDelegate):
+    def __init__(
+        self,
+        task_id: str,
+        input: Dict[str, Any],
+        interrupt_handler: InterruptHandler,
+        workflow_delegate: WorkflowDelegate
+    ):
         self.task_id: str = task_id
         self.input: Dict[str, Any] = input
         self.context: Dict[str, Any] = { "task_id": task_id }

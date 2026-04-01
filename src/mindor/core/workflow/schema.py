@@ -197,10 +197,20 @@ class WorkflowVariableResolver:
         return annotations
 
 class WorkflowInputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariableConfig]:
+    def resolve(
+        self,
+        workflow: WorkflowConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[WorkflowVariableConfig]:
         return self._to_variable_config_list(self._resolve_workflow(workflow, workflows, components))
-    
-    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariable]:
+
+    def _resolve_workflow(
+        self,
+        workflow: WorkflowConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
 
         for job in workflow.jobs:
@@ -220,7 +230,13 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
 
         return variables
 
-    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariable]:
+    def _resolve_component(
+        self,
+        component: ComponentConfig,
+        action: ActionConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
 
         if component.type == ComponentType.WORKFLOW:
@@ -235,10 +251,21 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
         return variables
 
 class WorkflowOutputVariableResolver(WorkflowVariableResolver):
-    def resolve(self, workflow: WorkflowConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[WorkflowVariableConfig]:
+    def resolve(
+        self,
+        workflow: WorkflowConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[WorkflowVariableConfig]:
         return self._to_variable_config_list(self._resolve_workflow(workflow, workflows, components))
 
-    def _resolve_workflow(self, workflow: WorkflowConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig], internal: bool = False) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
+    def _resolve_workflow(
+        self,
+        workflow: WorkflowConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig],
+        internal: bool = False
+    ) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         routing_job_ids: Set[str] = { job_id for job in workflow.jobs for job_id in job.get_routing_jobs() }
@@ -269,7 +296,13 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
 
         return variables
 
-    def _resolve_component(self, component: ComponentConfig, action: ActionConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig]) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
+    def _resolve_component(
+        self,
+        component: ComponentConfig,
+        action: ActionConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
         if component.type == ComponentType.WORKFLOW:

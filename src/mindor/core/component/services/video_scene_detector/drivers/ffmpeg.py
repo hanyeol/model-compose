@@ -25,7 +25,13 @@ class FFmpegVideoSceneDetectorAction:
         context.register_source("result", scenes)
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else scenes
 
-    async def _detect(self, video: str, threshold: float, start_time: Optional[str], end_time: Optional[str]) -> Dict[str, Any]:
+    async def _detect(
+        self,
+        video: str,
+        threshold: float,
+        start_time: Optional[str],
+        end_time: Optional[str]
+    ) -> Dict[str, Any]:
         timestamps = await self._detect_scenes(video, threshold, start_time, end_time)
         duration   = await self._get_duration(video)
         frame_rate = await self._get_frame_rate(video)
@@ -47,7 +53,13 @@ class FFmpegVideoSceneDetectorAction:
 
         return { "scenes": scenes, "total_scenes": len(scenes) }
 
-    async def _detect_scenes(self, video: str, threshold: float, start_time: Optional[str], end_time: Optional[str]) -> List[float]:
+    async def _detect_scenes(
+        self,
+        video: str,
+        threshold: float,
+        start_time: Optional[str],
+        end_time: Optional[str]
+    ) -> List[float]:
         command = [
             "ffmpeg", "-hide_banner", "-i", video,
             "-vf", f"select='gt(scene,{threshold})',showinfo",

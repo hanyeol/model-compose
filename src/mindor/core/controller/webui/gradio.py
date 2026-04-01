@@ -29,7 +29,11 @@ class GradioWebUIBuilder:
     def __init__(self):
         self.field_resolver: FieldResolver = FieldResolver()
 
-    def build(self, workflow_schemas: Dict[str, WorkflowSchema], runner: Callable[[], ControllerRunner]) -> gr.Blocks:
+    def build(
+        self,
+        workflow_schemas: Dict[str, WorkflowSchema],
+        runner: Callable[[], ControllerRunner]
+    ) -> gr.Blocks:
         with gr.Blocks() as blocks:
             for workflow_id, workflow in workflow_schemas.items():
                 if len(workflow_schemas) > 1:
@@ -211,7 +215,14 @@ class GradioWebUIBuilder:
             input[variable.name] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
         return input
 
-    async def _convert_input_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
+    async def _convert_input_value(
+        self,
+        value: Any,
+        type: WorkflowVariableType,
+        subtype: Optional[str],
+        format: Optional[WorkflowVariableFormat],
+        internal: bool
+    ) -> Any:
         if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not internal or not format):
             if internal and format and format != "path":
                 value = await self._save_value_to_temporary_file(value, subtype, format)
@@ -297,7 +308,11 @@ class GradioWebUIBuilder:
                 flattened.append(item)
         return flattened
 
-    async def _flatten_output_value(self, output: Any, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> Any:
+    async def _flatten_output_value(
+        self,
+        output: Any,
+        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
+    ) -> Any:
         flattened = []
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
@@ -309,7 +324,11 @@ class GradioWebUIBuilder:
                 flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
         return flattened
 
-    def _resolve_variable_output(self, output: Any, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Any:
+    def _resolve_variable_output(
+        self,
+        output: Any,
+        variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]
+    ) -> Any:
         if isinstance(output, dict) and variable.name:
             m = re.match(_variable_name_regex, variable.name)
             if not m:
@@ -328,7 +347,14 @@ class GradioWebUIBuilder:
 
         return None if variable.name else output
 
-    async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat], internal: bool) -> Any:
+    async def _convert_output_value(
+        self,
+        value: Any,
+        type: WorkflowVariableType,
+        subtype: Optional[str],
+        format: Optional[WorkflowVariableFormat],
+        internal: bool
+    ) -> Any:
         if format == WorkflowVariableFormat.SSE_JSON:
             return self._resolve_json_field_from_bytes(value, subtype, format)
 

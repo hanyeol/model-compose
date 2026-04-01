@@ -9,7 +9,13 @@ from lxml import etree
 import aiohttp
 
 class WebScraperAction:
-    def __init__(self, config: WebScraperActionConfig, headers: Dict[str, str], cookies: Dict[str, str], timeout: Optional[str]):
+    def __init__(
+        self,
+        config: WebScraperActionConfig,
+        headers: Dict[str, str],
+        cookies: Dict[str, str],
+        timeout: Optional[str]
+    ):
         self.config: WebScraperActionConfig = config
         self.headers = headers
         self.cookies = cookies
@@ -232,7 +238,13 @@ class WebScraperAction:
 
 @register_component(ComponentType.WEB_SCRAPER)
 class WebScraperComponent(ComponentService):
-    def __init__(self, id: str, config: WebScraperComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: WebScraperComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[str]]:

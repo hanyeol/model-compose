@@ -169,7 +169,13 @@ class ImageProcessorAction:
 
         raise ValueError(f"Invalid scale_mode: {scale_mode}")
 
-    def _get_size_aspect_fit(self, target_width: int, target_height: int, original_width: int, original_height: int) -> Tuple[int, int]:
+    def _get_size_aspect_fit(
+        self,
+        target_width: int,
+        target_height: int,
+        original_width: int,
+        original_height: int
+    ) -> Tuple[int, int]:
         aspect_ratio = original_width / original_height
 
         height = target_height
@@ -181,7 +187,13 @@ class ImageProcessorAction:
 
         return (int(width), int(height))
 
-    def _get_size_aspect_fill(self, target_width: int, target_height: int, original_width: int, original_height: int) -> Tuple[int, int]:
+    def _get_size_aspect_fill(
+        self,
+        target_width: int,
+        target_height: int,
+        original_width: int,
+        original_height: int
+    ) -> Tuple[int, int]:
         aspect_ratio = original_width / original_height
 
         height = target_height
@@ -203,7 +215,13 @@ class ImageProcessorAction:
 
 @register_component(ComponentType.IMAGE_PROCESSOR)
 class ImageProcessorComponent(ComponentService):
-    def __init__(self, id: str, config: ImageProcessorComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: ImageProcessorComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

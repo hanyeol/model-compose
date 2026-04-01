@@ -145,12 +145,7 @@ class ProcessRuntimeManager:
 
         raise TimeoutError(f"Process {self.worker_id} did not start within {timeout}s")
 
-    def _run_worker(
-        self,
-        worker_id: str,
-        request_queue: Queue,
-        response_queue: Queue
-    ) -> None:
+    def _run_worker(self, worker_id: str, request_queue: Queue, response_queue: Queue) -> None:
         """Subprocess entry point"""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

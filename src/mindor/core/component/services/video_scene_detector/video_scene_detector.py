@@ -14,7 +14,13 @@ class VideoSceneDetectorAction:
 
 @register_component(ComponentType.VIDEO_SCENE_DETECTOR)
 class VideoSceneDetectorComponent(ComponentService):
-    def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: VideoSceneDetectorComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.service: VideoSceneDetectorService = self._create_service(self.config.driver)

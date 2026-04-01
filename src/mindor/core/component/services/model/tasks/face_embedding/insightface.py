@@ -106,5 +106,10 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _get_device_id(self) -> int:
         return 0
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context)

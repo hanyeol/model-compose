@@ -12,7 +12,14 @@ import asyncio, ulid, json
 _JSON_SCHEMA_TYPE_MAP = { "int": "integer", "float": "number", "bool": "boolean", "list[dict]": "array" }
 
 class AgentAction:
-    def __init__(self, action: AgentActionConfig, config: AgentComponentConfig, global_configs: ComponentGlobalConfigs, tools: Dict[str, WorkflowTool], function_schemas: List[Dict[str, Any]]):
+    def __init__(
+        self,
+        action: AgentActionConfig,
+        config: AgentComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        tools: Dict[str, WorkflowTool],
+        function_schemas: List[Dict[str, Any]]
+    ):
         self.action: AgentActionConfig = action
         self.config: AgentComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
@@ -90,7 +97,13 @@ class AgentAction:
         _, config = ComponentResolver(self.global_configs.components).resolve(component_id)
         return create_component(component_id, config, self.global_configs, daemon=False)
 
-    async def _render_model_input(self, context: ComponentActionContext, input_mapping: Dict[str, Any], messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    async def _render_model_input(
+        self,
+        context: ComponentActionContext,
+        input_mapping: Dict[str, Any],
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]]
+    ) -> Dict[str, Any]:
         context.register_source("messages", messages)
         if tools:
             context.register_source("tools", tools)
@@ -161,7 +174,13 @@ async def _build_function_schema(name: str, tool: WorkflowTool) -> Dict[str, Any
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):
-    def __init__(self, id: str, config: AgentComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: AgentComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.tools: Optional[Dict[str, WorkflowTool]] = None

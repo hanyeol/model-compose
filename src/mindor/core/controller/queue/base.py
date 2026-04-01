@@ -16,7 +16,13 @@ class CommonControllerQueueService(AsyncService):
         super().__init__(daemon=False)
         self.config = config
 
-    async def dispatch(self, task_id: str, workflow_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler) -> Any:
+    async def dispatch(
+        self,
+        task_id: str,
+        workflow_id: str,
+        input: Dict[str, Any],
+        interrupt_handler: InterruptHandler
+    ) -> Any:
         async def on_interrupt(data: Dict[str, Any]) -> Any:
             point = InterruptPoint(
                 task_id=task_id,
@@ -32,7 +38,13 @@ class CommonControllerQueueService(AsyncService):
         return await self._dispatch(task_id, workflow_id, input, on_interrupt)
 
     @abstractmethod
-    async def _dispatch(self, task_id: str, workflow_id: str, input: Dict[str, Any], on_interrupt: InterruptCallback) -> Any:
+    async def _dispatch(
+        self,
+        task_id: str,
+        workflow_id: str,
+        input: Dict[str, Any],
+        on_interrupt: InterruptCallback
+    ) -> Any:
         pass
 
 def register_controller_queue_service(driver: ControllerQueueDriver):

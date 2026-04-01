@@ -17,7 +17,13 @@ class WorkflowAction:
 
 @register_component(ComponentType.WORKFLOW)
 class WorkflowComponent(ComponentService):
-    def __init__(self, id: str, config: WorkflowComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: WorkflowComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

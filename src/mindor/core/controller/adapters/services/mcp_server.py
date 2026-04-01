@@ -110,7 +110,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return output
 
-    async def _convert_output_value(self, value: Any, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> ContentBlock:
+    async def _convert_output_value(
+        self,
+        value: Any,
+        type: WorkflowVariableType,
+        subtype: Optional[str],
+        format: Optional[WorkflowVariableFormat]
+    ) -> ContentBlock:
         if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
             if format == WorkflowVariableFormat.BASE64 and len(value) < 1024 * 1024: # at most 1MB
                 if type == WorkflowVariableType.IMAGE:

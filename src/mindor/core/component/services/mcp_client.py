@@ -29,7 +29,13 @@ class McpClientAction:
 
 @register_component(ComponentType.MCP_CLIENT)
 class McpClientComponent(ComponentService):
-    def __init__(self, id: str, config: McpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: McpClientComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[McpClient] = None 

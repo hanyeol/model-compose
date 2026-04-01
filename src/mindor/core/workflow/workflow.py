@@ -145,7 +145,13 @@ class WorkflowRunner:
 
         return output
 
-    def _can_run_job(self, job: Job, running_job_ids: Set[str], completed_job_ids: Set[str], routable_job_ids: Set[str]) -> bool:
+    def _can_run_job(
+        self,
+        job: Job,
+        running_job_ids: Set[str],
+        completed_job_ids: Set[str],
+        routable_job_ids: Set[str]
+    ) -> bool:
         if job.id in running_job_ids:
             return False
         
@@ -169,7 +175,13 @@ class Workflow:
         self.config: WorkflowConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    async def run(self, task_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler, workflow_delegate: WorkflowDelegate = None) -> Any:
+    async def run(
+        self,
+        task_id: str,
+        input: Dict[str, Any],
+        interrupt_handler: InterruptHandler,
+        workflow_delegate: WorkflowDelegate = None
+    ) -> Any:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
         context = WorkflowContext(task_id, input, interrupt_handler, workflow_delegate)
 

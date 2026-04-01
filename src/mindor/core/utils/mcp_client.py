@@ -18,7 +18,12 @@ class McpClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._cleanup()
 
-    async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None, raise_on_error: bool = True) -> List[ContentBlock]:
+    async def call_tool(
+        self,
+        name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        raise_on_error: bool = True
+    ) -> List[ContentBlock]:
         """
         Call a specific tool on the MCP server
         

@@ -141,7 +141,13 @@ class HttpClientAction:
 
 @register_component(ComponentType.HTTP_CLIENT)
 class HttpClientComponent(ComponentService):
-    def __init__(self, id: str, config: HttpClientComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: HttpClientComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[HttpClient] = None

@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
 @register_queue_subscriber_controller_adapter_service(QueueSubscriberDriver.REDIS)
 class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberControllerAdapterService):
-    def __init__(self, config: RedisQueueSubscriberControllerAdapterConfig, controller: ControllerService, daemon: bool):
+    def __init__(
+        self,
+        config: RedisQueueSubscriberControllerAdapterConfig,
+        controller: ControllerService,
+        daemon: bool
+    ):
         super().__init__(config, controller, daemon)
         self._redis = None
         self._workers: List[asyncio.Task] = []

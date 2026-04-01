@@ -45,7 +45,13 @@ class ComponentGlobalConfigs:
         self.workflows: List[WorkflowConfig] = workflows
 
 class ComponentService(AsyncService):
-    def __init__(self, id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: ComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(daemon)
 
         self.id: str = id

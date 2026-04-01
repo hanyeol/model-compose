@@ -130,7 +130,13 @@ class HttpServerAction:
 
 @register_component(ComponentType.HTTP_SERVER)
 class HttpServerComponent(ComponentService):
-    def __init__(self, id: str, config: HttpServerComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: HttpServerComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[HttpClient] = None

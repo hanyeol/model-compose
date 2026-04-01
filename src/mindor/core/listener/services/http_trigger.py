@@ -34,7 +34,13 @@ class TaskResult(BaseModel):
         return cls.from_instance(instance).model_dump(exclude_none=True)
 
 class HttpTriggerContext:
-    def __init__(self, body: Optional[Any], query: Optional[Dict[str, str]], bulk: bool, item: Optional[str]):
+    def __init__(
+        self,
+        body: Optional[Any],
+        query: Optional[Dict[str, str]],
+        bulk: bool,
+        item: Optional[str]
+    ):
         self.body: Optional[Any] = body
         self.query: Optional[Dict[str, str]] = query
         self.bulk: bool = bulk

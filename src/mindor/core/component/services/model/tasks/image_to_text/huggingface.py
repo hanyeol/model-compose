@@ -21,7 +21,13 @@ class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer
 
 class HuggingfaceImageToTextTaskAction:
-    def __init__(self, config: ImageToTextModelActionConfig, model: PreTrainedModel, processor: ProcessorMixin, device: torch.device):
+    def __init__(
+        self,
+        config: ImageToTextModelActionConfig,
+        model: PreTrainedModel,
+        processor: ProcessorMixin,
+        device: torch.device
+    ):
         self.config: ImageToTextModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.processor: Union[ProcessorMixin, WithTokenizer] = processor
@@ -153,7 +159,12 @@ class HuggingfaceImageToTextTaskAction:
 
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await HuggingfaceImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

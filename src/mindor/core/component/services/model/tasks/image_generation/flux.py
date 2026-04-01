@@ -14,7 +14,12 @@ if TYPE_CHECKING:
     import torch
 
 class FluxImageGenerationTaskAction(ImageGenerationTaskAction):
-    def __init__(self, config: FluxImageGenerationModelActionConfig, pipeline: Any, device: Optional[torch.device]):
+    def __init__(
+        self,
+        config: FluxImageGenerationModelActionConfig,
+        pipeline: Any,
+        device: Optional[torch.device]
+    ):
         super().__init__(config, device)
 
         self.pipeline = pipeline
@@ -50,5 +55,10 @@ class FluxImageGenerationTaskService(ImageGenerationTaskService):
     def _load_pretrained_pipeline(self) -> Tuple[Any, torch.device]:
         pass
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return FluxImageGenerationModelActionConfig(action, self.model).run(context)

@@ -87,7 +87,12 @@ class BytesStreamResource(StreamResource):
             yield chunk
 
 class Base64StreamResource(StreamResource):
-    def __init__(self, encoded: str, content_type: Optional[str] = None, filename: Optional[str] = None):
+    def __init__(
+        self,
+        encoded: str,
+        content_type: Optional[str] = None,
+        filename: Optional[str] = None
+    ):
         super().__init__(content_type, filename)
 
         self.encoded: str = encoded

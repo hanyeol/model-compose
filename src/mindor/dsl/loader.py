@@ -18,7 +18,12 @@ class ComposeConfigLoader:
             )
         }
 
-    def load(self, work_dir: Union[ str, Path ], config_files: List[Union[ str, Path ]], env: Dict[str, str]) -> ComposeConfig:
+    def load(
+        self,
+        work_dir: Union[ str, Path ],
+        config_files: List[Union[ str, Path ]],
+        env: Dict[str, str]
+    ) -> ComposeConfig:
         if len(config_files) == 0:
             for ext in [ ".yml", ".yaml" ]:
                 config_file = Path(work_dir) / f"{self.config_name}{ext}"

@@ -17,7 +17,13 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextGenerationTaskAction:
-    def __init__(self, config: TextGenerationModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(
+        self,
+        config: TextGenerationModelActionConfig,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+        device: torch.device
+    ):
         self.config: TextGenerationModelActionConfig = config
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
@@ -147,7 +153,12 @@ class HuggingfaceTextGenerationTaskAction:
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
     
     def _get_model_class(self) -> Type[PreTrainedModel]:

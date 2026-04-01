@@ -34,7 +34,13 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
         await super()._stop()
 
-    async def _dispatch(self, task_id: str, workflow_id: str, input: Dict[str, Any], on_interrupt: InterruptCallback) -> Any:
+    async def _dispatch(
+        self,
+        task_id: str,
+        workflow_id: str,
+        input: Dict[str, Any],
+        on_interrupt: InterruptCallback
+    ) -> Any:
         run_id = ulid.ulid()
         queue_key = f"{self.config.name}:{workflow_id}"
         result_key = f"{queue_key}:{run_id}"

@@ -15,7 +15,12 @@ if TYPE_CHECKING:
     import torch
 
 class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    def __init__(self, config: EsrganImageUpscaleModelActionConfig, model: RRDBNet, device: Optional[torch.device]):
+    def __init__(
+        self,
+        config: EsrganImageUpscaleModelActionConfig,
+        model: RRDBNet,
+        device: Optional[torch.device]
+    ):
         super().__init__(config, device)
 
         self.model: RRDBNet = model
@@ -56,5 +61,10 @@ class EsrganImageUpscaleTaskService(ImageUpscaleTaskService):
         
         return model, None
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return EsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)

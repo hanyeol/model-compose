@@ -8,7 +8,12 @@ from ..context import ComponentActionContext
 import os
 
 class ShellAction:
-    def __init__(self, config: ShellActionConfig, base_dir: Optional[str], env: Optional[Dict[str, str]]):
+    def __init__(
+        self,
+        config: ShellActionConfig,
+        base_dir: Optional[str],
+        env: Optional[Dict[str, str]]
+    ):
         self.config: ShellActionConfig = config
         self.base_dir: Optional[str] = base_dir
         self.env: Optional[Dict[str, str]] = env
@@ -23,7 +28,13 @@ class ShellAction:
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
     
-    async def _run_command(self, command: List[str], working_dir: str, env: Dict[str, str], timeout: Optional[float]) -> Dict[str, Any]:
+    async def _run_command(
+        self,
+        command: List[str],
+        working_dir: str,
+        env: Dict[str, str],
+        timeout: Optional[float]
+    ) -> Dict[str, Any]:
         logging.debug("[shell] Running command: %s (cwd: %s)", " ".join(command), working_dir)
         stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
         logging.debug("[shell] Command exited with code %d", exit_code)
@@ -49,7 +60,13 @@ class ShellAction:
 
 @register_component(ComponentType.SHELL)
 class ShellComponent(ComponentService):
-    def __init__(self, id: str, config: ShellComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: ShellComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     async def _setup(self) -> None:

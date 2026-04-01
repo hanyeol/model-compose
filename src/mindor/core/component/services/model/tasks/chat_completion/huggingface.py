@@ -13,7 +13,13 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
-    def __init__(self, config: ChatCompletionModelActionConfig, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(
+        self,
+        config: ChatCompletionModelActionConfig,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+        device: torch.device
+    ):
         super().__init__(config, model, tokenizer, device)
 
         self.config: ChatCompletionModelActionConfig = config # For type only
@@ -39,7 +45,12 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
 class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
         return await HuggingfaceChatCompletionTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

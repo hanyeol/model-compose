@@ -38,7 +38,14 @@ class PySceneVideoSceneDetectorAction:
         context.register_source("result", result)
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
-    def _detect(self, video: str, detector: Optional[str], threshold: Optional[float], start_time: Optional[str], end_time: Optional[str]) -> List:
+    def _detect(
+        self,
+        video: str,
+        detector: Optional[str],
+        threshold: Optional[float],
+        start_time: Optional[str],
+        end_time: Optional[str]
+    ) -> List:
         from scenedetect import detect
 
         scene_detector = self._create_detector(detector, threshold)

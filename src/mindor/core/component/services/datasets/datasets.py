@@ -116,7 +116,13 @@ class DatasetsAction:
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):
-    def __init__(self, id: str, config: DatasetsActionConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: DatasetsActionConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[str]]:

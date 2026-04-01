@@ -25,5 +25,11 @@ class ControllerQueueService:
     async def stop(self) -> None:
         await self.service.stop()
 
-    async def dispatch(self, task_id: str, workflow_id: str, input: Dict[str, Any], interrupt_handler: InterruptHandler) -> Any:
+    async def dispatch(
+        self,
+        task_id: str,
+        workflow_id: str,
+        input: Dict[str, Any],
+        interrupt_handler: InterruptHandler
+    ) -> Any:
         return await self.service.dispatch(task_id, workflow_id, input, interrupt_handler)

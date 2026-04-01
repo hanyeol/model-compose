@@ -188,7 +188,13 @@ class ControllerService(AsyncService):
             await self._stop_loggers()
             return
 
-    async def run_workflow(self, workflow_id: str, input: Dict[str, Any], wait_for_completion: bool = True, on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> TaskState:
+    async def run_workflow(
+        self,
+        workflow_id: str,
+        input: Dict[str, Any],
+        wait_for_completion: bool = True,
+        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None
+    ) -> TaskState:
         if self._shutting_down:
             raise ShutdownError("Service is shutting down")
 
@@ -431,7 +437,13 @@ class ControllerService(AsyncService):
     def _get_default_logger_config(self) -> LoggerConfig:
         return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
 
-    async def _run_workflow(self, task_id: str, workflow_id: str, input: Dict[str, Any], on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> TaskState:
+    async def _run_workflow(
+        self,
+        task_id: str,
+        workflow_id: str,
+        input: Dict[str, Any],
+        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None
+    ) -> TaskState:
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
@@ -475,7 +487,12 @@ class ControllerService(AsyncService):
                 return state
             await event.wait()
 
-    def _attach_interrupt_handler(self, task_id: str, workflow_id: str, on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None) -> InterruptHandler:
+    def _attach_interrupt_handler(
+        self,
+        task_id: str,
+        workflow_id: str,
+        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None
+    ) -> InterruptHandler:
         async def callback(point: InterruptPoint):
             interrupt = InterruptState(
                 job_id=point.job_id,

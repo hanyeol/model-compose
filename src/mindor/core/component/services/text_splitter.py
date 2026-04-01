@@ -181,7 +181,13 @@ class TextSplitterAction:
 
 @register_component(ComponentType.TEXT_SPLITTER)
 class TextSplitterComponent(ComponentService):
-    def __init__(self, id: str, config: TextSplitterComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool):
+    def __init__(
+        self,
+        id: str,
+        config: TextSplitterComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+        daemon: bool
+    ):
         super().__init__(id, config, global_configs, daemon)
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

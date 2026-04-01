@@ -44,7 +44,13 @@ class McpControllerClient(ControllerClient):
             output[variable.name or "output"] = await self._convert_output_value(content, variable.type, variable.subtype, variable.format)
         return output
 
-    async def _convert_output_value(self, content: ContentBlock, type: WorkflowVariableType, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Any:
+    async def _convert_output_value(
+        self,
+        content: ContentBlock,
+        type: WorkflowVariableType,
+        subtype: Optional[str],
+        format: Optional[WorkflowVariableFormat]
+    ) -> Any:
         if isinstance(content, TextContent):
             if type in [ WorkflowVariableType.JSON, WorkflowVariableType.OBJECTS ]:
                 return json.loads(content.text)

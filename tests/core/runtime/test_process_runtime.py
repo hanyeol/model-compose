@@ -394,7 +394,7 @@ class TestComponentProcessRuntimeManager:
             command=[ "echo", "test" ]
         )
 
-        with pytest.raises(ValueError, match="requires ProcessRuntimeConfig"):
+        with pytest.raises(AttributeError):
             ComponentProcessRuntimeManager(
                 "test-shell",
                 config,

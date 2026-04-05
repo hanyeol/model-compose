@@ -23,7 +23,8 @@ dependencies = [
     "gradio>=6.0.0",
     "Pillow",
     "beautifulsoup4",
-    "lxml"
+    "lxml",
+    "async_timeout>=4.0; python_version < '3.11'"
 ]
 
 [project.scripts]

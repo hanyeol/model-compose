@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
@@ -85,39 +86,19 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         resume_key = f"{result_key}:resume"
 
         async def on_interrupt(interrupt):
-            await self._publish_result(workflow_id, run_id, {
-                "task_id": task_id,
-                "run_id": run_id,
-                "status": "interrupted",
-                "worker_id": self._worker_id,
-                "interrupt": {
-                    "job_id": interrupt.job_id,
-                    "phase": interrupt.phase,
-                    "message": interrupt.message,
-                    "metadata": interrupt.metadata,
-                },
-            })
+            state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, interrupt=interrupt)
+            await self._publish_result(workflow_id, task_id, run_id, state)
             return await self._wait_for_resume(resume_key)
 
         try:
             state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True, on_interrupt=on_interrupt)
-            result = {
-                "task_id": task_id,
-                "run_id": run_id,
-                "status": state.status.value,
-                "worker_id": self._worker_id,
-                **(self._get_task_output(state) or {}),
-            }
         except Exception as e:
-            result = {
-                "task_id": task_id,
-                "run_id": run_id,
-                "status": "failed",
-                "error": str(e),
-                "worker_id": self._worker_id,
-            }
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
 
-        await self._publish_result(workflow_id, run_id, result)
+        if state.status == TaskStatus.COMPLETED and isinstance(state.output, AsyncIterator):
+            await self._publish_stream_result(workflow_id, task_id, run_id, state)
+        else:
+            await self._publish_result(workflow_id, task_id, run_id, state)
 
     async def _wait_for_resume(self, resume_key: str) -> Any:
         pubsub = self._redis.pubsub()
@@ -132,22 +113,57 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             await pubsub.unsubscribe(resume_key)
             await pubsub.aclose()
 
-    async def _publish_result(self, workflow_id: str, run_id: str, result: Dict[str, Any]) -> None:
-        result_json = json.dumps(result, default=str)
+    async def _publish_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"
 
-        if self.config.result_ttl > 0:
-            await self._redis.setex(result_key, self.config.result_ttl, result_json)
-        else:
-            await self._redis.set(result_key, result_json)
+        result = json.dumps({
+            "task_id": task_id,
+            "run_id": run_id,
+            "status": state.status.value,
+            "worker_id": self._worker_id,
+            **(self._get_task_output(state) or {}),
+        }, default=str)
 
-        await self._redis.publish(result_key, result_json)
+        if self.config.result_ttl > 0:
+            await self._redis.setex(result_key, self.config.result_ttl, result)
+        else:
+            await self._redis.set(result_key, result)
+
+        await self._redis.publish(result_key, result)
+
+    async def _publish_stream_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
+        result_key = f"{self.config.name}:{workflow_id}:{run_id}"
+        stream_key = f"{result_key}:stream"
+
+        result = json.dumps({
+            "task_id": task_id,
+            "run_id": run_id,
+            "status": "streaming",
+            "worker_id": self._worker_id,
+            "stream_key": stream_key,
+        })
+        await self._redis.publish(result_key, result)
+
+        try:
+            async for chunk in state.output:
+                data = chunk if isinstance(chunk, str) else json.dumps(chunk, default=str, ensure_ascii=False)
+                await self._redis.xadd(stream_key, { "event": "chunk", "data": data })
+
+            await self._redis.xadd(stream_key, { "event": "done" })
+        except Exception as e:
+            await self._redis.xadd(stream_key, { "event": "error", "data": str(e) })
+        finally:
+            if self.config.result_ttl > 0:
+                await self._redis.expire(stream_key, self.config.result_ttl)
+
+            if hasattr(state.output, 'aclose'):
+                await state.output.aclose()
 
     def _build_redis_url(self) -> str:
         if not self.config.url:
             scheme = "rediss" if self.config.secure else "redis"
             return f"{scheme}://{self.config.host}:{self.config.port}"
-        
+
         return self.config.url
 
     def _workflow_id_from_queue_key(self, queue_key: str) -> str:
@@ -159,10 +175,18 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         return queue_key
 
     def _get_task_output(self, state: TaskState) -> Optional[Dict[str, Any]]:
-        if state.status == TaskStatus.COMPLETED:
-            return { "output": state.output }
+        if state.status == TaskStatus.INTERRUPTED and state.interrupt:
+            return { "interrupt": {
+                "job_id": state.interrupt.job_id,
+                "phase": state.interrupt.phase,
+                "message": state.interrupt.message,
+                "metadata": state.interrupt.metadata,
+            }}
 
         if state.status == TaskStatus.FAILED:
             return { "error": state.error }
+
+        if state.status == TaskStatus.COMPLETED:
+            return { "output": state.output }
 
         return None

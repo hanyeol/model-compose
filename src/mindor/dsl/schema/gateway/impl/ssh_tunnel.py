@@ -7,7 +7,7 @@ from .common import GatewayType, CommonGatewayConfig
 class SshTunnelGatewayConfig(CommonGatewayConfig):
     type: Literal[GatewayType.SSH_TUNNEL]
     connection: SshConnectionConfig = Field(..., description="SSH connection configuration.")
-    port: List[List[int | str]] = Field(..., min_length=1, description="One or more port forwarding configuration.")
+    port: List[List[Union[int, str]]] = Field(..., min_length=1, description="One or more port forwarding configuration.")
 
     @model_validator(mode="before")
     def normalize_port(cls, values):
@@ -18,7 +18,7 @@ class SshTunnelGatewayConfig(CommonGatewayConfig):
         return values
 
     @classmethod
-    def normalize_single_port(cls, value) -> Optional[List[int | str]]:
+    def normalize_single_port(cls, value) -> Optional[List[Union[int, str]]]:
         if isinstance(value, str):
             parts = value.split(":")
 

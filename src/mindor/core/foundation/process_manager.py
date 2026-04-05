@@ -130,10 +130,10 @@ class ProcessRuntimeManager:
 
     async def _wait_for_ready(self) -> None:
         """Wait for subprocess to be ready"""
-        start_time = time.time()
         timeout = self.worker_params.start_timeout
+        start_time = time.monotonic()
 
-        while time.time() - start_time < timeout:
+        while time.monotonic() - start_time < timeout:
             if not self.response_queue.empty():
                 message = IpcMessage(**self.response_queue.get())
 

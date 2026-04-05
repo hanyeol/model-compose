@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod, DatasetsProvider
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext

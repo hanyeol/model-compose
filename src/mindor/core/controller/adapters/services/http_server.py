@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, AsyncIterable, Any
-from types import AsyncGeneratorType
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator, AsyncIterable
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
@@ -274,7 +274,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, AsyncGeneratorType)):
+        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator)):
             raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
 
         if output_only:

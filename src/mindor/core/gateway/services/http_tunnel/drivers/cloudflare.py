@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.gateway import CloudflareHttpTunnelGatewayConfig
 from ..base import CommonHttpTunnelGateway
 from mindor.core.logger import logging
+from mindor.core.foundation.compat.asyncio import async_timeout
 import asyncio
 import re
 import tempfile
@@ -55,7 +56,7 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
 
     async def _wait_for_quick_tunnel_url(self, process: asyncio.subprocess.Process) -> Optional[str]:
         try:
-            async with asyncio.timeout(self.TUNNEL_READY_TIMEOUT):
+            async with async_timeout(self.TUNNEL_READY_TIMEOUT):
                 while True:
                     line = await process.stderr.readline()
                     if not line:
@@ -125,7 +126,7 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
 
     async def _wait_for_named_tunnel_ready(self, process: asyncio.subprocess.Process) -> None:
         try:
-            async with asyncio.timeout(self.TUNNEL_READY_TIMEOUT):
+            async with async_timeout(self.TUNNEL_READY_TIMEOUT):
                 while True:
                     line = await process.stderr.readline()
                     if not line:
@@ -145,7 +146,7 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
             if process.returncode is None:
                 process.terminate()
                 try:
-                    async with asyncio.timeout(5):
+                    async with async_timeout(5):
                         await process.wait()
                 except TimeoutError:
                     process.kill()

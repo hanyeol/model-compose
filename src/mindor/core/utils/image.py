@@ -1,4 +1,5 @@
-from typing import Optional, AsyncIterator
+from typing import Optional
+from collections.abc import AsyncIterator
 from .streaming import StreamResource
 from PIL import Image as PILImage
 import io

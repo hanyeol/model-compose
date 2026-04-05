@@ -1,4 +1,5 @@
-from typing import Union, Optional, Dict, Tuple, AsyncIterator, Any
+from typing import Union, Optional, Dict, Tuple, Any
+from collections.abc import AsyncIterator
 from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
 from .url import encode_url

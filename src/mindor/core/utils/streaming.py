@@ -1,4 +1,5 @@
-from typing import Optional, AsyncIterator
+from typing import Optional
+from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
 from starlette.datastructures import UploadFile

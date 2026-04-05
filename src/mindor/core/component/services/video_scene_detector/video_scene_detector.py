@@ -1,4 +1,5 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncIterator, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, VideoSceneDetectorDriver
 from mindor.dsl.schema.action import ActionConfig, VideoSceneDetectorActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component

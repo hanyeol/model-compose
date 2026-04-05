@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, AsyncIterator, Self, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing_extensions import Self
+from collections.abc import AsyncIterator
 from pydantic import BaseModel
 from mindor.dsl.schema.listener import HttpTriggerListenerConfig, HttpTriggerConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header

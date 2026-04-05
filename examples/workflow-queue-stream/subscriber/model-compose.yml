@@ -1,0 +1,38 @@
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+    workflows:
+      - chat
+
+workflow:
+  id: chat
+  title: Chat with OpenAI GPT-4o (Streaming)
+  description: Processes chat tasks received from Redis queue with streaming output.
+  job:
+    component: openai
+    input:
+      prompt: ${input.prompt}
+    output: ${output as text;sse-text}
+
+component:
+  id: openai
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}

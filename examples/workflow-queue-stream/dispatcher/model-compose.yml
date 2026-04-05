@@ -1,0 +1,27 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  queue:
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with OpenAI GPT-4o (Streaming via Queue)
+  description: Dispatches a chat task to a remote worker through Redis queue and streams the response.
+  job:
+    type: component
+
+component:
+  type: workflow
+  action:
+    workflow: chat
+    input:
+      prompt: ${input.prompt as text}
+    output: ${output as text;sse-text}

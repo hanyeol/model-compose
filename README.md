@@ -2,7 +2,7 @@
 
 ![model-compose - Declarative AI Workflow Orchestrator](docs/images/main-banner.png)
 
-[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/model-compose.svg)](https://pypi.org/project/model-compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://pepy.tech/badge/model-compose)](https://pepy.tech/project/model-compose)
@@ -92,7 +92,7 @@ cd model-compose
 pip install -e .
 ```
 
-> Requires: Python 3.9 or higher
+> Requires: Python 3.10 or higher
 
 ---
 

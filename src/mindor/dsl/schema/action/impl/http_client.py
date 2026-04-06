@@ -20,7 +20,7 @@ class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="GET", description="HTTP method for polling requests.")
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers to include in polling requests.")
     body: Dict[str, Any] = Field(default_factory=dict, description="Request body data for polling requests.")
-    params: Dict[str, str] = Field(default_factory=dict, description="URL query parameters for polling requests.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters for polling requests.")
     status: Optional[str] = Field(default=None, description="Field path to check for completion status in polling response.")
     success_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate successful completion.")
     fail_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate failed completion.")
@@ -58,7 +58,7 @@ class HttpClientActionConfig(CommonActionConfig):
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method to use for the request")
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers to include in the request")
     body: Dict[str, Any] = Field(default_factory=dict, description="Request body data to send with the HTTP request")
-    params: Dict[str, str] = Field(default_factory=dict, description="URL query parameters to append to the request")
+    params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters to append to the request")
     stream_format: Optional[HttpStreamFormat] = Field(default=None, description="Format of stream payload.")
     completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="Configuration for handling asynchronous request completion via polling or callbacks")
 

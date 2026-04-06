@@ -67,7 +67,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             annotations=None
         )
 
-    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any) -> List[ContentBlock]:
+    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
         state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True)
         return await self._build_state_response(state)
 

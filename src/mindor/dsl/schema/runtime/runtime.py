@@ -8,7 +8,8 @@ RuntimeConfig = Annotated[
         NativeRuntimeConfig,
         EmbeddedRuntimeConfig,
         ProcessRuntimeConfig,
-        DockerRuntimeConfig
+        DockerRuntimeConfig,
+        AppleContainerRuntimeConfig
     ],
     Field(discriminator="type")
 ]

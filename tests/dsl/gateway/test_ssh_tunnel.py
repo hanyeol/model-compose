@@ -21,10 +21,10 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(5432, 5432)]
+        assert config.port == [[5432, "localhost", 5432]]
 
     def test_single_string_port(self):
-        """Test single string port: '8080:5432' -> [(8080, 5432)]"""
+        """Test single string port: '8080:5432' -> [[8080, 'localhost', 5432]]"""
         config = SshTunnelGatewayConfig(
             type="ssh-tunnel",
             port="8080:5432",
@@ -39,7 +39,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(8080, 5432)]
+        assert config.port == [[8080, "localhost", 5432]]
 
     def test_list_of_multiple_ints(self):
         """Test list of multiple single ports: [5432, 6379, 3306]"""
@@ -57,7 +57,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(5432, 5432), (6379, 6379), (3306, 3306)]
+        assert config.port == [[5432, "localhost", 5432], [6379, "localhost", 6379], [3306, "localhost", 3306]]
 
     def test_list_of_strings(self):
         """Test list of string ports: ['8080:5432', '9090:6379']"""
@@ -75,7 +75,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(8080, 5432), (9090, 6379)]
+        assert config.port == [[8080, "localhost", 5432], [9090, "localhost", 6379]]
 
     def test_mixed_list(self):
         """Test mixed list: [5432, '8080:3306', 6379]"""
@@ -93,7 +93,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(5432, 5432), (8080, 3306), (6379, 6379)]
+        assert config.port == [[5432, "localhost", 5432], [8080, "localhost", 3306], [6379, "localhost", 6379]]
 
     def test_complex_port_ranges(self):
         """Test complex port forwarding scenarios"""
@@ -111,7 +111,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(15432, 5432), (16379, 6379), (13306, 3306)]
+        assert config.port == [[15432, "localhost", 5432], [16379, "localhost", 6379], [13306, "localhost", 3306]]
 
     def test_keyfile_auth(self):
         """Test SSH keyfile authentication"""
@@ -204,7 +204,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(65000, 65535)]
+        assert config.port == [[65000, "localhost", 65535]]
 
     def test_multiple_same_local_ports(self):
         """Test multiple forwards with same local port to different remote ports"""
@@ -222,7 +222,7 @@ class TestSshTunnelGatewayConfig:
             }
         )
 
-        assert config.port == [(8080, 5432), (8081, 3306), (8082, 6379)]
+        assert config.port == [[8080, "localhost", 5432], [8081, "localhost", 3306], [8082, "localhost", 6379]]
 
     def test_empty_list_should_fail(self):
         """Test that empty port list raises validation error"""
@@ -259,18 +259,19 @@ class TestSshTunnelGatewayConfig:
             )
 
     def test_three_part_port_string(self):
-        """Test three-part port string should fail (invalid format)"""
-        with pytest.raises(Exception):  # Should fail - only local:remote format is valid
-            SshTunnelGatewayConfig(
-                type="ssh-tunnel",
-                port="8080:5432:1234",  # Invalid: too many parts
-                connection={
-                    "host": "bastion.example.com",
-                    "port": 22,
-                    "auth": {
-                        "type": "keyfile",
-                        "username": "deploy",
-                        "keyfile": "~/.ssh/id_rsa"
-                    }
+        """Test three-part port string: '8080:192.168.1.107:3000' -> [[8080, '192.168.1.107', 3000]]"""
+        config = SshTunnelGatewayConfig(
+            type="ssh-tunnel",
+            port="8080:192.168.1.107:3000",
+            connection={
+                "host": "bastion.example.com",
+                "port": 22,
+                "auth": {
+                    "type": "keyfile",
+                    "username": "deploy",
+                    "keyfile": "~/.ssh/id_rsa"
                 }
-            )
+            }
+        )
+
+        assert config.port == [[8080, "192.168.1.107", 3000]]

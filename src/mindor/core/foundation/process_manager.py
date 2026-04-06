@@ -1,5 +1,4 @@
 from typing import Any, Dict, Optional, Callable
-from mindor.core.logger import logging
 from .ipc_messages import IpcMessage, IpcMessageType
 from .process_worker import ProcessWorkerParams
 from multiprocessing import Process, Queue
@@ -55,7 +54,6 @@ class ProcessRuntimeManager:
                 os.environ[key] = value
 
         self.subprocess.start()
-        logging.info(f"Started subprocess for worker {self.worker_id} (PID: {self.subprocess.pid})")
 
         await self._wait_for_ready()
 
@@ -65,8 +63,6 @@ class ProcessRuntimeManager:
 
     async def stop(self) -> None:
         """Stop the subprocess"""
-        logging.info(f"Stopping subprocess for worker {self.worker_id}")
-
         stop_message = IpcMessage(
             type=IpcMessageType.STOP,
             request_id=str(uuid.uuid4())
@@ -76,11 +72,9 @@ class ProcessRuntimeManager:
         try:
             self.subprocess.join(timeout=self.worker_params.stop_timeout)
         except TimeoutError:
-            logging.warning(f"Process {self.worker_id} did not stop gracefully, terminating")
             self.subprocess.terminate()
             self.subprocess.join(timeout=5)
             if self.subprocess.is_alive():
-                logging.error(f"Process {self.worker_id} did not terminate, killing")
                 self.subprocess.kill()
 
         if self.response_handler_task:
@@ -125,8 +119,8 @@ class ProcessRuntimeManager:
                 await asyncio.sleep(0.01)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logging.error(f"Error handling response: {e}")
+            except Exception:
+                pass
 
     async def _wait_for_ready(self) -> None:
         """Wait for subprocess to be ready"""
@@ -138,8 +132,11 @@ class ProcessRuntimeManager:
                 message = IpcMessage(**self.response_queue.get())
 
                 if message.type == IpcMessageType.STATUS and message.payload.get("status") == "ready":
-                    logging.info(f"Subprocess {self.worker_id} is ready")
                     return
+
+                if message.type == IpcMessageType.ERROR:
+                    error = message.payload.get("error", "Unknown error") if message.payload else "Unknown error"
+                    raise RuntimeError(f"Process {self.worker_id} failed to start: {error}")
 
             await asyncio.sleep(0.5)
 

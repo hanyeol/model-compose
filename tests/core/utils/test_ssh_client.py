@@ -29,6 +29,20 @@ def find_free_port():
         port = s.getsockname()[1]
     return port
 
+def _ssh_available():
+    """Check if SSH server is reachable"""
+    try:
+        s = socket.create_connection((SSH_HOST, SSH_PORT), timeout=2)
+        s.close()
+        return True
+    except (socket.error, OSError):
+        return False
+
+requires_ssh = pytest.mark.skipif(
+    not _ssh_available(),
+    reason=f"SSH server not available at {SSH_HOST}:{SSH_PORT}"
+)
+
 
 class TestSshClient:
     """SSH client integration tests"""
@@ -64,10 +78,11 @@ class TestSshClient:
         assert client.params == keyfile_connection_params
         assert client.client is None
         assert client.transport is None
-        assert client.port_forwards == []
+        assert client.port_forwards == {}
         assert client._shutdown_event is None
         assert client._forward_threads == []
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_connect_with_keyfile(self, keyfile_connection_params):
         """Test real SSH connection with keyfile"""
@@ -82,6 +97,7 @@ class TestSshClient:
         finally:
             await client.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     @pytest.mark.skipif(not SSH_PASSWORD, reason="Password auth not configured")
     async def test_connect_with_password(self, password_connection_params):
@@ -96,6 +112,7 @@ class TestSshClient:
         finally:
             await client.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_is_connected(self, keyfile_connection_params):
         """Test is_connected returns correct status"""
@@ -113,6 +130,7 @@ class TestSshClient:
             # After closing
             assert not client.is_connected()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_context_manager(self, keyfile_connection_params):
         """Test using SSH client as context manager"""
@@ -122,6 +140,7 @@ class TestSshClient:
         # Connection should be closed after context
         assert not client.is_connected()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_remote_port_forwarding(self, keyfile_connection_params):
         """Test real remote port forwarding"""
@@ -157,6 +176,7 @@ class TestSshClient:
             await client.close()
             server_socket.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_multiple_port_forwards(self, keyfile_connection_params):
         """Test multiple remote port forwards"""
@@ -197,6 +217,7 @@ class TestSshClient:
             for s in servers:
                 s.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_close(self, keyfile_connection_params):
         """Test closing SSH connection"""
@@ -229,6 +250,7 @@ class TestSshClient:
                 await client.close()
             server_socket.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_reconnect_after_close(self, keyfile_connection_params):
         """Test reconnecting after closing connection"""
@@ -245,6 +267,7 @@ class TestSshClient:
         assert client.is_connected()
         await client.close()
 
+    @requires_ssh
     @pytest.mark.anyio
     async def test_dynamic_port_allocation(self, keyfile_connection_params):
         """Test remote port forwarding with dynamic port (0)"""

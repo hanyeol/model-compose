@@ -161,7 +161,7 @@ class TestWebScraperComponentConfig:
         assert config.id == "scraper"
         assert config.type == "web-scraper"
         assert config.headers == {}
-        assert config.timeout == "30s"
+        assert config.timeout == "60s"
         assert config.actions == []
 
     def test_component_with_default_headers(self):

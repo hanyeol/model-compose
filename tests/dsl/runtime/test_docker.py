@@ -105,19 +105,19 @@ class TestDockerVolumeConfig:
         assert config.type == "volume"
         assert config.source == "my-volume"
         assert config.target == "/data"
-        assert config.volume == { "nocopy": "true" }
+        assert config.volume.nocopy is True
 
     def test_tmpfs_mount(self):
         """Test tmpfs mount configuration"""
         config = DockerVolumeConfig(
             type="tmpfs",
             target="/tmp",
-            tmpfs={"size": "100m" }
+            tmpfs={"size": 104857600 }
         )
 
         assert config.type == "tmpfs"
         assert config.target == "/tmp"
-        assert config.tmpfs == { "size": "100m" }
+        assert config.tmpfs.size == 104857600
 
 class TestDockerHealthCheck:
     """Test DockerHealthCheck schema"""

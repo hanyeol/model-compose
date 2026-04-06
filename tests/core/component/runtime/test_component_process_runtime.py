@@ -144,7 +144,13 @@ class TestComponentIntegration:
                 start_timeout="10s",
                 stop_timeout="5s"
             ),
-            command=[ "echo", "Hello from process" ]
+            actions=[
+                ShellActionConfig(
+                    id="default",
+                    command=[ "echo", "Hello from process" ],
+                    default=True
+                )
+            ]
         )
 
         component = create_component(

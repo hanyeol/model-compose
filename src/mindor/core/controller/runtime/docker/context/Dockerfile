@@ -24,12 +24,12 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     'mcp>=1.10.1' \
-    pyngrok \
     ulid \
-    gradio \
+    'gradio>=6.0.0' \
     Pillow \
     beautifulsoup4 \
-    lxml
+    lxml \
+    websockets
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

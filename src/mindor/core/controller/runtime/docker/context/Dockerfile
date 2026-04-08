@@ -27,7 +27,9 @@ RUN pip install --no-cache-dir \
     pyngrok \
     ulid \
     gradio \
-    Pillow
+    Pillow \
+    beautifulsoup4 \
+    lxml
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

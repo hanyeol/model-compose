@@ -85,17 +85,17 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             }))]
 
         if state.status == TaskStatus.FAILED:
-            return [TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error}))]
+            return [ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ]
 
         workflow = self.controller.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
         if workflow:
             return await self._build_output_value(state, workflow)
 
         if state.output is None:
-            return [TextContent(type="text", text=json.dumps({"status": "completed"}))]
+            return [ TextContent(type="text", text=json.dumps({"status": "completed"})) ]
         if isinstance(state.output, (dict, list)):
-            return [TextContent(type="text", text=json.dumps(state.output))]
-        return [TextContent(type="text", text=str(state.output))]
+            return [ TextContent(type="text", text=json.dumps(state.output)) ]
+        return [ TextContent(type="text", text=str(state.output)) ]
 
     async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> List[ContentBlock]:
         output: List[ContentBlock] = []

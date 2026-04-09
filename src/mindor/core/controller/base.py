@@ -14,15 +14,16 @@ from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.foundation import AsyncService
 from mindor.core.errors import ShutdownError
+from mindor.core.controller.adapters import create_controller_adapter
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
 from mindor.core.gateway import GatewayService, create_gateway
 from mindor.core.system import SystemService, create_system
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
-from mindor.core.logger import LoggerService, create_logger
-from mindor.core.controller.webui import ControllerWebUI
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
+from mindor.core.controller.webui import ControllerWebUI
+from mindor.core.logger import LoggerService, create_logger
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import parse_duration
@@ -426,8 +427,7 @@ class ControllerService(AsyncService):
     async def _stop_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().stop() ])
 
-    def _create_adapters(self) -> List["ControllerAdapterService"]:
-        from mindor.core.controller.adapters import create_controller_adapter
+    def _create_adapters(self) -> List[ControllerAdapterService]:
         return [ create_controller_adapter(config, self, self.daemon) for config in self.config.adapters ]
 
     def _create_listeners(self) -> List[ListenerService]:
@@ -443,15 +443,15 @@ class ControllerService(AsyncService):
         global_configs = self._get_component_global_configs()
         return [ create_component(component.id or "__default__", component, global_configs, self.daemon) for component in self.components ]
 
-    def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
-        return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
+    def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
+        global_configs = self._get_component_global_configs()
+        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
 
     def _create_webui(self) -> ControllerWebUI:
         return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
-    def _create_workflow(self, workflow_id: Optional[str]) -> Workflow:
-        global_configs = self._get_component_global_configs()
-        return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
+    def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
+        return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
 
     def _get_runtime_specs(self) -> ControllerRuntimeSpecs:
         return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows)

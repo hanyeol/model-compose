@@ -109,6 +109,8 @@ class VariableRenderer:
             return base64.b64encode(value)
 
         if type in [ "image", "audio", "video", "file" ]:
+            if isinstance(value, UploadFile) and format == "path":
+                return await FileValueRenderer().render(value)
             if not ignore_files and not isinstance(value, UploadFile):
                 if format != "path":
                     value = await self._save_value_to_temporary_file(value, subtype, format)

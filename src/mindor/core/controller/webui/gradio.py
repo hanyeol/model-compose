@@ -195,7 +195,7 @@ class GradioWebUIBuilder:
             return gr.Audio(label=label, type="filepath")
 
         if variable.type == WorkflowVariableType.VIDEO:
-            return gr.Video(label=label, type="filepath")
+            return gr.Video(label=label)
 
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label)
@@ -405,6 +405,9 @@ class GradioWebUIBuilder:
 
         if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
+
+        if format == WorkflowVariableFormat.PATH and isinstance(value, str):
+            return value
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

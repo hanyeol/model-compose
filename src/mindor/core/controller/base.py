@@ -22,7 +22,7 @@ from mindor.core.system import SystemService, create_system
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
-from mindor.core.controller.webui import ControllerWebUI
+from mindor.core.controller.webui import ControllerWebUI, create_webui
 from mindor.core.logger import LoggerService, create_logger
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
@@ -102,7 +102,6 @@ class ControllerService(AsyncService):
         self.task_states_lock: Lock = Lock()
         self.interrupt_handlers: Dict[str, InterruptHandler] = {}
         self.task_events: Dict[str, asyncio.Event] = {}
-        self._adapters: List[ControllerAdapterService] = []
         self._queue: Optional[ControllerQueueService] = None
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
@@ -298,8 +297,6 @@ class ControllerService(AsyncService):
             await self._start_listeners()
             await self._start_gateways()
             await self._start_components()
-
-            self._adapters = self._create_adapters()
             await self._start_adapters()
 
             if self.config.webui:
@@ -341,13 +338,12 @@ class ControllerService(AsyncService):
         await super()._stop()
 
     async def _serve(self) -> None:
-        if self._adapters:
-            adapter_tasks = [ adapter.daemon_task for adapter in self._adapters if adapter.daemon_task ]
-            if adapter_tasks:
-                await asyncio.gather(*adapter_tasks)
+        adapter_tasks = [ adapter.daemon_task for adapter in self._create_adapters() if adapter.daemon_task ]
+        if adapter_tasks:
+            await asyncio.gather(*adapter_tasks)
 
     async def _shutdown(self) -> None:
-        for adapter in self._adapters:
+        for adapter in self._create_adapters():
             await adapter._shutdown()
 
     async def _watch_stop_request(self, interval: float = 1.0) -> None:
@@ -416,10 +412,10 @@ class ControllerService(AsyncService):
         await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
 
     async def _start_adapters(self) -> None:
-        await asyncio.gather(*[ adapter.start() for adapter in self._adapters ])
+        await asyncio.gather(*[ adapter.start() for adapter in self._create_adapters() ])
 
     async def _stop_adapters(self) -> None:
-        await asyncio.gather(*[ adapter.stop() for adapter in self._adapters ])
+        await asyncio.gather(*[ adapter.stop() for adapter in self._create_adapters() ])
 
     async def _start_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().start() ])
@@ -448,7 +444,7 @@ class ControllerService(AsyncService):
         return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
 
     def _create_webui(self) -> ControllerWebUI:
-        return ControllerWebUI(self.config.webui, self.config, self.components, self.workflows, self.daemon)
+        return create_webui(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
     def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
         return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]

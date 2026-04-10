@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriver
@@ -12,6 +13,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import uvicorn
+
+WebUIInstance: Optional[ControllerWebUI] = None
 
 class ControllerWebUI(AsyncService):
     def __init__(
@@ -69,3 +72,11 @@ class ControllerWebUI(AsyncService):
     async def _shutdown(self) -> None:
         if self.server:
             self.server.should_exit = True
+
+def create_webui(config: ControllerWebUIConfig, controller: ControllerConfig, components: List[ComponentConfig], workflows: List[WorkflowConfig], daemon: bool) -> ControllerWebUI:
+    global WebUIInstance
+
+    if not WebUIInstance:
+        WebUIInstance = ControllerWebUI(config, controller, components, workflows, daemon)
+
+    return WebUIInstance

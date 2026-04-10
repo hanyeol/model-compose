@@ -19,7 +19,6 @@ class PySceneVideoSceneDetectorAction:
         end_time   = await context.render_variable(self.config.end_time) if self.config.end_time else None
 
         scenes = self._detect(video, detector, threshold, start_time, end_time)
-
         result = {
             "scenes": [
                 {
@@ -34,8 +33,8 @@ class PySceneVideoSceneDetectorAction:
             ],
             "total_scenes": len(scenes)
         }
-
         context.register_source("result", result)
+
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     def _detect(

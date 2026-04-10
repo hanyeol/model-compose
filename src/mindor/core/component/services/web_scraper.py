@@ -45,14 +45,13 @@ class WebScraperAction:
         else:
             html_content = await self._fetch_html(url, merged_headers, merged_cookies, timeout)
 
-        # Parse and extract
+        # Parse and extract result
         if selector:
             result = self._extract_with_selector(html_content, selector, extract_mode, attribute, multiple)
         elif xpath:
             result = self._extract_with_xpath(html_content, xpath, extract_mode, attribute, multiple)
         else:
             result = self._extract_full_page(html_content, extract_mode)
-
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

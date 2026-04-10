@@ -21,8 +21,8 @@ class TransNetV2VideoSceneDetectorAction:
         frame_rate  = await self._get_frame_rate(video)
 
         result = self._build_result(video, predictions, float(threshold), frame_rate)
-
         context.register_source("result", result)
+
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     @staticmethod

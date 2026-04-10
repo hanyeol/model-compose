@@ -15,22 +15,21 @@ class FFmpegVideoConverterAction:
         self.config: VideoConverterActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        video      = await context.render_file(self.config.video)
-        format     = await context.render_variable(self.config.format)     if self.config.format     else "mp4"
-        codec      = await context.render_variable(self.config.codec)      if self.config.codec      else None
+        video       = await context.render_file(self.config.video)
+        format      = await context.render_variable(self.config.format) if self.config.format else "mp4"
+        codec       = await context.render_variable(self.config.codec) if self.config.codec else None
         audio_codec = await context.render_variable(self.config.audio_codec) if self.config.audio_codec else None
-        bitrate    = await context.render_variable(self.config.bitrate)    if self.config.bitrate    else None
-        resolution = await context.render_variable(self.config.resolution) if self.config.resolution else None
-        fps        = await context.render_variable(self.config.fps)        if self.config.fps        else None
+        bitrate     = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
+        resolution  = await context.render_variable(self.config.resolution) if self.config.resolution else None
+        fps         = await context.render_variable(self.config.fps) if self.config.fps else None
 
         output_path = await self._convert(video, format, codec, audio_codec, bitrate, resolution, fps)
-
         result = {
             "path": output_path,
             "format": format
         }
-
         context.register_source("result", result)
+
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     async def _convert(
@@ -75,6 +74,7 @@ class FFmpegVideoConverterAction:
             raise RuntimeError(f"ffmpeg conversion failed (exit code {process.returncode}): {error_output}")
 
         logging.info(f"Conversion completed: '{output_path}'")
+
         return output_path
 
 @register_video_converter_service(VideoConverterDriver.FFMPEG)

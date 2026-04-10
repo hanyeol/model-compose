@@ -13,3 +13,4 @@ from .web_scraper import *
 from .web_browser import *
 from .agent import *
 from .video_scene_detector import *
+from .video_converter import *

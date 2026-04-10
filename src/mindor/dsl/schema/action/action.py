@@ -14,5 +14,6 @@ ActionConfig = Union[
     ImageProcessorActionConfig,
     AgentActionConfig,
     WebBrowserActionConfig,
-    VideoSceneDetectorActionConfig
+    VideoSceneDetectorActionConfig,
+    VideoConverterActionConfig
 ]

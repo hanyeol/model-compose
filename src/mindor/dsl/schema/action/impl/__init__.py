@@ -16,3 +16,4 @@ from .agent import *
 from .web_browser import *
 from .video_scene_detector import *
 from .video_converter import *
+from .audio_extractor import *

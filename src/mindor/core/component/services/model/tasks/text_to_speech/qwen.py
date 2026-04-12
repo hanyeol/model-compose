@@ -13,7 +13,7 @@ import asyncio, io
 if TYPE_CHECKING:
     import torch
 
-QWEN_LANGUAGE_MAP: dict[str, str] = {
+_QWEN_LANGUAGE_MAP: dict[str, str] = {
     "en": "English",
     "zh": "Chinese",
     "ja": "Japanese",
@@ -45,7 +45,7 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         return buffer.getvalue()
 
     def _resolve_language(self, language: Optional[str]) -> Optional[str]:
-        return QWEN_LANGUAGE_MAP.get(language.split("-")[0])
+        return _QWEN_LANGUAGE_MAP.get(language.split("-")[0])
 
     @abstractmethod
     async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:

@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech to Text Transcription
+  description: Transcribe audio files to text using a local Whisper model.
+  job:
+    input: ${input}
+    output:
+      transcription: ${output}
+
+component:
+  type: model
+  task: speech-to-text
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  device: cuda:0
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    language: ${input.language}
+    task: ${input.task | transcribe}

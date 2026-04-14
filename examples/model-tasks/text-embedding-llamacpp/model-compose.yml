@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text Embedding (llama.cpp)
+  description: Generate a text embedding vector using a GGUF embedding model with llama.cpp.
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
+
+component:
+  type: model
+  task: text-embedding
+  driver: llamacpp
+  model:
+    provider: local
+    path: ./models/nomic-embed-text-v1.5.Q4_K_M.gguf
+    format: gguf
+  device: cpu
+  context_length: 2048
+  n_batch: 512
+  preload: true
+  action:
+    text: ${input.text}
+    params:
+      normalize: true

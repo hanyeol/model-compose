@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text (llama.cpp)
+  description: Generate text from a prompt using a GGUF model with llama.cpp.
+  job:
+    input: ${input}
+    output:
+      generated: ${output}
+
+component:
+  type: model
+  task: text-generation
+  driver: llamacpp
+  model:
+    provider: local
+    path: ./models/llama-3.2-1b-instruct-q4_k_m.gguf
+    format: gguf
+  device: cpu
+  context_length: 4096
+  n_batch: 512
+  preload: true
+  action:
+    text: ${input.prompt as text}
+    params:
+      max_output_length: 1024
+      do_sample: true
+      temperature: 0.7
+      top_k: 40
+      top_p: 0.9

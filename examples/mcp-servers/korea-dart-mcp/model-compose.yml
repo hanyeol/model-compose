@@ -1,0 +1,166 @@
+controller:
+  adapter:
+    type: mcp-server
+    base_path: /mcp
+    port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: search-disclosure
+    title: Search DART Disclosure
+    description: Search recent periodic disclosures for a Korean listed company and extract key financial metrics (revenue, operating profit, net income, assets, liabilities, equity, cash flows) from XBRL data
+    job:
+      component: dart-api
+      action: search-disclosure
+      input:
+        corp_code: ${input.corp_code @(description DART corporation code (8-digit). Use get-company-code to find it)}
+        bgn_de: ${input.bgn_de | 20250101 @(description Search start date in YYYYMMDD format)}
+        end_de: ${input.end_de | 20260405 @(description Search end date in YYYYMMDD format)}
+        last_reprt_at: ${input.last_reprt_at | Y @(description Only return the latest report. Y or N)}
+        pblntf_ty: ${input.pblntf_ty | A @(description Disclosure type. A=annual, B=semi-annual, C=quarterly, D=registration, E=other)}
+      output: ${output as json}
+
+  - id: get-financial-statements
+    title: Get Financial Statements (JSON API)
+    description: Retrieve structured financial statement data for a Korean listed company by year and report type. Supports balance sheet, income statement, and cash flow statement
+    job:
+      component: dart-api
+      action: get-financial-statements
+      input:
+        corp_code: ${input.corp_code @(description DART corporation code (8-digit))}
+        bsns_year: ${input.bsns_year @(description Business year in YYYY format)}
+        reprt_code: ${input.reprt_code | 11011 @(description Report code. 11013=Q1, 11012=semi-annual, 11014=Q3, 11011=annual)}
+        fs_div: ${input.fs_div | CFS @(description Financial statement division. CFS=consolidated, OFS=separate)}
+      output: ${output as json}
+
+  - id: get-company-overview
+    title: Get Company Overview
+    description: Retrieve basic company information including company name, stock code, CEO, listing date, industry, and homepage URL
+    job:
+      component: dart-api
+      action: get-company-overview
+      input:
+        corp_code: ${input.corp_code @(description DART corporation code (8-digit))}
+      output: ${output as json}
+
+  - id: get-company-code
+    title: Get Company Code by Name
+    description: Search for a company's DART corporation code (corp_code) by name. Downloads the full DART corp code list and filters by company name. Returns matching corp_code, corp_name, and stock_code
+    job:
+      component: corp-code-lookup
+      input:
+        corp_name: ${input.corp_name @(description Company name to search for in Korean or English)}
+      output: ${output as json}
+
+  - id: get-dividend-info
+    title: Get Dividend Information
+    description: Retrieve dividend information for a Korean listed company including dividend per share, dividend yield, and payout ratio
+    job:
+      component: dart-api
+      action: get-dividend-info
+      input:
+        corp_code: ${input.corp_code @(description DART corporation code (8-digit))}
+        bsns_year: ${input.bsns_year @(description Business year in YYYY format)}
+        reprt_code: ${input.reprt_code | 11011 @(description Report code. 11013=Q1, 11012=semi-annual, 11014=Q3, 11011=annual)}
+      output: ${output as json}
+
+  - id: get-major-shareholders
+    title: Get Major Shareholders
+    description: Retrieve information about major shareholders and their holdings for a Korean listed company
+    job:
+      component: dart-api
+      action: get-major-shareholders
+      input:
+        corp_code: ${input.corp_code @(description DART corporation code (8-digit))}
+        bsns_year: ${input.bsns_year @(description Business year in YYYY format)}
+        reprt_code: ${input.reprt_code | 11011 @(description Report code. 11013=Q1, 11012=semi-annual, 11014=Q3, 11011=annual)}
+      output: ${output as json}
+
+components:
+  - id: corp-code-lookup
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import urllib.request, zipfile, io, xml.etree.ElementTree as ET, json, sys
+          name = sys.argv[1]
+          url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={sys.argv[2]}"
+          resp = urllib.request.urlopen(url)
+          z = zipfile.ZipFile(io.BytesIO(resp.read()))
+          xml_name = z.namelist()[0]
+          root = ET.fromstring(z.read(xml_name))
+          results = []
+          for corp in root.findall('.//list'):
+              corp_name = corp.findtext('corp_name', '')
+              if name in corp_name:
+                  results.append({
+                      'corp_code': corp.findtext('corp_code', ''),
+                      'corp_name': corp_name,
+                      'stock_code': corp.findtext('stock_code', ''),
+                      'modify_date': corp.findtext('modify_date', '')
+                  })
+          print(json.dumps(results[:20], ensure_ascii=False))
+        - "${input.corp_name}"
+        - "${env.DART_API_KEY}"
+      timeout: 30.0
+      output: ${result.stdout}
+
+  - id: dart-api
+    type: http-client
+    base_url: https://opendart.fss.or.kr/api
+    actions:
+    - id: search-disclosure
+      path: /list.json
+      method: GET
+      params:
+        crtfc_key: ${env.DART_API_KEY}
+        corp_code: ${input.corp_code}
+        bgn_de: ${input.bgn_de}
+        end_de: ${input.end_de}
+        last_reprt_at: ${input.last_reprt_at}
+        pblntf_ty: ${input.pblntf_ty}
+        page_count: 5
+      output: ${response}
+
+    - id: get-financial-statements
+      path: /fnlttSinglAcntAll.json
+      method: GET
+      params:
+        crtfc_key: ${env.DART_API_KEY}
+        corp_code: ${input.corp_code}
+        bsns_year: ${input.bsns_year}
+        reprt_code: ${input.reprt_code}
+        fs_div: ${input.fs_div}
+      output: ${response}
+
+    - id: get-company-overview
+      path: /company.json
+      method: GET
+      params:
+        crtfc_key: ${env.DART_API_KEY}
+        corp_code: ${input.corp_code}
+      output: ${response}
+
+    - id: get-dividend-info
+      path: /alotMatter.json
+      method: GET
+      params:
+        crtfc_key: ${env.DART_API_KEY}
+        corp_code: ${input.corp_code}
+        bsns_year: ${input.bsns_year}
+        reprt_code: ${input.reprt_code}
+      output: ${response}
+
+    - id: get-major-shareholders
+      path: /hyslrSttus.json
+      method: GET
+      params:
+        crtfc_key: ${env.DART_API_KEY}
+        corp_code: ${input.corp_code}
+        bsns_year: ${input.bsns_year}
+        reprt_code: ${input.reprt_code}
+      output: ${response}

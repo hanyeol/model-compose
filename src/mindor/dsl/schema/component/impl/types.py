@@ -19,3 +19,4 @@ class ComponentType(str, Enum):
     VIDEO_SCENE_DETECTOR = "video-scene-detector"
     VIDEO_CONVERTER      = "video-converter"
     AUDIO_EXTRACTOR      = "audio-extractor"
+    KEY_VALUE_STORE      = "key-value-store"

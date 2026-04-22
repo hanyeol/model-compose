@@ -1,0 +1,66 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: set-value
+    title: Set Value
+    description: Store a key-value pair in Redis with optional TTL
+    component: kv
+    action: set
+    input: ${input}
+    output: ${output as json}
+
+  - id: get-value
+    title: Get Value
+    description: Retrieve a value by key from Redis
+    component: kv
+    action: get
+    input: ${input}
+    output: ${output as json}
+
+  - id: delete-value
+    title: Delete Value
+    description: Delete a key from Redis
+    component: kv
+    action: delete
+    input: ${input}
+    output: ${output as json}
+
+  - id: check-value
+    title: Check Exists
+    description: Check if a key exists in Redis
+    component: kv
+    action: exists
+    input: ${input}
+    output: ${output as json}
+
+components:
+  - id: kv
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: set
+        method: set
+        key: ${input.key}
+        value: ${input.value}
+        ttl: ${input.ttl}
+
+      - id: get
+        method: get
+        key: ${input.key}
+
+      - id: delete
+        method: delete
+        key: ${input.key}
+
+      - id: exists
+        method: exists
+        key: ${input.key}

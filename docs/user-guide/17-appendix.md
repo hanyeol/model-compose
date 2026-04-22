@@ -207,6 +207,33 @@ components:
         output_fields: [ field1, field2 ]
 ```
 
+**Key-Value Store**:
+```yaml
+components:
+  - id: kv-store-id
+    type: key-value-store
+    driver: redis
+
+    # Connection (url or host/port)
+    url: redis://localhost:6379/0
+    # host: localhost
+    # port: 6379
+    # password: ${env.REDIS_PASSWORD}
+    # database: 0
+
+    # Actions
+    actions:
+      - id: set
+        method: set
+        key: "cache:${input.key}"
+        value: ${input.value}
+        ttl: 3600
+
+      - id: get
+        method: get
+        key: "cache:${input.key}"
+```
+
 **Dataset**:
 ```yaml
 components:

@@ -891,7 +891,150 @@ workflow:
 
 ---
 
-## 6.5 동시 실행 제어
+## 6.5 큐 스트리밍 (Queue Streaming)
+
+워크플로우가 스트리밍 출력(예: LLM 토큰 단위 생성)을 반환하는 경우, 큐 디스패치 시스템은 Redis Streams를 사용하여 워커에서 디스패처로 실시간으로 chunk를 전달합니다. 클라이언트는 워크플로우가 로컬에서 실행되는 것처럼 SSE 이벤트를 수신합니다.
+
+### 동작 방식
+
+```
+Client ← SSE ← [Dispatcher] ← XREAD ← Redis Stream ← XADD ← [Worker] ← LLM 스트리밍
+```
+
+1. 워커가 스트리밍 출력(AsyncIterator)을 반환하는 워크플로우를 실행
+2. 워커가 Pub/Sub을 통해 `status: "streaming"` 메시지와 `stream_key`를 발행
+3. 워커가 `XADD`로 각 chunk를 Redis Stream에 기록
+4. 디스패처가 메타데이터를 수신하고 `RedisStreamIterator`를 생성하여 워크플로우 출력으로 반환
+5. HTTP 서버 어댑터가 AsyncIterator를 감지하고 SSE 응답으로 렌더링
+6. 워커가 완료 시 `done` (또는 `error`) sentinel 이벤트를 기록
+
+### 별도 설정 불필요
+
+큐 스트리밍은 자동으로 동작합니다 — 추가 설정이 필요 없습니다. 워커의 워크플로우가 스트리밍 출력을 생성하면 Redis Streams를 통해 chunk가 전달되고, 스트리밍이 아닌 출력은 기존 JSON 결과 경로를 사용합니다.
+
+기존 `name` 필드에 `:stream` 접미사를 추가하여 스트림 키가 생성됩니다:
+
+| 키 | 패턴 | Redis 타입 |
+|----|------|-----------|
+| 큐 | `{name}:{workflow_id}` | LIST |
+| 결과 | `{name}:{workflow_id}:{run_id}` | STRING |
+| 결과 채널 | `{name}:{workflow_id}:{run_id}` | Pub/Sub |
+| **스트림** | `{name}:{workflow_id}:{run_id}:stream` | **STREAM** |
+
+### 예제: 큐를 통한 스트리밍 채팅
+
+**디스패처** (`dispatcher/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  queue:
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with OpenAI GPT-4o (Streaming via Queue)
+  job:
+    type: component
+
+component:
+  type: workflow
+  action:
+    workflow: chat
+    input:
+      prompt: ${input.prompt as text}
+    output: ${output as text;sse-text}
+```
+
+**워커** (`subscriber/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+    workflows:
+      - chat
+
+workflow:
+  id: chat
+  title: Chat with OpenAI GPT-4o (Streaming)
+  job:
+    component: openai
+    input:
+      prompt: ${input.prompt}
+    output: ${output as text;sse-text}
+
+component:
+  id: openai
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+**클라이언트 요청:**
+```bash
+curl -N -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": { "prompt": "바다에 대한 짧은 시를 써줘." },
+    "output_only": true,
+    "wait_for_completion": true
+  }'
+```
+
+응답은 SSE로 스트리밍됩니다:
+```
+data: 파도가
+data:  해변에
+data:  부딪히며
+data:  노래하네
+...
+```
+
+### 스트림 메시지 형식
+
+Redis Stream의 각 엔트리에는 `event` 필드가 포함됩니다:
+
+| 이벤트 | 필드 | 설명 |
+|--------|------|------|
+| `chunk` | `event`, `data` | 스트리밍 chunk (JSON 또는 텍스트) |
+| `done` | `event` | 스트림 정상 완료 |
+| `error` | `event`, `data` | 에러 발생, `data`에 에러 메시지 포함 |
+
+### 엣지 케이스
+
+**워커 중단**: 워커가 chunk 기록 도중 종료되어 sentinel 이벤트를 기록하지 못한 경우, 디스패처의 `RedisStreamIterator`가 큐의 `timeout` 설정에 따라 타임아웃됩니다. 스트림 키는 Redis TTL(`result_ttl`)에 의해 자동 정리됩니다.
+
+**클라이언트 연결 끊김**: 클라이언트가 SSE 연결을 끊으면 HTTP 서버가 `RedisStreamIterator`의 반복을 중단합니다. 워커 측에서는 관계없이 Redis Stream에 기록을 완료합니다(fire-and-forget). 스트림은 TTL에 의해 만료됩니다.
+
+**비스트리밍 출력**: 워크플로우가 일반 결과(AsyncIterator가 아닌)를 반환하면 기존 JSON 결과 경로(`SETEX` + `PUBLISH`)가 사용됩니다. 스트리밍 키는 생성되지 않습니다.
+
+---
+
+## 6.6 동시 실행 제어
 
 `max_concurrent_count` 설정은 HTTP 서버와 MCP 서버 모두에서 사용 가능하며, 컨트롤러 레벨에서 동시에 실행할 수 있는 워크플로우 수를 제한합니다.
 
@@ -968,7 +1111,7 @@ components:
 
 ---
 
-## 6.6 포트 및 호스트 설정
+## 6.7 포트 및 호스트 설정
 
 ### 호스트 (host)
 
@@ -1075,7 +1218,7 @@ server {
 
 ---
 
-## 6.7 컨트롤러 모범 사례
+## 6.8 컨트롤러 모범 사례
 
 ### 1. 환경별 포트 설정
 

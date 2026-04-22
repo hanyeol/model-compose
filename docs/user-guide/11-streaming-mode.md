@@ -780,7 +780,21 @@ component:
 
 ---
 
-## 11.7 Streaming Best Practices
+## 11.7 Distributed Streaming (Queue Streaming)
+
+Streaming also works in distributed deployments where workflow execution is delegated to remote workers via Redis queue dispatch.
+
+When a worker executes a streaming workflow, chunks are written to a Redis Stream (`XADD`), and the dispatcher reads them (`XREAD`) and delivers them to the client as SSE — just like local streaming. No additional configuration is required.
+
+```
+Client ← SSE ← [Dispatcher] ← XREAD ← Redis Stream ← XADD ← [Worker] ← LLM streaming
+```
+
+For full details on queue streaming configuration, architecture, and edge cases, see [Chapter 6.5: Queue Streaming](./06-controller-configuration.md#65-queue-streaming).
+
+---
+
+## 11.8 Streaming Best Practices
 
 ### Streaming Usage Recommendations
 

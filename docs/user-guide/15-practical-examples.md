@@ -1311,6 +1311,143 @@ graph TD
 
 ---
 
+## 15.8 Key-Value Store (Caching & Sessions)
+
+### 15.8.1 API Response Caching
+
+**Goal**: Cache LLM API responses in Redis to avoid duplicate calls for identical prompts
+
+**Configuration File** (`model-compose.yml`):
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflows:
+  - id: cached-chat
+    title: Cached Chat
+    jobs:
+      - id: check-cache
+        component: cache
+        action: get-response
+        input:
+          prompt: ${input.prompt}
+
+      - id: generate
+        component: openai
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+
+      - id: save-cache
+        component: cache
+        action: set-response
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+          response: ${jobs.generate.output.message}
+    output:
+      message: ${jobs.check-cache.output.cached ?? jobs.generate.output.message}
+
+components:
+  - id: cache
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: get-response
+        method: get
+        key: "chat:${input.prompt}"
+        output:
+          cached: ${result.value}
+      - id: set-response
+        method: set
+        key: "chat:${input.prompt}"
+        value: ${input.response}
+        ttl: 3600
+
+  - id: openai
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+      output:
+        message: ${response.choices[0].message.content}
+```
+
+**API Usage**:
+
+```bash
+# First call - generates and caches
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+
+# Second call with same prompt - returns cached result instantly
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+```
+
+**Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[User Input<br/>prompt] -->|① Check cache| B[Job 1: check-cache<br/>key-value-store GET]
+    B -->|cache miss| C[Job 2: generate<br/>OpenAI API]
+    B -->|cache hit| F[Result<br/>cached response]
+    C -->|③ Save to cache| D[Job 3: save-cache<br/>key-value-store SET]
+    D --> E[Result<br/>fresh response]
+```
+
+### 15.8.2 Session Management
+
+**Goal**: Store user session data with automatic expiration
+
+```yaml
+components:
+  - id: session
+    type: key-value-store
+    driver: redis
+    url: redis://localhost:6379/1
+    actions:
+      - id: save
+        method: set
+        key: "session:${input.user_id}"
+        value:
+          history: ${input.history}
+          preferences: ${input.preferences}
+        ttl: 86400
+
+      - id: load
+        method: get
+        key: "session:${input.user_id}"
+        output:
+          session: ${result.value}
+
+      - id: logout
+        method: delete
+        key: "session:${input.user_id}"
+```
+
+**Key Points**:
+- TTL of 86400 seconds (24 hours) automatically expires sessions
+- Complex objects (dict, list) are serialized as JSON and deserialized on retrieval
+- `url` and `host`/`port` are mutually exclusive connection options
+
+---
+
 ## Next Steps
 
 Practice:

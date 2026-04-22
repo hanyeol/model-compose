@@ -25,6 +25,7 @@ This reference guide provides comprehensive documentation for all configuration 
 - [MCP Server](compose/components/mcp-server.md) - Model Context Protocol server
 - [Model](compose/components/model.md) - AI/ML model inference
 - [Vector Store](compose/components/vector-store.md) - Vector database operations
+- [Key-Value Store](compose/components/key-value-store.md) - Key-value data storage
 - [Shell](compose/components/shell.md) - System command execution
 - [Text Splitter](compose/components/text-splitter.md) - Document processing
 - [Workflow](compose/components/workflow.md) - Nested workflow execution
@@ -117,6 +118,7 @@ For working examples of these configurations, see the `examples/` directory in t
 - `examples/make-inspiring-quote-voice/` - Multi-step workflow with dependencies
 - `examples/model-tasks/` - Various local model configurations
 - `examples/vector-store/` - Vector database usage patterns
+- `examples/key-value-store/` - Key-value store usage patterns
 - `examples/mcp-servers/` - MCP server implementations
 
 ## Configuration Validation

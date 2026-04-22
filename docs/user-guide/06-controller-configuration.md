@@ -891,7 +891,152 @@ Workers compete for tasks from the same queue — whichever pops first processes
 
 ---
 
-## 6.5 Concurrency Control
+## 6.5 Queue Streaming
+
+When a workflow produces streaming output (e.g., LLM token-by-token generation), the queue dispatch system automatically delivers chunks in real time from the worker to the dispatcher using Redis Streams. The client receives SSE events as if the workflow were running locally.
+
+### How It Works
+
+```
+Client ← SSE ← [Dispatcher] ← XREAD ← Redis Stream ← XADD ← [Worker] ← LLM streaming
+```
+
+1. Worker executes a workflow that returns streaming output (AsyncIterator)
+2. Worker publishes a `status: "streaming"` message via Pub/Sub with a `stream_key`
+3. Worker writes each chunk to a Redis Stream using `XADD`
+4. Dispatcher receives the metadata, creates a `RedisStreamIterator`, and returns it as the workflow output
+5. HTTP server adapter detects the AsyncIterator and renders it as an SSE response
+6. Worker writes a `done` (or `error`) sentinel event to signal completion
+
+### No Configuration Required
+
+Queue streaming works automatically — no additional configuration is needed. If the worker's workflow produces streaming output, chunks are delivered via Redis Streams. If the output is not streaming, the existing JSON result path is used.
+
+The same `name` field generates the stream key by appending `:stream`:
+
+| Key | Pattern | Redis Type |
+|-----|---------|------------|
+| Queue | `{name}:{workflow_id}` | LIST |
+| Result | `{name}:{workflow_id}:{run_id}` | STRING |
+| Result channel | `{name}:{workflow_id}:{run_id}` | Pub/Sub |
+| **Stream** | `{name}:{workflow_id}:{run_id}:stream` | **STREAM** |
+
+### Example: Streaming Chat via Queue
+
+**Dispatcher** (`dispatcher/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  queue:
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with OpenAI GPT-4o (Streaming via Queue)
+  job:
+    type: component
+
+component:
+  type: workflow
+  action:
+    workflow: chat
+    input:
+      prompt: ${input.prompt as text}
+    output: ${output as text;sse-text}
+```
+
+**Worker** (`subscriber/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+    workflows:
+      - chat
+
+workflow:
+  id: chat
+  title: Chat with OpenAI GPT-4o (Streaming)
+  job:
+    component: openai
+    input:
+      prompt: ${input.prompt}
+    output: ${output as text;sse-text}
+
+component:
+  id: openai
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+**Client request:**
+```bash
+curl -N -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": { "prompt": "Write a short poem about the sea." },
+    "output_only": true,
+    "wait_for_completion": true
+  }'
+```
+
+The response streams as SSE:
+```
+data: The
+data:  waves
+data:  crash
+data:  upon
+data:  the
+data:  shore
+...
+```
+
+### Stream Message Format
+
+Each entry in the Redis Stream has an `event` field:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `chunk` | `event`, `data` | A streaming chunk (JSON or text) |
+| `done` | `event` | Stream completed successfully |
+| `error` | `event`, `data` | Error occurred, `data` contains the error message |
+
+### Edge Cases
+
+**Worker crash**: If the worker terminates mid-stream without writing a sentinel event, the dispatcher's `RedisStreamIterator` times out based on the queue `timeout` setting. The stream key is cleaned up by Redis TTL (`result_ttl`).
+
+**Client disconnect**: When the client closes the SSE connection, the HTTP server stops iterating the `RedisStreamIterator`. The worker continues writing to the Redis Stream (fire-and-forget) and the stream expires via TTL.
+
+**Non-streaming output**: If the workflow returns a plain result (not an AsyncIterator), the existing JSON result path (`SETEX` + `PUBLISH`) is used. No streaming keys are created.
+
+---
+
+## 6.6 Concurrency Control
 
 The `max_concurrent_count` setting is available for both HTTP and MCP servers, limiting the number of workflows that can execute concurrently at the controller level.
 
@@ -968,7 +1113,7 @@ components:
 
 ---
 
-## 6.6 Port and Host Configuration
+## 6.7 Port and Host Configuration
 
 ### Host
 
@@ -1075,7 +1220,7 @@ Now external access to `http://example.com/ai/workflows/runs` is forwarded by Ng
 
 ---
 
-## 6.7 Controller Best Practices
+## 6.8 Controller Best Practices
 
 ### 1. Port Configuration by Environment
 

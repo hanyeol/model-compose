@@ -206,6 +206,33 @@ components:
         output_fields: [ field1, field2 ]
 ```
 
+**키-값 스토어**:
+```yaml
+components:
+  - id: kv-store-id
+    type: key-value-store
+    driver: redis
+
+    # 연결 설정 (url 또는 host/port)
+    url: redis://localhost:6379/0
+    # host: localhost
+    # port: 6379
+    # password: ${env.REDIS_PASSWORD}
+    # database: 0
+
+    # 액션
+    actions:
+      - id: set
+        method: set
+        key: "cache:${input.key}"
+        value: ${input.value}
+        ttl: 3600
+
+      - id: get
+        method: get
+        key: "cache:${input.key}"
+```
+
 **데이터셋**:
 ```yaml
 components:

@@ -206,6 +206,33 @@ components:
         output_fields: [ field1, field2 ]
 ```
 
+**键值存储**：
+```yaml
+components:
+  - id: kv-store-id
+    type: key-value-store
+    driver: redis
+
+    # 连接配置（url 或 host/port）
+    url: redis://localhost:6379/0
+    # host: localhost
+    # port: 6379
+    # password: ${env.REDIS_PASSWORD}
+    # database: 0
+
+    # 操作
+    actions:
+      - id: set
+        method: set
+        key: "cache:${input.key}"
+        value: ${input.value}
+        ttl: 3600
+
+      - id: get
+        method: get
+        key: "cache:${input.key}"
+```
+
 **数据集**：
 ```yaml
 components:

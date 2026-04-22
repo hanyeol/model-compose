@@ -990,6 +990,143 @@ graph TD
 
 ---
 
+## 15.8 키-값 스토어 (캐싱 & 세션)
+
+### 15.8.1 API 응답 캐싱
+
+**목표**: Redis에 LLM API 응답을 캐싱하여 동일한 프롬프트에 대한 중복 호출 방지
+
+**설정 파일** (`model-compose.yml`):
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflows:
+  - id: cached-chat
+    title: Cached Chat
+    jobs:
+      - id: check-cache
+        component: cache
+        action: get-response
+        input:
+          prompt: ${input.prompt}
+
+      - id: generate
+        component: openai
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+
+      - id: save-cache
+        component: cache
+        action: set-response
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+          response: ${jobs.generate.output.message}
+    output:
+      message: ${jobs.check-cache.output.cached ?? jobs.generate.output.message}
+
+components:
+  - id: cache
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: get-response
+        method: get
+        key: "chat:${input.prompt}"
+        output:
+          cached: ${result.value}
+      - id: set-response
+        method: set
+        key: "chat:${input.prompt}"
+        value: ${input.response}
+        ttl: 3600
+
+  - id: openai
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+      output:
+        message: ${response.choices[0].message.content}
+```
+
+**API 사용**:
+
+```bash
+# 첫 번째 호출 - 생성 후 캐싱
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "Redis란 무엇인가요?"}}'
+
+# 동일 프롬프트로 두 번째 호출 - 캐시된 결과 즉시 반환
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "Redis란 무엇인가요?"}}'
+```
+
+**파이프라인 다이어그램**:
+
+```mermaid
+graph TD
+    A[사용자 입력<br/>prompt] -->|① 캐시 확인| B[작업 1: check-cache<br/>key-value-store GET]
+    B -->|캐시 미스| C[작업 2: generate<br/>OpenAI API]
+    B -->|캐시 히트| F[결과<br/>캐시된 응답]
+    C -->|③ 캐시 저장| D[작업 3: save-cache<br/>key-value-store SET]
+    D --> E[결과<br/>새로운 응답]
+```
+
+### 15.8.2 세션 관리
+
+**목표**: 자동 만료 기능을 가진 사용자 세션 데이터 저장
+
+```yaml
+components:
+  - id: session
+    type: key-value-store
+    driver: redis
+    url: redis://localhost:6379/1
+    actions:
+      - id: save
+        method: set
+        key: "session:${input.user_id}"
+        value:
+          history: ${input.history}
+          preferences: ${input.preferences}
+        ttl: 86400
+
+      - id: load
+        method: get
+        key: "session:${input.user_id}"
+        output:
+          session: ${result.value}
+
+      - id: logout
+        method: delete
+        key: "session:${input.user_id}"
+```
+
+**핵심 포인트**:
+- 86400초(24시간) TTL로 세션 자동 만료
+- 복합 객체(dict, list)는 JSON으로 직렬화되며, 조회 시 자동 역직렬화
+- `url`과 `host`/`port`는 상호 배타적인 연결 옵션
+
+---
+
 ## 다음 단계
 
 실습해보세요:

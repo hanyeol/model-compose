@@ -990,6 +990,143 @@ graph TD
 
 ---
 
+## 15.8 键值存储（缓存与会话）
+
+### 15.8.1 API 响应缓存
+
+**目标**：将 LLM API 响应缓存到 Redis，避免对相同提示的重复调用
+
+**配置文件**（`model-compose.yml`）：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflows:
+  - id: cached-chat
+    title: Cached Chat
+    jobs:
+      - id: check-cache
+        component: cache
+        action: get-response
+        input:
+          prompt: ${input.prompt}
+
+      - id: generate
+        component: openai
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+
+      - id: save-cache
+        component: cache
+        action: set-response
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+          response: ${jobs.generate.output.message}
+    output:
+      message: ${jobs.check-cache.output.cached ?? jobs.generate.output.message}
+
+components:
+  - id: cache
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: get-response
+        method: get
+        key: "chat:${input.prompt}"
+        output:
+          cached: ${result.value}
+      - id: set-response
+        method: set
+        key: "chat:${input.prompt}"
+        value: ${input.response}
+        ttl: 3600
+
+  - id: openai
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+      output:
+        message: ${response.choices[0].message.content}
+```
+
+**API 使用**：
+
+```bash
+# 第一次调用 - 生成并缓存
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "什么是 Redis？"}}'
+
+# 相同提示的第二次调用 - 立即返回缓存结果
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "什么是 Redis？"}}'
+```
+
+**流水线图**：
+
+```mermaid
+graph TD
+    A[用户输入<br/>prompt] -->|① 检查缓存| B[作业 1: check-cache<br/>key-value-store GET]
+    B -->|缓存未命中| C[作业 2: generate<br/>OpenAI API]
+    B -->|缓存命中| F[结果<br/>缓存的响应]
+    C -->|③ 保存缓存| D[作业 3: save-cache<br/>key-value-store SET]
+    D --> E[结果<br/>新响应]
+```
+
+### 15.8.2 会话管理
+
+**目标**：存储具有自动过期功能的用户会话数据
+
+```yaml
+components:
+  - id: session
+    type: key-value-store
+    driver: redis
+    url: redis://localhost:6379/1
+    actions:
+      - id: save
+        method: set
+        key: "session:${input.user_id}"
+        value:
+          history: ${input.history}
+          preferences: ${input.preferences}
+        ttl: 86400
+
+      - id: load
+        method: get
+        key: "session:${input.user_id}"
+        output:
+          session: ${result.value}
+
+      - id: logout
+        method: delete
+        key: "session:${input.user_id}"
+```
+
+**关键要点**：
+- TTL 为 86400 秒（24 小时），自动过期会话
+- 复杂对象（dict、list）序列化为 JSON，检索时自动反序列化
+- `url` 和 `host`/`port` 是互斥的连接选项
+
+---
+
 ## 下一步
 
 练习：

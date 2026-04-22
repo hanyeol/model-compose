@@ -780,7 +780,21 @@ component:
 
 ---
 
-## 11.7 流式最佳实践
+## 11.7 分布式流式传输（队列流式传输）
+
+在通过 Redis 队列分发将工作流执行委托给远程工作节点的分布式部署环境中，流式传输同样可以工作。
+
+当工作节点执行流式工作流时，chunk 会写入 Redis Stream（`XADD`），分发器读取它们（`XREAD`）并以 SSE 形式传递给客户端 — 与本地流式传输相同。无需额外配置。
+
+```
+Client ← SSE ← [Dispatcher] �� XREAD ← Redis Stream �� XADD ← [Worker] ← LLM 流式传输
+```
+
+有关队列流式传输的配置、架构和边界情况的详细信息，请参阅 [6.5 章：队列流式传输](./06-controller-configuration.md#65-队列流式传输-queue-streaming)。
+
+---
+
+## 11.8 流式最佳实践
 
 ### 流式使用建议
 

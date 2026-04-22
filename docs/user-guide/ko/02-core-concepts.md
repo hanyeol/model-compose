@@ -446,7 +446,7 @@ body:
 
 ```yaml
 ${response.field}   # HTTP 기반 컴포넌트 (http-client, http-server, vector-store 등)
-${result.field}     # 로컬 실행 컴포넌트 (model, datasets, text-splitter 등)
+${result.field}     # 로컬 실행 컴포넌트 (model, datasets, text-splitter, key-value-store 등)
 ${stdout}           # 셸 명령 (shell)
 ${output}           # 워크플로우 (workflow)
 ```

@@ -891,7 +891,150 @@ workflow:
 
 ---
 
-## 6.5 并发控制
+## 6.5 队列流式传输 (Queue Streaming)
+
+当工作流产生流式输出（例如 LLM 逐 token 生成）时，队列分发系统会自动通过 Redis Streams 将 chunk 从工作节点实时传递到分发器。客户端接收 SSE 事件，就像工作流在本地运行一样。
+
+### 工作原理
+
+```
+Client ← SSE ← [Dispatcher] ← XREAD ← Redis Stream ← XADD ← [Worker] ← LLM 流式传输
+```
+
+1. 工作节点执行返回流式输出（AsyncIterator）的工作流
+2. 工作节点通过 Pub/Sub 发布 `status: "streaming"` 消息和 `stream_key`
+3. 工作节点使用 `XADD` 将每个 chunk 写入 Redis Stream
+4. 分发器接收元数据，创建 `RedisStreamIterator`，并将其作为工作流输出返回
+5. HTTP 服务器适配器检测到 AsyncIterator 并渲染为 SSE 响应
+6. 工作节点在完成时写入 `done`（或 `error`）哨兵事件
+
+### 无需额外配置
+
+队列流式传输自动工作 — 不需要额外配置。如果工作节点的工作流产生流式输出，chunk 会通过 Redis Streams 传递。如果输出不是流式的，则使用现有的 JSON 结果路径。
+
+基于现有的 `name` 字段，通过追加 `:stream` 后缀生成流键：
+
+| 键 | 模式 | Redis 类型 |
+|----|------|-----------|
+| 队列 | `{name}:{workflow_id}` | LIST |
+| 结果 | `{name}:{workflow_id}:{run_id}` | STRING |
+| 结果频道 | `{name}:{workflow_id}:{run_id}` | Pub/Sub |
+| **流** | `{name}:{workflow_id}:{run_id}:stream` | **STREAM** |
+
+### 示例：通过队列的流式聊天
+
+**分发器** (`dispatcher/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  queue:
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with OpenAI GPT-4o (Streaming via Queue)
+  job:
+    type: component
+
+component:
+  type: workflow
+  action:
+    workflow: chat
+    input:
+      prompt: ${input.prompt as text}
+    output: ${output as text;sse-text}
+```
+
+**工作节点** (`subscriber/model-compose.yml`):
+```yaml
+controller:
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: localhost
+    port: 6379
+    name: my-queue
+    workflows:
+      - chat
+
+workflow:
+  id: chat
+  title: Chat with OpenAI GPT-4o (Streaming)
+  job:
+    component: openai
+    input:
+      prompt: ${input.prompt}
+    output: ${output as text;sse-text}
+
+component:
+  id: openai
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+**客户端请求：**
+```bash
+curl -N -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": { "prompt": "写一首关于大海的短诗。" },
+    "output_only": true,
+    "wait_for_completion": true
+  }'
+```
+
+响应以 SSE 流式传输：
+```
+data: 海浪
+data: 拍打
+data: 着
+data: 岸边
+...
+```
+
+### 流消息格式
+
+Redis Stream 中的每个条目包含一个 `event` 字段：
+
+| 事件 | 字段 | 描述 |
+|------|------|------|
+| `chunk` | `event`, `data` | 流式 chunk（JSON 或文本） |
+| `done` | `event` | 流正常完成 |
+| `error` | `event`, `data` | 发生错误，`data` 包含错误信息 |
+
+### 边界情况
+
+**工作节点崩溃**：如果工作节点在写入 chunk 过程中终止而未写入哨兵事件，分发器的 `RedisStreamIterator` 会根据队列的 `timeout` 设置超时。流键通过 Redis TTL（`result_ttl`）自动清理。
+
+**客户端断开连接**：当客户端关闭 SSE 连接时，HTTP 服务器停止迭代 `RedisStreamIterator`。工作节点继续向 Redis Stream 写入（fire-and-forget），流通过 TTL 过期。
+
+**非流式输出**：如果工作流返回普通结果（非 AsyncIterator），则使用现有的 JSON 结果路径（`SETEX` + `PUBLISH`）。不会创建流键。
+
+---
+
+## 6.6 并发控制
 
 `max_concurrent_count` 设置适用于 HTTP 和 MCP 服务器，在控制器级别限制可以并发执行的工作流数量。
 
@@ -968,7 +1111,7 @@ components:
 
 ---
 
-## 6.6 端口和主机配置
+## 6.7 端口和主机配置
 
 ### 主机
 
@@ -1075,7 +1218,7 @@ server {
 
 ---
 
-## 6.7 控制器最佳实践
+## 6.8 控制器最佳实践
 
 ### 1. 按环境配置端口
 

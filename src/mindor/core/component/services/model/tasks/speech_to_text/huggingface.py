@@ -88,13 +88,13 @@ class HuggingfaceSpeechToTextTaskAction:
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_output_length            = await context.render_variable(self.config.params.max_output_length)
-        num_beams                    = await context.render_variable(self.config.params.num_beams)
-        temperature                  = await context.render_variable(self.config.params.temperature)
-        compression_ratio_threshold  = await context.render_variable(self.config.params.compression_ratio_threshold)
-        logprob_threshold            = await context.render_variable(self.config.params.logprob_threshold)
-        no_speech_threshold          = await context.render_variable(self.config.params.no_speech_threshold)
-        return_timestamps            = await context.render_variable(self.config.params.return_timestamps)
+        max_output_length           = await context.render_variable(self.config.params.max_output_length)
+        num_beams                   = await context.render_variable(self.config.params.num_beams)
+        temperature                 = await context.render_variable(self.config.params.temperature)
+        compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
+        logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
+        no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
+        return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
 
         params: Dict[str, Any] = {
             "max_new_tokens": max_output_length,

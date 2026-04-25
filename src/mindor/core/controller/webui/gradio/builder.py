@@ -78,13 +78,21 @@ class GradioWebUIBuilder:
 
             output_components = self._flatten_output_components(output_components)
 
+            def _btn_running():
+                return gr.update(value="⏳ Running...", interactive=False)
+
+            def _btn_ready():
+                return gr.update(value="🚀 Run Workflow", interactive=True)
+
             async def _run_workflow(*args):
+                yield [ _btn_running(), *(gr.update() for _ in interrupt_outputs), *(gr.update() for _ in output_components) ]
+
                 input  = await self._build_input_value(args, workflow.input)
                 output = await runner().run_workflow(workflow_id, input, workflow)
 
                 # Check if the result is an interrupted TaskResult
                 if isinstance(output, dict) and output.get("status") == "interrupted" and "task_id" in output:
-                    yield self._build_interrupt_updates(output) + tuple(gr.update() for _ in output_components)
+                    yield [ _btn_ready(), *self._build_interrupt_updates(output), *(gr.update() for _ in output_components) ]
                     return
 
                 # Clear interrupt panel for normal results
@@ -98,15 +106,16 @@ class GradioWebUIBuilder:
                             buffer += chunk[0] or ""
                         else:
                             buffer.append(chunk[0])
-                        yield clear_interrupt + (buffer,)
+                        yield [ _btn_running(), *clear_interrupt, buffer ]
+                    yield [ _btn_ready(), *clear_interrupt, buffer ]
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
                     result = output[0] if len(output) == 1 else output
                     if isinstance(result, (list, tuple)):
-                        yield clear_interrupt + tuple(result)
+                        yield [ _btn_ready(), *clear_interrupt, *result ]
                     else:
-                        yield clear_interrupt + (result,)
+                        yield [ _btn_ready(), *clear_interrupt, result ]
 
             async def _resume_workflow(state: Optional[Dict[str, str]], answer_text: str):
                 task_id, job_id = state["task_id"], state["job_id"]
@@ -123,7 +132,7 @@ class GradioWebUIBuilder:
                 result = await runner().wait_for_completion(task_id)
 
                 if result.get("status") == "interrupted":
-                    yield self._build_interrupt_updates(result) + tuple(gr.update() for _ in output_components)
+                    yield [ *self._build_interrupt_updates(result), *(gr.update() for _ in output_components) ]
                     return
 
                 clear_interrupt = self._clear_interrupt_updates()
@@ -140,21 +149,21 @@ class GradioWebUIBuilder:
                     result = output
 
                 if result is None:
-                    yield clear_interrupt + tuple(gr.update() for _ in output_components)
+                    yield [ *clear_interrupt, *(gr.update() for _ in output_components) ]
                 elif isinstance(result, (list, tuple)):
-                    yield clear_interrupt + tuple(result)
+                    yield [ *clear_interrupt, *result ]
                 else:
-                    yield clear_interrupt + (result,)
+                    yield [ *clear_interrupt, result ]
 
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=interrupt_outputs + output_components
+                outputs=[ run_button, *interrupt_outputs, *output_components ]
             )
 
             resume_button.click(
                 fn=_resume_workflow,
-                inputs=[interrupt_state, interrupt_answer],
+                inputs=[ interrupt_state, interrupt_answer ],
                 outputs=interrupt_outputs + output_components
             )
 
@@ -236,28 +245,28 @@ class GradioWebUIBuilder:
 
         return value if value != "" else None
 
-    def _build_interrupt_updates(self, result: dict) -> tuple:
+    def _build_interrupt_updates(self, result: dict) -> list:
         interrupt = result.get("interrupt", {})
         state = { "task_id": result["task_id"], "job_id": interrupt.get("job_id") }
         message = interrupt.get("message") or "The workflow is waiting for your input."
         metadata = interrupt.get("metadata")
 
-        return (
+        return [
             state,
             gr.update(visible=True),
             gr.update(value=message),
             gr.update(value=metadata, visible=metadata is not None),
             gr.update(value=""),
-        )
+        ]
 
-    def _clear_interrupt_updates(self) -> tuple:
-        return (
+    def _clear_interrupt_updates(self) -> list:
+        return [
             None,
             gr.update(visible=False),
             gr.update(value=""),
             gr.update(value=None, visible=False),
             gr.update(value=""),
-        )
+        ]
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):

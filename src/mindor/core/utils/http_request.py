@@ -5,11 +5,11 @@ from urllib.parse import urlencode
 from fastapi import Request
 import aiohttp, re, json, os
 
-_token_pattern = r"([\w!#$%&'*+\-.^_`|~]+)"
-_quoted_pattern = r'"([^"]*)"'
-_option_regex = re.compile(fr";\s*{_token_pattern}=(?:{_token_pattern}|{_quoted_pattern})", re.ASCII)
-_firefox_escape_fix_regex = re.compile(r'\\"(?!; |\s*$)')
-_nested_key_regex = re.compile(r"\w+\[\]|\w+|\[\w+\]")
+_TOKEN_PATTERN = r"([\w!#$%&'*+\-.^_`|~]+)"
+_QUOTED_PATTERN = r'"([^"]*)"'
+_OPTION_REGEX = re.compile(fr";\s*{_TOKEN_PATTERN}=(?:{_TOKEN_PATTERN}|{_QUOTED_PATTERN})", re.ASCII)
+_FIREFOX_ESCAPE_FIX_REGEX = re.compile(r'\\"(?!; |\s*$)')
+_NESTED_KEY_REGEX = re.compile(r"\w+\[\]|\w+|\[\w+\]")
 
 class NestedFormParser:
     def parse(self, form: FormData) -> dict:
@@ -30,7 +30,7 @@ class NestedFormParser:
         return data
 
     def _parse_key_path(self, key: str) -> List[str]:
-        parts: List[str] = _nested_key_regex.findall(key)
+        parts: List[str] = _NESTED_KEY_REGEX.findall(key)
         
         if parts:
             return [ p.strip("[]") if not p.endswith("[]") else p for p in parts ]
@@ -91,11 +91,11 @@ async def parse_request_form(request: Request, nested: bool = False) -> Any:
 
 def parse_options_header(headers: Dict[str, str], header_name: str) -> Tuple[str, Dict[str, str]]:
     value = CaseInsensitiveDict(headers or {}).get(header_name, "")
-    pos = _firefox_escape_fix_regex.sub("%22", value).find(";")
+    pos = _FIREFOX_ESCAPE_FIX_REGEX.sub("%22", value).find(";")
     
     if pos >= 0:
         options = { 
-            m.group(1).lower(): m.group(2) or m.group(3).replace("%22", "") for m in _option_regex.finditer(value[pos:])
+            m.group(1).lower(): m.group(2) or m.group(3).replace("%22", "") for m in _OPTION_REGEX.finditer(value[pos:])
         }
         value = value[:pos]
     else:

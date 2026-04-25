@@ -4,7 +4,7 @@ from .streaming import StreamResource
 from PIL import Image as PILImage
 import io
 
-_content_type_map = {
+_CONTENT_TYPE_MAP = {
     "png": "image/png",
     "jpeg": "image/jpeg",
     "jpg": "image/jpeg", 
@@ -15,7 +15,7 @@ _content_type_map = {
     "ico": "image/x-icon"
 }
 
-_pil_format_map = {
+_PIL_FORMAT_MAP = {
     "png": "PNG",
     "jpeg": "JPEG",
     "jpg": "JPEG",
@@ -52,10 +52,10 @@ class ImageStreamResource(StreamResource):
             yield chunk
 
     def _resolve_content_type(self, format: str) -> str:
-        return _content_type_map.get(format, "application/octet-stream")
+        return _CONTENT_TYPE_MAP.get(format, "application/octet-stream")
     
     def _resolve_pil_format(self, format: str) -> str:
-        return _pil_format_map.get(format, "PNG")
+        return _PIL_FORMAT_MAP.get(format, "PNG")
 
 async def load_image_from_stream(stream: StreamResource, extension: Optional[str] = None) -> Optional[PILImage.Image]:
     try:

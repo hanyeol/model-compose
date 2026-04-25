@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 if TYPE_CHECKING:
     import torch
 
-_resample_map = {
+_RESAMPLE_MAP = {
     "bicubic": PILImage.Resampling.BICUBIC,
     "lanczos": PILImage.Resampling.LANCZOS,
 }
@@ -54,11 +54,11 @@ class ImageUpscaleTaskAction:
     def _downsample_image(self, image: PILImage.Image, method: Literal[ "lanczos", "bicubic" ], scale: int = 4) -> PILImage.Image:
         downsample_size = (max(1, image.size[0] // scale), max(1, image.size[1] // scale))
         
-        if method not in _resample_map:
+        if method not in _RESAMPLE_MAP:
             logging.warning(f"Unsupported downsample method: {method}. fallback to 'lanczos' method")
             resample = PILImage.Resampling.LANCZOS
         else:
-            resample = _resample_map[method]
+            resample = _RESAMPLE_MAP[method]
 
         return image.resize(downsample_size, resample)
 

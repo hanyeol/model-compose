@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 ControllerWebUIConfig = Annotated[
-    Union[ 
+    Union[
         GradioWebUIConfig,
         StaticWebUIConfig,
         DynamicWebUIConfig

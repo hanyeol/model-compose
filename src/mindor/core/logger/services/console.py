@@ -4,7 +4,7 @@ from ..base import LoggerService, LoggerType, LoggingLevel, register_logger
 from uvicorn.logging import ColourizedFormatter
 import logging, sys
 
-_level_map = {
+_LEVEL_MAP = {
     LoggingLevel.DEBUG:    logging.DEBUG,
     LoggingLevel.INFO:     logging.INFO,
     LoggingLevel.WARNING:  logging.WARNING,
@@ -24,7 +24,7 @@ class ConsoleLogger(LoggerService):
         self._configure_logger()
 
     def _configure_logger(self) -> None:
-        self.logger.setLevel(_level_map[self.config.level])
+        self.logger.setLevel(_LEVEL_MAP[self.config.level])
         self.logger.propagate = False
 
     async def _serve(self) -> None:
@@ -37,4 +37,4 @@ class ConsoleLogger(LoggerService):
         self.handler = None
 
     def log(self, level: LoggingLevel, message: str, *args, **kwargs) -> None:
-        self.logger.log(_level_map[level], message, *args, **kwargs)
+        self.logger.log(_LEVEL_MAP[level], message, *args, **kwargs)

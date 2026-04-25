@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 class ControllerWebUIDriver(str, Enum):
-    GRADIO  = "gradio"
-    STATIC  = "static"
-    DYNAMIC = "dynamic"
+    GRADIO    = "gradio"
+    STATIC    = "static"
+    DYNAMIC   = "dynamic"
 
 class CommonWebUIConfig(BaseModel):
     driver: ControllerWebUIDriver = Field(..., description="Web UI rendering mode.")

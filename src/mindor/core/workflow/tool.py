@@ -4,7 +4,7 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableT
 from mindor.core.workflow.schema import WorkflowSchema
 import re
 
-_invalid_function_chars_regex = re.compile(r"[^a-zA-Z0-9_]")
+_INVALID_FUNCTION_CHARS_REGEX = re.compile(r"[^a-zA-Z0-9_]")
 
 @dataclass
 class WorkflowToolParameter:
@@ -33,7 +33,7 @@ class WorkflowToolGenerator():
         async def _build_input_value(arguments, workflow=workflow) -> Any:
             return await self._build_input_value(arguments, workflow)
 
-        safe_workflow_id = re.sub(_invalid_function_chars_regex, "_", workflow_id)
+        safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
         arguments = ",".join([ variable.name or "input" for variable in workflow.input ])
         code = f"async def _run_workflow_{safe_workflow_id}({arguments}, context=None): return await _run_workflow('{workflow_id}', await _build_input_value([{arguments}]), context=context)"
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }

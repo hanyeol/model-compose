@@ -1,18 +1,13 @@
 from __future__ import annotations
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriver
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
-from mindor.core.controller.runner import ControllerRunner
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.foundation import AsyncService
-from .gradio import GradioWebUIBuilder
-from gradio import mount_gradio_app
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import uvicorn
+from .driver import WebUIDriver
 
 WebUIInstance: Optional[ControllerWebUI] = None
 
@@ -31,47 +26,31 @@ class ControllerWebUI(AsyncService):
         self.controller: ControllerConfig = controller
         self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(workflows, components, exclude_private=True)
 
-        self.server: Optional[uvicorn.Server] = None
-        self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
-        self.runner: ControllerRunner = None
+        self.driver: Optional[WebUIDriver] = None
 
         self._configure_driver()
 
     def _configure_driver(self) -> None:
         if self.config.driver == ControllerWebUIDriver.GRADIO:
-            blocks = GradioWebUIBuilder().build(
-                workflow_schemas=self.workflow_schemas,
-                runner=lambda: self.runner
-            )
-            self.app = mount_gradio_app(self.app, blocks, path="")
+            from .gradio import GradioDriver
+            self.driver = GradioDriver(self.config, self.workflow_schemas, self.controller)
             return
 
         if self.config.driver == ControllerWebUIDriver.STATIC:
-            static_files = StaticFiles(
-                directory=Path(self.config.static_dir).resolve(),
-                html=True
-            )
-            self.app.mount("/", static_files, name="static")
+            from .static import StaticDriver
+            self.driver = StaticDriver(self.config, self.workflow_schemas, self.controller)
             return
 
     async def _serve(self) -> None:
-        self.runner = ControllerRunner(self.controller)
-        self.server = uvicorn.Server(uvicorn.Config(
-            self.app,
-            host=self.config.host,
-            port=self.config.port,
-            log_level="info"
-        ))
-        try:
-            await self.server.serve()
-        finally:
-            await self.runner.close()
-            self.server = None
-            self.runner = None
+        if self.driver:
+            try:
+                await self.driver.start()
+            finally:
+                await self.driver.stop()
 
     async def _shutdown(self) -> None:
-        if self.server:
-            self.server.should_exit = True
+        if self.driver:
+            await self.driver.stop()
 
 def create_webui(config: ControllerWebUIConfig, controller: ControllerConfig, components: List[ComponentConfig], workflows: List[WorkflowConfig], daemon: bool) -> ControllerWebUI:
     global WebUIInstance

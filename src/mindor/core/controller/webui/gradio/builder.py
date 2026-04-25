@@ -18,7 +18,7 @@ import json, re
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
 
-_variable_name_regex = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
+_VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
@@ -57,7 +57,7 @@ class GradioWebUIBuilder:
 
             gr.Markdown("#### Input Parameters")
             input_components = [ self._build_input_component(variable) for variable in workflow.input ]
-            
+
             run_button = gr.Button("🚀 Run Workflow", variant="primary")
 
             # Interrupt panel (hidden by default)
@@ -172,7 +172,7 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.STRING or variable.format in [ WorkflowVariableFormat.BASE64, WorkflowVariableFormat.URL ]:
             return gr.Textbox(label=label, value="", info=info)
-        
+
         if variable.type == WorkflowVariableType.TEXT:
             return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
@@ -184,7 +184,7 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.BOOLEAN:
             return gr.Checkbox(label=label, value=default or False, info=info)
-        
+
         if variable.type == WorkflowVariableType.LIST:
             return gr.Textbox(label=label, value=default or "", info=info)
 
@@ -204,7 +204,7 @@ class GradioWebUIBuilder:
             return gr.Dropdown(choices=variable.options or [], label=label, value=default, info=info)
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
-    
+
     async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
             value, variable = arguments[0], variables[0]
@@ -283,7 +283,7 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)
-        
+
         if variable.type in [ WorkflowVariableType.JSON, WorkflowVariableType.OBJECTS ]:
             return gr.JSON(label=label)
 
@@ -330,7 +330,7 @@ class GradioWebUIBuilder:
         variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]
     ) -> Any:
         if isinstance(output, dict) and variable.name:
-            m = re.match(_variable_name_regex, variable.name)
+            m = re.match(_VARIABLE_NAME_REGEX, variable.name)
             if not m:
                 return None
 
@@ -372,7 +372,7 @@ class GradioWebUIBuilder:
     def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
         if isinstance(value, (dict, list)):
             return json.dumps(value)
-        
+
         if isinstance(value, bytes):
             return value.decode("utf-8", errors="replace")
 
@@ -380,7 +380,7 @@ class GradioWebUIBuilder:
             return str(value)
 
         return None
-    
+
     def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
         try:
             return self.field_resolver.resolve(json.loads(value), subtype)

@@ -85,10 +85,10 @@ graph TD
 
 #### Interrupt Points
 
-| Phase | Message | Description |
-|-------|---------|-------------|
-| `before` | "About to execute: ls -la" | Pauses before the command runs. The user can review the command. |
-| `after` | "Command finished. Review the output above." | Pauses after the command runs. The user can review the result. |
+| Phase | Message | Metadata | Description |
+|-------|---------|----------|-------------|
+| `before` | "About to execute: ${job.input.command}" | `command` | Pauses before the command runs. The user can review the resolved command. |
+| `after` | "Command finished. Review the output." | `result` | Pauses after the command runs. The user can review the result. |
 
 #### Output Format
 
@@ -111,11 +111,13 @@ The interrupt is configured in the job definition:
 ```yaml
 interrupt:
   before:
-    message: "About to execute: ls -la"
+    message: "About to execute: ${job.input.command}"
     metadata:
-      command: ls -la
+      command: ${job.input.command}
   after:
-    message: "Command finished. Review the output above."
+    message: "Command finished. Review the output."
+    metadata:
+      result: ${job.output}
 ```
 
 - `before`: Fires before the component executes. Set to `true` for a simple pause, or provide `message` and `metadata`.

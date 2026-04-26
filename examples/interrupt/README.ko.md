@@ -85,10 +85,10 @@ graph TD
 
 #### Interrupt 포인트
 
-| Phase | 메시지 | 설명 |
-|-------|--------|------|
-| `before` | "About to execute: ls -la" | 명령어 실행 전 일시 중지. 사용자가 명령어를 검토할 수 있습니다. |
-| `after` | "Command finished. Review the output above." | 명령어 실행 후 일시 중지. 사용자가 결과를 검토할 수 있습니다. |
+| Phase | 메시지 | Metadata | 설명 |
+|-------|--------|----------|------|
+| `before` | "About to execute: ${job.input.command}" | `command` | 명령어 실행 전 일시 중지. 사용자가 실제 실행될 명령어를 검토할 수 있습니다. |
+| `after` | "Command finished. Review the output." | `result` | 명령어 실행 후 일시 중지. 사용자가 결과를 검토할 수 있습니다. |
 
 #### 출력 형식
 
@@ -111,11 +111,13 @@ Interrupt는 job 정의에서 설정합니다:
 ```yaml
 interrupt:
   before:
-    message: "About to execute: ls -la"
+    message: "About to execute: ${job.input.command}"
     metadata:
-      command: ls -la
+      command: ${job.input.command}
   after:
-    message: "Command finished. Review the output above."
+    message: "Command finished. Review the output."
+    metadata:
+      result: ${job.output}
 ```
 
 - `before`: 컴포넌트 실행 전에 발동. `true`로 간단히 일시 중지하거나, `message`와 `metadata`를 제공합니다.

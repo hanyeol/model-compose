@@ -85,10 +85,10 @@ graph TD
 
 #### Interrupt 点
 
-| Phase | 消息 | 描述 |
-|-------|------|------|
-| `before` | "About to execute: ls -la" | 在命令运行前暂停。用户可以审核命令。 |
-| `after` | "Command finished. Review the output above." | 在命令运行后暂停。用户可以审核结果。 |
+| Phase | 消息 | Metadata | 描述 |
+|-------|------|----------|------|
+| `before` | "About to execute: ${job.input.command}" | `command` | 在命令运行前暂停。用户可以审核实际解析后的命令。 |
+| `after` | "Command finished. Review the output." | `result` | 在命令运行后暂停。用户可以审核结果。 |
 
 #### 输出格式
 
@@ -111,11 +111,13 @@ Interrupt 在 job 定义中配置：
 ```yaml
 interrupt:
   before:
-    message: "About to execute: ls -la"
+    message: "About to execute: ${job.input.command}"
     metadata:
-      command: ls -la
+      command: ${job.input.command}
   after:
-    message: "Command finished. Review the output above."
+    message: "Command finished. Review the output."
+    metadata:
+      result: ${job.output}
 ```
 
 - `before`：在组件执行前触发。设置为 `true` 进行简单暂停，或提供 `message` 和 `metadata`。

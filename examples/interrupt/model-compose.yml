@@ -10,22 +10,21 @@ controller:
 workflow:
   title: Shell Command Executor with Human Review
   description: Executes a shell command after pausing for human approval using an interrupt point.
-  jobs:
-    - id: run-command
-      component: shell-executor
-      input:
-        command: ls -la "${input.path | .}"
-      interrupt:
-        before:
-          message: "About to execute: ${job.input.command}"
-          metadata:
-            command: ${job.input.command}
-        after:
-          message: "Command finished. Review the output."
-          metadata:
-            result: ${job.output}
-      output:
-        result: ${output as text}
+  job:
+    component: shell-executor
+    input:
+      command: ls -la "${input.path | .}"
+    interrupt:
+      before:
+        message: "About to execute: ${job.input.command}"
+        metadata:
+          command: ${job.input.command}
+      after:
+        message: "Command finished. Review the output."
+        metadata:
+          result: ${job.output}
+    output:
+      result: ${output as text}
 
 component:
   id: shell-executor

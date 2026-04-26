@@ -13,7 +13,7 @@ workflow:
   job:
     input: ${input}
     output:
-      generated: ${output}
+      generated: ${output as text}
 
 component:
   type: model
@@ -23,4 +23,4 @@ component:
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    prompt: ${input.prompt as text}
+    text: ${input.text as text}

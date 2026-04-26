@@ -21,6 +21,7 @@ services:
       - --remote-debugging-address=0.0.0.0
       - --remote-debugging-port=9222
       - --window-size=1920,1080
+      - about:blank
     ports:
       - "9222:9222"
     shm_size: "2gb"

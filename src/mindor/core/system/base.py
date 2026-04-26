@@ -12,6 +12,10 @@ class SystemService(AsyncService):
         self.id: str = id
         self.config: SystemConfig = config
 
+    async def start(self, background: bool = False) -> None:
+        await super().start(background)
+        await self.wait_until_ready()
+
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         logging.info(f"Installing required module: {package_spec}")
         await super()._install_package(package_spec, repository)

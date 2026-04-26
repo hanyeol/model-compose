@@ -7,6 +7,13 @@ controller:
     driver: gradio
     port: 8081
 
+systems:
+  - id: browser-infra
+    type: docker-compose
+    file: docker-compose.yml
+    wait: true
+    wait_timeout: 60s
+
 workflows:
   - id: scrape-with-fallback
     title: Scrape with CAPTCHA Fallback
@@ -137,13 +144,6 @@ workflows:
           - navigate-content
         output:
           content: ${output as text}
-
-systems:
-  - id: browser-infra
-    type: docker-compose
-    file: docker-compose.yml
-    wait: true
-    wait_timeout: 60s
 
 components:
   - id: browser

@@ -226,7 +226,11 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                     if action:
                         variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
-                variables.extend(self._enumerate_input_variables(job, "input"))
+                job_variables = self._enumerate_input_variables(job, "input")
+                if hasattr(job, "input") and isinstance(job.input, dict):
+                    input_keys = { key for key in job.input }
+                    job_variables = [ variable for variable in job_variables if variable.name not in input_keys ]
+                variables.extend(job_variables)
 
         return variables
 

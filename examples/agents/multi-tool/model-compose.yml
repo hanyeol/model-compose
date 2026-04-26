@@ -11,12 +11,13 @@ workflows:
   - id: main
     title: Multi-Tool Assistant Agent
     description: A versatile assistant agent that combines web search, weather lookup, calculator, and clock tools to answer a wide range of questions.
-    component: assistant
-    input:
-      question: ${input.question as text}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: assistant
+      input:
+        question: ${input.question as text}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: search-web
     private: true

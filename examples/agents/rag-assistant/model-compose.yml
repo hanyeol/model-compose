@@ -12,12 +12,13 @@ workflows:
     default: true
     title: RAG Assistant Agent
     description: An autonomous agent that searches and adds knowledge to a vector store to answer questions using Retrieval-Augmented Generation.
-    component: rag-assistant
-    input:
-      question: ${input.question as text}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: rag-assistant
+      input:
+        question: ${input.question as text}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: search-knowledge
     private: true

@@ -11,34 +11,38 @@ workflows:
   - id: set-value
     title: Set Value
     description: Store a key-value pair in Redis with optional TTL
-    component: kv
-    action: set
-    input: ${input}
-    output: ${output as json}
+    job:
+      component: kv
+      action: set
+      input: ${input}
+      output: ${output as json}
 
   - id: get-value
     title: Get Value
     description: Retrieve a value by key from Redis
-    component: kv
-    action: get
-    input: ${input}
-    output: ${output as json}
+    job:
+      component: kv
+      action: get
+      input: ${input}
+      output: ${output as json}
 
   - id: delete-value
     title: Delete Value
     description: Delete a key from Redis
-    component: kv
-    action: delete
-    input: ${input}
-    output: ${output as json}
+    job:
+      component: kv
+      action: delete
+      input: ${input}
+      output: ${output as json}
 
   - id: check-value
     title: Check Exists
     description: Check if a key exists in Redis
-    component: kv
-    action: exists
-    input: ${input}
-    output: ${output as json}
+    job:
+      component: kv
+      action: exists
+      input: ${input}
+      output: ${output as json}
 
 components:
   - id: kv

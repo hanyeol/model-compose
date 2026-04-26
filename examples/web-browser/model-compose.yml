@@ -34,7 +34,7 @@ workflows:
           after:
             condition:
               operator: eq
-              input: ${output}
+              input: ${job.output}
               value: true
             message: >
               CAPTCHA detected! Please solve it via noVNC at: http://localhost:6080/vnc.html
@@ -110,7 +110,7 @@ workflows:
           after:
             condition:
               operator: eq
-              input: ${output}
+              input: ${job.output}
               value: true
             message: >
               CAPTCHA or MFA detected on login page. Please complete it via noVNC:

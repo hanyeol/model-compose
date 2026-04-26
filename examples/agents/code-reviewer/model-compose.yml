@@ -12,13 +12,14 @@ workflows:
     default: true
     title: Code Reviewer Agent
     description: An autonomous agent that reads files, lists directories, and searches code to perform code reviews and provide improvement suggestions.
-    component: code-reviewer
-    input:
-      request: ${input.request as text}
-      target_path: ${input.target_path as text | .}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: code-reviewer
+      input:
+        request: ${input.request as text}
+        target_path: ${input.target_path as text | .}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: read-file
     private: true

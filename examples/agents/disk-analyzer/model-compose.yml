@@ -12,10 +12,11 @@ workflows:
     default: true
     title: Disk Analyzer Agent
     description: An autonomous agent that uses shell commands to analyze system disk usage and provide detailed recommendations.
-    component: disk-analyzer
-    input:
-      question: ${input.question as text | Analyze the disk usage of this system and identify any issues.}
-    output: ${output[-1].content as markdown}
+    job:
+      component: disk-analyzer
+      input:
+        question: ${input.question as text | Analyze the disk usage of this system and identify any issues.}
+      output: ${output[-1].content as markdown}
 
   - id: get-disk-usage
     private: true

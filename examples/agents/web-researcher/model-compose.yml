@@ -12,12 +12,13 @@ workflows:
     default: true
     title: Web Researcher Agent
     description: An autonomous agent that searches the web and fetches pages to research a topic and provide a comprehensive answer.
-    component: research-agent
-    input:
-      question: ${input.question as text}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: research-agent
+      input:
+        question: ${input.question as text}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: search-web
     private: true

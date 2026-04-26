@@ -66,10 +66,11 @@ workflows:
   - id: delete-sentence-embedding
     title: Delete Text Embedding
     description: Remove a specific vector from the Milvus collection
-    component: vector-store
-    action: delete
-    input: ${input}
-    output: ${output as json}
+    job:
+      component: vector-store
+      action: delete
+      input: ${input}
+      output: ${output as json}
 
 components:
   - id: vector-store

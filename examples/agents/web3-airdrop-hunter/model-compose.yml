@@ -12,12 +12,13 @@ workflows:
     default: true
     title: Web3 Airdrop Hunter Agent
     description: An autonomous agent that uses APIs and web scraping to find the latest airdrop opportunities and DeFi yield information.
-    component: hunter-agent
-    input:
-      question: ${input.question as text}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: hunter-agent
+      input:
+        question: ${input.question as text}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: fetch-defi-yields
     private: true
@@ -150,8 +151,6 @@ components:
         messages: ${input.messages}
         tools: ${input.tools}
       output: ${response.choices[0].message}
-
-  # --- API-based components (reliable, no Cloudflare issues) ---
 
   - id: defillama-yields
     type: http-client

@@ -17,13 +17,13 @@ workflow:
         command: ls -la "${input.path | .}"
       interrupt:
         before:
-          message: "About to execute: ${input.command}"
+          message: "About to execute: ${job.input.command}"
           metadata:
-            command: ${input.command}
+            command: ${job.input.command}
         after:
           message: "Command finished. Review the output."
           metadata:
-            result: ${output}
+            result: ${job.output}
       output:
         result: ${output as text}
 

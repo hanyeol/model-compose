@@ -15,10 +15,11 @@ workflows:
       An agent that manages files with human approval.
       Dangerous operations (write, delete) require human confirmation before execution,
       while safe operations (read, list) run without interruption.
-    component: file-manager
-    input:
-      request: ${input.request as text | List the files in the current directory.}
-    output: ${output[-1].content as markdown}
+    job:
+      component: file-manager
+      input:
+        request: ${input.request as text | List the files in the current directory.}
+      output: ${output[-1].content as markdown}
 
   # Safe tools — no interrupt
   - id: read-file
@@ -55,8 +56,8 @@ workflows:
           before:
             message: "The agent wants to write to a file. Please review and approve."
             metadata:
-              path: ${input.path}
-              content: ${input.content}
+              path: ${job.input.path}
+              content: ${job.input.content}
         output: ${output as text}
 
   - id: delete-file
@@ -71,7 +72,7 @@ workflows:
           before:
             message: "The agent wants to delete a file. Please review and approve."
             metadata:
-              path: ${input.path}
+              path: ${job.input.path}
         output: ${output as text}
 
 components:

@@ -12,12 +12,13 @@ workflows:
     default: true
     title: Web Page Analyzer Agent
     description: An agent that scrapes and analyzes web pages using web-scraper tools. Give it a URL and a question about the page.
-    component: analyzer-agent
-    input:
-      question: ${input.question as text}
-    output:
-      answer: ${output[-1].content as markdown}
-      messages: ${output as json}
+    job:
+      component: analyzer-agent
+      input:
+        question: ${input.question as text}
+      output:
+        answer: ${output[-1].content as markdown}
+        messages: ${output as json}
 
   - id: fetch-page
     private: true

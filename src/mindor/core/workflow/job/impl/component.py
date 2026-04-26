@@ -33,6 +33,7 @@ class ComponentJob(Job):
 
             if self.config.interrupt and self.config.interrupt.before:
                 logging.info("[task-%s] Job '%s' interrupted at 'before' phase.", context.task_id, self.id)
+                context.register_source("job", { "input": input })
                 answer = await self._interrupt(context, "before", self.config.interrupt.before)
                 if answer is not None:
                     input = answer
@@ -42,6 +43,7 @@ class ComponentJob(Job):
 
             if self.config.interrupt and self.config.interrupt.after:
                 logging.info("[task-%s] Job '%s' interrupted at 'after' phase.", context.task_id, self.id)
+                context.register_source("job", { "input": input, "output": output })
                 answer = await self._interrupt(context, "after", self.config.interrupt.after)
                 if answer is not None:
                     output = answer

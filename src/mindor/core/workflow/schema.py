@@ -75,8 +75,8 @@ class WorkflowVariableResolver:
 
                 if key == wanted_key:
                     variables.append(WorkflowVariable(
-                        name=path, 
-                        type=type or "string", 
+                        name=path,
+                        type=type or "string",
                         subtype=subtype,
                         format=format,
                         default=default,
@@ -88,13 +88,13 @@ class WorkflowVariableResolver:
 
         if isinstance(value, BaseModel):
             return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key, internal)
-        
+
         if isinstance(value, dict):
             return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value.values() ], [])
 
         if isinstance(value, list):
             return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value ], [])
-        
+
         return []
 
     def _enumerate_output_variables(self, name: Optional[str], value: Any, internal: bool = False) -> List[WorkflowVariable]:
@@ -226,11 +226,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
                     if action:
                         variables.extend(self._resolve_component(job.component, action, workflows, components))
             else:
-                job_variables = self._enumerate_input_variables(job, "input")
-                if hasattr(job, "input") and isinstance(job.input, dict):
-                    input_keys = { key for key in job.input }
-                    job_variables = [ variable for variable in job_variables if variable.name not in input_keys ]
-                variables.extend(job_variables)
+                variables.extend(self._enumerate_input_variables(job, "input"))
 
         return variables
 

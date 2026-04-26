@@ -59,7 +59,7 @@ class HuggingfaceImageToTextTaskAction:
             batch_images = images[index:index + batch_size]
             batch_texts = texts[index:index + batch_size] if texts else None
 
-            inputs: Tensor = self.processor(images=batch_images, texts=batch_texts, **processor_params)
+            inputs: Tensor = self.processor(images=batch_images, text=batch_texts, **processor_params)
             inputs = inputs.to(self.device)
 
             def _generate():
@@ -71,7 +71,7 @@ class HuggingfaceImageToTextTaskAction:
                         streamer=streamer
                     )
 
-                outputs = self.processor.tokenizer.batch_decode(outputs)
+                outputs = self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                 results.extend(outputs)
 
             if streaming:

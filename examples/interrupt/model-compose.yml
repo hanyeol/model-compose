@@ -14,14 +14,16 @@ workflow:
     - id: run-command
       component: shell-executor
       input:
-        command: ls -la
+        command: ls -la "${input.path | .}"
       interrupt:
         before:
-          message: "About to execute: ls -la"
+          message: "About to execute: ${input.command}"
           metadata:
-            command: ls -la
+            command: ${input.command}
         after:
-          message: "Command finished. Review the output above."
+          message: "Command finished. Review the output."
+          metadata:
+            result: ${output}
       output:
         result: ${output as text}
 
@@ -29,6 +31,6 @@ component:
   id: shell-executor
   type: shell
   action:
-    command: ["sh", "-c", "${input.command}"]
+    command: [ "sh", "-c", "${input.command}" ]
     timeout: 10.0
     output: ${result.stdout}

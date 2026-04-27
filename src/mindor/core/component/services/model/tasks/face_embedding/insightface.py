@@ -43,13 +43,11 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "insightface", "opencv-python", "onnxruntime" ]
 
-    async def _serve(self) -> None:
-        try:
-            self.model = self._load_pretrained_model()
-            logging.info(f"Model loaded successfully: {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
+    def _load_model(self) -> None:
+        self.model = self._load_pretrained_model()
+
+    def _unload_model(self) -> None:
+        self.model = None
 
     def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis

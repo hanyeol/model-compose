@@ -89,16 +89,11 @@ class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
-    async def _serve(self) -> None:
-        try:
-            self.model, self.device = self._load_pretrained_model()
-            logging.info(f"Model loaded successfully on device '{self.device}': {self.config.model}")
-        except Exception as e:
-            logging.error(f"Failed to load model '{self.config.model}': {e}")
-            raise
+    def _load_model(self) -> None:
+        self.model, self.device = self._load_pretrained_model()
 
-    async def _shutdown(self) -> None:
-        self.model  = None
+    def _unload_model(self) -> None:
+        self.model = None
         self.device = None
 
     def _load_pretrained_model(self) -> Tuple[PreTrainedModel, torch.device]:

@@ -98,6 +98,11 @@ class GradioWebUIBuilder:
                     yield [ _run_button_running(), *self._build_interrupt_updates(output), *(gr.update() for _ in output_components) ]
                     return
 
+                # Check if the result is a failed TaskResult
+                if isinstance(output, dict) and output.get("status") == "failed":
+                    yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    raise gr.Error(str(output.get("error", "Workflow failed")))
+
                 # Clear interrupt panel for normal results
                 clear_interrupt = self._clear_interrupt_updates()
 
@@ -142,7 +147,9 @@ class GradioWebUIBuilder:
 
                 clear_interrupt = self._clear_interrupt_updates()
 
+                # Check if the result is a failed TaskResult
                 if result.get("status") == "failed":
+                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
                     raise gr.Error(str(result.get("error", "Workflow failed")))
 
                 # Completed — fetch output
@@ -249,6 +256,14 @@ class GradioWebUIBuilder:
             return str(value).split(",")
 
         return value if value != "" else None
+
+    async def _format_workflow_output(self, output: Any, workflow: WorkflowSchema) -> Optional[list]:
+        if workflow.output and output is not None:
+            output = await self._flatten_output_value(output, workflow.output)
+        if output is None:
+            return None
+        result = output[0] if isinstance(output, (list, tuple)) and len(output) == 1 else output
+        return list(result) if isinstance(result, (list, tuple)) else [result]
 
     def _build_interrupt_components(self):
         message  = gr.Markdown("")

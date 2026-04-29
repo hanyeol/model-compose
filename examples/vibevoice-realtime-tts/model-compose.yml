@@ -1,0 +1,38 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: VibeVoice Realtime TTS
+  description: Generate speech from text using Microsoft VibeVoice Realtime (0.5B).
+  job:
+    input: ${input}
+    output: ${output as audio/wav;base64}
+
+component:
+  type: websocket-server
+  runtime:
+    type: docker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vibevoice-realtime-tts
+    container_name: vibevoice-realtime-tts
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+  port: 3000
+  base_path: /stream
+  action:
+    params:
+      text: ${input.text as text}
+      voice: ${input.voice as select/Carter,Davis,Emma,Frank,Grace,Mike,Samuel | Carter}
+      cfg: ${input.cfg_scale as number | 1.5}
+    receive:
+      format: binary
+    output: ${response[] as audio/wav}

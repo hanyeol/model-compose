@@ -3,10 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.component import RedisKeyValueStoreComponentConfig
-from mindor.dsl.schema.action import (
-    KeyValueStoreActionConfig, RedisKeyValueStoreActionConfig, KeyValueStoreActionMethod
-)
-from mindor.core.logger import logging
+from mindor.dsl.schema.action import KeyValueStoreActionConfig, RedisKeyValueStoreActionConfig, KeyValueStoreActionMethod
 from ..base import KeyValueStoreService, KeyValueStoreDriver, register_kv_store_service
 from ..base import ComponentActionContext
 import json
@@ -118,7 +115,4 @@ class RedisKeyValueStoreService(KeyValueStoreService):
         scheme = "rediss" if self.config.secure else "redis"
         url = f"{scheme}://{self.config.host}:{self.config.port}/{self.config.database}"
 
-        return Redis.from_url(
-            url,
-            password=self.config.password
-        )
+        return Redis.from_url(url, password=self.config.password)

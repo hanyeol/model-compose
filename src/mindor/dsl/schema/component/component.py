@@ -6,6 +6,7 @@ ComponentConfig = Annotated[
     Union[
         HttpServerComponentConfig,
         HttpClientComponentConfig,
+        WebSocketServerComponentConfig,
         McpServerComponentConfig,
         McpClientComponentConfig,
         ModelComponentConfig,

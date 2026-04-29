@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any, Callable
-from .websocket_client import WebSocketClient
+from .websocket_client import WebSocketClient, WebSocketConnection
 import aiohttp, asyncio, itertools
 
 class CdpClient:
@@ -19,15 +19,14 @@ class CdpClient:
     def __init__(self, ws_url: str, timeout: float = 30.0):
         self.ws_url: str = ws_url
         self.timeout: float = timeout
-        self._ws: Optional[WebSocketClient] = None
+        self._websocket: Optional[WebSocketConnection] = None
         self._id_counter = itertools.count(1)
         self._pending: Dict[int, asyncio.Future] = {}
         self._event_listeners: Dict[str, List[Callable]] = {}
         self._reader_task: Optional[asyncio.Task] = None
 
     async def connect(self) -> None:
-        self._ws = WebSocketClient(self.ws_url)
-        await self._ws.connect()
+        self._websocket = await WebSocketClient(self.ws_url).connect()
         self._reader_task = asyncio.create_task(self._reader_loop())
 
     async def close(self) -> None:
@@ -38,9 +37,9 @@ class CdpClient:
             except asyncio.CancelledError:
                 pass
             self._reader_task = None
-        if self._ws:
-            await self._ws.close()
-            self._ws = None
+        if self._websocket:
+            await self._websocket.close()
+            self._websocket = None
 
     async def send_command(self, method: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         cmd_id = next(self._id_counter)
@@ -49,7 +48,7 @@ class CdpClient:
         self._pending[cmd_id] = future
 
         message = { "id": cmd_id, "method": method, "params": params or {} }
-        await self._ws.send_message(message)
+        await self._websocket.send_message(message)
 
         try:
             return await asyncio.wait_for(future, timeout=self.timeout)
@@ -68,7 +67,7 @@ class CdpClient:
     async def _reader_loop(self) -> None:
         try:
             while True:
-                message = await self._ws.receive_message()
+                message = await self._websocket.receive_message()
                 if "id" in message:
                     future = self._pending.pop(message["id"], None)
                     if future and not future.done():
@@ -105,6 +104,7 @@ class CdpClient:
                 targets = await response.json(content_type=None)
 
         page_targets = [ t for t in targets if t.get("type") == "page" ]
+
         if not page_targets:
             raise ConnectionError(f"No 'page' target found at {host}:{port}.")
         if target_index >= len(page_targets):
@@ -116,4 +116,5 @@ class CdpClient:
         ws_url = page_targets[target_index]["webSocketDebuggerUrl"]
         instance = cls(ws_url, timeout=timeout)
         await instance.connect()
+
         return instance

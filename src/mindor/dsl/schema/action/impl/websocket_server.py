@@ -1,0 +1,21 @@
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from enum import Enum
+from pydantic import BaseModel, Field
+from .common import CommonActionConfig
+
+class WebSocketReceiveFormat(str, Enum):
+    JSON   = "json"
+    TEXT   = "text"
+    BINARY = "binary"
+
+class WebSocketReceiveConfig(BaseModel):
+    format: WebSocketReceiveFormat = Field(default=WebSocketReceiveFormat.JSON, description="Expected format of received WebSocket frames.")
+    collect: bool = Field(default=False, description="When true, collect all received frames into a single response. For binary, concatenates bytes. For JSON/text, collects into a list.")
+    timeout: Optional[float] = Field(default=None, description="Receive timeout in seconds per frame.")
+
+class WebSocketServerActionConfig(CommonActionConfig):
+    path: Optional[str] = Field(default=None, description="WebSocket endpoint path. Overrides the component-level base_path.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Query parameters to include in the WebSocket URL.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="Additional headers for the WebSocket handshake.")
+    message: Optional[Any] = Field(default=None, description="Message to send after connecting. Dict/List will be JSON-encoded, bytes sent as binary, str sent as text.")
+    receive: WebSocketReceiveConfig = Field(default_factory=WebSocketReceiveConfig, description="Configuration for receiving WebSocket messages.")

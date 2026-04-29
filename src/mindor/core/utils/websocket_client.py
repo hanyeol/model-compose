@@ -1,44 +1,30 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Union, Dict, Any
+from collections.abc import AsyncIterator
 from websockets.asyncio.client import ClientConnection
+from urllib.parse import urlencode
 import websockets, asyncio, json
 
-class WebSocketClient:
-    def __init__(
-        self,
-        url: str,
-        ping_interval: Optional[float] = None,
-        ping_timeout: Optional[float] = None,
-        receive_timeout: Optional[float] = None
-    ):
-        self.url: str = url
-        self.ping_interval: Optional[float] = ping_interval
-        self.ping_timeout: Optional[float] = ping_timeout
+class WebSocketConnection:
+    def __init__(self, websocket: ClientConnection, receive_timeout: Optional[float] = None):
+        self.websocket: ClientConnection = websocket
         self.receive_timeout: Optional[float] = receive_timeout
-        self.websocket: Optional[ClientConnection] = None
-
-        self._connected: bool = False
 
     async def __aenter__(self):
-        await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
-    async def connect(self) -> None:
-        self.websocket = await websockets.connect(
-            self.url,
-            ping_interval=self.ping_interval,
-            ping_timeout=self.ping_timeout
-        )
 
     async def close(self) -> None:
         if self.websocket:
             await self.websocket.close()
             self.websocket = None
 
-    async def send_message(self, message: Dict[str, Any]) -> None:
+    async def send_message(self, message: Any) -> None:
         await self.websocket.send(json.dumps(message))
+
+    async def send_bytes(self, data: bytes) -> None:
+        await self.websocket.send(data)
 
     async def receive_message(self) -> Dict[str, Any]:
         if self.receive_timeout:
@@ -51,6 +37,59 @@ class WebSocketClient:
 
         return json.loads(message)
 
-    @property
-    def connected(self) -> bool:
+    async def receive_frame(self) -> Union[str, bytes]:
+        if self.receive_timeout:
+            return await asyncio.wait_for(
+                self.websocket.recv(),
+                timeout=self.receive_timeout
+            )
+        return await self.websocket.recv()
+
+    async def receive_frames(self) -> AsyncIterator[Union[str, bytes]]:
+        try:
+            while True:
+                yield await self.receive_frame()
+        except (websockets.ConnectionClosed, websockets.ConnectionClosedOK):
+            return
+        except asyncio.TimeoutError:
+            return
+
+    def is_connected(self) -> bool:
         return bool(self.websocket)
+
+class WebSocketClient:
+    def __init__(
+        self,
+        base_url: str,
+        ping_interval: Optional[float] = None,
+        ping_timeout: Optional[float] = None,
+        additional_headers: Optional[Dict[str, str]] = None
+    ):
+        self.base_url: str = base_url
+        self.ping_interval: Optional[float] = ping_interval
+        self.ping_timeout: Optional[float] = ping_timeout
+        self.additional_headers: Optional[Dict[str, str]] = additional_headers
+
+    async def connect(
+        self,
+        path: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        receive_timeout: Optional[float] = None
+    ) -> WebSocketConnection:
+        url = self.base_url
+        if path:
+            url += path if path.startswith("/") else f"/{path}"
+        if params:
+            filtered = { k: v for k, v in params.items() if v is not None }
+            if filtered:
+                url += "?" + urlencode(filtered)
+
+        ws = await websockets.connect(
+            url,
+            ping_interval=self.ping_interval,
+            ping_timeout=self.ping_timeout,
+            additional_headers={ **(self.additional_headers or {}), **(headers or {}) } or None
+        )
+
+        return WebSocketConnection(ws, receive_timeout)

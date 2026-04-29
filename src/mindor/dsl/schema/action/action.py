@@ -5,6 +5,7 @@ from .impl import *
 ActionConfig = Union[ 
     HttpServerActionConfig,
     HttpClientActionConfig,
+    WebSocketServerActionConfig,
     McpServerActionConfig,
     McpClientActionConfig,
     ModelActionConfig,

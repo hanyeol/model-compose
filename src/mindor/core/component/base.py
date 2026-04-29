@@ -140,7 +140,10 @@ class ComponentService(AsyncService):
         from mindor.core.runtime.docker import DockerRuntimeManager
         self._docker_manager = DockerRuntimeManager(self.config.runtime, verbose=False)
         if not await self._docker_manager.exists_image():
-            await self._docker_manager.pull_image()
+            if self.config.runtime.build:
+                await self._docker_manager.build_image()
+            else:
+                await self._docker_manager.pull_image()
         if await self._docker_manager.exists_container():
             await self._docker_manager.remove_container(force=True)
         await self._docker_manager.start_container(detach=True)

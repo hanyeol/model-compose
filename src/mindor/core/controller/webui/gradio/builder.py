@@ -12,6 +12,7 @@ from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
+from collections.abc import AsyncIterator
 import gradio as gr
 import json, re
 
@@ -106,16 +107,20 @@ class GradioWebUIBuilder:
                 # Clear interrupt panel for normal results
                 clear_interrupt = self._clear_interrupt_updates()
 
-                if len(workflow.output) == 1 and self._is_streaming_variable(workflow.output[0]):
-                    buffer = "" if workflow.output[0].type == WorkflowVariableType.TEXT else []
-                    async for chunk in output:
-                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
-                        if workflow.output[0].type == WorkflowVariableType.TEXT:
-                            buffer += chunk[0] or ""
-                        else:
-                            buffer.append(chunk[0])
-                        yield [ _run_button_running(), *clear_interrupt, buffer ]
-                    yield [ _run_button_ready(), *clear_interrupt, buffer ]
+                if isinstance(output, AsyncIterator) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
+                    if self._is_streaming_variable(workflow.output[0]):
+                        buffer = "" if workflow.output[0].type == WorkflowVariableType.TEXT else []
+                        async for chunk in output:
+                            chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
+                            if workflow.output[0].type == WorkflowVariableType.TEXT:
+                                buffer += chunk[0] or ""
+                            else:
+                                buffer.append(chunk[0])
+                            yield [ _run_button_running(), *clear_interrupt, buffer ]
+                        yield [ _run_button_ready(), *clear_interrupt, buffer ]
+                    else:
+                        result = await self._collect_stream_to_file(output, workflow.output[0])
+                        yield [ _run_button_ready(), *clear_interrupt, result ]
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
@@ -181,10 +186,8 @@ class GradioWebUIBuilder:
 
         return section
 
-    def _is_streaming_variable(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> bool:
-        if isinstance(variable, WorkflowVariableConfig):
-            return variable.format in [ WorkflowVariableFormat.SSE_JSON, WorkflowVariableFormat.SSE_TEXT ]
-        return False
+    def _is_streaming_variable(self, variable: WorkflowVariableConfig) -> bool:
+        return variable.format in [ WorkflowVariableFormat.SSE_JSON, WorkflowVariableFormat.SSE_TEXT ]
 
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
         label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default is not None else "")
@@ -463,3 +466,14 @@ class GradioWebUIBuilder:
             return await save_stream_to_temporary_file(BytesStreamResource(value), subtype)
 
         return None
+
+    async def _collect_stream_to_file(self, stream, variable: WorkflowVariableConfig) -> Optional[str]:
+        buffer = bytearray()
+        async for chunk in stream:
+            if isinstance(chunk, bytes):
+                buffer.extend(chunk)
+            elif isinstance(chunk, (bytearray, memoryview)):
+                buffer.extend(bytes(chunk))
+        if not buffer:
+            return None
+        return await save_stream_to_temporary_file(BytesStreamResource(bytes(buffer)), variable.subtype)

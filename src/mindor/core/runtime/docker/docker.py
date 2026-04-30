@@ -76,6 +76,16 @@ class DockerMountsResolver:
                 tmpfs_mode=getattr(volume.tmpfs, "mode", None),
             )
 
+class DockerDeviceRequestsResolver:
+    def __init__(self, gpus: Optional[Union[str, int]]):
+        self.gpus: Optional[Union[str, int]] = gpus
+
+    def resolve(self) -> Optional[List[DeviceRequest]]:
+        if self.gpus is None:
+            return None
+        count = -1 if self.gpus == "all" else int(self.gpus)
+        return [ DeviceRequest(count=count, capabilities=[["gpu"]]) ]
+
 class DockerRuntimeManager:
     def __init__(self, config: DockerRuntimeConfig, verbose: bool):
         self.config: DockerRuntimeConfig = config
@@ -108,6 +118,7 @@ class DockerRuntimeManager:
                     security_opt=self.config.security_opt,
                     restart_policy={ "Name": self.config.restart },
                     extra_hosts=self.config.extra_hosts,
+                    device_requests=DockerDeviceRequestsResolver(self.config.gpus).resolve(),
                     tty=True, stdin_open=True, detach=True
                 )
             container.start()

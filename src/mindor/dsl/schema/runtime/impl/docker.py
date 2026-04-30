@@ -58,6 +58,8 @@ class DockerRuntimeConfig(CommonRuntimeConfig):
     extra_hosts: Optional[Dict[str, str]] = Field(default=None, description="Extra hosts to add to /etc/hosts.")
     # Volumes
     volumes: Optional[List[Union[str, DockerVolumeConfig]]] = Field(default=None, description="Volume mounts.")
+    # GPU
+    gpus: Optional[Union[str, int]] = Field(default=None, description="GPU devices to expose. Use 'all' for all GPUs or a count (e.g. 1).")
     # Environment variables
     environment: Optional[Dict[str, Union[str, int, float, bool]]] = Field(default=None, description="Environment variables.")
     env_file: Optional[Union[str, List[str]]] = Field(default=None, description="Environment files.")

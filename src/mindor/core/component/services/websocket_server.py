@@ -67,7 +67,7 @@ class WebSocketServerAction:
                 await self._send(connection, message)
 
             if context.contains_variable_reference("response[]", self.config.output):
-                return self._receive_stream(connection, format, context)
+                return self._receive_stream(connection, format, context, connection if owned else None)
 
             response = await self._receive(connection, format, collect)
         except:
@@ -123,12 +123,16 @@ class WebSocketServerAction:
                 return frame
         return None
 
-    async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext):
-        async for frame in connection.receive_frames():
-            frame = self._decode_frame(frame, format)
-            if frame is not None:
-                context.register_source("response[]", frame)
-                yield await context.render_variable(self.config.output, ignore_files=True)
+    async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned_connection: Optional[WebSocketConnection] = None):
+        try:
+            async for frame in connection.receive_frames():
+                frame = self._decode_frame(frame, format)
+                if frame is not None:
+                    context.register_source("response[]", frame)
+                    yield await context.render_variable(self.config.output, ignore_files=True)
+        finally:
+            if owned_connection:
+                await owned_connection.close()
 
     def _decode_frame(self, frame: Any, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY and isinstance(frame, bytes):
@@ -194,11 +198,14 @@ class WebSocketServerComponent(ComponentService):
 
     async def _is_ready(self) -> bool:
         try:
-            _, writer = await asyncio.open_connection("localhost", self.config.port)
+            reader, writer = await asyncio.open_connection("localhost", self.config.port)
+            writer.write(b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(12), timeout=2)
             writer.close()
             await writer.wait_closed()
-            return True
-        except (ConnectionRefusedError, OSError):
+            return response.startswith(b"HTTP/")
+        except Exception:
             return False
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

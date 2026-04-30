@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator, AsyncIterable
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
+from mindor.dsl.schema.controller.adapter.impl.http_server import WebSocketConfig
 from mindor.core.errors import ShutdownError
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
@@ -17,11 +18,13 @@ from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
 from mindor.core.workflow.schema import WorkflowSchema
 from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from PIL import Image as PILImage
-import uvicorn
+from datetime import datetime, timezone
+import uvicorn, json, uuid, asyncio
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
@@ -31,6 +34,7 @@ class WorkflowRunRequestBody(BaseModel):
     input: Optional[Any] = None
     wait_for_completion: bool = True
     output_only: bool = False
+    subscribe_task: bool = False
 
 class WorkflowResumeRequestBody(BaseModel):
     job_id: str
@@ -146,6 +150,85 @@ class WorkflowSchemaResult(BaseModel):
             return WorkflowVariableGroupResult.from_instance(variable)
         return WorkflowVariableResult.from_instance(variable)
 
+class WebSocketConnectionManager:
+    def __init__(self):
+        self._connections: Dict[str, WebSocket] = {}
+        self._task_subscriptions: Dict[str, Set[str]] = {}
+        self._client_subscriptions: Dict[str, Set[str]] = {}
+
+    async def connect(self, client_id: str, websocket: WebSocket) -> bool:
+        if client_id in self._connections:
+            await websocket.close(code=4409, reason="Session already connected")
+            return False
+        await websocket.accept()
+        self._connections[client_id] = websocket
+        self._client_subscriptions[client_id] = set()
+        return True
+
+    async def disconnect(self, client_id: str) -> None:
+        subscriptions = self._client_subscriptions.pop(client_id, None)
+        if subscriptions:
+            for task_id in subscriptions:
+                subsription = self._task_subscriptions.get(task_id)
+                if subsription is not None:
+                    subsription.discard(client_id)
+                    if not subsription:
+                        self._task_subscriptions.pop(task_id, None)
+        self._connections.pop(client_id, None)
+
+    async def disconnect_all(self) -> None:
+        for client_id in list(self._connections.keys()):
+            await self.disconnect(client_id)
+
+    def has_connection(self, client_id: str) -> bool:
+        return client_id in self._connections
+
+    async def send_message(self, client_id: str, message: dict) -> bool:
+        websocket = self._connections.get(client_id)
+        if not websocket:
+            return False
+        try:
+            await websocket.send_json(message)
+            return True
+        except Exception:
+            await self.disconnect(client_id)
+            return False
+
+    async def broadcast_to_task_subscribers(self, task_id: str, message: dict) -> None:
+        subscriber_ids = self._task_subscriptions.get(task_id) or []
+        message_text = json.dumps(message, ensure_ascii=False, default=str)
+        tasks = []
+        for client_id in list(subscriber_ids):
+            websocket = self._connections.get(client_id)
+            if websocket:
+                tasks.append(self._send_raw(client_id, websocket, message_text))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def has_task_subscribers(self, task_id: str) -> bool:
+        return bool(self._task_subscriptions.get(task_id))
+
+    def subscribe_to_task(self, client_id: str, task_id: str) -> None:
+        if task_id not in self._task_subscriptions:
+            self._task_subscriptions[task_id] = set()
+        self._task_subscriptions[task_id].add(client_id)
+        if client_id in self._client_subscriptions:
+            self._client_subscriptions[client_id].add(task_id)
+
+    def unsubscribe_from_task(self, client_id: str, task_id: str) -> None:
+        if task_id in self._task_subscriptions:
+            self._task_subscriptions[task_id].discard(client_id)
+            if not self._task_subscriptions[task_id]:
+                del self._task_subscriptions[task_id]
+        if client_id in self._client_subscriptions:
+            self._client_subscriptions[client_id].discard(task_id)
+
+    async def _send_raw(self, client_id: str, websocket: WebSocket, text: str) -> None:
+        try:
+            await websocket.send_text(text)
+        except Exception:
+            await self.disconnect(client_id)
+
 @register_controller_adapter(ControllerAdapterType.HTTP_SERVER)
 class HttpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
@@ -159,9 +242,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.router: APIRouter = APIRouter()
+        self.websocket_manager: WebSocketConnectionManager = WebSocketConnectionManager()
 
         self._configure_server()
         self._configure_routes()
+        if self.config.websocket is not False:
+            self._configure_websocket()
         self.app.include_router(self.router, prefix=self.config.base_path or "")
 
     def _configure_server(self) -> None:
@@ -225,6 +311,57 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         async def health_check():
             return JSONResponse(content={ "status": "ok" })
 
+    def _configure_websocket(self) -> None:
+        @self.router.websocket(self.config.websocket.path)
+        async def websocket_endpoint(
+            websocket: WebSocket,
+            session: Optional[str] = None,
+            task: Optional[str] = None,
+        ):
+            if self.config.websocket.max_connections and len(self.websocket_manager._connections) >= self.config.websocket.max_connections:
+                await websocket.close(code=4429, reason="Too many connections")
+                return
+
+            client_id = session if session else str(uuid.uuid4())
+
+            connected = await self.websocket_manager.connect(client_id, websocket)
+            if not connected:
+                return
+
+            if task:
+                task_state = self.controller.get_task_state(task)
+                if task_state:
+                    self.websocket_manager.subscribe_to_task(client_id, task)
+                    await self.websocket_manager.send_message(client_id, {
+                        "type": "task_subscribed",
+                        "data": {
+                            "task_id": task,
+                            "current_state": self._serialize_task_state(task, task_state)
+                        }
+                    })
+                else:
+                    await self.websocket_manager.send_message(client_id, {
+                        "type": "error",
+                        "data": {
+                            "code": "TASK_NOT_FOUND",
+                            "message": f"Task '{task}' not found"
+                        }
+                    })
+
+            try:
+                while True:
+                    raw_message = await websocket.receive_text()
+                    await self._handle_ws_message(client_id, raw_message)
+            except WebSocketDisconnect:
+                await self.websocket_manager.disconnect(client_id)
+            except Exception as e:
+                await self._ws_send_error(client_id, "INTERNAL_ERROR", str(e))
+                await self.websocket_manager.disconnect(client_id)
+
+    async def _start(self) -> None:
+        self.controller.add_task_state_listener(self._on_task_state_change)
+        await super()._start()
+
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(
             self.app,
@@ -238,8 +375,211 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             self.server = None
 
     async def _shutdown(self) -> None:
+        self.controller.remove_task_state_listener(self._on_task_state_change)
+        await self.websocket_manager.disconnect_all()
         if self.server:
             self.server.should_exit = True
+
+    async def _on_task_state_change(self, task_id: str, state: TaskState) -> None:
+        if self.websocket_manager.has_task_subscribers(task_id):
+            await self.websocket_manager.broadcast_to_task_subscribers(
+                task_id,
+                {
+                    "type": "task_state",
+                    "data": self._serialize_task_state(task_id, state)
+                }
+            )
+
+    def _serialize_task_state(self, task_id: str, state: TaskState) -> dict:
+        result = {
+            "task_id": task_id,
+            "status": state.status.value if hasattr(state.status, 'value') else state.status,
+            "output": None,
+            "error": None,
+            "interrupt": None,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        if state.status == TaskStatus.COMPLETED and state.output is not None:
+            try:
+                json.dumps(state.output)
+                result["output"] = state.output
+            except (TypeError, ValueError):
+                result["output"] = None
+        if state.error:
+            result["error"] = str(state.error)
+        if state.interrupt:
+            result["interrupt"] = {
+                "job_id": state.interrupt.job_id,
+                "phase": state.interrupt.phase,
+                "message": state.interrupt.message,
+                "metadata": state.interrupt.metadata,
+            }
+        return result
+
+    async def _handle_ws_message(self, client_id: str, raw: str) -> None:
+        try:
+            message = json.loads(raw)
+        except json.JSONDecodeError:
+            await self._ws_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
+            return
+
+        msg_type = message.get("type")
+        msg_id = message.get("id")
+        data = message.get("data") or {}
+
+        handlers = {
+            "run_workflow": self._ws_run_workflow,
+            "subscribe_task": self._ws_subscribe_task,
+            "unsubscribe_task": self._ws_unsubscribe_task,
+            "resume_task": self._ws_resume_task,
+            "get_task": self._ws_get_task,
+            "ping": self._ws_ping,
+        }
+
+        handler = handlers.get(msg_type)
+        if handler:
+            try:
+                await handler(client_id, msg_id, data)
+            except Exception as e:
+                await self._ws_send_error(client_id, "INTERNAL_ERROR", str(e), msg_id)
+        else:
+            await self._ws_send_error(
+                client_id, "INVALID_REQUEST",
+                f"Unknown message type: {msg_type}", msg_id
+            )
+
+    async def _ws_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
+        workflow_id = data.get("workflow_id", "__default__")
+        input_data = data.get("input")
+        subscribe_task = data.get("subscribe_task", True)
+
+        if workflow_id not in self.controller.workflow_schemas:
+            await self._ws_send_error(
+                client_id, "WORKFLOW_NOT_FOUND",
+                f"Workflow '{workflow_id}' not found", msg_id
+            )
+            return
+
+        state = await self.controller.run_workflow(workflow_id, input_data, wait_for_completion=False)
+
+        if subscribe_task:
+            self.websocket_manager.subscribe_to_task(client_id, state.task_id)
+
+        await self.websocket_manager.send_message(client_id, {
+            "type": "workflow_started",
+            "id": msg_id,
+            "data": {
+                "task_id": state.task_id,
+                "workflow_id": workflow_id,
+                "status": state.status.value if hasattr(state.status, 'value') else state.status
+            }
+        })
+
+        if subscribe_task:
+            current_state = self.controller.get_task_state(state.task_id)
+            if current_state and current_state.status != state.status:
+                await self.websocket_manager.send_message(client_id, {
+                    "type": "task_state",
+                    "data": self._serialize_task_state(state.task_id, current_state)
+                })
+
+    async def _ws_subscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+        task_id = data.get("task_id")
+        if not task_id:
+            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            return
+
+        task_state = self.controller.get_task_state(task_id)
+        if not task_state:
+            await self._ws_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            return
+
+        self.websocket_manager.subscribe_to_task(client_id, task_id)
+
+        await self.websocket_manager.send_message(client_id, {
+            "type": "task_subscribed",
+            "id": msg_id,
+            "data": {
+                "task_id": task_id,
+                "current_state": self._serialize_task_state(task_id, task_state)
+            }
+        })
+
+    async def _ws_unsubscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+        task_id = data.get("task_id")
+        if not task_id:
+            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            return
+
+        self.websocket_manager.unsubscribe_from_task(client_id, task_id)
+
+        await self.websocket_manager.send_message(client_id, {
+            "type": "task_unsubscribed",
+            "id": msg_id,
+            "data": {"task_id": task_id}
+        })
+
+    async def _ws_resume_task(self, client_id: str, msg_id: str, data: dict) -> None:
+        task_id = data.get("task_id")
+        job_id = data.get("job_id")
+
+        if not task_id or not job_id:
+            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required fields: task_id, job_id", msg_id)
+            return
+
+        answer = data.get("answer")
+
+        try:
+            state = await self.controller.resume_workflow(task_id, job_id, answer)
+            await self.websocket_manager.send_message(client_id, {
+                "type": "task_resumed",
+                "id": msg_id,
+                "data": {
+                    "task_id": task_id,
+                    "status": state.status.value if hasattr(state.status, 'value') else state.status
+                }
+            })
+        except ValueError as e:
+            error_msg = str(e)
+            if "not in interrupted state" in error_msg:
+                code = "TASK_NOT_INTERRUPTED"
+            elif "Job ID mismatch" in error_msg:
+                code = "JOB_ID_MISMATCH"
+            elif "not found" in error_msg.lower():
+                code = "TASK_NOT_FOUND"
+            else:
+                code = "INVALID_REQUEST"
+            await self._ws_send_error(client_id, code, error_msg, msg_id)
+
+    async def _ws_get_task(self, client_id: str, msg_id: str, data: dict) -> None:
+        task_id = data.get("task_id")
+        if not task_id:
+            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            return
+
+        task_state = self.controller.get_task_state(task_id)
+        if not task_state:
+            await self._ws_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            return
+
+        await self.websocket_manager.send_message(client_id, {
+            "type": "task_state",
+            "id": msg_id,
+            "data": self._serialize_task_state(task_id, task_state)
+        })
+
+    async def _ws_ping(self, client_id: str, msg_id: str, data: dict) -> None:
+        await self.websocket_manager.send_message(client_id, {
+            "type": "pong",
+            "id": msg_id,
+            "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
+        })
+
+    async def _ws_send_error(self, client_id: str, code: str, message: str, msg_id: str = None) -> None:
+        msg = {"type": "error", "data": {"code": code, "message": message}}
+        if msg_id:
+            msg["id"] = msg_id
+        await self.websocket_manager.send_message(client_id, msg)
 
     async def _handle_workflow_run_request(self, request: Request) -> Response:
         body = await self._parse_workflow_run_body(request)
@@ -249,10 +589,30 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if workflow_id not in self.controller.workflow_schemas:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
 
+        if body.subscribe_task and body.wait_for_completion:
+            raise HTTPException(status_code=400, detail="subscribe_task=true requires wait_for_completion=false")
+
+        session_id = request.query_params.get("session_id")
+
+        if body.subscribe_task:
+            if not session_id:
+                raise HTTPException(status_code=400, detail="session_id query parameter required when subscribe_task=true")
+            if not self.websocket_manager.has_connection(session_id):
+                raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
+
         try:
             state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion)
         except ShutdownError:
             raise HTTPException(status_code=503, detail="Service is shutting down")
+
+        if body.subscribe_task and session_id:
+            self.websocket_manager.subscribe_to_task(session_id, state.task_id)
+            current = self.controller.get_task_state(state.task_id)
+            if current:
+                await self.websocket_manager.send_message(session_id, {
+                    "type": "task_state",
+                    "data": self._serialize_task_state(state.task_id, current)
+                })
 
         if body.output_only and not body.wait_for_completion:
             raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")

@@ -10,7 +10,7 @@ class CommonQueueSubscriberControllerAdapterConfig(BaseModel):
     type: Literal[ControllerAdapterType.QUEUE_SUBSCRIBER]
     driver: QueueSubscriberDriver = Field(..., description="Queue backend driver.")
     name: str = Field(default="controller-queue", description="Queue name to consume tasks from. Queue key: {name}:{workflow_id}. Result key: {name}:{workflow_id}:{run_id}.")
-    result_ttl: int = Field(default=3600, ge=0, description="TTL in seconds for result entries. 0 means no expiry.")
+    result_ttl: str = Field(default="1h", description="TTL for result entries (e.g. '1h', '30m'). '0s' means no expiry.")
     max_concurrent: int = Field(default=1, ge=1, description="Maximum number of tasks this worker processes concurrently.")
     worker_id: Optional[str] = Field(default=None, description="Unique identifier for this worker instance. Auto-generated if not set.")
     workflows: List[str] = Field(default=["__default__"], description="List of workflow IDs this worker handles. Each workflow gets its own queue: {name}:{workflow_id}.")

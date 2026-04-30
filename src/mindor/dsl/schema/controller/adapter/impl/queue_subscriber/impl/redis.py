@@ -10,7 +10,7 @@ class RedisQueueSubscriberControllerAdapterConfig(CommonQueueSubscriberControlle
     secure: bool = Field(default=False, description="Use TLS/SSL for connections (equivalent to rediss:// protocol).")
     database: int = Field(default=0, ge=0, le=15, description="Redis database number.")
     password: Optional[str] = Field(default=None, description="Redis password. Can also be specified in the URL.")
-    pop_timeout: int = Field(default=1, ge=1, description="BRPOP timeout in seconds before retrying.")
+    pop_timeout: str = Field(default="1s", description="BRPOP timeout before retrying (e.g. '1s', '500ms').")
 
     @model_validator(mode="before")
     def validate_url_or_host(cls, values: Dict[str, Any]):

@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
+from mindor.core.utils.time import parse_duration
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
 import asyncio, json, ulid
 
@@ -58,7 +59,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _consumer_loop(self, worker_index: int, queue_keys: list[str]) -> None:
         while not self._stop_event.is_set():
             try:
-                result = await self._redis.brpop(queue_keys, timeout=self.config.pop_timeout)
+                result = await self._redis.brpop(queue_keys, timeout=int(parse_duration(self.config.pop_timeout).total_seconds()))
 
                 if result is None:
                     continue
@@ -124,8 +125,9 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             **(self._get_task_output(state) or {}),
         }, default=str)
 
-        if self.config.result_ttl > 0:
-            await self._redis.setex(result_key, self.config.result_ttl, result)
+        result_ttl = int(parse_duration(self.config.result_ttl).total_seconds())
+        if result_ttl > 0:
+            await self._redis.setex(result_key, result_ttl, result)
         else:
             await self._redis.set(result_key, result)
 
@@ -134,6 +136,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _publish_stream_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"
         stream_key = f"{result_key}:stream"
+        result_ttl = int(parse_duration(self.config.result_ttl).total_seconds())
 
         result = json.dumps({
             "task_id": task_id,
@@ -153,8 +156,8 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         except Exception as e:
             await self._redis.xadd(stream_key, { "event": "error", "data": str(e) })
         finally:
-            if self.config.result_ttl > 0:
-                await self._redis.expire(stream_key, self.config.result_ttl)
+            if result_ttl > 0:
+                await self._redis.expire(stream_key, result_ttl)
 
             if hasattr(state.output, 'aclose'):
                 await state.output.aclose()

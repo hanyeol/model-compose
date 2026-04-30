@@ -5,6 +5,7 @@ from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveForma
 from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.utils.streaming import BytesStreamResource
 from mindor.core.utils.shell import run_command_streaming
+from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio, json
@@ -51,7 +52,8 @@ class WebSocketServerAction:
 
         format  = await context.render_variable(self.config.receive.format)
         collect = await context.render_variable(self.config.receive.collect)
-        timeout = await context.render_variable(self.config.receive.timeout)
+        timeout_str = await context.render_variable(self.config.receive.timeout)
+        timeout = parse_duration(timeout_str).total_seconds() if timeout_str else None
 
         connection, owned = await client.connect(
             path=path,
@@ -172,8 +174,8 @@ class WebSocketServerComponent(ComponentService):
         self.client = WebSocketConnector(
             WebSocketClient(
                 base_url=base_url,
-                ping_interval=self.config.ping_interval,
-                ping_timeout=self.config.ping_timeout,
+                ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
+                ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
                 additional_headers=self.config.headers or None
             ),
             params=self.config.params or None

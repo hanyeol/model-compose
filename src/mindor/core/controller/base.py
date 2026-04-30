@@ -2,6 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Callable, Awaitable
+import logging
+
+logger = logging.getLogger(__name__)
+
+TaskStateListener = Callable[['str', 'TaskState'], Awaitable[None]]
 from enum import Enum
 from dataclasses import dataclass
 from mindor.dsl.schema.controller import ControllerConfig
@@ -105,6 +110,8 @@ class ControllerService(AsyncService):
         self._queue: Optional[ControllerQueueService] = None
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
+        self._task_state_listeners: List[TaskStateListener] = []
+        self._listener_tasks: Set[asyncio.Task] = set()
 
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
@@ -239,6 +246,7 @@ class ControllerService(AsyncService):
             with self.task_states_lock:
                 self.task_states.set(task_id, state, 1 * 3600)
             self._notify_task_state_change(task_id)
+            self._invoke_task_state_listeners(task_id)
             raise
 
         self._inflight_tasks.add(task)
@@ -274,12 +282,22 @@ class ControllerService(AsyncService):
         new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, new_state)
-        self._notify_task_state_change(task_id)
+        self._invoke_task_state_listeners(task_id)
 
         return new_state
 
     async def wait_for_terminal_state(self, task_id: str) -> TaskState:
         return await self._wait_for_terminal_state(task_id)
+
+    def add_task_state_listener(self, listener: TaskStateListener) -> None:
+        if listener not in self._task_state_listeners:
+            self._task_state_listeners.append(listener)
+
+    def remove_task_state_listener(self, listener: TaskStateListener) -> None:
+        try:
+            self._task_state_listeners.remove(listener)
+        except ValueError:
+            pass
 
     def get_task_state(self, task_id: str) -> Optional[TaskState]:
         with self.task_states_lock:
@@ -327,6 +345,7 @@ class ControllerService(AsyncService):
 
         if self.daemon:
             await self._stop_adapters()
+            await self._cancel_pending_listener_tasks()
             await self._stop_components()
             await self._stop_gateways()
             await self._stop_listeners()
@@ -468,6 +487,7 @@ class ControllerService(AsyncService):
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
+        self._invoke_task_state_listeners(task_id)
 
         try:
             async def run_workflow(workflow_id, input, interrupt_handler):
@@ -488,6 +508,7 @@ class ControllerService(AsyncService):
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)
         self._notify_task_state_change(task_id)
+        self._invoke_task_state_listeners(task_id)
 
         return state
 
@@ -525,6 +546,7 @@ class ControllerService(AsyncService):
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
             self._notify_task_state_change(task_id)
+            self._invoke_task_state_listeners(task_id)
 
             if on_interrupt:
                 answer = await on_interrupt(interrupt)
@@ -550,8 +572,32 @@ class ControllerService(AsyncService):
         with self.task_states_lock:
             self.task_states.set(task_id, error_state, 1 * 3600)
         self._notify_task_state_change(task_id)
+        self._invoke_task_state_listeners(task_id)
 
     def _notify_task_state_change(self, task_id: str) -> None:
         event = self.task_events.get(task_id)
         if event:
             event.set()
+
+    def _invoke_task_state_listeners(self, task_id: str) -> None:
+        state = self.get_task_state(task_id)
+        if state and self._task_state_listeners:
+            for listener in list(self._task_state_listeners):
+                task = asyncio.create_task(
+                    self._invoke_task_state_listener(listener, task_id, state)
+                )
+                self._listener_tasks.add(task)
+                task.add_done_callback(self._listener_tasks.discard)
+
+    async def _invoke_task_state_listener(self, listener: TaskStateListener, task_id: str, state: TaskState) -> None:
+        try:
+            await listener(task_id, state)
+        except Exception:
+            logger.warning("Task state listener error for task %s", task_id, exc_info=True)
+
+    async def _cancel_pending_listener_tasks(self) -> None:
+        for task in list(self._listener_tasks):
+            task.cancel()
+        if self._listener_tasks:
+            await asyncio.gather(*self._listener_tasks, return_exceptions=True)
+        self._listener_tasks.clear()

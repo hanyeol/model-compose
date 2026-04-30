@@ -2,6 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.shell import run_command_streaming, run_command
+from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -23,7 +24,8 @@ class ShellAction:
         command = await context.render_variable(self.config.command)
         env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
-        result = await self._run_command(command, working_dir, env, self.config.timeout)
+        timeout = parse_duration(self.config.timeout).total_seconds() if self.config.timeout else None
+        result = await self._run_command(command, working_dir, env, timeout)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result

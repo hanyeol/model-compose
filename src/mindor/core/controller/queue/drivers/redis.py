@@ -5,10 +5,11 @@ from typing import Dict, Any
 from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriver
 from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
 from mindor.core.foundation.compat.asyncio import async_timeout
+from mindor.core.utils.time import parse_duration
 import asyncio, json, ulid
 
 class RedisStreamIterator:
-    def __init__(self, redis, stream_key: str, timeout: int):
+    def __init__(self, redis, stream_key: str, timeout: float):
         self._redis = redis
         self._stream_key = stream_key
         self._timeout = timeout if timeout > 0 else None
@@ -123,7 +124,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 if status == "streaming":
                     stream_key = result.get("stream_key")
-                    return RedisStreamIterator(self._redis, stream_key, self.config.timeout)
+                    return RedisStreamIterator(self._redis, stream_key, parse_duration(self.config.timeout).total_seconds())
 
                 if status == "failed":
                     raise RuntimeError(result.get("error", "Unknown error from queue worker"))
@@ -144,7 +145,8 @@ class RedisControllerQueueService(CommonControllerQueueService):
         return self.config.url
 
     async def _wait_for_message(self, pubsub) -> Dict[str, Any]:
-        timeout = self.config.timeout if self.config.timeout > 0 else None
+        timeout_secs = parse_duration(self.config.timeout).total_seconds()
+        timeout = timeout_secs if timeout_secs > 0 else None
 
         try:
             async with async_timeout(timeout):
@@ -156,4 +158,4 @@ class RedisControllerQueueService(CommonControllerQueueService):
         except TimeoutError:
             pass
 
-        raise TimeoutError(f"Queue dispatch timed out after {self.config.timeout}s waiting for result")
+        raise TimeoutError(f"Queue dispatch timed out after {self.config.timeout} waiting for result")

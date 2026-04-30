@@ -1345,4 +1345,4 @@ Try these:
 
 ---
 
-**Next Chapter**: [7. Web UI Configuration](./07-webui-configuration.md)
+**Next Chapter**: [7. WebSocket Interface](./07-websocket-interface.md)

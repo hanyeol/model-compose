@@ -1343,4 +1343,4 @@ POST /api/workflows/runs
 
 ---
 
-**다음 장**: [7. Web UI 구성](./07-webui-configuration.md)
+**다음 장**: [7. WebSocket 인터페이스](./07-websocket-interface.md)

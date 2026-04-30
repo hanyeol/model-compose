@@ -469,7 +469,7 @@ output:
   command_output: ${stdout}
 ```
 
-> 💡 **Detailed Variable Reference**: See [12.2.2 Component Response Variable Sources](./12-variable-binding.md#1222-component-response-variable-sources) for a complete list of variable sources for all component types.
+> 💡 **Detailed Variable Reference**: See [12.2.2 Component Response Variable Sources](./13-variable-binding.md#1222-component-response-variable-sources) for a complete list of variable sources for all component types.
 
 #### 4. Previous Job Output
 

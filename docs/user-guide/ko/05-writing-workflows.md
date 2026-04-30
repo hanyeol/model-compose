@@ -1076,7 +1076,7 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 > **참고**: 스트리밍 응답은 Server-Sent Events (SSE) 형식으로 전달됩니다.
 
-> **더 자세한 내용은 [11장 스트리밍 모드](./11-streaming-mode.md)를 참고하세요.**
+> **더 자세한 내용은 [11장 스트리밍 모드](./12-streaming-mode.md)를 참고하세요.**
 
 ---
 

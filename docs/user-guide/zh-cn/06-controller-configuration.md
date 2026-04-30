@@ -1343,4 +1343,4 @@ POST /api/workflows/runs
 
 ---
 
-**下一章**: [7. Web UI 配置](./07-webui-configuration.md)
+**下一章**: [7. WebSocket 接口](./07-websocket-interface.md)

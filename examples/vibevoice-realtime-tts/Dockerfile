@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists
 RUN git clone https://github.com/microsoft/VibeVoice.git /app/vibevoice
 WORKDIR /app/vibevoice
 RUN pip install -e ".[streamingtts]"
-RUN pip install flash-attn --no-build-isolation || true
+RUN pip uninstall -y flash-attn || true
 
 EXPOSE 3000
 

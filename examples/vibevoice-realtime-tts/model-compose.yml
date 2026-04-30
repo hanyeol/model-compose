@@ -25,13 +25,14 @@ component:
     container_name: vibevoice-realtime-tts
     ports:
       - "3000:3000"
+    gpus: all
     restart: unless-stopped
   port: 3000
   base_path: /stream
   action:
     params:
       text: ${input.text as text}
-      voice: ${input.voice as select/Carter,Davis,Emma,Frank,Grace,Mike,Samuel | Carter}
+      voice: ${input.voice as select/en-Carter_man,en-Davis_man,en-Emma_woman,en-Frank_man,en-Grace_woman,en-Mike_man,kr-Spk0_woman,kr-Spk1_man | en-Carter_man}
       cfg: ${input.cfg_scale as number | 1.5}
     receive:
       format: binary

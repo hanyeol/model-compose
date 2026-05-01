@@ -6,16 +6,14 @@ from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.logger import logging
 from ..base import VideoConverterService, VideoConverterDriver, register_video_converter_service
 from ..base import ComponentActionContext
+from .common import VideoConverterAction, VideoSource
 import asyncio
 import tempfile
 import os
 
-class FFmpegVideoConverterAction:
-    def __init__(self, config: VideoConverterActionConfig):
-        self.config: VideoConverterActionConfig = config
-
+class FFmpegVideoConverterAction(VideoConverterAction):
     async def run(self, context: ComponentActionContext) -> Any:
-        video       = await context.render_file(self.config.video)
+        source      = await self._render_source(context)
         format      = await context.render_variable(self.config.format) if self.config.format else "mp4"
         codec       = await context.render_variable(self.config.codec) if self.config.codec else None
         audio_codec = await context.render_variable(self.config.audio_codec) if self.config.audio_codec else None
@@ -23,7 +21,7 @@ class FFmpegVideoConverterAction:
         resolution  = await context.render_variable(self.config.resolution) if self.config.resolution else None
         fps         = await context.render_variable(self.config.fps) if self.config.fps else None
 
-        output_path = await self._convert(video, format, codec, audio_codec, bitrate, resolution, fps)
+        output_path = await self._convert(source, format, codec, audio_codec, bitrate, resolution, fps)
         result = {
             "path": output_path,
             "format": format
@@ -34,7 +32,7 @@ class FFmpegVideoConverterAction:
 
     async def _convert(
         self,
-        video: str,
+        source: VideoSource,
         format: str,
         codec: Optional[str],
         audio_codec: Optional[str],
@@ -43,8 +41,20 @@ class FFmpegVideoConverterAction:
         fps: Optional[str]
     ) -> str:
         output_path = os.path.join(tempfile.gettempdir(), f"video_converter_{os.getpid()}_{id(self)}.{format}")
+        is_pipe = source.data is not None
 
-        command = [ "ffmpeg", "-hide_banner", "-i", video ]
+        command = [ "ffmpeg", "-hide_banner" ]
+
+        if source.format:
+            command.extend([ "-f", source.format ])
+        if source.resolution:
+            command.extend([ "-s", source.resolution ])
+        if source.fps:
+            command.extend([ "-r", source.fps ])
+        if source.pixel_format:
+            command.extend([ "-pix_fmt", source.pixel_format ])
+
+        command.extend([ "-i", "pipe:0" if is_pipe else source.path ])
 
         if codec:
             command.extend([ "-c:v", codec ])
@@ -59,15 +69,17 @@ class FFmpegVideoConverterAction:
 
         command.extend([ "-movflags", "+faststart", "-y", output_path ])
 
-        logging.info(f"Converting '{video}' to '{format}' format")
+        logging.info(f"Converting '{'pipe:0' if is_pipe else source.path}' to '{format}' format")
 
         process = await asyncio.create_subprocess_exec(
             *command,
+            stdin=asyncio.subprocess.PIPE if is_pipe else None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
-        _, stderr = await process.communicate()
+        raw = bytes(source.data) if isinstance(source.data, (bytes, bytearray)) else None
+        _, stderr = await process.communicate(input=raw)
 
         if process.returncode != 0:
             error_output = stderr.decode("utf-8", errors="replace")

@@ -5,11 +5,12 @@ from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 
-from mindor.core.utils.streaming import StreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file, BytesStreamResource
+from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
+from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
+from mindor.core.utils.audio import pcm_to_wav
 from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
 from collections.abc import AsyncIterator
@@ -454,12 +455,18 @@ class GradioWebUIBuilder:
         return None
 
     async def _collect_stream_to_file(self, stream, variable: WorkflowVariableConfig) -> Optional[str]:
+        data = await self._collect_stream_to_bytes(stream)
+
+        if variable.type == WorkflowVariableType.AUDIO and variable.subtype == "pcm":
+            return await save_stream_to_temporary_file(BytesStreamResource(pcm_to_wav(data, variable.attrs)), "wav")
+
+        return await save_stream_to_temporary_file(BytesStreamResource(data), variable.subtype)
+
+    async def _collect_stream_to_bytes(self, stream) -> Optional[bytes]:
         buffer = bytearray()
         async for chunk in stream:
             if isinstance(chunk, bytes):
                 buffer.extend(chunk)
             elif isinstance(chunk, (bytearray, memoryview)):
                 buffer.extend(bytes(chunk))
-        if not buffer:
-            return None
-        return await save_stream_to_temporary_file(BytesStreamResource(bytes(buffer)), variable.subtype)
+        return bytes(buffer)

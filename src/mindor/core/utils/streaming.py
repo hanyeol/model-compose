@@ -114,24 +114,6 @@ class Base64StreamResource(StreamResource):
                 break
             yield chunk
 
-class AsyncIteratorStreamResource(StreamResource):
-    def __init__(self, iterator: AsyncIterator[bytes], content_type: Optional[str] = None, on_close=None):
-        super().__init__(content_type, None)
-        self._iterator = iterator
-        self._on_close = on_close
-
-    async def close(self) -> None:
-        if self._on_close:
-            await self._on_close()
-            self._on_close = None
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        try:
-            async for chunk in self._iterator:
-                yield chunk
-        finally:
-            await self.close()
-
 async def save_stream_to_temporary_file(stream: StreamResource, extension: Optional[str]) -> Optional[str]:
     try:
         file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)

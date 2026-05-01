@@ -167,9 +167,9 @@ class WorkflowVariableResolver:
     def _to_variable_config(self, variable: WorkflowVariable) -> WorkflowVariableConfig:
         config_dict = asdict(variable)
 
-        if variable.type in [ "image", "audio", "video", "file", "select" ] and variable.subtype:
+        if variable.type in [ "select" ] and variable.subtype:
             config_dict["options"] = variable.subtype.split(",")
-        
+
         if variable.annotations is None:
             config_dict["annotations"] = []
 

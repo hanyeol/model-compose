@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:24.07-py3
+FROM nvcr.io/nvidia/pytorch:25.12-py3
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists
 RUN git clone https://github.com/microsoft/VibeVoice.git /app/vibevoice
 WORKDIR /app/vibevoice
 RUN pip install -e ".[streamingtts]"
-RUN pip uninstall -y flash-attn || true
+RUN pip install flash-attn --no-build-isolation || true
 
 EXPOSE 3000
 

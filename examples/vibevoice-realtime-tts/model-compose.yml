@@ -36,4 +36,4 @@ component:
       cfg: ${input.cfg_scale as number | 1.5}
     receive:
       format: binary
-    output: ${response[] as audio/wav}
+    output: ${response[] as audio/pcm[sample_rate=24000,channels=1,bit_depth=16]}

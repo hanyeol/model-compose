@@ -41,6 +41,7 @@ class WorkflowVariableConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the variable.")
     type: WorkflowVariableType = Field(..., description="Type of the variable.")
     subtype: Optional[str] = Field(default=None, description="Subtype of the variable.")
+    attrs: Optional[Dict[str, str]] = Field(default=None, description="Attributes of the variable (e.g. sample_rate, channels for pcm).")
     format: Optional[WorkflowVariableFormat] = Field(default=None, description="Format of the variable.")
     options: Optional[List[str]] = Field(default=None, description="List of valid options for file or select type.")
     required: bool = Field(default=False, description="Whether this variable is required.")

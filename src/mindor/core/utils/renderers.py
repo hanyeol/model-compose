@@ -16,13 +16,13 @@ class VariableRenderer:
         self.field_resolver: FieldResolver = FieldResolver()
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?        # key: input, result[], result[0], result[-1], etc.
-                    (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
-                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?          # annotations
-                \s*\}""",                                                         # }
+                r"""\$\{                                                                       # ${
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                    # key: input, result[], result[0], result[-1], etc.
+                    (?:\.([^\s|}]+))?                                                          # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;\[}]+)(?:\[([^\]]*)\])?)?(?:;([^\s}]+))?)? # type/subtype[attrs];format
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?              # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                       # annotations
+                \s*\}""",                                                                      # }
                 re.VERBOSE,
             )
         }
@@ -52,8 +52,11 @@ class VariableRenderer:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
-            key, index, path, type, subtype, format, default = m.group(1, 2, 3, 4, 5, 6, 7)
+            key, index, path, type, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8)
             index = int(index) if index else None
+
+            if attrs:
+                attrs = self._parse_attrs(attrs)
 
             try:
                 value = self.field_resolver.resolve(await self.source_resolver(key, index), path)
@@ -64,7 +67,7 @@ class VariableRenderer:
                 value = await self._render_text(default, ignore_files)
 
             if type and value is not None:
-                value = await self._convert_value_to_type(value, type, subtype, format, ignore_files)
+                value = await self._convert_value_to_type(value, type, subtype, attrs, format, ignore_files)
 
             start, end = m.span()
 
@@ -75,7 +78,7 @@ class VariableRenderer:
 
         return text
 
-    async def _convert_value_to_type(self, value: Any, type: str, subtype: str, format: Optional[str], ignore_files: bool) -> Any:
+    async def _convert_value_to_type(self, value: Any, type: str, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[str], ignore_files: bool) -> Any:
         if type == "number":
             return float(value)
 
@@ -113,13 +116,13 @@ class VariableRenderer:
                 return await FileValueRenderer().render(value)
             if not ignore_files and not isinstance(value, UploadFile):
                 if format != "path":
-                    value = await self._save_value_to_temporary_file(value, subtype, format)
+                    value = await self._save_value_to_temporary_file(value, subtype, attrs, format)
                 return create_upload_file(value, type, subtype)
             return value
 
         return value
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[str]) -> Optional[str]:
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[str]) -> Optional[str]:
         if format == "base64" and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
@@ -133,6 +136,17 @@ class VariableRenderer:
             return await save_stream_to_temporary_file(value, subtype)
 
         return None
+
+    def _parse_attrs(self, value: Optional[str]) -> Optional[Dict[str, str]]:
+        attrs: Dict[str, str] = {}
+
+        for pair in value.split(","):
+            pair = pair.strip()
+            if "=" in pair:
+                k, _, v = pair.partition("=")
+                attrs[k.strip()] = v.strip()
+
+        return attrs
 
     def _contains_reference(self, key: str, element: Any) -> bool:
         if isinstance(element, str):

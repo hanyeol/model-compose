@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Set, Annotated, Any
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
@@ -19,6 +19,7 @@ class WorkflowVariable:
     name: Optional[str]
     type: str
     subtype: Optional[str]
+    attrs: Optional[Dict[str, str]]
     format: Optional[str]
     default: Optional[Any]
     annotations: Optional[List[WorkflowVariableAnnotation]]
@@ -44,13 +45,13 @@ class WorkflowVariableResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                          # ${ 
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?        # key: input, result[], result[0], result[-1], etc.
-                    (?:\.([^\s|}]+))?                                             # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;}]+))?(?:;([^\s}]+))?)?       # type/subtype;format
-                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))? # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?          # annotations
-                \s*\}""",                                                         # }
+                r"""\$\{                                                                       # ${
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                    # key: input, result[], result[0], result[-1], etc.
+                    (?:\.([^\s|}]+))?                                                          # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;\[}]+)(?:\[([^\]]*)\])?)?(?:;([^\s}]+))?)? # type/subtype[attrs];format
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?              # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                       # annotations
+                \s*\}""",                                                                      # }
                 re.VERBOSE,
             ),
             "annotation": {
@@ -65,19 +66,23 @@ class WorkflowVariableResolver:
             variables: List[WorkflowVariable] = []
 
             for m in self.patterns["variable"].finditer(value):
-                key, index, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8)
+                key, index, path, type, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-                if type and default:
-                    default = self._parse_value_as_type(default, type)
+                if attrs:
+                    attrs = self._parse_attrs(attrs)
 
                 if annotations:
                     annotations = self._parse_annotations(annotations)
+
+                if default and type:
+                    default = self._convert_value_to_type(default, type)
 
                 if key == wanted_key:
                     variables.append(WorkflowVariable(
                         name=path,
                         type=type or "string",
                         subtype=subtype,
+                        attrs=attrs,
                         format=format,
                         default=default,
                         annotations=annotations,
@@ -102,18 +107,22 @@ class WorkflowVariableResolver:
         
         if isinstance(value, str):
             for m in self.patterns["variable"].finditer(value):
-                key, index, path, type, subtype, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8)
+                key, index, path, type, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-                if type and default:
-                    default = self._parse_value_as_type(default, type)
+                if attrs:
+                    attrs = self._parse_attrs(attrs)
 
                 if annotations:
                     annotations = self._parse_annotations(annotations)
+
+                if default and type:
+                    default = self._convert_value_to_type(default, type)
 
                 variables.append(WorkflowVariable(
                     name=name,
                     type=type or "string",
                     subtype=subtype,
+                    attrs=attrs,
                     format=format,
                     default=default,
                     annotations=annotations,
@@ -166,7 +175,7 @@ class WorkflowVariableResolver:
 
         return WorkflowVariableConfig(**config_dict)
 
-    def _parse_value_as_type(self, value: Any, type: str) -> Any:
+    def _convert_value_to_type(self, value: Any, type: str) -> Any:
         if type == "integer":
             return int(value)
         
@@ -180,7 +189,18 @@ class WorkflowVariableResolver:
             return json.loads(value)
  
         return value
-    
+
+    def _parse_attrs(self, value: Optional[str]) -> Optional[Dict[str, str]]:
+        attrs: Dict[str, str] = {}
+
+        for pair in value.split(","):
+            pair = pair.strip()
+            if "=" in pair:
+                k, _, v = pair.partition("=")
+                attrs[k.strip()] = v.strip()
+
+        return attrs
+
     def _parse_annotations(self, value: str) -> List[WorkflowVariableAnnotation]:
         parts: List[str] = re.split(self.patterns["annotation"]["delimiter"], re.sub(self.patterns["annotation"]["outer"], "", value))
         annotations: List[WorkflowVariableAnnotation] = []

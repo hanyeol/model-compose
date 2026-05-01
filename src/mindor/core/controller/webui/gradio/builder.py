@@ -232,30 +232,23 @@ class GradioWebUIBuilder:
     async def _build_input_value(self, arguments: List[Any], variables: List[WorkflowVariableConfig]) -> Any:
         if len(variables) == 1 and not variables[0].name:
             value, variable = arguments[0], variables[0]
-            return await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
+            return await self._convert_input_value(value, variable)
 
         input: Dict[str, Any] = {}
         for value, variable in zip(arguments, variables):
-            input[variable.name] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.internal)
+            input[variable.name] = await self._convert_input_value(value, variable)
         return input
 
-    async def _convert_input_value(
-        self,
-        value: Any,
-        type: WorkflowVariableType,
-        subtype: Optional[str],
-        format: Optional[WorkflowVariableFormat],
-        internal: bool
-    ) -> Any:
-        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not internal or not format):
-            if internal and format and format != "path":
-                value = await self._save_value_to_temporary_file(value, subtype, format)
-            return create_upload_file(value, type.value, subtype) if value is not None else None
+    async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
+        if variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not variable.internal or not variable.format):
+            if variable.internal and variable.format and variable.format != "path":
+                value = await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
+            return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
 
-        if type == WorkflowVariableType.INTEGER:
+        if variable.type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
 
-        if type == WorkflowVariableType.LIST:
+        if variable.type == WorkflowVariableType.LIST:
             return str(value).split(",")
 
         return value if value != "" else None
@@ -371,7 +364,7 @@ class GradioWebUIBuilder:
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
                 value = self._resolve_variable_output(output, variable)
-                flattened.append(await self._convert_output_value(value, variable.type, variable.subtype, variable.format, variable.internal))
+                flattened.append(await self._convert_output_value(value, variable))
         return flattened
 
     def _resolve_variable_output(
@@ -397,25 +390,18 @@ class GradioWebUIBuilder:
 
         return None if variable.name else output
 
-    async def _convert_output_value(
-        self,
-        value: Any,
-        type: WorkflowVariableType,
-        subtype: Optional[str],
-        format: Optional[WorkflowVariableFormat],
-        internal: bool
-    ) -> Any:
-        if format == WorkflowVariableFormat.SSE_JSON:
-            return self._resolve_json_field_from_bytes(value, subtype, format)
+    async def _convert_output_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
+        if variable.format == WorkflowVariableFormat.SSE_JSON:
+            return self._resolve_json_field_from_bytes(value, variable.subtype, variable.format)
 
-        if type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
-            return self._convert_value_to_string(value, subtype, format)
+        if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
+            return self._convert_value_to_string(value, variable.subtype, variable.format)
 
-        if type == WorkflowVariableType.IMAGE:
-            return await self._load_image_from_value(value, subtype, format)
+        if variable.type == WorkflowVariableType.IMAGE:
+            return await self._load_image_from_value(value, variable.subtype, variable.format)
 
-        if type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO ]:
-            return await self._save_value_to_temporary_file(value, subtype, format)
+        if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO ]:
+            return await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
 
         return value
 
@@ -449,7 +435,7 @@ class GradioWebUIBuilder:
 
         return None
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 

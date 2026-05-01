@@ -1,6 +1,7 @@
 from .http_server import *
 from .http_client import *
 from .websocket_server import *
+from .websocket_client import *
 from .mcp_server import *
 from .mcp_client import *
 from .model import *

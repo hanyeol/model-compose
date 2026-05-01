@@ -7,6 +7,7 @@ ComponentConfig = Annotated[
         HttpServerComponentConfig,
         HttpClientComponentConfig,
         WebSocketServerComponentConfig,
+        WebSocketClientComponentConfig,
         McpServerComponentConfig,
         McpClientComponentConfig,
         ModelComponentConfig,

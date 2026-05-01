@@ -4,6 +4,7 @@ class ComponentType(str, Enum):
     HTTP_SERVER          = "http-server"
     HTTP_CLIENT          = "http-client"
     WEBSOCKET_SERVER     = "websocket-server"
+    WEBSOCKET_CLIENT     = "websocket-client"
     MCP_SERVER           = "mcp-server"
     MCP_CLIENT           = "mcp-client"
     MODEL                = "model"

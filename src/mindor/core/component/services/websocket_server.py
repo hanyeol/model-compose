@@ -3,32 +3,12 @@ from mindor.dsl.schema.component import WebSocketServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketServerActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
 from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
-from mindor.core.utils.streaming import BytesStreamResource, StreamResource
+from mindor.core.utils.streaming import BytesStreamResource
 from mindor.core.utils.shell import run_command_streaming
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-from collections.abc import AsyncIterator
 import asyncio, json
-
-class WebSocketBinaryStreamResource(StreamResource):
-    def __init__(self, connection: WebSocketConnection, owned: bool):
-        super().__init__("application/octet-stream", None)
-        self._connection = connection
-        self._owned = owned
-
-    async def close(self) -> None:
-        if self._owned and self._connection:
-            await self._connection.close()
-            self._connection = None
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        try:
-            async for frame in self._connection.receive_frames():
-                if isinstance(frame, bytes):
-                    yield frame
-        finally:
-            await self.close()
 
 class WebSocketConnector:
     def __init__(self, client: WebSocketClient, params: Optional[Dict[str, Any]] = None):
@@ -87,11 +67,12 @@ class WebSocketServerAction:
                 await self._send(connection, message)
 
             if context.contains_variable_reference("response[]", self.config.output):
-                if format == WebSocketReceiveFormat.BINARY:
-                    return WebSocketBinaryStreamResource(connection, owned)
-                return self._receive_stream(connection, format, context, connection if owned else None)
+                return self._receive_stream(connection, format, context, owned)
 
-            response = await self._receive(connection, format, collect)
+            if collect:
+                response = await self._receive_collect(connection, format)
+            else:
+                response = await self._receive_single(connection, format)
         except:
             if owned:
                 await connection.close()
@@ -113,11 +94,6 @@ class WebSocketServerAction:
             await connection.send_bytes(message)
         else:
             await connection.websocket.send(str(message))
-
-    async def _receive(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, collect: bool) -> Any:
-        if collect:
-            return await self._receive_collect(connection, format)
-        return await self._receive_single(connection, format)
 
     async def _receive_collect(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY:
@@ -145,7 +121,7 @@ class WebSocketServerAction:
                 return frame
         return None
 
-    async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned_connection: Optional[WebSocketConnection] = None):
+    async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned: bool = False):
         try:
             async for frame in connection.receive_frames():
                 frame = self._decode_frame(frame, format)
@@ -153,8 +129,8 @@ class WebSocketServerAction:
                     context.register_source("response[]", frame)
                     yield await context.render_variable(self.config.output, ignore_files=True)
         finally:
-            if owned_connection:
-                await owned_connection.close()
+            if owned:
+                await connection.close()
 
     def _decode_frame(self, frame: Any, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY and isinstance(frame, bytes):

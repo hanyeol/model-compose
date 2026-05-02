@@ -4,7 +4,7 @@ import re
 class FieldResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
-            "keypath": re.compile(r"[-_\w]+|\[\d+\]"),
+            "keypath": re.compile(r"[-_\w]+|\[-?\d+\]"),
         }
 
     def resolve(self, object: dict, path: str, default: Any = None) -> Any:
@@ -19,7 +19,7 @@ class FieldResolver:
                     return default
             elif isinstance(current, list) and part.startswith("["):
                 index = int(part[1:-1])
-                if 0 <= index < len(current):
+                if -len(current) <= index < len(current):
                     current = current[index]
                 else:
                     return default

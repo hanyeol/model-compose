@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict, Tuple
+from typing import Any, Optional
 from mindor.dsl.schema.component import WebSocketServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketServerActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
@@ -10,41 +10,11 @@ from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, regi
 from ..context import ComponentActionContext
 import asyncio, json
 
-class WebSocketConnector:
-    def __init__(self, client: WebSocketClient, params: Optional[Dict[str, Any]] = None):
-        self._client: WebSocketClient = client
-        self._params: Optional[Dict[str, Any]] = params
-        self._connection: Optional[WebSocketConnection] = None
-
-    async def connect(
-        self,
-        path: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        receive_timeout: Optional[float] = None
-    ) -> Tuple[WebSocketConnection, bool]:
-        if path or params or headers:  # new owned connection per request
-            connection = await self._client.connect(
-                path=path,
-                params={ **(self._params or {}), **(params or {}) } or None,
-                headers=headers,
-                receive_timeout=receive_timeout
-            )
-            return connection, True
-        if not self._connection or not self._connection.is_connected():
-            self._connection = await self._client.connect()
-        return self._connection, False
-
-    async def close(self) -> None:
-        if self._connection:
-            await self._connection.close()
-            self._connection = None
-
 class WebSocketServerAction:
     def __init__(self, config: WebSocketServerActionConfig):
         self.config: WebSocketServerActionConfig = config
 
-    async def run(self, context: ComponentActionContext, client: WebSocketConnector) -> Any:
+    async def run(self, context: ComponentActionContext, client: WebSocketClient) -> Any:
         path    = await context.render_variable(self.config.path)
         params  = await context.render_variable(self.config.params)
         headers = await context.render_variable(self.config.headers)
@@ -67,7 +37,9 @@ class WebSocketServerAction:
                 await self._send(connection, message)
 
             if context.contains_variable_reference("response[]", self.config.output):
-                return self._receive_stream(connection, format, context, owned)
+                stream = self._receive_stream(connection, format, context, owned)
+
+                return stream
 
             if collect:
                 response = await self._receive_collect(connection, format)
@@ -155,7 +127,7 @@ class WebSocketServerComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.client: Optional[WebSocketConnector] = None
+        self.client: Optional[WebSocketClient] = None
 
     async def _setup(self) -> None:
         if self.config.manage.scripts.install:
@@ -173,13 +145,11 @@ class WebSocketServerComponent(ComponentService):
 
     async def _start(self) -> None:
         base_url = f"ws://localhost:{self.config.port}" + (self.config.base_path or "")
-        self.client = WebSocketConnector(
-            WebSocketClient(
-                base_url=base_url,
-                ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
-                ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
-                additional_headers=self.config.headers or None
-            ),
+        self.client = WebSocketClient(
+            base_url=base_url,
+            ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
+            ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
+            additional_headers=self.config.headers or None,
             params=self.config.params or None
         )
         await super()._start()

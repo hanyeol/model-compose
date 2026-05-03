@@ -26,7 +26,7 @@ class CdpClient:
         self._reader_task: Optional[asyncio.Task] = None
 
     async def connect(self) -> None:
-        self._websocket = await WebSocketClient(self.ws_url).connect()
+        self._websocket, _ = await WebSocketClient(self.ws_url).connect()
         self._reader_task = asyncio.create_task(self._reader_loop())
 
     async def close(self) -> None:

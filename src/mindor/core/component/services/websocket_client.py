@@ -1,15 +1,119 @@
 from typing import Any, Optional
 from mindor.dsl.schema.component import WebSocketClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketClientActionConfig
-from mindor.core.utils.websocket_client import WebSocketClient
+from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
+from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
+from mindor.core.utils.streaming import BytesStreamResource
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-from .websocket_server import WebSocketConnector, WebSocketServerAction
+import json
 
-class WebSocketClientAction(WebSocketServerAction):
+class WebSocketClientAction:
     def __init__(self, config: WebSocketClientActionConfig):
-        super().__init__(config)
+        self.config: WebSocketClientActionConfig = config
+
+    async def run(self, context: ComponentActionContext, client: WebSocketClient) -> Any:
+        path    = await context.render_variable(self.config.path)
+        params  = await context.render_variable(self.config.params)
+        headers = await context.render_variable(self.config.headers)
+        message = await context.render_variable(self.config.message)
+
+        format  = await context.render_variable(self.config.receive.format)
+        collect = await context.render_variable(self.config.receive.collect)
+        timeout_str = await context.render_variable(self.config.receive.timeout)
+        timeout = parse_duration(timeout_str).total_seconds() if timeout_str else None
+
+        connection, owned = await client.connect(
+            path=path,
+            params=params or None,
+            headers=headers or None,
+            receive_timeout=timeout
+        )
+
+        try:
+            if message:
+                await self._send(connection, message)
+
+            if context.contains_variable_reference("response[]", self.config.output):
+                stream = self._receive_stream(connection, format, context, owned)
+
+                return stream
+
+            if collect:
+                response = await self._receive_collect(connection, format)
+            else:
+                response = await self._receive_single(connection, format)
+        except:
+            if owned:
+                await connection.close()
+            raise
+
+        if owned:
+            await connection.close()
+
+        if format == WebSocketReceiveFormat.BINARY and isinstance(response, (bytes, bytearray)):
+            response = BytesStreamResource(bytes(response), "application/octet-stream")
+
+        context.register_source("response", response)
+        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else response
+
+    async def _send(self, connection: WebSocketConnection, message: Any) -> None:
+        if isinstance(message, (dict, list)):
+            await connection.send_message(message)
+        elif isinstance(message, bytes):
+            await connection.send_bytes(message)
+        else:
+            await connection.websocket.send(str(message))
+
+    async def _receive_collect(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
+        if format == WebSocketReceiveFormat.BINARY:
+            buffer = bytearray()
+            async for frame in connection.receive_frames():
+                if isinstance(frame, bytes):
+                    buffer.extend(frame)
+            return bytes(buffer)
+        items = []
+        async for frame in connection.receive_frames():
+            if isinstance(frame, str):
+                if format == WebSocketReceiveFormat.JSON:
+                    try:
+                        items.append(json.loads(frame))
+                    except json.JSONDecodeError:
+                        pass
+                else:
+                    items.append(frame)
+        return items
+
+    async def _receive_single(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
+        async for frame in connection.receive_frames():
+            frame = self._decode_frame(frame, format)
+            if frame is not None:
+                return frame
+        return None
+
+    async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned: bool = False):
+        try:
+            async for frame in connection.receive_frames():
+                frame = self._decode_frame(frame, format)
+                if frame is not None:
+                    context.register_source("response[]", frame)
+                    yield await context.render_variable(self.config.output, ignore_files=True)
+        finally:
+            if owned:
+                await connection.close()
+
+    def _decode_frame(self, frame: Any, format: WebSocketReceiveFormat) -> Any:
+        if format == WebSocketReceiveFormat.BINARY and isinstance(frame, bytes):
+            return frame
+        if format == WebSocketReceiveFormat.JSON and isinstance(frame, str):
+            try:
+                return json.loads(frame)
+            except json.JSONDecodeError:
+                return None
+        if format == WebSocketReceiveFormat.TEXT and isinstance(frame, str):
+            return frame
+        return None
 
 @register_component(ComponentType.WEBSOCKET_CLIENT)
 class WebSocketClientComponent(ComponentService):
@@ -21,16 +125,14 @@ class WebSocketClientComponent(ComponentService):
         daemon: bool
     ):
         super().__init__(id, config, global_configs, daemon)
-        self.client: Optional[WebSocketConnector] = None
+        self.client: Optional[WebSocketClient] = None
 
     async def _start(self) -> None:
-        self.client = WebSocketConnector(
-            WebSocketClient(
-                base_url=self.config.base_url,
-                ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
-                ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
-                additional_headers=self.config.headers or None
-            ),
+        self.client = WebSocketClient(
+            base_url=self.config.base_url,
+            ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
+            ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
+            additional_headers=self.config.headers or None,
             params=self.config.params or None
         )
         await super()._start()

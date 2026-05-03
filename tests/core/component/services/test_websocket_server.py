@@ -2,7 +2,7 @@ import pytest
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from mindor.core.component.services.websocket_server import WebSocketConnector, WebSocketServerAction
+from mindor.core.component.services.websocket_server import WebSocketServerAction
 from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.utils.streaming import BytesStreamResource
 from mindor.dsl.schema.action.impl.websocket_server import (
@@ -38,13 +38,11 @@ def make_connection(connected=True, frames=None):
     return conn
 
 
-def make_client(connection=None):
-    """Create a mock WebSocketClient that returns a given connection on connect()."""
-    client = AsyncMock(spec=WebSocketClient)
-    if connection:
-        client.connect = AsyncMock(return_value=connection)
-    else:
-        client.connect = AsyncMock(return_value=make_connection())
+def make_client(connection=None, params=None):
+    """Create a WebSocketClient with a mocked _connect that returns a given connection."""
+    client = WebSocketClient(base_url="ws://test", params=params)
+    conn = connection or make_connection()
+    client._connect = AsyncMock(return_value=conn)
     return client
 
 
@@ -78,59 +76,55 @@ def make_action_config(
     )
 
 
-# ---- WebSocketConnector Tests ----
+# ---- WebSocketClient Tests ----
 
-class TestWebSocketConnector:
+class TestWebSocketClient:
 
     @pytest.mark.anyio
     async def test_connect_default_creates_connection(self):
         """Default connect (no path/params/headers) creates and caches a connection."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        connection, owned = await connector.connect()
+        connection, owned = await client.connect()
 
         assert connection is conn
         assert owned is False
-        client.connect.assert_awaited_once()
+        client._connect.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_connect_default_reuses_connection(self):
         """Subsequent default connects reuse the cached connection."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        await connector.connect()
-        await connector.connect()
+        await client.connect()
+        await client.connect()
 
-        assert client.connect.await_count == 1
+        assert client._connect.await_count == 1
 
     @pytest.mark.anyio
     async def test_connect_default_reconnects_when_disconnected(self):
         """Default connect reconnects if the cached connection is disconnected."""
         conn = make_connection(connected=False)
         client = make_client(conn)
-        connector = WebSocketConnector(client)
-        connector._connection = conn
+        client._connection = conn
 
-        await connector.connect()
+        await client.connect()
 
-        client.connect.assert_awaited_once()
+        client._connect.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_connect_with_path_creates_owned(self):
         """Connect with path returns owned=True and a new connection."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        connection, owned = await connector.connect(path="/chat")
+        connection, owned = await client.connect(path="/chat")
 
         assert connection is conn
         assert owned is True
-        client.connect.assert_awaited_once_with(
+        client._connect.assert_awaited_once_with(
             path="/chat", params=None, headers=None, receive_timeout=None
         )
 
@@ -139,9 +133,8 @@ class TestWebSocketConnector:
         """Connect with params returns owned=True."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        connection, owned = await connector.connect(params={"key": "val"})
+        _, owned = await client.connect(params={"key": "val"})
 
         assert owned is True
 
@@ -150,9 +143,8 @@ class TestWebSocketConnector:
         """Connect with headers returns owned=True."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        connection, owned = await connector.connect(headers={"X-Key": "val"})
+        _, owned = await client.connect(headers={"X-Key": "val"})
 
         assert owned is True
 
@@ -160,24 +152,22 @@ class TestWebSocketConnector:
     async def test_connect_merges_component_and_action_params(self):
         """Component-level params are merged with action-level params."""
         conn = make_connection()
-        client = make_client(conn)
-        connector = WebSocketConnector(client, params={"a": "1", "b": "2"})
+        client = make_client(conn, params={"a": "1", "b": "2"})
 
-        await connector.connect(params={"b": "override", "c": "3"})
+        await client.connect(params={"b": "override", "c": "3"})
 
-        call_kwargs = client.connect.call_args[1]
+        call_kwargs = client._connect.call_args[1]
         assert call_kwargs["params"] == {"a": "1", "b": "override", "c": "3"}
 
     @pytest.mark.anyio
     async def test_connect_component_params_only_when_action_has_path(self):
         """When action specifies path but no params, component params are still sent."""
         conn = make_connection()
-        client = make_client(conn)
-        connector = WebSocketConnector(client, params={"token": "abc"})
+        client = make_client(conn, params={"token": "abc"})
 
-        await connector.connect(path="/stream")
+        await client.connect(path="/stream")
 
-        call_kwargs = client.connect.call_args[1]
+        call_kwargs = client._connect.call_args[1]
         assert call_kwargs["params"] == {"token": "abc"}
 
     @pytest.mark.anyio
@@ -185,19 +175,18 @@ class TestWebSocketConnector:
         """close() closes the cached connection and clears it."""
         conn = make_connection()
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
-        await connector.connect()
-        await connector.close()
+        await client.connect()
+        await client.close()
 
         conn.close.assert_awaited_once()
-        assert connector._connection is None
+        assert client._connection is None
 
     @pytest.mark.anyio
     async def test_close_when_no_connection(self):
         """close() is safe when there is no cached connection."""
-        connector = WebSocketConnector(make_client())
-        await connector.close()
+        client = make_client()
+        await client.close()
 
 
 # ---- WebSocketServerAction Tests ----
@@ -211,9 +200,9 @@ class TestWebSocketServerActionSend:
         action = WebSocketServerAction(make_action_config(message={"type": "hello"}))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.send_message.assert_awaited_once_with({"type": "hello"})
 
@@ -224,9 +213,9 @@ class TestWebSocketServerActionSend:
         action = WebSocketServerAction(make_action_config(message=[1, 2, 3]))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.send_message.assert_awaited_once_with([1, 2, 3])
 
@@ -237,9 +226,9 @@ class TestWebSocketServerActionSend:
         action = WebSocketServerAction(make_action_config(message=b"\x00\x01"))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.send_bytes.assert_awaited_once_with(b"\x00\x01")
 
@@ -250,9 +239,9 @@ class TestWebSocketServerActionSend:
         action = WebSocketServerAction(make_action_config(message="hello"))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.websocket.send.assert_awaited_once_with("hello")
 
@@ -263,9 +252,9 @@ class TestWebSocketServerActionSend:
         action = WebSocketServerAction(make_action_config(message=None))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.send_message.assert_not_awaited()
         conn.send_bytes.assert_not_awaited()
@@ -281,9 +270,9 @@ class TestWebSocketServerActionReceiveSingle:
         action = WebSocketServerAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == {"key": "value"}
 
@@ -294,9 +283,9 @@ class TestWebSocketServerActionReceiveSingle:
         action = WebSocketServerAction(make_action_config(receive_format=WebSocketReceiveFormat.TEXT))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == "hello world"
 
@@ -307,9 +296,9 @@ class TestWebSocketServerActionReceiveSingle:
         action = WebSocketServerAction(make_action_config(receive_format=WebSocketReceiveFormat.BINARY))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert isinstance(result, BytesStreamResource)
         assert result.data == b"\x89PNG"
@@ -321,9 +310,9 @@ class TestWebSocketServerActionReceiveSingle:
         action = WebSocketServerAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == {"valid": True}
 
@@ -334,9 +323,9 @@ class TestWebSocketServerActionReceiveSingle:
         action = WebSocketServerAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result is None
 
@@ -352,9 +341,9 @@ class TestWebSocketServerActionReceiveCollect:
         ))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == [{"a": 1}, {"b": 2}]
 
@@ -367,9 +356,9 @@ class TestWebSocketServerActionReceiveCollect:
         ))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == ["hello", "world"]
 
@@ -382,9 +371,9 @@ class TestWebSocketServerActionReceiveCollect:
         ))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert isinstance(result, BytesStreamResource)
         assert result.data == b"\x00\x01\x02\x03"
@@ -398,9 +387,9 @@ class TestWebSocketServerActionReceiveCollect:
         ))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == [{"ok": True}, {"ok": False}]
 
@@ -418,9 +407,9 @@ class TestWebSocketServerActionReceiveStream:
         ctx = make_context()
         ctx.contains_variable_reference = MagicMock(return_value=True)
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        stream = await action.run(ctx, connector)
+        stream = await action.run(ctx, client)
         items = [item async for item in stream]
 
         assert len(items) == 2
@@ -437,9 +426,9 @@ class TestWebSocketServerActionReceiveStream:
         ctx = make_context()
         ctx.contains_variable_reference = MagicMock(return_value=True)
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        stream = await action.run(ctx, connector)
+        stream = await action.run(ctx, client)
         items = [item async for item in stream]
 
         assert len(items) == 1
@@ -452,12 +441,11 @@ class TestWebSocketServerActionConnectionLifecycle:
         """Default (non-owned) connection is not closed after action completes."""
         conn = make_connection(frames=['{"ok":true}'])
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
         action = WebSocketServerAction(make_action_config())
         ctx = make_context()
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.close.assert_not_awaited()
 
@@ -466,12 +454,11 @@ class TestWebSocketServerActionConnectionLifecycle:
         """Owned connection is closed after action completes."""
         conn = make_connection(frames=['{"ok":true}'])
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
         action = WebSocketServerAction(make_action_config(path="/custom"))
         ctx = make_context()
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         conn.close.assert_awaited_once()
 
@@ -481,13 +468,12 @@ class TestWebSocketServerActionConnectionLifecycle:
         conn = make_connection()
         conn.send_message = AsyncMock(side_effect=RuntimeError("send failed"))
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
         action = WebSocketServerAction(make_action_config(path="/custom", message={"fail": True}))
         ctx = make_context()
 
         with pytest.raises(RuntimeError, match="send failed"):
-            await action.run(ctx, connector)
+            await action.run(ctx, client)
 
         conn.close.assert_awaited_once()
 
@@ -497,13 +483,12 @@ class TestWebSocketServerActionConnectionLifecycle:
         conn = make_connection()
         conn.send_message = AsyncMock(side_effect=RuntimeError("send failed"))
         client = make_client(conn)
-        connector = WebSocketConnector(client)
 
         action = WebSocketServerAction(make_action_config(message={"fail": True}))
         ctx = make_context()
 
         with pytest.raises(RuntimeError, match="send failed"):
-            await action.run(ctx, connector)
+            await action.run(ctx, client)
 
         conn.close.assert_not_awaited()
 
@@ -518,9 +503,9 @@ class TestWebSocketServerActionOutput:
 
         ctx = make_context()
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        await action.run(ctx, connector)
+        await action.run(ctx, client)
 
         ctx.register_source.assert_called_once_with("response", {"data": "test"})
 
@@ -531,9 +516,9 @@ class TestWebSocketServerActionOutput:
         action = WebSocketServerAction(make_action_config(output=None))
 
         ctx = make_context()
-        connector = WebSocketConnector(make_client(conn))
+        client = make_client(conn)
 
-        result = await action.run(ctx, connector)
+        result = await action.run(ctx, client)
 
         assert result == {"raw": True}
 

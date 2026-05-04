@@ -1,6 +1,7 @@
 from typing import Callable, Dict, List, Optional, Awaitable, Any
+from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource
+from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventIteratorStreamResource, StreamFormat
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
@@ -9,6 +10,11 @@ from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 import os, re, json, base64
+
+_STREAM_FORMAT_MAP = {
+    "sse-text": StreamFormat.TEXT,
+    "sse-json": StreamFormat.JSON,
+}
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int]], Awaitable[Any]]):
@@ -119,6 +125,13 @@ class VariableRenderer:
                     value = await self._save_value_to_temporary_file(value, subtype, attrs, format)
                 return create_upload_file(value, type, subtype)
             return value
+
+        if type in [ "sse-text", "sse-json" ]:
+            if isinstance(value, (StreamResource, AsyncIterator)):
+                return EventIteratorStreamResource(value, _STREAM_FORMAT_MAP[type])
+            async def _stream_output_generator():
+                yield value
+            return EventIteratorStreamResource(_stream_output_generator(), _STREAM_FORMAT_MAP[type])
 
         return value
 

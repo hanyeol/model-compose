@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Union, Optional, Dict, Tuple, Any
 from collections.abc import AsyncIterator
 from .http_request import build_request_body, parse_options_header
@@ -34,11 +36,8 @@ class HttpStreamResource(StreamResource):
             yield chunk
 
 class HttpEventStreamResource(StreamResource):
-    def __init__(
-        self,
-        response: aiohttp.ClientResponse
-    ):
-        super().__init__("text/event-stream", None)
+    def __init__(self, response: aiohttp.ClientResponse):
+        super().__init__(None, None)
 
         self.response: aiohttp.ClientResponse = response
         self.stream: aiohttp.StreamReader = response.content
@@ -75,7 +74,7 @@ class HttpEventStreamResource(StreamResource):
                     yield b"\n".join(parts)
 
 class HttpClient:
-    shared_instance: Optional["HttpClient"] = None
+    shared_instance: Optional[HttpClient] = None
 
     def __init__(
         self,
@@ -104,20 +103,21 @@ class HttpClient:
         body: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None,
-        raise_on_error: bool = True
+        raise_on_error: bool = True,
+        streaming: bool = False
     ) -> Union[Any, Tuple[Any, int]]:
         response: aiohttp.ClientResponse = None
         try:
             response = await self._request_with_session(
                 session=self.session,
-                url_or_path=url_or_path, 
-                method=method, 
+                url_or_path=url_or_path,
+                method=method,
                 params=params,
                 body=body,
                 headers={ **(self.headers or {}), **(headers or {})},
                 timeout=timeout or self.timeout
             )
-            content, _ = await self._parse_response_content(response)
+            content, _ = await self._parse_response_content(response, streaming)
 
             if raise_on_error and response.status >= 400:
                 error_detail = json.dumps(content, indent=2) if isinstance(content, dict) else str(content)
@@ -187,14 +187,17 @@ class HttpClient:
 
         return (body, content_type)
 
-    async def _parse_response_content(self, response: aiohttp.ClientResponse) -> Tuple[Any, str]:
+    async def _parse_response_content(self, response: aiohttp.ClientResponse, streaming: bool = False) -> Tuple[Any, str]:
         content_type, _ = parse_options_header(response.headers, "Content-Type")
-
-        if content_type == "application/json":
-            return (await response.json(), content_type)
 
         if content_type == "text/event-stream":
             return (HttpEventStreamResource(response), content_type)
+
+        if streaming:
+            return (HttpStreamResource(response, content_type), content_type)
+
+        if content_type == "application/json":
+            return (await response.json(), content_type)
 
         if content_type.startswith("text/"):
             return (await response.text(), content_type)

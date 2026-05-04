@@ -178,7 +178,7 @@ class WorkflowVariableResolver:
     def _convert_value_to_type(self, value: Any, type: str) -> Any:
         if type == "integer":
             return int(value)
-        
+
         if type == "number":
             return float(value)
 

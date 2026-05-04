@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig, VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
-from mindor.core.utils.streamer import AsyncStreamer
+from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig
+from mindor.dsl.schema.action import VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service

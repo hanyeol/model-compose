@@ -2,18 +2,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from collections.abc import AsyncIterator, AsyncIterable
+from collections.abc import AsyncIterator
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
-from mindor.dsl.schema.controller.adapter.impl.http_server import WebSocketConfig
 from mindor.core.errors import ShutdownError
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_response import HttpEventStreamer
-from mindor.core.utils.http_client import HttpEventStreamResource
 from mindor.core.utils.image import ImageStreamResource
-from mindor.core.utils.streaming import StreamResource
+from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResource
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
 from mindor.core.workflow.schema import WorkflowSchema
 from ..base import ControllerAdapterService, register_controller_adapter
@@ -351,11 +349,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             try:
                 while True:
                     raw_message = await websocket.receive_text()
-                    await self._handle_ws_message(client_id, raw_message)
+                    await self._handle_websocket_message(client_id, raw_message)
             except WebSocketDisconnect:
                 await self.websocket_manager.disconnect(client_id)
             except Exception as e:
-                await self._ws_send_error(client_id, "INTERNAL_ERROR", str(e))
+                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e))
                 await self.websocket_manager.disconnect(client_id)
 
     async def _start(self) -> None:
@@ -416,11 +414,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             }
         return result
 
-    async def _handle_ws_message(self, client_id: str, raw: str) -> None:
+    async def _handle_websocket_message(self, client_id: str, raw: str) -> None:
         try:
             message = json.loads(raw)
         except json.JSONDecodeError:
-            await self._ws_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
             return
 
         msg_type = message.get("type")
@@ -428,12 +426,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         data = message.get("data") or {}
 
         handlers = {
-            "run_workflow": self._ws_run_workflow,
-            "subscribe_task": self._ws_subscribe_task,
-            "unsubscribe_task": self._ws_unsubscribe_task,
-            "resume_task": self._ws_resume_task,
-            "get_task": self._ws_get_task,
-            "ping": self._ws_ping,
+            "run_workflow": self._websocket_run_workflow,
+            "subscribe_task": self._websocket_subscribe_task,
+            "unsubscribe_task": self._websocket_unsubscribe_task,
+            "resume_task": self._websocket_resume_task,
+            "get_task": self._websocket_get_task,
+            "ping": self._websocket_ping,
         }
 
         handler = handlers.get(msg_type)
@@ -441,20 +439,20 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             try:
                 await handler(client_id, msg_id, data)
             except Exception as e:
-                await self._ws_send_error(client_id, "INTERNAL_ERROR", str(e), msg_id)
+                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), msg_id)
         else:
-            await self._ws_send_error(
+            await self._websocket_send_error(
                 client_id, "INVALID_REQUEST",
                 f"Unknown message type: {msg_type}", msg_id
             )
 
-    async def _ws_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
         workflow_id = data.get("workflow_id", "__default__")
         input_data = data.get("input")
         subscribe_task = data.get("subscribe_task", True)
 
         if workflow_id not in self.controller.workflow_schemas:
-            await self._ws_send_error(
+            await self._websocket_send_error(
                 client_id, "WORKFLOW_NOT_FOUND",
                 f"Workflow '{workflow_id}' not found", msg_id
             )
@@ -483,15 +481,15 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     "data": self._serialize_task_state(state.task_id, current_state)
                 })
 
-    async def _ws_subscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_subscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
             return
 
         task_state = self.controller.get_task_state(task_id)
         if not task_state:
-            await self._ws_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
             return
 
         self.websocket_manager.subscribe_to_task(client_id, task_id)
@@ -505,10 +503,10 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             }
         })
 
-    async def _ws_unsubscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_unsubscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
             return
 
         self.websocket_manager.unsubscribe_from_task(client_id, task_id)
@@ -519,12 +517,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             "data": {"task_id": task_id}
         })
 
-    async def _ws_resume_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_resume_task(self, client_id: str, msg_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         job_id = data.get("job_id")
 
         if not task_id or not job_id:
-            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required fields: task_id, job_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required fields: task_id, job_id", msg_id)
             return
 
         answer = data.get("answer")
@@ -549,17 +547,17 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 code = "TASK_NOT_FOUND"
             else:
                 code = "INVALID_REQUEST"
-            await self._ws_send_error(client_id, code, error_msg, msg_id)
+            await self._websocket_send_error(client_id, code, error_msg, msg_id)
 
-    async def _ws_get_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_get_task(self, client_id: str, msg_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._ws_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
             return
 
         task_state = self.controller.get_task_state(task_id)
         if not task_state:
-            await self._ws_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
             return
 
         await self.websocket_manager.send_message(client_id, {
@@ -568,14 +566,14 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             "data": self._serialize_task_state(task_id, task_state)
         })
 
-    async def _ws_ping(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_ping(self, client_id: str, msg_id: str, data: dict) -> None:
         await self.websocket_manager.send_message(client_id, {
             "type": "pong",
             "id": msg_id,
             "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
         })
 
-    async def _ws_send_error(self, client_id: str, code: str, message: str, msg_id: str = None) -> None:
+    async def _websocket_send_error(self, client_id: str, code: str, message: str, msg_id: str = None) -> None:
         msg = {"type": "error", "data": {"code": code, "message": message}}
         if msg_id:
             msg["id"] = msg_id
@@ -655,20 +653,24 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
-        if isinstance(state.output, (HttpEventStreamResource, AsyncIterator)):
-            return self._render_async_iterator(state.output)
+        if isinstance(state.output, EventIteratorStreamResource):
+            return self._render_http_event_stream(state.output)
 
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
+
+        if isinstance(state.output, AsyncIterator):
+            return StreamingResponse(state.output, media_type="application/octet-stream")
 
         if isinstance(state.output, bytes):
             return Response(content=state.output, media_type="application/octet-stream")
 
         return JSONResponse(content=state.output)
 
-    def _render_async_iterator(self, iterator: AsyncIterable[Any]) -> Response:
+    def _render_http_event_stream(self, resource: StreamResource) -> Response:
+        format = resource.format if isinstance(resource, EventIteratorStreamResource) else None
         return StreamingResponse(
-            HttpEventStreamer(iterator).stream(),
+            HttpEventStreamer(resource, format).stream(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache"

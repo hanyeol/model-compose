@@ -6,11 +6,18 @@ from mindor.core.controller.adapters.services.http_server import (
     HttpServerControllerAdapterService,
 )
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
+from mindor.core.utils.streaming import (
+    StreamResource,
+    BytesStreamResource,
+    EventIteratorStreamResource,
+    StreamFormat,
+)
 from mindor.dsl.schema.controller.adapter.impl.http_server import (
     HttpServerControllerAdapterConfig,
     WebSocketConfig,
 )
 from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
+from starlette.responses import JSONResponse, Response, StreamingResponse
 
 
 @pytest.fixture
@@ -344,7 +351,7 @@ class TestHandleWsMessage:
         adapter = make_adapter()
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
-        await adapter._handle_ws_message("client-1", "not-json{{{")
+        await adapter._handle_websocket_message("client-1", "not-json{{{")
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -355,7 +362,7 @@ class TestHandleWsMessage:
         adapter = make_adapter()
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
-        await adapter._handle_ws_message("client-1", json.dumps({"type": "unknown_op"}))
+        await adapter._handle_websocket_message("client-1", json.dumps({"type": "unknown_op"}))
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -371,7 +378,7 @@ class TestWsRunWorkflow:
         await adapter.websocket_manager.connect("client-1", ws)
 
         data = {"workflow_id": "__default__", "subscribe_task": False}
-        await adapter._ws_run_workflow("client-1", "msg-1", data)
+        await adapter._websocket_run_workflow("client-1", "msg-1", data)
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
@@ -388,7 +395,7 @@ class TestWsRunWorkflow:
         await adapter.websocket_manager.connect("client-1", ws)
 
         data = {"workflow_id": "__default__", "subscribe_task": True}
-        await adapter._ws_run_workflow("client-1", "msg-1", data)
+        await adapter._websocket_run_workflow("client-1", "msg-1", data)
 
         assert "client-1" in adapter.websocket_manager._task_subscriptions.get("task-99", set())
 
@@ -399,7 +406,7 @@ class TestWsRunWorkflow:
         await adapter.websocket_manager.connect("client-1", ws)
 
         data = {"workflow_id": "nonexistent"}
-        await adapter._ws_run_workflow("client-1", "msg-1", data)
+        await adapter._websocket_run_workflow("client-1", "msg-1", data)
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
@@ -416,7 +423,7 @@ class TestWsSubscribeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_subscribe_task("client-1", "msg-1", {"task_id": "task-1"})
+        await adapter._websocket_subscribe_task("client-1", "msg-1", {"task_id": "task-1"})
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
@@ -429,7 +436,7 @@ class TestWsSubscribeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_subscribe_task("client-1", "msg-1", {})
+        await adapter._websocket_subscribe_task("client-1", "msg-1", {})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -443,7 +450,7 @@ class TestWsSubscribeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_subscribe_task("client-1", "msg-1", {"task_id": "no-such-task"})
+        await adapter._websocket_subscribe_task("client-1", "msg-1", {"task_id": "no-such-task"})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -458,7 +465,7 @@ class TestWsUnsubscribeTask:
         await adapter.websocket_manager.connect("client-1", ws)
         adapter.websocket_manager.subscribe_to_task("client-1", "task-1")
 
-        await adapter._ws_unsubscribe_task("client-1", "msg-1", {"task_id": "task-1"})
+        await adapter._websocket_unsubscribe_task("client-1", "msg-1", {"task_id": "task-1"})
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
@@ -471,7 +478,7 @@ class TestWsUnsubscribeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_unsubscribe_task("client-1", "msg-1", {})
+        await adapter._websocket_unsubscribe_task("client-1", "msg-1", {})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -487,7 +494,7 @@ class TestWsResumeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_resume_task(
+        await adapter._websocket_resume_task(
             "client-1", "msg-1",
             {"task_id": "task-1", "job_id": "job-1", "answer": "yes"}
         )
@@ -503,7 +510,7 @@ class TestWsResumeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_resume_task("client-1", "msg-1", {"task_id": "task-1"})
+        await adapter._websocket_resume_task("client-1", "msg-1", {"task_id": "task-1"})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -517,7 +524,7 @@ class TestWsResumeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_resume_task(
+        await adapter._websocket_resume_task(
             "client-1", "msg-1",
             {"task_id": "task-1", "job_id": "job-1"}
         )
@@ -534,7 +541,7 @@ class TestWsResumeTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_resume_task(
+        await adapter._websocket_resume_task(
             "client-1", "msg-1",
             {"task_id": "task-1", "job_id": "wrong-job"}
         )
@@ -552,7 +559,7 @@ class TestWsGetTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_get_task("client-1", "msg-1", {"task_id": "task-1"})
+        await adapter._websocket_get_task("client-1", "msg-1", {"task_id": "task-1"})
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
@@ -566,7 +573,7 @@ class TestWsGetTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_get_task("client-1", "msg-1", {})
+        await adapter._websocket_get_task("client-1", "msg-1", {})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "error"
@@ -580,7 +587,7 @@ class TestWsGetTask:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_get_task("client-1", "msg-1", {"task_id": "ghost"})
+        await adapter._websocket_get_task("client-1", "msg-1", {"task_id": "ghost"})
 
         sent = ws.send_json.call_args[0][0]
         assert sent["data"]["code"] == "TASK_NOT_FOUND"
@@ -593,10 +600,122 @@ class TestWsPing:
         ws = make_websocket()
         await adapter.websocket_manager.connect("client-1", ws)
 
-        await adapter._ws_ping("client-1", "msg-1", {})
+        await adapter._websocket_ping("client-1", "msg-1", {})
 
         ws.send_json.assert_awaited_once()
         sent = ws.send_json.call_args[0][0]
         assert sent["type"] == "pong"
         assert sent["id"] == "msg-1"
         assert "timestamp" in sent["data"]
+
+
+# ============================
+# _render_task_output branching
+# ============================
+
+def _make_async_iterator(items):
+    """Create an AsyncIterator from a list."""
+    async def _gen():
+        for item in items:
+            yield item
+    return _gen()
+
+
+class TestRenderTaskOutputStatusBranching:
+    def test_pending_returns_202(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.PENDING)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 202
+
+    def test_processing_returns_202(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.PROCESSING)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 202
+
+    def test_interrupted_returns_202(self):
+        adapter = make_adapter()
+        interrupt = InterruptState(job_id="job-1", phase="before", message="confirm?")
+        state = make_task_state(status=TaskStatus.INTERRUPTED, interrupt=interrupt)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 202
+
+    def test_failed_raises_500(self):
+        from starlette.exceptions import HTTPException
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.FAILED, error=ValueError("oops"))
+        with pytest.raises(HTTPException) as exc_info:
+            adapter._render_task_output(state)
+        assert exc_info.value.status_code == 500
+
+
+class TestRenderTaskOutputTypeBranching:
+    def test_dict_output_returns_json_response(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output={"key": "value"})
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+
+    def test_bytes_output_returns_octet_stream(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output=b"binary data")
+        response = adapter._render_task_output(state)
+        assert isinstance(response, Response)
+        assert response.media_type == "application/octet-stream"
+
+    def test_iterator_stream_resource_returns_streaming_response(self):
+        adapter = make_adapter()
+        resource = EventIteratorStreamResource(
+            _make_async_iterator(["chunk"]), StreamFormat.TEXT
+        )
+        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "text/event-stream"
+
+    def test_bytes_stream_resource_returns_streaming_response(self):
+        adapter = make_adapter()
+        resource = BytesStreamResource(b"file data", "application/pdf")
+        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "application/pdf"
+
+    def test_async_iterator_returns_streaming_response(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output=_make_async_iterator([b"hello", b"world"]))
+        response = adapter._render_task_output(state)
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "application/octet-stream"
+
+    def test_stream_resource_with_event_stream_type_returns_sse(self):
+        adapter = make_adapter()
+        resource = EventIteratorStreamResource(
+            _make_async_iterator(["chunk"]), StreamFormat.TEXT
+        )
+        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "text/event-stream"
+
+    def test_string_output_returns_json_response(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output="hello")
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+
+    def test_none_output_returns_json_response(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output=None)
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)
+
+    def test_list_output_returns_json_response(self):
+        adapter = make_adapter()
+        state = make_task_state(status=TaskStatus.COMPLETED, output=[1, 2, 3])
+        response = adapter._render_task_output(state)
+        assert isinstance(response, JSONResponse)

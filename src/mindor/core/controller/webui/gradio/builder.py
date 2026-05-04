@@ -5,15 +5,14 @@ from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.schema import WorkflowSchema
 
-from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource, TextStreamIterator
+from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
-from mindor.core.utils.audio import pcm_to_wav
+from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
 from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
-from collections.abc import AsyncIterator
 import gradio as gr
 import json, re
 
@@ -108,19 +107,19 @@ class GradioWebUIBuilder:
                 # Clear interrupt panel for normal results
                 clear_interrupt = self._clear_interrupt_updates()
 
-                if isinstance(output, AsyncIterator) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
-                    if self._is_streaming_variable(workflow.output[0]):
-                        buffer = "" if workflow.output[0].type == WorkflowVariableType.TEXT else []
+                if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
+                    if workflow.output[0].type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
+                        buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
                         async for chunk in output:
                             chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
-                            if workflow.output[0].type == WorkflowVariableType.TEXT:
+                            if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
                                 buffer += chunk[0] or ""
                             else:
                                 buffer.append(chunk[0])
                             yield [ _run_button_running(), *clear_interrupt, buffer ]
                         yield [ _run_button_ready(), *clear_interrupt, buffer ]
                     else:
-                        result = await self._collect_stream_to_file(output, workflow.output[0])
+                        result = await self._save_stream_to_temporary_file(output, workflow.output[0])
                         yield [ _run_button_ready(), *clear_interrupt, result ]
                 else:
                     if workflow.output:
@@ -186,9 +185,6 @@ class GradioWebUIBuilder:
             )
 
         return section
-
-    def _is_streaming_variable(self, variable: WorkflowVariableConfig) -> bool:
-        return variable.format in [ WorkflowVariableFormat.SSE_JSON, WorkflowVariableFormat.SSE_TEXT ]
 
     def _build_input_component(self, variable: WorkflowVariableConfig) -> gr.Component:
         label = (variable.name or "") + (" *" if variable.required else "") + (f" (default: {variable.default})" if variable.default is not None else "")
@@ -329,6 +325,9 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.VIDEO:
             return gr.Video(label=label)
 
+        if variable.type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
+            return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])
+
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
 
     def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
@@ -392,8 +391,11 @@ class GradioWebUIBuilder:
         return None if variable.name else output
 
     async def _convert_output_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if variable.format == WorkflowVariableFormat.SSE_JSON:
+        if variable.type == WorkflowVariableType.SSE_JSON:
             return self._resolve_json_field_from_bytes(value, variable.subtype, variable.format)
+
+        if variable.type == WorkflowVariableType.SSE_TEXT:
+            return self._convert_value_to_string(value, variable.subtype, variable.format)
 
         if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
             return self._convert_value_to_string(value, variable.subtype, variable.format)
@@ -454,19 +456,8 @@ class GradioWebUIBuilder:
 
         return None
 
-    async def _collect_stream_to_file(self, stream, variable: WorkflowVariableConfig) -> Optional[str]:
-        data = await self._collect_stream_to_bytes(stream)
-
+    async def _save_stream_to_temporary_file(self, stream: StreamResource, variable: WorkflowVariableConfig) -> Optional[str]:
         if variable.type == WorkflowVariableType.AUDIO and variable.subtype == "pcm":
-            return await save_stream_to_temporary_file(BytesStreamResource(pcm_to_wav(data, variable.attrs)), "wav")
+            return await save_stream_to_temporary_file(WavStreamResource(PcmStreamResource(stream, variable.attrs)), "wav")
 
-        return await save_stream_to_temporary_file(BytesStreamResource(data), variable.subtype)
-
-    async def _collect_stream_to_bytes(self, stream) -> Optional[bytes]:
-        buffer = bytearray()
-        async for chunk in stream:
-            if isinstance(chunk, bytes):
-                buffer.extend(chunk)
-            elif isinstance(chunk, (bytearray, memoryview)):
-                buffer.extend(bytes(chunk))
-        return bytes(buffer)
+        return await save_stream_to_temporary_file(stream, variable.subtype)

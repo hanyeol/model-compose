@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
-from mindor.core.utils.streamer import AsyncStreamer
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 import asyncio

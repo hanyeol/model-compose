@@ -1,9 +1,14 @@
 from typing import Optional
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
+from enum import Enum
 from tempfile import NamedTemporaryFile
 from starlette.datastructures import UploadFile
 import aiofiles, os, io, base64
+
+class StreamFormat(str, Enum):
+    TEXT = "text"
+    JSON = "json"
 
 class StreamResource(ABC):
     def __init__(self, content_type: Optional[str], filename: Optional[str]):
@@ -114,6 +119,19 @@ class Base64StreamResource(StreamResource):
                 break
             yield chunk
 
+class EventIteratorStreamResource(StreamResource):
+    def __init__(self, iterator, format=None):
+        super().__init__("text/event-stream", None)
+        self.iterator = iterator
+        self.format = format
+
+    async def close(self):
+        self.iterator = None
+
+    async def _iterate_stream(self):
+        async for chunk in self.iterator:
+            yield chunk
+
 async def save_stream_to_temporary_file(stream: StreamResource, extension: Optional[str]) -> Optional[str]:
     try:
         file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
@@ -125,6 +143,13 @@ async def save_stream_to_temporary_file(stream: StreamResource, extension: Optio
         return file.name
     except Exception:
         return None
+
+async def read_stream_to_buffer(stream: StreamResource) -> io.BytesIO:
+    buffer = io.BytesIO()
+    async for chunk in stream:
+        buffer.write(chunk)
+    buffer.seek(0)
+    return buffer
 
 async def encode_stream_to_base64(stream: StreamResource) -> str:
     buffer = io.BytesIO()

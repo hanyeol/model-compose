@@ -102,7 +102,7 @@ controller:
 | `driver` | string | **required** | Queue backend driver. Currently supported: `redis` |
 | `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
 | `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` means no expiry |
-| `max_concurrent` | integer | `1` | Maximum number of tasks processed concurrently |
+| `max_concurrent_count` | integer | `1` | Maximum number of tasks processed concurrently |
 | `worker_id` | string | `null` | Unique worker identifier. Auto-generated (ULID) if not set |
 | `workflows` | list | `["__default__"]` | Workflow IDs to handle. Each gets its own queue: `{name}:{workflow_id}` |
 | `workflow` | string | - | Shorthand for single workflow. Inflated to `workflows: [value]` |
@@ -193,7 +193,7 @@ controller:
   driver: redis
   url: redis://localhost:6379
   workflow: my-workflow
-  max_concurrent: 3
+  max_concurrent_count: 3
 ```
 
 **Multi-workflow worker:**
@@ -205,7 +205,7 @@ controller:
   workflows:
     - text-summary
     - translation
-  max_concurrent: 5
+  max_concurrent_count: 5
 ```
 
 **Worker with custom queue and result settings:**
@@ -222,7 +222,7 @@ controller:
   worker_id: gpu-worker-01
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 **TLS connection using URL:**
@@ -233,7 +233,7 @@ controller:
   url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 **TLS connection using host/port:**
@@ -248,7 +248,7 @@ controller:
   database: 2
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 ## Common Configuration Options
@@ -495,7 +495,7 @@ controller:
   workflows:
     - image-generation
     - text-summary
-  max_concurrent: 4
+  max_concurrent_count: 4
   result_ttl: 3600
 ```
 
@@ -519,7 +519,7 @@ controller:
     type: queue-subscriber
     driver: redis
     url: redis://redis.internal:6379
-    max_concurrent: 4
+    max_concurrent_count: 4
 ```
 
 ## Usage Notes

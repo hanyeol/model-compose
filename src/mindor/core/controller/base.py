@@ -282,6 +282,7 @@ class ControllerService(AsyncService):
         new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, new_state)
+        self._notify_task_state_change(task_id)
         self._invoke_task_state_listeners(task_id)
 
         return new_state
@@ -487,6 +488,7 @@ class ControllerService(AsyncService):
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
+        self._notify_task_state_change(task_id)
         self._invoke_task_state_listeners(task_id)
 
         try:

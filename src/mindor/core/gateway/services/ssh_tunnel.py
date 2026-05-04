@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig, SshConnectionConfig, SshAuthConfig
@@ -23,28 +22,69 @@ class SshTunnelGateway(GatewayService):
 
     def get_context(self, port: int) -> Optional[Dict[str, Any]]:
         remote_port = self.ports.get(port)
+ 
         if remote_port is not None:
             return {
                 "public_address": f"{self.config.connection.host}:{remote_port}"
             }
+ 
         return None
 
     def serves_port(self, port: int) -> bool:
         return port in self.ports
 
     async def _serve(self) -> None:
-        """Establish SSH tunnel and start remote port forwarding"""
-        logging.info(
-            f"Establishing SSH tunnel to {self.config.connection.host}:{self.config.connection.port}"
-        )
+        watch_interval = parse_duration(self.config.connection.watch_interval).total_seconds()
+        retry_interval = parse_duration(self.config.connection.retry_interval).total_seconds()
 
         self._shutdown_event = asyncio.Event()
+        retry_count = 0
 
-        self.client = SshClient(self._build_connection_params(self.config.connection))
+        while not self._shutdown_event.is_set():
+            try:
+                await self._establish_tunnel(self.config.connection, self.config.port)
+                retry_count = 0
+
+                while not self._shutdown_event.is_set():
+                    if not self.client or not self.client.is_connected():
+                        raise ConnectionError("SSH connection lost")
+
+                    await self._wait_for_shutdown(self._shutdown_event, timeout=watch_interval)
+            except Exception as e:
+                if self._shutdown_event.is_set():
+                    break
+
+                await self._reset_connection()
+                retry_count += 1
+
+                if self.config.connection.max_retry_count > 0 and retry_count > self.config.connection.max_retry_count:
+                    logging.error(f"SSH max retry count ({self.config.connection.max_retry_count}) reached. Giving up.")
+                    break
+
+                logging.warning(f"SSH connection lost: {e}. Reconnecting in {retry_interval}s... (attempt {retry_count})")
+
+                if await self._wait_for_shutdown(self._shutdown_event, retry_interval):
+                    break
+
+    async def _shutdown(self) -> None:
+        if self._shutdown_event:
+            self._shutdown_event.set()
+
+        if self.client:
+            logging.info(f"Stopping SSH tunnel to {self.config.connection.host}:{self.config.connection.port}")
+            await self.client.close()
+
+        self.client = None
+        self.ports = {}
+
+    async def _establish_tunnel(self, connection: SshConnectionConfig, forwards: List[List[Union[int, str]]]) -> None:
+        logging.info(f"Establishing SSH tunnel to {connection.host}:{connection.port}")
+
+        self.client = SshClient(self._build_connection_params(connection))
         await self.client.connect()
 
         # Start remote port forwarding for each port mapping
-        for remote_port, local_host, local_port in self.config.port:
+        for remote_port, local_host, local_port in forwards:
             actual_remote_port = await self.client.start_remote_port_forwarding(
                 remote_port=remote_port,
                 local_port=local_port,
@@ -53,12 +93,7 @@ class SshTunnelGateway(GatewayService):
 
             self.ports[local_port] = actual_remote_port
 
-            logging.info(
-                f"Remote port forwarding started: {self.config.connection.host}:{remote_port} -> {local_host}:{local_port}"
-            )
-
-        # Keep the SSH connection alive until shutdown event is set
-        await self._shutdown_event.wait()
+            logging.info(f"Remote port forwarding started: {connection.host}:{remote_port} -> {local_host}:{local_port}")
 
     def _build_connection_params(self, config: SshConnectionConfig) -> SshConnectionParams:
         return SshConnectionParams(
@@ -83,18 +118,19 @@ class SshTunnelGateway(GatewayService):
 
         raise ValueError(f"Unknown SSH auth type: {config.type}")
 
-    async def _shutdown(self) -> None:
-        """Stop SSH tunnel and cleanup"""
-        # Signal the _serve task to stop
-        if self._shutdown_event:
-            self._shutdown_event.set()
+    async def _wait_for_shutdown(self, shutdown_event: asyncio.Event, timeout: float) -> bool:
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=timeout)
+            return True
+        except asyncio.TimeoutError:
+            return False
 
+    async def _reset_connection(self) -> None:
         if self.client:
-            logging.info(
-                f"Stopping SSH tunnel to {self.config.connection.host}:{self.config.connection.port}"
-            )
+            try:
+                await self.client.close()
+            except Exception as e:
+                logging.debug(f"Error closing SSH connection during reset: {e}")
 
-            await self.client.close()
-            self.client = None
-            self.ports = {}
-            self._shutdown_event = None
+        self.client = None
+        self.ports = {}

@@ -146,7 +146,7 @@ workflow:
 3. 在控制器中指定响应格式：
 ```yaml
 workflow:
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 ```
 
 ### 17.1.4 Web UI

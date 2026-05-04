@@ -572,7 +572,7 @@ controller:
   driver: redis
   url: redis://localhost:6379
   workflow: image-processing
-  max_concurrent: 2
+  max_concurrent_count: 2
 
 workflow:
   title: Image Processing
@@ -683,7 +683,7 @@ controller:
   driver: redis
   url: redis://localhost:6379
   workflow: text-summary
-  max_concurrent: 3
+  max_concurrent_count: 3
 ```
 
 推送任务：
@@ -704,7 +704,7 @@ controller:
   workflows:
     - text-summary
     - translation
-  max_concurrent: 5
+  max_concurrent_count: 5
 ```
 
 #### 场景 3：专用工作者
@@ -718,7 +718,7 @@ controller:
   driver: redis
   url: redis://shared-redis:6379
   workflow: image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 
 # CPU 服务器 — 文本处理
 controller:
@@ -728,7 +728,7 @@ controller:
   workflows:
     - text-summary
     - translation
-  max_concurrent: 10
+  max_concurrent_count: 10
 ```
 
 ### 消费结果
@@ -770,7 +770,7 @@ controller:
   worker_id: gpu-worker-01
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 使用 URL（带 TLS）：
@@ -781,7 +781,7 @@ controller:
   url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 > **注意**：需要安装 `redis` Python 包（`redis>=5.0.0`）。它已包含在 model-compose 的依赖项中。
@@ -865,7 +865,7 @@ controller:
     driver: redis
     url: redis://redis.internal:6379
     workflow: image-generation
-    max_concurrent: 2
+    max_concurrent_count: 2
 
 workflow:
   id: image-generation
@@ -880,7 +880,7 @@ controller:
     driver: redis
     url: redis://redis.internal:6379
     workflow: image-generation
-    max_concurrent: 2
+    max_concurrent_count: 2
 
 workflow:
   id: image-generation
@@ -950,7 +950,7 @@ component:
     workflow: chat
     input:
       prompt: ${input.prompt as text}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 ```
 
 **工作节点** (`subscriber/model-compose.yml`):
@@ -972,7 +972,7 @@ workflow:
     component: openai
     input:
       prompt: ${input.prompt}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   id: openai

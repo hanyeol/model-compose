@@ -146,7 +146,7 @@ workflow:
 3. 컨트롤러에서 응답 형식 지정:
 ```yaml
 workflow:
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 ```
 
 ### 17.1.4 Web UI

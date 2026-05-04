@@ -97,7 +97,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: http-client

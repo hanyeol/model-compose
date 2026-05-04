@@ -203,7 +203,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}    # SSE 텍스트 형식으로 출력
+  output: ${output as sse-text}    # SSE 텍스트 형식으로 출력
 
 component:
   type: http-client
@@ -225,14 +225,14 @@ component:
 
 **워크플로우 출력 형식:**
 
-- `as text;sse-text`: SSE 텍스트 스트림
+- `as sse-text`: SSE 텍스트 스트림
   ```yaml
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
   ```
 
-- `as text;sse-json`: SSE JSON 스트림
+- `as sse-json`: SSE JSON 스트림
   ```yaml
-  output: ${output as text;sse-json}
+  output: ${output as sse-json}
   ```
 
 ### 12.3.2 여러 단계 워크플로우 스트리밍
@@ -241,7 +241,7 @@ component:
 workflows:
   - id: translate-and-summarize
     title: Translate and Summarize
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
     jobs:
       - id: translate
         component: translator
@@ -287,7 +287,7 @@ components:
 ```yaml
 workflow:
   title: Conditional Streaming
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -490,7 +490,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -671,7 +671,7 @@ controller:
 
 workflow:
   title: Real-time Translation
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -690,7 +690,7 @@ component:
 workflows:
   - id: multi-model-chat
     title: Multi-Model Chat
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
     jobs:
       - id: openai-response
         component: openai-client
@@ -748,7 +748,7 @@ controller:
 
 workflow:
   title: Local Model Streaming
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: http-server

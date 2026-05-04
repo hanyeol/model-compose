@@ -203,7 +203,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}    # 输出为SSE文本格式
+  output: ${output as sse-text}    # 输出为SSE文本格式
 
 component:
   type: http-client
@@ -225,14 +225,14 @@ component:
 
 **工作流输出格式：**
 
-- `as text;sse-text`: SSE文本流
+- `as sse-text`: SSE文本流
   ```yaml
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
   ```
 
-- `as text;sse-json`: SSE JSON流
+- `as sse-json`: SSE JSON流
   ```yaml
-  output: ${output as text;sse-json}
+  output: ${output as sse-json}
   ```
 
 ### 12.3.2 多步骤工作流流式
@@ -241,7 +241,7 @@ component:
 workflows:
   - id: translate-and-summarize
     title: Translate and Summarize
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
     jobs:
       - id: translate
         component: translator
@@ -287,7 +287,7 @@ components:
 ```yaml
 workflow:
   title: Conditional Streaming
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -490,7 +490,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -671,7 +671,7 @@ controller:
 
 workflow:
   title: Real-time Translation
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: model
@@ -690,7 +690,7 @@ component:
 workflows:
   - id: multi-model-chat
     title: Multi-Model Chat
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
     jobs:
       - id: openai-response
         component: openai-client
@@ -748,7 +748,7 @@ controller:
 
 workflow:
   title: Local Model Streaming
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: http-server

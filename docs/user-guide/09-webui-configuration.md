@@ -91,13 +91,13 @@ Gradio automatically generates UI based on workflow `input` and `output` definit
 
 ### Streaming Output Support
 
-When workflow output is specified as `as text;sse-text` or `as json;sse-json`, it's displayed in real-time streaming.
+When workflow output is specified as `as sse-text` or `as sse-json`, it's displayed in real-time streaming.
 
 ```yaml
 workflow:
   title: Summarize Text
   input: ${input}
-  output: ${output as text;sse-text}  # Streaming output
+  output: ${output as sse-text}  # Streaming output
 
 component:
   type: model

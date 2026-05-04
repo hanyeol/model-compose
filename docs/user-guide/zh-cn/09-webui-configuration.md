@@ -91,13 +91,13 @@ Gradio 根据工作流的 `input` 和 `output` 定义自动生成 UI：
 
 ### 流式输出支持
 
-当工作流输出指定为 `as text;sse-text` 或 `as json;sse-json` 时，会实时流式显示。
+当工作流输出指定为 `as sse-text` 或 `as sse-json` 时，会实时流式显示。
 
 ```yaml
 workflow:
   title: Summarize Text
   input: ${input}
-  output: ${output as text;sse-text}  # 流式输出
+  output: ${output as sse-text}  # 流式输出
 
 component:
   type: model

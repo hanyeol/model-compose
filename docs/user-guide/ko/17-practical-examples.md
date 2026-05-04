@@ -1,16 +1,30 @@
-# 16. Practical Examples
+# 15. 실전 예제
 
-This chapter provides step-by-step explanations of real-world use cases using model-compose. Each example includes complete configuration and execution instructions.
+이 장에서는 model-compose를 활용한 실제 사용 사례를 단계별로 설명합니다. 각 예제는 완전한 구성과 실행 방법을 포함합니다.
 
 ---
 
-## 16.1 Building a Chatbot
+## 16.1 챗봇 구축
 
-### 16.1.1 OpenAI GPT-4o Chatbot
+### 16.1.1 OpenAI GPT-4o 챗봇
 
-**Goal**: Build a simple conversational chatbot using OpenAI GPT-4o
+**목표**: OpenAI GPT-4o를 사용한 간단한 대화형 챗봇 구축
 
-**Configuration File** (`model-compose.yml`):
+**아키텍처 다이어그램**:
+
+```mermaid
+graph TD
+    A[사용자] -->|① 프롬프트 입력| B[Web UI<br/>Port 8081]
+    B -->|② HTTP 요청| C[Controller<br/>Port 8080]
+    C -->|③ 워크플로우 실행| D[http-client<br/>컴포넌트]
+    D -->|④ API 호출| E[OpenAI GPT-4o<br/>API]
+    E -->|⑤ 응답| D
+    D -->|⑥ 결과| C
+    C -->|⑦ JSON 응답| B
+    B -->|⑧ 텍스트 표시| A
+```
+
+**구성 파일** (`model-compose.yml`):
 
 ```yaml
 controller:
@@ -46,46 +60,32 @@ component:
       message: ${response.choices[0].message.content}
 ```
 
-**Environment Variables** (`.env`):
+**환경 변수 설정** (`.env`):
 
 ```bash
 OPENAI_API_KEY=sk-...
 ```
 
-**How to Run**:
+**실행 방법**:
 
 ```bash
-# Start controller
+# 컨트롤러 시작
 model-compose up
 
-# Access Web UI
+# Web UI 접속
 # http://localhost:8081
 ```
 
-**Key Features**:
-- Automatic Gradio Web UI generation
-- Adjustable temperature parameter
-- Real-time response display
+**주요 기능**:
+- Gradio Web UI 자동 생성
+- 온도(temperature) 파라미터 조정 가능
+- 실시간 응답 표시
 
-**Architecture Diagram**:
+### 16.1.2 스트리밍 챗봇
 
-```mermaid
-graph TD
-    A[User] -->|① Input prompt| B[Web UI<br/>Port 8081]
-    B -->|② HTTP request| C[Controller<br/>Port 8080]
-    C -->|③ Execute workflow| D[http-client<br/>component]
-    D -->|④ API call| E[OpenAI GPT-4o<br/>API]
-    E -->|⑤ Response| D
-    D -->|⑥ Result| C
-    C -->|⑦ JSON response| B
-    B -->|⑧ Display text| A
-```
+**목표**: 실시간 타이핑 효과를 가진 스트리밍 챗봇
 
-### 16.1.2 Streaming Chatbot
-
-**Goal**: Build a streaming chatbot with real-time typing effect
-
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -97,7 +97,7 @@ controller:
 
 workflow:
   title: Streaming Chat
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 
 component:
   type: http-client
@@ -117,58 +117,58 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-**Features**:
-- Real-time streaming using SSE protocol
-- Automatic typing effect in Gradio
-- Immediate feedback for long responses
+**특징**:
+- SSE 프로토콜을 사용한 실시간 스트리밍
+- Gradio에서 자동으로 타이핑 효과 적용
+- 긴 응답에 대한 즉각적인 피드백
 
-**Streaming Flow Diagram**:
+**스트리밍 흐름 다이어그램**:
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant U as 사용자
     participant W as Web UI
     participant C as Controller
     participant HC as http-client
     participant API as OpenAI API
 
-    U->>W: Input prompt
+    U->>W: 프롬프트 입력
     W->>C: POST /api/workflows/runs<br/>(wait_for_completion: true)
-    C->>HC: Execute workflow<br/>(stream: true)
+    C->>HC: 워크플로우 실행<br/>(stream: true)
     HC->>API: POST /chat/completions<br/>(stream: true)
 
-    Note over API: Start generating response
+    Note over API: 응답 생성 시작
 
     API-->>HC: SSE: chunk 1
     HC-->>C: ${response[]} chunk 1
     C-->>W: SSE: "data: Once"
-    W-->>U: Display "Once"
+    W-->>U: 화면에 "Once" 표시
 
     API-->>HC: SSE: chunk 2
     HC-->>C: ${response[]} chunk 2
     C-->>W: SSE: "data:  upon"
-    W-->>U: Append " upon"
+    W-->>U: 화면에 " upon" 추가
 
     API-->>HC: SSE: chunk 3
     HC-->>C: ${response[]} chunk 3
     C-->>W: SSE: "data:  a"
-    W-->>U: Append " a"
+    W-->>U: 화면에 " a" 추가
 
-    Note over API: Response complete
+    Note over API: 응답 완료
     API-->>HC: [DONE]
-    HC-->>C: Stream ended
-    C-->>W: Close connection
+    HC-->>C: 스트림 종료
+    C-->>W: 연결 종료
 ```
 
 ---
 
-## 16.2 Voice Generation Pipeline
+## 16.2 음성 생성 파이프라인
 
-### 16.2.1 Text-to-Speech (OpenAI TTS)
+### 16.2.1 텍스트를 음성으로 변환 (OpenAI TTS)
 
-**Goal**: Convert text to speech using OpenAI TTS API
+**목표**: OpenAI TTS API를 사용하여 텍스트를 음성으로 변환
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -205,20 +205,20 @@ components:
       output: ${response}
 ```
 
-**Supported Voices**:
+**지원 음성**:
 - `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`
 - `onyx`, `nova`, `sage`, `shimmer`, `verse`
 
-**Supported Models**:
-- `tts-1`: Fast response
-- `tts-1-hd`: High-quality audio
-- `gpt-4o-mini-tts`: Latest model
+**지원 모델**:
+- `tts-1`: 빠른 응답
+- `tts-1-hd`: 고품질 음성
+- `gpt-4o-mini-tts`: 최신 모델
 
-### 16.2.2 Inspiring Quote Voice Generation
+### 16.2.2 영감을 주는 명언 음성 생성
 
-**Goal**: Generate motivational quotes with GPT-4o and convert to speech with ElevenLabs TTS
+**목표**: GPT-4o로 명언 생성 후 ElevenLabs TTS로 음성 변환
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -285,40 +285,40 @@ components:
       output: ${response as base64}
 ```
 
-**Environment Variables**:
+**환경 변수**:
 
 ```bash
 OPENAI_API_KEY=sk-...
 ELEVENLABS_API_KEY=...
 ```
 
-**Workflow Description**:
-1. GPT-4o generates an inspiring quote
-2. ElevenLabs API converts quote to speech
-3. Web UI displays both text and audio
+**워크플로우 설명**:
+1. GPT-4o가 영감을 주는 명언 생성
+2. ElevenLabs API가 명언을 음성으로 변환
+3. Web UI에서 텍스트와 오디오 모두 표시
 
-**Workflow Diagram**:
+**워크플로우 다이어그램**:
 
 ```mermaid
 graph TD
-    A[User Input] -->|① Input| B[Job 1: job-quote<br/>write-inspiring-quote]
-    B -->|② GPT-4o API call| C[OpenAI API]
-    C -->|③ Quote text returned| B
+    A[사용자 입력] -->|① 트리거| B[Job 1: job-quote<br/>write-inspiring-quote]
+    B -->|② GPT-4o API 호출| C[OpenAI API]
+    C -->|③ 명언 텍스트 반환| B
     B -->|④ output.quote<br/>depends_on: job-quote| D[Job 2: job-voice<br/>text-to-speech]
-    D -->|⑤ TTS API call<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
-    E -->|⑥ Audio data returned<br/>Base64| D
-    D -->|⑦ Final output| F[Result<br/>quote: Text<br/>audio: Base64]
+    D -->|⑤ TTS API 호출<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
+    E -->|⑥ 음성 데이터 반환<br/>Base64| D
+    D -->|⑦ 최종 출력| F[결과<br/>quote: 텍스트<br/>audio: Base64]
 ```
 
 ---
 
-## 16.3 Image Analysis and Editing
+## 16.3 이미지 분석 및 편집
 
-### 16.3.1 Image Captioning (Image-to-Text)
+### 16.3.1 이미지 캡셔닝 (Image-to-Text)
 
-**Goal**: Generate image descriptions using a local Vision model
+**목표**: 로컬 Vision 모델을 사용하여 이미지 설명 생성
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -346,23 +346,23 @@ component:
     prompt: ${input.prompt as text}
 ```
 
-**Execution Example**:
+**실행 예제**:
 
 ```bash
-# Run workflow
+# 워크플로우 실행
 model-compose run default --input '{"image": "path/to/image.jpg", "prompt": "Describe this image"}'
 ```
 
-**Supported Models**:
+**지원 모델**:
 - `Salesforce/blip-image-captioning-large`
 - `Salesforce/blip-image-captioning-base`
 - `nlpconnect/vit-gpt2-image-captioning`
 
-### 16.3.2 Image Editing (OpenAI DALL-E)
+### 16.3.2 이미지 편집 (OpenAI DALL-E)
 
-**Goal**: Edit images using OpenAI DALL-E
+**목표**: OpenAI DALL-E를 사용하여 이미지 편집
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -396,20 +396,20 @@ component:
     output: ${response.data[0].url}
 ```
 
-**Use Cases**:
-- Change image backgrounds
-- Modify specific regions
-- Style transfer
+**사용 시나리오**:
+- 이미지 배경 변경
+- 특정 영역 수정
+- 스타일 변환
 
 ---
 
-## 16.4 RAG System (Using Vector DB)
+## 16.4 RAG 시스템 (벡터 DB 활용)
 
-### 16.4.1 Text Embedding Search with ChromaDB
+### 16.4.1 ChromaDB를 사용한 텍스트 임베딩 검색
 
-**Goal**: Generate text embeddings, store in ChromaDB, and perform similarity search
+**목표**: 텍스트 임베딩을 생성하고 ChromaDB에 저장한 후 유사도 검색
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -494,30 +494,30 @@ components:
       text: ${input.text}
 ```
 
-**API Usage Examples**:
+**API 사용 예제**:
 
 ```bash
-# 1. Insert text
+# 1. 텍스트 삽입
 curl -X POST http://localhost:8080/api/workflows/insert-sentence-embedding/runs \
   -H "Content-Type: application/json" \
   -d '{"input": {"text": "model-compose is a declarative AI orchestrator"}}'
 
-# 2. Search similar text
+# 2. 유사 텍스트 검색
 curl -X POST http://localhost:8080/api/workflows/search-sentence-embeddings/runs \
   -H "Content-Type: application/json" \
   -d '{"input": {"text": "AI workflow tool"}}'
 
-# 3. Delete
+# 3. 삭제
 curl -X POST http://localhost:8080/api/workflows/delete-sentence-embedding/runs \
   -H "Content-Type: application/json" \
   -d '{"input": {"vector_id": "id123"}}'
 ```
 
-### 16.4.2 RAG System with Milvus
+### 16.4.2 Milvus를 사용한 RAG 시스템
 
-**Goal**: High-performance RAG system using Milvus vector database
+**목표**: Milvus 벡터 데이터베이스를 사용한 고성능 RAG 시스템
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -590,38 +590,38 @@ components:
       output: ${response.choices[0].message.content}
 ```
 
-**Features**:
-- 3-stage pipeline: Embedding → Search → Generation
-- Milvus high-performance vector search
-- Context-based answer generation using GPT-4o
+**특징**:
+- 3단계 파이프라인: 임베딩 → 검색 → 생성
+- Milvus 고성능 벡터 검색
+- GPT-4o를 사용한 컨텍스트 기반 답변 생성
 
-**RAG Pipeline Diagram**:
+**RAG 파이프라인 다이어그램**:
 
 ```mermaid
 graph TD
-    A[User Query<br/>input.query] -->|① Start| B[Job 1: embed-query<br/>embedding-model]
-    B -->|② Text embedding| C[Embedding Vector<br/>768 dimensions]
+    A[사용자 질문<br/>input.query] -->|① 시작| B[Job 1: embed-query<br/>embedding-model]
+    B -->|② 텍스트 임베딩| C[Embedding Vector<br/>768차원]
 
-    C -->|③ Vector input| D[Job 2: search-docs<br/>milvus-store]
-    D -->|④ Vector similarity search| E[(Milvus DB<br/>documents collection)]
-    E -->|⑤ Top 5 docs returned| D
+    C -->|③ 벡터 입력| D[Job 2: search-docs<br/>milvus-store]
+    D -->|④ 벡터 유사도 검색| E[(Milvus DB<br/>documents 컬렉션)]
+    E -->|⑤ Top 5 문서 반환| D
 
-    D -->|⑥ Search results<br/>text + source| F[Job 3: generate-answer<br/>llm GPT-4o]
-    F -->|⑦ Context-based query| G[OpenAI API]
-    G -->|⑧ Answer generation| F
+    D -->|⑥ 검색 결과<br/>text + source| F[Job 3: generate-answer<br/>llm GPT-4o]
+    F -->|⑦ 컨텍스트 기반 질의| G[OpenAI API]
+    G -->|⑧ 답변 생성| F
 
-    F -->|⑨ Final answer| H[Result Return]
+    F -->|⑨ 최종 답변| H[결과 반환]
 ```
 
 ---
 
-## 16.5 Slack Bot (MCP)
+## 16.5 Slack 봇 (MCP)
 
-### 16.5.1 Building a Slack Bot with MCP Server
+### 16.5.1 MCP 서버로 Slack 봇 구축
 
-**Goal**: Build a Slack bot using MCP (Model Context Protocol) server
+**목표**: MCP(Model Context Protocol) 서버를 사용하여 Slack 봇 구축
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -692,19 +692,19 @@ component:
       output: ${response}
 ```
 
-**Environment Variables**:
+**환경 변수**:
 
 ```bash
 SLACK_APP_TOKEN=xoxb-...
 DEFAULT_SLACK_CHANNEL_ID=C...
 ```
 
-**MCP Server Features**:
-- Integration with MCP clients like Claude Desktop
-- Expose multiple workflows as tools
-- Provide parameter descriptions using `@(description ...)` annotations
+**MCP 서버 특징**:
+- Claude Desktop 등의 MCP 클라이언트와 연동
+- 여러 워크플로우를 도구(Tool)로 노출
+- `@(description ...)` 어노테이션으로 파라미터 설명 제공
 
-**Claude Desktop Configuration** (`claude_desktop_config.json`):
+**Claude Desktop 설정** (`claude_desktop_config.json`):
 
 ```json
 {
@@ -721,11 +721,11 @@ DEFAULT_SLACK_CHANNEL_ID=C...
 }
 ```
 
-### 16.5.2 AI-Powered Slack Auto-Reply Bot
+### 16.5.2 AI 기반 Slack 자동 응답 봇
 
-**Goal**: Build a bot that automatically responds to Slack messages using AI
+**목표**: Slack 메시지에 AI가 자동으로 응답하는 봇
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -778,21 +778,21 @@ component:
       message: ${response.choices[0].message.content}
 ```
 
-**Workflow**:
-1. Slack message event occurs
-2. Workflow triggered via ngrok tunnel
-3. GPT-4o generates response
-4. Listener callback sends response to Slack
+**동작 흐름**:
+1. Slack에서 메시지 이벤트 발생
+2. ngrok 터널을 통해 워크플로우 트리거
+3. GPT-4o가 응답 생성
+4. 리스너 콜백이 Slack에 응답 전송
 
 ---
 
-## 16.6 Multimodal Workflows
+## 16.6 멀티모달 워크플로우
 
-### 16.6.1 Image → Text → Speech Pipeline
+### 16.6.1 이미지 → 텍스트 → 음성 파이프라인
 
-**Goal**: Analyze image, generate description, and convert to speech
+**목표**: 이미지를 분석하고 설명을 생성한 후 음성으로 변환
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -870,30 +870,30 @@ components:
       output: ${response}
 ```
 
-**3-Stage Pipeline**:
-1. **Image Analysis**: BLIP model generates image description
-2. **Text Enhancement**: GPT-4o rewrites description to be more detailed and engaging
-3. **Speech Conversion**: OpenAI TTS converts text to speech
+**3단계 파이프라인**:
+1. **이미지 분석**: BLIP 모델이 이미지 설명 생성
+2. **텍스트 향상**: GPT-4o가 설명을 더 자세하고 매력적으로 재작성
+3. **음성 변환**: OpenAI TTS가 텍스트를 음성으로 변환
 
-**Multimodal Pipeline Diagram**:
+**멀티모달 파이프라인 다이어그램**:
 
 ```mermaid
 graph TD
-    A[Image Input<br/>input.image] -->|① Start| B[Job 1: analyze-image<br/>BLIP Model]
-    B -->|② Image→Text<br/>Local inference| C[Basic Description<br/>output.text]
+    A[이미지 입력<br/>input.image] -->|① 시작| B[Job 1: analyze-image<br/>BLIP 모델]
+    B -->|② 이미지→텍스트<br/>로컬 추론| C[기본 설명<br/>output.text]
 
-    C -->|③ Description text| D[Job 2: enhance-description<br/>GPT-4o]
-    D -->|④ Description enhancement<br/>API call| E[Detailed Description<br/>output.message]
+    C -->|③ 설명 텍스트| D[Job 2: enhance-description<br/>GPT-4o]
+    D -->|④ 설명 향상<br/>API 호출| E[상세한 설명<br/>output.message]
 
-    E -->|⑤ Enhanced text| F[Job 3: text-to-speech<br/>OpenAI TTS]
-    F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>description: Text<br/>audio: Audio]
+    E -->|⑤ 향상된 텍스트| F[Job 3: text-to-speech<br/>OpenAI TTS]
+    F -->|⑥ 텍스트→음성<br/>API 호출| G[최종 결과<br/>description: 텍스트<br/>audio: 음성]
 ```
 
-### 16.6.2 Speech → Text → Translation → Speech Pipeline
+### 16.6.2 음성 → 텍스트 → 번역 → 음성 파이프라인
 
-**Goal**: Translate spoken language to another language with speech output
+**목표**: 음성을 다른 언어로 번역하여 음성으로 출력
 
-**Configuration File**:
+**구성 파일**:
 
 ```yaml
 controller:
@@ -968,356 +968,35 @@ components:
       output: ${response}
 ```
 
-**4-Stage Pipeline**:
-1. **Speech Recognition**: Whisper converts speech to text
-2. **Translation**: Helsinki-NLP model translates text
-3. **Speech Synthesis**: OpenAI TTS converts translated text to speech
-4. **Output**: Original text, translated text, and translated audio
+**4단계 파이프라인**:
+1. **음성 인식**: Whisper가 음성을 텍스트로 변환
+2. **번역**: Helsinki-NLP 모델이 텍스트 번역
+3. **음성 합성**: OpenAI TTS가 번역된 텍스트를 음성으로 변환
+4. **결과 출력**: 원본 텍스트, 번역 텍스트, 번역된 음성
 
-**Voice Translation Pipeline Diagram**:
+**음성 번역 파이프라인 다이어그램**:
 
 ```mermaid
 graph TD
-    A[Audio Input<br/>input.audio] -->|① Start| B[Job 1: transcribe<br/>Whisper]
-    B -->|② Speech→Text<br/>OpenAI API| C[Original Text<br/>output.text]
+    A[음성 입력<br/>input.audio] -->|① 시작| B[Job 1: transcribe<br/>Whisper]
+    B -->|② 음성→텍스트<br/>OpenAI API| C[원본 텍스트<br/>output.text]
 
-    C -->|③ Original text| D[Job 2: translate<br/>Helsinki-NLP]
-    D -->|④ Text translation<br/>Local model| E[Translated Text<br/>output.text]
+    C -->|③ 원본 텍스트| D[Job 2: translate<br/>Helsinki-NLP]
+    D -->|④ 텍스트 번역<br/>로컬 모델| E[번역된 텍스트<br/>output.text]
 
-    E -->|⑤ Translated text| F[Job 3: synthesize<br/>OpenAI TTS]
-    F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>original: Original<br/>translated: Translation<br/>audio: Speech]
+    E -->|⑤ 번역된 텍스트| F[Job 3: synthesize<br/>OpenAI TTS]
+    F -->|⑥ 텍스트→음성<br/>API 호출| G[최종 결과<br/>original: 원본<br/>translated: 번역<br/>audio: 음성]
 ```
 
 ---
 
-## 16.7 Browser Automation
+## 16.8 키-값 스토어 (캐싱 & 세션)
 
-### 16.7.1 Web Scraping with CAPTCHA Fallback
+### 16.8.1 API 응답 캐싱
 
-**Goal**: Navigate to a page, detect CAPTCHAs, pause for human resolution via noVNC, then extract content
+**목표**: Redis에 LLM API 응답을 캐싱하여 동일한 프롬프트에 대한 중복 호출 방지
 
-**Prerequisites**:
-
-Start a headless Chrome with noVNC:
-
-```bash
-docker run -d -p 9222:9222 -p 6080:6080 \
-  chromedp/headless-shell:latest
-```
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  webui:
-    driver: gradio
-    port: 8081
-
-workflows:
-  - id: scrape-with-fallback
-    title: Scrape with CAPTCHA Fallback
-    input:
-      - id: url
-        type: string
-        description: Target URL to scrape
-      - id: selector
-        type: string
-        description: CSS selector for content extraction
-    jobs:
-      - id: navigate
-        component: browser
-        action: navigate
-        input:
-          url: ${input.url}
-
-      - id: detect-captcha
-        component: browser
-        action: check-captcha
-        interrupt:
-          after:
-            condition:
-              operator: eq
-              input: ${output}
-              value: true
-            message: >
-              CAPTCHA detected! Please solve it via noVNC at:
-              http://localhost:6080/vnc.html
-        depends_on: [ navigate ]
-
-      - id: extract
-        component: browser
-        action: extract-text
-        input:
-          selector: ${input.selector}
-        depends_on: [ detect-captcha ]
-        output:
-          content: "${output as text}"
-
-components:
-  - id: browser
-    type: web-browser
-    host: localhost
-    port: 9222
-    novnc_url: "http://localhost:6080/vnc.html"
-    timeout: 30s
-    actions:
-      - id: navigate
-        method: navigate
-        url: "${input.url}"
-        wait_until: networkidle
-
-      - id: check-captcha
-        method: evaluate
-        expression: >
-          !!(document.querySelector('[id*=captcha],[class*=captcha]')
-            || document.querySelector('iframe[src*=captcha]')
-            || document.querySelector('#cf-challenge-running'))
-
-      - id: extract-text
-        method: extract
-        selector: "${input.selector}"
-        extract_mode: text
-```
-
-**Workflow**:
-1. Navigate to the target URL
-2. Evaluate JavaScript to detect CAPTCHA elements
-3. If CAPTCHA found, workflow interrupts and shows noVNC URL for human resolution
-4. After human resolves CAPTCHA, workflow resumes and extracts content
-
-**Workflow Diagram**:
-
-```mermaid
-graph TD
-    A[User Input<br/>url, selector] -->|① Navigate| B[Job 1: navigate<br/>web-browser]
-    B -->|② Check CAPTCHA| C[Job 2: detect-captcha<br/>evaluate JS]
-    C -->|③ CAPTCHA found?| D{Interrupt?}
-    D -->|Yes| E[Human resolves via noVNC<br/>http://localhost:6080]
-    E -->|Resume| F[Job 3: extract<br/>extract text]
-    D -->|No| F
-    F -->|④ Return content| G[Result<br/>content: extracted text]
-```
-
-### 16.7.2 Login and Scrape Protected Content
-
-**Goal**: Automate login to a website and extract protected content
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  webui:
-    driver: gradio
-    port: 8081
-
-workflows:
-  - id: login-and-scrape
-    title: Login then Scrape
-    input:
-      - id: login_url
-        type: string
-      - id: username
-        type: string
-      - id: password
-        type: string
-      - id: content_url
-        type: string
-      - id: selector
-        type: string
-    jobs:
-      - id: open-login
-        component: browser
-        action: navigate
-        input:
-          url: ${input.login_url}
-
-      - id: fill-username
-        component: browser
-        action: type-text
-        input:
-          selector: "input[name='username']"
-          text: ${input.username}
-        depends_on: [ open-login ]
-
-      - id: fill-password
-        component: browser
-        action: type-text
-        input:
-          selector: "input[name='password']"
-          text: ${input.password}
-        depends_on: [ fill-username ]
-
-      - id: submit
-        component: browser
-        action: click
-        input:
-          selector: "button[type='submit']"
-        depends_on: [ fill-password ]
-
-      - id: navigate-content
-        component: browser
-        action: navigate
-        input:
-          url: ${input.content_url}
-        depends_on: [ submit ]
-
-      - id: extract-content
-        component: browser
-        action: extract-text
-        input:
-          selector: ${input.selector}
-        depends_on: [ navigate-content ]
-        output:
-          content: ${output as text}
-
-components:
-  - id: browser
-    type: web-browser
-    host: localhost
-    port: 9222
-    timeout: 30s
-    actions:
-      - id: navigate
-        method: navigate
-        url: "${input.url}"
-        wait_until: networkidle
-
-      - id: type-text
-        method: input-text
-        selector: "${input.selector}"
-        text: "${input.text}"
-
-      - id: click
-        method: click
-        selector: "${input.selector}"
-
-      - id: extract-text
-        method: extract
-        selector: "${input.selector}"
-        extract_mode: text
-```
-
-**6-Step Pipeline**:
-1. Navigate to login page
-2. Fill username field
-3. Fill password field
-4. Click submit button
-5. Navigate to protected content page
-6. Extract content with CSS selector
-
-### 16.7.3 AI-Powered Web Content Analysis
-
-**Goal**: Navigate to a page, extract content, and analyze it with GPT-4o
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  webui:
-    driver: gradio
-    port: 8081
-
-workflows:
-  - id: analyze-page
-    title: Analyze Web Page with AI
-    input:
-      - id: url
-        type: string
-        description: URL to analyze
-      - id: question
-        type: string
-        description: Question to ask about the page content
-    jobs:
-      - id: navigate
-        component: browser
-        action: navigate
-        input:
-          url: ${input.url}
-
-      - id: extract
-        component: browser
-        action: extract-body
-        depends_on: [ navigate ]
-
-      - id: analyze
-        component: gpt4o
-        input:
-          context: ${jobs.extract.output.content}
-          question: ${input.question}
-        depends_on: [ extract ]
-        output:
-          answer: ${output.message}
-
-components:
-  - id: browser
-    type: web-browser
-    host: localhost
-    port: 9222
-    timeout: 30s
-    actions:
-      - id: navigate
-        method: navigate
-        url: "${input.url}"
-        wait_until: networkidle
-
-      - id: extract-body
-        method: extract
-        selector: "body"
-        extract_mode: text
-        output:
-          content: ${result}
-
-  - id: gpt4o
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      headers:
-        Authorization: Bearer ${env.OPENAI_API_KEY}
-      body:
-        model: gpt-4o
-        messages:
-          - role: system
-            content: |
-              Answer questions based on the following web page content:
-              ${input.context}
-          - role: user
-            content: ${input.question}
-      output:
-        message: ${response.choices[0].message.content}
-```
-
-**3-Stage Pipeline**:
-1. **Navigate**: Load the target page and wait for network idle
-2. **Extract**: Pull all text content from the page body
-3. **Analyze**: Send content to GPT-4o with the user's question
-
-**Pipeline Diagram**:
-
-```mermaid
-graph TD
-    A[User Input<br/>url, question] -->|① Navigate| B[Job 1: navigate<br/>web-browser]
-    B -->|② Extract text| C[Job 2: extract<br/>body text]
-    C -->|③ Page content + question| D[Job 3: analyze<br/>GPT-4o]
-    D -->|④ AI analysis| E[Result<br/>answer: AI response]
-```
-
----
-
-## 16.8 Key-Value Store (Caching & Sessions)
-
-### 16.8.1 API Response Caching
-
-**Goal**: Cache LLM API responses in Redis to avoid duplicate calls for identical prompts
-
-**Configuration File** (`model-compose.yml`):
+**설정 파일** (`model-compose.yml`):
 
 ```yaml
 controller:
@@ -1386,34 +1065,34 @@ components:
         message: ${response.choices[0].message.content}
 ```
 
-**API Usage**:
+**API 사용**:
 
 ```bash
-# First call - generates and caches
+# 첫 번째 호출 - 생성 후 캐싱
 curl -X POST http://localhost:8080/workflows/runs \
   -H "Content-Type: application/json" \
-  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "Redis란 무엇인가요?"}}'
 
-# Second call with same prompt - returns cached result instantly
+# 동일 프롬프트로 두 번째 호출 - 캐시된 결과 즉시 반환
 curl -X POST http://localhost:8080/workflows/runs \
   -H "Content-Type: application/json" \
-  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "Redis란 무엇인가요?"}}'
 ```
 
-**Pipeline Diagram**:
+**파이프라인 다이어그램**:
 
 ```mermaid
 graph TD
-    A[User Input<br/>prompt] -->|① Check cache| B[Job 1: check-cache<br/>key-value-store GET]
-    B -->|cache miss| C[Job 2: generate<br/>OpenAI API]
-    B -->|cache hit| F[Result<br/>cached response]
-    C -->|③ Save to cache| D[Job 3: save-cache<br/>key-value-store SET]
-    D --> E[Result<br/>fresh response]
+    A[사용자 입력<br/>prompt] -->|① 캐시 확인| B[작업 1: check-cache<br/>key-value-store GET]
+    B -->|캐시 미스| C[작업 2: generate<br/>OpenAI API]
+    B -->|캐시 히트| F[결과<br/>캐시된 응답]
+    C -->|③ 캐시 저장| D[작업 3: save-cache<br/>key-value-store SET]
+    D --> E[결과<br/>새로운 응답]
 ```
 
-### 16.8.2 Session Management
+### 16.8.2 세션 관리
 
-**Goal**: Store user session data with automatic expiration
+**목표**: 자동 만료 기능을 가진 사용자 세션 데이터 저장
 
 ```yaml
 components:
@@ -1441,21 +1120,21 @@ components:
         key: "session:${input.user_id}"
 ```
 
-**Key Points**:
-- TTL of 86400 seconds (24 hours) automatically expires sessions
-- Complex objects (dict, list) are serialized as JSON and deserialized on retrieval
-- `url` and `host`/`port` are mutually exclusive connection options
+**핵심 포인트**:
+- 86400초(24시간) TTL로 세션 자동 만료
+- 복합 객체(dict, list)는 JSON으로 직렬화되며, 조회 시 자동 역직렬화
+- `url`과 `host`/`port`는 상호 배타적인 연결 옵션
 
 ---
 
-## Next Steps
+## 다음 단계
 
-Practice:
-- Run each example locally
-- Modify examples to build custom workflows
-- Combine multiple examples to create complex pipelines
-- Deploy to production environment
+실습해보세요:
+- 각 예제를 로컬에서 실행
+- 예제를 수정하여 커스텀 워크플로우 구축
+- 여러 예제를 조합하여 복잡한 파이프라인 구성
+- 프로덕션 환경에 배포
 
 ---
 
-**Next Chapter**: [17. Troubleshooting](./17-troubleshooting.md)
+**다음 장**: [17. 문제 해결](./17-troubleshooting.md)

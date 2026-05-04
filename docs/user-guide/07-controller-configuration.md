@@ -572,7 +572,7 @@ controller:
   driver: redis
   url: redis://localhost:6379
   workflow: image-processing
-  max_concurrent: 2
+  max_concurrent_count: 2
 
 workflow:
   title: Image Processing
@@ -683,7 +683,7 @@ controller:
   driver: redis
   url: redis://localhost:6379
   workflow: text-summary
-  max_concurrent: 3
+  max_concurrent_count: 3
 ```
 
 Push tasks:
@@ -704,7 +704,7 @@ controller:
   workflows:
     - text-summary
     - translation
-  max_concurrent: 5
+  max_concurrent_count: 5
 ```
 
 #### Scenario 3: Specialized Workers
@@ -718,7 +718,7 @@ controller:
   driver: redis
   url: redis://shared-redis:6379
   workflow: image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 
 # CPU server — text processing
 controller:
@@ -728,7 +728,7 @@ controller:
   workflows:
     - text-summary
     - translation
-  max_concurrent: 10
+  max_concurrent_count: 10
 ```
 
 ### Consuming Results
@@ -770,7 +770,7 @@ controller:
   worker_id: gpu-worker-01
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 Using URL (with TLS):
@@ -781,7 +781,7 @@ controller:
   url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
   workflows:
     - image-generation
-  max_concurrent: 2
+  max_concurrent_count: 2
 ```
 
 > **Note**: The `redis` Python package (`redis>=5.0.0`) must be installed. It is included as a dependency of model-compose.
@@ -865,7 +865,7 @@ controller:
     driver: redis
     url: redis://redis.internal:6379
     workflow: image-generation
-    max_concurrent: 2
+    max_concurrent_count: 2
 
 workflow:
   id: image-generation
@@ -880,7 +880,7 @@ controller:
     driver: redis
     url: redis://redis.internal:6379
     workflow: image-generation
-    max_concurrent: 2
+    max_concurrent_count: 2
 
 workflow:
   id: image-generation
@@ -950,7 +950,7 @@ component:
     workflow: chat
     input:
       prompt: ${input.prompt as text}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 ```
 
 **Worker** (`subscriber/model-compose.yml`):
@@ -972,7 +972,7 @@ workflow:
     component: openai
     input:
       prompt: ${input.prompt}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   id: openai

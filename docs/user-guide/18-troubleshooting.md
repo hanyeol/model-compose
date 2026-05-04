@@ -146,7 +146,7 @@ workflow:
 3. Specify response format in controller:
 ```yaml
 workflow:
-  output: ${output as text;sse-text}
+  output: ${output as sse-text}
 ```
 
 ### 17.1.4 Web UI

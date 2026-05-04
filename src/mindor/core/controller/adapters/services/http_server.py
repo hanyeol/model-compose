@@ -94,12 +94,14 @@ class WorkflowVariableResult(BaseModel):
 class WorkflowVariableGroupResult(BaseModel):
     name: Optional[str]
     variables: List[WorkflowVariableResult]
+    repeat_count: int
 
     @classmethod
     def from_instance(cls, instance: WorkflowVariableGroupConfig) -> Self:
         return cls(
             name=instance.name,
-            variables=[ WorkflowVariableResult.from_instance(variable) for variable in instance.variables ]
+            variables=[ WorkflowVariableResult.from_instance(variable) for variable in instance.variables ],
+            repeat_count=instance.repeat_count
         )
 
 class WorkflowSimpleResult(BaseModel):

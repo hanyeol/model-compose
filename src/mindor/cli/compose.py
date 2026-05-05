@@ -288,7 +288,6 @@ def validate_command(
     env_data: List[str],
     verbose: bool
 ) -> None:
-    """Validate the compose configuration without starting any services."""
     from mindor.core.compose import validate_compose_config
     config_files = ctx.obj.get("config_files", [])
     try:

@@ -12,7 +12,7 @@ workflow:
   description: Generate a concise and informative summary from a longer input text using a pretrained language model.
   job:
     input: ${input}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   type: model

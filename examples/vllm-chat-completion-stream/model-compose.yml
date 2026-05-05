@@ -12,7 +12,7 @@ workflow:
   description: Generate text responses using vLLM server
   job:
     input: ${input}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   type: http-server

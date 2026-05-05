@@ -12,7 +12,7 @@ workflow:
   description: Translate the input text into another language using a pretrained translation model.
   job:
     input: ${input}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   type: model

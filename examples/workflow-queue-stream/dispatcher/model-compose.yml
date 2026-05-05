@@ -24,4 +24,4 @@ component:
     workflow: chat
     input:
       prompt: ${input.prompt as text}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}

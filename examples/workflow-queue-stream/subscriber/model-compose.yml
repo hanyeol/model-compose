@@ -16,7 +16,7 @@ workflow:
     component: openai
     input:
       prompt: ${input.prompt}
-    output: ${output as text;sse-text}
+    output: ${output as sse-text}
 
 component:
   id: openai

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
 from mindor.core.utils.time import parse_duration
+from mindor.core.logger import logging
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
 import asyncio, json, ulid
 
@@ -40,7 +41,9 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         )
 
         queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in self.config.workflows ]
-        for index in range(self.config.max_concurrent):
+        logging.info("Queue subscriber started: %s (queues: %s, workers: %d)", self._build_redis_url(), ", ".join(queue_keys), self.config.max_concurrent_count)
+
+        for index in range(self.config.max_concurrent_count):
             task = asyncio.create_task(self._consumer_loop(index, queue_keys))
             self._workers.append(task)
 

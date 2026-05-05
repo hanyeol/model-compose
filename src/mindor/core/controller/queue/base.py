@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Dict, Any, Callable, Awaitable
+from typing import Type, Optional, Dict, Any, Callable, Awaitable
 from abc import abstractmethod
 from mindor.dsl.schema.controller import ControllerQueueDriver
 from mindor.dsl.schema.controller.queue.impl.common import CommonControllerQueueConfig

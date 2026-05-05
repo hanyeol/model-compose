@@ -203,6 +203,12 @@ def stop_command(
     required=False,
     help="Path to save the output result as a file."
 )
+@click.option(
+    "--metadata", "-m", "metadata_json",
+    type=str,
+    required=False,
+    help="JSON metadata string to pass through the workflow and echo back in the response.",
+)
 @click.option("--auto-resume", is_flag=True, help="Automatically resume interrupts without prompting.")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
@@ -213,6 +219,7 @@ def run_command(
     env_files: List[Path],
     env_data: List[str],
     output_path: Optional[Path],
+    metadata_json: Optional[str],
     auto_resume: bool,
     verbose: bool
 ) -> None:
@@ -224,10 +231,11 @@ def run_command(
         try:
             config = _load_compose_config(config_files, env_files, env_data)
             input = json.loads(input_json) if input_json else {}
+            metadata = json.loads(metadata_json) if metadata_json else None
             is_tty = sys.stdin.isatty()
 
             manager = ComposeManager(config, daemon=False)
-            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose)
+            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose, metadata=metadata)
 
             while state.status == TaskStatus.INTERRUPTED:
                 if not auto_resume and not is_tty:

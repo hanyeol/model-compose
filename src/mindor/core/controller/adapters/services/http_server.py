@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 class WorkflowRunRequestBody(BaseModel):
     workflow_id: Optional[str] = None
     input: Optional[Any] = None
+    metadata: Optional[Any] = None
     wait_for_completion: bool = True
     output_only: bool = False
     subscribe_task: bool = False
@@ -59,6 +60,7 @@ class TaskResult(BaseModel):
     output: Optional[Any] = None
     error: Optional[Any] = None
     interrupt: Optional[InterruptResult] = None
+    metadata: Optional[Any] = None
 
     @classmethod
     def from_instance(cls, instance: TaskState) -> Self:
@@ -67,12 +69,16 @@ class TaskResult(BaseModel):
             status=instance.status,
             output=instance.output,
             error=instance.error,
-            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None
+            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None,
+            metadata=instance.metadata
         )
 
     @classmethod
     def to_dict(cls, instance: TaskState) -> Dict[str, Any]:
-        return cls.from_instance(instance).model_dump(exclude_none=True)
+        return {
+            **cls.from_instance(instance).model_dump(exclude_none=True),
+            "metadata": instance.metadata
+        }
 
 class WorkflowVariableResult(BaseModel):
     name: Optional[str]
@@ -397,6 +403,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             "output": None,
             "error": None,
             "interrupt": None,
+            "metadata": state.metadata,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         if state.status == TaskStatus.COMPLETED and state.output is not None:
@@ -451,6 +458,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
     async def _websocket_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
         workflow_id = data.get("workflow_id", "__default__")
         input_data = data.get("input")
+        metadata = data.get("metadata")
         subscribe_task = data.get("subscribe_task", True)
 
         if workflow_id not in self.controller.workflow_schemas:
@@ -460,7 +468,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             )
             return
 
-        state = await self.controller.run_workflow(workflow_id, input_data, wait_for_completion=False)
+        state = await self.controller.run_workflow(workflow_id, input_data, wait_for_completion=False, metadata=metadata)
 
         if subscribe_task:
             self.websocket_manager.subscribe_to_task(client_id, state.task_id)
@@ -601,7 +609,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
 
         try:
-            state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion)
+            state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion, metadata=body.metadata)
         except ShutdownError:
             raise HTTPException(status_code=503, detail="Service is shutting down")
 

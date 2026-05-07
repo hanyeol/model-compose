@@ -1,12 +1,13 @@
 # Web Browser Component
 
-The web browser component provides full browser automation via the Chrome DevTools Protocol (CDP). It connects to a running Chrome/Chromium instance and supports navigation, clicking, text input, screenshots, JavaScript evaluation, element extraction, cookie management, scrolling, and waiting for elements.
+The web browser component provides full browser automation with pluggable drivers. It supports navigation, clicking, text input, screenshots, JavaScript evaluation, element extraction, cookie management, scrolling, and waiting for elements.
 
 ## Basic Configuration
 
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   timeout: 30s
@@ -23,13 +24,51 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `web-browser` |
-| `host` | string | `localhost` | Host where Chrome remote debugging port is exposed |
-| `port` | integer | `9222` | Chrome remote debugging port |
-| `cdp_endpoint` | string | `null` | Full WebSocket debugger URL (e.g. `ws://localhost:9222/devtools/page/<id>`). If set, `host`/`port` are ignored |
-| `target_index` | integer | `0` | Index of the browser target to attach to when auto-discovering via `host`/`port` |
+| `driver` | string | `chrome` | Browser driver: `chrome`, `playwright` |
 | `novnc_url` | string | `null` | URL of the noVNC viewer for human-in-the-loop scenarios |
 | `timeout` | string | `30s` | Default timeout for all actions |
 | `actions` | array | `[]` | List of browser actions |
+
+### Driver Types
+
+#### Chrome Driver
+
+Connects to a running Chrome/Chromium instance via the Chrome DevTools Protocol.
+
+```yaml
+component:
+  type: web-browser
+  driver: chrome
+  host: localhost
+  port: 9222
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | `chrome` | Must be `chrome` |
+| `endpoint` | string | `null` | Full WebSocket debugger URL (e.g. `ws://localhost:9222/devtools/page/<id>`). If set, `host`/`port` are ignored |
+| `host` | string | `localhost` | Host where Chrome remote debugging port is exposed |
+| `port` | integer | `9222` | Chrome remote debugging port |
+| `target_index` | integer | `0` | Index of the browser target to attach to when auto-discovering via `host`/`port` |
+
+#### Playwright Driver
+
+Launches a browser instance using Playwright.
+
+```yaml
+component:
+  type: web-browser
+  driver: playwright
+  browser: chromium
+  headless: true
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | **required** | Must be `playwright` |
+| `browser` | string | `chromium` | Browser engine: `chromium`, `firefox`, `webkit` |
+| `headless` | boolean | `true` | Whether to run the browser in headless mode |
+| `args` | array | `[]` | Additional command-line arguments passed to the browser process |
 
 ### Common Action Configuration
 
@@ -158,7 +197,6 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `expression` | string | **required** | JavaScript expression to evaluate |
-| `await_promise` | boolean | `false` | Await the result if the expression returns a Promise |
 
 **Returns:** the evaluated JavaScript value
 
@@ -286,6 +324,7 @@ Define multiple browser actions in a single component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   timeout: 30s
@@ -322,6 +361,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   actions:
@@ -342,6 +382,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   timeout: 30s
@@ -371,6 +412,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   actions:
@@ -387,6 +429,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   actions:
@@ -405,6 +448,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   actions:
@@ -422,6 +466,7 @@ component:
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   actions:
@@ -479,6 +524,7 @@ workflows:
 components:
   - id: browser
     type: web-browser
+    driver: chrome
     host: localhost
     port: 9222
     novnc_url: "http://localhost:6080/vnc.html"
@@ -555,6 +601,7 @@ workflows:
 components:
   - id: browser
     type: web-browser
+    driver: chrome
     host: localhost
     port: 9222
     timeout: 30s
@@ -579,9 +626,9 @@ components:
         extract_mode: text
 ```
 
-## CDP Connection
+## Chrome Connection
 
-The web browser component connects to a running Chrome/Chromium instance via the Chrome DevTools Protocol. Chrome must be started with remote debugging enabled:
+When using the chrome driver, the component connects to a running Chrome/Chromium instance via the Chrome DevTools Protocol. Chrome must be started with remote debugging enabled:
 
 ```bash
 # Start Chrome with remote debugging
@@ -600,6 +647,7 @@ The component queries `http://<host>:<port>/json` to discover browser targets an
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
 ```
@@ -610,7 +658,8 @@ Skip auto-discovery by providing the full WebSocket URL.
 ```yaml
 component:
   type: web-browser
-  cdp_endpoint: "ws://localhost:9222/devtools/page/ABC123"
+  driver: chrome
+  endpoint: "ws://localhost:9222/devtools/page/ABC123"
 ```
 
 ## Timeout Configuration
@@ -661,6 +710,7 @@ The `novnc_url` field enables human-in-the-loop workflows. When a workflow encou
 ```yaml
 component:
   type: web-browser
+  driver: chrome
   host: localhost
   port: 9222
   novnc_url: "http://localhost:6080/vnc.html"

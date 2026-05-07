@@ -12,7 +12,7 @@ class SshTunnelGatewayConfig(CommonGatewayConfig):
     @model_validator(mode="before")
     def normalize_port(cls, values):
         port = values.get("port", 8090)  # Default to 8090 if not specified
-        if isinstance(port, list):
+        if not isinstance(port, list):
             port = [ port ]
 
         forwards = []

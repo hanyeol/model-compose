@@ -37,9 +37,7 @@ class WebSocketServerAction:
                 await self._send(connection, message)
 
             if context.contains_variable_reference("response[]", self.config.output):
-                stream = self._receive_stream(connection, format, context, owned)
-
-                return stream
+                return self._receive_stream(connection, format, context, owned)
 
             if collect:
                 response = await self._receive_collect(connection, format)

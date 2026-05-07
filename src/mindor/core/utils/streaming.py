@@ -61,9 +61,10 @@ class UploadFileStreamResource(StreamResource):
         self.file: UploadFile = file
 
     async def close(self) -> None:
-        await self.file.close()
+        await self.file.seek(0)
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        await self.file.seek(0)
         while True:
             chunk = await self.file.read(8192)
             if not chunk:

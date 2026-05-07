@@ -3,6 +3,20 @@ from collections.abc import AsyncIterator
 from .streaming import StreamResource, BytesStreamResource, read_stream_to_buffer
 import wave, io
 
+class PcmStreamResource(StreamResource):
+    def __init__(self, samples: Union[StreamResource, bytes], attrs: Optional[Dict[str, str]] = None):
+        super().__init__("audio/pcm", None)
+
+        self.samples: StreamResource = samples if isinstance(samples, StreamResource) else BytesStreamResource(samples)
+        self.attrs: Optional[Dict[str, str]] = attrs
+
+    async def close(self) -> None:
+        await self.samples.close()
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        async for chunk in self.samples:
+            yield chunk
+
 class WavStreamResource(StreamResource):
     def __init__(self, source: Union[StreamResource, bytes]):
         super().__init__("audio/wav", None)
@@ -46,17 +60,3 @@ class WavStreamResource(StreamResource):
         buffer.seek(0)
 
         return buffer
-
-class PcmStreamResource(StreamResource):
-    def __init__(self, samples: Union[StreamResource, bytes], attrs: Optional[Dict[str, str]] = None):
-        super().__init__("audio/pcm", None)
-
-        self.samples: StreamResource = samples if isinstance(samples, StreamResource) else BytesStreamResource(samples)
-        self.attrs: Optional[Dict[str, str]] = attrs
-
-    async def close(self) -> None:
-        await self.samples.close()
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in self.samples:
-            yield chunk

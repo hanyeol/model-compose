@@ -68,15 +68,12 @@ class WebBrowserScreenshotActionConfig(CommonWebBrowserActionConfig):
 class WebBrowserEvaluateActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.EVALUATE]
     expression: str = Field(..., description="JavaScript expression to evaluate in the page context.")
-    await_promise: Union[bool, str] = Field(default=False, description="Whether to await the result if the expression returns a Promise.")
 
 class WebBrowserWaitForActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.WAIT_FOR]
     selector: Optional[str] = Field(default=None, description="CSS selector to wait for.")
     xpath: Optional[str] = Field(default=None, description="XPath to wait for.")
-    condition: Union[Literal["present", "visible", "hidden"], str] = Field(
-        default="present", description="Condition to wait for."
-    )
+    condition: Union[Literal["present", "visible", "hidden"], str] = Field(default="present", description="Condition to wait for.")
 
     @model_validator(mode="after")
     def validate_target(self):

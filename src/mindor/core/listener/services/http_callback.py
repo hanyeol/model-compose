@@ -80,6 +80,9 @@ class HttpCallbackListener(ListenerService):
             context = HttpCallbackContext(body, query, callback.bulk, callback.item)
             succeeded = await self._is_callback_succeeded(callback, context)
 
+            if succeeded is None:
+                return Response(status_code=200)
+
             async for item in context.items():
                 callback_id = await item.render_variable(callback.identify_by) if callback.identify_by else "__callback__"
                 future: asyncio.Future = self._get_pending_future(callback_id)
@@ -103,6 +106,7 @@ class HttpCallbackListener(ListenerService):
                 return True
             if status in (callback.fail_when or []):
                 return False
+            return None
 
         return True
 

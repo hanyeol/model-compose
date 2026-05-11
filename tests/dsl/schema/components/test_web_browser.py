@@ -370,7 +370,6 @@ class TestChromeWebBrowserComponentConfig:
         assert config.target_index == 0
         assert config.endpoint is None
         assert config.timeout == "30s"
-        assert config.novnc_url is None
         assert config.actions == []
 
     def test_driver_default(self):
@@ -398,14 +397,6 @@ class TestChromeWebBrowserComponentConfig:
             endpoint="ws://localhost:9222/devtools/page/ABC"
         )
         assert config.endpoint == "ws://localhost:9222/devtools/page/ABC"
-
-    def test_with_novnc(self):
-        config = ChromeWebBrowserComponentConfig(
-            id="browser",
-            type="web-browser",
-            novnc_url="http://localhost:6080/vnc.html"
-        )
-        assert config.novnc_url == "http://localhost:6080/vnc.html"
 
     def test_with_actions(self):
         config = ChromeWebBrowserComponentConfig(
@@ -521,7 +512,6 @@ class TestWebBrowserIntegration:
             type="web-browser",
             host="localhost",
             port=9222,
-            novnc_url="http://localhost:6080/vnc.html",
             timeout="30s",
             actions=[
                 WebBrowserNavigateActionConfig(

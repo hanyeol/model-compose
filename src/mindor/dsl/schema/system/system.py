@@ -5,6 +5,7 @@ from .impl import *
 SystemConfig = Annotated[
     Union[
         DockerComposeSystemConfig,
+        DockerSystemConfig,
     ],
     Field(discriminator="type")
 ]

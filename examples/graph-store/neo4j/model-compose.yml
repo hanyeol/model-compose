@@ -1,0 +1,98 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: add-person
+    title: Add Person
+    description: Add a person node to the knowledge graph
+    jobs:
+      - id: insert-node
+        component: knowledge-graph
+        action: add-person
+        input: ${input}
+        output: ${output as json}
+
+  - id: add-friendship
+    title: Add Friendship
+    description: Create a KNOWS relationship between two people
+    jobs:
+      - id: insert-relationship
+        component: knowledge-graph
+        action: add-relationship
+        input: ${input}
+        output: ${output as json}
+
+  - id: find-person
+    title: Find Person
+    description: Find a person by name using Cypher query
+    jobs:
+      - id: query-person
+        component: knowledge-graph
+        action: find-person
+        input: ${input}
+        output: ${output as json}
+
+  - id: find-connections
+    title: Find Connections
+    description: Traverse the graph to find connected people
+    jobs:
+      - id: traverse-graph
+        component: knowledge-graph
+        action: find-connections
+        input: ${input}
+        output: ${output as json}
+
+components:
+  - id: knowledge-graph
+    type: graph-store
+    driver: neo4j
+    url: bolt://localhost:7687
+    username: neo4j
+    password: password
+    actions:
+      - id: add-person
+        method: insert
+        nodes:
+          label: Person
+          properties:
+            name: ${input.name}
+            age: ${input.age}
+
+      - id: add-relationship
+        method: insert
+        relationships:
+          type: KNOWS
+          from: ${input.from_id}
+          to: ${input.to_id}
+          properties:
+            since: ${input.since}
+
+      - id: find-person
+        method: query
+        query: "MATCH (p:Person {name: $name}) RETURN p"
+        params:
+          name: ${input.name}
+
+      - id: find-connections
+        method: traverse
+        start_node: ${input.node_id}
+        direction: both
+        max_depth: 2
+        relationship_types: [KNOWS]
+
+      - id: update-person
+        method: update
+        node_id: ${input.node_id}
+        properties:
+          age: ${input.new_age}
+
+      - id: remove-person
+        method: delete
+        node_id: ${input.node_id}
+        detach: true

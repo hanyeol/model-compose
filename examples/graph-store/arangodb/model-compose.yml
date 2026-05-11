@@ -1,0 +1,94 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: add-person
+    title: Add Person
+    description: Add a person document to the graph
+    jobs:
+      - id: insert-node
+        component: social-graph
+        action: add-person
+        input: ${input}
+        output: ${output as json}
+
+  - id: find-friends
+    title: Find Friends
+    description: Query friends using AQL
+    jobs:
+      - id: query-friends
+        component: social-graph
+        action: find-friends
+        input: ${input}
+        output: ${output as json}
+
+  - id: find-connections
+    title: Find Connections
+    description: Traverse the social graph
+    jobs:
+      - id: traverse-graph
+        component: social-graph
+        action: find-connections
+        input: ${input}
+        output: ${output as json}
+
+components:
+  - id: social-graph
+    type: graph-store
+    driver: arangodb
+    host: localhost
+    port: 8529
+    username: root
+    password: password
+    database: social
+    actions:
+      - id: add-person
+        method: insert
+        collection: persons
+        nodes:
+          label: persons
+          properties:
+            name: ${input.name}
+            age: ${input.age}
+
+      - id: add-friendship
+        method: insert
+        edge_collection: friendships
+        graph: social_graph
+        relationships:
+          type: friendships
+          from: ${input.from_id}
+          to: ${input.to_id}
+          properties:
+            since: ${input.since}
+
+      - id: find-friends
+        method: query
+        query: "FOR p IN persons FILTER p.name == @name RETURN p"
+        params:
+          name: ${input.name}
+
+      - id: find-connections
+        method: traverse
+        start_node: ${input.node_id}
+        graph: social_graph
+        direction: both
+        max_depth: 2
+
+      - id: update-person
+        method: update
+        collection: persons
+        node_id: ${input.node_id}
+        properties:
+          age: ${input.new_age}
+
+      - id: remove-person
+        method: delete
+        collection: persons
+        node_id: ${input.node_id}

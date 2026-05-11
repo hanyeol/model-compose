@@ -102,8 +102,9 @@ pip install -e .
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     port: 8081
 
@@ -156,7 +157,8 @@ controller:
 ### 🛰️ 1 行切换到 MCP 服务器
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 ```
 
 ### 🔄 在独立进程中运行组件
@@ -168,7 +170,8 @@ component:
 ### 🐳 1 行部署到 Docker
 ```yaml
 controller:
-  runtime: docker
+  adapter:
+    runtime: docker
 ```
 
 > 💡 探索更多工作流请访问[示例](examples/README.md)，详细内容请阅读[用户指南](docs/user-guide/zh-cn/README.md)。

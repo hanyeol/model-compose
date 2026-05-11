@@ -102,8 +102,9 @@ Create a `model-compose.yml`:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     port: 8081
 
@@ -156,7 +157,8 @@ controller:
 ### 🛰️ Switch to MCP Server with 1 Line
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 ```
 
 ### 🔄 Run Components in Separate Processes
@@ -168,7 +170,8 @@ component:
 ### 🐳 Deploy in Docker with 1 Line
 ```yaml
 controller:
-  runtime: docker
+  adapter:
+    runtime: docker
 ```
 
 > 💡 Explore [examples](examples/README.md) for more workflows or read the [User Guide](docs/user-guide/README.md).

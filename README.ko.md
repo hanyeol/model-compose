@@ -102,8 +102,9 @@ pip install -e .
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     port: 8081
 
@@ -156,7 +157,8 @@ controller:
 ### 🛰️ 1줄로 MCP 서버 전환
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 ```
 
 ### 🔄 컴포넌트를 별도 프로세스로 실행
@@ -168,7 +170,8 @@ component:
 ### 🐳 1줄로 Docker 배포
 ```yaml
 controller:
-  runtime: docker
+  adapter:
+    runtime: docker
 ```
 
 > 💡 더 많은 워크플로우는 [예제](examples/README.ko.md)를, 자세한 내용은 [사용자 가이드](docs/user-guide/ko/README.md)를 참조하세요.

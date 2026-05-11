@@ -8,31 +8,30 @@ controller:
     port: 8081
 
 systems:
-  - id: browser-infra
-    type: docker-compose
-    file: docker-compose.yml
+  - id: web-browser-with-novnc
+    type: docker
+    build:
+      context: .
+    image: web-browser-with-novnc
+    ports:
+      - "9222:9223"
+      - "6080:6080"
+    shm_size: "2gb"
     wait: true
     wait_timeout: 60s
 
 workflows:
-  - id: scrape-with-fallback
-    title: Scrape with CAPTCHA Fallback
+  - id: scrape-with-captcha
+    title: Scrape with CAPTCHA
     description: >
       Navigate to a URL, detect CAPTCHA, pause for human resolution via
       noVNC, then extract content.
-    input:
-      - id: url
-        type: string
-        description: Target URL to scrape
-      - id: selector
-        type: string
-        description: CSS selector for content extraction
     jobs:
       - id: navigate
         component: browser
         action: navigate
         input:
-          url: ${input.url}
+          url: ${input.url @(description Target URL to scrape)}
 
       - id: detect-captcha
         component: browser
@@ -56,7 +55,7 @@ workflows:
         component: browser
         action: extract-text
         input:
-          selector: ${input.selector}
+          selector: ${input.selector | body @(description CSS selector for content extraction)}
         depends_on:
           - detect-captcha
         output:
@@ -66,17 +65,6 @@ workflows:
     title: Login then Scrape
     description: >
       Fill login form, handle possible CAPTCHA, then extract protected content.
-    input:
-      - id: login_url
-        type: string
-      - id: username
-        type: string
-      - id: password
-        type: string
-      - id: content_url
-        type: string
-      - id: selector
-        type: string
     jobs:
       - id: open-login
         component: browser
@@ -139,7 +127,7 @@ workflows:
         component: browser
         action: extract-text
         input:
-          selector: ${input.selector}
+          selector: ${input.selector | body @(description CSS selector for content extraction)}
         depends_on:
           - navigate-content
         output:
@@ -148,9 +136,9 @@ workflows:
 components:
   - id: browser
     type: web-browser
+    driver: chrome
     host: localhost
     port: 9222
-    novnc_url: http://localhost:6080/vnc.html
     timeout: 30s
     actions:
       - id: navigate

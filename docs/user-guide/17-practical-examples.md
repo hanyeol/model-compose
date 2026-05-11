@@ -162,250 +162,9 @@ sequenceDiagram
 
 ---
 
-## 16.2 Voice Generation Pipeline
+## 16.2 RAG System (Using Vector DB)
 
-### 16.2.1 Text-to-Speech (OpenAI TTS)
-
-**Goal**: Convert text to speech using OpenAI TTS API
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  base_path: /api
-  webui:
-    driver: gradio
-    port: 8081
-
-workflow:
-  title: Generate Speech with OpenAI TTS
-  description: Convert input text into natural-sounding speech using OpenAI's TTS models.
-  jobs:
-    - id: speak
-      component: openai-text-to-speech
-      input: ${input}
-      output: ${output as audio}
-
-components:
-  - id: openai-text-to-speech
-    type: http-client
-    action:
-      endpoint: https://api.openai.com/v1/audio/speech
-      method: POST
-      headers:
-        Authorization: Bearer ${env.OPENAI_API_KEY}
-        Content-Type: application/json
-      body:
-        model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
-        input: ${input.text}
-        voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
-        response_format: mp3
-      output: ${response}
-```
-
-**Supported Voices**:
-- `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`
-- `onyx`, `nova`, `sage`, `shimmer`, `verse`
-
-**Supported Models**:
-- `tts-1`: Fast response
-- `tts-1-hd`: High-quality audio
-- `gpt-4o-mini-tts`: Latest model
-
-### 16.2.2 Inspiring Quote Voice Generation
-
-**Goal**: Generate motivational quotes with GPT-4o and convert to speech with ElevenLabs TTS
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  base_path: /api
-  webui:
-    driver: gradio
-    port: 8081
-
-workflow:
-  title: Inspire with Voice
-  description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
-  jobs:
-    - id: job-quote
-      component: write-inspiring-quote
-      input: ${input}
-      output: ${output}
-
-    - id: job-voice
-      component: text-to-speech
-      input:
-        text: ${jobs.job-quote.output.quote}
-        voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
-      output:
-        quote: ${jobs.job-quote.output.quote}
-        audio: ${output as audio/mp3;base64}
-      depends_on: [ job-quote ]
-
-components:
-  - id: write-inspiring-quote
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      headers:
-        Authorization: Bearer ${env.OPENAI_API_KEY}
-        Content-Type: application/json
-      body:
-        model: gpt-4o
-        messages:
-          - role: user
-            content: |
-              Write an inspiring quote similar to the example below.
-              Don't say anything else—just give me the quote.
-              Aim for around 30 words.
-              Example – Never give up. If there's something you want to become, be proud of it. Give yourself a chance.
-              Don't think you're worthless—there's nothing to gain from that. Aim high. That's how life should be lived.
-      output:
-        quote: ${response.choices[0].message.content}
-
-  - id: text-to-speech
-    type: http-client
-    action:
-      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
-      method: POST
-      headers:
-        Content-Type: application/json
-        xi-api-key: ${env.ELEVENLABS_API_KEY}
-      body:
-        text: ${input.text}
-        model_id: eleven_multilingual_v2
-      output: ${response as base64}
-```
-
-**Environment Variables**:
-
-```bash
-OPENAI_API_KEY=sk-...
-ELEVENLABS_API_KEY=...
-```
-
-**Workflow Description**:
-1. GPT-4o generates an inspiring quote
-2. ElevenLabs API converts quote to speech
-3. Web UI displays both text and audio
-
-**Workflow Diagram**:
-
-```mermaid
-graph TD
-    A[User Input] -->|① Input| B[Job 1: job-quote<br/>write-inspiring-quote]
-    B -->|② GPT-4o API call| C[OpenAI API]
-    C -->|③ Quote text returned| B
-    B -->|④ output.quote<br/>depends_on: job-quote| D[Job 2: job-voice<br/>text-to-speech]
-    D -->|⑤ TTS API call<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
-    E -->|⑥ Audio data returned<br/>Base64| D
-    D -->|⑦ Final output| F[Result<br/>quote: Text<br/>audio: Base64]
-```
-
----
-
-## 16.3 Image Analysis and Editing
-
-### 16.3.1 Image Captioning (Image-to-Text)
-
-**Goal**: Generate image descriptions using a local Vision model
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  base_path: /api
-  webui:
-    driver: gradio
-    port: 8081
-
-workflow:
-  title: Generate Text from Image
-  description: Generate text based on a given image using a pretrained vision model.
-  input: ${input}
-  output:
-    generated: ${output}
-
-component:
-  type: model
-  task: image-to-text
-  model: Salesforce/blip-image-captioning-large
-  architecture: blip
-  action:
-    image: ${input.image as image}
-    prompt: ${input.prompt as text}
-```
-
-**Execution Example**:
-
-```bash
-# Run workflow
-model-compose run default --input '{"image": "path/to/image.jpg", "prompt": "Describe this image"}'
-```
-
-**Supported Models**:
-- `Salesforce/blip-image-captioning-large`
-- `Salesforce/blip-image-captioning-base`
-- `nlpconnect/vit-gpt2-image-captioning`
-
-### 16.3.2 Image Editing (OpenAI DALL-E)
-
-**Goal**: Edit images using OpenAI DALL-E
-
-**Configuration File**:
-
-```yaml
-controller:
-  type: http-server
-  port: 8080
-  webui:
-    driver: gradio
-    port: 8081
-
-workflow:
-  title: Edit Image with DALL-E
-  description: Edit an existing image using OpenAI's DALL-E API
-  component: dalle-edit
-  input: ${input}
-  output: ${output as image}
-
-component:
-  id: dalle-edit
-  type: http-client
-  action:
-    endpoint: https://api.openai.com/v1/images/edits
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      image: ${input.image as image}
-      mask: ${input.mask as image}
-      prompt: ${input.prompt as text}
-      n: ${input.n as integer | 1}
-      size: ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
-    output: ${response.data[0].url}
-```
-
-**Use Cases**:
-- Change image backgrounds
-- Modify specific regions
-- Style transfer
-
----
-
-## 16.4 RAG System (Using Vector DB)
-
-### 16.4.1 Text Embedding Search with ChromaDB
+### 16.2.1 Text Embedding Search with ChromaDB
 
 **Goal**: Generate text embeddings, store in ChromaDB, and perform similarity search
 
@@ -513,7 +272,7 @@ curl -X POST http://localhost:8080/api/workflows/delete-sentence-embedding/runs 
   -d '{"input": {"vector_id": "id123"}}'
 ```
 
-### 16.4.2 RAG System with Milvus
+### 16.2.2 RAG System with Milvus
 
 **Goal**: High-performance RAG system using Milvus vector database
 
@@ -615,180 +374,337 @@ graph TD
 
 ---
 
-## 16.5 Slack Bot (MCP)
+## 16.3 Graph Store (Knowledge Graphs & Social Networks)
 
-### 16.5.1 Building a Slack Bot with MCP Server
+### 16.3.1 Knowledge Graph with Neo4j
 
-**Goal**: Build a Slack bot using MCP (Model Context Protocol) server
+**Goal**: Build a knowledge graph to store people and their relationships, then traverse connections
 
-**Configuration File**:
+**Configuration File** (`model-compose.yml`):
 
 ```yaml
 controller:
-  type: mcp-server
-  base_path: /mcp
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
 
 workflows:
-  - id: send-message
-    title: Send Message to Slack Channel
-    description: Send a text message to a specified Slack channel using the Slack Web API
-    action: chat-post-message
-    input:
-      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
-      text: ${input.message @(description Message to send to Slack)}
-    output: ${output as json}
+  - id: add-person
+    title: Add Person
+    description: Add a person node to the knowledge graph
+    jobs:
+      - id: insert-node
+        component: knowledge-graph
+        action: add-person
+        input: ${input}
+        output: ${output as json}
 
-  - id: list-channels
-    title: List Slack Channels
-    description: Retrieve a list of all available channels in the Slack workspace
-    action: conversations-list
-    output: ${output as object[]}
+  - id: add-friendship
+    title: Add Friendship
+    description: Create a KNOWS relationship between two people
+    jobs:
+      - id: insert-rel
+        component: knowledge-graph
+        action: add-relationship
+        input: ${input}
+        output: ${output as json}
 
-  - id: join-channel
-    title: Join Slack Channel
-    description: Join a specified Slack channel for the bot user
-    action: conversations-join
-    input:
-      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
-    output: ${output as json}
+  - id: find-connections
+    title: Find Connections
+    description: Traverse the graph to find connected people
+    jobs:
+      - id: traverse
+        component: knowledge-graph
+        action: find-connections
+        input: ${input}
+        output: ${output as json}
 
-component:
-  type: http-client
-  base_url: https://slack.com/api
-  headers:
-    Authorization: Bearer ${env.SLACK_APP_TOKEN}
-  actions:
-    - id: chat-post-message
-      path: /chat.postMessage
-      method: POST
-      body:
-        channel: ${input.channel}
-        text: ${input.text}
-        attachments: ${input.attachments}
-      headers:
-        Content-Type: application/json
-      output: ${response}
+components:
+  - id: knowledge-graph
+    type: graph-store
+    driver: neo4j
+    url: bolt://localhost:7687
+    username: neo4j
+    password: password
+    actions:
+      - id: add-person
+        method: insert
+        nodes:
+          label: Person
+          properties:
+            name: ${input.name}
+            age: ${input.age}
 
-    - id: conversations-list
-      path: /conversations.list
-      method: GET
-      params:
-        limit: ${input.limit as integer | 200 @(description Maximum number of channels to retrieve)}
-      headers:
-        Content-Type: application/x-www-form-urlencoded
-      output: ${response.channels as object[]/id,name}
+      - id: add-relationship
+        method: insert
+        relationships:
+          type: KNOWS
+          from: ${input.from_id}
+          to: ${input.to_id}
+          properties:
+            since: ${input.since}
 
-    - id: conversations-join
-      path: /conversations.join
-      method: POST
-      body:
-        channel: ${input.channel}
-      headers:
-        Content-Type: application/json
-      output: ${response}
+      - id: find-person
+        method: query
+        query: "MATCH (p:Person {name: $name}) RETURN p"
+        params:
+          name: ${input.name}
+
+      - id: find-connections
+        method: traverse
+        start_node: ${input.node_id}
+        direction: both
+        max_depth: 2
+        relationship_types: [KNOWS]
 ```
 
-**Environment Variables**:
+**Prerequisites**:
+- Neo4j running locally (`docker run -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j`)
+
+**Running**:
 
 ```bash
-SLACK_APP_TOKEN=xoxb-...
-DEFAULT_SLACK_CHANNEL_ID=C...
+# Start the service
+model-compose up
+
+# Add people
+curl -X POST http://localhost:8080/api/workflows/add-person/run \
+  -H 'Content-Type: application/json' \
+  -d '{"input": {"name": "Alice", "age": 30}}'
+
+# Create a friendship
+curl -X POST http://localhost:8080/api/workflows/add-friendship/run \
+  -H 'Content-Type: application/json' \
+  -d '{"input": {"from_id": "<alice_node_id>", "to_id": "<bob_node_id>", "since": 2020}}'
+
+# Find connections
+curl -X POST http://localhost:8080/api/workflows/find-connections/run \
+  -H 'Content-Type: application/json' \
+  -d '{"input": {"node_id": "<alice_node_id>"}}'
 ```
 
-**MCP Server Features**:
-- Integration with MCP clients like Claude Desktop
-- Expose multiple workflows as tools
-- Provide parameter descriptions using `@(description ...)` annotations
+**Key Points**:
+- `method: insert` with `nodes` creates graph nodes; with `relationships` creates edges
+- `method: traverse` discovers connected nodes up to `max_depth` hops away
+- `method: query` executes raw Cypher for full flexibility
+- `detach: true` (default) on delete ensures connected relationships are also removed
+- Node IDs are returned by Neo4j in `elementId()` format (e.g., `4:abc:0`)
 
-**Claude Desktop Configuration** (`claude_desktop_config.json`):
+**Pipeline Diagram**:
 
-```json
-{
-  "mcpServers": {
-    "slack-bot": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-stdio",
-        "http://localhost:8080/mcp"
-      ]
-    }
-  }
-}
+```mermaid
+graph TD
+    A[User Input<br/>name, age] -->|① Insert| B[Job: add-person<br/>CREATE &#40;:Person&#41;]
+    B --> C[Node ID returned]
+    D[User Input<br/>from_id, to_id] -->|② Connect| E[Job: add-relationship<br/>CREATE -[:KNOWS]->]
+    F[User Input<br/>node_id] -->|③ Traverse| G[Job: find-connections<br/>MATCH path *1..2]
+    G --> H[Connected Nodes]
 ```
 
-### 16.5.2 AI-Powered Slack Auto-Reply Bot
+### 16.3.2 Social Graph with ArangoDB
 
-**Goal**: Build a bot that automatically responds to Slack messages using AI
-
-**Configuration File**:
+**Goal**: Build a social network graph and find mutual friends using ArangoDB
 
 ```yaml
-controller:
-  type: http-server
-  port: 8080
+components:
+  - id: social-graph
+    type: graph-store
+    driver: arangodb
+    host: localhost
+    port: 8529
+    username: root
+    password: password
+    database: social
+    actions:
+      - id: add-person
+        method: insert
+        collection: persons
+        nodes:
+          label: persons
+          properties:
+            name: ${input.name}
+            age: ${input.age}
 
-listeners:
-  - id: slack-events
-    type: http-callback
-    path: /slack/events
-    method: POST
-    callback:
-      url: https://slack.com/api/chat.postMessage
-      method: POST
-      headers:
-        Authorization: Bearer ${env.SLACK_BOT_TOKEN}
-        Content-Type: application/json
-      body:
-        channel: ${webhook.event.channel}
-        text: ${jobs.generate-reply.output.message}
+      - id: add-friendship
+        method: insert
+        edge_collection: friendships
+        graph: social_graph
+        relationships:
+          type: friendships
+          from: ${input.from_id}
+          to: ${input.to_id}
 
-gateway:
-  type: ngrok
-  port: 8080
+      - id: mutual-friends
+        method: query
+        query: |
+          FOR f1 IN OUTBOUND @person1 friendships
+            FOR f2 IN OUTBOUND @person2 friendships
+              FILTER f1._id == f2._id
+              RETURN f1
+        params:
+          person1: ${input.person1_id}
+          person2: ${input.person2_id}
 
-workflow:
-  title: AI Slack Reply
-  jobs:
-    - id: generate-reply
-      component: gpt4o
-      input:
-        prompt: ${input.event.text}
-      output: ${output}
-
-component:
-  id: gpt4o
-  type: http-client
-  base_url: https://api.openai.com/v1
-  action:
-    path: /chat/completions
-    method: POST
-    headers:
-      Authorization: Bearer ${env.OPENAI_API_KEY}
-    body:
-      model: gpt-4o
-      messages:
-        - role: user
-          content: ${input.prompt}
-    output:
-      message: ${response.choices[0].message.content}
+      - id: find-network
+        method: traverse
+        start_node: ${input.person_id}
+        graph: social_graph
+        direction: both
+        max_depth: 3
 ```
 
-**Workflow**:
-1. Slack message event occurs
-2. Workflow triggered via ngrok tunnel
-3. GPT-4o generates response
-4. Listener callback sends response to Slack
+**Key Points**:
+- ArangoDB uses `collection/key` format for document IDs (e.g., `persons/12345`)
+- Named graphs (`graph: social_graph`) must be created in ArangoDB beforehand
+- AQL queries use `@param` syntax for parameter binding
+- Traversal maps `out`→`outbound`, `in`→`inbound`, `both`→`any` internally
 
 ---
 
-## 16.6 Multimodal Workflows
+## 16.4 Key-Value Store (Caching & Sessions)
 
-### 16.6.1 Image → Text → Speech Pipeline
+### 16.4.1 API Response Caching
+
+**Goal**: Cache LLM API responses in Redis to avoid duplicate calls for identical prompts
+
+**Configuration File** (`model-compose.yml`):
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflows:
+  - id: cached-chat
+    title: Cached Chat
+    jobs:
+      - id: check-cache
+        component: cache
+        action: get-response
+        input:
+          prompt: ${input.prompt}
+
+      - id: generate
+        component: openai
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+
+      - id: save-cache
+        component: cache
+        action: set-response
+        condition: ${jobs.check-cache.output.cached == null}
+        input:
+          prompt: ${input.prompt}
+          response: ${jobs.generate.output.message}
+    output:
+      message: ${jobs.check-cache.output.cached ?? jobs.generate.output.message}
+
+components:
+  - id: cache
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: get-response
+        method: get
+        key: "chat:${input.prompt}"
+        output:
+          cached: ${result.value}
+      - id: set-response
+        method: set
+        key: "chat:${input.prompt}"
+        value: ${input.response}
+        ttl: 3600
+
+  - id: openai
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt as text}
+      output:
+        message: ${response.choices[0].message.content}
+```
+
+**API Usage**:
+
+```bash
+# First call - generates and caches
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+
+# Second call with same prompt - returns cached result instantly
+curl -X POST http://localhost:8080/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+```
+
+**Pipeline Diagram**:
+
+```mermaid
+graph TD
+    A[User Input<br/>prompt] -->|① Check cache| B[Job 1: check-cache<br/>key-value-store GET]
+    B -->|cache miss| C[Job 2: generate<br/>OpenAI API]
+    B -->|cache hit| F[Result<br/>cached response]
+    C -->|③ Save to cache| D[Job 3: save-cache<br/>key-value-store SET]
+    D --> E[Result<br/>fresh response]
+```
+
+### 16.4.2 Session Management
+
+**Goal**: Store user session data with automatic expiration
+
+```yaml
+components:
+  - id: session
+    type: key-value-store
+    driver: redis
+    url: redis://localhost:6379/1
+    actions:
+      - id: save
+        method: set
+        key: "session:${input.user_id}"
+        value:
+          history: ${input.history}
+          preferences: ${input.preferences}
+        ttl: 86400
+
+      - id: load
+        method: get
+        key: "session:${input.user_id}"
+        output:
+          session: ${result.value}
+
+      - id: logout
+        method: delete
+        key: "session:${input.user_id}"
+```
+
+**Key Points**:
+- TTL of 86400 seconds (24 hours) automatically expires sessions
+- Complex objects (dict, list) are serialized as JSON and deserialized on retrieval
+- `url` and `host`/`port` are mutually exclusive connection options
+
+---
+
+## 16.5 Multimodal Workflows
+
+### 16.5.1 Image → Text → Speech Pipeline
 
 **Goal**: Analyze image, generate description, and convert to speech
 
@@ -889,7 +805,7 @@ graph TD
     F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>description: Text<br/>audio: Audio]
 ```
 
-### 16.6.2 Speech → Text → Translation → Speech Pipeline
+### 16.5.2 Speech → Text → Translation → Speech Pipeline
 
 **Goal**: Translate spoken language to another language with speech output
 
@@ -990,9 +906,250 @@ graph TD
 
 ---
 
-## 16.7 Browser Automation
+## 16.6 Voice Generation Pipeline
 
-### 16.7.1 Web Scraping with CAPTCHA Fallback
+### 16.6.1 Text-to-Speech (OpenAI TTS)
+
+**Goal**: Convert text to speech using OpenAI TTS API
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Speech with OpenAI TTS
+  description: Convert input text into natural-sounding speech using OpenAI's TTS models.
+  jobs:
+    - id: speak
+      component: openai-text-to-speech
+      input: ${input}
+      output: ${output as audio}
+
+components:
+  - id: openai-text-to-speech
+    type: http-client
+    action:
+      endpoint: https://api.openai.com/v1/audio/speech
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: ${input.model as select/tts-1,tts-1-hd,gpt-4o-mini-tts | tts-1}
+        input: ${input.text}
+        voice: ${input.voice as select/alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse | nova}
+        response_format: mp3
+      output: ${response}
+```
+
+**Supported Voices**:
+- `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`
+- `onyx`, `nova`, `sage`, `shimmer`, `verse`
+
+**Supported Models**:
+- `tts-1`: Fast response
+- `tts-1-hd`: High-quality audio
+- `gpt-4o-mini-tts`: Latest model
+
+### 16.6.2 Inspiring Quote Voice Generation
+
+**Goal**: Generate motivational quotes with GPT-4o and convert to speech with ElevenLabs TTS
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Inspire with Voice
+  description: Generate a motivational quote using GPT-4o and bring it to life by converting it into natural speech with ElevenLabs TTS.
+  jobs:
+    - id: job-quote
+      component: write-inspiring-quote
+      input: ${input}
+      output: ${output}
+
+    - id: job-voice
+      component: text-to-speech
+      input:
+        text: ${jobs.job-quote.output.quote}
+        voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
+      output:
+        quote: ${jobs.job-quote.output.quote}
+        audio: ${output as audio/mp3;base64}
+      depends_on: [ job-quote ]
+
+components:
+  - id: write-inspiring-quote
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: |
+              Write an inspiring quote similar to the example below.
+              Don't say anything else—just give me the quote.
+              Aim for around 30 words.
+              Example – Never give up. If there's something you want to become, be proud of it. Give yourself a chance.
+              Don't think you're worthless—there's nothing to gain from that. Aim high. That's how life should be lived.
+      output:
+        quote: ${response.choices[0].message.content}
+
+  - id: text-to-speech
+    type: http-client
+    action:
+      endpoint: https://api.elevenlabs.io/v1/text-to-speech/${input.voice_id}?output_format=mp3_44100_128
+      method: POST
+      headers:
+        Content-Type: application/json
+        xi-api-key: ${env.ELEVENLABS_API_KEY}
+      body:
+        text: ${input.text}
+        model_id: eleven_multilingual_v2
+      output: ${response as base64}
+```
+
+**Environment Variables**:
+
+```bash
+OPENAI_API_KEY=sk-...
+ELEVENLABS_API_KEY=...
+```
+
+**Workflow Description**:
+1. GPT-4o generates an inspiring quote
+2. ElevenLabs API converts quote to speech
+3. Web UI displays both text and audio
+
+**Workflow Diagram**:
+
+```mermaid
+graph TD
+    A[User Input] -->|① Input| B[Job 1: job-quote<br/>write-inspiring-quote]
+    B -->|② GPT-4o API call| C[OpenAI API]
+    C -->|③ Quote text returned| B
+    B -->|④ output.quote<br/>depends_on: job-quote| D[Job 2: job-voice<br/>text-to-speech]
+    D -->|⑤ TTS API call<br/>jobs.job-quote.output.quote| E[ElevenLabs API]
+    E -->|⑥ Audio data returned<br/>Base64| D
+    D -->|⑦ Final output| F[Result<br/>quote: Text<br/>audio: Base64]
+```
+
+---
+
+## 16.7 Image Analysis and Editing
+
+### 16.7.1 Image Captioning (Image-to-Text)
+
+**Goal**: Generate image descriptions using a local Vision model
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text from Image
+  description: Generate text based on a given image using a pretrained vision model.
+  input: ${input}
+  output:
+    generated: ${output}
+
+component:
+  type: model
+  task: image-to-text
+  model: Salesforce/blip-image-captioning-large
+  architecture: blip
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}
+```
+
+**Execution Example**:
+
+```bash
+# Run workflow
+model-compose run default --input '{"image": "path/to/image.jpg", "prompt": "Describe this image"}'
+```
+
+**Supported Models**:
+- `Salesforce/blip-image-captioning-large`
+- `Salesforce/blip-image-captioning-base`
+- `nlpconnect/vit-gpt2-image-captioning`
+
+### 16.7.2 Image Editing (OpenAI DALL-E)
+
+**Goal**: Edit images using OpenAI DALL-E
+
+**Configuration File**:
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Edit Image with DALL-E
+  description: Edit an existing image using OpenAI's DALL-E API
+  component: dalle-edit
+  input: ${input}
+  output: ${output as image}
+
+component:
+  id: dalle-edit
+  type: http-client
+  action:
+    endpoint: https://api.openai.com/v1/images/edits
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      image: ${input.image as image}
+      mask: ${input.mask as image}
+      prompt: ${input.prompt as text}
+      n: ${input.n as integer | 1}
+      size: ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
+    output: ${response.data[0].url}
+```
+
+**Use Cases**:
+- Change image backgrounds
+- Modify specific regions
+- Style transfer
+
+---
+
+## 16.8 Browser Automation
+
+### 16.8.1 Web Scraping with CAPTCHA Fallback
 
 **Goal**: Navigate to a page, detect CAPTCHAs, pause for human resolution via noVNC, then extract content
 
@@ -1060,7 +1217,6 @@ components:
     type: web-browser
     host: localhost
     port: 9222
-    novnc_url: "http://localhost:6080/vnc.html"
     timeout: 30s
     actions:
       - id: navigate
@@ -1100,7 +1256,7 @@ graph TD
     F -->|④ Return content| G[Result<br/>content: extracted text]
 ```
 
-### 16.7.2 Login and Scrape Protected Content
+### 16.8.2 Login and Scrape Protected Content
 
 **Goal**: Automate login to a website and extract protected content
 
@@ -1209,7 +1365,7 @@ components:
 5. Navigate to protected content page
 6. Extract content with CSS selector
 
-### 16.7.3 AI-Powered Web Content Analysis
+### 16.8.3 AI-Powered Web Content Analysis
 
 **Goal**: Navigate to a page, extract content, and analyze it with GPT-4o
 
@@ -1311,140 +1467,174 @@ graph TD
 
 ---
 
-## 16.8 Key-Value Store (Caching & Sessions)
+## 16.9 Slack Bot (MCP)
 
-### 16.8.1 API Response Caching
+### 16.9.1 Building a Slack Bot with MCP Server
 
-**Goal**: Cache LLM API responses in Redis to avoid duplicate calls for identical prompts
+**Goal**: Build a Slack bot using MCP (Model Context Protocol) server
 
-**Configuration File** (`model-compose.yml`):
+**Configuration File**:
 
 ```yaml
 controller:
-  adapter:
-    type: http-server
-    port: 8080
+  type: mcp-server
+  base_path: /mcp
+  port: 8080
+  webui:
+    driver: gradio
+    port: 8081
 
 workflows:
-  - id: cached-chat
-    title: Cached Chat
-    jobs:
-      - id: check-cache
-        component: cache
-        action: get-response
-        input:
-          prompt: ${input.prompt}
+  - id: send-message
+    title: Send Message to Slack Channel
+    description: Send a text message to a specified Slack channel using the Slack Web API
+    action: chat-post-message
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID} @(description Slack channel ID for sending a message)}
+      text: ${input.message @(description Message to send to Slack)}
+    output: ${output as json}
 
-      - id: generate
-        component: openai
-        condition: ${jobs.check-cache.output.cached == null}
-        input:
-          prompt: ${input.prompt}
+  - id: list-channels
+    title: List Slack Channels
+    description: Retrieve a list of all available channels in the Slack workspace
+    action: conversations-list
+    output: ${output as object[]}
 
-      - id: save-cache
-        component: cache
-        action: set-response
-        condition: ${jobs.check-cache.output.cached == null}
-        input:
-          prompt: ${input.prompt}
-          response: ${jobs.generate.output.message}
-    output:
-      message: ${jobs.check-cache.output.cached ?? jobs.generate.output.message}
+  - id: join-channel
+    title: Join Slack Channel
+    description: Join a specified Slack channel for the bot user
+    action: conversations-join
+    input:
+      channel: ${input.channel | ${env.DEFAULT_SLACK_CHANNEL_ID}}
+    output: ${output as json}
 
-components:
-  - id: cache
-    type: key-value-store
-    driver: redis
-    host: localhost
-    port: 6379
-    actions:
-      - id: get-response
-        method: get
-        key: "chat:${input.prompt}"
-        output:
-          cached: ${result.value}
-      - id: set-response
-        method: set
-        key: "chat:${input.prompt}"
-        value: ${input.response}
-        ttl: 3600
-
-  - id: openai
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
+component:
+  type: http-client
+  base_url: https://slack.com/api
+  headers:
+    Authorization: Bearer ${env.SLACK_APP_TOKEN}
+  actions:
+    - id: chat-post-message
+      path: /chat.postMessage
       method: POST
-      headers:
-        Authorization: Bearer ${env.OPENAI_API_KEY}
       body:
-        model: gpt-4o
-        messages:
-          - role: user
-            content: ${input.prompt as text}
-      output:
-        message: ${response.choices[0].message.content}
+        channel: ${input.channel}
+        text: ${input.text}
+        attachments: ${input.attachments}
+      headers:
+        Content-Type: application/json
+      output: ${response}
+
+    - id: conversations-list
+      path: /conversations.list
+      method: GET
+      params:
+        limit: ${input.limit as integer | 200 @(description Maximum number of channels to retrieve)}
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      output: ${response.channels as object[]/id,name}
+
+    - id: conversations-join
+      path: /conversations.join
+      method: POST
+      body:
+        channel: ${input.channel}
+      headers:
+        Content-Type: application/json
+      output: ${response}
 ```
 
-**API Usage**:
+**Environment Variables**:
 
 ```bash
-# First call - generates and caches
-curl -X POST http://localhost:8080/workflows/runs \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
-
-# Second call with same prompt - returns cached result instantly
-curl -X POST http://localhost:8080/workflows/runs \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "cached-chat", "input": {"prompt": "What is Redis?"}}'
+SLACK_APP_TOKEN=xoxb-...
+DEFAULT_SLACK_CHANNEL_ID=C...
 ```
 
-**Pipeline Diagram**:
+**MCP Server Features**:
+- Integration with MCP clients like Claude Desktop
+- Expose multiple workflows as tools
+- Provide parameter descriptions using `@(description ...)` annotations
 
-```mermaid
-graph TD
-    A[User Input<br/>prompt] -->|① Check cache| B[Job 1: check-cache<br/>key-value-store GET]
-    B -->|cache miss| C[Job 2: generate<br/>OpenAI API]
-    B -->|cache hit| F[Result<br/>cached response]
-    C -->|③ Save to cache| D[Job 3: save-cache<br/>key-value-store SET]
-    D --> E[Result<br/>fresh response]
+**Claude Desktop Configuration** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "slack-bot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-stdio",
+        "http://localhost:8080/mcp"
+      ]
+    }
+  }
+}
 ```
 
-### 16.8.2 Session Management
+### 16.9.2 AI-Powered Slack Auto-Reply Bot
 
-**Goal**: Store user session data with automatic expiration
+**Goal**: Build a bot that automatically responds to Slack messages using AI
+
+**Configuration File**:
 
 ```yaml
-components:
-  - id: session
-    type: key-value-store
-    driver: redis
-    url: redis://localhost:6379/1
-    actions:
-      - id: save
-        method: set
-        key: "session:${input.user_id}"
-        value:
-          history: ${input.history}
-          preferences: ${input.preferences}
-        ttl: 86400
+controller:
+  type: http-server
+  port: 8080
 
-      - id: load
-        method: get
-        key: "session:${input.user_id}"
-        output:
-          session: ${result.value}
+listeners:
+  - id: slack-events
+    type: http-callback
+    path: /slack/events
+    method: POST
+    callback:
+      url: https://slack.com/api/chat.postMessage
+      method: POST
+      headers:
+        Authorization: Bearer ${env.SLACK_BOT_TOKEN}
+        Content-Type: application/json
+      body:
+        channel: ${webhook.event.channel}
+        text: ${jobs.generate-reply.output.message}
 
-      - id: logout
-        method: delete
-        key: "session:${input.user_id}"
+gateway:
+  type: ngrok
+  port: 8080
+
+workflow:
+  title: AI Slack Reply
+  jobs:
+    - id: generate-reply
+      component: gpt4o
+      input:
+        prompt: ${input.event.text}
+      output: ${output}
+
+component:
+  id: gpt4o
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
-**Key Points**:
-- TTL of 86400 seconds (24 hours) automatically expires sessions
-- Complex objects (dict, list) are serialized as JSON and deserialized on retrieval
-- `url` and `host`/`port` are mutually exclusive connection options
+**Workflow**:
+1. Slack message event occurs
+2. Workflow triggered via ngrok tunnel
+3. GPT-4o generates response
+4. Listener callback sends response to Slack
 
 ---
 

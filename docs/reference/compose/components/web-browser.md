@@ -25,7 +25,6 @@ component:
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `web-browser` |
 | `driver` | string | `chrome` | Browser driver: `chrome`, `playwright` |
-| `novnc_url` | string | `null` | URL of the noVNC viewer for human-in-the-loop scenarios |
 | `timeout` | string | `30s` | Default timeout for all actions |
 | `actions` | array | `[]` | List of browser actions |
 
@@ -527,7 +526,6 @@ components:
     driver: chrome
     host: localhost
     port: 9222
-    novnc_url: "http://localhost:6080/vnc.html"
     timeout: 30s
     actions:
       - id: navigate
@@ -705,18 +703,25 @@ component:
 
 ## Human-in-the-Loop with noVNC
 
-The `novnc_url` field enables human-in-the-loop workflows. When a workflow encounters something it cannot handle (e.g., CAPTCHA), it can interrupt and display the noVNC URL so a human can interact with the browser directly.
+For human-in-the-loop workflows (e.g., CAPTCHA resolution), use the workflow `interrupt` feature with `metadata` to provide the noVNC URL. This keeps the VNC connection details in the workflow definition where the interrupt occurs, rather than in the component configuration.
 
 ```yaml
-component:
-  type: web-browser
-  driver: chrome
-  host: localhost
-  port: 9222
-  novnc_url: "http://localhost:6080/vnc.html"
+jobs:
+  - id: detect-captcha
+    component: browser
+    action: check-captcha
+    interrupt:
+      after:
+        condition:
+          operator: eq
+          input: ${job.output}
+          value: true
+        message: "CAPTCHA detected! Please solve it via noVNC."
+        metadata:
+          novnc_url: "http://localhost:6080/vnc.html"
 ```
 
-This URL is included in workflow interrupt metadata, allowing UIs to show a direct link to the browser session.
+The `metadata` is included in the interrupt response, allowing UIs to show a direct link to the browser session.
 
 ## Variable Interpolation
 
@@ -742,7 +747,7 @@ component:
 4. **Use `wait-for` Before Extraction**: Wait for dynamic content to render before extracting
 5. **Clear Fields Before Typing**: Keep `clear_first: true` (default) to avoid appending to existing input values
 6. **Manage Cookies**: Use `get-cookies`/`set-cookies` to preserve login state across sessions
-7. **Human Fallback**: Use `novnc_url` with workflow interrupts for CAPTCHA or MFA scenarios
+7. **Human Fallback**: Use workflow `interrupt` with `metadata.novnc_url` for CAPTCHA or MFA scenarios
 8. **Headless Chrome**: Run Chrome headless in production for better performance
 
 ## Common Use Cases

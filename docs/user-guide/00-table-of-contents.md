@@ -326,6 +326,9 @@ This document outlines the structure of the model-compose user guide.
 - 17.8 [Key-Value Store (Caching & Sessions)](./17-practical-examples.md#178-key-value-store-caching--sessions)
   - 17.8.1 [API Response Caching](./17-practical-examples.md#1781-api-response-caching)
   - 17.8.2 [Session Management](./17-practical-examples.md#1782-session-management)
+- 17.9 [Graph Store (Knowledge Graphs & Social Networks)](./17-practical-examples.md#179-graph-store-knowledge-graphs--social-networks)
+  - 17.9.1 [Knowledge Graph with Neo4j](./17-practical-examples.md#1791-knowledge-graph-with-neo4j)
+  - 17.9.2 [Social Graph with ArangoDB](./17-practical-examples.md#1792-social-graph-with-arangodb)
 
 ## 18. [Troubleshooting](./18-troubleshooting.md)
 - 18.1 [Frequently Asked Questions (FAQ)](./18-troubleshooting.md#181-frequently-asked-questions-faq)

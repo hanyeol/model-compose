@@ -21,6 +21,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `model-trainer` | 训练模型 | 微调、LoRA 训练 |
 | `datasets` | 加载数据集 | 加载和处理训练/评估数据集 |
 | `vector-store` | 向量数据库集成 | 使用 Chroma、Milvus 等的 RAG 系统 |
+| `graph-store` | 图数据库集成 | 使用 Neo4j、ArangoDB 的知识图谱、社交网络 |
 | `key-value-store` | 键值存储 | 使用 Redis 进行缓存、会话管理 |
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
@@ -45,6 +46,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 文本分割 → `text-splitter`
 - 图像处理 → `image-processor`
 - 向量存储 → `vector-store`
+- 图存储 → `graph-store`
 - 键值存储 → `key-value-store`
 - 视频场景检测 → `video-scene-detector`
 - 网页抓取 → `web-scraper`

@@ -21,6 +21,7 @@ model-compose provides various component types for performing different tasks.
 | `model-trainer` | Train models | Fine-tuning, LoRA training |
 | `datasets` | Load datasets | Load and process training/evaluation datasets |
 | `vector-store` | Vector DB integration | RAG systems with Chroma, Milvus, etc. |
+| `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
 | `key-value-store` | Key-value storage | Caching, session management with Redis |
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
@@ -46,6 +47,7 @@ model-compose provides various component types for performing different tasks.
 - Image processing → `image-processor`
 - Vector storage → `vector-store`
 - Key-value storage → `key-value-store`
+- Graph storage → `graph-store`
 - Video scene detection → `video-scene-detector`
 - Web scraping → `web-scraper`
 

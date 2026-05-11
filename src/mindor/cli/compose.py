@@ -65,12 +65,9 @@ def up_command(
             config = _load_compose_config(config_files, env_files, env_data)
             await launch_services(config, detach, verbose)
         except Exception as e:
-            if verbose:
-                import traceback
-                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
-                traceback.print_exc()
-            else:
-                click.echo(f"❌ {e}", err=True)
+            import traceback
+            click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+            traceback.print_exc()
             raise SystemExit(1)
     asyncio.run(_async_command())
 

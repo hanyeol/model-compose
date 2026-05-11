@@ -109,6 +109,7 @@ class DockerRuntimeManager:
                     entrypoint=self.config.entrypoint,
                     working_dir=self.config.working_dir,
                     user=self.config.user,
+                    shm_size=self.config.shm_size,
                     mem_limit=self.config.mem_limit,
                     memswap_limit=self.config.memswap_limit,
                     cpu_shares=self.config.cpu_shares,

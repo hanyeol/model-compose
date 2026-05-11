@@ -26,8 +26,21 @@ class CdpClient:
         self._reader_task: Optional[asyncio.Task] = None
 
     async def connect(self) -> None:
-        self._websocket, _ = await WebSocketClient(self.ws_url).connect()
-        self._reader_task = asyncio.create_task(self._reader_loop())
+        import time
+
+        deadline = time.monotonic() + self.timeout
+        last_error: Optional[Exception] = None
+
+        while time.monotonic() < deadline:
+            try:
+                self._websocket, _ = await WebSocketClient(self.ws_url).connect()
+                self._reader_task = asyncio.create_task(self._reader_loop())
+                return
+            except (OSError, ConnectionError) as e:
+                last_error = e
+                await asyncio.sleep(1)
+
+        raise ConnectionError(f"Could not connect to {self.ws_url} within {self.timeout}s: {last_error}")
 
     async def close(self) -> None:
         if self._reader_task:
@@ -91,7 +104,7 @@ class CdpClient:
             self._pending.clear()
 
     @classmethod
-    async def from_host_port(
+    async def discover(
         cls,
         host: str,
         port: int,
@@ -99,22 +112,36 @@ class CdpClient:
         timeout: float = 30.0,
     ) -> CdpClient:
         """Discover the debugger URL by querying /json on the HTTP DevTools port."""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://{host}:{port}/json") as response:
-                targets = await response.json(content_type=None)
+        import time
+
+        deadline = time.monotonic() + timeout
+        last_error: Optional[Exception] = None
+
+        while time.monotonic() < deadline:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"http://{host}:{port}/json") as response:
+                        targets = await response.json(content_type=None)
+                break
+            except (aiohttp.ClientError, OSError) as e:
+                last_error = e
+                await asyncio.sleep(1)
+        else:
+            raise ConnectionError(f"Could not reach CDP at {host}:{port} within {timeout}s: {last_error}")
 
         page_targets = [ t for t in targets if t.get("type") == "page" ]
 
         if not page_targets:
             raise ConnectionError(f"No 'page' target found at {host}:{port}.")
+
         if target_index >= len(page_targets):
             raise IndexError(
                 f"target_index {target_index} is out of range; "
                 f"{len(page_targets)} page target(s) found."
             )
 
-        ws_url = page_targets[target_index]["webSocketDebuggerUrl"]
-        instance = cls(ws_url, timeout=timeout)
+        websocket_url = page_targets[target_index]["webSocketDebuggerUrl"]
+        instance = cls(websocket_url, timeout=timeout)
         await instance.connect()
 
         return instance

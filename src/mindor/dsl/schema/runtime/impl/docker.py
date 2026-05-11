@@ -69,6 +69,7 @@ class DockerRuntimeConfig(CommonRuntimeConfig):
     working_dir: Optional[str] = Field(default=None, description="Working directory inside the container.")
     user: Optional[str] = Field(default=None, description="User to run the container as.")
     # Resource limits
+    shm_size: Optional[str] = Field(default=None, description="Shared memory size (e.g. '2gb').")
     mem_limit: Optional[str] = Field(default=None, description="Memory limit.")
     memswap_limit: Optional[str] = Field(default=None, description="Total memory + swap limit.")
     cpus: Optional[Union[str, float]] = Field(default=None, description="CPU quota.")

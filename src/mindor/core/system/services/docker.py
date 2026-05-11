@@ -13,10 +13,23 @@ class DockerSystem(SystemService):
         super().__init__(id, config, daemon)
 
         self.config: DockerSystemConfig = config
+        self._configure_system_config()
+
         self._runtime: DockerRuntimeManager = DockerRuntimeManager(
-            config=self._build_runtime_config(),
+            config=self._build_runtime_config(self.config),
             verbose=True,
         )
+
+    def _configure_system_config(self) -> None:
+        if not self.config.container_name:
+            self.config.container_name = f"mindor-system-{self.id}"
+
+    def _build_runtime_config(self, config: DockerSystemConfig) -> DockerRuntimeConfig:
+        shared_fields = set(DockerRuntimeConfig.model_fields) & set(DockerSystemConfig.model_fields)
+        return DockerRuntimeConfig(**{
+            **{ k: getattr(config, k) for k in shared_fields },
+            "type": RuntimeType.DOCKER,
+        })
 
     async def _setup(self) -> None:
         if not shutil.which("docker"):
@@ -42,32 +55,3 @@ class DockerSystem(SystemService):
 
     async def _is_ready(self) -> bool:
         return await self._runtime.is_container_running()
-
-    def _build_runtime_config(self) -> DockerRuntimeConfig:
-        return DockerRuntimeConfig(
-            type=RuntimeType.DOCKER,
-            image=self.config.image,
-            build=self.config.build,
-            container_name=self.config.container_name or f"mc-system-{self.id}",
-            hostname=self.config.hostname,
-            ports=self.config.ports,
-            networks=self.config.networks,
-            extra_hosts=self.config.extra_hosts,
-            volumes=self.config.volumes,
-            gpus=self.config.gpus,
-            environment=self.config.environment,
-            env_file=self.config.env_file,
-            command=self.config.command,
-            entrypoint=self.config.entrypoint,
-            working_dir=self.config.working_dir,
-            user=self.config.user,
-            mem_limit=self.config.mem_limit,
-            memswap_limit=self.config.memswap_limit,
-            cpus=self.config.cpus,
-            cpu_shares=self.config.cpu_shares,
-            restart=self.config.restart,
-            healthcheck=self.config.healthcheck,
-            labels=self.config.labels,
-            privileged=self.config.privileged,
-            security_opt=self.config.security_opt,
-        )

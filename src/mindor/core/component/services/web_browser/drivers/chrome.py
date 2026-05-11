@@ -317,7 +317,7 @@ class ChromeWebBrowserService(WebBrowserService):
             client = CdpClient(self.config.endpoint)
             await client.connect()
         else:
-            client = await CdpClient.from_host_port(
+            client = await CdpClient.discover(
                 self.config.host, self.config.port, self.config.target_index
             )
         return ChromeBrowserSession(client)

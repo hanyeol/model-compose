@@ -1,32 +1,6 @@
 from typing import Dict, List, Tuple, Optional
 from asyncio.subprocess import Process
-import asyncio, os
-
-async def run_command_streaming(
-    command: List[str],
-    working_dir: Optional[str] = None,
-    env: Dict[str, str] = None
-) -> None:
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        cwd=working_dir or os.getcwd(),
-        env={ **os.environ, **(env or {}) },
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-
-    async def _stream_output(pipe: asyncio.StreamReader) -> None:
-        while True:
-            line = await pipe.readline()
-            if not line:
-                break
-            print(line.decode().rstrip())
-
-    await asyncio.gather(
-        _stream_output(process.stdout),
-        _stream_output(process.stderr),
-        process.wait()
-    )
+import asyncio, os, sys
 
 async def run_command(
     command: List[str],
@@ -49,6 +23,23 @@ async def run_command(
             raise RuntimeError(f"Command timed out: {' '.join(command)}")
 
     return (stdout, stderr, process.returncode)
+
+async def run_command_foreground(
+    command: List[str],
+    working_dir: Optional[str] = None,
+    env: Dict[str, str] = None
+) -> int:
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=working_dir or os.getcwd(),
+        env={ **os.environ, **(env or {}) },
+        stdout=sys.stdout,
+        stderr=sys.stderr
+    )
+
+    await process.wait()
+
+    return process.returncode
 
 async def kill_process(process: Process) -> bool:
     if process.returncode is None:

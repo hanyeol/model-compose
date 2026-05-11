@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import McpServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpServerActionConfig
 from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
-from mindor.core.utils.shell import run_command_streaming
+from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio
@@ -45,16 +45,16 @@ class McpServerComponent(ComponentService):
     async def _setup(self) -> None:
         if self.config.manage.scripts.install:
             for command in self.config.manage.scripts.install:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
         if self.config.manage.scripts.build:
             for command in self.config.manage.scripts.build:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _teardown(self):
         if self.config.manage.scripts.clean:
             for command in self.config.manage.scripts.clean:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")
@@ -68,7 +68,7 @@ class McpServerComponent(ComponentService):
 
     async def _serve(self) -> None:
         if self.config.manage.scripts.start:
-            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
+            await run_command_foreground(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
 
     async def _is_ready(self) -> bool:
         try:

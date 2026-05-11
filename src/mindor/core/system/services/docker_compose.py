@@ -3,6 +3,7 @@ from mindor.dsl.schema.system.impl.docker_compose import DockerComposeSystemConf
 from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
 from mindor.core.logger import logging
+from mindor.core.utils.shell import run_command_foreground
 from mindor.core.utils.time import parse_duration
 import asyncio
 import shutil
@@ -20,33 +21,19 @@ class DockerComposeSystem(SystemService):
 
     async def _serve(self) -> None:
         command = self._build_up_command()
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        exit_code = await run_command_foreground(command)
 
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            error = stderr.decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"Docker compose up failed (exit {process.returncode}): {error}")
+        if exit_code != 0:
+            raise RuntimeError(f"Docker compose up failed (exit {exit_code})")
 
         logging.info(f"Docker compose started: {' '.join(self.config.files) or 'docker-compose.yml'}")
 
     async def _shutdown(self) -> None:
         command = self._build_down_command()
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        exit_code = await run_command_foreground(command)
 
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            error = stderr.decode("utf-8", errors="replace").strip()
-            logging.warning(f"Docker compose down failed (exit {process.returncode}): {error}")
+        if exit_code != 0:
+            logging.warning(f"Docker compose down failed (exit {exit_code})")
         else:
             logging.info(f"Docker compose stopped: {' '.join(self.config.files) or 'docker-compose.yml'}")
 

@@ -8,7 +8,7 @@ from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
 from mindor.core.utils.streaming import StreamResource
 from mindor.core.utils.time import parse_duration
-from mindor.core.utils.shell import run_command_streaming
+from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone
@@ -151,16 +151,16 @@ class HttpServerComponent(ComponentService):
     async def _setup(self) -> None:
         if self.config.manage.scripts.install:
             for command in self.config.manage.scripts.install:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
         if self.config.manage.scripts.build:
             for command in self.config.manage.scripts.build:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _teardown(self):
         if self.config.manage.scripts.clean:
             for command in self.config.manage.scripts.clean:
-                await run_command_streaming(command, self.config.manage.working_dir, self.config.manage.env)
+                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
 
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")
@@ -174,7 +174,7 @@ class HttpServerComponent(ComponentService):
 
     async def _serve(self) -> None:
         if self.config.manage.scripts.start:
-            await run_command_streaming(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
+            await run_command_foreground(self.config.manage.scripts.start, self.config.manage.working_dir, self.config.manage.env)
 
     async def _is_ready(self) -> bool:
         try:

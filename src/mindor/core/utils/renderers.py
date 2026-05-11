@@ -44,7 +44,7 @@ class VariableRenderer:
             return await self._render_text(element, ignore_files)
         
         if isinstance(element, BaseModel):
-            return await self._render_element(element.model_dump(), ignore_files)
+            return await self._render_element(element.model_dump(by_alias=True), ignore_files)
 
         if isinstance(element, dict):
             return { key: await self._render_element(value, ignore_files) for key, value in element.items() }

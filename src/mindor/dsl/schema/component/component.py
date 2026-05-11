@@ -23,7 +23,8 @@ ComponentConfig = Annotated[
         VideoSceneDetectorComponentConfig,
         VideoConverterComponentConfig,
         AudioExtractorComponentConfig,
-        KeyValueStoreComponentConfig
+        KeyValueStoreComponentConfig,
+        GraphStoreComponentConfig
     ],
     Field(discriminator="type")
 ]

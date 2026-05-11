@@ -19,5 +19,6 @@ ActionConfig = Union[
     VideoSceneDetectorActionConfig,
     VideoConverterActionConfig,
     AudioExtractorActionConfig,
-    KeyValueStoreActionConfig
+    KeyValueStoreActionConfig,
+    GraphStoreActionConfig
 ]

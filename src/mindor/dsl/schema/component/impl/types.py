@@ -23,3 +23,4 @@ class ComponentType(str, Enum):
     AUDIO_EXTRACTOR      = "audio-extractor"
     AUDIO_CONVERTER      = "audio-converter"
     KEY_VALUE_STORE      = "key-value-store"
+    GRAPH_STORE          = "graph-store"

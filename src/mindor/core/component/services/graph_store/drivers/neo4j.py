@@ -301,9 +301,10 @@ class Neo4jGraphStoreService(GraphStoreService):
         from neo4j import AsyncGraphDatabase
 
         auth = (self.config.username, self.config.password) if self.config.username else None
+        url = self.config.url if self.config.url else f"{self.config.protocol}://{self.config.host}:{self.config.port}"
 
         return AsyncGraphDatabase.driver(
-            self.config.uri,
+            url,
             auth=auth,
             connection_timeout=parse_duration(self.config.timeout).total_seconds()
         )

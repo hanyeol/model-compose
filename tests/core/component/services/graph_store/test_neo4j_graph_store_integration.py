@@ -28,7 +28,7 @@ from mindor.core.component.services.graph_store.drivers.neo4j import (
 )
 from mindor.core.component.context import ComponentActionContext
 
-NEO4J_URI = "bolt://localhost:7687"
+NEO4J_URL = "bolt://localhost:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "testpassword"
 
@@ -57,7 +57,7 @@ def anyio_backend():
 
 @pytest.fixture
 async def driver():
-    drv = AsyncGraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    drv = AsyncGraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD))
     yield drv
     await drv.close()
 
@@ -795,7 +795,7 @@ class TestServiceLifecycle:
         config = Neo4jGraphStoreComponentConfig(
             type="graph-store",
             driver="neo4j",
-            uri=NEO4J_URI,
+            url=NEO4J_URL,
             username=NEO4J_USER,
             password=NEO4J_PASSWORD,
         )
@@ -819,7 +819,7 @@ class TestServiceLifecycle:
         config = Neo4jGraphStoreComponentConfig(
             type="graph-store",
             driver="neo4j",
-            uri=NEO4J_URI,
+            url=NEO4J_URL,
             username=NEO4J_USER,
             password=NEO4J_PASSWORD,
         )

@@ -257,7 +257,7 @@ class ArangoDBGraphStoreService(GraphStoreService):
     def _create_client(self) -> Tuple[ArangoClient, StandardDatabase]:
         from arango import ArangoClient
 
-        url = f"{self.config.protocol}://{self.config.host}:{self.config.port}"
+        url = self.config.url if self.config.url else f"{self.config.protocol}://{self.config.host}:{self.config.port}"
         client = ArangoClient(
             hosts=url,
             request_timeout=parse_duration(self.config.timeout).total_seconds()

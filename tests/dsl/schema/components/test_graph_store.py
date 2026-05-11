@@ -47,7 +47,10 @@ class TestGraphStoreComponentSchema:
         })
         assert config.type.value == "graph-store"
         assert config.driver == GraphStoreDriver.NEO4J
-        assert config.uri == "bolt://localhost:7687"
+        assert config.url is None
+        assert config.host == "localhost"
+        assert config.port == 7687
+        assert config.protocol == "bolt"
         assert config.username is None
         assert config.password is None
         assert config.database is None
@@ -58,14 +61,14 @@ class TestGraphStoreComponentSchema:
             "id": "graph",
             "type": "graph-store",
             "driver": "neo4j",
-            "uri": "neo4j://db.example.com:7687",
+            "url": "neo4j://db.example.com:7687",
             "username": "neo4j",
             "password": "secret",
             "database": "mydb",
             "timeout": "60s",
             "actions": [],
         })
-        assert config.uri == "neo4j://db.example.com:7687"
+        assert config.url == "neo4j://db.example.com:7687"
         assert config.username == "neo4j"
         assert config.password == "secret"
         assert config.database == "mydb"
@@ -124,6 +127,48 @@ class TestGraphStoreComponentSchema:
                 "port": 99999,
                 "actions": [],
             })
+
+    def test_neo4j_url_and_host_exclusive(self):
+        with pytest.raises(ValidationError):
+            ComponentAdapter.validate_python({
+                "id": "graph",
+                "type": "graph-store",
+                "driver": "neo4j",
+                "url": "bolt://remote:7687",
+                "host": "remote",
+                "actions": [],
+            })
+
+    def test_arangodb_url_and_host_exclusive(self):
+        with pytest.raises(ValidationError):
+            ComponentAdapter.validate_python({
+                "id": "graph",
+                "type": "graph-store",
+                "driver": "arangodb",
+                "url": "http://remote:8529",
+                "host": "remote",
+                "actions": [],
+            })
+
+    def test_neo4j_url_only(self):
+        config = ComponentAdapter.validate_python({
+            "id": "graph",
+            "type": "graph-store",
+            "driver": "neo4j",
+            "url": "neo4j+s://db.example.com:7687",
+            "actions": [],
+        })
+        assert config.url == "neo4j+s://db.example.com:7687"
+
+    def test_arangodb_url_only(self):
+        config = ComponentAdapter.validate_python({
+            "id": "graph",
+            "type": "graph-store",
+            "driver": "arangodb",
+            "url": "https://arango.example.com:8529",
+            "actions": [],
+        })
+        assert config.url == "https://arango.example.com:8529"
 
     def test_neo4j_isinstance(self):
         config = ComponentAdapter.validate_python({
@@ -434,7 +479,7 @@ class TestGraphStoreIntegration:
             "id": "knowledge-graph",
             "type": "graph-store",
             "driver": "neo4j",
-            "uri": "bolt://localhost:7687",
+            "url": "bolt://localhost:7687",
             "username": "neo4j",
             "password": "password",
             "actions": [

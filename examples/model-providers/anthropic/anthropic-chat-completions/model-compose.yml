@@ -1,0 +1,34 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat with Anthropic Claude
+  description: Generate text responses using Anthropic's Claude
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: http-client
+  base_url: https://api.anthropic.com/v1
+  action:
+    path: /messages
+    method: POST
+    headers:
+      x-api-key: ${env.ANTHROPIC_API_KEY}
+      anthropic-version: "2023-06-01"
+      Content-Type: application/json
+    body:
+      model: ${input.model as select/claude-sonnet-4-20250514,claude-haiku-4-5-20251001,claude-opus-4-20250514 | claude-sonnet-4-20250514}
+      max_tokens: ${input.max_tokens as number | 1024}
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+    output:
+      message: ${response.content[0].text}

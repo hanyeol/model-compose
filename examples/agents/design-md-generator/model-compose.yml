@@ -20,7 +20,6 @@ systems:
     wait: true
     wait_timeout: 60s
 
-
 workflows:
   - id: main
     default: true
@@ -85,13 +84,13 @@ workflows:
   - id: extract-page-html
     private: true
     name: extract_page_html
-    description: Extract the HTML markup of specific elements on the page using a CSS selector. Useful for analyzing component structure, class names, and inline styles.
+    description: Extract the HTML markup of ALL matching elements on the page using a CSS selector. Returns a list of HTML strings. Useful for analyzing component structure, class names, and inline styles.
     jobs:
       - component: browser
         action: extract-html
         input:
-          selector: ${input.selector @(description CSS selector to extract HTML from, e.g. "nav", "header", "footer", "[class*=hero]", "body")}
-        output: ${output as text}
+          selector: ${input.selector @(description CSS selector to extract HTML from, e.g. "nav", "header", "footer", "head > link, head > style", "body")}
+        output: ${output as json}
 
   - id: extract-computed-styles
     private: true
@@ -149,18 +148,21 @@ workflows:
         input:
           expression: >
             (() => {
-              function rgbToHex(rgb) {
-                if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
-                const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-                if (!m) return rgb;
-                return '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+              function toColor(raw) {
+                if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
+                const m = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                if (!m) return raw;
+                const hex = '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+                const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+                if (a < 1) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`;
+                return hex;
               }
               const bgs = new Set(), texts = new Set(), borders = new Set(), shadows = new Set();
               document.querySelectorAll('*').forEach(el => {
                 const cs = getComputedStyle(el);
-                const bg = rgbToHex(cs.backgroundColor); if (bg) bgs.add(bg);
-                const tc = rgbToHex(cs.color); if (tc) texts.add(tc);
-                const bc = rgbToHex(cs.borderColor); if (bc && bc !== rgbToHex(cs.backgroundColor)) borders.add(bc);
+                const bg = toColor(cs.backgroundColor); if (bg) bgs.add(bg);
+                const tc = toColor(cs.color); if (tc) texts.add(tc);
+                const bc = toColor(cs.borderColor); if (bc && bc !== toColor(cs.backgroundColor)) borders.add(bc);
                 if (cs.boxShadow && cs.boxShadow !== 'none') shadows.add(cs.boxShadow);
               });
               return JSON.stringify({
@@ -267,7 +269,7 @@ components:
         method: extract
         selector: ${input.selector}
         extract_mode: html
-        multiple: false
+        multiple: true
 
       - id: extract-text
         method: extract
@@ -311,7 +313,7 @@ components:
       - extract-typography
       - extract-spacing-and-radii
       - scroll-page
-    max_iteration_count: 20
+    max_iteration_count: 30
     action:
       model:
         component: gpt-4o
@@ -327,9 +329,9 @@ components:
 
         1. **navigate_to_url** — Open any URL in the browser
         2. **extract_page_structure** — Get a structural outline of the page (sections, IDs, classes, headings)
-        3. **extract_page_html** — Get HTML of specific elements via CSS selector
+        3. **extract_page_html** — Get HTML of ALL matching elements via CSS selector (returns a list)
         4. **extract_computed_styles** — Get exact computed CSS of elements (colors, fonts, spacing, shadows)
-        5. **extract_color_palette** — Scan all elements for unique background, text, border, and shadow colors
+        5. **extract_color_palette** — Scan all elements for unique colors (hex for opaque, rgba() for semi-transparent)
         6. **extract_typography** — Scan all text elements for unique font combinations
         7. **extract_spacing_and_radii** — Collect all unique spacing and border-radius values
         8. **scroll_page** — Scroll the page to reveal more content
@@ -367,7 +369,117 @@ components:
         Your final output MUST be a complete DESIGN.md document following this exact structure.
         Every section is mandatory. Use exact CSS values (hex codes, px values, font stacks) — never approximate.
 
+        The document starts with a YAML front matter block delimited by `---`. This block defines reusable design tokens.
+        After the front matter, all Markdown prose MUST reference these tokens using `{category.token-name}` syntax
+        (e.g., `{colors.primary}`, `{typography.body-md}`, `{rounded.lg}`, `{spacing.md}`, `{component.button-primary}`).
+        Hex values and px values may appear once when DEFINING a token in the front matter and optionally once inline
+        next to the first token reference in body prose. After that, always use the `{token.ref}` form.
+
         ```
+        ---
+        version: alpha
+        name: "[Brand Name]"
+        description: "A dense 2-4 sentence summary of the observed design language. Mention the dominant surface, primary accent, typography voice, signature component grammar, and what makes the page visually distinct."
+
+        colors:
+          primary: "#..."
+          primary-active: "#..."
+          ink: "#..."
+          body: "#..."
+          muted: "#..."
+          hairline: "#..."
+          canvas: "#..."
+          surface: "#..."
+          on-primary: "#..."
+          on-dark: "#..."
+          # Add brand-specific colors as needed: secondary, accent, error, success, warning, etc.
+
+        typography:
+          hero-display:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          display-lg:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          heading-1:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          heading-2:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          body-md:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          body-sm:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          caption:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          button-md:
+            fontFamily: "..."
+            fontSize: 00px
+            fontWeight: 000
+            lineHeight: 1.00
+            letterSpacing: 0
+          # Add more tiers as observed: heading-3, label, overline, mono, etc.
+
+        rounded:
+          xs: 0px
+          sm: 0px
+          md: 0px
+          lg: 0px
+          full: 9999px
+
+        spacing:
+          xxs: 4px
+          xs: 8px
+          sm: 12px
+          md: 16px
+          lg: 24px
+          xl: 32px
+          xxl: 48px
+          section: 96px
+
+        components:
+          button-primary:
+            backgroundColor: "{colors.primary}"
+            textColor: "{colors.on-primary}"
+            typography: "{typography.button-md}"
+            rounded: "{rounded.md}"
+            padding: "..."
+          card-base:
+            backgroundColor: "{colors.canvas}"
+            textColor: "{colors.ink}"
+            typography: "{typography.body-md}"
+            rounded: "{rounded.lg}"
+            padding: "{spacing.xl}"
+            border: "1px solid {colors.hairline}"
+          # Add all observed components as separate entries.
+          # Each variant gets its own entry: button-primary-active, button-secondary, card-feature, etc.
+        ---
+
         # Design System Inspired by [Brand Name]
 
         ## 1. Visual Theme & Atmosphere
@@ -390,9 +502,10 @@ components:
         ### Semantic  (success, warning, error — if present)
 
         Each entry format:
-        - **Evocative Color Name** (`#hexcode`): Functional description — where it appears, what role it plays.
+        - **Evocative Color Name** `{colors.token-name}` (`#hexcode`): Functional description — where it appears, what role it plays.
         Include CSS custom property names if found (e.g., `--color-primary`).
         Use rgba() for shadow colors and semi-transparent values.
+        After the first inline mention of a hex value, use `{colors.*}` references exclusively.
         Document colors that are ABSENT too (e.g., "No gradients are used anywhere").]
 
         ## 3. Typography Rules
@@ -402,8 +515,9 @@ components:
         Note any OpenType features (ss01, tnum, liga, kern).]
 
         ### Hierarchy
-        [Markdown table with columns: Role | Font | Size | Weight | Line Height | Letter Spacing | Notes
+        [Markdown table with columns: Token | Font | Size | Weight | Line Height | Letter Spacing | Use
         Include 8-18 rows from Display Hero down to Nano/Caption.
+        The Token column must use `{typography.*}` references matching the front matter keys.
         Use exact px values plus rem equivalents where appropriate.]
 
         ### Principles
@@ -412,10 +526,17 @@ components:
 
         ## 4. Component Stylings
 
-        [4-6 subsections organized by component type:
+        [4-6 subsections organized by component type.
+        Each component variant must be a separate entry matching its front matter `components:` key.
+        Use this pattern for every component:
+
+        **`{component.token-name}`** — One-sentence role.
+        - Background `{colors.*}`, text `{colors.*}`, typography `{typography.*}`, rounded `{rounded.*}`, padding `{spacing.*}`.
+        - Border/shadow/focus/active/selected behavior if evidenced.
+        - Usage guidance and constraints.
+
         ### Buttons — Document every variant (primary, secondary, ghost, icon-only, etc.)
-          Each variant: bold name, then bulleted CSS properties
-          (Background, Text, Padding, Radius, Font, Border, Shadow, Height, Hover/Active state, Use context)
+          Each variant gets its own `components:` entry: `button-primary`, `button-primary-active`, `button-secondary`, etc.
         ### Cards & Containers — Feature cards, pricing cards, content cards, etc.
         ### Inputs & Forms — Text inputs, selects, textareas with focus states
         ### Navigation — Top nav bar with exact dimensions, colors, typography
@@ -425,7 +546,9 @@ components:
         ## 5. Layout Principles
 
         ### Spacing System
-        [Base unit, full spacing scale with px values, section padding, card padding, gap values.]
+        [Base unit and full spacing scale using `{spacing.*}` tokens.
+        Document section padding, card padding, gap values, and any notable exceptions.
+        Present as a table: Token | Value | Use.]
 
         ### Grid & Container
         [Max content width, column count, gutter sizes, layout patterns (3-up, 2-column, etc.).]
@@ -433,10 +556,27 @@ components:
         ### Whitespace Philosophy
         [1-3 bullets on how the brand uses whitespace as a design tool.]
 
-        ### Border Radius Scale
-        [Labeled tiers or table: Value | Context/Use]
+        ## 6. Shapes
 
-        ## 6. Depth & Elevation
+        ### Border Radius Scale
+        [Table using `{rounded.*}` tokens from the front matter:
+
+        | Token | Value | Use |
+        |---|---:|---|
+        | `{rounded.xs}` | 2px | Chips, small badges |
+        | `{rounded.sm}` | 4px | Inputs, inline elements |
+        | `{rounded.md}` | 8px | Buttons, dropdowns |
+        | `{rounded.lg}` | 16px | Cards, modals |
+        | `{rounded.full}` | 9999px | Avatars, pills |
+
+        Replace values with actual extracted data.]
+
+        ### Photography / Media Geometry
+        [Document image aspect ratios, crop behavior, corner rounding applied to images,
+        product render treatment, masks, icon geometry, and whether imagery is content or system chrome.
+        Note `{rounded.*}` tokens used on media elements.]
+
+        ## 7. Depth & Elevation
 
         [Markdown table: Level | Treatment | Use — 4-6 rows from Flat to highest elevation.
         Include exact box-shadow CSS values in the Treatment column.]
@@ -447,17 +587,17 @@ components:
         ### Decorative Depth
         [3-4 bullets on non-shadow depth: gradients, color contrast, photography overlap, etc.]
 
-        ## 7. Do's and Don'ts
+        ## 8. Do's and Don'ts
 
         ### Do
-        [7-10 imperative bullets. Reference specific values (hex, px, font names).
+        [7-10 imperative bullets. Reference `{token.ref}` values, not raw hex/px.
         Capture what makes this design system unique.]
 
         ### Don't
-        [7-10 prohibition bullets. Reference specific values.
+        [7-10 prohibition bullets. Reference `{token.ref}` values.
         Capture what would break the brand's visual identity.]
 
-        ## 8. Responsive Behavior
+        ## 9. Responsive Behavior
 
         ### Breakpoints
         [Table: Name | Width | Key Changes — 4-7 rows]
@@ -471,36 +611,55 @@ components:
         ### Image Behavior
         [3-5 bullets on how images scale, crop, and art-direct responsively]
 
-        ## 9. Agent Prompt Guide
+        ## 10. Agent Prompt Guide
 
-        ### Quick Color Reference
-        [7-12 bulleted entries mapping semantic role to named color + hex:
-        - Primary CTA: Brand Blue (`#hexcode`)
-        - Body text: Dark Ink (`#hexcode`)
+        ### Quick Token Reference
+        [7-12 bulleted entries mapping semantic role to token + hex:
+        - Primary CTA: `{colors.primary}` (`#hexcode`)
+        - Body text: `{colors.ink}` (`#hexcode`)
+        - Default radius: `{rounded.md}` (8px)
+        - Body type: `{typography.body-md}`
         ...]
 
         ### Example Component Prompts
         [5 quoted natural-language prompt strings that demonstrate how to request
-        a component using this design system. Each prompt embeds exact CSS values:
-        "Create a primary button with font-family: Inter, font-size: 14px, font-weight: 500,
-        background: #533afd, color: #ffffff, padding: 8px 16px, border-radius: 6px, no shadow."]
+        a component using this design system. Each prompt uses `{token.ref}` syntax:
+        "Create a `{component.button-primary}`: typography `{typography.button-md}`,
+        background `{colors.primary}`, color `{colors.on-primary}`, padding `{spacing.sm} {spacing.md}`,
+        border-radius `{rounded.md}`, no shadow."]
 
         ### Iteration Guide
         [5-8 numbered rules for maintaining design fidelity during iterative generation.
+        1. Use `{token.refs}` instead of inline values in prose.
+        2. Add variants as separate `components:` entries in the front matter.
+        3. Keep front matter tokens in sync with body prose references.
         Reference specific values and explain "why" behind each constraint.]
+
+        ## 11. Known Gaps
+
+        [List any design aspects not evidenced by the extracted data:
+        - Hover/focus states not visible in static extraction
+        - Dark mode palette if only light mode was captured (or vice versa)
+        - Form validation states, error/success styling
+        - Animation timings and transition curves
+        - Exact image crops or aspect ratios not determinable from CSS alone
+        - Proprietary font metrics or variable font axes
+        - Breakpoints inferred from layout rather than explicit media queries
+        - Components visible only behind authentication or interaction]
         ```
 
         # WRITING STYLE RULES
 
         - Be **authoritative and opinionated**. Make confident judgments: "The system is unapologetically angular" not "The system appears to use angular shapes."
         - Be **comparative**. Position the brand against competitors: "deliberately warm where most AI brands use cool blue" — show awareness of the design landscape.
-        - Be **concrete**. Every claim must cite exact values: `#hexcode`, `NNpx`, font family names. Pair prose descriptions with technical specs.
+        - Be **concrete**. Every design claim must cite a `{token.ref}` after the token is defined. Raw `#hex`, `rgba()`, and `px` values may appear in YAML definitions and once next to the first body mention only.
         - Use **present tense, declarative voice**: The system "is" or "uses", never "should" or "would."
         - Use **em-dashes** (--) for parenthetical elaboration.
         - Use **bold** for first mentions of defining concepts, brand-specific font names, and color names.
-        - Color entries follow the format: **Color Name** (`#hex`): Description of role and usage.
+        - Color entries follow the format: **Color Name** `{colors.token}` (`#hex` or `rgba(...)`): Description of role and usage.
+        - Use `{token.ref}` syntax throughout prose after the first definition. Hex/px values appear in the YAML front matter and optionally once inline next to the first token reference — after that, always use the token form.
         - Include exact values from computed styles — do NOT guess or approximate. If you extracted `rgba(50, 50, 93, 0.25)`, write that exact value.
-        - Write 400-600 lines total. Be thorough but not padded.
+        - Write a complete but not padded document. Prefer 250-500 lines; exceed that only when the extracted system genuinely has many components.
 
         # IMPORTANT RULES
 
@@ -511,7 +670,9 @@ components:
         - All hex codes must come from extract_color_palette or extract_computed_styles results.
         - Border radius and spacing values must come from extract_spacing_and_radii results.
         - If the page uses a dark theme, document the dark surfaces as the primary canvas rather than forcing a "light canvas" narrative.
-        - Your final response must contain ONLY the raw DESIGN.md content — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
+        - The YAML front matter `components:` block must list every component variant as a separate entry (e.g., `button-primary`, `button-primary-active`, `button-secondary`, `card-feature`). Component properties must reference other front matter tokens (`{colors.*}`, `{typography.*}`, `{rounded.*}`, `{spacing.*}`).
+        - Every `{token.ref}` used in prose must have a corresponding definition in the YAML front matter. Do not reference undefined tokens.
+        - Your final response must contain ONLY the raw DESIGN.md content (starting with `---` front matter) — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
       user_prompt: |
         Analyze the website at this URL and generate a complete DESIGN.md document:
 

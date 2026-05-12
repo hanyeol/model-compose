@@ -1,0 +1,522 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+systems:
+  - id: chrome-with-novnc
+    type: docker
+    build:
+      context: .
+    image: chrome-with-novnc
+    ports:
+      - "9222:9223"
+      - "6080:6080"
+    shm_size: "2gb"
+    wait: true
+    wait_timeout: 60s
+
+
+workflows:
+  - id: main
+    default: true
+    title: DESIGN.md Generator
+    description: Analyze a website's design system and generate a comprehensive DESIGN.md document. Provide a URL and select an AI model.
+    job:
+      component: design-md-generator
+      output:
+        design_md: ${output[-1].content as text}
+        messages: ${output as json}
+
+  - id: navigate-to-url
+    private: true
+    name: navigate_to_url
+    description: Navigate the browser to a URL and wait for the page to fully load including JavaScript rendering.
+    jobs:
+      - component: browser
+        action: navigate
+        input:
+          url: ${input.url @(description The full URL to navigate to, e.g. https://stripe.com)}
+        output: ${output as text}
+
+  - id: extract-page-structure
+    private: true
+    name: extract_page_structure
+    description: >
+      Extract the overall page structure as a simplified outline: major sections, their tag names,
+      class names, roles, and nesting depth. Returns a JSON array. Use this as the first inspection
+      step to understand the page layout before drilling into specific elements.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const sections = [];
+              const walk = (el, depth) => {
+                if (depth > 4) return;
+                const tag = el.tagName.toLowerCase();
+                const isSection = ['header','nav','main','section','article','aside','footer','div'].includes(tag);
+                const hasRole = el.getAttribute('role');
+                const hasId = el.id;
+                const cls = el.className && typeof el.className === 'string' ? el.className.split(/\s+/).slice(0,3).join(' ') : '';
+                if (isSection && (hasRole || hasId || cls || depth < 2)) {
+                  const heading = el.querySelector('h1,h2,h3,h4');
+                  sections.push({
+                    tag, depth,
+                    id: hasId || undefined,
+                    classes: cls || undefined,
+                    role: hasRole || undefined,
+                    heading: heading ? heading.textContent.trim().slice(0,80) : undefined,
+                    childCount: el.children.length
+                  });
+                }
+                Array.from(el.children).forEach(c => walk(c, depth + 1));
+              };
+              walk(document.body, 0);
+              return JSON.stringify(sections.slice(0, 50));
+            })()
+        output: ${output as json}
+
+  - id: extract-page-html
+    private: true
+    name: extract_page_html
+    description: Extract the HTML markup of specific elements on the page using a CSS selector. Useful for analyzing component structure, class names, and inline styles.
+    jobs:
+      - component: browser
+        action: extract-html
+        input:
+          selector: ${input.selector @(description CSS selector to extract HTML from, e.g. "nav", "header", "footer", "[class*=hero]", "body")}
+        output: ${output as text}
+
+  - id: extract-computed-styles
+    private: true
+    name: extract_computed_styles
+    description: >
+      Extract computed CSS styles from elements matching a CSS selector.
+      Returns a JSON array of objects, each containing the element's tag, text preview, and
+      computed styles (color, backgroundColor, fontFamily, fontSize, fontWeight, lineHeight,
+      letterSpacing, borderRadius, padding, margin, boxShadow, border, textTransform).
+      Use this to get exact design token values.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const selector = '${input.selector}';
+              const els = Array.from(document.querySelectorAll(selector)).slice(0, 20);
+              return JSON.stringify(els.map(el => {
+                const cs = getComputedStyle(el);
+                return {
+                  tag: el.tagName.toLowerCase(),
+                  text: (el.textContent || '').trim().slice(0, 80),
+                  classes: el.className,
+                  styles: {
+                    color: cs.color,
+                    backgroundColor: cs.backgroundColor,
+                    fontFamily: cs.fontFamily,
+                    fontSize: cs.fontSize,
+                    fontWeight: cs.fontWeight,
+                    lineHeight: cs.lineHeight,
+                    letterSpacing: cs.letterSpacing,
+                    borderRadius: cs.borderRadius,
+                    padding: cs.padding,
+                    margin: cs.margin,
+                    boxShadow: cs.boxShadow,
+                    border: cs.border,
+                    textTransform: cs.textTransform
+                  }
+                };
+              }));
+            })()
+        output: ${output as json}
+
+  - id: extract-color-palette
+    private: true
+    name: extract_color_palette
+    description: >
+      Extract all unique colors used on the page by scanning computed styles of all visible elements.
+      Returns a JSON object with categorized colors: backgrounds, text colors, border colors, and
+      shadow colors, each as an array of unique hex values.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              function rgbToHex(rgb) {
+                if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
+                const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                if (!m) return rgb;
+                return '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+              }
+              const bgs = new Set(), texts = new Set(), borders = new Set(), shadows = new Set();
+              document.querySelectorAll('*').forEach(el => {
+                const cs = getComputedStyle(el);
+                const bg = rgbToHex(cs.backgroundColor); if (bg) bgs.add(bg);
+                const tc = rgbToHex(cs.color); if (tc) texts.add(tc);
+                const bc = rgbToHex(cs.borderColor); if (bc && bc !== rgbToHex(cs.backgroundColor)) borders.add(bc);
+                if (cs.boxShadow && cs.boxShadow !== 'none') shadows.add(cs.boxShadow);
+              });
+              return JSON.stringify({
+                backgrounds: [...bgs].slice(0, 30),
+                textColors: [...texts].slice(0, 30),
+                borderColors: [...borders].slice(0, 20),
+                shadows: [...shadows].slice(0, 10)
+              });
+            })()
+        output: ${output as json}
+
+  - id: extract-typography
+    private: true
+    name: extract_typography
+    description: >
+      Extract all unique typography styles used on the page by scanning headings (h1-h6),
+      paragraphs, buttons, links, nav items, and other text elements.
+      Returns a JSON array of unique font style combinations with their element context.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const selectors = 'h1,h2,h3,h4,h5,h6,p,a,button,span,li,label,nav a,nav button,[class*=title],[class*=heading],[class*=hero],[class*=caption],[class*=subtitle]';
+              const seen = new Set();
+              const results = [];
+              document.querySelectorAll(selectors).forEach(el => {
+                const cs = getComputedStyle(el);
+                const key = `${cs.fontFamily}|${cs.fontSize}|${cs.fontWeight}|${cs.lineHeight}|${cs.letterSpacing}`;
+                if (!seen.has(key) && el.textContent.trim()) {
+                  seen.add(key);
+                  results.push({
+                    tag: el.tagName.toLowerCase(),
+                    text: el.textContent.trim().slice(0, 60),
+                    fontFamily: cs.fontFamily,
+                    fontSize: cs.fontSize,
+                    fontWeight: cs.fontWeight,
+                    lineHeight: cs.lineHeight,
+                    letterSpacing: cs.letterSpacing,
+                    textTransform: cs.textTransform,
+                    color: cs.color
+                  });
+                }
+              });
+              return JSON.stringify(results.slice(0, 30));
+            })()
+        output: ${output as json}
+
+  - id: extract-spacing-and-radii
+    private: true
+    name: extract_spacing_and_radii
+    description: >
+      Extract unique spacing values (padding, margin, gap) and border-radius values used across the page.
+      Returns a JSON object with sorted arrays of unique pixel values for spacing and radii.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const spacings = new Set(), radii = new Set();
+              document.querySelectorAll('*').forEach(el => {
+                const cs = getComputedStyle(el);
+                [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft,
+                 cs.marginTop, cs.marginRight, cs.marginBottom, cs.marginLeft, cs.gap
+                ].forEach(v => { if (v && v !== '0px' && v !== 'normal') spacings.add(v); });
+                if (cs.borderRadius && cs.borderRadius !== '0px') radii.add(cs.borderRadius);
+              });
+              const parse = s => parseFloat(s) || 0;
+              return JSON.stringify({
+                spacings: [...spacings].sort((a,b) => parse(a) - parse(b)),
+                radii: [...radii].sort((a,b) => parse(a) - parse(b))
+              });
+            })()
+        output: ${output as json}
+
+  - id: scroll-page
+    private: true
+    name: scroll_page
+    description: Scroll the page by a specified number of pixels vertically. Use positive values to scroll down, negative to scroll up. Useful for revealing below-the-fold content before extracting styles from lazy-loaded sections.
+    jobs:
+      - component: browser
+        action: scroll
+        input:
+          y: ${input.pixels @(description Number of pixels to scroll vertically. Positive = down, negative = up. Typical viewport height is 1080px.)}
+        output: ${output as text}
+
+components:
+  - id: browser
+    type: web-browser
+    driver: chrome
+    host: localhost
+    port: 9222
+    timeout: 60s
+    max_concurrent_count: 1
+    actions:
+      - id: navigate
+        method: navigate
+        url: ${input.url}
+        wait_until: load
+
+      - id: extract-html
+        method: extract
+        selector: ${input.selector}
+        extract_mode: html
+        multiple: false
+
+      - id: extract-text
+        method: extract
+        selector: ${input.selector}
+        extract_mode: text
+        multiple: false
+
+      - id: evaluate
+        method: evaluate
+        expression: ${input.expression}
+
+      - id: scroll
+        method: scroll
+        y: ${input.y}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+        Accept-Encoding: gzip, deflate
+      body:
+        model: gpt-4o
+        max_tokens: 16384
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: design-md-generator
+    type: agent
+    tools:
+      - navigate-to-url
+      - extract-page-structure
+      - extract-page-html
+      - extract-computed-styles
+      - extract-color-palette
+      - extract-typography
+      - extract-spacing-and-radii
+      - scroll-page
+    max_iteration_count: 20
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You are an expert design system analyst. Your job is to analyze a website and produce a comprehensive DESIGN.md document that captures its complete visual design system.
+
+        # TOOLS AVAILABLE
+
+        You have browser tools to inspect the target website:
+
+        1. **navigate_to_url** — Open any URL in the browser
+        2. **extract_page_structure** — Get a structural outline of the page (sections, IDs, classes, headings)
+        3. **extract_page_html** — Get HTML of specific elements via CSS selector
+        4. **extract_computed_styles** — Get exact computed CSS of elements (colors, fonts, spacing, shadows)
+        5. **extract_color_palette** — Scan all elements for unique background, text, border, and shadow colors
+        6. **extract_typography** — Scan all text elements for unique font combinations
+        7. **extract_spacing_and_radii** — Collect all unique spacing and border-radius values
+        8. **scroll_page** — Scroll the page to reveal more content
+
+        # ANALYSIS STRATEGY
+
+        Follow this multi-pass approach:
+
+        **Pass 1 — Structure Overview**
+        1. Navigate to the target URL
+        2. Run extract_page_structure to understand the page layout (sections, headings, classes)
+        3. Run extract_page_html on "head > link, head > style" to find font imports and CSS custom properties
+
+        **Pass 2 — Data Extraction**
+        4. Run extract_color_palette to get all colors
+        5. Run extract_typography to get all font styles
+        6. Run extract_spacing_and_radii to get spacing and radius values
+        7. Run extract_computed_styles on key elements:
+           - "nav, header" — navigation bar
+           - "h1, h2, h3" — heading hierarchy
+           - "button, a[class*=btn], [class*=button], [class*=cta]" — buttons/CTAs
+           - "[class*=card], [class*=tile], article" — cards/containers
+           - "input, textarea, select" — form elements
+           - "footer" — footer
+
+        **Pass 3 — Detail Inspection**
+        8. Based on the page structure, extract_computed_styles on brand-specific components (hero sections, pricing cards, testimonial blocks, feature grids, etc.)
+        9. Look for CSS custom properties by extracting styles from :root or body via extract_page_html
+
+        **Pass 4 — Synthesis**
+        10. Combine all data into the DESIGN.md document following the exact format below
+
+        # OUTPUT FORMAT
+
+        Your final output MUST be a complete DESIGN.md document following this exact structure.
+        Every section is mandatory. Use exact CSS values (hex codes, px values, font stacks) — never approximate.
+
+        ```
+        # Design System Inspired by [Brand Name]
+
+        ## 1. Visual Theme & Atmosphere
+
+        [2-3 paragraphs of editorial prose describing the brand's overall visual identity.
+        Be opinionated and analytical — describe the emotional quality, the defining design decisions,
+        and how this brand positions itself visually against competitors.
+        Include specific hex codes, font names, and pixel values inline.
+        End with a **Key Characteristics:** bulleted list of 7-10 signature traits.]
+
+        ## 2. Color Palette & Roles
+
+        [Organize into 4-7 subcategories based on function. Common groupings:
+        ### Primary
+        ### Secondary & Accent  (or ### Brand & Dark, ### Accent Colors)
+        ### Interactive
+        ### Neutral Scale  (or ### Neutrals & Text)
+        ### Surface & Background  (or ### Surface & Borders)
+        ### Shadows
+        ### Semantic  (success, warning, error — if present)
+
+        Each entry format:
+        - **Evocative Color Name** (`#hexcode`): Functional description — where it appears, what role it plays.
+        Include CSS custom property names if found (e.g., `--color-primary`).
+        Use rgba() for shadow colors and semi-transparent values.
+        Document colors that are ABSENT too (e.g., "No gradients are used anywhere").]
+
+        ## 3. Typography Rules
+
+        ### Font Family
+        [List display, body, and monospace font families with full fallback stacks.
+        Note any OpenType features (ss01, tnum, liga, kern).]
+
+        ### Hierarchy
+        [Markdown table with columns: Role | Font | Size | Weight | Line Height | Letter Spacing | Notes
+        Include 8-18 rows from Display Hero down to Nano/Caption.
+        Use exact px values plus rem equivalents where appropriate.]
+
+        ### Principles
+        [4-5 bullets explaining the philosophy behind typographic choices:
+        weight strategy, tracking behavior, why this font family, what it communicates.]
+
+        ## 4. Component Stylings
+
+        [4-6 subsections organized by component type:
+        ### Buttons — Document every variant (primary, secondary, ghost, icon-only, etc.)
+          Each variant: bold name, then bulleted CSS properties
+          (Background, Text, Padding, Radius, Font, Border, Shadow, Height, Hover/Active state, Use context)
+        ### Cards & Containers — Feature cards, pricing cards, content cards, etc.
+        ### Inputs & Forms — Text inputs, selects, textareas with focus states
+        ### Navigation — Top nav bar with exact dimensions, colors, typography
+        ### Image Treatment — How photography/illustration is handled (optional)
+        ### [Brand-specific] — Any unique components specific to this brand]
+
+        ## 5. Layout Principles
+
+        ### Spacing System
+        [Base unit, full spacing scale with px values, section padding, card padding, gap values.]
+
+        ### Grid & Container
+        [Max content width, column count, gutter sizes, layout patterns (3-up, 2-column, etc.).]
+
+        ### Whitespace Philosophy
+        [1-3 bullets on how the brand uses whitespace as a design tool.]
+
+        ### Border Radius Scale
+        [Labeled tiers or table: Value | Context/Use]
+
+        ## 6. Depth & Elevation
+
+        [Markdown table: Level | Treatment | Use — 4-6 rows from Flat to highest elevation.
+        Include exact box-shadow CSS values in the Treatment column.]
+
+        ### Shadow Philosophy
+        [1 paragraph on the design rationale for shadow usage.]
+
+        ### Decorative Depth
+        [3-4 bullets on non-shadow depth: gradients, color contrast, photography overlap, etc.]
+
+        ## 7. Do's and Don'ts
+
+        ### Do
+        [7-10 imperative bullets. Reference specific values (hex, px, font names).
+        Capture what makes this design system unique.]
+
+        ### Don't
+        [7-10 prohibition bullets. Reference specific values.
+        Capture what would break the brand's visual identity.]
+
+        ## 8. Responsive Behavior
+
+        ### Breakpoints
+        [Table: Name | Width | Key Changes — 4-7 rows]
+
+        ### Touch Targets
+        [3-5 bullets with minimum tap sizes for key interactive elements]
+
+        ### Collapsing Strategy
+        [5-8 bullets describing how nav, grids, hero, cards, footer adapt across breakpoints]
+
+        ### Image Behavior
+        [3-5 bullets on how images scale, crop, and art-direct responsively]
+
+        ## 9. Agent Prompt Guide
+
+        ### Quick Color Reference
+        [7-12 bulleted entries mapping semantic role to named color + hex:
+        - Primary CTA: Brand Blue (`#hexcode`)
+        - Body text: Dark Ink (`#hexcode`)
+        ...]
+
+        ### Example Component Prompts
+        [5 quoted natural-language prompt strings that demonstrate how to request
+        a component using this design system. Each prompt embeds exact CSS values:
+        "Create a primary button with font-family: Inter, font-size: 14px, font-weight: 500,
+        background: #533afd, color: #ffffff, padding: 8px 16px, border-radius: 6px, no shadow."]
+
+        ### Iteration Guide
+        [5-8 numbered rules for maintaining design fidelity during iterative generation.
+        Reference specific values and explain "why" behind each constraint.]
+        ```
+
+        # WRITING STYLE RULES
+
+        - Be **authoritative and opinionated**. Make confident judgments: "The system is unapologetically angular" not "The system appears to use angular shapes."
+        - Be **comparative**. Position the brand against competitors: "deliberately warm where most AI brands use cool blue" — show awareness of the design landscape.
+        - Be **concrete**. Every claim must cite exact values: `#hexcode`, `NNpx`, font family names. Pair prose descriptions with technical specs.
+        - Use **present tense, declarative voice**: The system "is" or "uses", never "should" or "would."
+        - Use **em-dashes** (--) for parenthetical elaboration.
+        - Use **bold** for first mentions of defining concepts, brand-specific font names, and color names.
+        - Color entries follow the format: **Color Name** (`#hex`): Description of role and usage.
+        - Include exact values from computed styles — do NOT guess or approximate. If you extracted `rgba(50, 50, 93, 0.25)`, write that exact value.
+        - Write 400-600 lines total. Be thorough but not padded.
+
+        # IMPORTANT RULES
+
+        - Extract REAL data from the page. Never fabricate colors, fonts, or dimensions.
+        - If a CSS custom property name is visible in the HTML/styles, include it.
+        - Document what is ABSENT as well as what is present (e.g., "No drop shadows on cards", "No gradients").
+        - The Typography Hierarchy table must have exact values from extract_typography, not guesses.
+        - All hex codes must come from extract_color_palette or extract_computed_styles results.
+        - Border radius and spacing values must come from extract_spacing_and_radii results.
+        - If the page uses a dark theme, document the dark surfaces as the primary canvas rather than forcing a "light canvas" narrative.
+        - Your final response must contain ONLY the raw DESIGN.md content — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
+      user_prompt: |
+        Analyze the website at this URL and generate a complete DESIGN.md document:
+
+        ${input.url}
+
+        Use all available tools to thoroughly inspect the page. Follow the multi-pass analysis strategy:
+        first structural overview, then systematic data extraction, then detail inspection,
+        and finally synthesize everything into the DESIGN.md format.

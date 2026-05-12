@@ -176,7 +176,7 @@ graph TD
 
 ### Docker 容器架构
 
-`web-browser-with-novnc` 系统在单个基于 Alpine 的容器中运行以下由 supervisord 管理的服务：
+`chrome-with-novnc` 系统在单个基于 Alpine 的容器中运行以下由 supervisord 管理的服务：
 
 | 服务 | 端口 | 描述 |
 |------|------|------|

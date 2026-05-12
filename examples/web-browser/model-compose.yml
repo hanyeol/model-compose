@@ -8,11 +8,11 @@ controller:
     port: 8081
 
 systems:
-  - id: web-browser-with-novnc
+  - id: chrome-with-novnc
     type: docker
     build:
       context: .
-    image: web-browser-with-novnc
+    image: chrome-with-novnc
     ports:
       - "9222:9223"
       - "6080:6080"

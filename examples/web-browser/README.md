@@ -176,7 +176,7 @@ graph TD
 
 ### Docker Container Architecture
 
-The `web-browser-with-novnc` system runs a single Alpine-based container with the following services managed by supervisord:
+The `chrome-with-novnc` system runs a single Alpine-based container with the following services managed by supervisord:
 
 | Service | Port | Description |
 |---------|------|-------------|

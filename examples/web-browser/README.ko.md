@@ -176,7 +176,7 @@ graph TD
 
 ### Docker 컨테이너 아키텍처
 
-`web-browser-with-novnc` 시스템은 supervisord로 관리되는 단일 Alpine 기반 컨테이너에서 다음 서비스를 실행합니다:
+`chrome-with-novnc` 시스템은 supervisord로 관리되는 단일 Alpine 기반 컨테이너에서 다음 서비스를 실행합니다:
 
 | 서비스 | 포트 | 설명 |
 |--------|------|------|

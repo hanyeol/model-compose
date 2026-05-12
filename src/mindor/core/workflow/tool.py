@@ -16,7 +16,7 @@ class WorkflowToolParameter:
 
 @dataclass
 class WorkflowTool:
-    fn: Callable[[Any], Awaitable[Any]]
+    function: Callable[[Any], Awaitable[Any]]
     description: Optional[str]
     parameters: List[WorkflowToolParameter]
 
@@ -35,12 +35,19 @@ class WorkflowToolGenerator():
 
         safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
         arguments = ",".join([ variable.name or "input" for variable in workflow.input ])
-        code = f"async def _run_workflow_{safe_workflow_id}({arguments}, context=None): return await _run_workflow('{workflow_id}', await _build_input_value([{arguments}]), context=context)"
+        code = (
+            f"async def _run_workflow_{safe_workflow_id}({arguments or '_=None'}, context=None):\n"
+            f"    return await _run_workflow(\n"
+            f"        '{workflow_id}',\n"
+            f"        await _build_input_value([{arguments}]),\n"
+            f"        context=context\n"
+            f"    )"
+        )
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }
         exec(compile(code, f"<string>", "exec"), context)
 
         return WorkflowTool(
-            fn=context[f"_run_workflow_{safe_workflow_id}"],
+            function=context[f"_run_workflow_{safe_workflow_id}"],
             description=workflow.description or workflow.title,
             parameters=self._generate_parameters(workflow)
         )

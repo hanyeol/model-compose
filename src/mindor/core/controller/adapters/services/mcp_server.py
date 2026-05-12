@@ -39,7 +39,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         for workflow_id, workflow in self.controller.workflow_schemas.items():
             tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
             self.app.add_tool(
-                fn=tool.fn,
+                fn=tool.function,
                 name=workflow.name or workflow_id,
                 title=workflow.title,
                 description=self._build_tool_description(tool),

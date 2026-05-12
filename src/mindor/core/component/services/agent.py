@@ -86,7 +86,7 @@ class AgentAction:
             tool_arguments = json.loads(tool_arguments)
 
         if tool_name in self.tools:
-            result = await self.tools[tool_name].fn(**tool_arguments, context=context.workflow)
+            result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
             content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
         else:
             content = f"Error: Unknown tool '{tool_name}'"

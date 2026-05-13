@@ -24,15 +24,712 @@ workflows:
   - id: main
     default: true
     title: DESIGN.md Generator
-    description: Analyze a website's design system and generate a comprehensive DESIGN.md document. Provide a URL and select an AI model.
+    description: >
+      Analyze a website's design system and generate a comprehensive DESIGN.md document.
+      Provide a URL and select an AI model.
+    jobs:
+      - id: analyze
+        component: design-analyzer
+        input:
+          url: ${input.url}
+        output:
+          analysis: ${output[-1].content as text}
+          messages: ${output}
+      - id: synthesize
+        component:
+          type: workflow
+          action:
+            workflow: synthesize-design-md
+            input: ${input}
+            output: ${output}
+        input:
+          analysis: ${jobs.analyze.output.analysis}
+        output:
+          design_md: ${output as text}
+          analysis: ${jobs.analyze.output.messages as json}
+        depends_on: [ analyze ]
+
+  # ---------------------------------------------------------------------------
+  # Analysis workflows (tools for design-analyzer agent)
+  # ---------------------------------------------------------------------------
+
+  - id: analyze-page-structure
+    #private: true
+    name: analyze_page_structure
+    description: >
+      Navigate to a URL, wait for fonts, then extract page structure,
+      head HTML (link/style tags), and font source declarations.
+      Returns a JSON object with keys: structure, head_html, font_sources.
+    jobs:
+      - id: navigate
+        component: browser
+        action: navigate
+        input:
+          url: ${input.url @(description The full URL to analyze, e.g. https://stripe.com)}
+      - id: load-fonts
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (async () => { await document.fonts.ready; return 'ready'; })()
+      - id: extract-structure
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const SECTION_TAGS = ['header', 'nav', 'main', 'section', 'article', 'aside', 'footer', 'div'];
+              const HEADING_SELECTOR = 'h1,h2,h3,h4';
+              const MAX_DEPTH = 4;
+              const MAX_SECTIONS = 50;
+              const MAX_CLASSES = 3;
+              const HEADING_PREVIEW_LENGTH = 80;
+
+              const sections = [];
+
+              function walk(el, depth) {
+                if (depth > MAX_DEPTH) return;
+
+                const tag = el.tagName.toLowerCase();
+                const isSectionTag = SECTION_TAGS.includes(tag);
+                const role = el.getAttribute('role');
+                const id = el.id;
+                const classes = (el.className && typeof el.className === 'string')
+                  ? el.className.split(/\s+/).slice(0, MAX_CLASSES).join(' ')
+                  : '';
+
+                if (isSectionTag && (role || id || classes || depth < 2)) {
+                  const heading = el.querySelector(HEADING_SELECTOR);
+                  sections.push({
+                    tag,
+                    depth,
+                    id: id || undefined,
+                    classes: classes || undefined,
+                    role: role || undefined,
+                    heading: heading ? heading.textContent.trim().slice(0, HEADING_PREVIEW_LENGTH) : undefined,
+                    childCount: el.children.length
+                  });
+                }
+
+                for (const child of el.children) {
+                  walk(child, depth + 1);
+                }
+              }
+
+              walk(document.body, 0);
+              return JSON.stringify(sections.slice(0, MAX_SECTIONS));
+            })()
+        depends_on: [ navigate ]
+      - id: extract-head-html
+        component: browser
+        action: extract-html
+        input:
+          selector: "head > link, head > style"
+        depends_on: [ navigate ]
+      - id: extract-fonts
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (async () => {
+              const SRC_PREVIEW_LENGTH = 300;
+              const result = { fontFaceRules: [], loadedFonts: [] };
+
+              function cleanFamily(name) {
+                return name.replace(/['"]/g, '').trim();
+              }
+
+              for (const sheet of document.styleSheets) {
+                try {
+                  for (const rule of sheet.cssRules) {
+                    if (rule instanceof CSSFontFaceRule) {
+                      const style = rule.style;
+                      result.fontFaceRules.push({
+                        fontFamily: cleanFamily(style.getPropertyValue('font-family')),
+                        src: style.getPropertyValue('src').slice(0, SRC_PREVIEW_LENGTH),
+                        fontWeight: style.getPropertyValue('font-weight') || undefined,
+                        fontStyle: style.getPropertyValue('font-style') || undefined
+                      });
+                    }
+                  }
+                } catch (e) {
+                  /* CORS: skip inaccessible sheet */
+                }
+              }
+
+              try {
+                await document.fonts.ready;
+                const seen = new Set();
+                for (const font of document.fonts) {
+                  if (font.status !== 'loaded') continue;
+                  const key = cleanFamily(font.family) + '|' + font.weight + '|' + font.style;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  result.loadedFonts.push({
+                    family: cleanFamily(font.family),
+                    weight: font.weight,
+                    style: font.style
+                  });
+                }
+              } catch (e) {
+                /* fonts API unavailable */
+              }
+
+              return JSON.stringify(result);
+            })()
+        depends_on: [ navigate ]
+        output:
+          structure: ${jobs.extract-structure.output}
+          head_html: ${jobs.extract-head-html.output}
+          font_sources: ${output}
+
+  - id: analyze-design-tokens
+    #private: true
+    name: analyze_design_tokens
+    description: >
+      Extract all design tokens from the current page: color palette (with alpha preservation),
+      typography styles, and spacing/border-radius values.
+      Returns a JSON object with keys: colors, typography, spacing.
+    jobs:
+      - id: extract-colors
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const MAX_BACKGROUNDS = 30;
+              const MAX_TEXT_COLORS = 30;
+              const MAX_BORDER_COLORS = 20;
+              const MAX_SHADOWS = 10;
+
+              function parseColor(raw) {
+                if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
+                const match = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                if (!match) return raw;
+                const [, r, g, b, a] = match;
+                const hex = '#' + [r, g, b].map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
+                const alpha = a !== undefined ? parseFloat(a) : 1;
+                return alpha < 1 ? `rgba(${r}, ${g}, ${b}, ${alpha})` : hex;
+              }
+
+              const backgrounds = new Set();
+              const textColors = new Set();
+              const borderColors = new Set();
+              const shadows = new Set();
+
+              for (const el of document.querySelectorAll('*')) {
+                const computed = getComputedStyle(el);
+                const bg = parseColor(computed.backgroundColor);
+                const text = parseColor(computed.color);
+                const border = parseColor(computed.borderColor);
+
+                if (bg) backgrounds.add(bg);
+                if (text) textColors.add(text);
+                if (border && border !== bg) borderColors.add(border);
+                if (computed.boxShadow && computed.boxShadow !== 'none') shadows.add(computed.boxShadow);
+              }
+
+              return JSON.stringify({
+                backgrounds: [...backgrounds].slice(0, MAX_BACKGROUNDS),
+                textColors: [...textColors].slice(0, MAX_TEXT_COLORS),
+                borderColors: [...borderColors].slice(0, MAX_BORDER_COLORS),
+                shadows: [...shadows].slice(0, MAX_SHADOWS)
+              });
+            })()
+      - id: extract-typography
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const TEXT_SELECTORS = [
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button', 'span', 'li', 'label',
+                'nav a', 'nav button',
+                '[class*=title]', '[class*=heading]', '[class*=hero]', '[class*=caption]', '[class*=subtitle]'
+              ].join(',');
+              const STYLE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
+              const MAX_RESULTS = 30;
+              const TEXT_PREVIEW_LENGTH = 60;
+
+              const seen = new Set();
+              const results = [];
+
+              for (const el of document.querySelectorAll(TEXT_SELECTORS)) {
+                const text = (el.textContent || '').trim();
+                if (!text) continue;
+
+                const computed = getComputedStyle(el);
+                const key = `${computed.fontFamily}|${computed.fontSize}|${computed.fontWeight}|${computed.lineHeight}|${computed.letterSpacing}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                const entry = { tag: el.tagName.toLowerCase(), text: text.slice(0, TEXT_PREVIEW_LENGTH) };
+                for (const prop of STYLE_KEYS) {
+                  entry[prop] = computed[prop];
+                }
+                results.push(entry);
+              }
+
+              return JSON.stringify(results.slice(0, MAX_RESULTS));
+            })()
+      - id: extract-spacing
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const SPACING_PROPS = [
+                'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+                'marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'gap'
+              ];
+              const SKIP_VALUES = new Set(['0px', 'normal', '']);
+
+              const spacings = new Set();
+              const radii = new Set();
+
+              function toNumber(s) {
+                return parseFloat(s) || 0;
+              }
+
+              for (const el of document.querySelectorAll('*')) {
+                const computed = getComputedStyle(el);
+
+                for (const prop of SPACING_PROPS) {
+                  const value = computed[prop];
+                  if (value && !SKIP_VALUES.has(value)) {
+                    spacings.add(value);
+                  }
+                }
+
+                if (computed.borderRadius && computed.borderRadius !== '0px') {
+                  radii.add(computed.borderRadius);
+                }
+              }
+
+              return JSON.stringify({
+                spacings: [...spacings].sort((a, b) => toNumber(a) - toNumber(b)),
+                radii: [...radii].sort((a, b) => toNumber(a) - toNumber(b))
+              });
+            })()
+        output:
+          colors: ${jobs.extract-colors.output}
+          typography: ${jobs.extract-typography.output}
+          spacing: ${output}
+
+  - id: extract-css-properties
+    #private: true
+    name: extract_css_properties
+    description: >
+      Use an AI agent to dynamically analyze the page's CSS architecture
+      and extract meaningful CSS custom properties (design tokens).
+      The agent adapts its extraction strategy based on the CSS framework detected
+      (Tailwind, vanilla CSS, CSS-in-JS, etc.).
+      An LLM then filters out framework noise and returns only design tokens.
+      Returns a JSON object of CSS custom properties grouped by selector.
+    jobs:
+      - id: extract-tokens
+        component: css-property-extractor
+        input:
+          instructions: ${input.instructions @(description Instructions for CSS property extraction, e.g. "Extract all design token custom properties from the page")}
+        output: ${output[-1].content as text}
+
+      - id: filter-tokens
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: |
+                You are a CSS design token expert. You receive raw CSS custom properties
+                extracted from a web page. Your job is to filter out framework/library noise
+                and return ONLY meaningful design tokens.
+
+                # REMOVE these categories (framework internals, not design tokens):
+                - Tailwind internals: --tw-*, --tw-ring-*, --tw-shadow-*, etc.
+                - CSS Module hashes: --_*, --module-*, randomly hashed names
+                - Third-party library variables: --toastify-*, --cc-*, --swiper-*, --slick-*,
+                  --react-*, --mui-*, --chakra-*, --mantine-*, --radix-*, --cmdk-*
+                - Browser/polyfill internals: --webkit-*, --moz-*
+                - Any variable whose name clearly belongs to a specific library, not the site's design system
+
+                # KEEP these (actual design tokens):
+                - Color tokens: --color-*, --background, --foreground, --primary, --secondary, --accent, --muted, --destructive, --border, --ring, --card, --popover, etc.
+                - Typography tokens: --font-*, --text-*, --letter-*, --line-*
+                - Spacing/sizing: --spacing-*, --size-*, --gap-*, --padding-*, --margin-*, --radius-*, --rounded-*
+                - Shadow/effect tokens: --shadow-* (but not --tw-shadow-*)
+                - Layout tokens: --sidebar-*, --header-*, --container-*, --nav-*
+                - Theme tokens from :root, .dark, [data-theme], html, body selectors
+                - Any variable that represents a design decision (color, size, font, etc.)
+
+                # OUTPUT FORMAT
+                Return a JSON object grouped by selector, identical structure to the input
+                but with noise removed. Preserve exact property names and values.
+                Output ONLY the JSON code block, no explanation.
+            - role: user
+              content: |
+                Filter the following extracted CSS custom properties. Remove framework noise, keep only design tokens.
+
+                ${jobs.extract-tokens.output}
+        depends_on: [ extract-tokens ]
+        output: ${output.content as text}
+
+  - id: inspect-component-styles
+    #private: true
+    name: inspect_component_styles
+    description: >
+      Given natural-language instructions about which UI components to inspect,
+      use an AI agent to dynamically choose CSS selectors and extract computed styles.
+      Returns a structured JSON summary of all extracted component styles.
     job:
-      component: design-md-generator
-      output:
-        design_md: ${output[-1].content as text}
-        messages: ${output as json}
+      component: component-inspector
+      input:
+        instructions: ${input.instructions @(description Natural-language instructions describing which components to inspect, e.g. "Extract styles for the hero section, navigation bar, pricing cards, and footer")}
+      output: ${output[-1].content as text}
+
+  - id: synthesize-design-md
+    #private: true
+    name: synthesize_design_md
+    description: >
+      Generate a complete DESIGN.md document from extracted design data
+      in a single LLM call. Input must be a string containing all extracted
+      structure, tokens, and component style data.
+    job:
+      component: gpt-4o
+      input:
+        messages:
+          - role: system
+            content: |
+              You are an expert design system analyst. Your job is to produce a comprehensive
+              DESIGN.md document from website analysis data.
+
+              # OUTPUT FORMAT
+
+              Your output MUST be a complete DESIGN.md document following this exact structure.
+              Every section is mandatory. Use exact CSS values (hex codes, px values, font stacks) — never approximate.
+
+              The document starts with a YAML front matter block delimited by `---`. This block defines reusable design tokens.
+              After the front matter, all Markdown prose MUST reference these tokens using `{category.token-name}` syntax
+              (e.g., `{colors.primary}`, `{typography.body-md}`, `{rounded.lg}`, `{spacing.md}`, `{component.button-primary}`).
+              Hex values and px values may appear once when DEFINING a token in the front matter and optionally once inline
+              next to the first token reference in body prose. After that, always use the `{token.ref}` form.
+
+              ```
+              ---
+              version: alpha
+              name: "[Brand Name]"
+              description: "A dense 2-4 sentence summary of the observed design language. Mention the dominant surface, primary accent, typography voice, signature component grammar, and what makes the page visually distinct."
+
+              colors:
+                primary: "#..."          # Brand accent color. authored: oklch(...) if different; var: --color-primary
+                primary-active: "#..."   # Hover/active state of primary. Slightly lighter or darker than primary.
+                ink: "#..."              # Default text color. Must contrast with canvas.
+                body: "#..."             # Body text color. Often same as ink or slightly muted.
+                muted: "#..."            # De-emphasized text (captions, placeholders). Lower contrast than body.
+                hairline: "#..."         # Borders, dividers, subtle separators.
+                canvas: "#..."           # Page background color.
+                surface: "#..."          # Card/panel background. Slightly offset from canvas.
+                on-primary: "#..."       # Foreground/text color used ON primary-colored backgrounds. Must contrast with primary.
+                on-dark: "#..."          # Foreground/text color used ON dark backgrounds (canvas, dark cards). Must be light/near-white.
+                # "on-*" tokens are always FOREGROUND colors for the named surface — e.g., on-dark is a LIGHT color readable on dark surfaces.
+                # Use hex as primary value, rgba() when alpha is needed.
+                # If the CSS source uses a different format (oklch, oklab, hsl), note it as a YAML comment.
+                # If a CSS custom property name exists, note it as a YAML comment.
+                # Add brand-specific colors as needed: secondary, accent, error, success, warning, etc.
+
+              typography:
+                hero-display:
+                  fontFamily: "..."      # Use real font name from @font-face/document.fonts, not hashed values
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                display-lg:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                heading-1:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                heading-2:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                body-md:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                body-sm:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                caption:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                button-md:
+                  fontFamily: "..."
+                  fontSize: 00px
+                  fontWeight: 000
+                  lineHeight: 1.00
+                  letterSpacing: 0
+                # Add more tiers as observed: heading-3, label, overline, mono, etc.
+
+              rounded:
+                xs: 0px
+                sm: 0px
+                md: 0px
+                lg: 0px
+                full: 9999px
+
+              spacing:
+                xxs: 4px
+                xs: 8px
+                sm: 12px
+                md: 16px
+                lg: 24px
+                xl: 32px
+                xxl: 48px
+                section: 96px
+
+              components:
+                button-primary:
+                  backgroundColor: "{colors.primary}"
+                  textColor: "{colors.on-primary}"
+                  typography: "{typography.button-md}"
+                  rounded: "{rounded.md}"
+                  padding: "..."
+                card-base:
+                  backgroundColor: "{colors.canvas}"
+                  textColor: "{colors.ink}"
+                  typography: "{typography.body-md}"
+                  rounded: "{rounded.lg}"
+                  padding: "{spacing.xl}"
+                  border: "1px solid {colors.hairline}"
+                # Add all observed components as separate entries.
+                # Each variant gets its own entry: button-primary-active, button-secondary, card-feature, etc.
+              ---
+
+              # Design System Inspired by [Brand Name]
+
+              ## 1. Visual Theme & Atmosphere
+
+              [2-3 paragraphs of editorial prose describing the brand's overall visual identity.
+              Be opinionated and analytical — describe the emotional quality, the defining design decisions,
+              and how this brand positions itself visually against competitors.
+              Include specific hex codes, font names, and pixel values inline.
+              End with a **Key Characteristics:** bulleted list of 7-10 signature traits.]
+
+              ## 2. Color Palette & Roles
+
+              [Organize into 4-7 subcategories based on function. Common groupings:
+              ### Primary
+              ### Secondary & Accent  (or ### Brand & Dark, ### Accent Colors)
+              ### Interactive
+              ### Neutral Scale  (or ### Neutrals & Text)
+              ### Surface & Background  (or ### Surface & Borders)
+              ### Shadows
+              ### Semantic  (success, warning, error — if present)
+
+              Each entry format:
+              - **Evocative Color Name** `{colors.token-name}` (`#hexcode`): Functional description — where it appears, what role it plays.
+              Include CSS custom property names if found (e.g., `--color-primary`).
+              Use rgba() for shadow colors and semi-transparent values.
+              After the first inline mention of a hex value, use `{colors.*}` references exclusively.
+              Document colors that are ABSENT too (e.g., "No gradients are used anywhere").]
+
+              ## 3. Typography Rules
+
+              ### Font Family
+              [List display, body, and monospace font families with full fallback stacks.
+              Note any OpenType features (ss01, tnum, liga, kern).]
+
+              ### Hierarchy
+              [Markdown table with columns: Token | Font | Size | Weight | Line Height | Letter Spacing | Use
+              Include 8-18 rows from Display Hero down to Nano/Caption.
+              The Token column must use `{typography.*}` references matching the front matter keys.
+              Use exact px values plus rem equivalents where appropriate.]
+
+              ### Principles
+              [4-5 bullets explaining the philosophy behind typographic choices:
+              weight strategy, tracking behavior, why this font family, what it communicates.]
+
+              ## 4. Component Stylings
+
+              [4-6 subsections organized by component type.
+              Each component variant must be a separate entry matching its front matter `components:` key.
+              Use this pattern for every component:
+
+              **`{component.token-name}`** — One-sentence role.
+              - Background `{colors.*}`, text `{colors.*}`, typography `{typography.*}`, rounded `{rounded.*}`, padding `{spacing.*}`.
+              - Border/shadow/focus/active/selected behavior if evidenced.
+              - Usage guidance and constraints.
+
+              ### Buttons — Document every variant (primary, secondary, ghost, icon-only, etc.)
+                Each variant gets its own `components:` entry: `button-primary`, `button-primary-active`, `button-secondary`, etc.
+              ### Cards & Containers — Feature cards, pricing cards, content cards, etc.
+              ### Inputs & Forms — Text inputs, selects, textareas with focus states
+              ### Navigation — Top nav bar with exact dimensions, colors, typography
+              ### Image Treatment — How photography/illustration is handled (optional)
+              ### [Brand-specific] — Any unique components specific to this brand]
+
+              ## 5. Layout Principles
+
+              ### Spacing System
+              [Base unit and full spacing scale using `{spacing.*}` tokens.
+              Document section padding, card padding, gap values, and any notable exceptions.
+              Present as a table: Token | Value | Use.]
+
+              ### Grid & Container
+              [Max content width, column count, gutter sizes, layout patterns (3-up, 2-column, etc.).]
+
+              ### Whitespace Philosophy
+              [1-3 bullets on how the brand uses whitespace as a design tool.]
+
+              ## 6. Shapes
+
+              ### Border Radius Scale
+              [Table using `{rounded.*}` tokens from the front matter:
+
+              | Token | Value | Use |
+              |---|---:|---|
+              | `{rounded.xs}` | 2px | Chips, small badges |
+              | `{rounded.sm}` | 4px | Inputs, inline elements |
+              | `{rounded.md}` | 8px | Buttons, dropdowns |
+              | `{rounded.lg}` | 16px | Cards, modals |
+              | `{rounded.full}` | 9999px | Avatars, pills |
+
+              Replace values with actual extracted data.]
+
+              ### Photography / Media Geometry
+              [Document image aspect ratios, crop behavior, corner rounding applied to images,
+              product render treatment, masks, icon geometry, and whether imagery is content or system chrome.
+              Note `{rounded.*}` tokens used on media elements.]
+
+              ## 7. Depth & Elevation
+
+              [Markdown table: Level | Treatment | Use — 4-6 rows from Flat to highest elevation.
+              Include exact box-shadow CSS values in the Treatment column.]
+
+              ### Shadow Philosophy
+              [1 paragraph on the design rationale for shadow usage.]
+
+              ### Decorative Depth
+              [3-4 bullets on non-shadow depth: gradients, color contrast, photography overlap, etc.]
+
+              ## 8. Do's and Don'ts
+
+              ### Do
+              [7-10 imperative bullets. Reference `{token.ref}` values, not raw hex/px.
+              Capture what makes this design system unique.]
+
+              ### Don't
+              [7-10 prohibition bullets. Reference `{token.ref}` values.
+              Capture what would break the brand's visual identity.]
+
+              ## 9. Responsive Behavior
+
+              ### Breakpoints
+              [Table: Name | Width | Key Changes — 4-7 rows]
+
+              ### Touch Targets
+              [3-5 bullets with minimum tap sizes for key interactive elements]
+
+              ### Collapsing Strategy
+              [5-8 bullets describing how nav, grids, hero, cards, footer adapt across breakpoints]
+
+              ### Image Behavior
+              [3-5 bullets on how images scale, crop, and art-direct responsively]
+
+              ## 10. Agent Prompt Guide
+
+              ### Quick Token Reference
+              [7-12 bulleted entries mapping semantic role to token + hex:
+              - Primary CTA: `{colors.primary}` (`#hexcode`)
+              - Body text: `{colors.ink}` (`#hexcode`)
+              - Default radius: `{rounded.md}` (8px)
+              - Body type: `{typography.body-md}`
+              ...]
+
+              ### Example Component Prompts
+              [5 quoted natural-language prompt strings that demonstrate how to request
+              a component using this design system. Each prompt uses `{token.ref}` syntax:
+              "Create a `{component.button-primary}`: typography `{typography.button-md}`,
+              background `{colors.primary}`, color `{colors.on-primary}`, padding `{spacing.sm} {spacing.md}`,
+              border-radius `{rounded.md}`, no shadow."]
+
+              ### Iteration Guide
+              [5-8 numbered rules for maintaining design fidelity during iterative generation.
+              1. Use `{token.refs}` instead of inline values in prose.
+              2. Add variants as separate `components:` entries in the front matter.
+              3. Keep front matter tokens in sync with body prose references.
+              Reference specific values and explain "why" behind each constraint.]
+
+              ## 11. Known Gaps
+
+              [List any design aspects not evidenced by the extracted data:
+              - Hover/focus states not visible in static extraction
+              - Dark mode palette if only light mode was captured (or vice versa)
+              - Form validation states, error/success styling
+              - Animation timings and transition curves
+              - Exact image crops or aspect ratios not determinable from CSS alone
+              - Proprietary font metrics or variable font axes
+              - Breakpoints inferred from layout rather than explicit media queries
+              - Components visible only behind authentication or interaction]
+              ```
+
+              # WRITING STYLE RULES
+
+              - Be **authoritative and opinionated**. Make confident judgments: "The system is unapologetically angular" not "The system appears to use angular shapes."
+              - Be **comparative**. Position the brand against competitors: "deliberately warm where most AI brands use cool blue" — show awareness of the design landscape.
+              - Be **concrete**. Every design claim must cite a `{token.ref}` after the token is defined. Raw `#hex`, `rgba()`, and `px` values may appear in YAML definitions and once next to the first body mention only.
+              - Use **present tense, declarative voice**: The system "is" or "uses", never "should" or "would."
+              - Use **em-dashes** (--) for parenthetical elaboration.
+              - Use **bold** for first mentions of defining concepts, brand-specific font names, and color names.
+              - Color entries follow the format: **Color Name** `{colors.token}` (`#hex` or `rgba(...)`): Description of role and usage.
+              - Use `{token.ref}` syntax throughout prose after the first definition. Hex/px values appear in the YAML front matter and optionally once inline next to the first token reference — after that, always use the token form.
+              - Include exact values from computed styles — do NOT guess or approximate. If you extracted `rgba(50, 50, 93, 0.25)`, write that exact value.
+              - Write a complete but not padded document. Prefer 250-500 lines; exceed that only when the extracted system genuinely has many components.
+
+              # IMPORTANT RULES
+
+              - Use ONLY the provided data. Never fabricate colors, fonts, or dimensions.
+              - "on-*" color tokens (on-primary, on-dark, on-surface, etc.) are FOREGROUND colors for the named surface. "on-dark" must be a LIGHT color (near-white) readable on dark backgrounds — never assign a dark color to it.
+              - Use font source data to resolve real font names (not hashed filenames). Use CSS custom property data to annotate color tokens.
+              - If a CSS custom property name is present in the provided data, include it.
+              - Document what is ABSENT as well as what is present (e.g., "No drop shadows on cards", "No gradients").
+              - The Typography Hierarchy table must have exact values from the provided typography data, not guesses.
+              - All hex codes must come from the provided color palette or component computed styles data.
+              - Border radius and spacing values must come from the provided spacing data.
+              - If the page uses a dark theme, document the dark surfaces as the primary canvas rather than forcing a "light canvas" narrative.
+              - The YAML front matter `components:` block must list every component variant as a separate entry (e.g., `button-primary`, `button-primary-active`, `button-secondary`, `card-feature`). Component properties must reference other front matter tokens (`{colors.*}`, `{typography.*}`, `{rounded.*}`, `{spacing.*}`).
+              - Every `{token.ref}` used in prose must have a corresponding definition in the YAML front matter. Do not reference undefined tokens.
+              - Your output must contain ONLY the raw DESIGN.md content (starting with `---` front matter) — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
+          - role: user
+            content: |
+              Generate a complete DESIGN.md from the following website analysis data.
+              Use ONLY the data below — do not invent or approximate any values.
+
+              ${input.analysis @(description All extracted design data as a formatted string)}
+      output: ${output.content as text}
+
+  # ---------------------------------------------------------------------------
+  # Browser tool workflows (tools for sub-agents)
+  # ---------------------------------------------------------------------------
 
   - id: navigate-to-url
-    private: true
+    #private: true
     name: navigate_to_url
     description: Navigate the browser to a URL and wait for the page to fully load including JavaScript rendering and web font loading.
     jobs:
@@ -51,7 +748,7 @@ workflows:
         output: ${output as text}
 
   - id: extract-page-structure
-    private: true
+    #private: true
     name: extract_page_structure
     description: >
       Extract the overall page structure as a simplified outline: major sections, their tag names,
@@ -63,34 +760,51 @@ workflows:
         input:
           expression: >
             (() => {
+              const SECTION_TAGS = ['header', 'nav', 'main', 'section', 'article', 'aside', 'footer', 'div'];
+              const HEADING_SELECTOR = 'h1,h2,h3,h4';
+              const MAX_DEPTH = 4;
+              const MAX_SECTIONS = 50;
+              const MAX_CLASSES = 3;
+              const HEADING_PREVIEW_LENGTH = 80;
+
               const sections = [];
-              const walk = (el, depth) => {
-                if (depth > 4) return;
+
+              function walk(el, depth) {
+                if (depth > MAX_DEPTH) return;
+
                 const tag = el.tagName.toLowerCase();
-                const isSection = ['header','nav','main','section','article','aside','footer','div'].includes(tag);
-                const hasRole = el.getAttribute('role');
-                const hasId = el.id;
-                const cls = el.className && typeof el.className === 'string' ? el.className.split(/\s+/).slice(0,3).join(' ') : '';
-                if (isSection && (hasRole || hasId || cls || depth < 2)) {
-                  const heading = el.querySelector('h1,h2,h3,h4');
+                const isSectionTag = SECTION_TAGS.includes(tag);
+                const role = el.getAttribute('role');
+                const id = el.id;
+                const classes = (el.className && typeof el.className === 'string')
+                  ? el.className.split(/\s+/).slice(0, MAX_CLASSES).join(' ')
+                  : '';
+
+                if (isSectionTag && (role || id || classes || depth < 2)) {
+                  const heading = el.querySelector(HEADING_SELECTOR);
                   sections.push({
-                    tag, depth,
-                    id: hasId || undefined,
-                    classes: cls || undefined,
-                    role: hasRole || undefined,
-                    heading: heading ? heading.textContent.trim().slice(0,80) : undefined,
+                    tag,
+                    depth,
+                    id: id || undefined,
+                    classes: classes || undefined,
+                    role: role || undefined,
+                    heading: heading ? heading.textContent.trim().slice(0, HEADING_PREVIEW_LENGTH) : undefined,
                     childCount: el.children.length
                   });
                 }
-                Array.from(el.children).forEach(c => walk(c, depth + 1));
-              };
+
+                for (const child of el.children) {
+                  walk(child, depth + 1);
+                }
+              }
+
               walk(document.body, 0);
-              return JSON.stringify(sections.slice(0, 50));
+              return JSON.stringify(sections.slice(0, MAX_SECTIONS));
             })()
         output: ${output as json}
 
   - id: extract-page-html
-    private: true
+    #private: true
     name: extract_page_html
     description: Extract the HTML markup of ALL matching elements on the page using a CSS selector. Returns a list of HTML strings. Useful for analyzing component structure, class names, and inline styles.
     jobs:
@@ -100,51 +814,77 @@ workflows:
           selector: ${input.selector @(description CSS selector to extract HTML from, e.g. "nav", "header", "footer", "head > link, head > style", "body")}
         output: ${output as json}
 
-  - id: extract-computed-styles
-    private: true
-    name: extract_computed_styles
+  - id: extract-css-custom-properties
+    #private: true
+    name: extract_css_custom_properties
     description: >
-      Extract computed CSS styles from elements matching a CSS selector.
-      Returns a JSON array of objects, each containing the element's tag, text preview, and
-      computed styles (color, backgroundColor, fontFamily, fontSize, fontWeight, lineHeight,
-      letterSpacing, borderRadius, padding, margin, boxShadow, border, textTransform).
-      Use this to get exact design token values.
+      Extract all CSS custom properties from the currently loaded page.
+      Returns a JSON object grouped by CSS selector, with property names and values.
+      Traverses all accessible stylesheets including nested @media, @layer, @supports rules.
+      Cross-origin stylesheets that block access are silently skipped.
+      Use skip_prefixes to exclude well-known framework/library variable prefixes
+      (e.g., "--tw-" for Tailwind, "--toastify-" for react-toastify).
     jobs:
       - component: browser
         action: evaluate
         input:
           expression: >
             (() => {
-              const selector = '${input.selector}';
-              const els = Array.from(document.querySelectorAll(selector)).slice(0, 20);
-              return JSON.stringify(els.map(el => {
-                const cs = getComputedStyle(el);
-                return {
-                  tag: el.tagName.toLowerCase(),
-                  text: (el.textContent || '').trim().slice(0, 80),
-                  classes: el.className,
-                  styles: {
-                    color: cs.color,
-                    backgroundColor: cs.backgroundColor,
-                    fontFamily: cs.fontFamily,
-                    fontSize: cs.fontSize,
-                    fontWeight: cs.fontWeight,
-                    lineHeight: cs.lineHeight,
-                    letterSpacing: cs.letterSpacing,
-                    borderRadius: cs.borderRadius,
-                    padding: cs.padding,
-                    margin: cs.margin,
-                    boxShadow: cs.boxShadow,
-                    border: cs.border,
-                    textTransform: cs.textTransform
+              const skipPrefixes = ${input.skip_prefixes @(description JSON array of CSS custom property prefixes to exclude, e.g. ["--tw-", "--toastify-", "--cc-"]. Use [] to extract everything without filtering.)};
+              const result = {};
+
+              function shouldSkip(name) {
+                return skipPrefixes.some(prefix => name.startsWith(prefix));
+              }
+
+              function getAtRuleContext(rule) {
+                if (rule instanceof CSSMediaRule) return '@media ' + rule.conditionText;
+                if (rule instanceof CSSSupportsRule) return '@supports ' + rule.conditionText;
+                return '@layer';
+              }
+
+              function isNestedGroupRule(rule) {
+                return (
+                  rule instanceof CSSMediaRule ||
+                  rule instanceof CSSSupportsRule ||
+                  (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
+                );
+              }
+
+              function processRules(rules, parentContext) {
+                for (const rule of rules) {
+                  if (rule instanceof CSSStyleRule) {
+                    const selector = parentContext
+                      ? parentContext + ' ' + rule.selectorText
+                      : rule.selectorText;
+
+                    for (const prop of rule.style) {
+                      if (!prop.startsWith('--') || shouldSkip(prop)) continue;
+                      if (!result[selector]) result[selector] = {};
+                      result[selector][prop] = rule.style.getPropertyValue(prop).trim();
+                    }
+                  } else if (isNestedGroupRule(rule)) {
+                    const context = getAtRuleContext(rule);
+                    const fullContext = parentContext ? parentContext + ' > ' + context : context;
+                    processRules(rule.cssRules, fullContext);
                   }
-                };
-              }));
+                }
+              }
+
+              for (const sheet of document.styleSheets) {
+                try {
+                  processRules(sheet.cssRules, null);
+                } catch (e) {
+                  /* CORS: skip inaccessible sheet */
+                }
+              }
+
+              return JSON.stringify(result);
             })()
-        output: ${output as json}
+        output: ${output as text}
 
   - id: extract-color-palette
-    private: true
+    #private: true
     name: extract_color_palette
     description: >
       Extract all unique colors used on the page by scanning computed styles of all visible elements.
@@ -156,34 +896,49 @@ workflows:
         input:
           expression: >
             (() => {
-              function toColor(raw) {
+              const MAX_BACKGROUNDS = 30;
+              const MAX_TEXT_COLORS = 30;
+              const MAX_BORDER_COLORS = 20;
+              const MAX_SHADOWS = 10;
+
+              function parseColor(raw) {
                 if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
-                const m = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-                if (!m) return raw;
-                const hex = '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
-                const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
-                if (a < 1) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`;
-                return hex;
+                const match = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                if (!match) return raw;
+                const [, r, g, b, a] = match;
+                const hex = '#' + [r, g, b].map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
+                const alpha = a !== undefined ? parseFloat(a) : 1;
+                return alpha < 1 ? `rgba(${r}, ${g}, ${b}, ${alpha})` : hex;
               }
-              const bgs = new Set(), texts = new Set(), borders = new Set(), shadows = new Set();
-              document.querySelectorAll('*').forEach(el => {
-                const cs = getComputedStyle(el);
-                const bg = toColor(cs.backgroundColor); if (bg) bgs.add(bg);
-                const tc = toColor(cs.color); if (tc) texts.add(tc);
-                const bc = toColor(cs.borderColor); if (bc && bc !== toColor(cs.backgroundColor)) borders.add(bc);
-                if (cs.boxShadow && cs.boxShadow !== 'none') shadows.add(cs.boxShadow);
-              });
+
+              const backgrounds = new Set();
+              const textColors = new Set();
+              const borderColors = new Set();
+              const shadows = new Set();
+
+              for (const el of document.querySelectorAll('*')) {
+                const computed = getComputedStyle(el);
+                const bg = parseColor(computed.backgroundColor);
+                const text = parseColor(computed.color);
+                const border = parseColor(computed.borderColor);
+
+                if (bg) backgrounds.add(bg);
+                if (text) textColors.add(text);
+                if (border && border !== bg) borderColors.add(border);
+                if (computed.boxShadow && computed.boxShadow !== 'none') shadows.add(computed.boxShadow);
+              }
+
               return JSON.stringify({
-                backgrounds: [...bgs].slice(0, 30),
-                textColors: [...texts].slice(0, 30),
-                borderColors: [...borders].slice(0, 20),
-                shadows: [...shadows].slice(0, 10)
+                backgrounds: [...backgrounds].slice(0, MAX_BACKGROUNDS),
+                textColors: [...textColors].slice(0, MAX_TEXT_COLORS),
+                borderColors: [...borderColors].slice(0, MAX_BORDER_COLORS),
+                shadows: [...shadows].slice(0, MAX_SHADOWS)
               });
             })()
         output: ${output as json}
 
   - id: extract-font-sources
-    private: true
+    #private: true
     name: extract_font_sources
     description: >
       Extract all font source declarations from the page: @font-face rules from all
@@ -197,80 +952,55 @@ workflows:
         input:
           expression: >
             (async () => {
+              const SRC_PREVIEW_LENGTH = 300;
               const result = { fontFaceRules: [], loadedFonts: [] };
+
+              function cleanFamily(name) {
+                return name.replace(/['"]/g, '').trim();
+              }
+
               for (const sheet of document.styleSheets) {
                 try {
                   for (const rule of sheet.cssRules) {
                     if (rule instanceof CSSFontFaceRule) {
-                      const s = rule.style;
+                      const style = rule.style;
                       result.fontFaceRules.push({
-                        fontFamily: s.getPropertyValue('font-family').replace(/['"]/g, '').trim(),
-                        src: s.getPropertyValue('src').slice(0, 300),
-                        fontWeight: s.getPropertyValue('font-weight') || undefined,
-                        fontStyle: s.getPropertyValue('font-style') || undefined
+                        fontFamily: cleanFamily(style.getPropertyValue('font-family')),
+                        src: style.getPropertyValue('src').slice(0, SRC_PREVIEW_LENGTH),
+                        fontWeight: style.getPropertyValue('font-weight') || undefined,
+                        fontStyle: style.getPropertyValue('font-style') || undefined
                       });
                     }
                   }
-                } catch(e) {}
+                } catch (e) {
+                  /* CORS: skip inaccessible sheet */
+                }
               }
+
               try {
                 await document.fonts.ready;
                 const seen = new Set();
-                document.fonts.forEach(f => {
-                  const key = f.family.replace(/['"]/g,'') + '|' + f.weight + '|' + f.style;
-                  if (!seen.has(key)) {
-                    seen.add(key);
-                    result.loadedFonts.push({
-                      family: f.family.replace(/['"]/g,''),
-                      weight: f.weight, style: f.style, status: f.status
-                    });
-                  }
-                });
-              } catch(e) {}
+                for (const font of document.fonts) {
+                  const key = cleanFamily(font.family) + '|' + font.weight + '|' + font.style;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  result.loadedFonts.push({
+                    family: cleanFamily(font.family),
+                    weight: font.weight,
+                    style: font.style,
+                    status: font.status
+                  });
+                }
+              } catch (e) {
+                /* fonts API unavailable */
+              }
+
               return JSON.stringify(result);
             })()
         output: ${output as json}
 
-  - id: extract-css-custom-properties
-    private: true
-    name: extract_css_custom_properties
-    description: >
-      Extract all CSS custom properties (--variables) with their authored values from all
-      stylesheets, grouped by CSS selector. Returns a JSON object where keys are selectors
-      (e.g. ":root", "body", ".theme-dark") and values are objects mapping property names to
-      their declared values. These are source-level values, not browser-computed values.
-      Use this to discover the site's design token system.
-    jobs:
-      - component: browser
-        action: evaluate
-        input:
-          expression: >
-            (() => {
-              const grouped = {};
-              for (const sheet of document.styleSheets) {
-                try {
-                  for (const rule of sheet.cssRules) {
-                    if (rule.style) {
-                      const sel = rule.selectorText || '';
-                      for (let i = 0; i < rule.style.length; i++) {
-                        const name = rule.style[i];
-                        if (name.startsWith('--')) {
-                          if (!grouped[sel]) grouped[sel] = {};
-                          if (!grouped[sel][name]) {
-                            grouped[sel][name] = rule.style.getPropertyValue(name).trim();
-                          }
-                        }
-                      }
-                    }
-                  }
-                } catch(e) {}
-              }
-              return JSON.stringify(grouped);
-            })()
-        output: ${output as json}
-
   - id: extract-typography
-    private: true
+    #private: true
     name: extract_typography
     description: >
       Extract all unique typography styles used on the page by scanning headings (h1-h6),
@@ -282,33 +1012,91 @@ workflows:
         input:
           expression: >
             (() => {
-              const selectors = 'h1,h2,h3,h4,h5,h6,p,a,button,span,li,label,nav a,nav button,[class*=title],[class*=heading],[class*=hero],[class*=caption],[class*=subtitle]';
+              const TEXT_SELECTORS = [
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button', 'span', 'li', 'label',
+                'nav a', 'nav button',
+                '[class*=title]', '[class*=heading]', '[class*=hero]', '[class*=caption]', '[class*=subtitle]'
+              ].join(',');
+              const STYLE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
+              const MAX_RESULTS = 30;
+              const TEXT_PREVIEW_LENGTH = 60;
+
               const seen = new Set();
               const results = [];
-              document.querySelectorAll(selectors).forEach(el => {
-                const cs = getComputedStyle(el);
-                const key = `${cs.fontFamily}|${cs.fontSize}|${cs.fontWeight}|${cs.lineHeight}|${cs.letterSpacing}`;
-                if (!seen.has(key) && el.textContent.trim()) {
-                  seen.add(key);
-                  results.push({
-                    tag: el.tagName.toLowerCase(),
-                    text: el.textContent.trim().slice(0, 60),
-                    fontFamily: cs.fontFamily,
-                    fontSize: cs.fontSize,
-                    fontWeight: cs.fontWeight,
-                    lineHeight: cs.lineHeight,
-                    letterSpacing: cs.letterSpacing,
-                    textTransform: cs.textTransform,
-                    color: cs.color
-                  });
+
+              for (const el of document.querySelectorAll(TEXT_SELECTORS)) {
+                const text = (el.textContent || '').trim();
+                if (!text) continue;
+
+                const computed = getComputedStyle(el);
+                const key = `${computed.fontFamily}|${computed.fontSize}|${computed.fontWeight}|${computed.lineHeight}|${computed.letterSpacing}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                const entry = { tag: el.tagName.toLowerCase(), text: text.slice(0, TEXT_PREVIEW_LENGTH) };
+                for (const prop of STYLE_KEYS) {
+                  entry[prop] = computed[prop];
                 }
+                results.push(entry);
+              }
+
+              return JSON.stringify(results.slice(0, MAX_RESULTS));
+            })()
+        output: ${output as json}
+
+  - id: extract-computed-styles
+    #private: true
+    name: extract_computed_styles
+    description: >
+      Extract computed CSS styles from elements matching a CSS selector.
+      Returns a JSON array of objects, each containing the element's tag, text preview, and
+      computed styles (color, backgroundColor, fontFamily, fontSize, fontWeight, lineHeight,
+      letterSpacing, borderRadius, padding, margin, boxShadow, border, textTransform).
+      Use this to get exact design token values.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const STYLE_KEYS = [
+                'color', 'backgroundColor', 'fontFamily', 'fontSize', 'fontWeight',
+                'lineHeight', 'letterSpacing', 'borderRadius', 'padding', 'margin',
+                'boxShadow', 'border', 'textTransform'
+              ];
+              const MAX_ELEMENTS = 20;
+              const TEXT_PREVIEW_LENGTH = 80;
+
+              const selector = atob('${input.selector as base64}');
+
+              let elements;
+              try {
+                elements = Array.from(document.querySelectorAll(selector));
+              } catch (e) {
+                return JSON.stringify([]);
+              }
+
+              const results = elements.slice(0, MAX_ELEMENTS).map(el => {
+                const computed = getComputedStyle(el);
+                const styles = {};
+                for (const key of STYLE_KEYS) {
+                  styles[key] = computed[key];
+                }
+
+                return {
+                  tag: el.tagName.toLowerCase(),
+                  text: (el.textContent || '').trim().slice(0, TEXT_PREVIEW_LENGTH),
+                  classes: el.className,
+                  styles
+                };
               });
-              return JSON.stringify(results.slice(0, 30));
+
+              return JSON.stringify(results);
             })()
         output: ${output as json}
 
   - id: extract-spacing-and-radii
-    private: true
+    #private: true
     name: extract_spacing_and_radii
     description: >
       Extract unique spacing values (padding, margin, gap) and border-radius values used across the page.
@@ -319,24 +1107,43 @@ workflows:
         input:
           expression: >
             (() => {
-              const spacings = new Set(), radii = new Set();
-              document.querySelectorAll('*').forEach(el => {
-                const cs = getComputedStyle(el);
-                [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft,
-                 cs.marginTop, cs.marginRight, cs.marginBottom, cs.marginLeft, cs.gap
-                ].forEach(v => { if (v && v !== '0px' && v !== 'normal') spacings.add(v); });
-                if (cs.borderRadius && cs.borderRadius !== '0px') radii.add(cs.borderRadius);
-              });
-              const parse = s => parseFloat(s) || 0;
+              const SPACING_PROPS = [
+                'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+                'marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'gap'
+              ];
+              const SKIP_VALUES = new Set(['0px', 'normal', '']);
+
+              const spacings = new Set();
+              const radii = new Set();
+
+              function toNumber(s) {
+                return parseFloat(s) || 0;
+              }
+
+              for (const el of document.querySelectorAll('*')) {
+                const computed = getComputedStyle(el);
+
+                for (const prop of SPACING_PROPS) {
+                  const value = computed[prop];
+                  if (value && !SKIP_VALUES.has(value)) {
+                    spacings.add(value);
+                  }
+                }
+
+                if (computed.borderRadius && computed.borderRadius !== '0px') {
+                  radii.add(computed.borderRadius);
+                }
+              }
+
               return JSON.stringify({
-                spacings: [...spacings].sort((a,b) => parse(a) - parse(b)),
-                radii: [...radii].sort((a,b) => parse(a) - parse(b))
+                spacings: [...spacings].sort((a, b) => toNumber(a) - toNumber(b)),
+                radii: [...radii].sort((a, b) => toNumber(a) - toNumber(b))
               });
             })()
         output: ${output as json}
 
   - id: scroll-page
-    private: true
+    #private: true
     name: scroll_page
     description: Scroll the page by a specified number of pixels vertically. Use positive values to scroll down, negative to scroll up. Useful for revealing below-the-fold content before extracting styles from lazy-loaded sections.
     jobs:
@@ -397,20 +1204,18 @@ components:
         tools: ${input.tools}
       output: ${response.choices[0].message}
 
-  - id: design-md-generator
+  # ---------------------------------------------------------------------------
+  # Agents
+  # ---------------------------------------------------------------------------
+
+  - id: design-analyzer
     type: agent
     tools:
-      - navigate-to-url
-      - extract-page-structure
-      - extract-page-html
-      - extract-computed-styles
-      - extract-color-palette
-      - extract-font-sources
-      - extract-css-custom-properties
-      - extract-typography
-      - extract-spacing-and-radii
-      - scroll-page
-    max_iteration_count: 30
+      - analyze-page-structure
+      - analyze-design-tokens
+      - extract-css-properties
+      - inspect-component-styles
+    max_iteration_count: 8
     action:
       model:
         component: gpt-4o
@@ -418,373 +1223,167 @@ components:
           messages: ${messages}
           tools: ${tools}
       system_prompt: |
-        You are an expert design system analyst. Your job is to analyze a website and produce a comprehensive DESIGN.md document that captures its complete visual design system.
+        You are a design system analyzer. You coordinate specialized tools to
+        extract comprehensive design data from a website. You do NOT write the final document.
 
-        # TOOLS AVAILABLE
+        # WORKFLOW
 
-        You have browser tools to inspect the target website:
+        Follow this exact sequence:
 
-        1. **navigate_to_url** — Open any URL in the browser
-        2. **extract_page_structure** — Get a structural outline of the page (sections, IDs, classes, headings)
-        3. **extract_page_html** — Get HTML of ALL matching elements via CSS selector (returns a list)
-        4. **extract_computed_styles** — Get exact computed CSS of elements (colors, fonts, spacing, shadows)
-        5. **extract_color_palette** — Scan all elements for unique colors (hex for opaque, rgba() for semi-transparent)
-        6. **extract_font_sources** — Extract all @font-face declarations (font-family + src URL) and actually-loaded fonts from document.fonts API. Use this to discover real font family names when computed styles show hashed or obfuscated values.
-        7. **extract_css_custom_properties** — Extract all CSS custom properties (--variables) with their authored values from all stylesheets, grouped by selector. These are the design tokens as written in CSS source — not browser-computed. Use this to find semantic color names, spacing tokens, and other design system variables.
-        8. **extract_typography** — Scan all text elements for unique font combinations
-        9. **extract_spacing_and_radii** — Collect all unique spacing and border-radius values
-        10. **scroll_page** — Scroll the page to reveal more content
+        1. **analyze_page_structure(url)** — Navigate to the URL and extract page structure,
+           font sources, and head HTML. Returns a JSON object.
 
-        # ANALYSIS STRATEGY
+        2. **analyze_design_tokens()** — Extract color palette, typography styles, and
+           spacing/border-radius values from the already-loaded page. Returns a JSON object.
 
-        Follow this multi-pass approach:
+        3. **extract_css_properties(instructions)** — Extract CSS custom properties (design tokens)
+           from the page. The sub-agent will analyze the CSS architecture and extract meaningful
+           properties while filtering out framework noise. Pass instructions like:
+           "Extract all design token custom properties from the page"
 
-        **Pass 1 — Structure & Sources**
-        1. Navigate to the target URL
-        2. Run extract_page_structure to understand the page layout (sections, headings, classes)
-        3. Run extract_font_sources to discover all font families from @font-face rules and document.fonts API
-        4. Run extract_css_custom_properties to discover the site's CSS variable / design token system
-        5. Run extract_page_html on "head > link, head > style" to find external font/CSS imports
+        4. **Review** the results from steps 1-3. Identify brand-specific UI components that
+           need detailed style inspection (hero sections, pricing cards, testimonial blocks,
+           feature grids, navigation patterns, footer, etc.). Use the page structure to find
+           the right CSS selectors or class names.
 
-        **Pass 2 — Data Extraction**
-        6. Run extract_color_palette to get all computed colors
-        7. Run extract_typography to get all font style combinations
-        8. Run extract_spacing_and_radii to get spacing and radius values
-        9. Run extract_computed_styles on key elements:
-           - "nav, header" — navigation bar
-           - "h1, h2, h3" — heading hierarchy
-           - "button, a[class*=btn], [class*=button], [class*=cta]" — buttons/CTAs
-           - "[class*=card], [class*=tile], article" — cards/containers
-           - "input, textarea, select" — form elements
-           - "footer" — footer
+        5. **inspect_component_styles(instructions)** — Pass natural-language instructions
+           describing which components to inspect and suggested CSS selectors. The sub-agent
+           will extract computed styles for each. Example:
+           "Extract styles for: nav/header ('nav, header'), hero section ('.hero, [class*=hero]'),
+           buttons ('button, [class*=btn]'), cards ('[class*=card], article'), footer ('footer')"
 
-        **Pass 3 — Detail Inspection**
-        10. Based on the page structure, extract_computed_styles on brand-specific components (hero sections, pricing cards, testimonial blocks, feature grids, etc.)
-        11. Look for additional CSS custom properties by extracting styles from :root or body via extract_page_html
+        6. **Compile** all extracted data into a single final message with clear section headers:
 
-        **Pass 4 — Synthesis**
-        12. Combine all data into the DESIGN.md document following the exact format below
+           ## Page Structure
+           <step 1 structure>
 
-        # OUTPUT FORMAT
+           ## Font Sources
+           <step 1 font_sources>
 
-        Your final output MUST be a complete DESIGN.md document following this exact structure.
-        Every section is mandatory. Use exact CSS values (hex codes, px values, font stacks) — never approximate.
+           ## Head HTML
+           <step 1 head_html>
 
-        The document starts with a YAML front matter block delimited by `---`. This block defines reusable design tokens.
-        After the front matter, all Markdown prose MUST reference these tokens using `{category.token-name}` syntax
-        (e.g., `{colors.primary}`, `{typography.body-md}`, `{rounded.lg}`, `{spacing.md}`, `{component.button-primary}`).
-        Hex values and px values may appear once when DEFINING a token in the front matter and optionally once inline
-        next to the first token reference in body prose. After that, always use the `{token.ref}` form.
+           ## Color Palette
+           <step 2 colors>
 
-        ```
-        ---
-        version: alpha
-        name: "[Brand Name]"
-        description: "A dense 2-4 sentence summary of the observed design language. Mention the dominant surface, primary accent, typography voice, signature component grammar, and what makes the page visually distinct."
+           ## Typography
+           <step 2 typography>
 
-        colors:
-          primary: "#..."          # Brand accent color. authored: oklch(...) if different; var: --color-primary
-          primary-active: "#..."   # Hover/active state of primary. Slightly lighter or darker than primary.
-          ink: "#..."              # Default text color. Must contrast with canvas.
-          body: "#..."             # Body text color. Often same as ink or slightly muted.
-          muted: "#..."            # De-emphasized text (captions, placeholders). Lower contrast than body.
-          hairline: "#..."         # Borders, dividers, subtle separators.
-          canvas: "#..."           # Page background color.
-          surface: "#..."          # Card/panel background. Slightly offset from canvas.
-          on-primary: "#..."       # Foreground/text color used ON primary-colored backgrounds. Must contrast with primary.
-          on-dark: "#..."          # Foreground/text color used ON dark backgrounds (canvas, dark cards). Must be light/near-white.
-          # "on-*" tokens are always FOREGROUND colors for the named surface — e.g., on-dark is a LIGHT color readable on dark surfaces.
-          # Use hex as primary value, rgba() when alpha is needed.
-          # If the CSS source uses a different format (oklch, oklab, hsl), note it as a YAML comment.
-          # If a CSS custom property name exists, note it as a YAML comment.
-          # Add brand-specific colors as needed: secondary, accent, error, success, warning, etc.
+           ## Spacing & Radii
+           <step 2 spacing>
 
-        typography:
-          hero-display:
-            fontFamily: "..."      # Use real font name from @font-face/document.fonts, not hashed values
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          display-lg:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          heading-1:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          heading-2:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          body-md:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          body-sm:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          caption:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          button-md:
-            fontFamily: "..."
-            fontSize: 00px
-            fontWeight: 000
-            lineHeight: 1.00
-            letterSpacing: 0
-          # Add more tiers as observed: heading-3, label, overline, mono, etc.
+           ## CSS Custom Properties
+           <step 3 results>
 
-        rounded:
-          xs: 0px
-          sm: 0px
-          md: 0px
-          lg: 0px
-          full: 9999px
+           ## Component Styles
+           <step 5 results>
 
-        spacing:
-          xxs: 4px
-          xs: 8px
-          sm: 12px
-          md: 16px
-          lg: 24px
-          xl: 32px
-          xxl: 48px
-          section: 96px
+        # RULES
 
-        components:
-          button-primary:
-            backgroundColor: "{colors.primary}"
-            textColor: "{colors.on-primary}"
-            typography: "{typography.button-md}"
-            rounded: "{rounded.md}"
-            padding: "..."
-          card-base:
-            backgroundColor: "{colors.canvas}"
-            textColor: "{colors.ink}"
-            typography: "{typography.body-md}"
-            rounded: "{rounded.lg}"
-            padding: "{spacing.xl}"
-            border: "1px solid {colors.hairline}"
-          # Add all observed components as separate entries.
-          # Each variant gets its own entry: button-primary-active, button-secondary, card-feature, etc.
-        ---
-
-        # Design System Inspired by [Brand Name]
-
-        ## 1. Visual Theme & Atmosphere
-
-        [2-3 paragraphs of editorial prose describing the brand's overall visual identity.
-        Be opinionated and analytical — describe the emotional quality, the defining design decisions,
-        and how this brand positions itself visually against competitors.
-        Include specific hex codes, font names, and pixel values inline.
-        End with a **Key Characteristics:** bulleted list of 7-10 signature traits.]
-
-        ## 2. Color Palette & Roles
-
-        [Organize into 4-7 subcategories based on function. Common groupings:
-        ### Primary
-        ### Secondary & Accent  (or ### Brand & Dark, ### Accent Colors)
-        ### Interactive
-        ### Neutral Scale  (or ### Neutrals & Text)
-        ### Surface & Background  (or ### Surface & Borders)
-        ### Shadows
-        ### Semantic  (success, warning, error — if present)
-
-        Each entry format:
-        - **Evocative Color Name** `{colors.token-name}` (`#hexcode`): Functional description — where it appears, what role it plays.
-        Include CSS custom property names if found (e.g., `--color-primary`).
-        Use rgba() for shadow colors and semi-transparent values.
-        After the first inline mention of a hex value, use `{colors.*}` references exclusively.
-        Document colors that are ABSENT too (e.g., "No gradients are used anywhere").]
-
-        ## 3. Typography Rules
-
-        ### Font Family
-        [List display, body, and monospace font families with full fallback stacks.
-        Note any OpenType features (ss01, tnum, liga, kern).]
-
-        ### Hierarchy
-        [Markdown table with columns: Token | Font | Size | Weight | Line Height | Letter Spacing | Use
-        Include 8-18 rows from Display Hero down to Nano/Caption.
-        The Token column must use `{typography.*}` references matching the front matter keys.
-        Use exact px values plus rem equivalents where appropriate.]
-
-        ### Principles
-        [4-5 bullets explaining the philosophy behind typographic choices:
-        weight strategy, tracking behavior, why this font family, what it communicates.]
-
-        ## 4. Component Stylings
-
-        [4-6 subsections organized by component type.
-        Each component variant must be a separate entry matching its front matter `components:` key.
-        Use this pattern for every component:
-
-        **`{component.token-name}`** — One-sentence role.
-        - Background `{colors.*}`, text `{colors.*}`, typography `{typography.*}`, rounded `{rounded.*}`, padding `{spacing.*}`.
-        - Border/shadow/focus/active/selected behavior if evidenced.
-        - Usage guidance and constraints.
-
-        ### Buttons — Document every variant (primary, secondary, ghost, icon-only, etc.)
-          Each variant gets its own `components:` entry: `button-primary`, `button-primary-active`, `button-secondary`, etc.
-        ### Cards & Containers — Feature cards, pricing cards, content cards, etc.
-        ### Inputs & Forms — Text inputs, selects, textareas with focus states
-        ### Navigation — Top nav bar with exact dimensions, colors, typography
-        ### Image Treatment — How photography/illustration is handled (optional)
-        ### [Brand-specific] — Any unique components specific to this brand]
-
-        ## 5. Layout Principles
-
-        ### Spacing System
-        [Base unit and full spacing scale using `{spacing.*}` tokens.
-        Document section padding, card padding, gap values, and any notable exceptions.
-        Present as a table: Token | Value | Use.]
-
-        ### Grid & Container
-        [Max content width, column count, gutter sizes, layout patterns (3-up, 2-column, etc.).]
-
-        ### Whitespace Philosophy
-        [1-3 bullets on how the brand uses whitespace as a design tool.]
-
-        ## 6. Shapes
-
-        ### Border Radius Scale
-        [Table using `{rounded.*}` tokens from the front matter:
-
-        | Token | Value | Use |
-        |---|---:|---|
-        | `{rounded.xs}` | 2px | Chips, small badges |
-        | `{rounded.sm}` | 4px | Inputs, inline elements |
-        | `{rounded.md}` | 8px | Buttons, dropdowns |
-        | `{rounded.lg}` | 16px | Cards, modals |
-        | `{rounded.full}` | 9999px | Avatars, pills |
-
-        Replace values with actual extracted data.]
-
-        ### Photography / Media Geometry
-        [Document image aspect ratios, crop behavior, corner rounding applied to images,
-        product render treatment, masks, icon geometry, and whether imagery is content or system chrome.
-        Note `{rounded.*}` tokens used on media elements.]
-
-        ## 7. Depth & Elevation
-
-        [Markdown table: Level | Treatment | Use — 4-6 rows from Flat to highest elevation.
-        Include exact box-shadow CSS values in the Treatment column.]
-
-        ### Shadow Philosophy
-        [1 paragraph on the design rationale for shadow usage.]
-
-        ### Decorative Depth
-        [3-4 bullets on non-shadow depth: gradients, color contrast, photography overlap, etc.]
-
-        ## 8. Do's and Don'ts
-
-        ### Do
-        [7-10 imperative bullets. Reference `{token.ref}` values, not raw hex/px.
-        Capture what makes this design system unique.]
-
-        ### Don't
-        [7-10 prohibition bullets. Reference `{token.ref}` values.
-        Capture what would break the brand's visual identity.]
-
-        ## 9. Responsive Behavior
-
-        ### Breakpoints
-        [Table: Name | Width | Key Changes — 4-7 rows]
-
-        ### Touch Targets
-        [3-5 bullets with minimum tap sizes for key interactive elements]
-
-        ### Collapsing Strategy
-        [5-8 bullets describing how nav, grids, hero, cards, footer adapt across breakpoints]
-
-        ### Image Behavior
-        [3-5 bullets on how images scale, crop, and art-direct responsively]
-
-        ## 10. Agent Prompt Guide
-
-        ### Quick Token Reference
-        [7-12 bulleted entries mapping semantic role to token + hex:
-        - Primary CTA: `{colors.primary}` (`#hexcode`)
-        - Body text: `{colors.ink}` (`#hexcode`)
-        - Default radius: `{rounded.md}` (8px)
-        - Body type: `{typography.body-md}`
-        ...]
-
-        ### Example Component Prompts
-        [5 quoted natural-language prompt strings that demonstrate how to request
-        a component using this design system. Each prompt uses `{token.ref}` syntax:
-        "Create a `{component.button-primary}`: typography `{typography.button-md}`,
-        background `{colors.primary}`, color `{colors.on-primary}`, padding `{spacing.sm} {spacing.md}`,
-        border-radius `{rounded.md}`, no shadow."]
-
-        ### Iteration Guide
-        [5-8 numbered rules for maintaining design fidelity during iterative generation.
-        1. Use `{token.refs}` instead of inline values in prose.
-        2. Add variants as separate `components:` entries in the front matter.
-        3. Keep front matter tokens in sync with body prose references.
-        Reference specific values and explain "why" behind each constraint.]
-
-        ## 11. Known Gaps
-
-        [List any design aspects not evidenced by the extracted data:
-        - Hover/focus states not visible in static extraction
-        - Dark mode palette if only light mode was captured (or vice versa)
-        - Form validation states, error/success styling
-        - Animation timings and transition curves
-        - Exact image crops or aspect ratios not determinable from CSS alone
-        - Proprietary font metrics or variable font axes
-        - Breakpoints inferred from layout rather than explicit media queries
-        - Components visible only behind authentication or interaction]
-        ```
-
-        # WRITING STYLE RULES
-
-        - Be **authoritative and opinionated**. Make confident judgments: "The system is unapologetically angular" not "The system appears to use angular shapes."
-        - Be **comparative**. Position the brand against competitors: "deliberately warm where most AI brands use cool blue" — show awareness of the design landscape.
-        - Be **concrete**. Every design claim must cite a `{token.ref}` after the token is defined. Raw `#hex`, `rgba()`, and `px` values may appear in YAML definitions and once next to the first body mention only.
-        - Use **present tense, declarative voice**: The system "is" or "uses", never "should" or "would."
-        - Use **em-dashes** (--) for parenthetical elaboration.
-        - Use **bold** for first mentions of defining concepts, brand-specific font names, and color names.
-        - Color entries follow the format: **Color Name** `{colors.token}` (`#hex` or `rgba(...)`): Description of role and usage.
-        - Use `{token.ref}` syntax throughout prose after the first definition. Hex/px values appear in the YAML front matter and optionally once inline next to the first token reference — after that, always use the token form.
-        - Include exact values from computed styles — do NOT guess or approximate. If you extracted `rgba(50, 50, 93, 0.25)`, write that exact value.
-        - Write a complete but not padded document. Prefer 250-500 lines; exceed that only when the extracted system genuinely has many components.
-
-        # IMPORTANT RULES
-
-        - Extract REAL data from the page. Never fabricate colors, fonts, or dimensions.
-        - "on-*" color tokens (on-primary, on-dark, on-surface, etc.) are FOREGROUND colors for the named surface. "on-dark" must be a LIGHT color (near-white) readable on dark backgrounds — never assign a dark color to it. To find the correct value, extract the computed text color from elements that sit on dark backgrounds.
-        - ALWAYS run extract_font_sources and extract_css_custom_properties in Pass 1. Use their results to resolve font names and annotate colors as shown in the front matter example above.
-        - If a CSS custom property name is visible in the HTML/styles, include it.
-        - Document what is ABSENT as well as what is present (e.g., "No drop shadows on cards", "No gradients").
-        - The Typography Hierarchy table must have exact values from extract_typography, not guesses.
-        - All hex codes must come from extract_color_palette or extract_computed_styles results.
-        - Border radius and spacing values must come from extract_spacing_and_radii results.
-        - If the page uses a dark theme, document the dark surfaces as the primary canvas rather than forcing a "light canvas" narrative.
-        - The YAML front matter `components:` block must list every component variant as a separate entry (e.g., `button-primary`, `button-primary-active`, `button-secondary`, `card-feature`). Component properties must reference other front matter tokens (`{colors.*}`, `{typography.*}`, `{rounded.*}`, `{spacing.*}`).
-        - Every `{token.ref}` used in prose must have a corresponding definition in the YAML front matter. Do not reference undefined tokens.
-        - Your final response must contain ONLY the raw DESIGN.md content (starting with `---` front matter) — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
+        - Call tools in order: analyze_page_structure → analyze_design_tokens → extract_css_properties → inspect_component_styles.
+        - Do NOT skip any tool. All four must be called.
+        - Do NOT write a DESIGN.md. Your job is data extraction only.
+        - After all tools complete, compile the results into a single message with the section headers above.
+        - Include ALL data — do not summarize or omit any tool output.
       user_prompt: |
-        Analyze the website at this URL and generate a complete DESIGN.md document:
+        Analyze the website at this URL and extract all design system data:
 
         ${input.url}
 
-        Use all available tools to thoroughly inspect the page. Follow the multi-pass analysis strategy:
-        first structural overview, then systematic data extraction, then detail inspection,
-        and finally synthesize everything into the DESIGN.md format.
+  # ---------------------------------------------------------------------------
+  # Component style inspector (sub-agent of design-analyzer)
+  # ---------------------------------------------------------------------------
+
+  - id: component-inspector
+    type: agent
+    tools:
+      - extract-computed-styles
+      - extract-page-html
+      - scroll-page
+    max_iteration_count: 10
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You inspect specific UI components on a web page that is already loaded in the browser.
+
+        Given instructions about which components to inspect, use extract_computed_styles
+        with appropriate CSS selectors to extract their exact styles. You may also use
+        extract_page_html to examine component markup, and scroll_page to reveal
+        below-the-fold content.
+
+        Standard selectors to try for common components:
+        - Navigation: "nav", "header", "[role=navigation]"
+        - Hero: "[class*=hero]", "section:first-of-type"
+        - Buttons: "button", "a[class*=btn]", "[class*=button]", "[class*=cta]"
+        - Cards: "[class*=card]", "[class*=tile]", "article"
+        - Inputs: "input", "textarea", "select"
+        - Footer: "footer"
+
+        Return a structured JSON summary of ALL extracted styles, grouped by component.
+        Do NOT generate a DESIGN.md — just return raw extracted data as JSON.
+      user_prompt: |
+        ${input.instructions}
+
+  # ---------------------------------------------------------------------------
+  # CSS property extractor (sub-agent of design-analyzer)
+  # ---------------------------------------------------------------------------
+
+  - id: css-property-extractor
+    type: agent
+    tools:
+      - extract-css-custom-properties
+    max_iteration_count: 3
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You extract CSS custom properties (design tokens) from a web page
+        that is already loaded in the browser.
+
+        You have ONE tool: extract_css_custom_properties.
+        It accepts skip_prefixes — a JSON array of CSS variable prefixes to exclude.
+
+        # WELL-KNOWN FRAMEWORK PREFIXES
+
+        These are common framework/library prefixes that are NOT design tokens.
+        Decide which to skip based on the site's likely stack:
+
+        | Prefix         | Library / Framework         |
+        |----------------|-----------------------------|
+        | --tw-          | Tailwind CSS                |
+        | --toastify-    | react-toastify              |
+        | --cc-          | cookie consent (cookieconsent) |
+        | --swiper-      | Swiper.js                   |
+        | --slick-       | Slick carousel              |
+        | --bs-          | Bootstrap                   |
+        | --mdb-         | Material Design Bootstrap   |
+        | --fc-          | FullCalendar                |
+        | --plyr-        | Plyr media player           |
+        | --rt-          | react-tooltip               |
+        | --rdp-         | react-day-picker            |
+
+        # STRATEGY
+
+        1. Call extract_css_custom_properties with skip_prefixes: []
+           to see ALL properties.
+        2. Review the output. If it contains obvious framework noise,
+           call again with appropriate skip_prefixes to get a clean result.
+        3. Return the final JSON as a code block.
+
+        If the first call already looks clean, just return it directly.
+
+        # RULES
+
+        - ALWAYS use extract_css_custom_properties — never write JavaScript yourself
+        - Return the result as a JSON code block
+        - Do NOT summarize or omit data
+        - If no custom properties are found, return {}
+      user_prompt: |
+        ${input.instructions}

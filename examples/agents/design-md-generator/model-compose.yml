@@ -34,12 +34,20 @@ workflows:
   - id: navigate-to-url
     private: true
     name: navigate_to_url
-    description: Navigate the browser to a URL and wait for the page to fully load including JavaScript rendering.
+    description: Navigate the browser to a URL and wait for the page to fully load including JavaScript rendering and web font loading.
     jobs:
       - component: browser
         action: navigate
         input:
           url: ${input.url @(description The full URL to navigate to, e.g. https://stripe.com)}
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (async () => {
+              await document.fonts.ready;
+              return 'ready';
+            })()
         output: ${output as text}
 
   - id: extract-page-structure
@@ -171,6 +179,93 @@ workflows:
                 borderColors: [...borders].slice(0, 20),
                 shadows: [...shadows].slice(0, 10)
               });
+            })()
+        output: ${output as json}
+
+  - id: extract-font-sources
+    private: true
+    name: extract_font_sources
+    description: >
+      Extract all font source declarations from the page: @font-face rules from all
+      stylesheets (including inline style tags) and actually-loaded fonts via document.fonts
+      API. Returns a JSON object with fontFaceRules (family, src URL, weight, style) and
+      loadedFonts (family, weight, style, status). Use this to discover real font family
+      names when computed styles show hashed or obfuscated values.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (async () => {
+              const result = { fontFaceRules: [], loadedFonts: [] };
+              for (const sheet of document.styleSheets) {
+                try {
+                  for (const rule of sheet.cssRules) {
+                    if (rule instanceof CSSFontFaceRule) {
+                      const s = rule.style;
+                      result.fontFaceRules.push({
+                        fontFamily: s.getPropertyValue('font-family').replace(/['"]/g, '').trim(),
+                        src: s.getPropertyValue('src').slice(0, 300),
+                        fontWeight: s.getPropertyValue('font-weight') || undefined,
+                        fontStyle: s.getPropertyValue('font-style') || undefined
+                      });
+                    }
+                  }
+                } catch(e) {}
+              }
+              try {
+                await document.fonts.ready;
+                const seen = new Set();
+                document.fonts.forEach(f => {
+                  const key = f.family.replace(/['"]/g,'') + '|' + f.weight + '|' + f.style;
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    result.loadedFonts.push({
+                      family: f.family.replace(/['"]/g,''),
+                      weight: f.weight, style: f.style, status: f.status
+                    });
+                  }
+                });
+              } catch(e) {}
+              return JSON.stringify(result);
+            })()
+        output: ${output as json}
+
+  - id: extract-css-custom-properties
+    private: true
+    name: extract_css_custom_properties
+    description: >
+      Extract all CSS custom properties (--variables) with their authored values from all
+      stylesheets, grouped by CSS selector. Returns a JSON object where keys are selectors
+      (e.g. ":root", "body", ".theme-dark") and values are objects mapping property names to
+      their declared values. These are source-level values, not browser-computed values.
+      Use this to discover the site's design token system.
+    jobs:
+      - component: browser
+        action: evaluate
+        input:
+          expression: >
+            (() => {
+              const grouped = {};
+              for (const sheet of document.styleSheets) {
+                try {
+                  for (const rule of sheet.cssRules) {
+                    if (rule.style) {
+                      const sel = rule.selectorText || '';
+                      for (let i = 0; i < rule.style.length; i++) {
+                        const name = rule.style[i];
+                        if (name.startsWith('--')) {
+                          if (!grouped[sel]) grouped[sel] = {};
+                          if (!grouped[sel][name]) {
+                            grouped[sel][name] = rule.style.getPropertyValue(name).trim();
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch(e) {}
+              }
+              return JSON.stringify(grouped);
             })()
         output: ${output as json}
 
@@ -310,6 +405,8 @@ components:
       - extract-page-html
       - extract-computed-styles
       - extract-color-palette
+      - extract-font-sources
+      - extract-css-custom-properties
       - extract-typography
       - extract-spacing-and-radii
       - scroll-page
@@ -332,24 +429,28 @@ components:
         3. **extract_page_html** — Get HTML of ALL matching elements via CSS selector (returns a list)
         4. **extract_computed_styles** — Get exact computed CSS of elements (colors, fonts, spacing, shadows)
         5. **extract_color_palette** — Scan all elements for unique colors (hex for opaque, rgba() for semi-transparent)
-        6. **extract_typography** — Scan all text elements for unique font combinations
-        7. **extract_spacing_and_radii** — Collect all unique spacing and border-radius values
-        8. **scroll_page** — Scroll the page to reveal more content
+        6. **extract_font_sources** — Extract all @font-face declarations (font-family + src URL) and actually-loaded fonts from document.fonts API. Use this to discover real font family names when computed styles show hashed or obfuscated values.
+        7. **extract_css_custom_properties** — Extract all CSS custom properties (--variables) with their authored values from all stylesheets, grouped by selector. These are the design tokens as written in CSS source — not browser-computed. Use this to find semantic color names, spacing tokens, and other design system variables.
+        8. **extract_typography** — Scan all text elements for unique font combinations
+        9. **extract_spacing_and_radii** — Collect all unique spacing and border-radius values
+        10. **scroll_page** — Scroll the page to reveal more content
 
         # ANALYSIS STRATEGY
 
         Follow this multi-pass approach:
 
-        **Pass 1 — Structure Overview**
+        **Pass 1 — Structure & Sources**
         1. Navigate to the target URL
         2. Run extract_page_structure to understand the page layout (sections, headings, classes)
-        3. Run extract_page_html on "head > link, head > style" to find font imports and CSS custom properties
+        3. Run extract_font_sources to discover all font families from @font-face rules and document.fonts API
+        4. Run extract_css_custom_properties to discover the site's CSS variable / design token system
+        5. Run extract_page_html on "head > link, head > style" to find external font/CSS imports
 
         **Pass 2 — Data Extraction**
-        4. Run extract_color_palette to get all colors
-        5. Run extract_typography to get all font styles
-        6. Run extract_spacing_and_radii to get spacing and radius values
-        7. Run extract_computed_styles on key elements:
+        6. Run extract_color_palette to get all computed colors
+        7. Run extract_typography to get all font style combinations
+        8. Run extract_spacing_and_radii to get spacing and radius values
+        9. Run extract_computed_styles on key elements:
            - "nav, header" — navigation bar
            - "h1, h2, h3" — heading hierarchy
            - "button, a[class*=btn], [class*=button], [class*=cta]" — buttons/CTAs
@@ -358,11 +459,11 @@ components:
            - "footer" — footer
 
         **Pass 3 — Detail Inspection**
-        8. Based on the page structure, extract_computed_styles on brand-specific components (hero sections, pricing cards, testimonial blocks, feature grids, etc.)
-        9. Look for CSS custom properties by extracting styles from :root or body via extract_page_html
+        10. Based on the page structure, extract_computed_styles on brand-specific components (hero sections, pricing cards, testimonial blocks, feature grids, etc.)
+        11. Look for additional CSS custom properties by extracting styles from :root or body via extract_page_html
 
         **Pass 4 — Synthesis**
-        10. Combine all data into the DESIGN.md document following the exact format below
+        12. Combine all data into the DESIGN.md document following the exact format below
 
         # OUTPUT FORMAT
 
@@ -382,21 +483,25 @@ components:
         description: "A dense 2-4 sentence summary of the observed design language. Mention the dominant surface, primary accent, typography voice, signature component grammar, and what makes the page visually distinct."
 
         colors:
-          primary: "#..."
-          primary-active: "#..."
-          ink: "#..."
-          body: "#..."
-          muted: "#..."
-          hairline: "#..."
-          canvas: "#..."
-          surface: "#..."
-          on-primary: "#..."
-          on-dark: "#..."
+          primary: "#..."          # Brand accent color. authored: oklch(...) if different; var: --color-primary
+          primary-active: "#..."   # Hover/active state of primary. Slightly lighter or darker than primary.
+          ink: "#..."              # Default text color. Must contrast with canvas.
+          body: "#..."             # Body text color. Often same as ink or slightly muted.
+          muted: "#..."            # De-emphasized text (captions, placeholders). Lower contrast than body.
+          hairline: "#..."         # Borders, dividers, subtle separators.
+          canvas: "#..."           # Page background color.
+          surface: "#..."          # Card/panel background. Slightly offset from canvas.
+          on-primary: "#..."       # Foreground/text color used ON primary-colored backgrounds. Must contrast with primary.
+          on-dark: "#..."          # Foreground/text color used ON dark backgrounds (canvas, dark cards). Must be light/near-white.
+          # "on-*" tokens are always FOREGROUND colors for the named surface — e.g., on-dark is a LIGHT color readable on dark surfaces.
+          # Use hex as primary value, rgba() when alpha is needed.
+          # If the CSS source uses a different format (oklch, oklab, hsl), note it as a YAML comment.
+          # If a CSS custom property name exists, note it as a YAML comment.
           # Add brand-specific colors as needed: secondary, accent, error, success, warning, etc.
 
         typography:
           hero-display:
-            fontFamily: "..."
+            fontFamily: "..."      # Use real font name from @font-face/document.fonts, not hashed values
             fontSize: 00px
             fontWeight: 000
             lineHeight: 1.00
@@ -664,6 +769,8 @@ components:
         # IMPORTANT RULES
 
         - Extract REAL data from the page. Never fabricate colors, fonts, or dimensions.
+        - "on-*" color tokens (on-primary, on-dark, on-surface, etc.) are FOREGROUND colors for the named surface. "on-dark" must be a LIGHT color (near-white) readable on dark backgrounds — never assign a dark color to it. To find the correct value, extract the computed text color from elements that sit on dark backgrounds.
+        - ALWAYS run extract_font_sources and extract_css_custom_properties in Pass 1. Use their results to resolve font names and annotate colors as shown in the front matter example above.
         - If a CSS custom property name is visible in the HTML/styles, include it.
         - Document what is ABSENT as well as what is present (e.g., "No drop shadows on cards", "No gradients").
         - The Typography Hierarchy table must have exact values from extract_typography, not guesses.

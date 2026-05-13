@@ -1,18 +1,22 @@
 # DESIGN.md Generator 示例
 
-此示例演示 AI 代理分析网站的视觉设计系统并生成综合 DESIGN.md 文档的过程，使用 `web-browser` 组件进行无头浏览器自动化，并使用基于 GPT-4o 的 `agent` 组件。
+此示例演示声明式管道分析网站的视觉设计系统并生成综合 DESIGN.md 文档的过程，使用 `web-browser` 组件进行无头浏览器自动化，并使用基于 GPT-4o 的专用 AI 子代理。
 
 ## 概述
 
-此示例在 Docker 容器中运行 Chromium 浏览器，并通过 AI 代理系统性地检查网站的设计系统：
+此示例在 Docker 容器中运行 Chromium 浏览器，并通过多步骤管道系统性地检查网站的设计系统：
 
-1. **导航**：使用无头浏览器导航到目标 URL
-2. **提取**：通过多个浏览器工具提取设计令牌（颜色、排版、间距、圆角、计算样式）
-3. **合成**：生成包含颜色调色板、排版规则、组件样式、布局原则等的综合 DESIGN.md 文档
+1. **分析页面结构** — 导航到目标 URL，提取页面结构、head HTML 和字体源
+2. **分析设计令牌** — 提取颜色调色板、排版样式和间距/圆角值
+3. **提取 CSS 属性** — AI 子代理分析 CSS 架构并提取有意义的自定义属性（设计令牌），过滤框架噪音
+4. **检查组件样式** — AI 子代理检查特定 UI 组件（nav、hero、buttons、cards、footer）并提取计算样式
+5. **合成** — 单次 LLM 调用将所有提取的数据编译为综合 DESIGN.md 文档
 
 主要特点：
 
-- **代理驱动分析**：GPT-4o 代理使用 8 个浏览器工具执行多轮设计检查策略
+- **声明式管道**：无顶层代理开销，由 model-compose 编排的 5 步工作流
+- **AI 子代理**：用于 CSS 属性提取和组件样式检查的专用代理，针对每个站点调整策略
+- **并行执行**：第 1 步完成后，第 2、3、4 步并行执行
 - **Docker System 模块**：通过 supervisord 管理 Chromium、Xvfb、x11vnc、noVNC 和 socat 的单一容器
 - **CDP (Chrome DevTools Protocol)**：通过 CDP 与 Chromium 通信，实现页面导航、DOM 提取和 JavaScript 执行
 - **noVNC 远程桌面**：在 `http://localhost:6080/vnc.html` 提供浏览器可视界面，用于监控分析过程
@@ -60,7 +64,7 @@
 
    **通过 API：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/main/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"url": "https://stripe.com"}}'
    ```
@@ -88,32 +92,22 @@
 
 ```mermaid
 graph TD
-    Input((输入)) --> Agent
-
-    subgraph Agent["design-md-generator (代理)"]
-        direction TB
-        LLM[GPT-4o]
-        T1[navigate_to_url]
-        T2[extract_page_structure]
-        T3[extract_page_html]
-        T4[extract_computed_styles]
-        T5[extract_color_palette]
-        T6[extract_typography]
-        T7[extract_spacing_and_radii]
-        T8[scroll_page]
-
-        LLM --> T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8
-        T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 --> LLM
-    end
-
-    Agent --> Output((输出))
+    Input((输入)) --> S1[analyze-page-structure]
+    S1 --> S2[analyze-design-tokens]
+    S1 --> S3[extract-css-properties]
+    S1 --> S4[inspect-component-styles]
+    S2 & S3 & S4 --> S5[synthesize-design-md]
+    S5 --> Output((输出))
 ```
 
-代理遵循多轮分析策略：
-1. **第 1 轮 — 结构概览**：导航到 URL，提取页面结构和字体导入
-2. **第 2 轮 — 数据提取**：从关键元素中提取颜色调色板、排版、间距和计算样式
-3. **第 3 轮 — 细节检查**：检查品牌特定组件（英雄区域、定价卡片、功能网格等）
-4. **第 4 轮 — 合成**：将所有提取的数据整合为 DESIGN.md 文档
+管道按顺序和并行方式运行 5 个作业：
+1. **analyze-page-structure** — 导航到 URL，提取页面结构、head HTML 和字体源
+2. **analyze-design-tokens** — 提取颜色调色板、排版和间距/圆角值（并行）
+3. **extract-css-properties** — AI 子代理提取 CSS 自定义属性，过滤框架噪音（并行）
+4. **inspect-component-styles** — AI 子代理检查 UI 组件并提取计算样式（并行）
+5. **synthesize-design-md** — 单次 LLM 调用将所有数据编译为 DESIGN.md
+
+第 2、3、4 步在第 1 步完成后并行执行。第 5 步等待三个作业全部完成。
 
 #### 输入参数
 
@@ -126,7 +120,6 @@ graph TD
 | 字段 | 类型 | 描述 |
 |------|------|------|
 | `design_md` | text | 生成的 DESIGN.md 文档内容 |
-| `messages` | json | 代理与 GPT-4o 之间的完整对话消息 |
 
 ## 组件详情
 
@@ -155,25 +148,29 @@ graph TD
 - **模型**：`gpt-4o`
 - **最大令牌数**：16,384
 
-### Design MD Generator 组件 (`design-md-generator`)
+### Component Inspector (`component-inspector`)
 
 - **类型**：`agent`
 - **模型**：GPT-4o（通过 `gpt-4o` 组件）
-- **最大迭代次数**：20
-- **工具**：8 个用于设计检查的浏览器工作流
-
-#### 代理工具
+- **最大迭代次数**：10
+- **角色**：检查已加载页面上的特定 UI 组件并提取计算样式
 
 | 工具 | 描述 |
 |------|------|
-| `navigate_to_url` | 在浏览器中打开 URL |
-| `extract_page_structure` | 获取页面结构概要（区域、ID、类名、标题） |
-| `extract_page_html` | 通过 CSS 选择器获取特定元素的 HTML |
 | `extract_computed_styles` | 获取元素的精确计算 CSS（颜色、字体、间距、阴影） |
-| `extract_color_palette` | 扫描所有元素的唯一背景色、文本色、边框色和阴影色 |
-| `extract_typography` | 扫描所有文本元素的唯一字体组合 |
-| `extract_spacing_and_radii` | 收集所有唯一的间距和圆角值 |
+| `extract_page_html` | 通过 CSS 选择器获取特定元素的 HTML |
 | `scroll_page` | 滚动页面以显示下方内容 |
+
+### CSS Property Extractor (`css-property-extractor`)
+
+- **类型**：`agent`
+- **模型**：GPT-4o（通过 `gpt-4o` 组件）
+- **最大迭代次数**：3
+- **角色**：提取 CSS 自定义属性（设计令牌）并过滤框架噪音
+
+| 工具 | 描述 |
+|------|------|
+| `extract_css_custom_properties` | 提取所有 CSS 自定义属性（可选 `skip_prefixes` 过滤框架变量） |
 
 ## 系统详情
 
@@ -206,13 +203,17 @@ components:
         max_tokens: 16384
 ```
 
-### 调整代理迭代次数
+### 调整子代理迭代次数
 增加 `max_iteration_count` 以对复杂网站进行更精细的分析：
 ```yaml
 components:
-  - id: design-md-generator
+  - id: component-inspector
     type: agent
-    max_iteration_count: 30  # 默认值：20
+    max_iteration_count: 15  # 默认值：10
+
+  - id: css-property-extractor
+    type: agent
+    max_iteration_count: 5  # 默认值：3
 ```
 
 ### 更改屏幕分辨率
@@ -228,7 +229,7 @@ ENV SCREEN_HEIGHT=1440
 
 1. **容器构建失败**：确认 Docker 正在运行 (`docker info`)
 2. **CDP 连接超时**：容器启动可能需要几秒钟。model-compose 在配置的超时时间（60 秒）内自动重试
-3. **代理超过迭代限制**：复杂网站可能需要更多迭代次数。在代理组件中增加 `max_iteration_count`
+3. **子代理超过迭代限制**：复杂网站可能需要更多迭代次数。在 `component-inspector` 或 `css-property-extractor` 中增加 `max_iteration_count`
 4. **无法访问 noVNC**：检查端口 `6080` 是否被占用 (`lsof -i :6080`)
 5. **OpenAI API 错误**：验证 `OPENAI_API_KEY` 是否有效且配额充足
 6. **共享内存错误**：容器使用 `shm_size: 2gb` 防止 Chromium 崩溃。如需要可以增加

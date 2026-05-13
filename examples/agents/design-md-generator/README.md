@@ -1,18 +1,22 @@
 # DESIGN.md Generator Example
 
-This example demonstrates an AI agent that analyzes a website's visual design system and generates a comprehensive DESIGN.md document, using headless browser automation with the `web-browser` component and an `agent` component powered by GPT-4o.
+This example demonstrates a declarative pipeline that analyzes a website's visual design system and generates a comprehensive DESIGN.md document, using headless browser automation with the `web-browser` component and specialized AI sub-agents powered by GPT-4o.
 
 ## Overview
 
-This example runs a Chromium browser inside a Docker container and uses an AI agent to systematically inspect a website's design system:
+This example runs a Chromium browser inside a Docker container and uses a multi-step pipeline to systematically inspect a website's design system:
 
-1. **Navigate** to the target URL using a headless browser
-2. **Extract** design tokens — colors, typography, spacing, border radii, and computed styles — through multiple browser tools
-3. **Synthesize** a comprehensive DESIGN.md document covering color palette, typography rules, component stylings, layout principles, and more
+1. **Analyze Page Structure** — Navigate to the target URL and extract page structure, head HTML, and font sources
+2. **Analyze Design Tokens** — Extract color palette, typography styles, and spacing/border-radius values
+3. **Extract CSS Properties** — AI sub-agent analyzes the CSS architecture and extracts meaningful custom properties (design tokens), filtering out framework noise
+4. **Inspect Component Styles** — AI sub-agent inspects specific UI components (nav, hero, buttons, cards, footer) and extracts computed styles
+5. **Synthesize** — A single LLM call compiles all extracted data into a comprehensive DESIGN.md document
 
 Key features:
 
-- **Agent-Driven Analysis**: GPT-4o agent with 8 browser tools performs a multi-pass design inspection strategy
+- **Declarative Pipeline**: 5-step workflow orchestrated by model-compose with no top-level agent overhead
+- **AI Sub-Agents**: Specialized agents for CSS property extraction and component style inspection adapt their strategies per site
+- **Parallel Execution**: Steps 2, 3, and 4 run in parallel after step 1 completes
 - **Docker System Module**: Single container running Chromium, Xvfb, x11vnc, noVNC, and socat via supervisord
 - **CDP (Chrome DevTools Protocol)**: Communicates with Chromium for navigation, DOM extraction, and JavaScript evaluation
 - **noVNC Remote Desktop**: Provides browser-visible UI at `http://localhost:6080/vnc.html` for monitoring the analysis
@@ -60,7 +64,7 @@ Key features:
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/main/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"url": "https://stripe.com"}}'
    ```
@@ -88,32 +92,22 @@ Key features:
 
 ```mermaid
 graph TD
-    Input((Input)) --> Agent
-
-    subgraph Agent["design-md-generator (Agent)"]
-        direction TB
-        LLM[GPT-4o]
-        T1[navigate_to_url]
-        T2[extract_page_structure]
-        T3[extract_page_html]
-        T4[extract_computed_styles]
-        T5[extract_color_palette]
-        T6[extract_typography]
-        T7[extract_spacing_and_radii]
-        T8[scroll_page]
-
-        LLM --> T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8
-        T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 --> LLM
-    end
-
-    Agent --> Output((Output))
+    Input((Input)) --> S1[analyze-page-structure]
+    S1 --> S2[analyze-design-tokens]
+    S1 --> S3[extract-css-properties]
+    S1 --> S4[inspect-component-styles]
+    S2 & S3 & S4 --> S5[synthesize-design-md]
+    S5 --> Output((Output))
 ```
 
-The agent follows a multi-pass analysis strategy:
-1. **Pass 1 — Structure Overview**: Navigate to URL, extract page structure and font imports
-2. **Pass 2 — Data Extraction**: Extract color palette, typography, spacing, and computed styles from key elements
-3. **Pass 3 — Detail Inspection**: Inspect brand-specific components (hero, pricing cards, feature grids, etc.)
-4. **Pass 4 — Synthesis**: Combine all extracted data into the DESIGN.md document
+The pipeline runs 5 jobs in sequence and parallel:
+1. **analyze-page-structure** — Navigate to URL, extract page structure, head HTML, and font sources
+2. **analyze-design-tokens** — Extract color palette, typography, and spacing/border-radius values (parallel)
+3. **extract-css-properties** — AI sub-agent extracts CSS custom properties, filtering framework noise (parallel)
+4. **inspect-component-styles** — AI sub-agent inspects UI components and extracts computed styles (parallel)
+5. **synthesize-design-md** — Single LLM call compiles all data into DESIGN.md
+
+Steps 2, 3, and 4 run in parallel after step 1 completes. Step 5 waits for all three to finish.
 
 #### Input Parameters
 
@@ -126,7 +120,6 @@ The agent follows a multi-pass analysis strategy:
 | Field | Type | Description |
 |-------|------|-------------|
 | `design_md` | text | The generated DESIGN.md document content |
-| `messages` | json | Full conversation messages between the agent and GPT-4o |
 
 ## Component Details
 
@@ -155,25 +148,29 @@ The agent follows a multi-pass analysis strategy:
 - **Model**: `gpt-4o`
 - **Max Tokens**: 16,384
 
-### Design MD Generator Component (`design-md-generator`)
+### Component Inspector (`component-inspector`)
 
 - **Type**: `agent`
 - **Model**: GPT-4o (via the `gpt-4o` component)
-- **Max Iterations**: 20
-- **Tools**: 8 browser-based workflows for design inspection
-
-#### Agent Tools
+- **Max Iterations**: 10
+- **Role**: Inspects specific UI components on a loaded page and extracts computed styles
 
 | Tool | Description |
 |------|-------------|
-| `navigate_to_url` | Open any URL in the browser |
-| `extract_page_structure` | Get structural outline of the page (sections, IDs, classes, headings) |
-| `extract_page_html` | Get HTML of specific elements via CSS selector |
 | `extract_computed_styles` | Get exact computed CSS of elements (colors, fonts, spacing, shadows) |
-| `extract_color_palette` | Scan all elements for unique background, text, border, and shadow colors |
-| `extract_typography` | Scan all text elements for unique font combinations |
-| `extract_spacing_and_radii` | Collect all unique spacing and border-radius values |
+| `extract_page_html` | Get HTML of specific elements via CSS selector |
 | `scroll_page` | Scroll the page to reveal below-the-fold content |
+
+### CSS Property Extractor (`css-property-extractor`)
+
+- **Type**: `agent`
+- **Model**: GPT-4o (via the `gpt-4o` component)
+- **Max Iterations**: 3
+- **Role**: Extracts CSS custom properties (design tokens) and filters out framework noise
+
+| Tool | Description |
+|------|-------------|
+| `extract_css_custom_properties` | Extract all CSS custom properties, with optional `skip_prefixes` to filter framework variables |
 
 ## System Details
 
@@ -206,13 +203,17 @@ components:
         max_tokens: 16384
 ```
 
-### Adjust Agent Iterations
+### Adjust Sub-Agent Iterations
 Increase `max_iteration_count` for more thorough analysis of complex sites:
 ```yaml
 components:
-  - id: design-md-generator
+  - id: component-inspector
     type: agent
-    max_iteration_count: 30  # default: 20
+    max_iteration_count: 15  # default: 10
+
+  - id: css-property-extractor
+    type: agent
+    max_iteration_count: 5  # default: 3
 ```
 
 ### Change Screen Resolution
@@ -228,7 +229,7 @@ ENV SCREEN_HEIGHT=1440
 
 1. **Container build fails**: Ensure Docker is running (`docker info`)
 2. **CDP connection timeout**: The container may take a few seconds to start. model-compose retries automatically within the configured timeout (60s)
-3. **Agent exceeds iteration limit**: Complex sites may require more iterations. Increase `max_iteration_count` in the agent component
+3. **Sub-agent exceeds iteration limit**: Complex sites may require more iterations. Increase `max_iteration_count` in `component-inspector` or `css-property-extractor`
 4. **noVNC not accessible**: Check that port `6080` is not in use (`lsof -i :6080`)
 5. **OpenAI API errors**: Verify your `OPENAI_API_KEY` is valid and has sufficient quota
 6. **Shared memory errors**: The container uses `shm_size: 2gb` to prevent Chromium crashes. Increase if needed

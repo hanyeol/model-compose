@@ -28,26 +28,67 @@ workflows:
       Analyze a website's design system and generate a comprehensive DESIGN.md document.
       Provide a URL and select an AI model.
     jobs:
-      - id: analyze
-        component: design-analyzer
+      - id: analyze-page-structure
+        component:
+          type: workflow
+          action:
+            workflow: analyze-page-structure
         input:
           url: ${input.url}
-        output:
-          analysis: ${output[-1].content as text}
-          messages: ${output}
-      - id: synthesize
+
+      - id: analyze-design-tokens
+        component:
+          type: workflow
+          action:
+            workflow: analyze-design-tokens
+        depends_on: [ analyze-page-structure ]
+
+      - id: extract-css-properties
+        component:
+          type: workflow
+          action:
+            workflow: extract-css-properties
+        input:
+          instructions: Extract all design token custom properties from the page.
+        depends_on: [ analyze-page-structure ]
+
+      - id: inspect-component-styles
+        component:
+          type: workflow
+          action:
+            workflow: inspect-component-styles
+        input:
+          instructions: >
+            Extract computed styles for these UI components:
+            navigation (nav, header, [role=navigation]),
+            hero section ([class*=hero], section:first-of-type),
+            buttons (button, a[class*=btn], [class*=button], [class*=cta]),
+            cards ([class*=card], [class*=tile], article),
+            inputs (input, textarea, select),
+            footer (footer).
+        depends_on: [ analyze-page-structure ]
+
+      - id: synthesize-design-md
         component:
           type: workflow
           action:
             workflow: synthesize-design-md
-            input: ${input}
-            output: ${output}
         input:
-          analysis: ${jobs.analyze.output.analysis}
+          analysis: |
+            ## Page Structure
+            ${jobs.analyze-page-structure.output}
+
+            ## Design Tokens
+            ${jobs.analyze-design-tokens.output}
+
+            ## CSS Custom Properties
+            ${jobs.extract-css-properties.output}
+
+            ## Component Styles
+            ${jobs.inspect-component-styles.output}
         output:
           design_md: ${output as text}
-          analysis: ${jobs.analyze.output.messages as json}
-        depends_on: [ analyze ]
+        depends_on: [ analyze-design-tokens, extract-css-properties, inspect-component-styles ]
 
   # ---------------------------------------------------------------------------
   # Analysis workflows (tools for design-analyzer agent)
@@ -1206,92 +1247,6 @@ components:
 
   # ---------------------------------------------------------------------------
   # Agents
-  # ---------------------------------------------------------------------------
-
-  - id: design-analyzer
-    type: agent
-    tools:
-      - analyze-page-structure
-      - analyze-design-tokens
-      - extract-css-properties
-      - inspect-component-styles
-    max_iteration_count: 8
-    action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: |
-        You are a design system analyzer. You coordinate specialized tools to
-        extract comprehensive design data from a website. You do NOT write the final document.
-
-        # WORKFLOW
-
-        Follow this exact sequence:
-
-        1. **analyze_page_structure(url)** — Navigate to the URL and extract page structure,
-           font sources, and head HTML. Returns a JSON object.
-
-        2. **analyze_design_tokens()** — Extract color palette, typography styles, and
-           spacing/border-radius values from the already-loaded page. Returns a JSON object.
-
-        3. **extract_css_properties(instructions)** — Extract CSS custom properties (design tokens)
-           from the page. The sub-agent will analyze the CSS architecture and extract meaningful
-           properties while filtering out framework noise. Pass instructions like:
-           "Extract all design token custom properties from the page"
-
-        4. **Review** the results from steps 1-3. Identify brand-specific UI components that
-           need detailed style inspection (hero sections, pricing cards, testimonial blocks,
-           feature grids, navigation patterns, footer, etc.). Use the page structure to find
-           the right CSS selectors or class names.
-
-        5. **inspect_component_styles(instructions)** — Pass natural-language instructions
-           describing which components to inspect and suggested CSS selectors. The sub-agent
-           will extract computed styles for each. Example:
-           "Extract styles for: nav/header ('nav, header'), hero section ('.hero, [class*=hero]'),
-           buttons ('button, [class*=btn]'), cards ('[class*=card], article'), footer ('footer')"
-
-        6. **Compile** all extracted data into a single final message with clear section headers:
-
-           ## Page Structure
-           <step 1 structure>
-
-           ## Font Sources
-           <step 1 font_sources>
-
-           ## Head HTML
-           <step 1 head_html>
-
-           ## Color Palette
-           <step 2 colors>
-
-           ## Typography
-           <step 2 typography>
-
-           ## Spacing & Radii
-           <step 2 spacing>
-
-           ## CSS Custom Properties
-           <step 3 results>
-
-           ## Component Styles
-           <step 5 results>
-
-        # RULES
-
-        - Call tools in order: analyze_page_structure → analyze_design_tokens → extract_css_properties → inspect_component_styles.
-        - Do NOT skip any tool. All four must be called.
-        - Do NOT write a DESIGN.md. Your job is data extraction only.
-        - After all tools complete, compile the results into a single message with the section headers above.
-        - Include ALL data — do not summarize or omit any tool output.
-      user_prompt: |
-        Analyze the website at this URL and extract all design system data:
-
-        ${input.url}
-
-  # ---------------------------------------------------------------------------
-  # Component style inspector (sub-agent of design-analyzer)
   # ---------------------------------------------------------------------------
 
   - id: component-inspector

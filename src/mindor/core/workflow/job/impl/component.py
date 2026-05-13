@@ -29,10 +29,10 @@ class ComponentJob(Job):
             run_id: str = ulid.ulid()
 
             job_time_tracker = TimeTracker()
-            logging.debug("[task-%s] Component 'run-%s' started for job '%s'", context.task_id, run_id, self.id)
+            logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.task_id, run_id, component.id, self.id, context.workflow_id)
 
             if self.config.interrupt and self.config.interrupt.before:
-                logging.info("[task-%s] Job '%s' interrupted at 'before' phase.", context.task_id, self.id)
+                logging.info("[task-%s] Job '%s:%s' interrupted at 'before' phase.", context.task_id, self.id, context.workflow_id)
                 context.register_source("job", { "input": input })
                 answer = await self._interrupt(context, "before", self.config.interrupt.before)
                 if answer is not None:
@@ -42,14 +42,14 @@ class ComponentJob(Job):
             context.register_source("output", output)
 
             if self.config.interrupt and self.config.interrupt.after:
-                logging.info("[task-%s] Job '%s' interrupted at 'after' phase.", context.task_id, self.id)
+                logging.info("[task-%s] Job '%s:%s' interrupted at 'after' phase.", context.task_id, self.id, context.workflow_id)
                 context.register_source("job", { "input": input, "output": output })
                 answer = await self._interrupt(context, "after", self.config.interrupt.after)
                 if answer is not None:
                     output = answer
                 context.register_source("output", output)
 
-            logging.debug("[task-%s] Component 'run-%s' completed in %.2f seconds.", context.task_id, run_id, job_time_tracker.elapsed())
+            logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.task_id, run_id, component.id, self.id, context.workflow_id, job_time_tracker.elapsed())
 
             output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
             outputs.append(output)
@@ -67,7 +67,7 @@ class ComponentJob(Job):
             input  = await context.render_variable(point.condition.input)
             value  = await context.render_variable(point.condition.value)
             if not evaluate_condition(point.condition.operator, input, value):
-                logging.debug("[task-%s] Job '%s' interrupt at '%s' phase skipped: condition not met.", context.task_id, self.id, phase)
+                logging.debug("[task-%s] Job '%s:%s' interrupt at '%s' phase skipped: condition not met.", context.task_id, self.id, context.workflow_id, phase)
                 return None
 
         message  = (await context.render_variable(point.message) ) if point.message  else None

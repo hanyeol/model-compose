@@ -115,6 +115,8 @@ class VariableRenderer:
                 return await encode_stream_to_base64(UploadFileStreamResource(value))
             if isinstance(value, StreamResource):
                 return await encode_stream_to_base64(value)
+            if isinstance(value, str):
+                return base64.b64encode(value.encode("utf-8")).decode("ascii")
             return base64.b64encode(value)
 
         if type in [ "image", "audio", "video", "file" ]:

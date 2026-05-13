@@ -259,7 +259,7 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
     ) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
 
-        if component.type == ComponentType.WORKFLOW:
+        if component.type == ComponentType.WORKFLOW and (not action.input or action.input == "${input}"):
             _, workflow = WorkflowResolver(workflows).resolve(action.workflow, raise_on_error=False)
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components))

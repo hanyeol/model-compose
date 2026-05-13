@@ -9,7 +9,7 @@ class WorkflowAction:
         self.config: WorkflowActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input = await context.render_variable(self.config.input)
+        input = (await context.render_variable(self.config.input)) if self.config.input else context.input
         output = await context.workflow.workflow_delegate(self.config.workflow, input, context.workflow.interrupt_handler)
         context.register_source("output", output)
 

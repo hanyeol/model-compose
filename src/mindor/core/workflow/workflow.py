@@ -102,7 +102,8 @@ class WorkflowRunner:
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
-                    logging.info("[task-%s] Job '%s' started.", context.task_id, job.id)
+                    logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job.id, self.id)
+                    logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job.id, self.id, context.input)
 
             if not scheduled_job_tasks:
                 raise RuntimeError("No runnable jobs but pending jobs remain.")
@@ -124,10 +125,11 @@ class WorkflowRunner:
                         job_time_trackers[next_job_id] = TimeTracker()
                     else:
                         context.complete_job(completed_job_id, completed_job_output)
-                        logging.info("[task-%s] Job '%s' completed without routing.", context.task_id, completed_job_id)
+                        logging.info("[task-%s] Job '%s:%s' completed without routing.", context.task_id, completed_job_id, self.id)
                 else:
                     context.complete_job(completed_job_id, completed_job_output)
-                    logging.info("[task-%s] Job '%s' completed in %.2f seconds.", context.task_id, completed_job_id, job_time_trackers[completed_job_id].elapsed())
+                    logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, completed_job_id, self.id, job_time_trackers[completed_job_id].elapsed())
+                    logging.debug("[task-%s] Job '%s:%s' output: %s", context.task_id, completed_job_id, self.id, completed_job_output)
 
                     if self._is_terminal_job(completed_job_id):
                         if isinstance(output, dict) and isinstance(completed_job_output, dict):
@@ -183,7 +185,7 @@ class Workflow:
         workflow_delegate: WorkflowDelegate = None
     ) -> Any:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
-        context = WorkflowContext(task_id, input, interrupt_handler, workflow_delegate)
+        context = WorkflowContext(task_id, self.id, input, interrupt_handler, workflow_delegate)
 
         return await runner.run(context)
 

@@ -8,11 +8,13 @@ class WorkflowContext:
     def __init__(
         self,
         task_id: str,
+        workflow_id: str,
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler,
         workflow_delegate: WorkflowDelegate
     ):
         self.task_id: str = task_id
+        self.workflow_id: str = workflow_id
         self.input: Dict[str, Any] = input
         self.context: Dict[str, Any] = { "task_id": task_id }
         self.sources: Dict[str, Any] = { "jobs": {} }

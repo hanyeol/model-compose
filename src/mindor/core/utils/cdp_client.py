@@ -104,10 +104,16 @@ class CdpClient:
             self._pending.clear()
 
     @classmethod
+    async def from_url(cls, ws_url: str, timeout: float = 30.0) -> CdpClient:
+        """Create a connected CdpClient from an explicit WebSocket URL."""
+        instance = cls(ws_url, timeout=timeout)
+        await instance.connect()
+        return instance
+
+    @classmethod
     async def discover(
         cls,
-        host: str,
-        port: int,
+        url: str,
         target_index: int = 0,
         timeout: float = 30.0,
     ) -> CdpClient:
@@ -120,19 +126,19 @@ class CdpClient:
         while time.monotonic() < deadline:
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://{host}:{port}/json") as response:
+                    async with session.get(f"{url}/json") as response:
                         targets = await response.json(content_type=None)
                 break
             except (aiohttp.ClientError, OSError) as e:
                 last_error = e
                 await asyncio.sleep(1)
         else:
-            raise ConnectionError(f"Could not reach CDP at {host}:{port} within {timeout}s: {last_error}")
+            raise ConnectionError(f"Could not reach CDP at {url} within {timeout}s: {last_error}")
 
         page_targets = [ t for t in targets if t.get("type") == "page" ]
 
         if not page_targets:
-            raise ConnectionError(f"No 'page' target found at {host}:{port}.")
+            raise ConnectionError(f"No 'page' target found at {url}.")
 
         if target_index >= len(page_targets):
             raise IndexError(
@@ -145,3 +151,37 @@ class CdpClient:
         await instance.connect()
 
         return instance
+
+    @classmethod
+    async def create_tab(
+        cls,
+        url: str,
+        navigate_url: str = "",
+        timeout: float = 30.0,
+    ) -> tuple[CdpClient, str]:
+        """Create a new browser tab via the DevTools HTTP API.
+
+        Returns (connected CdpClient, target_id).
+        """
+        endpoint = f"{url}/json/new"
+        if navigate_url:
+            endpoint += f"?{navigate_url}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.put(endpoint) as response:
+                target = await response.json(content_type=None)
+
+        target_id = target["id"]
+        ws_url = target["webSocketDebuggerUrl"]
+
+        instance = cls(ws_url, timeout=timeout)
+        await instance.connect()
+
+        return instance, target_id
+
+    @classmethod
+    async def close_tab(cls, url: str, target_id: str) -> None:
+        """Close a browser tab via the DevTools HTTP API."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{url}/json/close/{target_id}") as response:
+                await response.read()

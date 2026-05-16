@@ -15,6 +15,7 @@ dependencies = [
     "python-dotenv",
     "docker",
     "aiohttp",
+    "brotlicffi",
     "requests",
     "fastapi",
     "websockets",

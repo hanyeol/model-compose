@@ -44,9 +44,9 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/scrape-with-captcha/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"url": "https://example.com"}}'
+     -d '{"workflow_id": "scrape-with-captcha", "input": {"url": "https://example.com"}}'
    ```
 
    **Web UI 사용:**

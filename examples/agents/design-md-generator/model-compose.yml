@@ -59,13 +59,22 @@ workflows:
             workflow: inspect-component-styles
         input:
           instructions: >
-            Extract computed styles for these UI components:
-            navigation (nav, header, [role=navigation]),
-            hero section ([class*=hero], section:first-of-type),
-            buttons (button, a[class*=btn], [class*=button], [class*=cta]),
-            cards ([class*=card], [class*=tile], article),
-            inputs (input, textarea, select),
-            footer (footer).
+            Extract computed styles for these UI components. For each component,
+            find ALL visual variants (e.g., primary/secondary/ghost buttons,
+            standard/featured cards) by examining different class names.
+
+            Components to inspect:
+            1. Navigation (nav, header, [role=navigation]) — link styles, active state, logo area
+            2. Hero section ([class*=hero], section:first-of-type) — heading, subheading, CTA buttons
+            3. Buttons (button, a[class*=btn], [class*=button], [class*=cta]) — ALL color/size variants
+            4. Cards ([class*=card], [class*=tile], article) — standard and featured variants
+            5. Inputs (input, textarea, select) — default and focus states
+            6. Footer (footer) — background, text, link colors
+            7. Badges/chips ([class*=badge], [class*=tag], [class*=chip], [class*=label]) — if present
+            8. Pricing/feature tables ([class*=price], [class*=plan], [class*=tier]) — if present
+
+            For buttons and cards, use extract_page_html first to identify distinct
+            class-based variants, then extract_computed_styles for each variant separately.
         depends_on: [ analyze-page-structure ]
 
       - id: synthesize-design-md
@@ -107,12 +116,59 @@ workflows:
         action: navigate
         input:
           url: ${input.url @(description The full URL to analyze, e.g. https://stripe.com)}
+          wait_until: networkidle
       - id: load-fonts
         component: browser
         action: evaluate
         input:
           expression: >
             (async () => { await document.fonts.ready; return 'ready'; })()
+      - id: scroll-to-reveal
+        component: browser
+        action: evaluate
+        input:
+          expression: >
+            (async () => {
+              const SCROLL_STEP = 600;
+              const MAX_SCROLLS = 50;
+              const SETTLE_TIMEOUT = 400;
+              const MAX_SETTLE = 2000;
+
+              function waitForDomSettle() {
+                return new Promise(resolve => {
+                  let changed = false;
+                  let timer = null;
+                  const start = Date.now();
+                  const observer = new MutationObserver(() => {
+                    changed = true;
+                    clearTimeout(timer);
+                    if (Date.now() - start > MAX_SETTLE) { observer.disconnect(); resolve(true); return; }
+                    timer = setTimeout(() => { observer.disconnect(); resolve(true); }, SETTLE_TIMEOUT);
+                  });
+                  observer.observe(document.body, { childList: true, subtree: true });
+                  timer = setTimeout(() => { observer.disconnect(); resolve(changed); }, SETTLE_TIMEOUT);
+                });
+              }
+
+              let scrolls = 0;
+              while (scrolls < MAX_SCROLLS) {
+                const beforeY = window.scrollY;
+                window.scrollBy(0, SCROLL_STEP);
+                const domChanged = await waitForDomSettle();
+                const stuck = (window.scrollY === beforeY);
+                if (stuck && !domChanged) break;
+                if (stuck && domChanged) {
+                  window.scrollBy(0, SCROLL_STEP);
+                  await waitForDomSettle();
+                  if (window.scrollY === beforeY) break;
+                }
+                scrolls++;
+              }
+              window.scrollTo(0, 0);
+              await waitForDomSettle();
+              return scrolls + ' scrolls completed';
+            })()
+        depends_on: [ load-fonts ]
       - id: extract-structure
         component: browser
         action: evaluate
@@ -158,15 +214,25 @@ workflows:
               }
 
               walk(document.body, 0);
-              return JSON.stringify(sections.slice(0, MAX_SECTIONS));
+
+              const meta = {
+                title: document.title,
+                themeColor: document.querySelector('meta[name=theme-color]')?.content || undefined,
+                colorScheme: getComputedStyle(document.documentElement).colorScheme || undefined,
+                bodyBg: getComputedStyle(document.body).backgroundColor,
+                bodyColor: getComputedStyle(document.body).color,
+                htmlClasses: (document.documentElement.className || '').split(/\s+/).slice(0, 5).join(' ') || undefined
+              };
+
+              return JSON.stringify({ sections: sections.slice(0, MAX_SECTIONS), meta });
             })()
-        depends_on: [ navigate ]
+        depends_on: [ scroll-to-reveal ]
       - id: extract-head-html
         component: browser
         action: extract-html
         input:
           selector: "head > link, head > style"
-        depends_on: [ navigate ]
+        depends_on: [ scroll-to-reveal ]
       - id: extract-fonts
         component: browser
         action: evaluate
@@ -218,7 +284,7 @@ workflows:
 
               return JSON.stringify(result);
             })()
-        depends_on: [ navigate ]
+        depends_on: [ scroll-to-reveal ]
         output:
           structure: ${jobs.extract-structure.output}
           head_html: ${jobs.extract-head-html.output}
@@ -238,10 +304,11 @@ workflows:
         input:
           expression: >
             (() => {
-              const MAX_BACKGROUNDS = 30;
-              const MAX_TEXT_COLORS = 30;
-              const MAX_BORDER_COLORS = 20;
+              const MAX_BACKGROUNDS = 20;
+              const MAX_TEXT_COLORS = 20;
+              const MAX_BORDER_COLORS = 15;
               const MAX_SHADOWS = 10;
+              const SKIP_TAGS = new Set(['html', 'head', 'meta', 'link', 'script', 'style', 'title', 'br', 'hr', 'noscript', 'template']);
 
               function parseColor(raw) {
                 if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
@@ -253,28 +320,65 @@ workflows:
                 return alpha < 1 ? `rgba(${r}, ${g}, ${b}, ${alpha})` : hex;
               }
 
-              const backgrounds = new Set();
-              const textColors = new Set();
-              const borderColors = new Set();
-              const shadows = new Set();
+              function isVisible(el) {
+                if (SKIP_TAGS.has(el.tagName.toLowerCase())) return false;
+                if (!el.offsetParent && el.tagName.toLowerCase() !== 'body') return false;
+                return true;
+              }
+
+              function describeEl(el) {
+                const tag = el.tagName.toLowerCase();
+                const cls = (el.className && typeof el.className === 'string')
+                  ? '.' + el.className.split(/\s+/).slice(0, 2).join('.')
+                  : '';
+                const role = el.getAttribute('role');
+                return tag + cls + (role ? '[' + role + ']' : '');
+              }
+
+              const bgMap = {};
+              const textMap = {};
+              const borderMap = {};
+              const shadowMap = {};
 
               for (const el of document.querySelectorAll('*')) {
+                if (!isVisible(el)) continue;
                 const computed = getComputedStyle(el);
                 const bg = parseColor(computed.backgroundColor);
                 const text = parseColor(computed.color);
                 const border = parseColor(computed.borderColor);
+                const shadow = computed.boxShadow;
+                const desc = describeEl(el);
 
-                if (bg) backgrounds.add(bg);
-                if (text) textColors.add(text);
-                if (border && border !== bg) borderColors.add(border);
-                if (computed.boxShadow && computed.boxShadow !== 'none') shadows.add(computed.boxShadow);
+                if (bg) {
+                  if (!bgMap[bg]) bgMap[bg] = { value: bg, count: 0, elements: [] };
+                  bgMap[bg].count++;
+                  if (bgMap[bg].elements.length < 3) bgMap[bg].elements.push(desc);
+                }
+                if (text) {
+                  if (!textMap[text]) textMap[text] = { value: text, count: 0, elements: [] };
+                  textMap[text].count++;
+                  if (textMap[text].elements.length < 3) textMap[text].elements.push(desc);
+                }
+                if (border && border !== bg) {
+                  if (!borderMap[border]) borderMap[border] = { value: border, count: 0, elements: [] };
+                  borderMap[border].count++;
+                  if (borderMap[border].elements.length < 3) borderMap[border].elements.push(desc);
+                }
+                if (shadow && shadow !== 'none') {
+                  if (!shadowMap[shadow]) shadowMap[shadow] = { value: shadow, count: 0, elements: [] };
+                  shadowMap[shadow].count++;
+                  if (shadowMap[shadow].elements.length < 3) shadowMap[shadow].elements.push(desc);
+                }
               }
 
+              const sortByCount = (obj, max) =>
+                Object.values(obj).sort((a, b) => b.count - a.count).slice(0, max);
+
               return JSON.stringify({
-                backgrounds: [...backgrounds].slice(0, MAX_BACKGROUNDS),
-                textColors: [...textColors].slice(0, MAX_TEXT_COLORS),
-                borderColors: [...borderColors].slice(0, MAX_BORDER_COLORS),
-                shadows: [...shadows].slice(0, MAX_SHADOWS)
+                backgrounds: sortByCount(bgMap, MAX_BACKGROUNDS),
+                textColors: sortByCount(textMap, MAX_TEXT_COLORS),
+                borderColors: sortByCount(borderMap, MAX_BORDER_COLORS),
+                shadows: sortByCount(shadowMap, MAX_SHADOWS)
               });
             })()
       - id: extract-typography
@@ -283,35 +387,141 @@ workflows:
         input:
           expression: >
             (() => {
-              const TEXT_SELECTORS = [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button', 'span', 'li', 'label',
-                'nav a', 'nav button',
-                '[class*=title]', '[class*=heading]', '[class*=hero]', '[class*=caption]', '[class*=subtitle]'
-              ].join(',');
-              const STYLE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
-              const MAX_RESULTS = 30;
+              const STYLE_KEYS = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
+              const LANDMARK_TAGS = new Set(['header', 'nav', 'main', 'section', 'article', 'aside', 'footer']);
+              const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'path', 'iframe']);
+              const WEIGHT_SUFFIXES = ['Thin', 'ExtraLight', 'UltraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'DemiBold', 'Bold', 'ExtraBold', 'UltraBold', 'Black', 'Heavy'];
+              const GENERIC_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-monospace', 'ui-serif', 'ui-sans-serif', 'ui-rounded']);
+              const MAX_RESULTS = 50;
               const TEXT_PREVIEW_LENGTH = 60;
+              const MIN_TEXT_LENGTH = 2;
+
+              function resolveFontFamily(rawFamily) {
+                var first = rawFamily.split(',')[0].trim().replace(/['"]/g, '');
+                if (GENERIC_FAMILIES.has(first)) return { family: first, variant: null };
+                var clean = first.replace(/^__/, '').replace(/_[a-f0-9]{4,}$/i, '');
+                var variant = null;
+                for (var i = 0; i < WEIGHT_SUFFIXES.length; i++) {
+                  var sfx = WEIGHT_SUFFIXES[i];
+                  if (clean.length > sfx.length && clean.endsWith(sfx) && clean[clean.length - sfx.length - 1] === '-') {
+                    variant = sfx.toLowerCase();
+                    clean = clean.substring(0, clean.length - sfx.length - 1);
+                    break;
+                  }
+                }
+                var spaced = clean.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+                return { family: spaced, variant: variant };
+              }
+
+              function assignTierName(entry, usedNames) {
+                var size = parseFloat(entry.fontSize) || 0;
+                var isMono = GENERIC_FAMILIES.has(entry.fontFamily) || entry.fontFamily === 'ui-monospace';
+                var base;
+                if (isMono) { base = 'code'; }
+                else if (size >= 48) { base = 'display'; }
+                else if (size >= 32) { base = 'title'; }
+                else if (size >= 20) { base = 'body'; }
+                else if (size >= 14) { base = 'label'; }
+                else { base = 'caption'; }
+                var suffix = entry.fontVariant && entry.fontVariant !== 'regular' ? '-' + entry.fontVariant : '';
+                var name = base + suffix;
+                if (usedNames[name]) { name = base + '-' + Math.round(size) + (suffix || ''); }
+                var counter = 2;
+                var candidate = name;
+                while (usedNames[candidate]) { candidate = name + '-' + counter; counter++; }
+                usedNames[candidate] = true;
+                return candidate;
+              }
+
+              function getLandmark(el) {
+                let cur = el.parentElement;
+                while (cur && cur !== document.body) {
+                  if (LANDMARK_TAGS.has(cur.tagName.toLowerCase())) return cur.tagName.toLowerCase();
+                  cur = cur.parentElement;
+                }
+                return 'body';
+              }
+
+              function hasDirectText(el) {
+                for (const node of el.childNodes) {
+                  if (node.nodeType === 3 && node.textContent.trim().length >= MIN_TEXT_LENGTH) return true;
+                }
+                return false;
+              }
+
+              function isHidden(el) {
+                const s = getComputedStyle(el);
+                return s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0';
+              }
 
               const seen = new Set();
-              const results = [];
+              const entries = [];
 
-              for (const el of document.querySelectorAll(TEXT_SELECTORS)) {
+              const walker = document.createTreeWalker(
+                document.body,
+                NodeFilter.SHOW_ELEMENT,
+                {
+                  acceptNode: function(el) {
+                    const tag = el.tagName.toLowerCase();
+                    if (SKIP_TAGS.has(tag)) return NodeFilter.FILTER_REJECT;
+                    if (isHidden(el)) return NodeFilter.FILTER_REJECT;
+                    if (hasDirectText(el)) return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_SKIP;
+                  }
+                }
+              );
+
+              let el;
+              while (el = walker.nextNode()) {
                 const text = (el.textContent || '').trim();
-                if (!text) continue;
+                if (!text || text.length < MIN_TEXT_LENGTH) continue;
 
                 const computed = getComputedStyle(el);
-                const key = `${computed.fontFamily}|${computed.fontSize}|${computed.fontWeight}|${computed.lineHeight}|${computed.letterSpacing}`;
+                const landmark = getLandmark(el);
+                const resolved = resolveFontFamily(computed.fontFamily);
+                const key = [resolved.family, computed.fontSize, computed.fontWeight, computed.lineHeight, computed.letterSpacing].join('|');
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                const entry = { tag: el.tagName.toLowerCase(), text: text.slice(0, TEXT_PREVIEW_LENGTH) };
+                const tag = el.tagName.toLowerCase();
+                const entry = {
+                  tag,
+                  text: text.slice(0, TEXT_PREVIEW_LENGTH),
+                  context: landmark,
+                  fontFamily: resolved.family,
+                  fontVariant: resolved.variant,
+                  role: el.closest('[role]')?.getAttribute('role') || undefined
+                };
                 for (const prop of STYLE_KEYS) {
                   entry[prop] = computed[prop];
                 }
-                results.push(entry);
+                entries.push(entry);
               }
 
-              return JSON.stringify(results.slice(0, MAX_RESULTS));
+              var usedNames = {};
+              var tiers = entries.slice(0, MAX_RESULTS).map(function(e) {
+                e.tierName = assignTierName(e, usedNames);
+                return e;
+              });
+
+              var yaml = tiers.map(function(t) {
+                var lines = [
+                  '  ' + t.tierName + ':',
+                  '    fontFamily: "' + t.fontFamily + '"',
+                  '    fontSize: "' + t.fontSize + '"',
+                  '    fontWeight: ' + t.fontWeight,
+                  '    lineHeight: "' + t.lineHeight + '"',
+                  '    letterSpacing: "' + t.letterSpacing + '"'
+                ];
+                if (t.fontVariant && t.fontVariant !== 'regular') {
+                  lines.push('    # variant: ' + t.fontVariant + ' | tag: ' + t.tag + ' | "' + t.text.slice(0, 30) + '"');
+                } else {
+                  lines.push('    # tag: ' + t.tag + ' | "' + t.text.slice(0, 30) + '"');
+                }
+                return lines.join('\n');
+              }).join('\n');
+
+              return 'typography:\n' + yaml;
             })()
       - id: extract-spacing
         component: browser
@@ -404,7 +614,8 @@ workflows:
                 # OUTPUT FORMAT
                 Return a JSON object grouped by selector, identical structure to the input
                 but with noise removed. Preserve exact property names and values.
-                Output ONLY the JSON code block, no explanation.
+                Output ONLY raw JSON — no code fences, no ```json markers, no explanation.
+                The output must be valid JSON that can be parsed directly.
             - role: user
               content: |
                 Filter the following extracted CSS custom properties. Remove framework noise, keep only design tokens.
@@ -444,319 +655,156 @@ workflows:
 
               # OUTPUT FORMAT
 
-              Your output MUST be a complete DESIGN.md document following this exact structure.
-              Every section is mandatory. Use exact CSS values (hex codes, px values, font stacks) — never approximate.
+              Your output MUST be a complete DESIGN.md document with YAML front matter followed by Markdown prose.
+              Use exact CSS values (hex codes, px values, font stacks) from the provided data — never approximate or fabricate.
 
-              The document starts with a YAML front matter block delimited by `---`. This block defines reusable design tokens.
-              After the front matter, all Markdown prose MUST reference these tokens using `{category.token-name}` syntax
-              (e.g., `{colors.primary}`, `{typography.body-md}`, `{rounded.lg}`, `{spacing.md}`, `{component.button-primary}`).
-              Hex values and px values may appear once when DEFINING a token in the front matter and optionally once inline
-              next to the first token reference in body prose. After that, always use the `{token.ref}` form.
+              ## Front Matter
 
-              ```
+              The document starts with a YAML front matter block delimited by `---`.
+              This block defines all design tokens as structured data.
+
+              ```yaml
               ---
               version: alpha
-              name: "[Brand Name]"
-              description: "A dense 2-4 sentence summary of the observed design language. Mention the dominant surface, primary accent, typography voice, signature component grammar, and what makes the page visually distinct."
+              name: "<page title or brand name from data>"
+              description: "<1-2 sentences: dominant surface color, accent color, font families, what makes it visually distinct>"
 
               colors:
-                primary: "#..."          # Brand accent color. authored: oklch(...) if different; var: --color-primary
-                primary-active: "#..."   # Hover/active state of primary. Slightly lighter or darker than primary.
-                ink: "#..."              # Default text color. Must contrast with canvas.
-                body: "#..."             # Body text color. Often same as ink or slightly muted.
-                muted: "#..."            # De-emphasized text (captions, placeholders). Lower contrast than body.
-                hairline: "#..."         # Borders, dividers, subtle separators.
-                canvas: "#..."           # Page background color.
-                surface: "#..."          # Card/panel background. Slightly offset from canvas.
-                on-primary: "#..."       # Foreground/text color used ON primary-colored backgrounds. Must contrast with primary.
-                on-dark: "#..."          # Foreground/text color used ON dark backgrounds (canvas, dark cards). Must be light/near-white.
-                # "on-*" tokens are always FOREGROUND colors for the named surface — e.g., on-dark is a LIGHT color readable on dark surfaces.
-                # Use hex as primary value, rgba() when alpha is needed.
-                # If the CSS source uses a different format (oklch, oklab, hsl), note it as a YAML comment.
-                # If a CSS custom property name exists, note it as a YAML comment.
-                # Add brand-specific colors as needed: secondary, accent, error, success, warning, etc.
+                # Assign semantic names based on OBSERVED USAGE with evidence:
+                #   primary — the most frequently used accent/brand color (cite element count)
+                #   secondary — the second most used accent color
+                #   surface — the dominant background color (highest count in backgrounds)
+                #   on-surface — the main text color on that surface
+                #   muted — low-contrast text color if observed
+                #   border — most common border color
+                #   error/success/warning — only if actually present in the data
+                #
+                # NAMING RULES:
+                # - Every color MUST come from the extracted data (hex or converted rgba).
+                # - The semantic name MUST be justified by the element context.
+                #   e.g., if "#FF6B00" appears on buttons and CTAs → "primary" is justified.
+                #   e.g., if "#1A1A2E" is the body/section background → "surface" is justified.
+                # - Do NOT invent colors. Do NOT add colors "for completeness."
+                # - Use the element descriptions from the data to determine roles.
+                # - Add alpha variants only if the extracted data contains rgba values.
 
               typography:
-                hero-display:
-                  fontFamily: "..."      # Use real font name from @font-face/document.fonts, not hashed values
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                display-lg:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                heading-1:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                heading-2:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                body-md:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                body-sm:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                caption:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                button-md:
-                  fontFamily: "..."
-                  fontSize: 00px
-                  fontWeight: 000
-                  lineHeight: 1.00
-                  letterSpacing: 0
-                # Add more tiers as observed: heading-3, label, overline, mono, etc.
+                # The Design Tokens data contains a pre-formatted "typography:" YAML block.
+                # Copy it VERBATIM into the front matter. Do NOT modify, reorder, skip, or
+                # merge any tiers. Include every single tier exactly as provided.
 
               rounded:
-                xs: 0px
-                sm: 0px
-                md: 0px
-                lg: 0px
-                full: 9999px
+                # Map extracted border-radius values to t-shirt sizes.
+                # Use only values found in the spacing/radii extraction data.
+                # Omit sizes that have no corresponding extracted value.
 
               spacing:
-                xxs: 4px
-                xs: 8px
-                sm: 12px
-                md: 16px
-                lg: 24px
-                xl: 32px
-                xxl: 48px
-                section: 96px
+                # Map extracted spacing values to t-shirt sizes.
+                # Use only values found in the spacing extraction data.
+                # Omit sizes that have no corresponding extracted value.
 
               components:
-                button-primary:
-                  backgroundColor: "{colors.primary}"
-                  textColor: "{colors.on-primary}"
-                  typography: "{typography.button-md}"
-                  rounded: "{rounded.md}"
-                  padding: "..."
-                card-base:
-                  backgroundColor: "{colors.canvas}"
-                  textColor: "{colors.ink}"
-                  typography: "{typography.body-md}"
-                  rounded: "{rounded.lg}"
-                  padding: "{spacing.xl}"
-                  border: "1px solid {colors.hairline}"
-                # Add all observed components as separate entries.
-                # Each variant gets its own entry: button-primary-active, button-secondary, card-feature, etc.
+                # Each entry = one observed component variant from Component Styles data.
+                # Key format: <type>-<variant> (e.g., button-primary, card-standard)
+                # Include ONLY components that appear in the extracted Component Styles data.
+                #
+                # Properties reference front matter tokens with {category.name} syntax.
+                # Use exact extracted values for properties not mappable to tokens.
+                # Do NOT add components that were not extracted.
+                # Do NOT invent padding, height, or size values.
               ---
-
-              # Design System Inspired by [Brand Name]
-
-              ## 1. Visual Theme & Atmosphere
-
-              [2-3 paragraphs of editorial prose describing the brand's overall visual identity.
-              Be opinionated and analytical — describe the emotional quality, the defining design decisions,
-              and how this brand positions itself visually against competitors.
-              Include specific hex codes, font names, and pixel values inline.
-              End with a **Key Characteristics:** bulleted list of 7-10 signature traits.]
-
-              ## 2. Color Palette & Roles
-
-              [Organize into 4-7 subcategories based on function. Common groupings:
-              ### Primary
-              ### Secondary & Accent  (or ### Brand & Dark, ### Accent Colors)
-              ### Interactive
-              ### Neutral Scale  (or ### Neutrals & Text)
-              ### Surface & Background  (or ### Surface & Borders)
-              ### Shadows
-              ### Semantic  (success, warning, error — if present)
-
-              Each entry format:
-              - **Evocative Color Name** `{colors.token-name}` (`#hexcode`): Functional description — where it appears, what role it plays.
-              Include CSS custom property names if found (e.g., `--color-primary`).
-              Use rgba() for shadow colors and semi-transparent values.
-              After the first inline mention of a hex value, use `{colors.*}` references exclusively.
-              Document colors that are ABSENT too (e.g., "No gradients are used anywhere").]
-
-              ## 3. Typography Rules
-
-              ### Font Family
-              [List display, body, and monospace font families with full fallback stacks.
-              Note any OpenType features (ss01, tnum, liga, kern).]
-
-              ### Hierarchy
-              [Markdown table with columns: Token | Font | Size | Weight | Line Height | Letter Spacing | Use
-              Include 8-18 rows from Display Hero down to Nano/Caption.
-              The Token column must use `{typography.*}` references matching the front matter keys.
-              Use exact px values plus rem equivalents where appropriate.]
-
-              ### Principles
-              [4-5 bullets explaining the philosophy behind typographic choices:
-              weight strategy, tracking behavior, why this font family, what it communicates.]
-
-              ## 4. Component Stylings
-
-              [4-6 subsections organized by component type.
-              Each component variant must be a separate entry matching its front matter `components:` key.
-              Use this pattern for every component:
-
-              **`{component.token-name}`** — One-sentence role.
-              - Background `{colors.*}`, text `{colors.*}`, typography `{typography.*}`, rounded `{rounded.*}`, padding `{spacing.*}`.
-              - Border/shadow/focus/active/selected behavior if evidenced.
-              - Usage guidance and constraints.
-
-              ### Buttons — Document every variant (primary, secondary, ghost, icon-only, etc.)
-                Each variant gets its own `components:` entry: `button-primary`, `button-primary-active`, `button-secondary`, etc.
-              ### Cards & Containers — Feature cards, pricing cards, content cards, etc.
-              ### Inputs & Forms — Text inputs, selects, textareas with focus states
-              ### Navigation — Top nav bar with exact dimensions, colors, typography
-              ### Image Treatment — How photography/illustration is handled (optional)
-              ### [Brand-specific] — Any unique components specific to this brand]
-
-              ## 5. Layout Principles
-
-              ### Spacing System
-              [Base unit and full spacing scale using `{spacing.*}` tokens.
-              Document section padding, card padding, gap values, and any notable exceptions.
-              Present as a table: Token | Value | Use.]
-
-              ### Grid & Container
-              [Max content width, column count, gutter sizes, layout patterns (3-up, 2-column, etc.).]
-
-              ### Whitespace Philosophy
-              [1-3 bullets on how the brand uses whitespace as a design tool.]
-
-              ## 6. Shapes
-
-              ### Border Radius Scale
-              [Table using `{rounded.*}` tokens from the front matter:
-
-              | Token | Value | Use |
-              |---|---:|---|
-              | `{rounded.xs}` | 2px | Chips, small badges |
-              | `{rounded.sm}` | 4px | Inputs, inline elements |
-              | `{rounded.md}` | 8px | Buttons, dropdowns |
-              | `{rounded.lg}` | 16px | Cards, modals |
-              | `{rounded.full}` | 9999px | Avatars, pills |
-
-              Replace values with actual extracted data.]
-
-              ### Photography / Media Geometry
-              [Document image aspect ratios, crop behavior, corner rounding applied to images,
-              product render treatment, masks, icon geometry, and whether imagery is content or system chrome.
-              Note `{rounded.*}` tokens used on media elements.]
-
-              ## 7. Depth & Elevation
-
-              [Markdown table: Level | Treatment | Use — 4-6 rows from Flat to highest elevation.
-              Include exact box-shadow CSS values in the Treatment column.]
-
-              ### Shadow Philosophy
-              [1 paragraph on the design rationale for shadow usage.]
-
-              ### Decorative Depth
-              [3-4 bullets on non-shadow depth: gradients, color contrast, photography overlap, etc.]
-
-              ## 8. Do's and Don'ts
-
-              ### Do
-              [7-10 imperative bullets. Reference `{token.ref}` values, not raw hex/px.
-              Capture what makes this design system unique.]
-
-              ### Don't
-              [7-10 prohibition bullets. Reference `{token.ref}` values.
-              Capture what would break the brand's visual identity.]
-
-              ## 9. Responsive Behavior
-
-              ### Breakpoints
-              [Table: Name | Width | Key Changes — 4-7 rows]
-
-              ### Touch Targets
-              [3-5 bullets with minimum tap sizes for key interactive elements]
-
-              ### Collapsing Strategy
-              [5-8 bullets describing how nav, grids, hero, cards, footer adapt across breakpoints]
-
-              ### Image Behavior
-              [3-5 bullets on how images scale, crop, and art-direct responsively]
-
-              ## 10. Agent Prompt Guide
-
-              ### Quick Token Reference
-              [7-12 bulleted entries mapping semantic role to token + hex:
-              - Primary CTA: `{colors.primary}` (`#hexcode`)
-              - Body text: `{colors.ink}` (`#hexcode`)
-              - Default radius: `{rounded.md}` (8px)
-              - Body type: `{typography.body-md}`
-              ...]
-
-              ### Example Component Prompts
-              [5 quoted natural-language prompt strings that demonstrate how to request
-              a component using this design system. Each prompt uses `{token.ref}` syntax:
-              "Create a `{component.button-primary}`: typography `{typography.button-md}`,
-              background `{colors.primary}`, color `{colors.on-primary}`, padding `{spacing.sm} {spacing.md}`,
-              border-radius `{rounded.md}`, no shadow."]
-
-              ### Iteration Guide
-              [5-8 numbered rules for maintaining design fidelity during iterative generation.
-              1. Use `{token.refs}` instead of inline values in prose.
-              2. Add variants as separate `components:` entries in the front matter.
-              3. Keep front matter tokens in sync with body prose references.
-              Reference specific values and explain "why" behind each constraint.]
-
-              ## 11. Known Gaps
-
-              [List any design aspects not evidenced by the extracted data:
-              - Hover/focus states not visible in static extraction
-              - Dark mode palette if only light mode was captured (or vice versa)
-              - Form validation states, error/success styling
-              - Animation timings and transition curves
-              - Exact image crops or aspect ratios not determinable from CSS alone
-              - Proprietary font metrics or variable font axes
-              - Breakpoints inferred from layout rather than explicit media queries
-              - Components visible only behind authentication or interaction]
               ```
 
-              # WRITING STYLE RULES
+              ## Prose Sections
 
-              - Be **authoritative and opinionated**. Make confident judgments: "The system is unapologetically angular" not "The system appears to use angular shapes."
-              - Be **comparative**. Position the brand against competitors: "deliberately warm where most AI brands use cool blue" — show awareness of the design landscape.
-              - Be **concrete**. Every design claim must cite a `{token.ref}` after the token is defined. Raw `#hex`, `rgba()`, and `px` values may appear in YAML definitions and once next to the first body mention only.
-              - Use **present tense, declarative voice**: The system "is" or "uses", never "should" or "would."
-              - Use **em-dashes** (--) for parenthetical elaboration.
-              - Use **bold** for first mentions of defining concepts, brand-specific font names, and color names.
-              - Color entries follow the format: **Color Name** `{colors.token}` (`#hex` or `rgba(...)`): Description of role and usage.
-              - Use `{token.ref}` syntax throughout prose after the first definition. Hex/px values appear in the YAML front matter and optionally once inline next to the first token reference — after that, always use the token form.
-              - Include exact values from computed styles — do NOT guess or approximate. If you extracted `rgba(50, 50, 93, 0.25)`, write that exact value.
-              - Write a complete but not padded document. Prefer 250-500 lines; exceed that only when the extracted system genuinely has many components.
+              After the front matter, write Markdown prose with these sections.
+              Write in natural language — describe the design system as a designer would explain it to a colleague.
+              Do NOT use `{token.ref}` syntax in prose. Use actual values (hex codes, px, font names) directly.
 
-              # IMPORTANT RULES
+              ```markdown
+              # Brand Name
 
-              - Use ONLY the provided data. Never fabricate colors, fonts, or dimensions.
-              - "on-*" color tokens (on-primary, on-dark, on-surface, etc.) are FOREGROUND colors for the named surface. "on-dark" must be a LIGHT color (near-white) readable on dark backgrounds — never assign a dark color to it.
-              - Use font source data to resolve real font names (not hashed filenames). Use CSS custom property data to annotate color tokens.
-              - If a CSS custom property name is present in the provided data, include it.
-              - Document what is ABSENT as well as what is present (e.g., "No drop shadows on cards", "No gradients").
-              - The Typography Hierarchy table must have exact values from the provided typography data, not guesses.
-              - All hex codes must come from the provided color palette or component computed styles data.
-              - Border radius and spacing values must come from the provided spacing data.
-              - If the page uses a dark theme, document the dark surfaces as the primary canvas rather than forcing a "light canvas" narrative.
-              - The YAML front matter `components:` block must list every component variant as a separate entry (e.g., `button-primary`, `button-primary-active`, `button-secondary`, `card-feature`). Component properties must reference other front matter tokens (`{colors.*}`, `{typography.*}`, `{rounded.*}`, `{spacing.*}`).
-              - Every `{token.ref}` used in prose must have a corresponding definition in the YAML front matter. Do not reference undefined tokens.
-              - Your output must contain ONLY the raw DESIGN.md content (starting with `---` front matter) — no preamble, no explanation, no commentary, and no wrapping code fences (```markdown ... ```).
+              ## Overview
+              [1-2 paragraphs. Describe ONLY observable visual characteristics: dominant colors,
+              font choices, spacing density, use of shadows or flatness, contrast levels.
+              Do NOT describe brand intent, target audience, industry, or design philosophy.
+              GOOD: "The system pairs a dark charcoal surface (#1A1A2E) with bright orange (#FF6B00) accents,
+              set in Noto Sans KR at generous line heights."
+              BAD: "A sophisticated fintech aesthetic targeting tech-savvy professionals."]
+
+              ## Colors
+              [One entry per color token. Format:
+              - **Token Name (#hex):** Which extracted elements use this color (cite tag/class from data).
+              Do NOT describe "mood" or "feeling" of colors — describe where they appear.]
+
+              ## Typography
+              [1-2 paragraphs. State which font families are used (resolved names from font source data),
+              how many weight variants appear, and the size range from the extracted tiers.
+              Describe the observable hierarchy — which sizes go to which element types.]
+
+              ## Layout
+              [1 paragraph. Describe the spacing values observed and where they cluster.
+              Mention specific gap/padding/margin values from the data.]
+
+              ## Elevation & Depth
+              [1 paragraph. Describe observed shadow values and which elements use them.
+              If no shadows were extracted, state that the system is flat.]
+
+              ## Shapes
+              [1 paragraph. Describe the border-radius values observed and which elements use which radii.]
+
+              ## Components
+              [1-3 paragraphs. Describe the key UI components from the Component Styles data.
+              Include exact extracted values (padding, colors, border-radius) inline.
+              Only describe components that were actually extracted.]
+
+              ## Do's and Don'ts
+              [5-8 Do bullets and 5-8 Don't bullets.
+              Each bullet MUST reference a specific value from the extracted data.
+              GOOD: "Do use 8px border-radius for cards, matching the extracted card styles."
+              BAD: "Do maintain visual consistency across touchpoints."]
+              ```
+
+              # WRITING STYLE
+
+              - Be **authoritative and declarative**. The system "uses" or "pairs", never "should" or "would."
+              - Write **concise, dense prose** — every sentence carries observable information.
+              - Use **actual values** (hex, px, font names) directly in prose. No `{token.ref}` syntax in body text.
+              - Front matter `components:` block may reference other tokens with `{category.name}` syntax.
+
+              # CRITICAL RULES
+
+              1. **Data fidelity**: Every hex code, px value, font name, and dimension MUST trace back
+                 to the provided extraction data. If you cannot point to the source entry, do not include it.
+              2. **No fabrication**: Do NOT invent colors, typography tiers, or component variants
+                 that are absent from the data. Fewer accurate tokens are better than many guessed ones.
+              3. **Font name resolution**: The typography data may contain raw CSS font-family
+                 names that are hashed, prefixed, or include weight suffixes. Resolve them
+                 to clean, human-readable names using the fontFaceRules / loadedFonts data
+                 in Page Structure.
+                 Resolution rules (apply in order):
+                 a) Strip Next.js hashes: "__FontName_hash" → extract "FontName".
+                 b) Strip weight/style suffixes: "FontName-Bold", "FontName-Regular",
+                    "FontName-Light", "FontName-Medium", "FontName-Thin" → "FontName".
+                 c) Insert spaces before uppercase letters in camelCase/PascalCase runs:
+                    "NotoSansKR" → "Noto Sans KR", "SpoqaHanSansNeo" → "Spoqa Han Sans Neo".
+                 d) Keep generic families (sans-serif, monospace, etc.) as-is when they are
+                    the only family, but drop them when a named family precedes them.
+                 e) If a font cannot be resolved, keep the original value unchanged.
+              4. **Semantic naming with evidence**: Semantic token names (primary, surface, etc.) are allowed
+                 ONLY when justified by usage context in the data. The most-used accent color on buttons/CTAs
+                 → "primary". The dominant background color → "surface". If a role is ambiguous, use a
+                 descriptive name instead (e.g., "dark-blue" rather than guessing "primary").
+              5. **CSS custom properties**: If a CSS custom property name is present in the provided data,
+                 include it as a YAML comment next to the corresponding token.
+              6. **No domain speculation**: Do NOT infer industry, target audience, business model,
+                 or design intent. Describe only observable visual properties.
+                 OK: "The hero uses 64px bold type on a dark surface."
+                 NOT OK: "Targeting tech-savvy professionals with a fintech aesthetic."
+              7. **No generic advice**: Do NOT pad with universal design principles. Every statement
+                 must be specific to this site's extracted data.
+              8. **Output format**: Output ONLY the raw DESIGN.md content (starting with `---`).
+                 No preamble, no wrapping code fences, no explanation.
           - role: user
             content: |
               Generate a complete DESIGN.md from the following website analysis data.
@@ -930,17 +978,19 @@ workflows:
     description: >
       Extract all unique colors used on the page by scanning computed styles of all visible elements.
       Returns a JSON object with categorized colors: backgrounds, text colors, border colors, and
-      shadow colors, each as an array of unique hex values.
+      shadows. Each entry includes the color value, usage frequency, and up to 3 representative
+      elements. Results are sorted by frequency (most used first).
     jobs:
       - component: browser
         action: evaluate
         input:
           expression: >
             (() => {
-              const MAX_BACKGROUNDS = 30;
-              const MAX_TEXT_COLORS = 30;
-              const MAX_BORDER_COLORS = 20;
+              const MAX_BACKGROUNDS = 20;
+              const MAX_TEXT_COLORS = 20;
+              const MAX_BORDER_COLORS = 15;
               const MAX_SHADOWS = 10;
+              const SKIP_TAGS = new Set(['html', 'head', 'meta', 'link', 'script', 'style', 'title', 'br', 'hr', 'noscript', 'template']);
 
               function parseColor(raw) {
                 if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
@@ -952,28 +1002,65 @@ workflows:
                 return alpha < 1 ? `rgba(${r}, ${g}, ${b}, ${alpha})` : hex;
               }
 
-              const backgrounds = new Set();
-              const textColors = new Set();
-              const borderColors = new Set();
-              const shadows = new Set();
+              function isVisible(el) {
+                if (SKIP_TAGS.has(el.tagName.toLowerCase())) return false;
+                if (!el.offsetParent && el.tagName.toLowerCase() !== 'body') return false;
+                return true;
+              }
+
+              function describeEl(el) {
+                const tag = el.tagName.toLowerCase();
+                const cls = (el.className && typeof el.className === 'string')
+                  ? '.' + el.className.split(/\s+/).slice(0, 2).join('.')
+                  : '';
+                const role = el.getAttribute('role');
+                return tag + cls + (role ? '[' + role + ']' : '');
+              }
+
+              const bgMap = {};
+              const textMap = {};
+              const borderMap = {};
+              const shadowMap = {};
 
               for (const el of document.querySelectorAll('*')) {
+                if (!isVisible(el)) continue;
                 const computed = getComputedStyle(el);
                 const bg = parseColor(computed.backgroundColor);
                 const text = parseColor(computed.color);
                 const border = parseColor(computed.borderColor);
+                const shadow = computed.boxShadow;
+                const desc = describeEl(el);
 
-                if (bg) backgrounds.add(bg);
-                if (text) textColors.add(text);
-                if (border && border !== bg) borderColors.add(border);
-                if (computed.boxShadow && computed.boxShadow !== 'none') shadows.add(computed.boxShadow);
+                if (bg) {
+                  if (!bgMap[bg]) bgMap[bg] = { value: bg, count: 0, elements: [] };
+                  bgMap[bg].count++;
+                  if (bgMap[bg].elements.length < 3) bgMap[bg].elements.push(desc);
+                }
+                if (text) {
+                  if (!textMap[text]) textMap[text] = { value: text, count: 0, elements: [] };
+                  textMap[text].count++;
+                  if (textMap[text].elements.length < 3) textMap[text].elements.push(desc);
+                }
+                if (border && border !== bg) {
+                  if (!borderMap[border]) borderMap[border] = { value: border, count: 0, elements: [] };
+                  borderMap[border].count++;
+                  if (borderMap[border].elements.length < 3) borderMap[border].elements.push(desc);
+                }
+                if (shadow && shadow !== 'none') {
+                  if (!shadowMap[shadow]) shadowMap[shadow] = { value: shadow, count: 0, elements: [] };
+                  shadowMap[shadow].count++;
+                  if (shadowMap[shadow].elements.length < 3) shadowMap[shadow].elements.push(desc);
+                }
               }
 
+              const sortByCount = (obj, max) =>
+                Object.values(obj).sort((a, b) => b.count - a.count).slice(0, max);
+
               return JSON.stringify({
-                backgrounds: [...backgrounds].slice(0, MAX_BACKGROUNDS),
-                textColors: [...textColors].slice(0, MAX_TEXT_COLORS),
-                borderColors: [...borderColors].slice(0, MAX_BORDER_COLORS),
-                shadows: [...shadows].slice(0, MAX_SHADOWS)
+                backgrounds: sortByCount(bgMap, MAX_BACKGROUNDS),
+                textColors: sortByCount(textMap, MAX_TEXT_COLORS),
+                borderColors: sortByCount(borderMap, MAX_BORDER_COLORS),
+                shadows: sortByCount(shadowMap, MAX_SHADOWS)
               });
             })()
         output: ${output as json}
@@ -1044,46 +1131,154 @@ workflows:
     #private: true
     name: extract_typography
     description: >
-      Extract all unique typography styles used on the page by scanning headings (h1-h6),
-      paragraphs, buttons, links, nav items, and other text elements.
-      Returns a JSON array of unique font style combinations with their element context.
+      Extract all unique typography styles from the page by walking the DOM tree and
+      finding every visible element that directly contains text. Uses TreeWalker instead
+      of fixed CSS selectors, so it works with any markup (div-based, span-based, semantic).
+      Returns a JSON array of unique font style combinations with element context
+      and landmark location (header, nav, main, section, footer, etc.).
     jobs:
       - component: browser
         action: evaluate
         input:
           expression: >
             (() => {
-              const TEXT_SELECTORS = [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'button', 'span', 'li', 'label',
-                'nav a', 'nav button',
-                '[class*=title]', '[class*=heading]', '[class*=hero]', '[class*=caption]', '[class*=subtitle]'
-              ].join(',');
-              const STYLE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
-              const MAX_RESULTS = 30;
+              const STYLE_KEYS = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textTransform', 'color'];
+              const LANDMARK_TAGS = new Set(['header', 'nav', 'main', 'section', 'article', 'aside', 'footer']);
+              const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'path', 'iframe']);
+              const WEIGHT_SUFFIXES = ['Thin', 'ExtraLight', 'UltraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'DemiBold', 'Bold', 'ExtraBold', 'UltraBold', 'Black', 'Heavy'];
+              const GENERIC_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-monospace', 'ui-serif', 'ui-sans-serif', 'ui-rounded']);
+              const MAX_RESULTS = 50;
               const TEXT_PREVIEW_LENGTH = 60;
+              const MIN_TEXT_LENGTH = 2;
+
+              function resolveFontFamily(rawFamily) {
+                var first = rawFamily.split(',')[0].trim().replace(/['"]/g, '');
+                if (GENERIC_FAMILIES.has(first)) return { family: first, variant: null };
+                var clean = first.replace(/^__/, '').replace(/_[a-f0-9]{4,}$/i, '');
+                var variant = null;
+                for (var i = 0; i < WEIGHT_SUFFIXES.length; i++) {
+                  var sfx = WEIGHT_SUFFIXES[i];
+                  if (clean.length > sfx.length && clean.endsWith(sfx) && clean[clean.length - sfx.length - 1] === '-') {
+                    variant = sfx.toLowerCase();
+                    clean = clean.substring(0, clean.length - sfx.length - 1);
+                    break;
+                  }
+                }
+                var spaced = clean.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+                return { family: spaced, variant: variant };
+              }
+
+              function assignTierName(entry, usedNames) {
+                var size = parseFloat(entry.fontSize) || 0;
+                var isMono = GENERIC_FAMILIES.has(entry.fontFamily) || entry.fontFamily === 'ui-monospace';
+                var base;
+                if (isMono) { base = 'code'; }
+                else if (size >= 48) { base = 'display'; }
+                else if (size >= 32) { base = 'title'; }
+                else if (size >= 20) { base = 'body'; }
+                else if (size >= 14) { base = 'label'; }
+                else { base = 'caption'; }
+                var suffix = entry.fontVariant && entry.fontVariant !== 'regular' ? '-' + entry.fontVariant : '';
+                var name = base + suffix;
+                if (usedNames[name]) { name = base + '-' + Math.round(size) + (suffix || ''); }
+                var counter = 2;
+                var candidate = name;
+                while (usedNames[candidate]) { candidate = name + '-' + counter; counter++; }
+                usedNames[candidate] = true;
+                return candidate;
+              }
+
+              function getLandmark(el) {
+                let cur = el.parentElement;
+                while (cur && cur !== document.body) {
+                  if (LANDMARK_TAGS.has(cur.tagName.toLowerCase())) return cur.tagName.toLowerCase();
+                  cur = cur.parentElement;
+                }
+                return 'body';
+              }
+
+              function hasDirectText(el) {
+                for (const node of el.childNodes) {
+                  if (node.nodeType === 3 && node.textContent.trim().length >= MIN_TEXT_LENGTH) return true;
+                }
+                return false;
+              }
+
+              function isHidden(el) {
+                const s = getComputedStyle(el);
+                return s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0';
+              }
 
               const seen = new Set();
-              const results = [];
+              const entries = [];
 
-              for (const el of document.querySelectorAll(TEXT_SELECTORS)) {
+              const walker = document.createTreeWalker(
+                document.body,
+                NodeFilter.SHOW_ELEMENT,
+                {
+                  acceptNode: function(el) {
+                    const tag = el.tagName.toLowerCase();
+                    if (SKIP_TAGS.has(tag)) return NodeFilter.FILTER_REJECT;
+                    if (isHidden(el)) return NodeFilter.FILTER_REJECT;
+                    if (hasDirectText(el)) return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_SKIP;
+                  }
+                }
+              );
+
+              let el;
+              while (el = walker.nextNode()) {
                 const text = (el.textContent || '').trim();
-                if (!text) continue;
+                if (!text || text.length < MIN_TEXT_LENGTH) continue;
 
                 const computed = getComputedStyle(el);
-                const key = `${computed.fontFamily}|${computed.fontSize}|${computed.fontWeight}|${computed.lineHeight}|${computed.letterSpacing}`;
+                const landmark = getLandmark(el);
+                const resolved = resolveFontFamily(computed.fontFamily);
+                const key = [resolved.family, computed.fontSize, computed.fontWeight, computed.lineHeight, computed.letterSpacing].join('|');
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                const entry = { tag: el.tagName.toLowerCase(), text: text.slice(0, TEXT_PREVIEW_LENGTH) };
+                const tag = el.tagName.toLowerCase();
+                const entry = {
+                  tag,
+                  text: text.slice(0, TEXT_PREVIEW_LENGTH),
+                  context: landmark,
+                  fontFamily: resolved.family,
+                  fontVariant: resolved.variant,
+                  role: el.closest('[role]')?.getAttribute('role') || undefined
+                };
                 for (const prop of STYLE_KEYS) {
                   entry[prop] = computed[prop];
                 }
-                results.push(entry);
+                entries.push(entry);
               }
 
-              return JSON.stringify(results.slice(0, MAX_RESULTS));
+              var usedNames = {};
+              var tiers = entries.slice(0, MAX_RESULTS).map(function(e) {
+                e.tierName = assignTierName(e, usedNames);
+                return e;
+              });
+
+              var yaml = tiers.map(function(t) {
+                var lines = [
+                  '  ' + t.tierName + ':',
+                  '    fontFamily: "' + t.fontFamily + '"',
+                  '    fontSize: "' + t.fontSize + '"',
+                  '    fontWeight: ' + t.fontWeight,
+                  '    lineHeight: "' + t.lineHeight + '"',
+                  '    letterSpacing: "' + t.letterSpacing + '"'
+                ];
+                if (t.fontVariant && t.fontVariant !== 'regular') {
+                  lines.push('    # variant: ' + t.fontVariant + ' | tag: ' + t.tag + ' | "' + t.text.slice(0, 30) + '"');
+                } else {
+                  lines.push('    # tag: ' + t.tag + ' | "' + t.text.slice(0, 30) + '"');
+                }
+                return lines.join('\n');
+              }).join('\n');
+
+              return 'typography:\n' + yaml;
             })()
-        output: ${output as json}
+        output: ${output as text}
 
   - id: extract-computed-styles
     #private: true
@@ -1091,8 +1286,7 @@ workflows:
     description: >
       Extract computed CSS styles from elements matching a CSS selector.
       Returns a JSON array of objects, each containing the element's tag, text preview, and
-      computed styles (color, backgroundColor, fontFamily, fontSize, fontWeight, lineHeight,
-      letterSpacing, borderRadius, padding, margin, boxShadow, border, textTransform).
+      computed styles including colors, typography, box model, layout, and visual effects.
       Use this to get exact design token values.
     jobs:
       - component: browser
@@ -1103,7 +1297,10 @@ workflows:
               const STYLE_KEYS = [
                 'color', 'backgroundColor', 'fontFamily', 'fontSize', 'fontWeight',
                 'lineHeight', 'letterSpacing', 'borderRadius', 'padding', 'margin',
-                'boxShadow', 'border', 'textTransform'
+                'boxShadow', 'border', 'textTransform',
+                'width', 'height', 'minHeight', 'maxWidth',
+                'display', 'alignItems', 'justifyContent', 'gap',
+                'opacity', 'backdropFilter'
               ];
               const MAX_ELEMENTS = 20;
               const TEXT_PREVIEW_LENGTH = 80;
@@ -1255,7 +1452,7 @@ components:
       - extract-computed-styles
       - extract-page-html
       - scroll-page
-    max_iteration_count: 10
+    max_iteration_count: 15
     action:
       model:
         component: gpt-4o
@@ -1265,20 +1462,54 @@ components:
       system_prompt: |
         You inspect specific UI components on a web page that is already loaded in the browser.
 
-        Given instructions about which components to inspect, use extract_computed_styles
-        with appropriate CSS selectors to extract their exact styles. You may also use
-        extract_page_html to examine component markup, and scroll_page to reveal
-        below-the-fold content.
+        # EXTRACTION STRATEGY
 
-        Standard selectors to try for common components:
+        For each component type, extract MULTIPLE variants and states:
+
+        1. **Find all variants**: Don't stop at the first match. A button might have
+           primary, secondary, ghost, and link variants. A card might have featured vs
+           standard layouts. Use extract_page_html first to discover distinct class-based
+           variants, then extract_computed_styles for each variant separately.
+
+        2. **Capture dimensions**: For each component, include exact width, height,
+           min-height, padding, and gap values. These are critical for reproduction.
+
+        3. **Note hierarchy**: Record which components appear inside which sections
+           (e.g., "CTA button inside hero" vs "nav button in header").
+
+        4. **Scroll for more**: Use scroll_page to reveal below-the-fold content
+           before extracting footer, pricing, or secondary sections.
+
+        # STANDARD SELECTORS
+
         - Navigation: "nav", "header", "[role=navigation]"
         - Hero: "[class*=hero]", "section:first-of-type"
         - Buttons: "button", "a[class*=btn]", "[class*=button]", "[class*=cta]"
         - Cards: "[class*=card]", "[class*=tile]", "article"
         - Inputs: "input", "textarea", "select"
+        - Badges/chips: "[class*=badge]", "[class*=tag]", "[class*=chip]"
+        - Pricing: "[class*=price]", "[class*=plan]", "[class*=tier]"
         - Footer: "footer"
 
-        Return a structured JSON summary of ALL extracted styles, grouped by component.
+        # AVAILABLE STYLE PROPERTIES
+
+        The extract_computed_styles tool returns these properties for each element:
+        color, backgroundColor, fontFamily, fontSize, fontWeight,
+        lineHeight, letterSpacing, borderRadius, padding, margin,
+        boxShadow, border, textTransform,
+        width, height, minHeight, maxWidth,
+        display, alignItems, justifyContent, gap,
+        opacity, backdropFilter
+
+        Report ONLY values that the tool actually returned. Do NOT guess or fill in
+        values that were not in the tool output.
+
+        # OUTPUT FORMAT
+
+        Return JSON grouped by component type, with sub-entries per variant.
+        Each variant includes the raw "styles" object from the tool and "context"
+        describing where on the page this variant appears.
+
         Do NOT generate a DESIGN.md — just return raw extracted data as JSON.
       user_prompt: |
         ${input.instructions}
@@ -1337,7 +1568,7 @@ components:
         # RULES
 
         - ALWAYS use extract_css_custom_properties — never write JavaScript yourself
-        - Return the result as a JSON code block
+        - Return the result as raw JSON — no code fences, no ```json markers
         - Do NOT summarize or omit data
         - If no custom properties are found, return {}
       user_prompt: |

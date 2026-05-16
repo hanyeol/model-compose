@@ -39,7 +39,7 @@ class WebBrowserSession(ABC):
         pass
 
     @abstractmethod
-    async def scroll(self, selector: Optional[str], x: int, y: int) -> Dict[str, Any]:
+    async def scroll(self, selector: Optional[str], xpath: Optional[str], x: Optional[int], y: Optional[int]) -> Dict[str, Any]:
         pass
 
     # ---- Query ----
@@ -106,6 +106,10 @@ class WebBrowserService(AsyncService):
 
     @abstractmethod
     async def create_session(self) -> WebBrowserSession:
+        pass
+
+    async def close_browser(self) -> None:
+        """Release browser-level resources. Override in drivers that manage a browser process (e.g. Playwright)."""
         pass
 
 def register_web_browser_service(driver: WebBrowserDriver):

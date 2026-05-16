@@ -10,4 +10,4 @@ class WebBrowserDriver(str, Enum):
 class CommonWebBrowserComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.WEB_BROWSER]
     driver: WebBrowserDriver = Field(default=WebBrowserDriver.CHROME, description="Browser driver.")
-    timeout: Optional[str] = Field(default="30s", description="Default command timeout for all actions.")
+    timeout: Optional[Union[str, int, float]] = Field(default="30s", description="Default command timeout for all actions.")

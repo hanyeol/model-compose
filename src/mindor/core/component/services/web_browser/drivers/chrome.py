@@ -4,7 +4,6 @@ from mindor.core.utils.cdp_client import CdpClient
 from ..base import WebBrowserService, WebBrowserSession, register_web_browser_service
 import asyncio
 
-
 class ChromeBrowserSession(WebBrowserSession):
     """Browser session backed by a persistent CDP connection."""
 
@@ -15,36 +14,104 @@ class ChromeBrowserSession(WebBrowserSession):
     # ---- Navigation ----
 
     async def navigate(self, url: str, wait_until: str, timeout: float) -> Dict[str, Any]:
-        await self._ensure_page_enabled()
+        await self.client.send_command("Page.enable")
 
-        loop = asyncio.get_running_loop()
-        nav_done: asyncio.Future = loop.create_future()
+        if not self._lifecycle_enabled:
+            await self.client.send_command("Page.setLifecycleEventsEnabled", { "enabled": True })
+            self._lifecycle_enabled = True
 
-        event_map = {
+        result = await self.client.send_command("Page.navigate", { "url": url })
+
+        event = {
             "load": "Page.loadEventFired",
             "domcontentloaded": "Page.domContentEventFired",
             "networkidle": "Page.lifecycleEvent",
-        }
-        event_method = event_map.get(wait_until, "Page.loadEventFired")
+        }.get(wait_until)
 
-        async def _on_event(params):
-            if not nav_done.done():
-                if wait_until == "networkidle":
-                    if params.get("name") == "networkIdle":
+        if event:
+            loop = asyncio.get_running_loop()
+            nav_done: asyncio.Future = loop.create_future()
+
+            async def _on_event(params):
+                if not nav_done.done():
+                    if wait_until == "networkidle":
+                        if params.get("name") == "networkIdle":
+                            nav_done.set_result(True)
+                    else:
                         nav_done.set_result(True)
-                else:
-                    nav_done.set_result(True)
 
-        self.client.on_event(event_method, _on_event)
-        try:
-            result = await self.client.send_command("Page.navigate", {"url": url})
-            await asyncio.wait_for(nav_done, timeout=timeout)
-        except asyncio.TimeoutError:
-            raise TimeoutError(f"Navigation to '{url}' did not complete within {timeout}s")
-        finally:
-            self.client.remove_event_listener(event_method, _on_event)
+            self.client.on_event(event, _on_event)
+            try:
+                await asyncio.wait_for(nav_done, timeout=timeout)
+            except asyncio.TimeoutError:
+                raise TimeoutError(f"Navigation to '{url}' did not complete within {timeout}s")
+            finally:
+                self.client.remove_event_listener(event, _on_event)
 
-        return {"url": url, "frameId": result.get("frameId")}
+        return { "url": url, "frameId": result.get("frameId") }
+
+    # ---- Query ----
+
+    async def wait_for(
+        self,
+        selector: Optional[str],
+        xpath: Optional[str],
+        condition: str,
+        timeout: float
+    ) -> Dict[str, Any]:
+        script = self._build_wait_condition_script(selector, xpath, condition)
+        deadline = asyncio.get_event_loop().time() + timeout
+
+        while asyncio.get_event_loop().time() < deadline:
+            result = await self.client.send_command("Runtime.evaluate", {
+                "expression": script, "returnByValue": True
+            })
+            value = result.get("result", {}).get("value")
+            if value:
+                return {"found": True}
+            await asyncio.sleep(0.3)
+
+        target = selector or xpath
+        raise TimeoutError(f"wait_for '{target}' ({condition}) timed out after {timeout}s")
+
+    async def screenshot(
+        self,
+        full_page: bool,
+        selector: Optional[str],
+        format: str,
+        quality: Optional[int]
+    ) -> str:
+        params: Dict[str, Any] = {"format": format}
+
+        if format == "jpeg" and quality is not None:
+            params["quality"] = int(quality)
+        if full_page:
+            params["captureBeyondViewport"] = True
+        if selector:
+            box = await self._find_element_bounding_box(selector, None)
+            if box:
+                params["clip"] = {**box, "scale": 1}
+
+        result = await self.client.send_command("Page.captureScreenshot", params)
+        return result["data"]  # base64-encoded
+
+    async def extract(
+        self,
+        selector: Optional[str],
+        xpath: Optional[str],
+        extract_mode: str,
+        attribute: Optional[str],
+        multiple: bool
+    ) -> Any:
+        script = self._build_extract_script(selector, xpath, extract_mode, attribute, multiple)
+        result = await self.client.send_command("Runtime.evaluate", {
+            "expression": script, "returnByValue": True
+        })
+ 
+        if "exceptionDetails" in result:
+            raise RuntimeError(f"Extract JavaScript error: { result['exceptionDetails'] }")
+ 
+        return result.get("result", {}).get("value")
 
     # ---- Interaction ----
 
@@ -79,9 +146,9 @@ class ChromeBrowserSession(WebBrowserSession):
         cx, cy = await self._get_element_center(selector, xpath, timeout)
 
         # Focus element by clicking
-        for event_type in ("mousePressed", "mouseReleased"):
+        for event in ("mousePressed", "mouseReleased"):
             await self.client.send_command("Input.dispatchMouseEvent", {
-                "type": event_type, "x": cx, "y": cy, "button": "left", "clickCount": 1
+                "type": event, "x": cx, "y": cy, "button": "left", "clickCount": 1
             })
 
         if clear_first:
@@ -106,57 +173,11 @@ class ChromeBrowserSession(WebBrowserSession):
 
         return { "typed": text }
 
-    async def scroll(self, selector: Optional[str], x: int, y: int) -> Dict[str, Any]:
-        if selector:
-            js = f"""(function() {{
-                const el = document.querySelector({repr(selector)});
-                if (el) el.scrollBy({x}, {y});
-            }})()"""
-        else:
-            js = f"window.scrollBy({x}, {y})"
-
-        await self.client.send_command("Runtime.evaluate", { "expression": js, "returnByValue": True })
+    async def scroll(self, selector: Optional[str], xpath: Optional[str], x: Optional[int], y: Optional[int]) -> Dict[str, Any]:
+        script = self._build_scroll_script(selector, xpath, x, y)
+        await self.client.send_command("Runtime.evaluate", { "expression": script, "returnByValue": True })
+        
         return { "scrolled_x": x, "scrolled_y": y }
-
-    # ---- Query ----
-
-    async def wait_for(
-        self,
-        selector: Optional[str],
-        xpath: Optional[str],
-        condition: str,
-        timeout: float
-    ) -> Dict[str, Any]:
-        js = self._build_wait_condition_js(selector, xpath, condition)
-        deadline = asyncio.get_event_loop().time() + timeout
-
-        while asyncio.get_event_loop().time() < deadline:
-            result = await self.client.send_command("Runtime.evaluate", {
-                "expression": js, "returnByValue": True
-            })
-            value = result.get("result", {}).get("value")
-            if value:
-                return {"found": True}
-            await asyncio.sleep(0.3)
-
-        target = selector or xpath
-        raise TimeoutError(f"wait_for '{target}' ({condition}) timed out after {timeout}s")
-
-    async def extract(
-        self,
-        selector: Optional[str],
-        xpath: Optional[str],
-        extract_mode: str,
-        attribute: Optional[str],
-        multiple: bool
-    ) -> Any:
-        js = self._build_extract_js(selector, xpath, extract_mode, attribute, multiple)
-        result = await self.client.send_command("Runtime.evaluate", {
-            "expression": js, "returnByValue": True
-        })
-        if "exceptionDetails" in result:
-            raise RuntimeError(f"Extract JavaScript error: { result['exceptionDetails'] }")
-        return result.get("result", {}).get("value")
 
     async def evaluate(self, expression: str) -> Any:
         result = await self.client.send_command("Runtime.evaluate", {
@@ -170,40 +191,15 @@ class ChromeBrowserSession(WebBrowserSession):
 
         return result.get("result", {}).get("value")
 
-    # ---- Capture ----
-
-    async def screenshot(
-        self,
-        full_page: bool,
-        selector: Optional[str],
-        format: str,
-        quality: Optional[int]
-    ) -> str:
-        params: Dict[str, Any] = {"format": format}
-        if format == "jpeg" and quality is not None:
-            params["quality"] = int(quality)
-        if full_page:
-            params["captureBeyondViewport"] = True
-        if selector:
-            box = await self._find_element_bounding_box(selector, None)
-            if box:
-                params["clip"] = {**box, "scale": 1}
-
-        result = await self.client.send_command("Page.captureScreenshot", params)
-        return result["data"]  # base64-encoded
-
     # ---- State ----
 
     async def get_cookies(self, urls: Optional[List[str]]) -> List[Dict[str, Any]]:
-        params = {}
-        if urls:
-            params["urls"] = urls
-        result = await self.client.send_command("Network.getCookies", params)
+        result = await self.client.send_command("Network.getCookies", { "urls": urls } if urls else {})
         return result.get("cookies", [])
 
     async def set_cookies(self, cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         await self.client.send_command("Network.setCookies", {"cookies": cookies})
-        return {"set": len(cookies)}
+        return { "set": len(cookies) }
 
     # ---- Lifecycle ----
 
@@ -211,12 +207,6 @@ class ChromeBrowserSession(WebBrowserSession):
         await self.client.close()
 
     # ---- Internal helpers ----
-
-    async def _ensure_page_enabled(self) -> None:
-        await self.client.send_command("Page.enable")
-        if not self._lifecycle_enabled:
-            await self.client.send_command("Page.setLifecycleEventsEnabled", {"enabled": True})
-            self._lifecycle_enabled = True
 
     async def _get_element_center(self, selector: Optional[str], xpath: Optional[str], timeout: float) -> tuple:
         deadline = asyncio.get_event_loop().time() + timeout
@@ -232,92 +222,146 @@ class ChromeBrowserSession(WebBrowserSession):
         raise TimeoutError(f"Element '{target}' not found within {timeout}s")
 
     async def _find_element_bounding_box(self, selector: Optional[str], xpath: Optional[str]) -> Optional[Dict]:
-        if selector:
-            js = f"""(function() {{
-                const el = document.querySelector({repr(selector)});
-                if (!el) return null;
-                const r = el.getBoundingClientRect();
-                return {{x: r.left, y: r.top, width: r.width, height: r.height}};
-            }})()"""
-        else:
-            js = f"""(function() {{
-                const result = document.evaluate({repr(xpath)}, document, null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                const el = result.singleNodeValue;
-                if (!el) return null;
-                const r = el.getBoundingClientRect();
-                return {{x: r.left, y: r.top, width: r.width, height: r.height}};
-            }})()"""
+        target_script = self._build_query_target_script(selector, xpath)
+        script = f"""(function() {{
+            const element = {target_script};
+            if (!element) return null;
+            const r = element.getBoundingClientRect();
+            return {{x: r.left, y: r.top, width: r.width, height: r.height}};
+        }})()"""
 
         result = await self.client.send_command("Runtime.evaluate", {
-            "expression": js, "returnByValue": True
+            "expression": script, "returnByValue": True
         })
         return result.get("result", {}).get("value")
 
-    def _build_wait_condition_js(self, selector: Optional[str], xpath: Optional[str], condition: str) -> str:
+    def _build_query_target_script(self, selector: Optional[str], xpath: Optional[str]) -> str:
         if selector:
-            target_js = f"document.querySelector({repr(selector)})"
-        else:
-            target_js = (f"document.evaluate({repr(xpath)}, document, null, "
-                         f"XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+            return f"document.querySelector({repr(selector)})"
+
+        if xpath:
+            return f"""document.evaluate(
+                {repr(xpath)}, document, null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE, null
+            ).singleNodeValue"""
+
+        raise ValueError("Either 'selector' or 'xpath' must be provided.")
+
+    def _build_wait_condition_script(
+        self,
+        selector: Optional[str],
+        xpath: Optional[str],
+        condition: str
+    ) -> str:
+        target_script = self._build_query_target_script(selector, xpath)
 
         if condition == "present":
-            return f"!!({target_js})"
+            return f"!!({target_script})"
+
         if condition == "visible":
             return f"""(function() {{
-                const el = {target_js};
-                if (!el) return false;
-                const s = window.getComputedStyle(el);
+                const element = {target_script};
+                if (!element) return false;
+                const s = window.getComputedStyle(element);
                 return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
             }})()"""
+
         if condition == "hidden":
             return f"""(function() {{
-                const el = {target_js};
-                if (!el) return true;
-                const s = window.getComputedStyle(el);
+                const element = {target_script};
+                if (!element) return true;
+                const s = window.getComputedStyle(element);
                 return s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0';
             }})()"""
-        return "true"
 
-    def _build_extract_js(self, selector: Optional[str], xpath: Optional[str],
-                          extract_mode: str, attribute: Optional[str], multiple: bool) -> str:
+        raise ValueError(f"Unsupported condition: '{condition}'.")
+
+    def _build_extract_map_function(self, extract_mode: str, attribute: Optional[str]) -> str:
+        if extract_mode == "text":
+            return "element => element.innerText || element.textContent || ''"
+
+        if extract_mode == "html":
+            return "element => element.outerHTML"
+
+        if extract_mode == "attribute":
+            return f"element => element.getAttribute({repr(attribute)})"
+
+        raise ValueError(f"Unsupported extract_mode: '{extract_mode}'.")
+
+    def _build_get_elements_script(self, selector: Optional[str], xpath: Optional[str], multiple: bool) -> str:
         if selector:
             if multiple:
-                get_els = f"Array.from(document.querySelectorAll({repr(selector)}))"
-            else:
-                get_els = f"[document.querySelector({repr(selector)})].filter(Boolean)"
-        else:
+                return f"Array.from(document.querySelectorAll({repr(selector)}))"
+            return f"[document.querySelector({repr(selector)})].filter(Boolean)"
+
+        if xpath:
             if multiple:
-                get_els = f"""(function() {{
+                return f"""(function() {{
                     const r = document.evaluate({repr(xpath)}, document, null,
                         XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
                     return Array.from({{length: r.snapshotLength}}, (_, i) => r.snapshotItem(i));
                 }})()"""
-            else:
-                get_els = (f"[document.evaluate({repr(xpath)}, document, null, "
-                           f"XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue].filter(Boolean)")
+            return f"""[document.evaluate(
+                {repr(xpath)}, document, null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE, null
+            ).singleNodeValue].filter(Boolean)"""
 
-        if extract_mode == "text":
-            map_fn = "el => el.innerText || el.textContent || ''"
-        elif extract_mode == "html":
-            map_fn = "el => el.outerHTML"
-        else:  # attribute
-            map_fn = f"el => el.getAttribute({repr(attribute)})"
+        raise ValueError("Either 'selector' or 'xpath' must be provided.")
+
+    def _build_extract_script(
+        self, selector: Optional[str],
+        xpath: Optional[str],
+        extract_mode: str,
+        attribute: Optional[str],
+        multiple: bool
+    ) -> str:
+        get_elements = self._build_get_elements_script(selector, xpath, multiple)
+        map_function = self._build_extract_map_function(extract_mode, attribute)
 
         if multiple:
-            return f"({get_els}).map({map_fn})"
-        else:
-            return f"""(function() {{ const els = {get_els}; return els.length ? ({get_els}).map({map_fn})[0] : null; }})()"""
+            return f"({get_elements}).map({map_function})"
 
+        return f"""(function() {{
+            const elements = {get_elements};
+            return elements.length ? elements.map({map_function})[0] : null;
+        }})()"""
+
+    def _build_scroll_script(self, selector: Optional[str], xpath: Optional[str], x: Optional[int], y: Optional[int]) -> str:
+        if selector is not None or xpath is not None:
+            target_script = self._build_query_target_script(selector, xpath)
+
+            if x is not None or y is not None:
+                return f"""(function() {{
+                    const element = {target_script};
+                    if (element) element.scrollBy({x or 0}, {y or 0});
+                }})()"""
+
+            return f"""(function() {{
+                const element = {target_script};
+                if (element) element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+            }})()"""
+
+        return f"window.scrollBy({x or 0}, {y or 0})"
 
 @register_web_browser_service(WebBrowserDriver.CHROME)
 class ChromeWebBrowserService(WebBrowserService):
+    def __init__(self, id: str, config: Any, daemon: bool):
+        super().__init__(id, config, daemon)
+        debugger = config.debugger
+        self._url: str = debugger.url or f"{debugger.protocol}://{debugger.host}:{debugger.port}"
+        self._target_ids: List[str] = []
+
     async def create_session(self) -> ChromeBrowserSession:
-        if self.config.endpoint:
-            client = CdpClient(self.config.endpoint)
-            await client.connect()
-        else:
-            client = await CdpClient.discover(
-                self.config.host, self.config.port, self.config.target_index
-            )
+        client, target_id = await CdpClient.create_tab(self._url)
+        self._target_ids.append(target_id)
+
         return ChromeBrowserSession(client)
+
+    async def close_browser(self) -> None:
+        for target_id in self._target_ids:
+            try:
+                await CdpClient.close_tab(self._url, target_id)
+            except Exception:
+                pass
+
+        self._target_ids.clear()

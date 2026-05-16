@@ -4,7 +4,6 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class WebScraperSubmitConfig(BaseModel):
-    """Form submission configuration."""
     selector: Optional[str] = Field(default=None, description="CSS selector to locate form or submit button")
     xpath: Optional[str] = Field(default=None, description="XPath expression to locate form or submit button")
     form: Optional[Dict[str, Any]] = Field(default=None, description="Form input values to fill. Keys are input selectors, values are input values")
@@ -27,7 +26,7 @@ class WebScraperActionConfig(CommonActionConfig):
     multiple: Union[bool, str] = Field(default=False, description="Extract multiple elements (returns list) or single element")
     enable_javascript: Union[bool, str] = Field(default=False, description="Enable JavaScript rendering (requires playwright)")
     wait_for: Optional[str] = Field(default=None, description="CSS selector to wait for when enable_javascript=true")
-    timeout: Optional[str] = Field(default=None, description="Maximum time to wait for request completion")
+    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for request completion")
     submit: Optional[WebScraperSubmitConfig] = Field(default=None, description="Form submission configuration. If specified, form is submitted before extraction")
 
     @model_validator(mode="after")

@@ -61,7 +61,7 @@ class OnDemandPriority(str, Enum):
 
 class OnDemandConfig(BaseModel):
     priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Memory retention priority when memory pressure requires unloading.")
-    idle_timeout: str = Field(default="300s", description="Idle time before auto-unloading the model (e.g. '5m', '300s'). '0s' disables idle-based auto-unload.")
+    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading the model (e.g. '5m', '300s'). '0s' disables idle-based auto-unload.")
 
 class ModelSpecs(BaseModel):
     vram: Optional[int] = Field(default=None, description="Estimated VRAM usage in MB.")

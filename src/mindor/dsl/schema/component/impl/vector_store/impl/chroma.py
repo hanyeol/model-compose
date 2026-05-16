@@ -13,5 +13,5 @@ class ChromaVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     protocol: Literal[ "http", "https" ] = Field(default="http", description="Connection protocol.")
     tenant: Optional[str] = Field(default=None, description="Target tenant name.")
     database: Optional[str] = Field(default=None, description="Target database name.")
-    timeout: str = Field(default="30s", description="Client operation timeout.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
     actions: List[ChromaVectorStoreActionConfig] = Field(default_factory=list)

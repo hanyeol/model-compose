@@ -13,7 +13,7 @@ class ArangoDBGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
     username: Optional[str] = Field(default=None, description="Username for authentication.")
     password: Optional[str] = Field(default=None, description="Password for authentication.")
     database: str = Field(default="_system", description="Target database name.")
-    timeout: str = Field(default="30s", description="Client operation timeout.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
     actions: List[ArangoDBGraphStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

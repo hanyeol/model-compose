@@ -48,4 +48,4 @@ class DockerSystemConfig(CommonSystemConfig):
     security_opt: Optional[List[str]] = Field(default=None, description="Security options.")
     # System-specific
     wait: bool = Field(default=True, description="Whether to wait for the container to be ready before proceeding.")
-    wait_timeout: Optional[str] = Field(default="60s", description="Timeout for waiting for container to be ready.")
+    wait_timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Timeout for waiting for container to be ready.")

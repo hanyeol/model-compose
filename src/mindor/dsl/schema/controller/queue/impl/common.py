@@ -8,4 +8,4 @@ class ControllerQueueDriver(str, Enum):
 class CommonControllerQueueConfig(BaseModel):
     driver: ControllerQueueDriver = Field(..., description="Queue backend driver.")
     name: str = Field(default="controller-queue", description="Base name for task queues.")
-    timeout: str = Field(default="0s", description="Maximum time to wait for a result from the queue (e.g. '30s', '5m'). '0s' means no limit.")
+    timeout: Union[str, int, float] = Field(default="0s", description="Maximum time to wait for a result from the queue (e.g. '30s', '5m'). '0s' means no limit.")

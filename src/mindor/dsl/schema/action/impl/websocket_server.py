@@ -11,7 +11,7 @@ class WebSocketReceiveFormat(str, Enum):
 class WebSocketReceiveConfig(BaseModel):
     format: WebSocketReceiveFormat = Field(default=WebSocketReceiveFormat.JSON, description="Expected format of received WebSocket frames.")
     collect: bool = Field(default=False, description="When true, collect all received frames into a single response. For binary, concatenates bytes. For JSON/text, collects into a list.")
-    timeout: Optional[str] = Field(default=None, description="Receive timeout per frame (e.g. '5s', '1m').")
+    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Receive timeout per frame (e.g. '5s', '1m').")
 
 class WebSocketServerActionConfig(CommonActionConfig):
     path: Optional[str] = Field(default=None, description="WebSocket endpoint path. Overrides the component-level base_path.")

@@ -6,8 +6,8 @@ from ..common import CommonControllerAdapterConfig
 class WebSocketConfig(BaseModel):
     path: str = Field(default="/ws", description="WebSocket endpoint path")
     max_connections: Optional[int] = Field(default=None, description="Maximum concurrent WebSocket connections (best-effort)")
-    ping_interval: str = Field(default="30s", description="Server-side ping interval (e.g. '30s'). '0s' to disable.")
-    ping_timeout: str = Field(default="10s", description="Ping timeout (e.g. '10s').")
+    ping_interval: Union[str, int, float] = Field(default="30s", description="Server-side ping interval (e.g. '30s'). '0s' to disable.")
+    ping_timeout: Union[str, int, float] = Field(default="10s", description="Ping timeout (e.g. '10s').")
 
 class HttpServerControllerAdapterConfig(CommonControllerAdapterConfig):
     type: Literal[ControllerAdapterType.HTTP_SERVER]

@@ -39,10 +39,10 @@ class DockerVolumeConfig(BaseModel):
 
 class DockerHealthCheck(BaseModel):
     test: Union[str, List[str]] = Field(..., description="Health check command.")
-    interval: str = Field(default="30s", description="Time between checks.")
-    timeout: str = Field(default="30s", description="Timeout for each check.")
+    interval: Union[str, int, float] = Field(default="30s", description="Time between checks.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Timeout for each check.")
     max_retry_count: Optional[int] = Field(default=3, description="Number of failures before marking as unhealthy.")
-    start_period: Optional[str] = Field(default="0s", description="Startup grace period before checks start.")
+    start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks start.")
 
 class DockerRuntimeConfig(CommonRuntimeConfig):
     type: Literal[RuntimeType.DOCKER]

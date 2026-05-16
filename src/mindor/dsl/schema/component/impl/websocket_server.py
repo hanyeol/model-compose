@@ -36,8 +36,8 @@ class WebSocketServerComponentConfig(CommonComponentConfig):
     base_path: Optional[str] = Field(default=None, description="Base path to prefix all WebSocket routes exposed by this component.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Default query parameters to include in all WebSocket connection URLs.")
     headers: Dict[str, str] = Field(default_factory=dict, description="Headers to be included in all outgoing WebSocket handshake requests.")
-    ping_interval: Optional[str] = Field(default=None, description="WebSocket ping interval (e.g. '20s'). Omit to use library default.")
-    ping_timeout: Optional[str] = Field(default=None, description="WebSocket ping timeout (e.g. '10s'). Omit to use library default.")
+    ping_interval: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping interval (e.g. '20s'). Omit to use library default.")
+    ping_timeout: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping timeout (e.g. '10s'). Omit to use library default.")
     actions: List[WebSocketServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

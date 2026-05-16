@@ -1,4 +1,4 @@
-from typing import Literal, Optional, List, Dict, Any
+from typing import Union, Literal, Optional, List, Dict, Any
 from pydantic import Field, model_validator
 from .common import CommonSystemConfig
 from .types import SystemType
@@ -11,7 +11,7 @@ class DockerComposeSystemConfig(CommonSystemConfig):
     env_file: Optional[str] = Field(default=None, description="Path to environment file for docker-compose.")
     build: bool = Field(default=False, description="Whether to build images before starting (--build flag).")
     wait: bool = Field(default=True, description="Whether to wait for services to be healthy before proceeding.")
-    wait_timeout: Optional[str] = Field(default="60s", description="Timeout for waiting for services to be ready.")
+    wait_timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Timeout for waiting for services to be ready.")
 
     @model_validator(mode="before")
     def inflate_single_file(cls, values: Dict[str, Any]):

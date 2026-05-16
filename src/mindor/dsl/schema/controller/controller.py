@@ -10,7 +10,7 @@ class ControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
     max_concurrent_count: int = Field(default=0, description="Maximum number of tasks that can be executed concurrently.")
-    shutdown_timeout: str = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
+    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
     threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
     queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue dispatch configuration for delegating workflow execution to remote workers.")
     webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")

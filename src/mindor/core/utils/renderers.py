@@ -56,30 +56,30 @@ class VariableRenderer:
         return element
 
     async def _render_dict(self, element: dict, ignore_files: bool) -> dict:
-        rendered = {}
+        values = {}
         for key, value in element.items():
             if key == "...":
                 value = await self._render_element(value, ignore_files)
                 if isinstance(value, dict) or value is None:
-                    rendered.update(value or {})
+                    values.update(value or {})
                 else:
                     raise ValueError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             else:
-                rendered[key] = await self._render_element(value, ignore_files)
-        return rendered
+                values[key] = await self._render_element(value, ignore_files)
+        return values
 
     async def _render_list(self, element: list, ignore_files: bool) -> list:
-        rendered = []
+        values = []
         for item in element:
             if isinstance(item, str) and self._is_spread_expression(item):
                 value = await self._render_text(item[3:], ignore_files)
                 if isinstance(value, (list, tuple)) or value is None:
-                    rendered.extend(value or [])
+                    values.extend(value or [])
                 else:
                     raise ValueError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
-                rendered.append(await self._render_element(item, ignore_files))
-        return rendered
+                values.append(await self._render_element(item, ignore_files))
+        return values
 
     async def _render_text(self, text: str, ignore_files: bool) -> Any:
         matches = list(self.patterns["variable"].finditer(text))

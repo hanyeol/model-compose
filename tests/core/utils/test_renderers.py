@@ -622,3 +622,133 @@ class TestSseEdgeCases:
         assert isinstance(result, EventIteratorStreamResource)
         # The inner iterator should be the original resource, not doubly-wrapped
         assert result.iterator is resource
+
+
+# ============================
+# List spread
+# ============================
+
+class TestSpreadList:
+    @pytest.mark.anyio
+    async def test_basic_spread(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+        }))
+        result = await renderer.render([
+            {"role": "system", "content": "prompt"},
+            "...${items}",
+            {"role": "user", "content": "bye"},
+        ])
+        assert result == [
+            {"role": "system", "content": "prompt"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "user", "content": "bye"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_spread_empty_list(self):
+        renderer = VariableRenderer(make_source_resolver({"items": []}))
+        result = await renderer.render(["before", "...${items}", "after"])
+        assert result == ["before", "after"]
+
+    @pytest.mark.anyio
+    async def test_spread_none_skips(self):
+        renderer = VariableRenderer(make_source_resolver({"items": None}))
+        result = await renderer.render(["before", "...${items}", "after"])
+        assert result == ["before", "after"]
+
+    @pytest.mark.anyio
+    async def test_multiple_spreads(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "a": [1, 2],
+            "b": [3, 4],
+        }))
+        result = await renderer.render(["...${a}", "middle", "...${b}"])
+        assert result == [1, 2, "middle", 3, 4]
+
+    @pytest.mark.anyio
+    async def test_spread_non_list_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"items": "not a list"}))
+        with pytest.raises(ValueError, match="Spread in list must resolve to a list"):
+            await renderer.render(["...${items}"])
+
+    @pytest.mark.anyio
+    async def test_spread_with_path(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "jobs": {"load": {"output": {"messages": [{"role": "user", "content": "test"}]}}}
+        }))
+        result = await renderer.render(["...${jobs.load.output.messages}"])
+        assert result == [{"role": "user", "content": "test"}]
+
+    @pytest.mark.anyio
+    async def test_non_spread_with_dots_prefix(self):
+        """Text that starts with ... but isn't a valid spread expression is treated as normal string."""
+        renderer = VariableRenderer(make_source_resolver({"items": [1, 2]}))
+        result = await renderer.render(["...${items} extra"])
+        assert result == ["...[1, 2] extra"]
+
+    @pytest.mark.anyio
+    async def test_non_spread_dots_without_var(self):
+        """Plain '...' without ${} is treated as normal string."""
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render(["...", "normal"])
+        assert result == ["...", "normal"]
+
+
+# ============================
+# Dict spread
+# ============================
+
+class TestSpreadDict:
+    @pytest.mark.anyio
+    async def test_basic_spread(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "extra": {"Authorization": "Bearer token", "X-Custom": "value"}
+        }))
+        result = await renderer.render({
+            "Content-Type": "application/json",
+            "...": "${extra}",
+        })
+        assert result == {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer token",
+            "X-Custom": "value",
+        }
+
+    @pytest.mark.anyio
+    async def test_spread_empty_dict(self):
+        renderer = VariableRenderer(make_source_resolver({"extra": {}}))
+        result = await renderer.render({"key": "value", "...": "${extra}"})
+        assert result == {"key": "value"}
+
+    @pytest.mark.anyio
+    async def test_spread_none_skips(self):
+        renderer = VariableRenderer(make_source_resolver({"extra": None}))
+        result = await renderer.render({"key": "value", "...": "${extra}"})
+        assert result == {"key": "value"}
+
+    @pytest.mark.anyio
+    async def test_spread_overwrites_earlier_keys(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "extra": {"key": "overwritten"}
+        }))
+        result = await renderer.render({"key": "original", "...": "${extra}"})
+        assert result == {"key": "overwritten"}
+
+    @pytest.mark.anyio
+    async def test_spread_non_dict_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"extra": [1, 2]}))
+        with pytest.raises(ValueError, match="Spread in dict must resolve to a dict"):
+            await renderer.render({"...": "${extra}"})
+
+    @pytest.mark.anyio
+    async def test_spread_with_path(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "jobs": {"auth": {"output": {"headers": {"Token": "abc"}}}}
+        }))
+        result = await renderer.render({
+            "Host": "example.com",
+            "...": "${jobs.auth.output.headers}",
+        })
+        assert result == {"Host": "example.com", "Token": "abc"}

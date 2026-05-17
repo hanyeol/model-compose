@@ -30,7 +30,8 @@ class VariableRenderer:
                     (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                       # annotations
                 \s*\}""",                                                                      # }
                 re.VERBOSE,
-            )
+            ),
+            "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
     async def render(self, value: Any, ignore_files: bool = True) -> Any:
@@ -42,17 +43,43 @@ class VariableRenderer:
     async def _render_element(self, element: Any, ignore_files: bool) -> Any:
         if isinstance(element, str):
             return await self._render_text(element, ignore_files)
-        
+
         if isinstance(element, BaseModel):
             return await self._render_element(element.model_dump(by_alias=True), ignore_files)
 
         if isinstance(element, dict):
-            return { key: await self._render_element(value, ignore_files) for key, value in element.items() }
+            return await self._render_dict(element, ignore_files)
 
         if isinstance(element, (list, tuple)):
-            return [ await self._render_element(item, ignore_files) for item in element ]
+            return await self._render_list(element, ignore_files)
 
         return element
+
+    async def _render_dict(self, element: dict, ignore_files: bool) -> dict:
+        rendered = {}
+        for key, value in element.items():
+            if key == "...":
+                value = await self._render_element(value, ignore_files)
+                if isinstance(value, dict) or value is None:
+                    rendered.update(value or {})
+                else:
+                    raise ValueError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
+            else:
+                rendered[key] = await self._render_element(value, ignore_files)
+        return rendered
+
+    async def _render_list(self, element: list, ignore_files: bool) -> list:
+        rendered = []
+        for item in element:
+            if isinstance(item, str) and self._is_spread_expression(item):
+                value = await self._render_text(item[3:], ignore_files)
+                if isinstance(value, (list, tuple)) or value is None:
+                    rendered.extend(value or [])
+                else:
+                    raise ValueError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
+            else:
+                rendered.append(await self._render_element(item, ignore_files))
+        return rendered
 
     async def _render_text(self, text: str, ignore_files: bool) -> Any:
         matches = list(self.patterns["variable"].finditer(text))
@@ -80,7 +107,7 @@ class VariableRenderer:
             if start == 0 and end == len(text):
                 return value
 
-            text = text[:start] + str(value) + text[end:]
+            text = text[:start] + (str(value) if value is not None else "") + text[end:]
 
         return text
 
@@ -162,6 +189,9 @@ class VariableRenderer:
                 attrs[k.strip()] = v.strip()
 
         return attrs
+
+    def _is_spread_expression(self, text: str) -> bool:
+        return self.patterns["spread"].fullmatch(text) is not None
 
     def _contains_reference(self, key: str, element: Any) -> bool:
         if isinstance(element, str):

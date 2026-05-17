@@ -365,10 +365,10 @@ class TestChromeWebBrowserComponentConfig:
             driver="chrome"
         )
         assert config.driver == WebBrowserDriver.CHROME
-        assert config.host == "localhost"
-        assert config.port == 9222
-        assert config.target_index == 0
-        assert config.endpoint is None
+        assert config.debugger.host == "localhost"
+        assert config.debugger.port == 9222
+        assert config.debugger.protocol == "http"
+        assert config.debugger.url is None
         assert config.timeout == "30s"
         assert config.actions == []
 
@@ -384,19 +384,26 @@ class TestChromeWebBrowserComponentConfig:
         config = ChromeWebBrowserComponentConfig(
             id="browser",
             type="web-browser",
-            host="remote-host",
-            port=9333
+            debugger={"host": "remote-host", "port": 9333}
         )
-        assert config.host == "remote-host"
-        assert config.port == 9333
+        assert config.debugger.host == "remote-host"
+        assert config.debugger.port == 9333
 
-    def test_endpoint(self):
+    def test_url(self):
         config = ChromeWebBrowserComponentConfig(
             id="browser",
             type="web-browser",
-            endpoint="ws://localhost:9222/devtools/page/ABC"
+            debugger={"url": "http://remote-host:9222"}
         )
-        assert config.endpoint == "ws://localhost:9222/devtools/page/ABC"
+        assert config.debugger.url == "http://remote-host:9222"
+
+    def test_url_and_host_exclusive(self):
+        with pytest.raises(ValueError):
+            ChromeWebBrowserComponentConfig(
+                id="browser",
+                type="web-browser",
+                debugger={"url": "http://remote-host:9222", "host": "remote-host"}
+            )
 
     def test_with_actions(self):
         config = ChromeWebBrowserComponentConfig(
@@ -481,10 +488,10 @@ class TestWebBrowserComponentConfigDiscriminator:
     def test_chrome_discriminator(self):
         config = ComponentAdapter.validate_python({
             "id": "browser", "type": "web-browser", "driver": "chrome",
-            "host": "remote", "port": 9333
+            "debugger": {"host": "remote", "port": 9333}
         })
         assert isinstance(config, ChromeWebBrowserComponentConfig)
-        assert config.host == "remote"
+        assert config.debugger.host == "remote"
 
     def test_playwright_discriminator(self):
         config = ComponentAdapter.validate_python({
@@ -510,8 +517,7 @@ class TestWebBrowserIntegration:
         config = ChromeWebBrowserComponentConfig(
             id="browser",
             type="web-browser",
-            host="localhost",
-            port=9222,
+            debugger={"host": "localhost", "port": 9222},
             timeout="30s",
             actions=[
                 WebBrowserNavigateActionConfig(

@@ -1,6 +1,6 @@
 [project]
 name = "model-compose"
-version = "0.4.54"
+version = "0.4.55"
 description = "model-compose: Declarative AI Workflow Orchestrator"
 authors = [
     { name = "Hanyeol Cho", email = "hanyeol.cho@gmail.com" }
@@ -15,6 +15,7 @@ dependencies = [
     "python-dotenv",
     "docker",
     "aiohttp",
+    "aiofiles",
     "brotlicffi",
     "requests",
     "fastapi",

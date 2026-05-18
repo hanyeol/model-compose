@@ -11,12 +11,18 @@ class WorkflowContext:
         workflow_id: str,
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler,
-        workflow_delegate: WorkflowDelegate
+        workflow_delegate: WorkflowDelegate,
+        session_id: Optional[str] = None,
+        metadata: Optional[Any] = None
     ):
         self.task_id: str = task_id
         self.workflow_id: str = workflow_id
         self.input: Dict[str, Any] = input
-        self.context: Dict[str, Any] = { "task_id": task_id }
+        self.context: Dict[str, Any] = {
+            "task_id": task_id,
+            **({"session_id": session_id} if session_id else {}),
+            **({"metadata": metadata} if metadata else {})
+        }
         self.sources: Dict[str, Any] = { "jobs": {} }
         self.renderer = VariableRenderer(self._resolve_source)
         self.interrupt_handler: InterruptHandler = interrupt_handler

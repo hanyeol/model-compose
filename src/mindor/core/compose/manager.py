@@ -34,12 +34,13 @@ class ComposeManager:
         input: Dict[str, Any],
         output_path: Optional[str],
         verbose: bool,
+        session_id: Optional[str] = None,
         metadata: Optional[Any] = None
     ) -> TaskState:
         if not self.controller.started:
             await self.controller.start()
 
-        state = await self.controller.run_workflow(workflow_id, input, metadata=metadata)
+        state = await self.controller.run_workflow(workflow_id, input, session_id=session_id, metadata=metadata)
 
         if output_path and state.status == TaskStatus.COMPLETED:
             await self._save_output(state.output, output_path)

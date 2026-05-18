@@ -206,6 +206,12 @@ def stop_command(
     required=False,
     help="JSON metadata string to pass through the workflow and echo back in the response.",
 )
+@click.option(
+    "--session-id", "session_id",
+    type=str,
+    required=False,
+    help="Session ID to group multiple workflow runs.",
+)
 @click.option("--auto-resume", is_flag=True, help="Automatically resume interrupts without prompting.")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
 @click.pass_context
@@ -217,6 +223,7 @@ def run_command(
     env_data: List[str],
     output_path: Optional[Path],
     metadata_json: Optional[str],
+    session_id: Optional[str],
     auto_resume: bool,
     verbose: bool
 ) -> None:
@@ -232,7 +239,7 @@ def run_command(
             is_tty = sys.stdin.isatty()
 
             manager = ComposeManager(config, daemon=False)
-            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose, metadata=metadata)
+            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose, session_id=session_id, metadata=metadata)
 
             while state.status == TaskStatus.INTERRUPTED:
                 if not auto_resume and not is_tty:

@@ -66,6 +66,7 @@ class TaskState:
     output: Optional[Any] = None
     error: Optional[Any] = None
     interrupt: Optional[InterruptState] = None
+    session_id: Optional[str] = None
     metadata: Optional[Any] = None
 
 class ControllerService(AsyncService):
@@ -227,24 +228,25 @@ class ControllerService(AsyncService):
         input: Dict[str, Any],
         wait_for_completion: bool = True,
         on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
+        session_id: Optional[str] = None,
         metadata: Optional[Any] = None
     ) -> TaskState:
         if self._shutting_down:
             raise ShutdownError("Service is shutting down")
 
         task_id = ulid.ulid()
-        state = TaskState(task_id=task_id, status=TaskStatus.PENDING, workflow_id=workflow_id, metadata=metadata)
+        state = TaskState(task_id=task_id, status=TaskStatus.PENDING, workflow_id=workflow_id, session_id=session_id, metadata=metadata)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
 
         try:
             if self.task_queue:
-                future = await self.task_queue.schedule(task_id, workflow_id, input, None, metadata)
+                future = await self.task_queue.schedule(task_id, workflow_id, input, None, session_id, metadata)
                 task = asyncio.ensure_future(future)
             else:
-                task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input, on_interrupt, metadata))
+                task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input, on_interrupt, session_id, metadata))
         except Exception as e:
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(e), metadata=metadata)
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(e), session_id=session_id, metadata=metadata)
             with self.task_states_lock:
                 self.task_states.set(task_id, state, 1 * 3600)
             self._notify_task_state_change(task_id)
@@ -281,7 +283,7 @@ class ControllerService(AsyncService):
         if not success:
             raise ValueError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
 
-        new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id, metadata=state.metadata)
+        new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id, session_id=state.session_id, metadata=state.metadata)
         with self.task_states_lock:
             self.task_states.set(task_id, new_state)
         self._notify_task_state_change(task_id)
@@ -486,9 +488,10 @@ class ControllerService(AsyncService):
         workflow_id: str,
         input: Dict[str, Any],
         on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
+        session_id: Optional[str] = None,
         metadata: Optional[Any] = None
     ) -> TaskState:
-        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id, metadata=metadata)
+        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id, session_id=session_id, metadata=metadata)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
         self._notify_task_state_change(task_id)
@@ -498,15 +501,15 @@ class ControllerService(AsyncService):
             async def run_workflow(workflow_id, input, interrupt_handler):
                 if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
                     return await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
-                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, run_workflow)
+                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, run_workflow, session_id=session_id, metadata=metadata)
 
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
             output = await run_workflow(workflow_id, input, interrupt_handler)
-            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output, metadata=metadata)
+            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output, session_id=session_id, metadata=metadata)
         except Exception as e:
             import traceback
             error_message = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=error_message, metadata=metadata)
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=error_message, session_id=session_id, metadata=metadata)
         finally:
             self._detach_interrupt_handler(task_id)
 
@@ -548,7 +551,8 @@ class ControllerService(AsyncService):
                 message=point.message,
                 metadata=point.metadata
             )
-            state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, workflow_id=workflow_id, interrupt=interrupt, metadata=task_metadata)
+            session_id = self.get_task_state(task_id).session_id if self.get_task_state(task_id) else None
+            state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, workflow_id=workflow_id, interrupt=interrupt, session_id=session_id, metadata=task_metadata)
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
             self._notify_task_state_change(task_id)
@@ -574,7 +578,7 @@ class ControllerService(AsyncService):
         if state and state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
 
-        error_state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(task.exception()), metadata=state.metadata if state else None)
+        error_state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(task.exception()), session_id=state.session_id if state else None, metadata=state.metadata if state else None)
         with self.task_states_lock:
             self.task_states.set(task_id, error_state, 1 * 3600)
         self._notify_task_state_change(task_id)

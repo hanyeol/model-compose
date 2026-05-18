@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | model | vector-store | key-value-store | video-scene-detector | shell | workflow | mcp-client | mcp-server | text-splitter | web-browser
+  type: agent | http-client | http-server | model | tokenizer | vector-store | key-value-store | video-scene-detector | shell | workflow | mcp-client | mcp-server | text-splitter | web-browser
   id: component-id
   runtime: embedded | docker  # default: embedded
   max_concurrent_count: 1
@@ -45,6 +45,7 @@ Model-compose supports the following component types:
 | `mcp-client` | MCP (Model Context Protocol) client | [mcp-client.md](components/mcp-client.md) |
 | `mcp-server` | MCP server for protocol support | [mcp-server.md](components/mcp-server.md) |
 | `model` | AI model inference (local/remote) | [model.md](components/model.md) |
+| `tokenizer` | Standalone tokenization (encode, decode, count) | [tokenizer.md](components/tokenizer.md) |
 | `vector-store` | Vector database operations | [vector-store.md](components/vector-store.md) |
 | `key-value-store` | Key-value data storage | [key-value-store.md](components/key-value-store.md) |
 | `workflow` | Sub-workflow execution | [workflow.md](components/workflow.md) |

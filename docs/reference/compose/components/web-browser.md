@@ -99,7 +99,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `url` | string | **required** | URL to navigate to |
-| `wait_until` | string | `load` | Event to wait for: `load`, `domcontentloaded`, `networkidle` |
+| `wait_until` | string | `load` | Event to wait for: `load`, `domcontentloaded`, `networkidle`, `commit` |
 
 **Returns:** `{ "url": "...", "frameId": "..." }`
 
@@ -296,7 +296,13 @@ component:
 
 ### Scroll
 
-Scroll the page or a specific element:
+Scroll the page or a specific element. The behavior depends on the combination of parameters:
+
+- **No selector/xpath**: Scrolls the page by `x` and `y` pixels (`window.scrollBy`)
+- **selector/xpath without x/y**: Scrolls the element into view (`scrollIntoView`)
+- **selector/xpath with x/y**: Scrolls the element's internal content (`element.scrollBy`)
+
+**Page scroll:**
 
 ```yaml
 component:
@@ -306,13 +312,37 @@ component:
     y: 500
 ```
 
+**Scroll element into view:**
+
+```yaml
+component:
+  type: web-browser
+  action:
+    method: scroll
+    selector: "#target-section"
+```
+
+**Scroll element's internal content:**
+
+```yaml
+component:
+  type: web-browser
+  action:
+    method: scroll
+    selector: ".scrollable-container"
+    y: 300
+```
+
 **Scroll Configuration:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `selector` | string | `null` | Scroll a specific element into view |
-| `x` | integer | `0` | Horizontal scroll amount in pixels |
-| `y` | integer | `0` | Vertical scroll amount in pixels |
+| `selector` | string | `null` | CSS selector of the target element |
+| `xpath` | string | `null` | XPath of the target element |
+| `x` | integer | `null` | Horizontal scroll amount in pixels |
+| `y` | integer | `null` | Vertical scroll amount in pixels |
+
+> Only one of `selector` or `xpath` can be provided.
 
 **Returns:** `{ "scrolled_x": 0, "scrolled_y": 500 }`
 

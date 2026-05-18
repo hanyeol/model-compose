@@ -18,6 +18,7 @@ model-compose provides various component types for performing different tasks.
 | `mcp-server` | Provide MCP service | Implement Model Context Protocol server |
 | `mcp-client` | MCP client | Communicate with MCP servers |
 | `model` | Run local AI models | Local model inference for text generation, image analysis, etc. |
+| `tokenizer` | Standalone tokenization | Token encoding, decoding, counting |
 | `model-trainer` | Train models | Fine-tuning, LoRA training |
 | `datasets` | Load datasets | Load and process training/evaluation datasets |
 | `vector-store` | Vector DB integration | RAG systems with Chroma, Milvus, etc. |

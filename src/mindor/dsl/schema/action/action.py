@@ -20,5 +20,6 @@ ActionConfig = Union[
     VideoConverterActionConfig,
     AudioExtractorActionConfig,
     KeyValueStoreActionConfig,
-    GraphStoreActionConfig
+    GraphStoreActionConfig,
+    TokenizerActionConfig
 ]

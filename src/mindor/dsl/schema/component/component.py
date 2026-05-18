@@ -24,7 +24,8 @@ ComponentConfig = Annotated[
         VideoConverterComponentConfig,
         AudioExtractorComponentConfig,
         KeyValueStoreComponentConfig,
-        GraphStoreComponentConfig
+        GraphStoreComponentConfig,
+        TokenizerComponentConfig
     ],
     Field(discriminator="type")
 ]

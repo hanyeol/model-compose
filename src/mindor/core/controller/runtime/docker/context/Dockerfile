@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir \
     python-dotenv \
     docker \
     aiohttp \
+    aiofiles \
+    brotlicffi \
     requests \
     fastapi \
     uvicorn \

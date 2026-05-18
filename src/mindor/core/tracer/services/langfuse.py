@@ -18,6 +18,7 @@ class LangfuseTracerService(TracerService):
 
     async def _serve(self) -> None:
         from langfuse import Langfuse
+
         self._client = Langfuse(
             public_key=self.config.public_key,
             secret_key=self.config.secret_key,

@@ -6,4 +6,4 @@ class LangfuseTracerConfig(CommonTracerConfig):
     driver: Literal[TracerDriver.LANGFUSE]
     public_key: str = Field(..., description="Langfuse public key.")
     secret_key: str = Field(..., description="Langfuse secret key.")
-    host: str = Field(default="https://cloud.langfuse.com", description="Langfuse server URL.")
+    base_url: str = Field(default="https://cloud.langfuse.com", description="Langfuse server URL.")

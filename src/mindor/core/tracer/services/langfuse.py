@@ -21,7 +21,8 @@ class LangfuseTracerService(TracerService):
         self._client = Langfuse(
             public_key=self.config.public_key,
             secret_key=self.config.secret_key,
-            host=self.config.host
+            base_url=self.config.base_url,
+            timeout=self.config.timeout
         )
 
     async def _shutdown(self) -> None:

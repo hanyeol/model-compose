@@ -11,5 +11,4 @@ class TracerCaptureConfig(BaseModel):
 class CommonTracerConfig(BaseModel):
     driver: TracerDriver = Field(..., description="Tracer backend driver.")
     capture: TracerCaptureConfig = Field(default_factory=TracerCaptureConfig, description="Capture settings.")
-    flush_timeout: int = Field(default=5, description="Flush timeout in seconds on shutdown.")
-    queue_size: int = Field(default=1000, description="Max event queue size. Oldest events dropped when exceeded.")
+    timeout: int = Field(default=30, description="Timeout in seconds for API requests.")

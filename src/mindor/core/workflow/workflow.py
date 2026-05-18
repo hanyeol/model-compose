@@ -5,6 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
+from mindor.core.tracer import tracing
 from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .job import Job, RoutingTarget, create_job
@@ -102,6 +103,7 @@ class WorkflowRunner:
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
+                    tracing.on_job_start(context.task_id, job.id, self.id, context.input)
                     logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job.id, self.id)
                     logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job.id, self.id, context.input)
 
@@ -123,11 +125,13 @@ class WorkflowRunner:
                         scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(context))
                         running_job_ids.add(next_job_id)
                         job_time_trackers[next_job_id] = TimeTracker()
+                        tracing.on_job_start(context.task_id, next_job_id, self.id, context.input)
                     else:
                         context.complete_job(completed_job_id, completed_job_output)
                         logging.info("[task-%s] Job '%s:%s' completed without routing.", context.task_id, completed_job_id, self.id)
                 else:
                     context.complete_job(completed_job_id, completed_job_output)
+                    tracing.on_job_end(context.task_id, completed_job_id, self.id, completed_job_output, job_time_trackers[completed_job_id].elapsed())
                     logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, completed_job_id, self.id, job_time_trackers[completed_job_id].elapsed())
                     logging.debug("[task-%s] Job '%s:%s' output: %s", context.task_id, completed_job_id, self.id, completed_job_output)
 
@@ -189,7 +193,16 @@ class Workflow:
         runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
         context = WorkflowContext(task_id, self.id, input, interrupt_handler, workflow_delegate, session_id=session_id, metadata=metadata)
 
-        return await runner.run(context)
+        time_tracker = TimeTracker()
+        tracing.on_workflow_start(task_id, self.id, input, session_id, metadata)
+
+        try:
+            output = await runner.run(context)
+            tracing.on_workflow_end(task_id, self.id, output, time_tracker.elapsed())
+            return output
+        except Exception as e:
+            tracing.on_workflow_error(task_id, self.id, e, time_tracker.elapsed())
+            raise
 
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()

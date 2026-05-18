@@ -317,6 +317,8 @@ def validate_command(
                 summary_parts.append(f"{len(config.systems)} system(s)")
             if config.loggers:
                 summary_parts.append(f"{len(config.loggers)} logger(s)")
+            if config.tracers:
+                summary_parts.append(f"{len(config.tracers)} tracer(s)")
             click.echo(f"✅ Configuration is valid ({', '.join(summary_parts)})")
     except Exception as e:
         if verbose:

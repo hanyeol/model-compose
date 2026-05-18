@@ -29,6 +29,8 @@ from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.controller.webui import ControllerWebUI, create_webui
 from mindor.core.logger import LoggerService, create_logger
+from mindor.dsl.schema.tracer import TracerConfig
+from mindor.core.tracer import TracerService, create_tracer
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import parse_duration
@@ -92,6 +94,7 @@ class ControllerService(AsyncService):
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
         loggers: List[LoggerConfig],
+        tracers: List[TracerConfig],
         daemon: bool
     ):
         super().__init__(daemon)
@@ -103,6 +106,7 @@ class ControllerService(AsyncService):
         self.gateways: List[GatewayConfig] = gateways
         self.systems: List[SystemConfig] = systems
         self.loggers: List[LoggerConfig] = loggers
+        self.tracers: List[TracerConfig] = tracers
         self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components, exclude_private=True)
         self.task_queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
@@ -315,6 +319,9 @@ class ControllerService(AsyncService):
         if self._queue:
             await self._queue.start()
 
+        await self._setup_tracers()
+        await self._start_tracers()
+
         if self.daemon:
             await self._start_systems()
             await self._start_listeners()
@@ -347,6 +354,8 @@ class ControllerService(AsyncService):
 
         if self._queue:
             await self._queue.stop()
+
+        await self._stop_tracers()
 
         if self.daemon:
             await self._stop_adapters()
@@ -435,6 +444,15 @@ class ControllerService(AsyncService):
     async def _stop_loggers(self) -> None:
         await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
 
+    async def _setup_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.setup() for tracer in self._create_tracers() ])
+
+    async def _start_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.start() for tracer in self._create_tracers() ])
+
+    async def _stop_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.stop() for tracer in self._create_tracers() ])
+
     async def _start_adapters(self) -> None:
         await asyncio.gather(*[ adapter.start() for adapter in self._create_adapters() ])
 
@@ -472,6 +490,9 @@ class ControllerService(AsyncService):
 
     def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
         return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
+
+    def _create_tracers(self) -> List[TracerService]:
+        return [ create_tracer(f"tracer-{index}", config, self.daemon) for index, config in enumerate(self.tracers) ]
 
     def _get_runtime_specs(self) -> ControllerRuntimeSpecs:
         return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows)

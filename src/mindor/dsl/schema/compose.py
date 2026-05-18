@@ -9,6 +9,7 @@ from .gateway import GatewayConfig
 from .system import SystemConfig
 from .workflow import WorkflowConfig
 from .logger import LoggerConfig
+from .tracer import TracerConfig
 
 class ComposeConfig(BaseModel):
     controller: ControllerConfig
@@ -18,6 +19,7 @@ class ComposeConfig(BaseModel):
     systems: List[SystemConfig] = Field(default_factory=list, description="List of external systems (e.g. docker-compose) to manage alongside the controller lifecycle.")
     workflows: List[WorkflowConfig] = Field(default_factory=list, description="List of workflows that define sequences of jobs and their execution flow.")
     loggers: List[LoggerConfig] = Field(default_factory=list, description="List of logger configurations for capturing and storing execution logs.")
+    tracers: List[TracerConfig] = Field(default_factory=list, description="List of tracer configurations for sending structured tracing to external observability tools.")
 
     @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):
@@ -65,4 +67,12 @@ class ComposeConfig(BaseModel):
             loggers_values = values.pop("logger", None)
             if loggers_values:
                 values["loggers"] = [ loggers_values ]
+        return values
+
+    @model_validator(mode="before")
+    def inflate_single_tracer(cls, values: Dict[str, Any]):
+        if "tracers" not in values:
+            tracer_values = values.pop("tracer", None)
+            if tracer_values:
+                values["tracers"] = [ tracer_values ]
         return values

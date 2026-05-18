@@ -454,10 +454,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             except Exception as e:
                 await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), msg_id)
         else:
-            await self._websocket_send_error(
-                client_id, "INVALID_REQUEST",
-                f"Unknown message type: {msg_type}", msg_id
-            )
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Unknown message type: {msg_type}", msg_id)
 
     async def _websocket_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
         workflow_id = data.get("workflow_id", "__default__")
@@ -467,10 +464,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         subscribe_task = data.get("subscribe_task", True)
 
         if workflow_id not in self.controller.workflow_schemas:
-            await self._websocket_send_error(
-                client_id, "WORKFLOW_NOT_FOUND",
-                f"Workflow '{workflow_id}' not found", msg_id
-            )
+            await self._websocket_send_error(client_id, "WORKFLOW_NOT_FOUND", f"Workflow '{workflow_id}' not found", msg_id)
             return
 
         state = await self.controller.run_workflow(workflow_id, input_data, wait_for_completion=False, session_id=session_id, metadata=metadata)

@@ -495,7 +495,7 @@ class ControllerService(AsyncService):
         return [ create_tracer(f"tracer-{index}", config, self.daemon) for index, config in enumerate(self.tracers) ]
 
     def _get_runtime_specs(self) -> ControllerRuntimeSpecs:
-        return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows)
+        return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows, self.loggers, self.tracers)
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)

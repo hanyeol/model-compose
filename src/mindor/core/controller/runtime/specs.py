@@ -5,6 +5,8 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
+from mindor.dsl.schema.logger import LoggerConfig
+from mindor.dsl.schema.tracer import TracerConfig
 from mindor.dsl.utils.enum import enum_union_to_str
 
 class ControllerRuntimeSpecs:
@@ -14,13 +16,17 @@ class ControllerRuntimeSpecs:
         components: List[ComponentConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        workflows: List[WorkflowConfig]
+        workflows: List[WorkflowConfig],
+        loggers: List[LoggerConfig],
+        tracers: List[TracerConfig]
     ):
         self.controller: ControllerConfig = controller
         self.components: List[ComponentConfig] = components
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.workflows: List[WorkflowConfig] = workflows
+        self.loggers: List[LoggerConfig] = loggers
+        self.tracers: List[TracerConfig] = tracers
 
     def generate_native_runtime_specs(self) -> Dict[str, Any]:
         specs: Dict[str, Any] = {}
@@ -40,5 +46,7 @@ class ControllerRuntimeSpecs:
         specs["listeners"] = [ listener.model_dump() for listener in self.listeners ]
         specs["gateways" ] = [ gateway.model_dump()  for gateway  in self.gateways  ]
         specs["workflows"] = [ workflow.model_dump() for workflow in self.workflows ]
+        specs["loggers"  ] = [ logger.model_dump()   for logger   in self.loggers   ]
+        specs["tracers"  ] = [ tracer.model_dump()   for tracer   in self.tracers   ]
 
         return enum_union_to_str(specs)

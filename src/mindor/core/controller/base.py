@@ -16,6 +16,7 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.system import SystemConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
+from mindor.dsl.schema.tracer import TracerConfig
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.foundation import AsyncService
 from mindor.core.errors import ShutdownError
@@ -28,9 +29,8 @@ from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.controller.webui import ControllerWebUI, create_webui
-from mindor.core.logger import LoggerService, create_logger
-from mindor.dsl.schema.tracer import TracerConfig
 from mindor.core.tracer import TracerService, create_tracer
+from mindor.core.logger import LoggerService, create_logger
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import parse_duration
@@ -93,8 +93,8 @@ class ControllerService(AsyncService):
         systems: List[SystemConfig],
         listeners: List[ListenerConfig],
         gateways: List[GatewayConfig],
-        loggers: List[LoggerConfig],
         tracers: List[TracerConfig],
+        loggers: List[LoggerConfig],
         daemon: bool
     ):
         super().__init__(daemon)
@@ -105,8 +105,8 @@ class ControllerService(AsyncService):
         self.listeners: List[ListenerConfig] = listeners
         self.gateways: List[GatewayConfig] = gateways
         self.systems: List[SystemConfig] = systems
-        self.loggers: List[LoggerConfig] = loggers
         self.tracers: List[TracerConfig] = tracers
+        self.loggers: List[LoggerConfig] = loggers
         self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(self.workflows, self.components, exclude_private=True)
         self.task_queue: Optional[WorkQueue] = None
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
@@ -488,14 +488,14 @@ class ControllerService(AsyncService):
     def _create_webui(self) -> ControllerWebUI:
         return create_webui(self.config.webui, self.config, self.components, self.workflows, self.daemon)
 
-    def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
-        return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
-
     def _create_tracers(self) -> List[TracerService]:
         return [ create_tracer(f"tracer-{index}", config, self.daemon) for index, config in enumerate(self.tracers) ]
 
+    def _create_loggers(self, verbose: bool = False) -> List[LoggerService]:
+        return [ create_logger(f"logger-{index}", config, self.daemon, verbose) for index, config in enumerate(self.loggers or [ self._get_default_logger_config() ]) ]
+
     def _get_runtime_specs(self) -> ControllerRuntimeSpecs:
-        return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows, self.loggers, self.tracers)
+        return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows, self.tracers, self.loggers)
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
         return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)

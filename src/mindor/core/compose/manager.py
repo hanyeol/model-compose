@@ -12,8 +12,8 @@ class ComposeManager:
             self.config.systems,
             self.config.listeners,
             self.config.gateways,
-            self.config.loggers,
             self.config.tracers,
+            self.config.loggers,
             daemon
         )
 

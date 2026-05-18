@@ -1057,6 +1057,66 @@ controller:
       service: model-compose
 ```
 
+### 15.5.6 Tracer Configuration
+
+Tracers send structured tracing data from workflow and job executions to external observability tools like Langfuse.
+
+**Basic Langfuse tracer:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+```
+
+This sends workflow-level and job-level traces to Langfuse Cloud.
+
+**Self-hosted Langfuse:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  base_url: http://localhost:3000
+```
+
+**Capture settings:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  capture:
+    input: true
+    output: true
+    redact_keys:                     # Redact sensitive keys
+      - Authorization
+      - api_key
+    max_payload_bytes: 1048576       # 1MB limit
+```
+
+Capture settings:
+- `input`: Include input data in traces (default: `true`)
+- `output`: Include output data in traces (default: `true`)
+- `redact_keys`: Keys to replace with `[redacted]` (case-insensitive, recursive)
+- `max_payload_bytes`: Max payload size; exceeded payloads replaced with `[truncated]`
+
+**Session grouping:**
+
+```bash
+model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
+```
+
+Traces with the same `session_id` are grouped together in Langfuse UI.
+
+**Key behaviors:**
+- Tracer events are non-blocking (queued and sent asynchronously)
+- Tracer failures never impact workflow execution
+- `langfuse>=4.0` is installed automatically on first use
+
 ---
 
 ## 15.6 Deployment Best Practices

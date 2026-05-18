@@ -419,7 +419,26 @@ loggers:
       backup_count: 5
 ```
 
-### 18.1.8 Runtime Schema
+### 18.1.8 Tracer Schema
+
+**Langfuse Tracer**:
+```yaml
+tracers:
+  - driver: langfuse
+    public_key: ${env.LANGFUSE_PUBLIC_KEY}
+    secret_key: ${env.LANGFUSE_SECRET_KEY}
+    base_url: https://cloud.langfuse.com   # Optional
+    timeout: 30                             # Optional (seconds)
+    capture:
+      input: true                          # Include input in traces
+      output: true                         # Include output in traces
+      redact_keys:                         # Keys to redact
+        - Authorization
+        - api_key
+      max_payload_bytes: 1048576           # Max payload size (bytes)
+```
+
+### 18.1.9 Runtime Schema
 
 **Docker Runtime**:
 ```yaml

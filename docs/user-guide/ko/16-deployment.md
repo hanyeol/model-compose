@@ -1059,6 +1059,66 @@ controller:
       service: model-compose
 ```
 
+### 15.5.6 트레이서 설정
+
+트레이서는 워크플로우 및 잡 실행의 구조화된 트레이싱 데이터를 Langfuse 등 외부 관측 도구로 전송합니다.
+
+**기본 Langfuse 트레이서:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+```
+
+워크플로우 및 잡 수준의 트레이스를 Langfuse Cloud로 전송합니다.
+
+**셀프 호스팅 Langfuse:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  base_url: http://localhost:3000
+```
+
+**캡처 설정:**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  capture:
+    input: true
+    output: true
+    redact_keys:                     # 민감한 키 마스킹
+      - Authorization
+      - api_key
+    max_payload_bytes: 1048576       # 1MB 제한
+```
+
+캡처 설정:
+- `input`: 트레이스에 입력 데이터 포함 (기본값: `true`)
+- `output`: 트레이스에 출력 데이터 포함 (기본값: `true`)
+- `redact_keys`: `[redacted]`로 대체할 키 목록 (대소문자 무시, 재귀 적용)
+- `max_payload_bytes`: 최대 페이로드 크기. 초과 시 `[truncated]`로 대체
+
+**세션 그룹화:**
+
+```bash
+model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
+```
+
+동일한 `session_id`를 가진 트레이스는 Langfuse UI에서 그룹으로 표시됩니다.
+
+**주요 동작:**
+- 트레이서 이벤트는 논블로킹 (큐에 추가 후 비동기 전송)
+- 트레이서 실패는 워크플로우 실행에 영향 없음
+- `langfuse>=4.0`은 첫 사용 시 자동 설치
+
 ---
 
 ## 15.6 배포 모범 사례

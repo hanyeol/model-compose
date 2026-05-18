@@ -418,7 +418,26 @@ loggers:
       backup_count: 5
 ```
 
-### 18.1.8 运行时架构
+### 18.1.8 追踪器架构
+
+**Langfuse 追踪器**：
+```yaml
+tracers:
+  - driver: langfuse
+    public_key: ${env.LANGFUSE_PUBLIC_KEY}
+    secret_key: ${env.LANGFUSE_SECRET_KEY}
+    base_url: https://cloud.langfuse.com   # 可选
+    timeout: 30                             # 可选（秒）
+    capture:
+      input: true                          # 在追踪中包含输入
+      output: true                         # 在追踪中包含输出
+      redact_keys:                         # 要脱敏的键
+        - Authorization
+        - api_key
+      max_payload_bytes: 1048576           # 最大负载大小（字节）
+```
+
+### 18.1.9 运行时架构
 
 **Docker 运行时**：
 ```yaml

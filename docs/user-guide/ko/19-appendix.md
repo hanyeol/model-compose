@@ -418,7 +418,26 @@ loggers:
       backup_count: 5
 ```
 
-### 18.1.8 런타임 스키마
+### 18.1.8 트레이서 스키마
+
+**Langfuse 트레이서**:
+```yaml
+tracers:
+  - driver: langfuse
+    public_key: ${env.LANGFUSE_PUBLIC_KEY}
+    secret_key: ${env.LANGFUSE_SECRET_KEY}
+    base_url: https://cloud.langfuse.com   # 선택 사항
+    timeout: 30                             # 선택 사항 (초)
+    capture:
+      input: true                          # 트레이스에 입력 포함
+      output: true                         # 트레이스에 출력 포함
+      redact_keys:                         # 마스킹할 키
+        - Authorization
+        - api_key
+      max_payload_bytes: 1048576           # 최대 페이로드 크기 (바이트)
+```
+
+### 18.1.9 런타임 스키마
 
 **Docker 런타임**:
 ```yaml

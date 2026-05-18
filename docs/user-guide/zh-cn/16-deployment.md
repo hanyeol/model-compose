@@ -1057,6 +1057,66 @@ controller:
       service: model-compose
 ```
 
+### 15.5.6 追踪器配置
+
+追踪器将工作流和作业执行的结构化追踪数据发送到 Langfuse 等外部可观测性工具。
+
+**基本 Langfuse 追踪器：**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+```
+
+将工作流级别和作业级别的追踪数据发送到 Langfuse Cloud。
+
+**自托管 Langfuse：**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  base_url: http://localhost:3000
+```
+
+**捕获设置：**
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  capture:
+    input: true
+    output: true
+    redact_keys:                     # 脱敏敏感键
+      - Authorization
+      - api_key
+    max_payload_bytes: 1048576       # 1MB 限制
+```
+
+捕获设置：
+- `input`：在追踪中包含输入数据（默认：`true`）
+- `output`：在追踪中包含输出数据（默认：`true`）
+- `redact_keys`：替换为 `[redacted]` 的键列表（不区分大小写，递归应用）
+- `max_payload_bytes`：最大负载大小，超过时替换为 `[truncated]`
+
+**会话分组：**
+
+```bash
+model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
+```
+
+具有相同 `session_id` 的追踪在 Langfuse UI 中分组显示。
+
+**关键行为：**
+- 追踪器事件是非阻塞的（排队后异步发送）
+- 追踪器故障不会影响工作流执行
+- `langfuse>=4.0` 在首次使用时自动安装
+
 ---
 
 ## 15.6 部署最佳实践

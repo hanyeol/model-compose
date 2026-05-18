@@ -298,6 +298,7 @@ This document outlines the structure of the model-compose user guide.
   - 16.5.3 [Workflow Execution Logging](./16-deployment.md#1653-workflow-execution-logging)
   - 16.5.4 [Metrics Collection](./16-deployment.md#1654-metrics-collection)
   - 16.5.5 [External Monitoring Systems](./16-deployment.md#1655-external-monitoring-systems)
+  - 16.5.6 [Tracer Configuration](./16-deployment.md#1656-tracer-configuration)
 - 16.6 [Deployment Best Practices](./16-deployment.md#166-deployment-best-practices)
 
 ## 17. [Practical Examples](./17-practical-examples.md)
@@ -362,7 +363,8 @@ This document outlines the structure of the model-compose user guide.
   - 19.1.5 [Listener Schema](./19-appendix.md#1915-listener-schema)
   - 19.1.6 [Gateway Schema](./19-appendix.md#1916-gateway-schema)
   - 19.1.7 [Logger Schema](./19-appendix.md#1917-logger-schema)
-  - 19.1.8 [Runtime Schema](./19-appendix.md#1918-runtime-schema)
+  - 19.1.8 [Tracer Schema](./19-appendix.md#1918-tracer-schema)
+  - 19.1.9 [Runtime Schema](./19-appendix.md#1919-runtime-schema)
 
 ---
 

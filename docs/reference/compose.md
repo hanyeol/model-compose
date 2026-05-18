@@ -13,6 +13,7 @@ This reference guide provides comprehensive documentation for all configuration 
 - [System](compose/system.md) - Infrastructure service management (Docker Compose)
 - [Listener](compose/listener.md) - Webhook and callback handling
 - [Gateway](compose/gateway.md) - Tunneling and external access
+- [Tracer](compose/tracer.md) - Tracing configuration and observability
 - [Logger](compose/logger.md) - Logging configuration and output management
 
 ### Reference
@@ -57,6 +58,9 @@ listener:   # or listeners: for multiple
 
 gateway:    # or gateways: for multiple
   # ... gateway configuration
+
+tracer:     # or tracers: for multiple
+  # ... tracing configuration
 
 logger:     # or loggers: for multiple
   # ... logging configuration
@@ -108,7 +112,7 @@ Many configuration objects share common properties:
 1. **Choose Your Controller**: Start with [Controller](compose/controller.md) to set up your server
 2. **Define Your Workflow**: Use [Workflow](compose/workflow.md) to orchestrate your logic
 3. **Add Components**: Select from [Component](compose/component.md) types for your functionality
-4. **Configure Infrastructure**: Add [Listener](compose/listener.md), [Gateway](compose/gateway.md), or [Logger](compose/logger.md) as needed
+4. **Configure Infrastructure**: Add [Listener](compose/listener.md), [Gateway](compose/gateway.md), [Tracer](compose/tracer.md), or [Logger](compose/logger.md) as needed
 
 ## Examples Directory
 

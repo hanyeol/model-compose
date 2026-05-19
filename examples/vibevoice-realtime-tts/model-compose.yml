@@ -12,7 +12,7 @@ workflow:
   description: Generate speech from text using Microsoft VibeVoice Realtime (0.5B).
   job:
     input: ${input}
-    output: ${output}
+    output: ${output as audio/wav}
 
 component:
   type: websocket-client

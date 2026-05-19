@@ -12,7 +12,7 @@ workflow:
   description: Generate speech audio from text using a preset voice with Qwen3-TTS.
   job:
     input: ${input}
-    output: ${output as audio}
+    output: ${output as audio/wav}
 
 component:
   type: model

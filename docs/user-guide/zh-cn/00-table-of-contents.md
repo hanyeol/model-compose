@@ -297,6 +297,9 @@
 - 16.8 [键值存储（缓存与会话）](./17-practical-examples.md#168-键值存储缓存与会话)
   - 16.8.1 [API 响应缓存](./17-practical-examples.md#1681-api-响应缓存)
   - 16.8.2 [会话管理](./17-practical-examples.md#1682-会话管理)
+- 17.10 [带对话记忆的聊天机器人](./17-practical-examples.md#1710-带对话记忆的聊天机器人)
+  - 17.10.1 [有状态聊天机器人 (model-memory)](./17-practical-examples.md#17101-有状态聊天机器人-model-memory)
+  - 17.10.2 [使用 Redis 记忆的多用户聊天](./17-practical-examples.md#17102-使用-redis-记忆的多用户聊天)
 
 ## 18. [故障排除](./18-troubleshooting.md)
 - 17.1 [常见问题解答（FAQ）](./18-troubleshooting.md#171-常见问题解答faq)

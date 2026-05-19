@@ -1638,6 +1638,215 @@ component:
 
 ---
 
+## 17.10 Chatbot with Conversation Memory
+
+### 17.10.1 Stateful Chatbot (model-memory)
+
+**Goal**: Build a chatbot that remembers previous conversation context across multiple turns using the `model-memory` component.
+
+**Configuration File** (`model-compose.yml`):
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: sqlite
+      path: ./memory.db
+    window: 20
+    summary:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+      instruction: "Summarize the following conversation concisely:"
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+
+workflows:
+  - id: chat
+    title: Chatbot with Memory
+    description: A chatbot that remembers conversation history
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id | default-session}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: You are a helpful assistant.
+            - role: system
+              content: "Previous conversation summary: ${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id | default-session}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+```
+
+**Environment Variables** (`.env`):
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+**How to Run**:
+
+```bash
+# Start controller
+model-compose up
+
+# Test via CLI
+model-compose run chat --input '{"session_id": "user-1", "message": "My name is Alice"}'
+model-compose run chat --input '{"session_id": "user-1", "message": "What is my name?"}'
+# → The bot remembers: "Your name is Alice"
+```
+
+**Workflow**:
+1. Load conversation history from SQLite storage
+2. Include summary + recent messages as context for GPT-4o
+3. Generate response with full conversation awareness
+4. Save user message + assistant response to memory
+5. Old messages beyond the window are automatically summarized
+
+### 17.10.2 Multi-User Chat with Redis Memory
+
+**Goal**: Production-ready multi-user chatbot using Redis for shared memory storage.
+
+**Configuration File** (`model-compose.yml`):
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: redis
+      url: ${env.REDIS_URL}
+      password: ${env.REDIS_PASSWORD}
+    window:
+      max_turn_count: 30
+      max_message_count: 100
+    summary:
+      component: gpt-4o
+      instruction: "Provide a brief summary of this conversation:"
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+      - id: delete
+        method: delete
+
+workflows:
+  - id: chat
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: ${input.system_prompt | You are a helpful assistant.}
+            - role: system
+              content: "Context: ${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+
+  - id: clear-history
+    jobs:
+      - id: delete
+        component: chat-memory
+        action: delete
+        input:
+          session_id: ${input.session_id}
+```
+
+**Key Points**:
+- Redis storage enables sharing memory across multiple server instances
+- `max_turn_count` and `max_message_count` provide dual windowing control
+- Separate `clear-history` workflow for session cleanup
+
+---
+
 ## Next Steps
 
 Practice:

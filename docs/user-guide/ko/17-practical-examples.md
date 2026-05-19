@@ -1638,6 +1638,215 @@ component:
 
 ---
 
+## 17.10 대화 메모리를 활용한 챗봇
+
+### 17.10.1 상태 유지 챗봇 (model-memory)
+
+**목표**: `model-memory` 컴포넌트를 사용하여 여러 대화 턴에 걸쳐 이전 대화 맥락을 기억하는 챗봇 구축
+
+**구성 파일** (`model-compose.yml`):
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: sqlite
+      path: ./memory.db
+    window: 20
+    summary:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+      instruction: "다음 대화를 간결하게 요약해주세요:"
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+
+workflows:
+  - id: chat
+    title: 메모리가 있는 챗봇
+    description: 대화 히스토리를 기억하는 챗봇
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id | default-session}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: 당신은 도움이 되는 어시스턴트입니다.
+            - role: system
+              content: "이전 대화 요약: ${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id | default-session}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+```
+
+**환경 변수** (`.env`):
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+**실행 방법**:
+
+```bash
+# 컨트롤러 시작
+model-compose up
+
+# CLI로 테스트
+model-compose run chat --input '{"session_id": "user-1", "message": "제 이름은 앨리스입니다"}'
+model-compose run chat --input '{"session_id": "user-1", "message": "제 이름이 뭐였죠?"}'
+# → 봇이 기억합니다: "당신의 이름은 앨리스입니다"
+```
+
+**동작 흐름**:
+1. SQLite 저장소에서 대화 히스토리 로드
+2. 요약 + 최근 메시지를 GPT-4o 컨텍스트에 포함
+3. 전체 대화 맥락을 고려한 응답 생성
+4. 사용자 메시지 + 어시스턴트 응답을 메모리에 저장
+5. 윈도우를 초과하는 오래된 메시지는 자동으로 요약
+
+### 17.10.2 Redis 메모리를 사용한 다중 사용자 챗봇
+
+**목표**: Redis를 사용한 공유 메모리 저장소로 프로덕션에 적합한 다중 사용자 챗봇 구축
+
+**구성 파일** (`model-compose.yml`):
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: redis
+      url: ${env.REDIS_URL}
+      password: ${env.REDIS_PASSWORD}
+    window:
+      max_turn_count: 30
+      max_message_count: 100
+    summary:
+      component: gpt-4o
+      instruction: "이 대화를 간략하게 요약해주세요:"
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+      - id: delete
+        method: delete
+
+workflows:
+  - id: chat
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: ${input.system_prompt | 당신은 도움이 되는 어시스턴트입니다.}
+            - role: system
+              content: "맥락: ${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+
+  - id: clear-history
+    jobs:
+      - id: delete
+        component: chat-memory
+        action: delete
+        input:
+          session_id: ${input.session_id}
+```
+
+**핵심 포인트**:
+- Redis 저장소를 사용하면 여러 서버 인스턴스 간에 메모리 공유 가능
+- `max_turn_count`와 `max_message_count`로 이중 윈도우 제어
+- 세션 정리를 위한 별도의 `clear-history` 워크플로우
+
+---
+
 ## 다음 단계
 
 실습해보세요:

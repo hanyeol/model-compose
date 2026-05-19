@@ -330,6 +330,9 @@ This document outlines the structure of the model-compose user guide.
 - 17.9 [Graph Store (Knowledge Graphs & Social Networks)](./17-practical-examples.md#179-graph-store-knowledge-graphs--social-networks)
   - 17.9.1 [Knowledge Graph with Neo4j](./17-practical-examples.md#1791-knowledge-graph-with-neo4j)
   - 17.9.2 [Social Graph with ArangoDB](./17-practical-examples.md#1792-social-graph-with-arangodb)
+- 17.10 [Chatbot with Conversation Memory](./17-practical-examples.md#1710-chatbot-with-conversation-memory)
+  - 17.10.1 [Stateful Chatbot (model-memory)](./17-practical-examples.md#17101-stateful-chatbot-model-memory)
+  - 17.10.2 [Multi-User Chat with Redis Memory](./17-practical-examples.md#17102-multi-user-chat-with-redis-memory)
 
 ## 18. [Troubleshooting](./18-troubleshooting.md)
 - 18.1 [Frequently Asked Questions (FAQ)](./18-troubleshooting.md#181-frequently-asked-questions-faq)

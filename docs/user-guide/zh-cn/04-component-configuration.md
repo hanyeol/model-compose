@@ -18,6 +18,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `mcp-server` | 提供 MCP 服务 | 实现模型上下文协议服务器 |
 | `mcp-client` | MCP 客户端 | 与 MCP 服务器通信 |
 | `model` | 运行本地 AI 模型 | 本地模型推理，如文本生成、图像分析等 |
+| `model-memory` | 对话记忆 | 基于会话的对话历史存储/窗口/摘要 |
 | `model-trainer` | 训练模型 | 微调、LoRA 训练 |
 | `datasets` | 加载数据集 | 加载和处理训练/评估数据集 |
 | `vector-store` | 向量数据库集成 | 使用 Chroma、Milvus 等的 RAG 系统 |
@@ -48,6 +49,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 向量存储 → `vector-store`
 - 图存储 → `graph-store`
 - 键值存储 → `key-value-store`
+- 对话记忆 → `model-memory`
 - 视频场景检测 → `video-scene-detector`
 - 网页抓取 → `web-scraper`
 

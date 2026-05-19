@@ -1638,6 +1638,215 @@ component:
 
 ---
 
+## 17.10 带对话记忆的聊天机器人
+
+### 17.10.1 有状态聊天机器人 (model-memory)
+
+**目标**：使用 `model-memory` 组件构建一个能够跨多轮对话记住先前上下文的聊天机器人。
+
+**配置文件** (`model-compose.yml`)：
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: sqlite
+      path: ./memory.db
+    window: 20
+    summary:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+      instruction: "请简洁地总结以下对话："
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+
+workflows:
+  - id: chat
+    title: 带记忆的聊天机器人
+    description: 能记住对话历史的聊天机器人
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id | default-session}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: 你是一个有用的助手。
+            - role: system
+              content: "之前的对话摘要：${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id | default-session}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+```
+
+**环境变量** (`.env`)：
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+**运行方法**：
+
+```bash
+# 启动控制器
+model-compose up
+
+# 通过 CLI 测试
+model-compose run chat --input '{"session_id": "user-1", "message": "我叫爱丽丝"}'
+model-compose run chat --input '{"session_id": "user-1", "message": "我叫什么名字？"}'
+# → 机器人会记住："你叫爱丽丝"
+```
+
+**工作流程**：
+1. 从 SQLite 存储加载对话历史
+2. 将摘要 + 最近消息作为 GPT-4o 的上下文
+3. 在完整对话上下文中生成响应
+4. 将用户消息 + 助手回复保存到记忆中
+5. 超出窗口范围的旧消息会自动被总结
+
+### 17.10.2 使用 Redis 记忆的多用户聊天
+
+**目标**：使用 Redis 共享内存存储构建适合生产环境的多用户聊天机器人。
+
+**配置文件** (`model-compose.yml`)：
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+
+components:
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+      output: ${response.choices[0].message.content}
+
+  - id: chat-memory
+    type: model-memory
+    storage:
+      driver: redis
+      url: ${env.REDIS_URL}
+      password: ${env.REDIS_PASSWORD}
+    window:
+      max_turn_count: 30
+      max_message_count: 100
+    summary:
+      component: gpt-4o
+      instruction: "请简要总结这段对话："
+    actions:
+      - id: load
+        method: load
+      - id: save
+        method: save
+      - id: delete
+        method: delete
+
+workflows:
+  - id: chat
+    jobs:
+      - id: load-memory
+        component: chat-memory
+        action: load
+        input:
+          session_id: ${input.session_id}
+
+      - id: generate
+        component: gpt-4o
+        input:
+          messages:
+            - role: system
+              content: ${input.system_prompt | 你是一个有用的助手。}
+            - role: system
+              content: "上下文：${jobs.load-memory.output.summary}"
+            - ...${jobs.load-memory.output.messages}
+            - role: user
+              content: ${input.message as text}
+        depends_on: [load-memory]
+
+      - id: save-memory
+        component: chat-memory
+        action: save
+        input:
+          session_id: ${input.session_id}
+          messages:
+            - role: user
+              content: ${input.message}
+            - role: assistant
+              content: ${jobs.generate.output}
+        depends_on: [generate]
+    output: ${jobs.generate.output}
+
+  - id: clear-history
+    jobs:
+      - id: delete
+        component: chat-memory
+        action: delete
+        input:
+          session_id: ${input.session_id}
+```
+
+**要点**：
+- Redis 存储支持在多个服务器实例之间共享记忆
+- `max_turn_count` 和 `max_message_count` 提供双重窗口控制
+- 独立的 `clear-history` 工作流用于会话清理
+
+---
+
 ## 下一步
 
 练习：

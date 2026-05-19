@@ -24,7 +24,7 @@ tracers:
   - driver: langfuse
     public_key: ${env.LANGFUSE_PUBLIC_KEY_2}
     secret_key: ${env.LANGFUSE_SECRET_KEY_2}
-    base_url: http://localhost:3000
+    url: http://localhost:3000
 ```
 
 ## Tracer Drivers
@@ -97,7 +97,12 @@ tracer:
 | `driver` | string | **required** | Must be `langfuse` |
 | `public_key` | string | **required** | Langfuse public key |
 | `secret_key` | string | **required** | Langfuse secret key |
-| `base_url` | string | `https://cloud.langfuse.com` | Langfuse server URL |
+| `url` | string | none | Langfuse server URL (e.g., `https://cloud.langfuse.com`, `http://localhost:3000`). Cannot be used with `host`. |
+| `host` | string | `cloud.langfuse.com` | Langfuse server hostname or IP address. Cannot be used with `url`. |
+| `port` | integer | `443` | Langfuse server port number (1–65535). |
+| `secure` | boolean | `true` | Use HTTPS for connections. |
+
+> **Note:** Use either `url` or `host`/`port`/`secure`, not both. When neither is specified, defaults to `https://cloud.langfuse.com`.
 
 ## Tracing Data Model
 
@@ -144,14 +149,26 @@ tracer:
 
 Sends all workflow and job traces to Langfuse Cloud with full input/output capture.
 
-### Self-Hosted Langfuse
+### Self-Hosted Langfuse (URL)
 
 ```yaml
 tracer:
   driver: langfuse
   public_key: ${env.LANGFUSE_PUBLIC_KEY}
   secret_key: ${env.LANGFUSE_SECRET_KEY}
-  base_url: http://localhost:3000
+  url: http://localhost:3000
+```
+
+### Self-Hosted Langfuse (Host/Port)
+
+```yaml
+tracer:
+  driver: langfuse
+  public_key: ${env.LANGFUSE_PUBLIC_KEY}
+  secret_key: ${env.LANGFUSE_SECRET_KEY}
+  host: localhost
+  port: 3000
+  secure: false
 ```
 
 Connects to a self-hosted Langfuse instance.
@@ -228,7 +245,7 @@ tracer:
   driver: langfuse
   public_key: ${env.LANGFUSE_PUBLIC_KEY}
   secret_key: ${env.LANGFUSE_SECRET_KEY}
-  base_url: http://localhost:3000
+  url: http://localhost:3000
   capture:
     input: true
     output: true
@@ -280,7 +297,7 @@ tracer:
   driver: langfuse
   public_key: ${env.LANGFUSE_PUBLIC_KEY}
   secret_key: ${env.LANGFUSE_SECRET_KEY}
-  base_url: http://localhost:3000
+  url: http://localhost:3000
 ```
 
 Use a self-hosted Langfuse instance for full visibility during development.
@@ -321,7 +338,7 @@ Disable payload capture to minimize overhead while still tracking execution stru
 
 **Traces not appearing in Langfuse:**
 - Verify `public_key` and `secret_key` are correct
-- Check `base_url` points to the correct Langfuse instance
+- Check `url` (or `host`/`port`/`secure`) points to the correct Langfuse instance
 - Ensure the Langfuse server is accessible from the model-compose host
 - Check logs for tracer warning messages
 

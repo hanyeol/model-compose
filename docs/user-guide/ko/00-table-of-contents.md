@@ -326,6 +326,9 @@
 - 16.8 [키-값 스토어 (캐싱 & 세션)](./17-practical-examples.md#168-키-값-스토어-캐싱--세션)
   - 16.8.1 [API 응답 캐싱](./17-practical-examples.md#1681-api-응답-캐싱)
   - 16.8.2 [세션 관리](./17-practical-examples.md#1682-세션-관리)
+- 17.10 [대화 메모리를 활용한 챗봇](./17-practical-examples.md#1710-대화-메모리를-활용한-챗봇)
+  - 17.10.1 [상태 유지 챗봇 (model-memory)](./17-practical-examples.md#17101-상태-유지-챗봇-model-memory)
+  - 17.10.2 [Redis 메모리를 사용한 다중 사용자 챗봇](./17-practical-examples.md#17102-redis-메모리를-사용한-다중-사용자-챗봇)
 
 ## 18. [문제 해결](./18-troubleshooting.md)
 - 17.1 [자주 묻는 질문 (FAQ)](./18-troubleshooting.md#171-자주-묻는-질문-faq)

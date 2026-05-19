@@ -18,6 +18,7 @@ model-compose provides various component types for performing different tasks.
 | `mcp-server` | Provide MCP service | Implement Model Context Protocol server |
 | `mcp-client` | MCP client | Communicate with MCP servers |
 | `model` | Run local AI models | Local model inference for text generation, image analysis, etc. |
+| `model-memory` | Conversation memory | Session-based chat history with windowing and summarization |
 | `tokenizer` | Standalone tokenization | Token encoding, decoding, counting |
 | `model-trainer` | Train models | Fine-tuning, LoRA training |
 | `datasets` | Load datasets | Load and process training/evaluation datasets |
@@ -48,6 +49,7 @@ model-compose provides various component types for performing different tasks.
 - Image processing → `image-processor`
 - Vector storage → `vector-store`
 - Key-value storage → `key-value-store`
+- Conversation memory → `model-memory`
 - Graph storage → `graph-store`
 - Video scene detection → `video-scene-detector`
 - Web scraping → `web-scraper`

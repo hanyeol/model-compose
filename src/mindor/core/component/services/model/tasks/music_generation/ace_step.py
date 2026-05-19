@@ -5,9 +5,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
 from mindor.core.logger import logging
+from mindor.core.utils.audio import PcmStreamResource
 from ...base import ComponentActionContext
 from .common import MusicGenerationTaskService, MusicGenerationTaskAction
-import asyncio, io
+import asyncio
 
 if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
@@ -19,9 +20,8 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         self.config: AceStepMusicGenerationModelActionConfig = config
         self.handler: AceStepHandler = handler
 
-    async def _generate(self, prompt: str, lyrics: Optional[str], params: Dict[str, Any]) -> bytes:
+    async def _generate(self, prompt: str, lyrics: Optional[str], params: Dict[str, Any]) -> Any:
         from acestep.inference import generate_music, GenerationParams, GenerationConfig
-        import soundfile as sf
 
         generation_params = GenerationParams(
             caption=prompt,
@@ -50,13 +50,14 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         if not result.success:
             raise RuntimeError(f"Music generation failed: {result.error}")
 
-        audio_tensor = result.audios[0]["tensor"]
+        frames, channels = self._encode_samples_to_pcm16(result.audios[0]["tensor"])
         sample_rate = result.audios[0].get("sample_rate", 48000)
 
-        buffer = io.BytesIO()
-        sf.write(buffer, audio_tensor, sample_rate, format="WAV")
-
-        return buffer.getvalue()
+        return PcmStreamResource(frames, {
+            "sample_rate": str(sample_rate),
+            "channels": str(channels),
+            "bit_depth": "16",
+        })
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_generation_params(context)
@@ -81,6 +82,7 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
             "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
             "nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git",
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
+            "numpy",
             "soundfile"
         ]
 

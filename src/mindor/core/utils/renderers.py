@@ -6,6 +6,7 @@ from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, B
 from .http_request import create_upload_file
 from .http_client import create_stream_with_url
 from .image import load_image_from_stream, ImageStreamResource
+from .audio import PcmStreamResource, WavStreamResource
 from .resolvers import FieldResolver
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
@@ -149,6 +150,12 @@ class VariableRenderer:
         if type in [ "image", "audio", "video", "file" ]:
             if isinstance(value, UploadFile) and format == "path":
                 return await FileValueRenderer().render(value)
+            if type == "audio" and subtype == "pcm":
+                if isinstance(value, bytes):
+                    value = PcmStreamResource(value, attrs)
+            if type == "audio" and subtype == "wav":
+                if isinstance(value, PcmStreamResource):
+                    value = WavStreamResource(value)
             if not ignore_files and not isinstance(value, UploadFile):
                 if format != "path":
                     value = await self._save_value_to_temporary_file(value, subtype, attrs, format)

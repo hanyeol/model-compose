@@ -6,9 +6,10 @@ from abc import abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.core.logger import logging
+from mindor.core.utils.audio import PcmStreamResource
 from ...base import ComponentActionContext
 from .common import TextToSpeechTaskService, TextToSpeechTaskAction
-import asyncio, io
+import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -32,17 +33,17 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         self.model = model
 
-    async def _generate(self, text: str, context: ComponentActionContext) -> bytes:
-        import soundfile as sf
-
+    async def _generate(self, text: str, context: ComponentActionContext) -> Any:
         language = await context.render_variable(self.config.language)
         language = self._resolve_language(language) if language else None
         samples, sample_rate = await self._synthesize(text, language, context)
+        frames, channels = self._encode_samples_to_pcm16(samples[0])
 
-        buffer = io.BytesIO()
-        sf.write(buffer, samples[0], sample_rate, format="WAV")
-
-        return buffer.getvalue()
+        return PcmStreamResource(frames, {
+            "sample_rate": str(sample_rate),
+            "channels": str(channels),
+            "bit_depth": "16",
+        })
 
     def _resolve_language(self, language: Optional[str]) -> Optional[str]:
         return _QWEN_LANGUAGE_MAP.get(language.split("-")[0])
@@ -93,7 +94,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "transformers", "qwen_tts", "soundfile" ]
+        return [ "transformers", "qwen_tts", "numpy", "soundfile" ]
 
     def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

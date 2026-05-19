@@ -1,8 +1,15 @@
-from typing import Optional, Dict, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Optional, Dict, Any, Tuple, Union, List
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskService, ComponentActionContext
+
+if TYPE_CHECKING:
+    import numpy as np
+    import torch
 
 class MusicGenerationTaskAction:
     def __init__(self, config: MusicGenerationModelActionConfig):
@@ -29,8 +36,34 @@ class MusicGenerationTaskAction:
         return params
 
     @abstractmethod
-    async def _generate(self, prompt: str, lyrics: Optional[str], params: Dict[str, Any]) -> bytes:
+    async def _generate(self, prompt: str, lyrics: Optional[str], params: Dict[str, Any]) -> Any:
         pass
+
+    def _encode_samples_to_pcm16(self, samples: Union[torch.Tensor, np.typing.ArrayLike]) -> Tuple[bytes, int]:
+        import numpy as np
+
+        if hasattr(samples, "detach"):
+            samples = samples.detach()
+        if hasattr(samples, "cpu"):
+            samples = samples.cpu()
+        if hasattr(samples, "numpy"):
+            samples = samples.numpy()
+
+        array = np.asarray(samples)
+        if array.ndim == 1:
+            array = array[:, None]
+        elif array.ndim == 2 and array.shape[0] <= 8 and array.shape[0] < array.shape[1]:
+            array = array.T
+        elif array.ndim != 2:
+            raise ValueError(f"Expected mono or stereo audio samples, got shape {array.shape}")
+
+        if np.issubdtype(array.dtype, np.floating):
+            array = np.clip(array, -1.0, 1.0)
+            array = (array * 32767.0).astype("<i2")
+        elif array.dtype != np.int16:
+            array = array.astype("<i2")
+
+        return array.tobytes(), int(array.shape[1])
 
 class MusicGenerationTaskService(ModelTaskService):
     pass

@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Generation
+  description: Generate music from text description and optional lyrics using ACE-Step 1.5.
+  job:
+    input: ${input}
+    output: ${output as audio}
+
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: ace-step
+  model: ACE-Step/Ace-Step1.5
+  device: auto
+  preset: acestep-v15-turbo
+  max_concurrent_count: 1
+  action:
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics as text}
+    params:
+      duration: ${input.duration as integer | 30}
+      bpm: ${input.bpm as integer | 120}
+      inference_steps: 8
+      guidance_scale: 5.0

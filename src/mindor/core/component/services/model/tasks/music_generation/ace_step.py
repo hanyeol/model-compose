@@ -29,10 +29,10 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             duration=int(params["duration"]),
             bpm=int(params["bpm"]),
             keyscale=params["key_scale"],
-            time_signature=params["time_signature"],
+            timesignature=params["time_signature"],
             inference_steps=int(params["inference_steps"]),
             guidance_scale=float(params["guidance_scale"]),
-            seed=int(params["seed"]) if params["seed"] is not None else None,
+            seed=int(params["seed"]) if params["seed"] is not None else -1,
         )
 
         generation_config = GenerationConfig(

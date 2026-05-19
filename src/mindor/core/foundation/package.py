@@ -1,28 +1,31 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from packaging.requirements import Requirement, SpecifierSet
 from packaging.utils import canonicalize_name
 from importlib.metadata import version, PackageNotFoundError
 import sys, subprocess, re
 import asyncio
 
-async def install_package(package_spec: str) -> None:
+async def install_package(package_spec: str, pip_options: Optional[List[str]] = None) -> None:
     """Install a package using pip.
-    
+
     Args:
         package_spec: Package specification to install (e.g., "torch>=2.0.0" or "git+https://github.com/...")
+        pip_options: Additional pip options (e.g., ["--index-url", "https://download.pytorch.org/whl/cu128"])
     """
+    cmd = [ sys.executable, "-m", "pip", "install", package_spec ] + (pip_options or [])
+
     process = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "pip", "install", package_spec,
+        *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
 
     stdout, stderr = await process.communicate()
-    
+
     if process.returncode != 0:
         raise subprocess.CalledProcessError(
-            process.returncode, 
-            [ sys.executable, "-m", "pip", "install", package_spec ],
+            process.returncode,
+            cmd,
             output=stdout,
             stderr=stderr
         )

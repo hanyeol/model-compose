@@ -23,12 +23,10 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
+        self.config: EsrganImageUpscaleModelActionConfig = config
         self.model: RRDBNet = model
 
     async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
-        pass
-
-    async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         pass
 
 class EsrganImageUpscaleTaskService(ImageUpscaleTaskService):

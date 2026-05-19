@@ -13,7 +13,8 @@ ModelComponentConfig = Annotated[
         ImageUpscaleModelComponentConfig,
         FaceEmbeddingeModelComponentConfig,
         TextToSpeechModelComponentConfig,
-        SpeechToTextModelComponentConfig
+        SpeechToTextModelComponentConfig,
+        MusicGenerationModelComponentConfig
     ],
     Field(discriminator="task")
 ]

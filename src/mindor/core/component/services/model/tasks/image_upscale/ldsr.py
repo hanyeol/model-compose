@@ -23,6 +23,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
+        self.config: LdsrImageUpscaleModelActionConfig = config
         self.model: PreTrainedModel = model
 
     async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
@@ -70,13 +71,13 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
         pass
 
     async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-        
+        params = await super()._resolve_upscale_params(context)
+
         params["steps"            ] = await context.render_variable(self.config.params.steps)
         params["eta"              ] = await context.render_variable(self.config.params.eta)
         params["downsample_method"] = await context.render_variable(self.config.params.downsample_method)
         params["half_precision"   ] = await context.render_variable(self.config.params.half_precision)
-        
+
         return params
 
 class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):

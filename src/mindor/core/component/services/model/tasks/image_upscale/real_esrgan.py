@@ -23,6 +23,7 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
+        self.config: RealEsrganImageUpscaleModelActionConfig = config
         self.model: RealESRGAN = model
 
     async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
@@ -36,7 +37,7 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
         return upscaled_images
 
     async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
+        params = await super()._resolve_upscale_params(context)
 
         params["batch_size"  ] = await context.render_variable(self.config.params.tile_batch_size)
         params["patches_size"] = await context.render_variable(self.config.params.tile_size)

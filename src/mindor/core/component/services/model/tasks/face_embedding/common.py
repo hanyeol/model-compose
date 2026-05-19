@@ -35,12 +35,11 @@ class FaceEmbeddingTaskAction:
     async def _prepare_input(self, context: ComponentActionContext) -> Union[PILImage.Image, List[PILImage.Image]]:
         return await context.render_image(self.config.image)
 
-    @abstractmethod
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
-        pass
+    async def _resolve_embedding_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
 
     @abstractmethod
-    async def _resolve_embedding_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
         pass
 
 class FaceEmbeddingTaskService(ModelTaskService):

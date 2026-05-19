@@ -28,7 +28,7 @@ class ImageUpscaleTaskAction:
         results = []
 
         batch_size   = await context.render_variable(self.config.batch_size)
-        color_format = await context.render_variable(self.config.params.color_format)
+        color_format = await context.render_variable(self.config.color_format)
         params       = await self._resolve_upscale_params(context)
 
         for index in range(0, len(images), batch_size):
@@ -40,6 +40,9 @@ class ImageUpscaleTaskAction:
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[PILImage.Image, List[PILImage.Image]]:
         return await context.render_image(self.config.image)
+
+    async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
 
     def _normalize_image(self, image: PILImage.Image, color_format: ColorFormat) -> PILImage.Image:
         if color_format == ColorFormat.RGB:
@@ -64,10 +67,6 @@ class ImageUpscaleTaskAction:
 
     @abstractmethod
     async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
-        pass
-
-    @abstractmethod
-    async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         pass
 
 class ImageUpscaleTaskService(ModelTaskService):

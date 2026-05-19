@@ -18,6 +18,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     def __init__(self, config: InsightfaceFaceEmbeddingModelActionConfig, model: FaceAnalysis):
         super().__init__(config, None)
 
+        self.config: InsightfaceFaceEmbeddingModelActionConfig = config
         self.model: FaceAnalysis = model
 
     async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
@@ -30,9 +31,6 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
             embeddings.append([ face.embedding.tolist() for face in self.model.get(image_cv) ])
 
         return embeddings
-
-    async def _resolve_embedding_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
 
 class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

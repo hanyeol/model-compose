@@ -35,12 +35,11 @@ class ImageGenerationTaskAction:
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_variable(self.config.text)
 
-    @abstractmethod
-    async def _generate(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
-        pass
+    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
 
     @abstractmethod
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _generate(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
 class ImageGenerationTaskService(ModelTaskService):

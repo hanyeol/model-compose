@@ -16,6 +16,7 @@ class ModelTaskType(str, Enum):
     FACE_EMBEDDING      = "face-embedding"
     TEXT_TO_SPEECH      = "text-to-speech"
     SPEECH_TO_TEXT      = "speech-to-text"
+    MUSIC_GENERATION    = "music-generation"
 
 class ModelDriver(str, Enum):
     HUGGINGFACE = "huggingface"

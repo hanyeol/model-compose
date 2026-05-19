@@ -22,12 +22,10 @@ class HunyuanImageGenerationTaskAction(ImageGenerationTaskAction):
     ):
         super().__init__(config, device)
 
+        self.config: HunyuanImageGenerationModelActionConfig = config
         self.pipeline = pipeline
 
     async def _generate(self, params: Dict[str, Any]) -> List[PILImage.Image]:
-        pass
-
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         pass
 
 class HunyuanImageGenerationTaskService(ImageGenerationTaskService):

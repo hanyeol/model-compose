@@ -99,7 +99,7 @@ class HuggingfaceTextGenerationTaskAction:
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)
 
-        params = {
+        params: Dict[str, Any] = {
             "return_tensors": "pt",
             "padding": True,
             "truncation": False
@@ -123,7 +123,7 @@ class HuggingfaceTextGenerationTaskAction:
         length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
         early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
 
-        params = {
+        params: Dict[str, Any] = {
             "max_new_tokens": max_output_length,
             "min_length": min_output_length,
             "num_return_sequences": num_return_sequences,

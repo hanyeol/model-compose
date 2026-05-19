@@ -108,7 +108,7 @@ class HuggingfaceImageToTextTaskAction:
     async def _resolve_processor_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)
 
-        params = {
+        params: Dict[str, Any] = {
             "return_tensors": "pt",
             "padding": True,
             "truncation": False

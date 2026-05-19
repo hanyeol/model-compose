@@ -24,6 +24,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
+        self.config: SwinIRImageUpscaleModelActionConfig = config
         self.model: SwinIR = model
 
     async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
@@ -144,15 +145,15 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
         return output
 
     async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-        
+        params = await super()._resolve_upscale_params(context)
+
         params["task"        ] = await context.render_variable(self.config.params.task)
         params["tile"        ] = await context.render_variable(self.config.params.tile)
         params["tile_overlap"] = await context.render_variable(self.config.params.tile_overlap)
         params["scale"       ] = await context.render_variable(self.config.params.scale)
         params["window_size" ] = await context.render_variable(self.config.params.window_size)
         params["jpeg_quality"] = await context.render_variable(self.config.params.jpeg_quality)
-        
+
         return params
 
 class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):

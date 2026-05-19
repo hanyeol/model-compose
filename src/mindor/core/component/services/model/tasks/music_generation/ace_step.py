@@ -28,7 +28,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             lyrics=lyrics or "",
             duration=int(params["duration"]),
             bpm=int(params["bpm"]),
-            key_scale=params["key_scale"],
+            keyscale=params["key_scale"],
             time_signature=params["time_signature"],
             inference_steps=int(params["inference_steps"]),
             guidance_scale=float(params["guidance_scale"]),
@@ -75,7 +75,14 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
         self.handler: Optional[AceStepHandler] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git", "soundfile" ]
+        return [
+            "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+            "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+            "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
+            "nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git",
+            "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
+            "soundfile"
+        ]
 
     def _load_model(self) -> None:
         if isinstance(self.config.model, HuggingfaceModelConfig):

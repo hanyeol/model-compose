@@ -288,7 +288,6 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     ) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
-        routing_job_ids: Set[str] = { job_id for job in workflow.jobs for job_id in job.get_routing_jobs() }
         for job in workflow.jobs:
             if not self._is_terminal_job(workflow, job.id):
                 continue

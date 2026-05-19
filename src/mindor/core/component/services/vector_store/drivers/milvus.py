@@ -290,13 +290,14 @@ class MilvusVectorStoreAction:
         return { "affected_rows": affected_rows }
 
     async def _resolve_search_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        search_params = {}
-
         metric_type = await context.render_variable(self.config.metric_type)
-        if metric_type:
-            search_params["metric_type"] = metric_type
 
-        return search_params
+        params: Dict[str, Any] = {}
+
+        if metric_type:
+            params["metric_type"] = metric_type
+
+        return params
 
 @register_vector_store_service(VectorStoreDriver.MILVUS)
 class MilvusVectorStoreService(VectorStoreService):

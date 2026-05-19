@@ -12,6 +12,7 @@ class ComposeValidator:
 
     def validate(self) -> List[str]:
         self.errors = []
+
         self._validate_duplicate_component_ids()
         self._validate_duplicate_workflow_ids()
         self._validate_duplicate_job_ids()
@@ -19,189 +20,206 @@ class ComposeValidator:
         self._validate_action_references()
         self._validate_workflow_references()
         self._validate_job_graphs()
+
         return self.errors
 
     def _validate_duplicate_component_ids(self):
         seen: Dict[str, int] = {}
-        for i, component in enumerate(self.config.components):
-            cid = component.id
-            if cid == "__component__":
+
+        for component_index, component in enumerate(self.config.components):
+            if component.id == "__component__":
                 continue
-            if cid in seen:
+
+            if component.id in seen:
                 self.errors.append(
-                    f"components[{i}].id: Duplicate component ID '{cid}' (first seen at components[{seen[cid]}])"
+                    f"components[{component_index}].id: Duplicate component ID '{component.id}' (first seen at components[{seen[component.id]}])"
                 )
             else:
-                seen[cid] = i
+                seen[component.id] = component_index
 
     def _validate_duplicate_workflow_ids(self):
         seen: Dict[str, int] = {}
-        for i, workflow in enumerate(self.config.workflows):
-            wid = workflow.id
-            if wid == "__workflow__":
+
+        for workflow_index, workflow in enumerate(self.config.workflows):
+            if workflow.id == "__workflow__":
                 continue
-            if wid in seen:
+
+            if workflow.id in seen:
                 self.errors.append(
-                    f"workflows[{i}].id: Duplicate workflow ID '{wid}' (first seen at workflows[{seen[wid]}])"
+                    f"workflows[{workflow_index}].id: Duplicate workflow ID '{workflow.id}' (first seen at workflows[{seen[workflow.id]}])"
                 )
             else:
-                seen[wid] = i
+                seen[workflow.id] = workflow_index
 
     def _validate_duplicate_job_ids(self):
-        for wi, workflow in enumerate(self.config.workflows):
+        for workflow_index, workflow in enumerate(self.config.workflows):
             seen: Dict[str, int] = {}
-            for ji, job in enumerate(workflow.jobs):
-                jid = job.id
-                if jid == "__job__":
+
+            for job_index, job in enumerate(workflow.jobs):
+                if job.id == "__job__":
                     continue
-                if jid in seen:
+
+                if job.id in seen:
                     self.errors.append(
-                        f"workflows[{wi}].jobs[{ji}].id: Duplicate job ID '{jid}' in workflow '{workflow.id}'"
+                        f"workflows[{workflow_index}].jobs[{job_index}].id: Duplicate job ID '{job.id}' in workflow '{workflow.id}'"
                     )
                 else:
-                    seen[jid] = ji
+                    seen[job.id] = job_index
 
     def _validate_component_references(self):
-        component_ids = {c.id for c in self.config.components}
-        has_default = (
-            len(self.config.components) == 1
-            or any(c.default for c in self.config.components)
+        component_ids = { component.id for component in self.config.components}
+        has_default_component = (
+            len(self.config.components) == 1 or any(component.default for component in self.config.components)
         )
 
-        for wi, workflow in enumerate(self.config.workflows):
-            for ji, job in enumerate(workflow.jobs):
+        for workflow_index, workflow in enumerate(self.config.workflows):
+            for job_index, job in enumerate(workflow.jobs):
                 if not isinstance(job, ComponentJobConfig):
                     continue
+
                 if not isinstance(job.component, str):
                     continue
 
-                comp_ref = job.component
-                if comp_ref == "__default__":
-                    if not has_default and len(self.config.components) > 1:
+                if job.component == "__default__":
+                    if not has_default_component:
                         self.errors.append(
-                            f"workflows[{wi}].jobs[{ji}].component: Uses default component but multiple components exist and none has 'default: true'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].component: Uses default component but multiple components exist and none has 'default: true'"
                         )
-                elif comp_ref not in component_ids:
-                    self.errors.append(
-                        f"workflows[{wi}].jobs[{ji}].component: References non-existent component '{comp_ref}'"
-                    )
+                else:
+                    if job.component not in component_ids:
+                        self.errors.append(
+                            f"workflows[{workflow_index}].jobs[{job_index}].component: References non-existent component '{job.component}'"
+                        )
 
     def _validate_action_references(self):
-        component_map = {c.id: c for c in self.config.components}
+        component_map = { component.id: component for component in self.config.components }
 
-        for wi, workflow in enumerate(self.config.workflows):
-            for ji, job in enumerate(workflow.jobs):
+        for workflow_index, workflow in enumerate(self.config.workflows):
+            for job_index, job in enumerate(workflow.jobs):
                 if not isinstance(job, ComponentJobConfig):
                     continue
 
-                action_ref = job.action
-                if action_ref == "__default__":
-                    continue
-
                 if isinstance(job.component, str):
-                    if job.component == "__default__":
-                        continue
                     component = component_map.get(job.component)
                     if component is None:
                         continue
                 else:
                     component = job.component
 
-                action_ids = {a.id for a in component.actions}
-                if action_ref not in action_ids:
-                    self.errors.append(
-                        f"workflows[{wi}].jobs[{ji}].action: References non-existent action '{action_ref}' on component '{component.id}'"
+                if job.action == "__default__":
+                    has_default_action = (
+                        len(component.actions) == 1 or any(action.default for action in component.actions)
                     )
+                    if not has_default_action:
+                        self.errors.append(
+                            f"workflows[{workflow_index}].jobs[{job_index}].action: Uses default action but component '{component.id}' has multiple actions and none has 'default: true'"
+                        )
+                else:
+                    action_ids = { action.id for action in component.actions }
+                    if job.action not in action_ids:
+                        self.errors.append(
+                            f"workflows[{workflow_index}].jobs[{job_index}].action: References non-existent action '{job.action}' on component '{component.id}'"
+                        )
 
     def _validate_workflow_references(self):
-        workflow_ids = {w.id for w in self.config.workflows}
-        has_default = (
+        workflow_ids = { workflow.id for workflow in self.config.workflows }
+        has_default_workflow = (
             len(self.config.workflows) == 1
             or any(w.default for w in self.config.workflows)
         )
 
-        for ci, component in enumerate(self.config.components):
+        for component_index, component in enumerate(self.config.components):
             if not isinstance(component, WorkflowComponentConfig):
                 continue
-            for ai, action in enumerate(component.actions):
+
+            for action_index, action in enumerate(component.actions):
                 if not isinstance(action, WorkflowActionConfig):
                     continue
-                wf_ref = action.workflow
-                if wf_ref == "__default__":
-                    if not has_default and len(self.config.workflows) > 1:
-                        self.errors.append(
-                            f"components[{ci}].actions[{ai}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
-                        )
-                elif wf_ref not in workflow_ids:
-                    self.errors.append(
-                        f"components[{ci}].actions[{ai}].workflow: References non-existent workflow '{wf_ref}'"
-                    )
 
-        for li, listener in enumerate(self.config.listeners):
+                if action.workflow == "__default__":
+                    if not has_default_workflow:
+                        self.errors.append(
+                            f"components[{component_index}].actions[{action_index}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
+                        )
+                else:
+                    if action.workflow not in workflow_ids:
+                        self.errors.append(
+                            f"components[{component_index}].actions[{action_index}].workflow: References non-existent workflow '{action.workflow}'"
+                        )
+
+        for listener_index, listener in enumerate(self.config.listeners):
             if not isinstance(listener, HttpTriggerListenerConfig):
                 continue
-            for ti, trigger in enumerate(listener.triggers):
-                wf_ref = trigger.workflow
-                if wf_ref == "__default__":
-                    if not has_default and len(self.config.workflows) > 1:
+
+            for trigger_index, trigger in enumerate(listener.triggers):
+                if trigger.workflow == "__default__":
+                    if not has_default_workflow:
                         self.errors.append(
-                            f"listeners[{li}].triggers[{ti}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
+                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
                         )
-                elif wf_ref not in workflow_ids:
-                    self.errors.append(
-                        f"listeners[{li}].triggers[{ti}].workflow: References non-existent workflow '{wf_ref}'"
-                    )
+                else:
+                    if trigger.workflow not in workflow_ids:
+                        self.errors.append(
+                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: References non-existent workflow '{trigger.workflow}'"
+                        )
 
     def _validate_job_graphs(self):
-        for wi, workflow in enumerate(self.config.workflows):
+        for workflow_index, workflow in enumerate(self.config.workflows):
             if not workflow.jobs:
                 continue
 
-            job_ids = {job.id for job in workflow.jobs}
+            job_ids = { job.id for job in workflow.jobs }
 
-            for ji, job in enumerate(workflow.jobs):
-                for dep_id in job.depends_on:
-                    if dep_id == job.id:
+            for job_index, job in enumerate(workflow.jobs):
+                for dependency_id in job.depends_on:
+                    if dependency_id == job.id:
                         self.errors.append(
-                            f"workflows[{wi}].jobs[{ji}].depends_on: Job '{job.id}' depends on itself"
+                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: Job '{job.id}' depends on itself"
                         )
-                    elif dep_id not in job_ids:
+                        continue
+
+                    if dependency_id not in job_ids:
                         self.errors.append(
-                            f"workflows[{wi}].jobs[{ji}].depends_on: Job '{job.id}' references non-existent job '{dep_id}'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: Job '{job.id}' references non-existent job '{dependency_id}'"
+                        )
+                        continue
+
+                for target_job_id in job.get_routing_jobs():
+                    if target_job_id not in job_ids:
+                        self.errors.append(
+                            f"workflows[{workflow_index}].jobs[{job_index}]: Routing target '{target_job_id}' does not exist in workflow '{workflow.id}'"
                         )
 
-                for target_id in job.get_routing_jobs():
-                    if target_id not in job_ids:
-                        self.errors.append(
-                            f"workflows[{wi}].jobs[{ji}]: Routing target '{target_id}' does not exist in workflow '{workflow.id}'"
-                        )
-
-            entry_jobs = [j for j in workflow.jobs if not j.depends_on]
+            entry_jobs = [ job for job in workflow.jobs if not job.depends_on ]
             if not entry_jobs:
                 self.errors.append(
-                    f"workflows[{wi}]: Workflow '{workflow.id}' has no entry job (all jobs have depends_on)"
+                    f"workflows[{workflow_index}]: Workflow '{workflow.id}' has no entry job (all jobs have depends_on)"
                 )
 
-            self._validate_no_cycles(wi, workflow.id, {j.id: j for j in workflow.jobs})
+            self._validate_no_cycles(workflow_index, workflow.id, { job.id: job for job in workflow.jobs })
 
-    def _validate_no_cycles(self, wi: int, workflow_id: str, job_map: dict):
+    def _validate_no_cycles(self, workflow_index: int, workflow_id: str, job_map: dict):
         visiting: Set[str] = set()
         visited: Set[str] = set()
 
-        def dfs(job_id: str):
+        def detect_cycle(job_id: str):
             if job_id in visiting:
                 self.errors.append(
-                    f"workflows[{wi}]: Dependency cycle detected involving job '{job_id}' in workflow '{workflow_id}'"
+                    f"workflows[{workflow_index}]: Dependency cycle detected involving job '{job_id}' in workflow '{workflow_id}'"
                 )
                 return
+
             if job_id in visited or job_id not in job_map:
                 return
+
             visiting.add(job_id)
-            for dep_id in job_map[job_id].depends_on:
-                dfs(dep_id)
+
+            for dependency_id in job_map[job_id].depends_on:
+                detect_cycle(dependency_id)
+
             visiting.remove(job_id)
             visited.add(job_id)
 
-        for job_id in job_map:
-            if job_id not in visited:
-                dfs(job_id)
+        for job in job_map.values():
+            if job.id not in visited:
+                detect_cycle(job.id)

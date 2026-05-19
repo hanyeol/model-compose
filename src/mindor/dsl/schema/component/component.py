@@ -11,6 +11,8 @@ ComponentConfig = Annotated[
         McpServerComponentConfig,
         McpClientComponentConfig,
         ModelComponentConfig,
+        ModelMemoryComponentConfig,
+        TokenizerComponentConfig,
         DatasetsComponentConfig,
         VectorStoreComponentConfig,
         WorkflowComponentConfig,
@@ -24,8 +26,7 @@ ComponentConfig = Annotated[
         VideoConverterComponentConfig,
         AudioExtractorComponentConfig,
         KeyValueStoreComponentConfig,
-        GraphStoreComponentConfig,
-        TokenizerComponentConfig
+        GraphStoreComponentConfig
     ],
     Field(discriminator="type")
 ]

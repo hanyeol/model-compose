@@ -234,23 +234,23 @@ class ArangoDBGraphStoreService(GraphStoreService):
         super().__init__(id, config, daemon)
 
         self.client: Optional[ArangoClient] = None
-        self.db: Optional[StandardDatabase] = None
+        self.database: Optional[StandardDatabase] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return ["python-arango"]
 
     async def _serve(self) -> None:
-        self.client, self.db = self._create_client()
+        self.client, self.database = self._create_client()
 
     async def _shutdown(self) -> None:
         if self.client:
             self.client.close()
             self.client = None
-            self.db = None
+            self.database = None
 
     async def _run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
         async def _run():
-            return await ArangoDBGraphStoreAction(action).run(context, self.db)
+            return await ArangoDBGraphStoreAction(action).run(context, self.database)
 
         return await self.run_in_thread(_run)
 

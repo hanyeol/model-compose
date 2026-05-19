@@ -9,9 +9,10 @@ class ColorFormat(str, Enum):
     BGR = "bgr"
 
 class CommonImageUpscaleParamsConfig(BaseModel):
-    color_format: ColorFormat = Field(default=ColorFormat.RGB, description="Color format for image processing.")
+    pass
 
 class CommonImageUpscaleModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image to upscale.")
     batch_size: Union[int, str] = Field(default=1, description="Number of images to process in a single batch.")
+    color_format: ColorFormat = Field(default=ColorFormat.RGB, description="Color format for image processing.")
     params: CommonImageUpscaleParamsConfig = Field(..., description="Image upscale configuration parameters.")

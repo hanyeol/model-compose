@@ -19,7 +19,9 @@ component:
   task: music-generation
   driver: custom
   family: ace-step
-  model: ACE-Step/Ace-Step1.5
+  model:
+    provider: local
+    path: ./models
   device: auto
   preset: acestep-v15-turbo
   max_concurrent_count: 1

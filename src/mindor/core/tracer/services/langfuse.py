@@ -22,9 +22,18 @@ class LangfuseTracerService(TracerService):
         self._client = Langfuse(
             public_key=self.config.public_key,
             secret_key=self.config.secret_key,
-            base_url=self.config.base_url,
+            base_url=self._resolve_base_url(),
             timeout=self.config.timeout
         )
+
+    def _resolve_base_url(self) -> str:
+        if self.config.url:
+            return self.config.url
+        scheme = "https" if self.config.secure else "http"
+        default_port = 443 if self.config.secure else 80
+        if self.config.port == default_port:
+            return f"{scheme}://{self.config.host}"
+        return f"{scheme}://{self.config.host}:{self.config.port}"
 
     async def _shutdown(self) -> None:
         if self._client:

@@ -78,6 +78,9 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
         return [ "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git", "soundfile" ]
 
     def _load_model(self) -> None:
+        if isinstance(self.config.model, HuggingfaceModelConfig):
+            raise ValueError("ACE-Step does not support HuggingFace Hub models. Use a local model path instead.")
+
         self.handler = self._load_generation_handler()
 
     def _unload_model(self) -> None:

@@ -1,7 +1,11 @@
+"""Tests for web-scraper component and action schemas."""
+
 import pytest
 from pydantic import ValidationError
+
 from mindor.dsl.schema.action import WebScraperActionConfig, WebScraperSubmitConfig
 from mindor.dsl.schema.component import WebScraperComponentConfig
+
 
 class TestWebScraperActionConfig:
     """Test WebScraperActionConfig schema validation."""
@@ -149,6 +153,7 @@ class TestWebScraperActionConfig:
         assert config.selector == "button[type='submit']"
         assert config.form is None
 
+
 class TestWebScraperComponentConfig:
     """Test WebScraperComponentConfig schema validation."""
 
@@ -241,6 +246,7 @@ class TestWebScraperComponentConfig:
         )
         assert len(config.actions) == 1
         assert config.actions[0].selector == ".content"
+
 
 class TestWebScraperIntegration:
     """Test integration scenarios between component and action configs."""

@@ -1,3 +1,5 @@
+"""Tests for graph-store component and action schemas (Neo4j and ArangoDB)."""
+
 import pytest
 from pydantic import ValidationError, TypeAdapter
 
@@ -35,10 +37,12 @@ ArangoDBActionAdapter = TypeAdapter(ArangoDBGraphStoreActionConfig)
 # Component Schema Tests
 # ──────────────────────────────────────────────
 
+
 class TestGraphStoreComponentSchema:
     """Test graph-store component schema validation."""
 
     def test_minimal_neo4j_config(self):
+        """Test minimal Neo4j configuration with defaults."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -57,6 +61,7 @@ class TestGraphStoreComponentSchema:
         assert config.timeout == "30s"
 
     def test_full_neo4j_config(self):
+        """Test full Neo4j configuration with all fields."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -75,6 +80,7 @@ class TestGraphStoreComponentSchema:
         assert config.timeout == "60s"
 
     def test_minimal_arangodb_config(self):
+        """Test minimal ArangoDB configuration with defaults."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -89,6 +95,7 @@ class TestGraphStoreComponentSchema:
         assert config.database == "_system"
 
     def test_full_arangodb_config(self):
+        """Test full ArangoDB configuration with all fields."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -110,6 +117,7 @@ class TestGraphStoreComponentSchema:
         assert config.database == "social"
 
     def test_invalid_driver(self):
+        """Test that an unknown driver raises a validation error."""
         with pytest.raises(ValidationError):
             ComponentAdapter.validate_python({
                 "id": "graph",
@@ -119,6 +127,7 @@ class TestGraphStoreComponentSchema:
             })
 
     def test_invalid_arangodb_port(self):
+        """Test that an out-of-range port raises a validation error."""
         with pytest.raises(ValidationError):
             ComponentAdapter.validate_python({
                 "id": "graph",
@@ -129,6 +138,7 @@ class TestGraphStoreComponentSchema:
             })
 
     def test_neo4j_url_and_host_exclusive(self):
+        """Test that url and host cannot both be specified for Neo4j."""
         with pytest.raises(ValidationError):
             ComponentAdapter.validate_python({
                 "id": "graph",
@@ -140,6 +150,7 @@ class TestGraphStoreComponentSchema:
             })
 
     def test_arangodb_url_and_host_exclusive(self):
+        """Test that url and host cannot both be specified for ArangoDB."""
         with pytest.raises(ValidationError):
             ComponentAdapter.validate_python({
                 "id": "graph",
@@ -151,6 +162,7 @@ class TestGraphStoreComponentSchema:
             })
 
     def test_neo4j_url_only(self):
+        """Test Neo4j configuration with url only."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -161,6 +173,7 @@ class TestGraphStoreComponentSchema:
         assert config.url == "neo4j+s://db.example.com:7687"
 
     def test_arangodb_url_only(self):
+        """Test ArangoDB configuration with url only."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -171,6 +184,7 @@ class TestGraphStoreComponentSchema:
         assert config.url == "https://arango.example.com:8529"
 
     def test_neo4j_isinstance(self):
+        """Test that Neo4j config is an instance of Neo4jGraphStoreComponentConfig."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -180,6 +194,7 @@ class TestGraphStoreComponentSchema:
         assert isinstance(config, Neo4jGraphStoreComponentConfig)
 
     def test_arangodb_isinstance(self):
+        """Test that ArangoDB config is an instance of ArangoDBGraphStoreComponentConfig."""
         config = ComponentAdapter.validate_python({
             "id": "graph",
             "type": "graph-store",
@@ -193,10 +208,12 @@ class TestGraphStoreComponentSchema:
 # Neo4j Action Schema Tests
 # ──────────────────────────────────────────────
 
+
 class TestNeo4jActionSchema:
     """Test Neo4j graph store action schema validation."""
 
     def test_query_action(self):
+        """Test basic query action creation."""
         config = Neo4jActionAdapter.validate_python({
             "method": "query",
             "query": "MATCH (n:Person) RETURN n",
@@ -208,6 +225,7 @@ class TestNeo4jActionSchema:
         assert config.database is None
 
     def test_query_action_with_params(self):
+        """Test query action with parameters and database override."""
         config = Neo4jActionAdapter.validate_python({
             "method": "query",
             "query": "MATCH (n:Person {name: $name}) RETURN n",
@@ -218,6 +236,7 @@ class TestNeo4jActionSchema:
         assert config.database == "mydb"
 
     def test_insert_action_with_nodes(self):
+        """Test insert action with node data."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
             "nodes": {
@@ -231,6 +250,7 @@ class TestNeo4jActionSchema:
         assert config.relationships is None
 
     def test_insert_action_with_relationships(self):
+        """Test insert action with relationship data."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
             "relationships": {
@@ -245,6 +265,7 @@ class TestNeo4jActionSchema:
         assert config.nodes is None
 
     def test_insert_action_with_multiple_nodes(self):
+        """Test insert action with a list of nodes."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -256,6 +277,7 @@ class TestNeo4jActionSchema:
         assert len(config.nodes) == 2
 
     def test_update_action(self):
+        """Test update action with properties and labels."""
         config = Neo4jActionAdapter.validate_python({
             "method": "update",
             "node_id": "4:abc:123",
@@ -268,6 +290,7 @@ class TestNeo4jActionSchema:
         assert config.labels == "Senior"
 
     def test_update_action_multiple_labels(self):
+        """Test update action with multiple labels."""
         config = Neo4jActionAdapter.validate_python({
             "method": "update",
             "node_id": "4:abc:123",
@@ -276,6 +299,7 @@ class TestNeo4jActionSchema:
         assert config.labels == ["Senior", "Manager"]
 
     def test_update_relationship(self):
+        """Test update action targeting a relationship."""
         config = Neo4jActionAdapter.validate_python({
             "method": "update",
             "relationship_id": "5:abc:456",
@@ -285,6 +309,7 @@ class TestNeo4jActionSchema:
         assert config.node_id is None
 
     def test_delete_action_with_detach(self):
+        """Test delete action with detach enabled."""
         config = Neo4jActionAdapter.validate_python({
             "method": "delete",
             "node_id": "4:abc:123",
@@ -294,6 +319,7 @@ class TestNeo4jActionSchema:
         assert config.detach is True
 
     def test_delete_action_without_detach(self):
+        """Test delete action with detach disabled."""
         config = Neo4jActionAdapter.validate_python({
             "method": "delete",
             "node_id": "4:abc:123",
@@ -302,6 +328,7 @@ class TestNeo4jActionSchema:
         assert config.detach is False
 
     def test_delete_action_default_detach(self):
+        """Test that delete action defaults to detach=True."""
         config = Neo4jActionAdapter.validate_python({
             "method": "delete",
             "node_id": "4:abc:123",
@@ -309,6 +336,7 @@ class TestNeo4jActionSchema:
         assert config.detach is True
 
     def test_delete_relationship(self):
+        """Test delete action targeting a relationship."""
         config = Neo4jActionAdapter.validate_python({
             "method": "delete",
             "relationship_id": "5:abc:456",
@@ -317,6 +345,7 @@ class TestNeo4jActionSchema:
         assert config.node_id is None
 
     def test_traverse_action_minimal(self):
+        """Test minimal traverse action with defaults."""
         config = Neo4jActionAdapter.validate_python({
             "method": "traverse",
             "start_node": "4:abc:123",
@@ -328,6 +357,7 @@ class TestNeo4jActionSchema:
         assert config.node_labels is None
 
     def test_traverse_action_full(self):
+        """Test full traverse action with all options."""
         config = Neo4jActionAdapter.validate_python({
             "method": "traverse",
             "start_node": "4:abc:123",
@@ -344,6 +374,7 @@ class TestNeo4jActionSchema:
         assert config.database == "mydb"
 
     def test_traverse_invalid_max_depth(self):
+        """Test that zero max_depth raises a validation error."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "traverse",
@@ -352,6 +383,7 @@ class TestNeo4jActionSchema:
             })
 
     def test_traverse_invalid_direction(self):
+        """Test that an invalid direction raises a validation error."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "traverse",
@@ -377,10 +409,12 @@ class TestNeo4jActionSchema:
 # ArangoDB Action Schema Tests
 # ──────────────────────────────────────────────
 
+
 class TestArangoDBActionSchema:
     """Test ArangoDB graph store action schema validation."""
 
     def test_query_action(self):
+        """Test basic AQL query action creation."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "query",
             "query": "FOR p IN persons RETURN p",
@@ -390,6 +424,7 @@ class TestArangoDBActionSchema:
         assert config.collection is None
 
     def test_query_action_with_collection(self):
+        """Test AQL query action with collection and params."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "query",
             "query": "FOR p IN @@col RETURN p",
@@ -400,6 +435,7 @@ class TestArangoDBActionSchema:
         assert config.params == {"@col": "persons"}
 
     def test_insert_action_with_graph(self):
+        """Test insert action with graph, collection, and edge collection."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "insert",
             "collection": "persons",
@@ -414,6 +450,7 @@ class TestArangoDBActionSchema:
         assert config.graph == "social_graph"
 
     def test_update_action(self):
+        """Test update action with collection and node_id."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "update",
             "collection": "persons",
@@ -424,6 +461,7 @@ class TestArangoDBActionSchema:
         assert config.collection == "persons"
 
     def test_delete_action(self):
+        """Test delete action with collection and node_id."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "delete",
             "collection": "persons",
@@ -432,6 +470,7 @@ class TestArangoDBActionSchema:
         assert isinstance(config, ArangoDBGraphDeleteActionConfig)
 
     def test_traverse_action_with_graph(self):
+        """Test traverse action using a named graph."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "traverse",
             "start_node": "persons/12345",
@@ -444,6 +483,7 @@ class TestArangoDBActionSchema:
         assert config.edge_collection is None
 
     def test_traverse_action_with_edge_collection(self):
+        """Test traverse action using an edge collection."""
         config = ArangoDBActionAdapter.validate_python({
             "method": "traverse",
             "start_node": "persons/12345",
@@ -471,10 +511,12 @@ class TestArangoDBActionSchema:
 # Integration Tests (Component + Actions)
 # ──────────────────────────────────────────────
 
+
 class TestGraphStoreIntegration:
     """Test full component configs with embedded actions."""
 
     def test_neo4j_component_with_actions(self):
+        """Test Neo4j component with multiple action types."""
         config = ComponentAdapter.validate_python({
             "id": "knowledge-graph",
             "type": "graph-store",
@@ -519,6 +561,7 @@ class TestGraphStoreIntegration:
         assert isinstance(config.actions[3], Neo4jGraphDeleteActionConfig)
 
     def test_arangodb_component_with_actions(self):
+        """Test ArangoDB component with multiple action types."""
         config = ComponentAdapter.validate_python({
             "id": "social-graph",
             "type": "graph-store",
@@ -576,10 +619,12 @@ class TestGraphStoreIntegration:
 # Identifier Validation Tests
 # ──────────────────────────────────────────────
 
+
 class TestIdentifierValidation:
     """Test that identifiers used in query construction are validated."""
 
     def test_valid_node_label(self):
+        """Test that a valid node label is accepted."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice"}},
@@ -587,6 +632,7 @@ class TestIdentifierValidation:
         assert config.nodes.label == "Person"
 
     def test_invalid_node_label_rejected(self):
+        """Test that an injection-attempt label is rejected."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "insert",
@@ -594,6 +640,7 @@ class TestIdentifierValidation:
             })
 
     def test_invalid_relationship_type_rejected(self):
+        """Test that an injection-attempt relationship type is rejected."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "insert",
@@ -609,6 +656,7 @@ class TestIdentifierValidation:
         assert config.nodes.label == "${input.label}"
 
     def test_invalid_update_label_rejected(self):
+        """Test that an invalid label in update action is rejected."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "update",
@@ -617,6 +665,7 @@ class TestIdentifierValidation:
             })
 
     def test_invalid_traverse_relationship_type_rejected(self):
+        """Test that an invalid relationship type in traverse is rejected."""
         with pytest.raises(ValidationError):
             Neo4jActionAdapter.validate_python({
                 "method": "traverse",
@@ -625,6 +674,7 @@ class TestIdentifierValidation:
             })
 
     def test_invalid_arangodb_collection_rejected(self):
+        """Test that an invalid ArangoDB collection name is rejected."""
         with pytest.raises(ValidationError):
             ArangoDBActionAdapter.validate_python({
                 "method": "insert",
@@ -633,6 +683,7 @@ class TestIdentifierValidation:
             })
 
     def test_invalid_arangodb_edge_collection_rejected(self):
+        """Test that an invalid ArangoDB edge collection name is rejected."""
         with pytest.raises(ValidationError):
             ArangoDBActionAdapter.validate_python({
                 "method": "traverse",

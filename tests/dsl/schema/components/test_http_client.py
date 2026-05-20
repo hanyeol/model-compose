@@ -1,13 +1,17 @@
+"""Tests for HttpClientActionConfig, completion configs, and HttpClientComponentConfig."""
+
 import pytest
 from pydantic import ValidationError
+
 from mindor.dsl.schema.action import (
     HttpClientActionConfig,
     HttpClientPollingCompletionConfig,
     HttpClientCallbackCompletionConfig,
-    HttpClientCompletionType
+    HttpClientCompletionType,
 )
 from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.transport.http import HttpStreamFormat
+
 
 class TestHttpClientActionConfig:
     """Test HttpClientActionConfig schema validation."""
@@ -89,6 +93,7 @@ class TestHttpClientActionConfig:
         with pytest.raises(ValidationError) as exc_info:
             HttpClientActionConfig()
         assert "Either 'endpoint' or 'path' must be set, but not both" in str(exc_info.value)
+
 
 class TestHttpClientPollingCompletionConfig:
     """Test HttpClientPollingCompletionConfig schema validation."""
@@ -206,6 +211,7 @@ class TestHttpClientCallbackCompletionConfig:
         )
         assert config.stream_format == HttpStreamFormat.JSON
 
+
 class TestHttpClientActionConfigWithCompletion:
     """Test HttpClientActionConfig with completion configurations."""
 
@@ -252,6 +258,7 @@ class TestHttpClientActionConfigWithCompletion:
         )
         assert config.path == "/jobs"
         assert config.completion.path == "/jobs/status"
+
 
 class TestHttpClientComponentConfig:
     """Test HttpClientComponentConfig schema validation."""
@@ -407,6 +414,7 @@ class TestHttpClientComponentConfig:
             ]
         )
         assert config.actions[0].endpoint == "https://api.example.com/v1/chat"
+
 
 class TestHttpClientIntegration:
     """Test integration scenarios between component and action configs."""

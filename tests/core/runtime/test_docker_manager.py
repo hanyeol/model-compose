@@ -1,5 +1,11 @@
+"""Tests for Docker runtime manager including ports, mounts, and container lifecycle."""
+
 import pytest
+
 from unittest.mock import MagicMock, patch
+
+from docker.errors import NotFound, DockerException
+from docker.types import Mount
 from mindor.core.runtime.docker.docker import (
     DockerRuntimeManager,
     DockerPortsResolver,
@@ -12,16 +18,16 @@ from mindor.dsl.schema.runtime.impl.docker import (
     DockerVolumeOptionsConfig,
     DockerTmpfsOptionsConfig,
 )
-from docker.errors import NotFound, DockerException
-from docker.types import Mount
 
-# Configure anyio to use only asyncio backend
+
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
+
 class TestDockerPortsResolver:
-    """Test DockerPortsResolver class"""
+    """Test DockerPortsResolver class."""
 
     def test_resolve_empty_ports(self):
         """Test resolving empty port list"""
@@ -262,7 +268,7 @@ class TestDockerRuntimeManager:
         assert manager.verbose is True
         assert manager.client is not None
 
-    async def test_exists_image_true(self, config, mock_docker_client, anyio_backend):
+    async def test_exists_image_true(self, config, mock_docker_client):
         """Test exists_image returns True when image exists"""
         mock_docker_client.images.get.return_value = MagicMock()
 
@@ -273,7 +279,7 @@ class TestDockerRuntimeManager:
         mock_docker_client.images.get.assert_called_once_with("test-image:latest")
 
     
-    async def test_exists_image_false(self, config, mock_docker_client, anyio_backend):
+    async def test_exists_image_false(self, config, mock_docker_client):
         """Test exists_image returns False when image doesn't exist"""
         mock_docker_client.images.get.side_effect = NotFound("Image not found")
 
@@ -283,7 +289,7 @@ class TestDockerRuntimeManager:
         assert result is False
 
     
-    async def test_exists_container_true(self, config, mock_docker_client, anyio_backend):
+    async def test_exists_container_true(self, config, mock_docker_client):
         """Test exists_container returns True when container exists"""
         mock_docker_client.containers.get.return_value = MagicMock()
 
@@ -294,7 +300,7 @@ class TestDockerRuntimeManager:
         mock_docker_client.containers.get.assert_called_once_with("test-container")
 
     
-    async def test_exists_container_false(self, config, mock_docker_client, anyio_backend):
+    async def test_exists_container_false(self, config, mock_docker_client):
         """Test exists_container returns False when container doesn't exist"""
         mock_docker_client.containers.get.side_effect = NotFound("Container not found")
 
@@ -304,7 +310,7 @@ class TestDockerRuntimeManager:
         assert result is False
 
     
-    async def test_is_container_running_true(self, config, mock_docker_client, anyio_backend):
+    async def test_is_container_running_true(self, config, mock_docker_client):
         """Test is_container_running returns True when container is running"""
         mock_container = MagicMock()
         mock_container.status = "running"
@@ -316,7 +322,7 @@ class TestDockerRuntimeManager:
         assert result is True
 
     
-    async def test_is_container_running_false(self, config, mock_docker_client, anyio_backend):
+    async def test_is_container_running_false(self, config, mock_docker_client):
         """Test is_container_running returns False when container is stopped"""
         mock_container = MagicMock()
         mock_container.status = "exited"
@@ -328,7 +334,7 @@ class TestDockerRuntimeManager:
         assert result is False
 
     
-    async def test_is_container_running_not_found(self, config, mock_docker_client, anyio_backend):
+    async def test_is_container_running_not_found(self, config, mock_docker_client):
         """Test is_container_running returns False when container doesn't exist"""
         mock_docker_client.containers.get.side_effect = NotFound("Container not found")
 
@@ -338,7 +344,7 @@ class TestDockerRuntimeManager:
         assert result is False
 
     
-    async def test_pull_image_success(self, config, mock_docker_client, anyio_backend):
+    async def test_pull_image_success(self, config, mock_docker_client):
         """Test successful image pull"""
         manager = DockerRuntimeManager(config, verbose=False)
         await manager.pull_image()
@@ -346,7 +352,7 @@ class TestDockerRuntimeManager:
         mock_docker_client.images.pull.assert_called_once_with("test-image:latest")
 
     
-    async def test_pull_image_failure(self, config, mock_docker_client, anyio_backend):
+    async def test_pull_image_failure(self, config, mock_docker_client):
         """Test image pull failure"""
         mock_docker_client.images.pull.side_effect = DockerException("Pull failed")
 
@@ -356,7 +362,7 @@ class TestDockerRuntimeManager:
             await manager.pull_image()
 
     
-    async def test_remove_image_success(self, config, mock_docker_client, anyio_backend):
+    async def test_remove_image_success(self, config, mock_docker_client):
         """Test successful image removal"""
         manager = DockerRuntimeManager(config, verbose=False)
         await manager.remove_image()
@@ -367,7 +373,7 @@ class TestDockerRuntimeManager:
         )
 
     
-    async def test_remove_image_force(self, config, mock_docker_client, anyio_backend):
+    async def test_remove_image_force(self, config, mock_docker_client):
         """Test forced image removal"""
         manager = DockerRuntimeManager(config, verbose=False)
         await manager.remove_image(force=True)
@@ -378,7 +384,7 @@ class TestDockerRuntimeManager:
         )
 
     
-    async def test_remove_image_not_found(self, config, mock_docker_client, anyio_backend):
+    async def test_remove_image_not_found(self, config, mock_docker_client):
         """Test removing non-existent image doesn't raise error"""
         mock_docker_client.images.remove.side_effect = NotFound("Image not found")
 
@@ -386,7 +392,7 @@ class TestDockerRuntimeManager:
         await manager.remove_image()  # Should not raise
 
     
-    async def test_stop_container_success(self, config, mock_docker_client, anyio_backend):
+    async def test_stop_container_success(self, config, mock_docker_client):
         """Test successful container stop"""
         mock_container = MagicMock()
         mock_docker_client.containers.get.return_value = mock_container
@@ -397,7 +403,7 @@ class TestDockerRuntimeManager:
         mock_container.stop.assert_called_once()
 
     
-    async def test_stop_container_not_found(self, config, mock_docker_client, anyio_backend):
+    async def test_stop_container_not_found(self, config, mock_docker_client):
         """Test stopping non-existent container doesn't raise error"""
         mock_docker_client.containers.get.side_effect = NotFound("Container not found")
 
@@ -405,7 +411,7 @@ class TestDockerRuntimeManager:
         await manager.stop_container()  # Should not raise
 
     
-    async def test_remove_container_success(self, config, mock_docker_client, anyio_backend):
+    async def test_remove_container_success(self, config, mock_docker_client):
         """Test successful container removal"""
         mock_container = MagicMock()
         mock_docker_client.containers.get.return_value = mock_container
@@ -416,7 +422,7 @@ class TestDockerRuntimeManager:
         mock_container.remove.assert_called_once_with(force=False)
 
     
-    async def test_remove_container_force(self, config, mock_docker_client, anyio_backend):
+    async def test_remove_container_force(self, config, mock_docker_client):
         """Test forced container removal"""
         mock_container = MagicMock()
         mock_docker_client.containers.get.return_value = mock_container
@@ -427,7 +433,7 @@ class TestDockerRuntimeManager:
         mock_container.remove.assert_called_once_with(force=True)
 
     
-    async def test_start_container_creates_new(self, config, mock_docker_client, anyio_backend):
+    async def test_start_container_creates_new(self, config, mock_docker_client):
         """Test starting container creates new one if it doesn't exist"""
         mock_docker_client.containers.get.side_effect = NotFound("Container not found")
         mock_container = MagicMock()
@@ -440,7 +446,7 @@ class TestDockerRuntimeManager:
         mock_container.start.assert_called_once()
 
     
-    async def test_start_container_uses_existing(self, config, mock_docker_client, anyio_backend):
+    async def test_start_container_uses_existing(self, config, mock_docker_client):
         """Test starting container uses existing one"""
         mock_container = MagicMock()
         mock_docker_client.containers.get.return_value = mock_container
@@ -452,7 +458,7 @@ class TestDockerRuntimeManager:
         mock_container.start.assert_called_once()
 
     
-    async def test_start_container_with_ports(self, mock_docker_client, anyio_backend):
+    async def test_start_container_with_ports(self, mock_docker_client):
         """Test starting container with port mappings"""
         config = DockerRuntimeConfig(
             type="docker",
@@ -472,7 +478,7 @@ class TestDockerRuntimeManager:
         assert call_args[1]["ports"] == { "8080": "8080", "8443": "443" }
 
     
-    async def test_start_container_with_environment(self, mock_docker_client, anyio_backend):
+    async def test_start_container_with_environment(self, mock_docker_client):
         """Test starting container with environment variables"""
         config = DockerRuntimeConfig(
             type="docker",
@@ -492,7 +498,7 @@ class TestDockerRuntimeManager:
         assert call_args[1]["environment"] == { "ENV": "production", "DEBUG": False }
 
     
-    async def test_build_image_success(self, mock_docker_client, anyio_backend):
+    async def test_build_image_success(self, mock_docker_client):
         """Test successful image build"""
         config = DockerRuntimeConfig(
             type="docker",
@@ -514,7 +520,7 @@ class TestDockerRuntimeManager:
         mock_docker_client.api.build.assert_called_once()
 
     
-    async def test_build_image_with_error(self, mock_docker_client, anyio_backend):
+    async def test_build_image_with_error(self, mock_docker_client):
         """Test image build with error"""
         config = DockerRuntimeConfig(
             type="docker",

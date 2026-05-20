@@ -1,10 +1,16 @@
-import pytest
+"""Tests for WebSocketClientAction, covering message sending, frame receiving (single,
+collect, stream), connection lifecycle, and output rendering."""
+
 import asyncio
 import json
+
+import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
 from mindor.core.component.services.websocket_client import WebSocketClientAction, WebSocketClientComponent
-from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.utils.streaming import BytesStreamResource
+from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.dsl.schema.action.impl.websocket_client import WebSocketClientActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import (
     WebSocketReceiveConfig,
@@ -14,6 +20,7 @@ from mindor.dsl.schema.action.impl.websocket_server import (
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
@@ -79,6 +86,7 @@ def make_action_config(
 # ---- WebSocketClientAction Send Tests ----
 
 class TestWebSocketClientActionSend:
+    """Tests for WebSocketClientAction message sending behavior."""
 
     @pytest.mark.anyio
     async def test_send_dict_uses_send_message(self):
@@ -151,6 +159,7 @@ class TestWebSocketClientActionSend:
 # ---- Receive Tests ----
 
 class TestWebSocketClientActionReceiveSingle:
+    """Tests for receiving a single frame from the WebSocket client."""
 
     @pytest.mark.anyio
     async def test_receive_json_single(self):
@@ -207,6 +216,7 @@ class TestWebSocketClientActionReceiveSingle:
 
 
 class TestWebSocketClientActionReceiveCollect:
+    """Tests for collect mode, which gathers all frames into a single result."""
 
     @pytest.mark.anyio
     async def test_collect_json(self):
@@ -243,6 +253,7 @@ class TestWebSocketClientActionReceiveCollect:
 # ---- Stream Tests ----
 
 class TestWebSocketClientActionReceiveStream:
+    """Tests for streaming mode, which yields frames as an async generator."""
 
     @pytest.mark.anyio
     async def test_stream_json(self):
@@ -267,6 +278,7 @@ class TestWebSocketClientActionReceiveStream:
 # ---- Connection Lifecycle Tests ----
 
 class TestWebSocketClientActionConnectionLifecycle:
+    """Tests for connection ownership and cleanup after action execution."""
 
     @pytest.mark.anyio
     async def test_default_connection_not_closed_after_run(self):
@@ -313,6 +325,7 @@ class TestWebSocketClientActionConnectionLifecycle:
 # ---- Output Tests ----
 
 class TestWebSocketClientActionOutput:
+    """Tests for output template rendering after receiving a response."""
 
     @pytest.mark.anyio
     async def test_output_template_rendered(self):

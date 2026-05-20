@@ -1,19 +1,27 @@
-import pytest
+"""Tests for WebSocketServerAction and WebSocketClient, covering connection management,
+message sending, frame receiving (single, collect, stream), connection lifecycle, output
+rendering, and frame decoding."""
+
 import asyncio
 import json
+
+import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
 from mindor.core.component.services.websocket_server import WebSocketServerAction
-from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.utils.streaming import BytesStreamResource
+from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.dsl.schema.action.impl.websocket_server import (
-    WebSocketServerActionConfig,
     WebSocketReceiveConfig,
     WebSocketReceiveFormat,
+    WebSocketServerActionConfig,
 )
 
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
@@ -79,6 +87,7 @@ def make_action_config(
 # ---- WebSocketClient Tests ----
 
 class TestWebSocketClient:
+    """Tests for the WebSocketClient connection management logic."""
 
     @pytest.mark.anyio
     async def test_connect_default_creates_connection(self):
@@ -192,6 +201,7 @@ class TestWebSocketClient:
 # ---- WebSocketServerAction Tests ----
 
 class TestWebSocketServerActionSend:
+    """Tests for WebSocketServerAction message sending behavior."""
 
     @pytest.mark.anyio
     async def test_send_dict_uses_send_message(self):
@@ -262,6 +272,7 @@ class TestWebSocketServerActionSend:
 
 
 class TestWebSocketServerActionReceiveSingle:
+    """Tests for receiving a single frame from the WebSocket server."""
 
     @pytest.mark.anyio
     async def test_receive_json_single(self):
@@ -331,6 +342,7 @@ class TestWebSocketServerActionReceiveSingle:
 
 
 class TestWebSocketServerActionReceiveCollect:
+    """Tests for collect mode, which gathers all frames into a single result."""
 
     @pytest.mark.anyio
     async def test_collect_json(self):
@@ -395,6 +407,7 @@ class TestWebSocketServerActionReceiveCollect:
 
 
 class TestWebSocketServerActionReceiveStream:
+    """Tests for streaming mode, which yields frames as an async generator."""
 
     @pytest.mark.anyio
     async def test_stream_json(self):
@@ -435,6 +448,7 @@ class TestWebSocketServerActionReceiveStream:
 
 
 class TestWebSocketServerActionConnectionLifecycle:
+    """Tests for connection ownership and cleanup after action execution."""
 
     @pytest.mark.anyio
     async def test_default_connection_not_closed_after_run(self):
@@ -494,6 +508,7 @@ class TestWebSocketServerActionConnectionLifecycle:
 
 
 class TestWebSocketServerActionOutput:
+    """Tests for output template rendering after receiving a response."""
 
     @pytest.mark.anyio
     async def test_output_template_rendered(self):
@@ -524,24 +539,30 @@ class TestWebSocketServerActionOutput:
 
 
 class TestDecodeFrame:
+    """Tests for the _decode_frame helper that parses individual WebSocket frames."""
 
     def test_json_valid(self):
+        """Valid JSON string is decoded into a dict."""
         action = WebSocketServerAction(make_action_config())
         assert action._decode_frame('{"a":1}', WebSocketReceiveFormat.JSON) == {"a": 1}
 
     def test_json_invalid(self):
+        """Invalid JSON string returns None."""
         action = WebSocketServerAction(make_action_config())
         assert action._decode_frame("not json", WebSocketReceiveFormat.JSON) is None
 
     def test_text(self):
+        """Text frame is returned as-is."""
         action = WebSocketServerAction(make_action_config())
         assert action._decode_frame("hello", WebSocketReceiveFormat.TEXT) == "hello"
 
     def test_binary(self):
+        """Binary frame is returned as-is."""
         action = WebSocketServerAction(make_action_config())
         assert action._decode_frame(b"\x00", WebSocketReceiveFormat.BINARY) == b"\x00"
 
     def test_type_mismatch_returns_none(self):
+        """Mismatched frame type and format returns None."""
         action = WebSocketServerAction(make_action_config())
         assert action._decode_frame(b"\x00", WebSocketReceiveFormat.JSON) is None
         assert action._decode_frame("text", WebSocketReceiveFormat.BINARY) is None

@@ -1,21 +1,27 @@
-import pytest
+"""Tests for process runtime configuration, IPC messaging, and worker lifecycle."""
+
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
 from multiprocessing import Queue
+
+import pytest
+
+from unittest.mock import MagicMock
+
+from mindor.core.component.base import ComponentGlobalConfigs
+from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
+from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
+from mindor.core.foundation.process_manager import ProcessRuntimeManager
+from mindor.core.foundation.process_worker import ProcessWorker, ProcessWorkerParams
+from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 from mindor.dsl.schema.runtime.impl.process import IpcMethod
-from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
-from mindor.core.foundation.process_worker import ProcessWorker, ProcessWorkerParams
-from mindor.core.foundation.process_manager import ProcessRuntimeManager
-from mindor.core.component.runtime.process_worker import ComponentProcessWorker
-from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
-from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 
-# Configure anyio to use only asyncio backend
+
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
+
 
 # Module-level worker factories for pickling support
 class MathWorker(ProcessWorker):

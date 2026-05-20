@@ -1,7 +1,11 @@
-import pytest
+"""Tests for the Redis key-value store component, action schema, and service layer."""
+
 import json
-from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from pydantic import TypeAdapter, ValidationError
+
+from unittest.mock import AsyncMock, MagicMock
 
 from mindor.dsl.schema.component import ComponentConfig, KeyValueStoreComponentConfig, KeyValueStoreDriver
 from mindor.dsl.schema.action import (
@@ -22,6 +26,7 @@ from mindor.core.component.context import ComponentActionContext
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
@@ -29,12 +34,14 @@ def anyio_backend():
 # Schema Tests
 # ──────────────────────────────────────────────
 
+
 class TestKeyValueStoreSchema:
     """Test key-value-store component and action schema validation."""
 
     component_adapter = TypeAdapter(ComponentConfig)
 
     def test_minimal_redis_config(self):
+        """Validate a minimal Redis component config with defaults."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -47,6 +54,7 @@ class TestKeyValueStoreSchema:
         assert config.port == 6379
 
     def test_redis_config_with_url(self):
+        """Validate that a URL-based Redis config is accepted."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -57,6 +65,7 @@ class TestKeyValueStoreSchema:
         assert config.url == "redis://myhost:6380/2"
 
     def test_redis_url_and_host_conflict(self):
+        """Validate that specifying both url and host raises a validation error."""
         with pytest.raises(ValidationError, match="url.*host|host.*url"):
             self.component_adapter.validate_python({
                 "id": "kv",
@@ -68,6 +77,7 @@ class TestKeyValueStoreSchema:
             })
 
     def test_redis_config_full(self):
+        """Validate a fully-specified Redis config with all fields."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -86,6 +96,7 @@ class TestKeyValueStoreSchema:
         assert config.password == "secret"
 
     def test_action_set(self):
+        """Validate a SET action config with key, value, and ttl."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -101,6 +112,7 @@ class TestKeyValueStoreSchema:
         assert action.ttl == 60
 
     def test_action_get(self):
+        """Validate a GET action config."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -114,6 +126,7 @@ class TestKeyValueStoreSchema:
         assert action.key == "k"
 
     def test_action_delete(self):
+        """Validate a DELETE action config."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -125,6 +138,7 @@ class TestKeyValueStoreSchema:
         assert config.actions[0].method == KeyValueStoreActionMethod.DELETE
 
     def test_action_exists(self):
+        """Validate an EXISTS action config."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -136,6 +150,7 @@ class TestKeyValueStoreSchema:
         assert config.actions[0].method == KeyValueStoreActionMethod.EXISTS
 
     def test_multiple_actions(self):
+        """Validate that multiple actions of different methods can coexist."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -157,6 +172,7 @@ class TestKeyValueStoreSchema:
         ]
 
     def test_set_action_ttl_none_by_default(self):
+        """Validate that SET action ttl defaults to None."""
         config = self.component_adapter.validate_python({
             "id": "kv",
             "type": "key-value-store",
@@ -168,6 +184,7 @@ class TestKeyValueStoreSchema:
         assert config.actions[0].ttl is None
 
     def test_invalid_method(self):
+        """Validate that an invalid action method raises a validation error."""
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "kv",
@@ -183,8 +200,10 @@ class TestKeyValueStoreSchema:
 # Unit Tests (mocked Redis)
 # ──────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_context():
+    """Create a mock ComponentActionContext with a passthrough render_variable."""
     context = MagicMock(spec=ComponentActionContext)
     async def render_variable(value, ignore_files=False):
         return value
@@ -198,6 +217,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_get_existing_key(self, mock_context):
+        """Verify GET returns the deserialized value for an existing key."""
         client = AsyncMock()
         client.get = AsyncMock(return_value=b'"hello"')
 
@@ -210,6 +230,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_get_missing_key(self, mock_context):
+        """Verify GET returns None for a missing key."""
         client = AsyncMock()
         client.get = AsyncMock(return_value=None)
 
@@ -221,6 +242,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_get_json_object(self, mock_context):
+        """Verify GET deserializes a JSON object value."""
         client = AsyncMock()
         client.get = AsyncMock(return_value=b'{"name": "Alice", "age": 30}')
 
@@ -233,6 +255,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_get_plain_string(self, mock_context):
+        """Verify GET returns a plain string when the value is not valid JSON."""
         client = AsyncMock()
         client.get = AsyncMock(return_value=b"plain text")
 
@@ -245,6 +268,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_set_string_no_ttl(self, mock_context):
+        """Verify SET stores a string value without TTL."""
         client = AsyncMock()
         client.set = AsyncMock(return_value=True)
 
@@ -258,6 +282,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_set_with_ttl(self, mock_context):
+        """Verify SET with TTL uses SETEX."""
         client = AsyncMock()
         client.setex = AsyncMock(return_value=True)
 
@@ -269,6 +294,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_set_dict_value_serialized(self, mock_context):
+        """Verify SET serializes dict values as JSON."""
         client = AsyncMock()
         client.set = AsyncMock(return_value=True)
 
@@ -283,6 +309,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_set_list_value_serialized(self, mock_context):
+        """Verify SET serializes list values as JSON."""
         client = AsyncMock()
         client.set = AsyncMock(return_value=True)
 
@@ -296,6 +323,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_set_int_value_to_string(self, mock_context):
+        """Verify SET converts integer values to string."""
         client = AsyncMock()
         client.set = AsyncMock(return_value=True)
 
@@ -308,6 +336,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_delete(self, mock_context):
+        """Verify DELETE removes a key and reports the count."""
         client = AsyncMock()
         client.delete = AsyncMock(return_value=1)
 
@@ -321,6 +350,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_delete_nonexistent(self, mock_context):
+        """Verify DELETE on a nonexistent key reports count of 0."""
         client = AsyncMock()
         client.delete = AsyncMock(return_value=0)
 
@@ -333,6 +363,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_exists_true(self, mock_context):
+        """Verify EXISTS returns True for an existing key."""
         client = AsyncMock()
         client.exists = AsyncMock(return_value=1)
 
@@ -345,6 +376,7 @@ class TestRedisKeyValueStoreActionUnit:
 
     @pytest.mark.anyio
     async def test_exists_false(self, mock_context):
+        """Verify EXISTS returns False for a nonexistent key."""
         client = AsyncMock()
         client.exists = AsyncMock(return_value=0)
 
@@ -360,8 +392,10 @@ class TestRedisKeyValueStoreActionUnit:
 # Integration Tests (real Redis on localhost:6379)
 # ──────────────────────────────────────────────
 
+
 @pytest.fixture
 async def redis_client():
+    """Provide a Redis client connected to DB 15 for testing, flushed after use."""
     from redis.asyncio import Redis
     client = Redis.from_url("redis://localhost:6379/15")  # use DB 15 for tests
     yield client
@@ -371,6 +405,7 @@ async def redis_client():
 
 @pytest.fixture
 def integration_context():
+    """Provide a real ComponentActionContext for integration tests."""
     context = ComponentActionContext(run_id="test-run", input={})
     return context
 
@@ -381,6 +416,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_set_and_get_string(self, redis_client, integration_context):
+        """Verify SET followed by GET round-trips a string value."""
         # SET
         set_config = RedisKeyValueSetActionConfig(method="set", key="test:str", value="hello")
         set_action = RedisKeyValueStoreAction(set_config)
@@ -395,6 +431,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_set_and_get_json_object(self, redis_client, integration_context):
+        """Verify SET followed by GET round-trips a JSON object."""
         data = {"name": "Alice", "age": 30, "tags": ["admin", "user"]}
 
         set_config = RedisKeyValueSetActionConfig(method="set", key="test:json", value=data)
@@ -408,6 +445,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_set_with_ttl(self, redis_client, integration_context):
+        """Verify SET with TTL applies an expiry to the key."""
         set_config = RedisKeyValueSetActionConfig(method="set", key="test:ttl", value="temp", ttl=10)
         set_action = RedisKeyValueStoreAction(set_config)
         await set_action.run(integration_context, redis_client)
@@ -417,6 +455,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_get_nonexistent_key(self, redis_client, integration_context):
+        """Verify GET returns None for a key that does not exist."""
         get_config = RedisKeyValueGetActionConfig(method="get", key="test:nonexistent")
         get_action = RedisKeyValueStoreAction(get_config)
         get_result = await get_action.run(integration_context, redis_client)
@@ -424,6 +463,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_delete(self, redis_client, integration_context):
+        """Verify DELETE removes an existing key."""
         # Setup
         await redis_client.set("test:del", "value")
 
@@ -439,6 +479,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_delete_nonexistent(self, redis_client, integration_context):
+        """Verify DELETE on a nonexistent key returns count 0."""
         del_config = RedisKeyValueDeleteActionConfig(method="delete", key="test:nope")
         del_action = RedisKeyValueStoreAction(del_config)
         del_result = await del_action.run(integration_context, redis_client)
@@ -446,6 +487,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_exists(self, redis_client, integration_context):
+        """Verify EXISTS returns True for a key that exists."""
         await redis_client.set("test:exists", "yes")
 
         exists_config = RedisKeyValueExistsActionConfig(method="exists", key="test:exists")
@@ -455,6 +497,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_not_exists(self, redis_client, integration_context):
+        """Verify EXISTS returns False for a key that does not exist."""
         exists_config = RedisKeyValueExistsActionConfig(method="exists", key="test:nope")
         exists_action = RedisKeyValueStoreAction(exists_config)
         exists_result = await exists_action.run(integration_context, redis_client)
@@ -462,6 +505,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_overwrite_value(self, redis_client, integration_context):
+        """Verify SET overwrites a previously stored value."""
         set_config1 = RedisKeyValueSetActionConfig(method="set", key="test:ow", value="first")
         await RedisKeyValueStoreAction(set_config1).run(integration_context, redis_client)
 
@@ -494,6 +538,7 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_full_crud_cycle(self, redis_client, integration_context):
+        """Verify a full CRUD cycle: exists, set, exists, get, delete, exists."""
         key = "test:crud"
 
         # EXISTS -> False

@@ -1,4 +1,5 @@
-import pytest
+"""Tests for Chrome DevTools Protocol (CDP) client."""
+
 import asyncio
 import os
 import platform
@@ -6,12 +7,18 @@ import shutil
 import socket
 import subprocess
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch, call
+
+import pytest
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from mindor.core.utils.cdp_client import CdpClient
+
 
 CDP_BASE_PORT = 9222
 
-def _find_chrome() -> str | None:
+
+def find_chrome() -> str | None:
     """Find the Chrome executable path for the current OS."""
     system = platform.system()
     if system == "Darwin":
@@ -34,14 +41,16 @@ def _find_chrome() -> str | None:
                 return path
     return None
 
-CHROME_PATH = _find_chrome()
+CHROME_PATH = find_chrome()
 CHROME_AVAILABLE = CHROME_PATH is not None
 
 # ---- Fixtures ----
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
+
 
 @pytest.fixture
 def mock_ws():
@@ -58,7 +67,7 @@ def client():
     """Create a CdpClient instance with short timeout for tests."""
     return CdpClient("ws://localhost:9222/devtools/page/test", timeout=1.0)
 
-def _find_free_port(start: int = CDP_BASE_PORT, end: int = CDP_BASE_PORT + 100) -> int:
+def find_free_port(start: int = CDP_BASE_PORT, end: int = CDP_BASE_PORT + 100) -> int:
     """Find a free port starting from start."""
     for port in range(start, end):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -75,7 +84,7 @@ def chrome():
     if not CHROME_AVAILABLE:
         pytest.skip("Google Chrome not found")
 
-    port = _find_free_port()
+    port = find_free_port()
     user_data_dir = tempfile.mkdtemp(prefix="cdp-test-")
 
     proc = subprocess.Popen(

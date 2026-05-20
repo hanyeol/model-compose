@@ -1,4 +1,7 @@
+"""Tests for DockerRuntimeConfig and related Docker schema models."""
+
 import pytest
+
 from mindor.dsl.schema.runtime.impl.docker import (
     DockerRuntimeConfig,
     DockerBuildConfig,
@@ -7,11 +10,12 @@ from mindor.dsl.schema.runtime.impl.docker import (
     DockerHealthCheck,
 )
 
+
 class TestDockerBuildConfig:
-    """Test DockerBuildConfig schema"""
+    """Test DockerBuildConfig schema."""
 
     def test_minimal_build_config(self):
-        """Test minimal build configuration"""
+        """Test minimal build configuration."""
         config = DockerBuildConfig()
 
         assert config.context is None
@@ -20,7 +24,7 @@ class TestDockerBuildConfig:
         assert config.target is None
 
     def test_full_build_config(self):
-        """Test full build configuration"""
+        """Test full build configuration."""
         config = DockerBuildConfig(
             context="./docker",
             dockerfile="Dockerfile.prod",
@@ -43,11 +47,12 @@ class TestDockerBuildConfig:
         assert config.pull is True
         assert config.shm_size == "2g"
 
+
 class TestDockerPortConfig:
-    """Test DockerPortConfig schema"""
+    """Test DockerPortConfig schema."""
 
     def test_minimal_port_config(self):
-        """Test minimal port configuration with only target port"""
+        """Test minimal port configuration with only target port."""
         config = DockerPortConfig(target=8080)
 
         assert config.target == 8080
@@ -56,7 +61,7 @@ class TestDockerPortConfig:
         assert config.mode is None
 
     def test_full_port_config(self):
-        """Test full port configuration"""
+        """Test full port configuration."""
         config = DockerPortConfig(
             target=8080,
             published=80,
@@ -70,17 +75,18 @@ class TestDockerPortConfig:
         assert config.mode == "ingress"
 
     def test_udp_protocol(self):
-        """Test UDP protocol configuration"""
+        """Test UDP protocol configuration."""
         config = DockerPortConfig(target=53, protocol="udp")
 
         assert config.target == 53
         assert config.protocol == "udp"
 
+
 class TestDockerVolumeConfig:
-    """Test DockerVolumeConfig schema"""
+    """Test DockerVolumeConfig schema."""
 
     def test_bind_mount(self):
-        """Test bind mount configuration"""
+        """Test bind mount configuration."""
         config = DockerVolumeConfig(
             type="bind",
             source="/host/path",
@@ -94,7 +100,7 @@ class TestDockerVolumeConfig:
         assert config.read_only is True
 
     def test_named_volume(self):
-        """Test named volume configuration"""
+        """Test named volume configuration."""
         config = DockerVolumeConfig(
             type="volume",
             source="my-volume",
@@ -108,7 +114,7 @@ class TestDockerVolumeConfig:
         assert config.volume.nocopy is True
 
     def test_tmpfs_mount(self):
-        """Test tmpfs mount configuration"""
+        """Test tmpfs mount configuration."""
         config = DockerVolumeConfig(
             type="tmpfs",
             target="/tmp",
@@ -119,11 +125,12 @@ class TestDockerVolumeConfig:
         assert config.target == "/tmp"
         assert config.tmpfs.size == 104857600
 
+
 class TestDockerHealthCheck:
-    """Test DockerHealthCheck schema"""
+    """Test DockerHealthCheck schema."""
 
     def test_minimal_healthcheck(self):
-        """Test minimal healthcheck with defaults"""
+        """Test minimal healthcheck with defaults."""
         config = DockerHealthCheck(test="curl -f http://localhost/health")
 
         assert config.test == "curl -f http://localhost/health"
@@ -133,7 +140,7 @@ class TestDockerHealthCheck:
         assert config.start_period == "0s"
 
     def test_healthcheck_with_list_command(self):
-        """Test healthcheck with command as list"""
+        """Test healthcheck with command as list."""
         config = DockerHealthCheck(
             test=[ "CMD-SHELL", "curl -f http://localhost/health || exit 1" ]
         )
@@ -141,7 +148,7 @@ class TestDockerHealthCheck:
         assert config.test == [ "CMD-SHELL", "curl -f http://localhost/health || exit 1" ]
 
     def test_full_healthcheck(self):
-        """Test full healthcheck configuration"""
+        """Test full healthcheck configuration."""
         config = DockerHealthCheck(
             test="curl -f http://localhost/health",
             interval="10s",
@@ -156,11 +163,12 @@ class TestDockerHealthCheck:
         assert config.max_retry_count == 5
         assert config.start_period == "30s"
 
+
 class TestDockerRuntimeConfig:
-    """Test DockerRuntimeConfig schema"""
+    """Test DockerRuntimeConfig schema."""
 
     def test_minimal_config_with_image(self):
-        """Test minimal configuration with image"""
+        """Test minimal configuration with image."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest"
@@ -172,7 +180,7 @@ class TestDockerRuntimeConfig:
         assert config.restart == "no"
 
     def test_config_with_build(self):
-        """Test configuration with build settings"""
+        """Test configuration with build settings."""
         config = DockerRuntimeConfig(
             type="docker",
             build=DockerBuildConfig(
@@ -187,7 +195,7 @@ class TestDockerRuntimeConfig:
         assert config.build.dockerfile == "Dockerfile"
 
     def test_port_configurations(self):
-        """Test various port configuration formats"""
+        """Test various port configuration formats."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -204,7 +212,7 @@ class TestDockerRuntimeConfig:
         assert isinstance(config.ports[2], DockerPortConfig)
 
     def test_volume_configurations(self):
-        """Test various volume configuration formats"""
+        """Test various volume configuration formats."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -223,7 +231,7 @@ class TestDockerRuntimeConfig:
         assert isinstance(config.volumes[1], DockerVolumeConfig)
 
     def test_environment_variables(self):
-        """Test environment variable configuration"""
+        """Test environment variable configuration."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -241,7 +249,7 @@ class TestDockerRuntimeConfig:
         assert config.environment["TIMEOUT"] == 30.5
 
     def test_env_file_string(self):
-        """Test env_file as string"""
+        """Test env_file as string."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -251,7 +259,7 @@ class TestDockerRuntimeConfig:
         assert config.env_file == ".env"
 
     def test_env_file_list(self):
-        """Test env_file as list"""
+        """Test env_file as list."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -261,7 +269,7 @@ class TestDockerRuntimeConfig:
         assert config.env_file == [ ".env", ".env.production" ]
 
     def test_command_string(self):
-        """Test command as string"""
+        """Test command as string."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -271,7 +279,7 @@ class TestDockerRuntimeConfig:
         assert config.command == "python app.py"
 
     def test_command_list(self):
-        """Test command as list"""
+        """Test command as list."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -281,7 +289,7 @@ class TestDockerRuntimeConfig:
         assert config.command == [ "python", "app.py", "--port", "8080" ]
 
     def test_resource_limits(self):
-        """Test resource limit configuration"""
+        """Test resource limit configuration."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -297,7 +305,7 @@ class TestDockerRuntimeConfig:
         assert config.cpu_shares == 512
 
     def test_restart_policies(self):
-        """Test all restart policies"""
+        """Test all restart policies."""
         for policy in [ "no", "always", "on-failure", "unless-stopped" ]:
             config = DockerRuntimeConfig(
                 type="docker",
@@ -307,7 +315,7 @@ class TestDockerRuntimeConfig:
             assert config.restart == policy
 
     def test_full_configuration(self):
-        """Test comprehensive configuration"""
+        """Test comprehensive configuration."""
         config = DockerRuntimeConfig(
             type="docker",
             image="myapp:latest",
@@ -351,7 +359,7 @@ class TestDockerRuntimeConfig:
         assert config.privileged is False
 
     def test_networks_default(self):
-        """Test networks defaults to empty list"""
+        """Test networks defaults to empty list."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest"
@@ -360,7 +368,7 @@ class TestDockerRuntimeConfig:
         assert config.networks == []
 
     def test_logging_configuration(self):
-        """Test logging configuration"""
+        """Test logging configuration."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -377,7 +385,7 @@ class TestDockerRuntimeConfig:
         assert config.logging["options"]["max-size"] == "10m"
 
     def test_security_options(self):
-        """Test security options"""
+        """Test security options."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -390,18 +398,19 @@ class TestDockerRuntimeConfig:
         assert len(config.security_opt) == 2
         assert "no-new-privileges" in config.security_opt
 
+
 class TestDockerRuntimeConfigValidation:
-    """Test DockerRuntimeConfig validation scenarios"""
+    """Test DockerRuntimeConfig validation scenarios."""
 
     def test_missing_image_and_build(self):
-        """Test that config can be created without image or build (they're optional)"""
+        """Test that config can be created without image or build (they're optional)."""
         config = DockerRuntimeConfig(type="docker")
 
         assert config.image is None
         assert config.build is None
 
     def test_cpus_as_float(self):
-        """Test cpus can be float"""
+        """Test cpus can be float."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",
@@ -411,7 +420,7 @@ class TestDockerRuntimeConfigValidation:
         assert config.cpus == 1.5
 
     def test_cpus_as_string(self):
-        """Test cpus can be string"""
+        """Test cpus can be string."""
         config = DockerRuntimeConfig(
             type="docker",
             image="nginx:latest",

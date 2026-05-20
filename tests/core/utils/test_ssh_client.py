@@ -1,36 +1,44 @@
-import pytest
-import os
+"""Tests for SSH client with port forwarding."""
+
 import asyncio
+import os
 import socket
+
+import pytest
+
 from mindor.core.utils.ssh_client import (
     SshClient,
     SshConnectionParams,
     SshKeyfileAuthParams,
-    SshPasswordAuthParams
+    SshPasswordAuthParams,
 )
 
-# Configure anyio to use only asyncio backend (disable trio)
+
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
+
 # SSH server configuration from environment
-SSH_HOST     = os.getenv("TEST_SSH_HOST", "localhost")
-SSH_PORT     = int(os.getenv("TEST_SSH_PORT", "22"))
-SSH_USER     = os.getenv("TEST_SSH_USER", "test")
-SSH_KEYFILE  = os.getenv("TEST_SSH_KEYFILE", "~/.ssh/id_rsa")
+SSH_HOST = os.getenv("TEST_SSH_HOST", "localhost")
+SSH_PORT = int(os.getenv("TEST_SSH_PORT", "22"))
+SSH_USER = os.getenv("TEST_SSH_USER", "test")
+SSH_KEYFILE = os.getenv("TEST_SSH_KEYFILE", "~/.ssh/id_rsa")
 SSH_PASSWORD = os.getenv("TEST_SSH_PASSWORD", "")
 
+
 def find_free_port():
-    """Find a free local port"""
+    """Find a free local port."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('', 0))
         s.listen(1)
         port = s.getsockname()[1]
     return port
 
-def _ssh_available():
-    """Check if SSH server is reachable"""
+
+def ssh_available():
+    """Check if SSH server is reachable."""
     try:
         s = socket.create_connection((SSH_HOST, SSH_PORT), timeout=2)
         s.close()
@@ -39,8 +47,8 @@ def _ssh_available():
         return False
 
 requires_ssh = pytest.mark.skipif(
-    not _ssh_available(),
-    reason=f"SSH server not available at {SSH_HOST}:{SSH_PORT}"
+    not ssh_available(),
+    reason=f"SSH server not available at {SSH_HOST}:{SSH_PORT}",
 )
 
 

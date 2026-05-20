@@ -1,15 +1,23 @@
-import pytest
+"""Tests for the TextSplitterAction, covering basic splitting, separators, chunk sizes,
+overlap, edge cases, real-world scenarios, and comprehensive pre-generated test cases."""
+
 import json
 import os
+
+import pytest
+
 from unittest.mock import AsyncMock, MagicMock
+
+from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.text_splitter import TextSplitterAction
 from mindor.dsl.schema.action import TextSplitterActionConfig
-from mindor.core.component.context import ComponentActionContext
 
-# Configure anyio to use only asyncio backend
+
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
+
 
 @pytest.fixture
 def mock_context():
@@ -20,6 +28,7 @@ def mock_context():
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
     return context
+
 
 @pytest.fixture
 def test_cases():
@@ -32,6 +41,7 @@ def test_cases():
 
     with open(results_file, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 class TestTextSplitterBasicFunctionality:
     """Test basic text splitting functionality."""
@@ -181,6 +191,7 @@ class TestTextSplitterChunkSize:
         assert len(result) == 1
         assert result[0] == text
 
+
 class TestTextSplitterOverlap:
     """Test chunk overlap functionality."""
 
@@ -229,6 +240,7 @@ class TestTextSplitterOverlap:
         assert len(result) == 1
         assert result[0] == text
 
+
 class TestTextSplitterEdgeCases:
     """Test edge cases and special scenarios."""
 
@@ -274,6 +286,7 @@ class TestTextSplitterEdgeCases:
 
         assert len(result) > 0
 
+
 class TestTextSplitterRealWorldScenarios:
     """Test real-world text splitting scenarios."""
 
@@ -316,6 +329,7 @@ Another section with content."""
         result = await action.run(mock_context)
 
         assert len(result) > 1
+
 
 class TestComprehensiveCases:
     """Comprehensive test cases for TextSplitter."""

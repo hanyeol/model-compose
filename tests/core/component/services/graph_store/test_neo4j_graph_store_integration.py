@@ -6,11 +6,12 @@ Requires: Neo4j running on bolt://localhost:7687 with auth neo4j/testpassword
 """
 
 import socket
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from neo4j import AsyncGraphDatabase
 from pydantic import TypeAdapter
 
-from neo4j import AsyncGraphDatabase
+from unittest.mock import AsyncMock, MagicMock
 
 from mindor.dsl.schema.action import Neo4jGraphStoreActionConfig
 from mindor.dsl.schema.component import Neo4jGraphStoreComponentConfig
@@ -28,6 +29,13 @@ from mindor.core.component.services.graph_store.drivers.neo4j import (
 )
 from mindor.core.component.context import ComponentActionContext
 
+
+@pytest.fixture
+def anyio_backend():
+    """Configure anyio to use asyncio backend."""
+    return "asyncio"
+
+
 NEO4J_URL = "bolt://localhost:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "testpassword"
@@ -35,7 +43,7 @@ NEO4J_PASSWORD = "testpassword"
 ActionAdapter = TypeAdapter(Neo4jGraphStoreActionConfig)
 
 
-def _neo4j_is_available() -> bool:
+def neo4j_is_available() -> bool:
     """Check if Neo4j bolt port is reachable."""
     try:
         with socket.create_connection(("localhost", 7687), timeout=2):
@@ -46,17 +54,13 @@ def _neo4j_is_available() -> bool:
 
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(not _neo4j_is_available(), reason="Neo4j is not available at bolt://localhost:7687"),
+    pytest.mark.skipif(not neo4j_is_available(), reason="Neo4j is not available at bolt://localhost:7687"),
 ]
 
 
 @pytest.fixture
-def anyio_backend():
-    return "asyncio"
-
-
-@pytest.fixture
 async def driver():
+    """Provide an async Neo4j driver for tests."""
     drv = AsyncGraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD))
     yield drv
     await drv.close()
@@ -72,6 +76,7 @@ async def clean_db(driver):
 
 @pytest.fixture
 def ctx():
+    """Create a mock ComponentActionContext with Pydantic model conversion."""
     context = MagicMock(spec=ComponentActionContext)
 
     def _convert(value):
@@ -97,6 +102,7 @@ class TestInsertAndQuery:
 
     @pytest.mark.anyio
     async def test_insert_single_node(self, ctx, driver):
+        """Verify a single node can be inserted and read back from the database."""
         config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice", "age": 30}},
@@ -118,6 +124,7 @@ class TestInsertAndQuery:
 
     @pytest.mark.anyio
     async def test_insert_multiple_nodes(self, ctx, driver):
+        """Verify multiple nodes can be inserted in a single action."""
         config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -140,6 +147,7 @@ class TestInsertAndQuery:
 
     @pytest.mark.anyio
     async def test_query_with_params(self, ctx, driver):
+        """Verify a parameterized query returns the correct results."""
         # Insert first
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -168,6 +176,7 @@ class TestRelationships:
 
     @pytest.mark.anyio
     async def test_insert_relationship(self, ctx, driver):
+        """Verify a relationship can be created between two existing nodes."""
         # Create two nodes
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -212,6 +221,7 @@ class TestUpdate:
 
     @pytest.mark.anyio
     async def test_update_node_properties(self, ctx, driver):
+        """Verify node properties can be updated after creation."""
         # Create node
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -238,6 +248,7 @@ class TestUpdate:
 
     @pytest.mark.anyio
     async def test_update_node_add_label(self, ctx, driver):
+        """Verify additional labels can be added to a node."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice"}},
@@ -263,6 +274,7 @@ class TestDelete:
 
     @pytest.mark.anyio
     async def test_delete_node_detach(self, ctx, driver):
+        """Verify deleting a node with detach also removes its relationships."""
         # Create nodes with relationship
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -298,6 +310,7 @@ class TestDelete:
 
     @pytest.mark.anyio
     async def test_delete_relationship(self, ctx, driver):
+        """Verify deleting a relationship leaves both nodes intact."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -340,6 +353,7 @@ class TestTraverse:
 
     @pytest.mark.anyio
     async def test_traverse_outbound(self, ctx, driver):
+        """Verify outbound traversal finds all reachable nodes within depth."""
         # Create a small graph: Alice -> Bob -> Charlie
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -381,6 +395,7 @@ class TestTraverse:
 
     @pytest.mark.anyio
     async def test_traverse_with_depth_limit(self, ctx, driver):
+        """Verify traversal respects the max_depth limit."""
         # Alice -> Bob -> Charlie
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -418,6 +433,7 @@ class TestTraverse:
 
     @pytest.mark.anyio
     async def test_traverse_bidirectional(self, ctx, driver):
+        """Verify bidirectional traversal finds nodes connected in both directions."""
         # Alice -> Bob, Charlie -> Bob
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -455,6 +471,7 @@ class TestTraverse:
 
     @pytest.mark.anyio
     async def test_traverse_inbound(self, ctx, driver):
+        """Verify inbound traversal finds nodes that point to the start node."""
         # Alice -> Bob, Charlie -> Bob
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -491,6 +508,7 @@ class TestTraverse:
 
     @pytest.mark.anyio
     async def test_traverse_with_node_label_filter(self, ctx, driver):
+        """Verify traversal can filter results by node label."""
         # Create Person and Company nodes
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
@@ -533,6 +551,7 @@ class TestUpdateRelationship:
 
     @pytest.mark.anyio
     async def test_update_relationship_properties(self, ctx, driver):
+        """Verify relationship properties can be updated after creation."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -579,6 +598,7 @@ class TestInsertRelationshipWithoutProperties:
 
     @pytest.mark.anyio
     async def test_insert_relationship_no_properties(self, ctx, driver):
+        """Verify a relationship can be created without any properties."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -613,6 +633,7 @@ class TestQueryWithOutput:
 
     @pytest.mark.anyio
     async def test_query_with_output_transform(self, ctx, driver):
+        """Verify query with output template triggers render_variable."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice", "age": 30}},
@@ -635,6 +656,7 @@ class TestDeleteMultiple:
 
     @pytest.mark.anyio
     async def test_delete_multiple_nodes(self, ctx, driver):
+        """Verify multiple nodes can be deleted in a single action."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": [
@@ -667,6 +689,7 @@ class TestQueryNoParams:
 
     @pytest.mark.anyio
     async def test_query_no_params(self, ctx, driver):
+        """Verify a query without parameters returns correct results."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice"}},
@@ -688,6 +711,7 @@ class TestQueryWithDatabase:
 
     @pytest.mark.anyio
     async def test_query_with_database(self, ctx, driver):
+        """Verify an action can target a specific Neo4j database."""
         insert_config = ActionAdapter.validate_python({
             "method": "insert",
             "nodes": {"label": "Person", "properties": {"name": "Alice"}},
@@ -701,11 +725,13 @@ class TestHelperFunctions:
     """Test internal helper functions directly."""
 
     def test_verify_identifier_valid(self):
+        """Verify valid identifiers are accepted."""
         assert _verify_identifier("Person", "label") == "Person"
         assert _verify_identifier("_private", "label") == "_private"
         assert _verify_identifier("Name123", "label") == "Name123"
 
     def test_verify_identifier_invalid(self):
+        """Verify invalid identifiers raise ValueError."""
         with pytest.raises(ValueError, match="Invalid label identifier"):
             _verify_identifier("123invalid", "label")
         with pytest.raises(ValueError, match="Invalid label identifier"):
@@ -714,12 +740,14 @@ class TestHelperFunctions:
             _verify_identifier("has-dash", "label")
 
     def test_build_create_node_query(self):
+        """Verify the generated CREATE node Cypher query structure."""
         cypher, params = _build_create_node_query("Person", {"name": "Alice", "age": 30})
         assert "CREATE (n:Person" in cypher
         assert "elementId(n) AS id" in cypher
         assert params == {"name": "Alice", "age": 30}
 
     def test_build_create_relationship_query_with_properties(self):
+        """Verify the generated CREATE relationship Cypher includes properties."""
         cypher, params = _build_create_relationship_query(
             "KNOWS", "id1", "id2", {"since": 2020}
         )
@@ -729,15 +757,18 @@ class TestHelperFunctions:
         assert params["prop_since"] == 2020
 
     def test_build_create_relationship_query_no_properties(self):
+        """Verify the generated CREATE relationship Cypher works without properties."""
         cypher, params = _build_create_relationship_query("KNOWS", "id1", "id2", {})
         assert "KNOWS" in cypher
         assert "{" not in cypher.split("CREATE")[1].split("RETURN")[0] or "prop_" not in cypher
 
     def test_build_update_node_query_no_changes(self):
+        """Verify that no update query is generated when there are no changes."""
         result = _build_update_node_query("id1", None, None)
         assert result is None
 
     def test_build_update_node_query_with_labels(self):
+        """Verify the generated SET labels Cypher query structure."""
         result = _build_update_node_query("id1", None, ["Admin", "User"])
         assert result is not None
         cypher, params = result
@@ -745,42 +776,50 @@ class TestHelperFunctions:
         assert "SET n:User" in cypher
 
     def test_build_update_relationship_query(self):
+        """Verify the generated relationship update Cypher query structure."""
         cypher, params = _build_update_relationship_query("rid1", {"weight": 5})
         assert "r.weight = $prop_weight" in cypher
         assert params["prop_weight"] == 5
 
     def test_build_delete_node_query_detach(self):
+        """Verify the generated DELETE node Cypher uses DETACH DELETE."""
         cypher, params = _build_delete_node_query("id1", True)
         assert "DETACH DELETE" in cypher
         assert params["id"] == "id1"
 
     def test_build_delete_node_query_no_detach(self):
+        """Verify the generated DELETE node Cypher uses plain DELETE."""
         cypher, params = _build_delete_node_query("id1", False)
         assert "DETACH" not in cypher
         assert "DELETE n" in cypher
 
     def test_build_delete_relationship_query(self):
+        """Verify the generated DELETE relationship Cypher query structure."""
         cypher, params = _build_delete_relationship_query("rid1")
         assert "DELETE r" in cypher
         assert params["id"] == "rid1"
 
     def test_build_traverse_query_outbound(self):
+        """Verify the generated outbound traversal Cypher query structure."""
         cypher, params = _build_traverse_query("id1", "out", 3, ["KNOWS"], None)
         assert "->" in cypher
         assert "KNOWS" in cypher
         assert "*1..3" in cypher
 
     def test_build_traverse_query_inbound(self):
+        """Verify the generated inbound traversal Cypher query structure."""
         cypher, params = _build_traverse_query("id1", "in", 2, None, None)
         assert "<-" in cypher
         assert "*1..2" in cypher
 
     def test_build_traverse_query_both(self):
+        """Verify the generated bidirectional traversal Cypher has no directional arrows."""
         cypher, params = _build_traverse_query("id1", "both", 1, None, None)
         assert "->" not in cypher
         assert "<-" not in cypher
 
     def test_build_traverse_query_with_node_labels(self):
+        """Verify the generated traversal Cypher includes node label filtering."""
         cypher, params = _build_traverse_query("id1", "out", 2, None, ["Person", "Company"])
         assert "labels(end)" in cypher
         assert "Person" in cypher
@@ -792,6 +831,7 @@ class TestServiceLifecycle:
 
     @pytest.mark.anyio
     async def test_service_serve_and_shutdown(self):
+        """Verify the service can start, connect to Neo4j, and shut down cleanly."""
         config = Neo4jGraphStoreComponentConfig(
             type="graph-store",
             driver="neo4j",
@@ -816,6 +856,7 @@ class TestServiceLifecycle:
         assert service.driver is None
 
     def test_service_setup_requirements(self):
+        """Verify the service reports its pip requirements."""
         config = Neo4jGraphStoreComponentConfig(
             type="graph-store",
             driver="neo4j",

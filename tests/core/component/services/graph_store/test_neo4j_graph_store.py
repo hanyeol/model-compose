@@ -1,6 +1,9 @@
+"""Unit tests for Neo4j graph store action execution with mocked drivers."""
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic import TypeAdapter
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from mindor.dsl.schema.action import (
     Neo4jGraphStoreActionConfig,
@@ -18,11 +21,13 @@ from mindor.core.component.context import ComponentActionContext
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
 @pytest.fixture
 def mock_context():
+    """Create a mock ComponentActionContext with Pydantic model conversion."""
     context = MagicMock(spec=ComponentActionContext)
 
     def _convert(value):
@@ -51,6 +56,7 @@ class TestNeo4jQueryAction:
 
     @pytest.mark.anyio
     async def test_query_basic(self, mock_context):
+        """Verify a basic Cypher query returns results and registers them."""
         mock_session = AsyncMock()
         mock_result = AsyncMock()
         mock_result.data = AsyncMock(return_value=[{"n": {"name": "Alice"}}])
@@ -76,6 +82,7 @@ class TestNeo4jQueryAction:
 
     @pytest.mark.anyio
     async def test_query_with_params(self, mock_context):
+        """Verify that query parameters are forwarded to the Cypher call."""
         mock_session = AsyncMock()
         mock_result = AsyncMock()
         mock_result.data = AsyncMock(return_value=[])
@@ -101,6 +108,7 @@ class TestNeo4jQueryAction:
 
     @pytest.mark.anyio
     async def test_query_with_output_transform(self, mock_context):
+        """Verify that the output template triggers render_variable."""
         mock_session = AsyncMock()
         mock_result = AsyncMock()
         mock_result.data = AsyncMock(return_value=[{"n": {"name": "Alice"}}])
@@ -126,7 +134,8 @@ class TestNeo4jInsertAction:
     """Test Neo4j insert action execution."""
 
     @staticmethod
-    def _mock_run_result(element_id):
+    def mock_run_result(element_id):
+        """Create a mock session.run result that returns a single record with the given element ID."""
         mock_result = AsyncMock()
         mock_record = {"id": element_id}
         mock_result.single = AsyncMock(return_value=mock_record)
@@ -134,8 +143,9 @@ class TestNeo4jInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_single_node(self, mock_context):
+        """Verify inserting a single node returns the correct creation summary."""
         mock_session = AsyncMock()
-        mock_session.run = AsyncMock(return_value=self._mock_run_result("4:abc:1"))
+        mock_session.run = AsyncMock(return_value=self.mock_run_result("4:abc:1"))
 
         mock_driver = AsyncMock()
         mock_driver.session = MagicMock(return_value=mock_session)
@@ -156,10 +166,11 @@ class TestNeo4jInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_multiple_nodes(self, mock_context):
+        """Verify inserting multiple nodes returns all created IDs."""
         mock_session = AsyncMock()
         mock_session.run = AsyncMock(side_effect=[
-            self._mock_run_result("4:abc:1"),
-            self._mock_run_result("4:abc:2"),
+            self.mock_run_result("4:abc:1"),
+            self.mock_run_result("4:abc:2"),
         ])
 
         mock_driver = AsyncMock()
@@ -183,8 +194,9 @@ class TestNeo4jInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_relationship(self, mock_context):
+        """Verify inserting a relationship returns the correct creation summary."""
         mock_session = AsyncMock()
-        mock_session.run = AsyncMock(return_value=self._mock_run_result("5:abc:1"))
+        mock_session.run = AsyncMock(return_value=self.mock_run_result("5:abc:1"))
 
         mock_driver = AsyncMock()
         mock_driver.session = MagicMock(return_value=mock_session)
@@ -213,6 +225,7 @@ class TestNeo4jDeleteAction:
 
     @pytest.mark.anyio
     async def test_delete_node_with_detach(self, mock_context):
+        """Verify deleting a node with detach uses DETACH DELETE in the Cypher query."""
         mock_session = AsyncMock()
         mock_session.run = AsyncMock(return_value=AsyncMock())
 
@@ -235,6 +248,7 @@ class TestNeo4jDeleteAction:
 
     @pytest.mark.anyio
     async def test_delete_node_without_detach(self, mock_context):
+        """Verify deleting a node without detach uses plain DELETE."""
         mock_session = AsyncMock()
         mock_session.run = AsyncMock(return_value=AsyncMock())
 
@@ -261,6 +275,7 @@ class TestNeo4jTraverseAction:
 
     @pytest.mark.anyio
     async def test_traverse_outbound(self, mock_context):
+        """Verify outbound traversal generates correct Cypher with direction and depth."""
         mock_session = AsyncMock()
         mock_result = AsyncMock()
         mock_result.data = AsyncMock(return_value=[

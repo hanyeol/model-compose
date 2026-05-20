@@ -1,23 +1,28 @@
-import pytest
-import asyncio
+"""Tests for component process runtime, including worker, manager, and integration scenarios."""
+
 from multiprocessing import Queue
-from mindor.dsl.schema.runtime import ProcessRuntimeConfig
-from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
-from mindor.core.component.runtime.process_worker import ComponentProcessWorker
-from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
+
+import pytest
+
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
+from mindor.core.component.runtime.process_worker import ComponentProcessWorker
+from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import ShellActionConfig
+from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 
-# Configure anyio to use only asyncio backend
+
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
+
 
 @pytest.fixture
 def global_configs():
-    """Fixture for global configs"""
+    """Fixture for global configs."""
     return ComponentGlobalConfigs(
         components=[],
         listeners=[],
@@ -25,11 +30,12 @@ def global_configs():
         workflows=[]
     )
 
+
 class TestComponentProcessWorker:
-    """Test ComponentProcessWorker class"""
+    """Test ComponentProcessWorker class."""
 
     def test_worker_initialization(self, global_configs):
-        """Test ComponentProcessWorker initialization"""
+        """Test ComponentProcessWorker initialization."""
         config = ShellComponentConfig(
             id="test-shell",
             type="shell",
@@ -54,11 +60,12 @@ class TestComponentProcessWorker:
         assert worker.component is None
         assert worker.running is True
 
+
 class TestComponentProcessRuntimeManager:
-    """Test ComponentProcessRuntimeManager class"""
+    """Test ComponentProcessRuntimeManager class."""
 
     def test_manager_initialization_with_process_runtime(self, global_configs):
-        """Test manager initialization with process runtime config"""
+        """Test manager initialization with process runtime config."""
         config = ShellComponentConfig(
             id="test-shell",
             type="shell",
@@ -83,9 +90,8 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_params.start_timeout == 30.0  # Converted to seconds
         assert manager.worker_params.stop_timeout == 10.0   # Converted to seconds
 
-
     def test_manager_initialization_with_custom_config(self, global_configs):
-        """Test manager with custom process runtime configuration"""
+        """Test manager with custom process runtime configuration."""
         config = ShellComponentConfig(
             id="custom-shell",
             type="shell",
@@ -109,11 +115,12 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_params.env["TEST_VAR"] == "test_value"
         assert manager.worker_params.start_timeout == 120.0  # 2m = 120s
 
+
 class TestComponentIntegration:
-    """Integration tests for component with process runtime"""
+    """Integration tests for component with process runtime."""
 
     def test_create_component_with_process_runtime(self, global_configs):
-        """Test creating component with process runtime"""
+        """Test creating component with process runtime."""
         config = ShellComponentConfig(
             id="test-component",
             type="shell",
@@ -135,7 +142,7 @@ class TestComponentIntegration:
 
     @pytest.mark.anyio
     async def test_component_lifecycle(self, global_configs):
-        """Test component lifecycle with process runtime"""
+        """Test component lifecycle with process runtime."""
         config = ShellComponentConfig(
             id="process-shell",
             type="shell",
@@ -186,7 +193,7 @@ class TestComponentIntegration:
         await component.teardown()
 
     def test_component_config_with_actions(self, global_configs):
-        """Test component with custom actions"""
+        """Test component with custom actions."""
         config = ShellComponentConfig(
             id="action-shell",
             type="shell",
@@ -211,7 +218,7 @@ class TestComponentIntegration:
         assert component.config.actions[0].id == "custom"
 
     def test_multiple_components_with_different_configs(self, global_configs):
-        """Test multiple components with different process runtime configurations"""
+        """Test multiple components with different process runtime configurations."""
         config1 = ShellComponentConfig(
             id="component-1",
             type="shell",
@@ -241,11 +248,12 @@ class TestComponentIntegration:
         assert component1.config.runtime.env["WORKER"] == "1"
         assert component2.config.runtime.env["WORKER"] == "2"
 
+
 class TestComponentProcessRuntimeScenarios:
-    """Test various component process runtime scenarios"""
+    """Test various component process runtime scenarios."""
 
     def test_process_runtime_with_environment_variables(self, global_configs):
-        """Test process runtime with environment variables"""
+        """Test process runtime with environment variables."""
         config = ShellComponentConfig(
             id="env-test",
             type="shell",
@@ -271,7 +279,7 @@ class TestComponentProcessRuntimeScenarios:
         assert manager.worker_params.env["BATCH_SIZE"] == "32"
 
     def test_process_runtime_with_timeouts(self, global_configs):
-        """Test process runtime with custom timeouts"""
+        """Test process runtime with custom timeouts."""
         config = ShellComponentConfig(
             id="timeout-test",
             type="shell",
@@ -293,7 +301,7 @@ class TestComponentProcessRuntimeScenarios:
         assert manager.worker_params.stop_timeout == 60.0    # 1m = 60s
 
     def test_process_runtime_with_resource_limits(self, global_configs):
-        """Test process runtime with resource limits"""
+        """Test process runtime with resource limits."""
         config = ShellComponentConfig(
             id="resource-test",
             type="shell",
@@ -315,7 +323,7 @@ class TestComponentProcessRuntimeScenarios:
         # These are DSL-level configs not used by foundation layer
 
     def test_process_runtime_ipc_methods(self, global_configs):
-        """Test different IPC methods for process runtime"""
+        """Test different IPC methods for process runtime."""
         configs = [
             ("queue-test", "queue", None),
             ("unix-test", "unix-socket", "/tmp/test.sock"),
@@ -348,7 +356,7 @@ class TestComponentProcessRuntimeScenarios:
             # Foundation layer currently only uses Queue-based IPC
 
     def test_component_manager_attributes(self, global_configs):
-        """Test ComponentProcessRuntimeManager has correct attributes"""
+        """Test ComponentProcessRuntimeManager has correct attributes."""
         config = ShellComponentConfig(
             id="attr-test",
             type="shell",
@@ -378,12 +386,12 @@ class TestComponentProcessRuntimeScenarios:
         assert manager.pending_requests == {}
         assert manager.response_handler_task is None
 
-class TestComponentProcessRuntimeValidation:
-    """Test validation and error handling"""
 
+class TestComponentProcessRuntimeValidation:
+    """Test validation and error handling."""
 
     def test_component_id_mismatch(self, global_configs):
-        """Test component creation with different IDs"""
+        """Test component creation with different IDs."""
         config = ShellComponentConfig(
             id="original-id",
             type="shell",
@@ -401,7 +409,7 @@ class TestComponentProcessRuntimeValidation:
         assert manager.config.id == "original-id"
 
     def test_manager_run_method_signature(self, global_configs):
-        """Test ComponentProcessRuntimeManager.run method signature"""
+        """Test ComponentProcessRuntimeManager.run method signature."""
         config = ShellComponentConfig(
             id="run-test",
             type="shell",

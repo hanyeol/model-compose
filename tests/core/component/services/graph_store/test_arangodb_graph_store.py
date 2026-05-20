@@ -1,6 +1,9 @@
+"""Unit tests for ArangoDB graph store action execution with mocked drivers."""
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic import TypeAdapter
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from mindor.dsl.schema.action import (
     ArangoDBGraphStoreActionConfig,
@@ -18,11 +21,13 @@ from mindor.core.component.context import ComponentActionContext
 
 @pytest.fixture
 def anyio_backend():
+    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
 @pytest.fixture
 def mock_context():
+    """Create a mock ComponentActionContext with Pydantic model conversion."""
     context = MagicMock(spec=ComponentActionContext)
 
     def _convert(value):
@@ -45,6 +50,7 @@ def mock_context():
 
 @pytest.fixture
 def mock_db():
+    """Create a mock ArangoDB database client."""
     db = MagicMock()
     db.has_collection = MagicMock(return_value=True)
     db.collection = MagicMock(return_value=MagicMock())
@@ -60,6 +66,7 @@ class TestArangoDBQueryAction:
 
     @pytest.mark.anyio
     async def test_query_basic(self, mock_context, mock_db):
+        """Test that a basic AQL query returns results and registers them."""
         mock_cursor = iter([{"name": "Alice"}, {"name": "Bob"}])
         mock_db.aql.execute = MagicMock(return_value=mock_cursor)
 
@@ -78,6 +85,7 @@ class TestArangoDBQueryAction:
 
     @pytest.mark.anyio
     async def test_query_with_params(self, mock_context, mock_db):
+        """Test that query parameters are forwarded as bind_vars."""
         mock_cursor = iter([{"name": "Alice"}])
         mock_db.aql.execute = MagicMock(return_value=mock_cursor)
 
@@ -96,6 +104,7 @@ class TestArangoDBQueryAction:
 
     @pytest.mark.anyio
     async def test_query_with_output_transform(self, mock_context, mock_db):
+        """Test that the output template triggers render_variable."""
         mock_cursor = iter([{"name": "Alice"}])
         mock_db.aql.execute = MagicMock(return_value=mock_cursor)
 
@@ -115,6 +124,7 @@ class TestArangoDBInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_single_node(self, mock_context, mock_db):
+        """Test that inserting a single node returns correct creation summary."""
         mock_collection = MagicMock()
         mock_collection.insert = MagicMock(return_value={"_id": "persons/1", "_key": "1"})
         mock_db.collection = MagicMock(return_value=mock_collection)
@@ -134,6 +144,7 @@ class TestArangoDBInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_multiple_nodes(self, mock_context, mock_db):
+        """Test that inserting multiple nodes returns all created IDs."""
         mock_collection = MagicMock()
         mock_collection.insert = MagicMock(side_effect=[
             {"_id": "persons/1", "_key": "1"},
@@ -157,6 +168,7 @@ class TestArangoDBInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_relationship(self, mock_context, mock_db):
+        """Test that inserting a relationship returns correct creation summary."""
         mock_collection = MagicMock()
         mock_collection.insert = MagicMock(return_value={"_id": "friendships/1", "_key": "1"})
         mock_db.collection = MagicMock(return_value=mock_collection)
@@ -184,6 +196,7 @@ class TestArangoDBInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_node_with_id(self, mock_context, mock_db):
+        """Test that inserting a node with an explicit ID uses it as _key."""
         mock_collection = MagicMock()
         mock_collection.insert = MagicMock(return_value={"_id": "persons/alice", "_key": "alice"})
         mock_db.collection = MagicMock(return_value=mock_collection)
@@ -200,6 +213,7 @@ class TestArangoDBInsertAction:
 
     @pytest.mark.anyio
     async def test_insert_creates_collection_if_missing(self, mock_context, mock_db):
+        """Test that inserting into a missing collection creates it first."""
         mock_db.has_collection = MagicMock(return_value=False)
         mock_collection = MagicMock()
         mock_collection.insert = MagicMock(return_value={"_id": "new_collection/1", "_key": "1"})
@@ -221,6 +235,7 @@ class TestArangoDBUpdateAction:
 
     @pytest.mark.anyio
     async def test_update_node_with_full_id(self, mock_context, mock_db):
+        """Test that updating a node with a full ID extracts collection and key."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -240,6 +255,7 @@ class TestArangoDBUpdateAction:
 
     @pytest.mark.anyio
     async def test_update_node_with_collection_field(self, mock_context, mock_db):
+        """Test that updating a node uses the explicit collection field."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -257,6 +273,7 @@ class TestArangoDBUpdateAction:
 
     @pytest.mark.anyio
     async def test_update_multiple_nodes(self, mock_context, mock_db):
+        """Test that updating multiple nodes applies changes to each one."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -278,6 +295,7 @@ class TestArangoDBDeleteAction:
 
     @pytest.mark.anyio
     async def test_delete_node_with_full_id(self, mock_context, mock_db):
+        """Test that deleting a node with a full ID extracts collection and key."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -294,6 +312,7 @@ class TestArangoDBDeleteAction:
 
     @pytest.mark.anyio
     async def test_delete_multiple_nodes(self, mock_context, mock_db):
+        """Test that deleting multiple nodes removes each one."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -310,6 +329,7 @@ class TestArangoDBDeleteAction:
 
     @pytest.mark.anyio
     async def test_delete_relationship(self, mock_context, mock_db):
+        """Test that deleting a relationship removes it from the edge collection."""
         mock_collection = MagicMock()
         mock_db.collection = MagicMock(return_value=mock_collection)
 
@@ -330,6 +350,7 @@ class TestArangoDBTraverseAction:
 
     @pytest.mark.anyio
     async def test_traverse_with_graph(self, mock_context, mock_db):
+        """Test that graph-based traversal uses the graph API correctly."""
         mock_graph = MagicMock()
         mock_graph.traverse = MagicMock(return_value={
             "vertices": [
@@ -361,6 +382,7 @@ class TestArangoDBTraverseAction:
 
     @pytest.mark.anyio
     async def test_traverse_with_edge_collection(self, mock_context, mock_db):
+        """Test that edge-collection-based traversal uses AQL correctly."""
         mock_cursor = iter([
             {"node": {"name": "Bob"}, "edge": {"_from": "persons/1", "_to": "persons/2"}, "depth": 1},
         ])

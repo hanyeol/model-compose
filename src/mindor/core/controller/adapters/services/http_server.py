@@ -14,6 +14,7 @@ from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResource
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
 from mindor.core.workflow.schema import WorkflowSchema
+from mindor.core.workflow import WorkflowResolver
 from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi import WebSocket, WebSocketDisconnect
@@ -434,8 +435,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             await self._websocket_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
             return
 
-        msg_type = message.get("type")
-        msg_id = message.get("id")
+        message_type = message.get("type")
+        message_id = message.get("id")
         data = message.get("data") or {}
 
         handlers = {
@@ -447,24 +448,26 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             "ping": self._websocket_ping,
         }
 
-        handler = handlers.get(msg_type)
+        handler = handlers.get(message_type)
         if handler:
             try:
-                await handler(client_id, msg_id, data)
+                await handler(client_id, message_id, data)
             except Exception as e:
-                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), msg_id)
+                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), message_id)
         else:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Unknown message type: {msg_type}", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Unknown message type: {message_type}", message_id)
 
-    async def _websocket_run_workflow(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_run_workflow(self, client_id: str, message_id: str, data: dict) -> None:
         workflow_id = data.get("workflow_id", "__default__")
         input_data = data.get("input")
         metadata = data.get("metadata")
         session_id = data.get("session_id")
         subscribe_task = data.get("subscribe_task", True)
 
-        if workflow_id not in self.controller.workflow_schemas:
-            await self._websocket_send_error(client_id, "WORKFLOW_NOT_FOUND", f"Workflow '{workflow_id}' not found", msg_id)
+        workflow_id = self._resolve_workflow_id(workflow_id)
+
+        if not workflow_id or workflow_id not in self.controller.workflow_schemas:
+            await self._websocket_send_error(client_id, "WORKFLOW_NOT_FOUND", f"Workflow '{workflow_id}' not found", message_id)
             return
 
         state = await self.controller.run_workflow(workflow_id, input_data, wait_for_completion=False, session_id=session_id, metadata=metadata)
@@ -474,7 +477,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         await self.websocket_manager.send_message(client_id, {
             "type": "workflow_started",
-            "id": msg_id,
+            "id": message_id,
             "data": {
                 "task_id": state.task_id,
                 "workflow_id": workflow_id,
@@ -490,48 +493,48 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     "data": self._serialize_task_state(state.task_id, current_state)
                 })
 
-    async def _websocket_subscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_subscribe_task(self, client_id: str, message_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", message_id)
             return
 
         task_state = self.controller.get_task_state(task_id)
         if not task_state:
-            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", message_id)
             return
 
         self.websocket_manager.subscribe_to_task(client_id, task_id)
 
         await self.websocket_manager.send_message(client_id, {
             "type": "task_subscribed",
-            "id": msg_id,
+            "id": message_id,
             "data": {
                 "task_id": task_id,
                 "current_state": self._serialize_task_state(task_id, task_state)
             }
         })
 
-    async def _websocket_unsubscribe_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_unsubscribe_task(self, client_id: str, message_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", message_id)
             return
 
         self.websocket_manager.unsubscribe_from_task(client_id, task_id)
 
         await self.websocket_manager.send_message(client_id, {
             "type": "task_unsubscribed",
-            "id": msg_id,
+            "id": message_id,
             "data": {"task_id": task_id}
         })
 
-    async def _websocket_resume_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_resume_task(self, client_id: str, message_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         job_id = data.get("job_id")
 
         if not task_id or not job_id:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required fields: task_id, job_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required fields: task_id, job_id", message_id)
             return
 
         answer = data.get("answer")
@@ -540,7 +543,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             state = await self.controller.resume_workflow(task_id, job_id, answer)
             await self.websocket_manager.send_message(client_id, {
                 "type": "task_resumed",
-                "id": msg_id,
+                "id": message_id,
                 "data": {
                     "task_id": task_id,
                     "status": state.status.value if hasattr(state.status, 'value') else state.status
@@ -556,45 +559,45 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 code = "TASK_NOT_FOUND"
             else:
                 code = "INVALID_REQUEST"
-            await self._websocket_send_error(client_id, code, error_msg, msg_id)
+            await self._websocket_send_error(client_id, code, error_msg, message_id)
 
-    async def _websocket_get_task(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_get_task(self, client_id: str, message_id: str, data: dict) -> None:
         task_id = data.get("task_id")
         if not task_id:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", msg_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Missing required field: task_id", message_id)
             return
 
         task_state = self.controller.get_task_state(task_id)
         if not task_state:
-            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", msg_id)
+            await self._websocket_send_error(client_id, "TASK_NOT_FOUND", f"Task '{task_id}' not found", message_id)
             return
 
         await self.websocket_manager.send_message(client_id, {
             "type": "task_state",
-            "id": msg_id,
+            "id": message_id,
             "data": self._serialize_task_state(task_id, task_state)
         })
 
-    async def _websocket_ping(self, client_id: str, msg_id: str, data: dict) -> None:
+    async def _websocket_ping(self, client_id: str, message_id: str, data: dict) -> None:
         await self.websocket_manager.send_message(client_id, {
             "type": "pong",
-            "id": msg_id,
+            "id": message_id,
             "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
         })
 
-    async def _websocket_send_error(self, client_id: str, code: str, message: str, msg_id: str = None) -> None:
-        msg = {"type": "error", "data": {"code": code, "message": message}}
-        if msg_id:
-            msg["id"] = msg_id
-        await self.websocket_manager.send_message(client_id, msg)
+    async def _websocket_send_error(self, client_id: str, code: str, message: str, message_id: str = None) -> None:
+        payload = {"type": "error", "data": {"code": code, "message": message}}
+        if message_id:
+            payload["id"] = message_id
+        await self.websocket_manager.send_message(client_id, payload)
 
     async def _handle_workflow_run_request(self, request: Request) -> Response:
         body = await self._parse_workflow_run_body(request)
 
-        workflow_id = body.workflow_id or "__default__"
+        workflow_id = self._resolve_workflow_id(body.workflow_id or "__default__")
 
-        if workflow_id not in self.controller.workflow_schemas:
-            raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
+        if not workflow_id or workflow_id not in self.controller.workflow_schemas:
+            raise HTTPException(status_code=404, detail=f"Workflow '{body.workflow_id or '__default__'}' not found.")
 
         if body.subscribe_task and body.wait_for_completion:
             raise HTTPException(status_code=400, detail="subscribe_task=true requires wait_for_completion=false")
@@ -639,6 +642,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             return WorkflowRunRequestBody(**await parse_request_body(request, content_type, nested=True))
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
+
+    def _resolve_workflow_id(self, workflow_id: str) -> Optional[str]:
+        if workflow_id == "__default__":
+            resolved_id, _ = WorkflowResolver(self.controller.workflows).resolve(workflow_id, raise_on_error=False)
+            return resolved_id
+        return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
         if not output_only and isinstance(state.output, (StreamResource, AsyncIterator)):

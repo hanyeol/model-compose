@@ -42,14 +42,14 @@ class ModelPrecision(str, Enum):
     FLOAT16  = "float16"
     BFLOAT16 = "bfloat16"
 
-class ModelQuantization(str, Enum):
-    NONE = "none"
-    FP16 = "fp16"
-    BF16 = "bf16"
+class ModelQuantizationType(str, Enum):
     INT8 = "int8"
     INT4 = "int4"
     FP4  = "fp4"
     NF4  = "nf4"
+
+class PeftAdapterType(str, Enum):
+    LORA = "lora"
 
 class DeviceMode(str, Enum):
     SINGLE = "single"
@@ -59,10 +59,6 @@ class OnDemandPriority(str, Enum):
     HIGH   = "high"
     NORMAL = "normal"
     LOW    = "low"
-
-class OnDemandConfig(BaseModel):
-    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Memory retention priority when memory pressure requires unloading.")
-    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading the model (e.g. '5m', '300s'). '0s' disables idle-based auto-unload.")
 
 class ModelSpecs(BaseModel):
     vram: Optional[int] = Field(default=None, description="Estimated VRAM usage in MB.")
@@ -93,8 +89,10 @@ ModelConfig = Annotated[
     Field(discriminator="provider")
 ]
 
-class PeftAdapterType(str, Enum):
-    LORA = "lora"
+class ModelQuantizationConfig(BaseModel):
+    type: ModelQuantizationType = Field(..., description="Quantization type.")
+    compute_dtype: Optional[str] = Field(default=None, description="Compute dtype for 4-bit quantization (e.g., 'float16', 'bfloat16').")
+    double_quant: bool = Field(default=True, description="Use nested quantization for 4-bit.")
 
 class PeftAdapterConfig(BaseModel):
     type: PeftAdapterType = Field(..., description="Type of the adapter.")
@@ -102,7 +100,7 @@ class PeftAdapterConfig(BaseModel):
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight/scale (0.0-1.0).")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
-    quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
+    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
 
     @model_validator(mode="before")
@@ -122,6 +120,17 @@ class PeftAdapterConfig(BaseModel):
             model["provider"] = ModelProvider.HUGGINGFACE
         return values
 
+    @model_validator(mode="before")
+    def inflate_quantization(cls, values: Dict[str, Any]):
+        quantization = values.get("quantization")
+        if isinstance(quantization, str):
+            values["quantization"] = { "type": quantization }
+        return values
+
+class OnDemandConfig(BaseModel):
+    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Memory retention priority when memory pressure requires unloading.")
+    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading the model (e.g. '5m', '300s'). '0s' disables idle-based auto-unload.")
+
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
@@ -129,13 +138,13 @@ class CommonModelComponentConfig(CommonComponentConfig):
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="cpu", description="Computation device to use.")
-    preload: bool = Field(default=True, description="Whether to load the model at startup.")
-    on_demand: Union[bool, OnDemandConfig] = Field(default=False, description="Enable on-demand loading/unloading. True uses default settings.")
     specs: Optional[ModelSpecs] = Field(default=None, description="Resource specification hints for the model.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
-    quantization: ModelQuantization = Field(default=ModelQuantization.NONE, description="Quantization method.")
+    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
     peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters to load on top of the base model.")
+    preload: bool = Field(default=True, description="Whether to load the model at startup.")
+    on_demand: Union[bool, OnDemandConfig] = Field(default=False, description="Enable on-demand loading/unloading. True uses default settings.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
@@ -159,6 +168,13 @@ class CommonModelComponentConfig(CommonComponentConfig):
         on_demand = values.get("on_demand")
         if on_demand is True:
             values["on_demand"] = {}
+        return values
+
+    @model_validator(mode="before")
+    def inflate_quantization(cls, values: Dict[str, Any]):
+        quantization = values.get("quantization")
+        if isinstance(quantization, str):
+            values["quantization"] = { "type": quantization }
         return values
 
 class LanguageModelComponentConfig(CommonModelComponentConfig):

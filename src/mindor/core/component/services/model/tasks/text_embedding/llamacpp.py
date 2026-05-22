@@ -6,68 +6,26 @@ from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelAction
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
+from .common import TextEmbeddingTaskAction
 import asyncio
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
 
-class LlamaCppTextEmbeddingTaskAction:
+class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,
         model: Llama,
     ):
-        self.config: TextEmbeddingModelActionConfig = config
+        super().__init__(config)
+
         self.model: Llama = model
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        text = await self._prepare_input(context)
-        is_single_input: bool = not isinstance(text, list)
-        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
-        texts: List[str] = [text] if is_single_input else text
-
-        batch_size = await context.render_variable(self.config.batch_size)
-        streaming  = await context.render_variable(self.config.streaming)
-        normalize  = await context.render_variable(self.config.params.normalize)
-
-        async def _embed():
-            for index in range(0, len(texts), batch_size):
-                batch_texts = texts[index:index + batch_size]
-                embeddings = self._embed_batch(batch_texts, normalize)
-
-                if uses_array_output:
-                    rendered_outputs = []
-                    for embedding in embeddings:
-                        rendered_outputs.append(await self._render_output_item(context, embedding))
-                    yield rendered_outputs
-                else:
-                    yield embeddings
-
-        if streaming:
-            async def _stream_output_generator():
-                async for embeddings in _embed():
-                    if not uses_array_output:
-                        for embedding in embeddings:
-                            yield await self._render_output(context, embedding)
-                    else:
-                        for embedding in embeddings:
-                            yield embedding
-
-            return _stream_output_generator()
-        else:
-            results = []
-            async for embeddings in _embed():
-                results.extend(embeddings)
-
-            if not uses_array_output:
-                result = results[0] if is_single_input else results
-                return await self._render_output(context, result)
-            else:
-                return results
-
-    def _embed_batch(self, texts: List[str], normalize: bool) -> List[List[float]]:
+    async def _embed(self, texts: List[str], context: ComponentActionContext) -> List[List[float]]:
         import math
 
+        normalize = await context.render_variable(self.config.params.normalize)
         embeddings = self.model.embed(texts)
 
         if normalize:
@@ -81,17 +39,6 @@ class LlamaCppTextEmbeddingTaskAction:
             return normalized
 
         return embeddings
-
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
-
-    async def _render_output_item(self, context: ComponentActionContext, embedding: List[float]) -> Any:
-        context.register_source("result[]", embedding)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else embedding
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[List[float], List[List[float]]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
 
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)

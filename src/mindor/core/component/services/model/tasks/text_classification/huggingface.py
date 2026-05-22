@@ -6,6 +6,7 @@ from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelA
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from .common import TextClassificationTaskAction
 import asyncio
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class HuggingfaceTextClassificationTaskAction:
+class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
     def __init__(
         self,
         config: TextClassificationModelActionConfig,
@@ -22,92 +23,41 @@ class HuggingfaceTextClassificationTaskAction:
         tokenizer: PreTrainedTokenizer,
         device: torch.device
     ):
-        self.config: TextClassificationModelActionConfig = config
+        super().__init__(config)
+
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
+    async def _predict(self, texts: List[str], labels: Optional[List[str]], context: ComponentActionContext) -> List[Any]:
         import torch, torch.nn.functional as F
 
-        text = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(text, list))
-        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
-        texts: List[str] = [ text ] if is_single_input else text
-        results = []
-
-        batch_size           = await context.render_variable(self.config.batch_size)
-        streaming            = await context.render_variable(self.config.streaming)
         tokenizer_params     = await self._resolve_tokenizer_params(context)
         return_probabilities = await context.render_variable(self.config.params.return_probabilities)
 
-        async def _predict():
-            for index in range(0, len(texts), batch_size):
-                batch_texts = texts[index:index + batch_size]
-                inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, **tokenizer_params)
-                inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        inputs: Dict[str, Tensor] = self.tokenizer(texts, **tokenizer_params)
+        inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-                with torch.inference_mode():
-                    outputs: SequenceClassifierOutput = self.model(**inputs)
-                    logits = outputs.logits # shape: (batch_size, num_classes)
-                    predictions = []
+        with torch.inference_mode():
+            outputs: SequenceClassifierOutput = self.model(**inputs)
+            logits = outputs.logits
 
-                    if return_probabilities:
-                        probs = F.softmax(logits, dim=-1).cpu()
-                        for prob in probs:
-                            predicted_index = torch.argmax(prob).item()
-                            predictions.append({
-                                "label": labels[predicted_index] if labels else predicted_index,
-                                "probabilities": prob.tolist()
-                            })
-                    else:
-                        predicted_indices = torch.argmax(logits, dim=-1).tolist()
-                        for predicted_index in predicted_indices:
-                            predictions.append(labels[predicted_index] if labels else predicted_index)
+        predictions = []
 
-                if uses_array_output:
-                    rendered_outputs = []
-                    for prediction in predictions:
-                        rendered_outputs.append(await self._render_output_item(context, prediction))
-                    yield rendered_outputs
-                else:
-                    yield predictions
-
-        if streaming:
-            async def _stream_output_generator():
-                async for predictions in _predict():
-                    if not uses_array_output:
-                        for prediction in predictions:
-                            yield await self._render_output(context, prediction)
-                    else:
-                        for prediction in predictions:
-                            yield prediction
-
-            return _stream_output_generator()
+        if return_probabilities:
+            probs = F.softmax(logits, dim=-1).cpu()
+            for prob in probs:
+                predicted_index = torch.argmax(prob).item()
+                predictions.append({
+                    "label": labels[predicted_index] if labels else predicted_index,
+                    "probabilities": prob.tolist()
+                })
         else:
-            async for predictions in _predict():
-                results.extend(predictions)
+            predicted_indices = torch.argmax(logits, dim=-1).tolist()
+            for predicted_index in predicted_indices:
+                predictions.append(labels[predicted_index] if labels else predicted_index)
 
-            if not uses_array_output:
-                result = results[0] if is_single_input else results
-                return await self._render_output(context, result)
-            else:
-                return results
-
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
-
-    async def _render_output_item(self, context: ComponentActionContext, prediction: Union[Dict[str, Any], str, int]) -> Any:
-        context.register_source("result[]", prediction)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else prediction
-
-    async def _render_output(
-        self,
-        context: ComponentActionContext,
-        result: Union[Dict[str, Any], str, int, List[Union[Dict[str, Any], str, int]]]
-    ) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return predictions
 
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

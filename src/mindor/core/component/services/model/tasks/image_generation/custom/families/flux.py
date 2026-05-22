@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, FluxImageGenerationModelActionConfig
 from mindor.core.logger import logging
-from ...base import ComponentActionContext
-from .common import ImageGenerationTaskService, ImageGenerationTaskAction
+from .....base import ComponentActionContext
+from ...common import ImageGenerationTaskService, ImageGenerationTaskAction
 from PIL import Image as PILImage
 import asyncio
 

@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Protocol, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Protocol, Any, Iterator
 from mindor.dsl.schema.component import ImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
-from mindor.core.utils.streamer import AsyncStreamer
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext
+from .common import ImageToTextTaskAction
 from PIL import Image as PILImage
 from threading import Thread
 import asyncio
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer
 
-class HuggingfaceImageToTextTaskAction:
+class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
     def __init__(
         self,
         config: ImageToTextModelActionConfig,
@@ -28,82 +28,51 @@ class HuggingfaceImageToTextTaskAction:
         processor: ProcessorMixin,
         device: torch.device
     ):
-        self.config: ImageToTextModelActionConfig = config
+        super().__init__(config)
+
         self.model: Union[PreTrainedModel, GenerationMixin] = model
         self.processor: Union[ProcessorMixin, WithTokenizer] = processor
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        from transformers import TextIteratorStreamer, StopStringCriteria, GenerationConfig
+    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], context: ComponentActionContext, streaming: bool) -> Union[List[str], Iterator[str]]:
+        from transformers import StopStringCriteria, GenerationConfig
         import torch
 
-        image, text = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(image, list))
-        images: List[PILImage.Image] = [ image ] if is_single_input else image
-        texts: Optional[List[str]] = [ text ] if is_single_input else text
-        results = []
-
-        batch_size        = await context.render_variable(self.config.batch_size)
-        streaming         = await context.render_variable(self.config.streaming)
         stop_sequences    = await context.render_variable(self.config.stop_sequences)
         processor_params  = await self._resolve_processor_params(context)
         generation_params = await self._resolve_generation_params(context)
 
-        if streaming and (batch_size != 1 or len(images) != 1):
-            raise ValueError("Streaming mode only supports a single input image with batch size of 1")
-
-        streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True) if streaming else None
         stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, stop_sequences) ] if stop_sequences else None
 
-        for index in range(0, len(images), batch_size):
-            batch_images = images[index:index + batch_size]
-            batch_texts = texts[index:index + batch_size] if texts else None
+        inputs: Tensor = self.processor(images=images, text=texts, **processor_params)
+        inputs = inputs.to(self.device)
 
-            inputs: Tensor = self.processor(images=batch_images, text=batch_texts, **processor_params)
-            inputs = inputs.to(self.device)
+        if streaming:
+            from transformers import TextIteratorStreamer
 
-            def _generate():
+            streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True)
+
+            def _run():
                 with torch.inference_mode():
-                    outputs = self.model.generate(
-                        **inputs, 
+                    self.model.generate(
+                        **inputs,
                         generation_config=GenerationConfig(**generation_params),
                         stopping_criteria=stopping_criteria,
                         streamer=streamer
                     )
 
-                outputs = self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-                results.extend(outputs)
+            Thread(target=_run, daemon=True).start()
 
-            if streaming:
-                thread = Thread(target=_generate)
-                thread.start()
-            else:
-                _generate()
-
-        if streaming:
-            async def _stream_output_generator():
-                async for chunk in AsyncStreamer(streamer, loop):
-                    if chunk:
-                        yield await self._render_output_chunk(context, chunk)
-
-            return _stream_output_generator()
+            return streamer
         else:
-            result = results[0] if is_single_input else results
-            return await self._render_output(context, result)
+            with torch.inference_mode():
+                outputs = self.model.generate(
+                    **inputs,
+                    generation_config=GenerationConfig(**generation_params),
+                    stopping_criteria=stopping_criteria,
+                )
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Union[PILImage.Image, List[PILImage.Image]], Optional[Union[str, List[str]]]]:
-        image = await context.render_image(self.config.image)
-        text  = await context.render_variable(self.config.text)
-        
-        return image, text
-
-    async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
-        context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+            return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
     async def _resolve_processor_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

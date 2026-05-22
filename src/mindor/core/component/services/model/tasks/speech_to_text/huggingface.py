@@ -1,19 +1,20 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import SpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext
+from .common import SpeechToTextTaskAction
 import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, ProcessorMixin
     import torch
 
-class HuggingfaceSpeechToTextTaskAction:
+class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     def __init__(
         self,
         config: SpeechToTextModelActionConfig,
@@ -21,21 +22,14 @@ class HuggingfaceSpeechToTextTaskAction:
         processor: ProcessorMixin,
         device: torch.device
     ):
-        self.config: SpeechToTextModelActionConfig = config
+        super().__init__(config, device)
+
         self.model: PreTrainedModel = model
         self.processor: ProcessorMixin = processor
-        self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _transcribe(self, audios: List[Any], context: ComponentActionContext) -> List[str]:
         import torch
-        import numpy as np
 
-        audio_input = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(audio_input, list))
-        audios: List[np.ndarray] = [audio_input] if is_single_input else audio_input
-        results = []
-
-        batch_size    = await context.render_variable(self.config.batch_size)
         language      = await context.render_variable(self.config.language)
         task          = await context.render_variable(self.config.task)
         chunk_length  = await context.render_variable(self.config.chunk_length)
@@ -47,45 +41,22 @@ class HuggingfaceSpeechToTextTaskAction:
         if task is not None:
             generation_params["task"] = task
 
-        for index in range(0, len(audios), batch_size):
-            batch_audios = audios[index:index + batch_size]
+        input_features = self.processor(
+            audios,
+            sampling_rate=16000,
+            return_tensors="pt",
+            padding=True,
+            chunk_length=chunk_length
+        )
+        input_features = input_features.to(self.device)
 
-            input_features = self.processor(
-                batch_audios,
-                sampling_rate=16000,
-                return_tensors="pt",
-                padding=True,
-                chunk_length=chunk_length
+        with torch.inference_mode():
+            predicted_ids = self.model.generate(
+                **input_features,
+                **generation_params
             )
-            input_features = input_features.to(self.device)
 
-            with torch.inference_mode():
-                predicted_ids = self.model.generate(
-                    **input_features,
-                    **generation_params
-                )
-
-            transcriptions = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
-            results.extend(transcriptions)
-
-        result = results[0] if is_single_input else results
-        return await self._render_output(context, result)
-
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[Any, List[Any]]:
-        audio = await context.render_variable(self.config.audio)
-
-        if isinstance(audio, list):
-            return [await self._load_audio(a) for a in audio]
-        return await self._load_audio(audio)
-
-    async def _load_audio(self, audio_path: str) -> Any:
-        import librosa
-        audio_array, _ = librosa.load(audio_path, sr=16000)
-        return audio_array
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length           = await context.render_variable(self.config.params.max_output_length)

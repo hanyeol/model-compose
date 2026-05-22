@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from .common import TextEmbeddingTaskAction
 import asyncio
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class HuggingfaceTextEmbeddingTaskAction:
+class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,
@@ -22,83 +23,33 @@ class HuggingfaceTextEmbeddingTaskAction:
         tokenizer: PreTrainedTokenizer,
         device: torch.device
     ):
-        self.config: TextEmbeddingModelActionConfig = config
+        super().__init__(config)
+
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def _embed(self, texts: List[str], context: ComponentActionContext) -> List[List[float]]:
         import torch, torch.nn.functional as F
 
-        text = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(text, list))
-        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
-        texts: List[str] = [ text ] if is_single_input else text
-        results = []
-
-        batch_size       = await context.render_variable(self.config.batch_size)
-        streaming        = await context.render_variable(self.config.streaming)
         tokenizer_params = await self._resolve_tokenizer_params(context)
         pooling          = await context.render_variable(self.config.params.pooling)
         normalize        = await context.render_variable(self.config.params.normalize)
 
-        async def _embed():
-            for index in range(0, len(texts), batch_size):
-                batch_texts = texts[index:index + batch_size]
-                inputs: Dict[str, Tensor] = self.tokenizer(batch_texts, **tokenizer_params)
-                inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        inputs: Dict[str, Tensor] = self.tokenizer(texts, **tokenizer_params)
+        inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-                with torch.inference_mode():
-                    outputs: BaseModelOutput = self.model(**inputs)
-                    last_hidden_state = outputs.last_hidden_state # (batch_size, seq_len, hidden_size)
+        with torch.inference_mode():
+            outputs: BaseModelOutput = self.model(**inputs)
+            last_hidden_state = outputs.last_hidden_state
 
-                attention_mask = inputs.get("attention_mask", None)
-                embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
+        attention_mask = inputs.get("attention_mask", None)
+        embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
 
-                if normalize:
-                    embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
+        if normalize:
+            embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-                embeddings = embeddings.cpu().tolist()
-
-                if uses_array_output:
-                    rendered_outputs = []
-                    for embedding in embeddings:
-                        rendered_outputs.append(await self._render_output_item(context, embedding))
-                    yield rendered_outputs
-                else:
-                    yield embeddings
-
-        if streaming:
-            async def _stream_output_generator():
-                async for embeddings in _embed():
-                    if not uses_array_output:
-                        for embedding in embeddings:
-                            yield await self._render_output(context, embedding)
-                    else:
-                        for embedding in embeddings:
-                            yield embedding
-
-            return _stream_output_generator()
-        else:
-            async for embeddings in _embed():
-                results.extend(embeddings)
-
-            if not uses_array_output:
-                result = results[0] if is_single_input else results
-                return await self._render_output(context, result)
-            else:
-                return results
-
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
-
-    async def _render_output_item(self, context: ComponentActionContext, embedding: List[float]) -> Any:
-        context.register_source("result[]", embedding)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else embedding
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[List[float], List[List[float]]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return embeddings.cpu().tolist()
 
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

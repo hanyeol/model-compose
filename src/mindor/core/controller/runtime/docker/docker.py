@@ -1,5 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.controller import ControllerConfig, ControllerWebUIDriver
+from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.runtime.docker import DockerRuntimeManager
 from mindor.core.logger import logging
@@ -15,7 +16,7 @@ class DockerRuntimeLauncher:
         self._configure_runtime_config()
 
     def _configure_runtime_config(self) -> None:
-        adapter_ports = [ adapter.port for adapter in self.config.adapters if hasattr(adapter, 'port') ]
+        adapter_ports = self._resolve_adapter_ports()
         first_port = adapter_ports[0] if adapter_ports else 8080
 
         if not self.config.runtime.image:
@@ -26,7 +27,7 @@ class DockerRuntimeLauncher:
         if not self.config.runtime.container_name:
             self.config.runtime.container_name = self.config.name or f"mindor-controller-{first_port}"
 
-        if not self.config.runtime.ports:
+        if self.config.runtime.ports is None:
             webui_port = getattr(self.config.webui, "port", None)
             self.config.runtime.ports = list(set(adapter_ports + ([webui_port] if webui_port else [])))
 
@@ -35,6 +36,15 @@ class DockerRuntimeLauncher:
             self.config.runtime.extra_hosts = {}
         if "host.docker.internal" not in self.config.runtime.extra_hosts:
             self.config.runtime.extra_hosts["host.docker.internal"] = "host-gateway"
+
+    def _resolve_adapter_ports(self) -> List[int]:
+        ports = []
+        for adapter in self.config.adapters:
+            if adapter.type in [ ControllerAdapterType.QUEUE_SUBSCRIBER ]:
+                continue
+            if hasattr(adapter, 'port'):
+                ports.append(adapter.port)
+        return ports
 
     async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)

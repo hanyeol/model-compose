@@ -1061,7 +1061,7 @@ controller:
 
 ### 15.5.6 트레이서 설정
 
-트레이서는 워크플로우 및 잡 실행의 구조화된 트레이싱 데이터를 Langfuse 등 외부 관측 도구로 전송합니다.
+트레이서는 워크플로우 및 작업 실행의 구조화된 트레이싱 데이터를 Langfuse 등 외부 관측 도구로 전송합니다.
 
 **기본 Langfuse 트레이서:**
 
@@ -1072,7 +1072,7 @@ tracer:
   secret_key: ${env.LANGFUSE_SECRET_KEY}
 ```
 
-워크플로우 및 잡 수준의 트레이스를 Langfuse Cloud로 전송합니다.
+워크플로우 및 작업 수준의 트레이스를 Langfuse Cloud로 전송합니다.
 
 **셀프 호스팅 Langfuse:**
 

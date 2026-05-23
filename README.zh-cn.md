@@ -64,8 +64,9 @@ model-compose 的目标不是构建另一个封闭平台，而是将架构自主
 ## Highlights
 
 - **Any model, anywhere** — 通过 HuggingFace、vLLM、llama.cpp 在本地运行模型，或连接 OpenAI、Anthropic、Google 等
+- **AI agents in YAML** — 构建支持工具调用、规划和多步推理的自主智能体 — 全部声明式定义
+- **Human-in-the-loop** — 为任何工作流添加审批关卡和用户输入步骤
 - **20+ components ready** — 模型、智能体、HTTP 客户端、向量/图存储、Shell 命令等
-- **Built-in data stores** — Chroma、FAISS、Milvus、Qdrant、Neo4j、ArangoDB、Redis
 - **Deploy as container** — Docker、原生容器或独立进程，一套配置搞定
 - **Serve any protocol** — HTTP REST、WebSocket 或 MCP，一行即可切换
 - **Distributed execution** — 通过 Redis 队列分发扩展到多台机器

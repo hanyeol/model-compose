@@ -64,8 +64,9 @@ The goal of model-compose is not to build another closed platform, but to restor
 ## Highlights
 
 - **Any model, anywhere** — run models locally via HuggingFace, vLLM, and llama.cpp, or connect to OpenAI, Anthropic, Google, and more
+- **AI agents in YAML** — build autonomous agents with tool use, planning, and multi-step reasoning — all declarative
+- **Human-in-the-loop** — add approval gates and user input steps to any workflow
 - **20+ components ready** — models, agents, HTTP clients, vector/graph stores, shell commands, and more
-- **Built-in data stores** — Chroma, FAISS, Milvus, Qdrant, Neo4j, ArangoDB, Redis
 - **Deploy as container** — Docker, native containers, or standalone process with one config
 - **Serve any protocol** — HTTP REST, WebSocket, or MCP with one line change
 - **Distributed execution** — scale across machines with Redis-backed queue dispatch

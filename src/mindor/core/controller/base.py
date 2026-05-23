@@ -309,6 +309,13 @@ class ControllerService(AsyncService):
         with self.task_states_lock:
             return self.task_states.get(task_id)
 
+    def is_workflow_available(self, workflow_id: str) -> bool:
+        if workflow_id in self.workflow_schemas:
+            return True
+        if self._queue:
+            return True
+        return False
+
     async def _start(self) -> None:
         if self.task_queue:
             await self.task_queue.start()

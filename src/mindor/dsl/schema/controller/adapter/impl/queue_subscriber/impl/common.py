@@ -13,7 +13,7 @@ class CommonQueueSubscriberControllerAdapterConfig(BaseModel):
     result_ttl: str = Field(default="1h", description="TTL for result entries (e.g. '1h', '30m'). '0s' means no expiry.")
     max_concurrent_count: int = Field(default=1, ge=1, description="Maximum number of tasks this worker processes concurrently.")
     worker_id: Optional[str] = Field(default=None, description="Unique identifier for this worker instance. Auto-generated if not set.")
-    workflows: List[str] = Field(default=["__default__"], description="List of workflow IDs this worker handles. Each workflow gets its own queue: {name}:{workflow_id}.")
+    workflows: Optional[List[str]] = Field(default=None, description="List of workflow IDs this worker handles. Each workflow gets its own queue: {name}:{workflow_id}. If not specified, all non-private workflows are used.")
 
     @model_validator(mode="before")
     def inflate_single_workflow(cls, values: Dict[str, Any]):

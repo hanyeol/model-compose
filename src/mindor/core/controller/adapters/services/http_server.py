@@ -466,7 +466,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         workflow_id = self._resolve_workflow_id(workflow_id)
 
-        if not workflow_id or workflow_id not in self.controller.workflow_schemas:
+        if not workflow_id or not self.controller.is_workflow_available(workflow_id):
             await self._websocket_send_error(client_id, "WORKFLOW_NOT_FOUND", f"Workflow '{workflow_id}' not found", message_id)
             return
 
@@ -596,7 +596,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         workflow_id = self._resolve_workflow_id(body.workflow_id or "__default__")
 
-        if not workflow_id or workflow_id not in self.controller.workflow_schemas:
+        if not workflow_id or not self.controller.is_workflow_available(workflow_id):
             raise HTTPException(status_code=404, detail=f"Workflow '{body.workflow_id or '__default__'}' not found.")
 
         if body.subscribe_task and body.wait_for_completion:

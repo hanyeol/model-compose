@@ -40,7 +40,8 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             decode_responses=True,
         )
 
-        queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in self.config.workflows ]
+        workflows = self.config.workflows or list(self.controller.workflow_schemas.keys())
+        queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in workflows ]
         logging.info("Queue subscriber started: %s (queues: %s, workers: %d)", self._build_redis_url(), ", ".join(queue_keys), self.config.max_concurrent_count)
 
         for index in range(self.config.max_concurrent_count):

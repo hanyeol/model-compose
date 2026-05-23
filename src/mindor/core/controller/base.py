@@ -310,9 +310,7 @@ class ControllerService(AsyncService):
             return self.task_states.get(task_id)
 
     def is_workflow_available(self, workflow_id: str) -> bool:
-        if workflow_id in self.workflow_schemas:
-            return True
-        if self._queue:
+        if workflow_id in self.workflow_schemas or self._queue:
             return True
         return False
 

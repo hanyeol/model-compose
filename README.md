@@ -30,6 +30,37 @@ Inspired by `docker-compose` — one YAML file defines your entire AI system.
 
 ---
 
+## Philosophy
+
+AI systems should not be locked into a single provider, runtime, or cloud. They should remain portable, inspectable, and able to run anywhere.
+
+Today, many AI applications are tightly coupled to provider-specific APIs, managed runtimes, and closed ecosystems. While convenient at first, this coupling introduces vendor lock-in — components can't be swapped without rewriting, systems can't move between environments, and teams are forced to choose between cloud convenience and local control.
+
+**model-compose** takes a fundamentally different approach based on three core principles:
+
+* **Composable** — Models, agents, workflows, tools, memory, and protocols are treated as modular, interchangeable building blocks.
+
+* **Portable** — Define your AI system once, then deploy it locally, in containers, or across distributed production environments without re-engineering the core architecture.
+
+* **Hybrid-First** — Bridge cloud APIs and local models on your own terms. Swap infrastructure layers seamlessly to optimize for privacy, latency, or cost without changing how your system behaves.
+
+The goal of model-compose is not to build another closed platform, but to restore architectural autonomy to developers.
+
+---
+
+## Why model-compose?
+
+| Feature | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) | **model-compose** |
+|---|---|---|---|
+| **Provider Coupling** | Single provider per SDK | Multi-provider via abstractions | **Multi-provider via config** |
+| **Code Coupling** | Application code required | Framework-specific code required | **Declarative YAML — no application code** |
+| **Infrastructure Control** | Provider-controlled | Heavy Abstraction | **Full Sovereignty** |
+| **Runtime Flexibility** | Cloud Only | Complex to customize | **Hybrid-First (Local + Cloud)** |
+| **Protocol Support** | Provider-specific | Limited | **HTTP / WebSocket / MCP** |
+| **Deployment** | Provider-managed | Manual integration | **Docker / Native / Process** |
+
+---
+
 ## Highlights
 
 - **Any model, anywhere** — run models locally via HuggingFace, vLLM, and llama.cpp, or connect to OpenAI, Anthropic, Google, and more

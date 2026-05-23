@@ -30,6 +30,37 @@
 
 ---
 
+## Philosophy
+
+AI 系统不应被锁定在单一提供商、运行时或云平台中。AI 系统应当保持可移植、可检查，并能够在任何地方运行。
+
+如今，许多 AI 应用都与特定提供商的 API、托管运行时和封闭生态系统紧密耦合。起初这可能很方便，但这种耦合会带来供应商锁定 — 组件无法在不重写的情况下替换，系统无法在不同环境间迁移，团队被迫在云端便利性和本地控制之间做出取舍。
+
+**model-compose** 基于三个核心原则，采用一种根本不同的方式：
+
+* **Composable** — 模型、智能体、工作流、工具、记忆和协议都被视为模块化、可互换的构建块。
+
+* **Portable** — 只需定义一次 AI 系统，即可部署到本地、容器或分布式生产环境，无需重新设计核心架构。
+
+* **Hybrid-First** — 按照你自己的条件连接云端 API 和本地模型。无缝切换基础设施层，在不改变系统行为的前提下优化隐私、延迟或成本。
+
+model-compose 的目标不是构建另一个封闭平台，而是将架构自主权归还给开发者。
+
+---
+
+## Why model-compose?
+
+| Feature | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) | **model-compose** |
+|---|---|---|---|
+| **Provider Coupling** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 | **仅通过配置实现多提供商** |
+| **Code Coupling** | 需要应用代码 | 需要框架专用代码 | **声明式 YAML — 无需应用代码** |
+| **Infrastructure Control** | 提供商控制 | 重度抽象 | **完全自主权** |
+| **Runtime Flexibility** | 仅限云端 | 定制复杂 | **Hybrid-First（本地 + 云端）** |
+| **Protocol Support** | 提供商限定 | 有限 | **HTTP / WebSocket / MCP** |
+| **Deployment** | 提供商管理 | 手动集成 | **Docker / Native / Process** |
+
+---
+
 ## Highlights
 
 - **Any model, anywhere** — 通过 HuggingFace、vLLM、llama.cpp 在本地运行模型，或连接 OpenAI、Anthropic、Google 等

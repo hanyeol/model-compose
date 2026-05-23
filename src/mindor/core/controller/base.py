@@ -2,11 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Callable, Awaitable
-import logging
-
-logger = logging.getLogger(__name__)
-
-TaskStateListener = Callable[['str', 'TaskState'], Awaitable[None]]
 from enum import Enum
 from dataclasses import dataclass
 from mindor.dsl.schema.controller import ControllerConfig
@@ -30,7 +25,7 @@ from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.controller.webui import ControllerWebUI, create_webui
 from mindor.core.tracer import TracerService, create_tracer
-from mindor.core.logger import LoggerService, create_logger
+from mindor.core.logger import LoggerService, create_logger, logging
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import parse_duration
@@ -40,7 +35,7 @@ from .runtime.docker import DockerRuntimeLauncher
 from .runtime.apple_container import AppleContainerRuntimeLauncher
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, os, logging, threading
+import asyncio, ulid, os, threading
 
 if TYPE_CHECKING:
     from mindor.core.controller.adapters.base import ControllerAdapterService
@@ -70,6 +65,8 @@ class TaskState:
     interrupt: Optional[InterruptState] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
+
+TaskStateListener = Callable[['str', 'TaskState'], Awaitable[None]]
 
 class ControllerService(AsyncService):
     _shared_instance: Optional[ControllerService] = None
@@ -624,7 +621,7 @@ class ControllerService(AsyncService):
         try:
             await listener(task_id, state)
         except Exception:
-            logger.warning("Task state listener error for task %s", task_id, exc_info=True)
+            logging.warning("Task state listener error for task %s", task_id, exc_info=True)
 
     async def _cancel_pending_listener_tasks(self) -> None:
         for task in list(self._listener_tasks):

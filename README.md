@@ -63,13 +63,14 @@ The goal of model-compose is not to build another closed platform, but to restor
 
 ## Highlights
 
-- **Any model, anywhere** — run models locally via HuggingFace, vLLM, and llama.cpp, or connect to OpenAI, Anthropic, Google, and more
+- **Any model, anywhere** — run models locally via HuggingFace, vLLM, or llama.cpp for privacy, offline use, or zero API cost — or connect to OpenAI, Anthropic, Google, and more
 - **AI agents in YAML** — build autonomous agents with tool use, planning, and multi-step reasoning — all declarative
-- **Human-in-the-loop** — add approval gates and user input steps to any workflow
-- **20+ components ready** — models, agents, HTTP clients, vector/graph stores, shell commands, and more
-- **Deploy as container** — Docker, native containers, or standalone process with one config
+- **Human-in-the-loop** — workflows can pause for approval gates, user input, or manual review before continuing
+- **Real-time streaming** — built-in SSE streaming for live AI responses from any provider or local model
+- **20+ components ready** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell commands, and more
+- **Deploy as container** — same YAML runs as a Docker container, native process, or standalone service — switch runtime with one line
 - **Serve any protocol** — HTTP REST, WebSocket, or MCP with one line change
-- **Distributed execution** — scale across machines with Redis-backed queue dispatch
+- **Distributed execution** — dispatch workflows to remote workers via Redis queues — scale horizontally by adding servers
 - **Instant Web UI** — add a Gradio-powered interface with 2 lines of YAML
 
 ---

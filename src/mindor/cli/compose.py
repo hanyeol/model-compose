@@ -1,5 +1,4 @@
 from typing import Optional, List
-import importlib.metadata
 from pathlib import Path
 import click
 import asyncio
@@ -16,10 +15,9 @@ def _load_compose_config(config_files: List[Path], env_files: List[Path], env_da
     return load_compose_config(".", config_files, env)
 
 def _get_version() -> str:
-    try:
-        return importlib.metadata.version("model-compose")
-    except importlib.metadata.PackageNotFoundError:
-        return "latest"
+    from mindor.version import __version__
+
+    return __version__
 
 @click.group()
 @click.option(

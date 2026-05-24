@@ -3,32 +3,32 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, SdxlImageGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, FluxImageGenerationModelActionConfig
 from mindor.core.logger import logging
-from .....base import ComponentActionContext
-from ...common import ImageGenerationTaskService, ImageGenerationTaskAction
+from ....base import ComponentActionContext
+from ..common import ImageGenerationTaskService, ImageGenerationTaskAction
 from PIL import Image as PILImage
 import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class SdxlImageGenerationTaskAction(ImageGenerationTaskAction):
+class FluxImageGenerationTaskAction(ImageGenerationTaskAction):
     def __init__(
         self,
-        config: SdxlImageGenerationModelActionConfig,
+        config: FluxImageGenerationModelActionConfig,
         pipeline: Any,
         device: Optional[torch.device]
     ):
         super().__init__(config, device)
 
-        self.config: SdxlImageGenerationModelActionConfig = config
+        self.config: FluxImageGenerationModelActionConfig = config
         self.pipeline = pipeline
 
     async def _generate(self, params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
-class SdxlImageGenerationTaskService(ImageGenerationTaskService):
+class FluxImageGenerationTaskService(ImageGenerationTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -54,4 +54,4 @@ class SdxlImageGenerationTaskService(ImageGenerationTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return SdxlImageGenerationModelActionConfig(action, self.model).run(context)
+        return FluxImageGenerationModelActionConfig(action, self.model).run(context)

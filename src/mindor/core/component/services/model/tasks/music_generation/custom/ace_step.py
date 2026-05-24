@@ -6,8 +6,8 @@ from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelCo
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
 from mindor.core.logger import logging
 from mindor.core.utils.audio import PcmStreamResource
-from .....base import ComponentActionContext
-from ...common import MusicGenerationTaskService, MusicGenerationTaskAction
+from ....base import ComponentActionContext
+from ..common import MusicGenerationTaskService, MusicGenerationTaskAction
 import asyncio
 
 if TYPE_CHECKING:

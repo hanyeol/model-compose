@@ -3,32 +3,32 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, FluxImageGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HunyuanImageGenerationModelActionConfig
 from mindor.core.logger import logging
-from .....base import ComponentActionContext
-from ...common import ImageGenerationTaskService, ImageGenerationTaskAction
+from ....base import ComponentActionContext
+from ..common import ImageGenerationTaskService, ImageGenerationTaskAction
 from PIL import Image as PILImage
 import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class FluxImageGenerationTaskAction(ImageGenerationTaskAction):
+class HunyuanImageGenerationTaskAction(ImageGenerationTaskAction):
     def __init__(
         self,
-        config: FluxImageGenerationModelActionConfig,
+        config: HunyuanImageGenerationModelActionConfig,
         pipeline: Any,
         device: Optional[torch.device]
     ):
         super().__init__(config, device)
 
-        self.config: FluxImageGenerationModelActionConfig = config
+        self.config: HunyuanImageGenerationModelActionConfig = config
         self.pipeline = pipeline
 
     async def _generate(self, params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
-class FluxImageGenerationTaskService(ImageGenerationTaskService):
+class HunyuanImageGenerationTaskService(ImageGenerationTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -54,4 +54,4 @@ class FluxImageGenerationTaskService(ImageGenerationTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return FluxImageGenerationModelActionConfig(action, self.model).run(context)
+        return HunyuanImageGenerationModelActionConfig(action, self.model).run(context)

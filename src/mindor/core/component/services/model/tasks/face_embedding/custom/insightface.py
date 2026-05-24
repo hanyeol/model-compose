@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbeddingModelActionConfig
 from mindor.core.logger import logging
-from ...common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
-from .....base import ComponentActionContext
+from ..common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
+from ....base import ComponentActionContext
 from PIL import Image as PILImage
 import asyncio, os, shutil
 

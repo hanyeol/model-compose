@@ -3,32 +3,32 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, HunyuanImageGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, SdxlImageGenerationModelActionConfig
 from mindor.core.logger import logging
-from .....base import ComponentActionContext
-from ...common import ImageGenerationTaskService, ImageGenerationTaskAction
+from ....base import ComponentActionContext
+from ..common import ImageGenerationTaskService, ImageGenerationTaskAction
 from PIL import Image as PILImage
 import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class HunyuanImageGenerationTaskAction(ImageGenerationTaskAction):
+class SdxlImageGenerationTaskAction(ImageGenerationTaskAction):
     def __init__(
         self,
-        config: HunyuanImageGenerationModelActionConfig,
+        config: SdxlImageGenerationModelActionConfig,
         pipeline: Any,
         device: Optional[torch.device]
     ):
         super().__init__(config, device)
 
-        self.config: HunyuanImageGenerationModelActionConfig = config
+        self.config: SdxlImageGenerationModelActionConfig = config
         self.pipeline = pipeline
 
     async def _generate(self, params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
-class HunyuanImageGenerationTaskService(ImageGenerationTaskService):
+class SdxlImageGenerationTaskService(ImageGenerationTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -54,4 +54,4 @@ class HunyuanImageGenerationTaskService(ImageGenerationTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return HunyuanImageGenerationModelActionConfig(action, self.model).run(context)
+        return SdxlImageGenerationModelActionConfig(action, self.model).run(context)

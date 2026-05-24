@@ -148,7 +148,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
         params = await super()._resolve_upscale_params(context)
 
         params["task"        ] = await context.render_variable(self.config.params.task)
-        params["tile"        ] = await context.render_variable(self.config.params.tile)
+        params["tile"        ] = await context.render_variable(self.config.params.tile_size)
         params["tile_overlap"] = await context.render_variable(self.config.params.tile_overlap)
         params["scale"       ] = await context.render_variable(self.config.params.scale)
         params["window_size" ] = await context.render_variable(self.config.params.window_size)

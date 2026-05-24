@@ -1,2 +1,2 @@
 from .common import *
-from .hunyuan_image import *
+from .custom import *

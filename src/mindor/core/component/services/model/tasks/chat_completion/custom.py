@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ChatCompletionModelFamily
+from mindor.dsl.schema.component import ModelComponentConfig, CustomChatCompletionModelFamily
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.CUSTOM)

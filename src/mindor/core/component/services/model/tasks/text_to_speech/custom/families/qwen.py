@@ -66,8 +66,8 @@ class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
 
 class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
     async def _synthesize(self, text: str, language: Optional[str], context: ComponentActionContext) -> Tuple[Any, int]:
-        ref_audio = await context.render_file(self.config.ref_audio)
-        ref_text  = await context.render_variable(self.config.ref_text)
+        ref_audio = await context.render_file(self.config.reference_audio)
+        ref_text  = await context.render_variable(self.config.reference_text)
 
         return self.model.generate_voice_clone(
             text=text,

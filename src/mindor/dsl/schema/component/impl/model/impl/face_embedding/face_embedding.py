@@ -1,12 +1,10 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from pydantic import BaseModel, Field
+from typing import Union, Annotated
+from pydantic import Field
 from .impl import *
 
-FaceEmbeddingeModelComponentConfig = Annotated[
-    Union[ 
-        InsightfaceFaceEmbeddingModelComponentConfig,
-        FacenetFaceEmbeddingModelComponentConfig,
-        DlibFaceEmbeddingModelComponentConfig
+FaceEmbeddingModelComponentConfig = Annotated[
+    Union[
+        CustomFaceEmbeddingModelComponentConfig,
     ],
-    Field(discriminator="family")
+    Field(discriminator="driver")
 ]

@@ -3,16 +3,16 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import TokenizerComponentConfig, TokenizerTaskType, TokenizerDriver
+from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriver
 from mindor.dsl.schema.component.impl.model.impl.common import HuggingfaceModelConfig, LocalModelConfig
-from mindor.dsl.schema.action import TokenizerActionConfig
+from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
 
-class TokenizerTaskService:
-    def __init__(self, id: str, config: TokenizerComponentConfig):
+class ModelTokenizerTaskService:
+    def __init__(self, id: str, config: ModelTokenizerComponentConfig):
         self.id: str = id
-        self.config: TokenizerComponentConfig = config
+        self.config: ModelTokenizerComponentConfig = config
         self._tokenizer = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
@@ -29,7 +29,7 @@ class TokenizerTaskService:
         pass
 
     @abstractmethod
-    async def run(self, action: TokenizerActionConfig, context: ComponentActionContext) -> Any:
+    async def run(self, action: ModelTokenizerActionConfig, context: ComponentActionContext) -> Any:
         pass
 
     def _get_model_path(self) -> str:
@@ -44,12 +44,12 @@ class TokenizerTaskService:
 
         raise ValueError(f"Unknown model config type: {type(self.config.model)}")
 
-def register_tokenizer_task_service(task: TokenizerTaskType, driver: TokenizerDriver):
-    def decorator(cls: Type[TokenizerTaskService]) -> Type[TokenizerTaskService]:
-        if task not in TokenizerTaskServiceRegistry:
-            TokenizerTaskServiceRegistry[task] = {}
-        TokenizerTaskServiceRegistry[task][driver] = cls
+def register_model_tokenizer_task_service(task: ModelTokenizerTaskType, driver: ModelTokenizerDriver):
+    def decorator(cls: Type[ModelTokenizerTaskService]) -> Type[ModelTokenizerTaskService]:
+        if task not in ModelTokenizerTaskServiceRegistry:
+            ModelTokenizerTaskServiceRegistry[task] = {}
+        ModelTokenizerTaskServiceRegistry[task][driver] = cls
         return cls
     return decorator
 
-TokenizerTaskServiceRegistry: Dict[TokenizerTaskType, Dict[TokenizerDriver, Type[TokenizerTaskService]]] = {}
+ModelTokenizerTaskServiceRegistry: Dict[ModelTokenizerTaskType, Dict[ModelTokenizerDriver, Type[ModelTokenizerTaskService]]] = {}

@@ -3,10 +3,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
-class TokenizerMethod(str, Enum):
+class ModelTokenizerMethod(str, Enum):
     ENCODE = "encode"
     DECODE = "decode"
     COUNT  = "count"
 
-class CommonTokenizerActionConfig(CommonActionConfig):
-    method: TokenizerMethod = Field(..., description="Tokenizer method.")
+class CommonModelTokenizerActionConfig(CommonActionConfig):
+    method: ModelTokenizerMethod = Field(..., description="Tokenizer method.")

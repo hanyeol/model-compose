@@ -2,24 +2,24 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.action import TokenizerActionConfig
-from mindor.dsl.schema.action.impl.tokenizer.impl.common import TokenizerMethod
-from ...base import TokenizerTaskType, TokenizerDriver, register_tokenizer_task_service
-from ...base import HuggingfaceTokenizerTaskService, ComponentActionContext
+from mindor.dsl.schema.action import ModelTokenizerActionConfig
+from mindor.dsl.schema.action.impl.model_tokenizer.impl.common import ModelTokenizerMethod
+from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
+from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext
 
-class HuggingfaceTextTokenizerTaskAction:
-    def __init__(self, config: TokenizerActionConfig, tokenizer: Any):
-        self.config: TokenizerActionConfig = config
+class HuggingfaceTextModelTokenizerTaskAction:
+    def __init__(self, config: ModelTokenizerActionConfig, tokenizer: Any):
+        self.config: ModelTokenizerActionConfig = config
         self.tokenizer = tokenizer
 
     async def run(self, context: ComponentActionContext) -> Any:
-        if self.config.method == TokenizerMethod.ENCODE:
+        if self.config.method == ModelTokenizerMethod.ENCODE:
             return await self._encode(context)
 
-        if self.config.method == TokenizerMethod.DECODE:
+        if self.config.method == ModelTokenizerMethod.DECODE:
             return await self._decode(context)
 
-        if self.config.method == TokenizerMethod.COUNT:
+        if self.config.method == ModelTokenizerMethod.COUNT:
             return await self._count(context)
 
         raise ValueError(f"Unsupported tokenizer method: {self.config.method}")
@@ -50,7 +50,7 @@ class HuggingfaceTextTokenizerTaskAction:
         skip_special_tokens = await context.render_variable(self.config.skip_special_tokens)
 
         text = self.tokenizer.decode(token_ids, skip_special_tokens=bool(skip_special_tokens))
-        
+
         return { "text": text }
 
     async def _count(self, context: ComponentActionContext) -> Dict[str, int]:
@@ -60,7 +60,7 @@ class HuggingfaceTextTokenizerTaskAction:
 
         return { "count": len(token_ids) }
 
-@register_tokenizer_task_service(TokenizerTaskType.TEXT, TokenizerDriver.HUGGINGFACE)
-class HuggingfaceTextTokenizerTaskService(HuggingfaceTokenizerTaskService):
-    async def run(self, action: TokenizerActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextTokenizerTaskAction(action, self._tokenizer).run(context)
+@register_model_tokenizer_task_service(ModelTokenizerTaskType.TEXT, ModelTokenizerDriver.HUGGINGFACE)
+class HuggingfaceTextModelTokenizerTaskService(HuggingfaceModelTokenizerTaskService):
+    async def run(self, action: ModelTokenizerActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextModelTokenizerTaskAction(action, self._tokenizer).run(context)

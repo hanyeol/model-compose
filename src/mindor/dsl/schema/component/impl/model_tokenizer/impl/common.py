@@ -6,16 +6,16 @@ from mindor.dsl.utils.path import is_local_path
 from ...common import CommonComponentConfig, ComponentType
 from ...model.impl.common import ModelConfig, ModelProvider
 
-class TokenizerTaskType(str, Enum):
+class ModelTokenizerTaskType(str, Enum):
     TEXT = "text"
 
-class TokenizerDriver(str, Enum):
+class ModelTokenizerDriver(str, Enum):
     HUGGINGFACE = "huggingface"
 
-class CommonTokenizerComponentConfig(CommonComponentConfig):
-    type: Literal[ComponentType.TOKENIZER]
-    task: TokenizerTaskType = Field(..., description="Type of task the tokenizer performs.")
-    driver: TokenizerDriver = Field(default=TokenizerDriver.HUGGINGFACE, description="Tokenizer driver to use.")
+class CommonModelTokenizerComponentConfig(CommonComponentConfig):
+    type: Literal[ComponentType.MODEL_TOKENIZER]
+    task: ModelTokenizerTaskType = Field(..., description="Type of task the tokenizer performs.")
+    driver: ModelTokenizerDriver = Field(default=ModelTokenizerDriver.HUGGINGFACE, description="Tokenizer driver to use.")
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration for the tokenizer.")
     use_fast: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
 

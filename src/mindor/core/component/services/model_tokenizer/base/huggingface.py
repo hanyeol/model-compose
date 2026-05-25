@@ -2,12 +2,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import TokenizerComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelTokenizerComponentConfig, HuggingfaceModelConfig
 from mindor.core.logger import logging
-from .common import TokenizerTaskService
+from .common import ModelTokenizerTaskService
 
-class HuggingfaceTokenizerTaskService(TokenizerTaskService):
-    def __init__(self, id: str, config: TokenizerComponentConfig):
+class HuggingfaceModelTokenizerTaskService(ModelTokenizerTaskService):
+    def __init__(self, id: str, config: ModelTokenizerComponentConfig):
         super().__init__(id, config)
 
     def get_setup_requirements(self) -> Optional[List[str]]:

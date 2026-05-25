@@ -10,7 +10,7 @@ class ComponentType(str, Enum):
     MODEL                = "model"
     MODEL_MEMORY         = "model-memory"
     MODEL_TRAINER        = "model-trainer"
-    TOKENIZER            = "tokenizer"
+    MODEL_TOKENIZER      = "model-tokenizer"
     DATASETS             = "datasets"
     VECTOR_STORE         = "vector-store"
     WORKFLOW             = "workflow"
@@ -26,3 +26,4 @@ class ComponentType(str, Enum):
     AUDIO_CONVERTER      = "audio-converter"
     KEY_VALUE_STORE      = "key-value-store"
     GRAPH_STORE          = "graph-store"
+    SEARCH_ENGINE        = "search-engine"

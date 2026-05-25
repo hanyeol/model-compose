@@ -11,7 +11,7 @@ ActionConfig = Union[
     McpClientActionConfig,
     ModelActionConfig,
     ModelMemoryActionConfig,
-    TokenizerActionConfig,
+    ModelTokenizerActionConfig,
     WorkflowActionConfig,
     ShellActionConfig,
     TextSplitterActionConfig,
@@ -22,5 +22,6 @@ ActionConfig = Union[
     VideoConverterActionConfig,
     AudioExtractorActionConfig,
     KeyValueStoreActionConfig,
-    GraphStoreActionConfig
+    GraphStoreActionConfig,
+    SearchEngineActionConfig
 ]

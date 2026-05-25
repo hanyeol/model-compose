@@ -18,12 +18,13 @@ model-compose provides various component types for performing different tasks.
 | `mcp-server` | Provide MCP service | Implement Model Context Protocol server |
 | `mcp-client` | MCP client | Communicate with MCP servers |
 | `model` | Run local AI models | Local model inference for text generation, image analysis, etc. |
-| `model-memory` | Conversation memory | Session-based chat history with windowing and summarization |
-| `tokenizer` | Standalone tokenization | Token encoding, decoding, counting |
+| `model-memory` | Model conversation memory | Session-based chat history with windowing and summarization |
+| `model-tokenizer` | Model tokenization | Token encoding, decoding, counting using model tokenizers |
 | `model-trainer` | Train models | Fine-tuning, LoRA training |
 | `datasets` | Load datasets | Load and process training/evaluation datasets |
 | `vector-store` | Vector DB integration | RAG systems with Chroma, Milvus, etc. |
 | `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
+| `search-engine` | Full-text search | BM25-ranked keyword search with SQLite FTS5 |
 | `key-value-store` | Key-value storage | Caching, session management with Redis |
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
@@ -45,12 +46,13 @@ model-compose provides various component types for performing different tasks.
 - Training → `model-trainer`
 
 **Data Processing**
+- Conversation memory → `model-memory`
+- Vector storage → `vector-store`
+- Graph storage → `graph-store`
+- Full-text search → `search-engine`
+- Key-value storage → `key-value-store`
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
-- Vector storage → `vector-store`
-- Key-value storage → `key-value-store`
-- Conversation memory → `model-memory`
-- Graph storage → `graph-store`
 - Video scene detection → `video-scene-detector`
 - Web scraping → `web-scraper`
 

@@ -18,11 +18,13 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `mcp-server` | 提供 MCP 服务 | 实现模型上下文协议服务器 |
 | `mcp-client` | MCP 客户端 | 与 MCP 服务器通信 |
 | `model` | 运行本地 AI 模型 | 本地模型推理，如文本生成、图像分析等 |
-| `model-memory` | 对话记忆 | 基于会话的对话历史存储/窗口/摘要 |
+| `model-memory` | 模型对话记忆 | 基于会话的对话历史存储/窗口/摘要 |
+| `model-tokenizer` | 模型分词器 | 使用模型分词器进行 token 编码、解码、计数 |
 | `model-trainer` | 训练模型 | 微调、LoRA 训练 |
 | `datasets` | 加载数据集 | 加载和处理训练/评估数据集 |
 | `vector-store` | 向量数据库集成 | 使用 Chroma、Milvus 等的 RAG 系统 |
 | `graph-store` | 图数据库集成 | 使用 Neo4j、ArangoDB 的知识图谱、社交网络 |
+| `search-engine` | 全文搜索 | 基于 SQLite FTS5 的 BM25 关键词搜索 |
 | `key-value-store` | 键值存储 | 使用 Redis 进行缓存、会话管理 |
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
@@ -44,12 +46,13 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 训练 → `model-trainer`
 
 **数据处理**
-- 文本分割 → `text-splitter`
-- 图像处理 → `image-processor`
+- 对话记忆 → `model-memory`
 - 向量存储 → `vector-store`
 - 图存储 → `graph-store`
+- 全文搜索 → `search-engine`
 - 键值存储 → `key-value-store`
-- 对话记忆 → `model-memory`
+- 文本分割 → `text-splitter`
+- 图像处理 → `image-processor`
 - 视频场景检测 → `video-scene-detector`
 - 网页抓取 → `web-scraper`
 

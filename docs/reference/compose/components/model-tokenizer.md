@@ -1,12 +1,12 @@
-# Tokenizer Component
+# Model Tokenizer Component
 
-The tokenizer component provides standalone tokenization capabilities for text processing. It loads a tokenizer model once at the component level and reuses it across actions, supporting encode, decode, and token counting operations.
+The model-tokenizer component provides standalone tokenization capabilities for text processing. It loads a tokenizer model once at the component level and reuses it across actions, supporting encode, decode, and token counting operations.
 
 ## Basic Configuration
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: gpt2
   action:
@@ -20,7 +20,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | **required** | Must be `tokenizer` |
+| `type` | string | **required** | Must be `model-tokenizer` |
 | `task` | string | **required** | Tokenizer task type: `text` |
 | `driver` | string | `huggingface` | Tokenizer driver |
 | `model` | string/object | **required** | Model identifier or configuration object |
@@ -63,7 +63,7 @@ Tokenize text into token IDs:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: gpt2
   action:
@@ -96,7 +96,7 @@ Convert token IDs back to text:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: gpt2
   action:
@@ -124,7 +124,7 @@ Count the number of tokens in text:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: gpt2
   action:
@@ -150,7 +150,7 @@ Define multiple actions for different tokenization operations:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: gpt2
   actions:
@@ -176,7 +176,7 @@ component:
 ```yaml
 components:
   - id: token-counter
-    type: tokenizer
+    type: model-tokenizer
     task: text
     model: gpt2
     action:
@@ -199,7 +199,7 @@ workflows:
 ```yaml
 components:
   - id: tokenizer
-    type: tokenizer
+    type: model-tokenizer
     task: text
     model: bert-base-uncased
     action:
@@ -221,7 +221,7 @@ components:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model:
     provider: huggingface
@@ -236,7 +236,7 @@ component:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model:
     provider: huggingface
@@ -254,7 +254,7 @@ Tokenizer components support dynamic configuration:
 
 ```yaml
 component:
-  type: tokenizer
+  type: model-tokenizer
   task: text
   model: ${env.TOKENIZER_MODEL | gpt2}
   action:

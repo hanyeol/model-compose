@@ -1,0 +1,67 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: index-documents
+    title: Index Documents
+    description: Insert documents into the SQLite FTS5 index
+    job:
+      component: search
+      action: index
+      input: ${input}
+      output: ${output as json}
+
+  - id: search-documents
+    title: Search Documents
+    description: Run a keyword search over the indexed documents
+    job:
+      component: search
+      action: search
+      input: ${input}
+      output: ${output as json}
+
+  - id: delete-documents
+    title: Delete Documents
+    description: Remove documents by id
+    job:
+      component: search
+      action: delete
+      input: ${input}
+      output: ${output as json}
+
+components:
+  - id: search
+    type: search-engine
+    driver: sqlite
+    storage_dir: ./data
+    database: search.db
+    actions:
+      - id: index
+        method: index
+        index: docs
+        fields:
+          - name: document_id
+            type: id
+          - name: title
+            type: text
+          - name: content
+            type: text
+        documents: ${input.documents}
+
+      - id: search
+        method: search
+        index: docs
+        query: ${input.query}
+        search_fields: ${input.search_fields}
+        limit: ${input.limit}
+
+      - id: delete
+        method: delete
+        index: docs
+        document_ids: ${input.document_ids}

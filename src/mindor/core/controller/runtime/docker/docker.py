@@ -29,7 +29,7 @@ class DockerRuntimeLauncher:
 
         if self.config.runtime.ports is None:
             webui_port = getattr(self.config.webui, "port", None)
-            self.config.runtime.ports = list(set(adapter_ports + ([webui_port] if webui_port else [])))
+            self.config.runtime.ports = list(set(adapter_ports + ([ webui_port ] if webui_port else [])))
 
         # Automatically add host.docker.internal for host machine access
         if not self.config.runtime.extra_hosts:

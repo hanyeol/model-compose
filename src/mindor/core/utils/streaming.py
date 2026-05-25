@@ -72,11 +72,18 @@ class UploadFileStreamResource(StreamResource):
             yield chunk
 
 class BytesStreamResource(StreamResource):
-    def __init__(self, data: bytes, content_type: Optional[str] = None, filename: Optional[str] = None):
+    def __init__(
+        self,
+        data: bytes,
+        content_type: Optional[str] = None,
+        filename: Optional[str] = None,
+        chunk_size: int = 8192
+    ):
         super().__init__(content_type, filename)
 
         self.data: bytes = data
         self.stream: Optional[io.BytesIO] = None
+        self.chunk_size: int = chunk_size
 
     async def close(self) -> None:
         if self.stream:
@@ -88,7 +95,7 @@ class BytesStreamResource(StreamResource):
             self.stream = io.BytesIO(self.data)
 
         while True:
-            chunk = self.stream.read(8192)
+            chunk = self.stream.read(self.chunk_size)
             if not chunk:
                 break
             yield chunk
@@ -96,14 +103,16 @@ class BytesStreamResource(StreamResource):
 class Base64StreamResource(StreamResource):
     def __init__(
         self,
-        encoded: str,
+        data: str,
         content_type: Optional[str] = None,
-        filename: Optional[str] = None
+        filename: Optional[str] = None,
+        chunk_size: int = 8192
     ):
         super().__init__(content_type, filename)
 
-        self.encoded: str = encoded
+        self.data: str = data
         self.stream: Optional[io.BytesIO] = None
+        self.chunk_size: int = chunk_size
 
     async def close(self) -> None:
         if self.stream:
@@ -112,10 +121,10 @@ class Base64StreamResource(StreamResource):
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         if not self.stream:
-            self.stream = io.BytesIO(base64.b64decode(self.encoded))
+            self.stream = io.BytesIO(base64.b64decode(self.data))
 
         while True:
-            chunk = self.stream.read(8192)
+            chunk = self.stream.read(self.chunk_size)
             if not chunk:
                 break
             yield chunk

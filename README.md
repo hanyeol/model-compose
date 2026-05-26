@@ -18,7 +18,7 @@
 
 **Compose AI Systems, Deploy Anywhere.**
 
-Define workflows, agents, models, and comprehensive AI services in YAML. Run them locally, scale them in production, and deploy across any environment without rewriting your stack.
+Define AI workflows, agents, models, and tools in a single YAML file — then run them locally, in containers, or in production without rewriting your stack.
 
 Inspired by `docker-compose` — one YAML file defines your entire AI system.
 

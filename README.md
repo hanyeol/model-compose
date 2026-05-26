@@ -445,7 +445,7 @@ Whether it's fixing bugs, improving docs, or adding examples — every bit helps
 # Setup for development
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
-pip install -e .[dev]
+pip install -e .
 ```
 
 ---

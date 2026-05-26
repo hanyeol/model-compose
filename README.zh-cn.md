@@ -445,7 +445,7 @@ controller:
 # 设置开发环境
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
-pip install -e .[dev]
+pip install -e .
 ```
 
 ---

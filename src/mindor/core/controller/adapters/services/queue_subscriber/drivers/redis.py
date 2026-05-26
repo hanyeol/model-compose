@@ -22,7 +22,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         daemon: bool
     ):
         super().__init__(config, controller, daemon)
-        self._redis = None
+        self._client = None
         self._workers: List[asyncio.Task] = []
         self._stop_event: asyncio.Event = asyncio.Event()
         self._worker_id: str = config.worker_id or ulid.ulid()
@@ -33,11 +33,11 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _serve(self) -> None:
         import redis.asyncio as aioredis
 
-        self._redis = aioredis.from_url(
+        self._client = aioredis.from_url(
             self._build_redis_url(),
             db=self.config.database,
             password=self.config.password,
-            decode_responses=True,
+            decode_responses=False,
         )
 
         workflows = self.config.workflows or list(self.controller.workflow_schemas.keys())
@@ -51,8 +51,8 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         try:
             await asyncio.gather(*self._workers)
         finally:
-            await self._redis.aclose()
-            self._redis = None
+            await self._client.aclose()
+            self._client = None
 
     async def _shutdown(self) -> None:
         self._stop_event.set()
@@ -63,13 +63,13 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _consumer_loop(self, worker_index: int, queue_keys: list[str]) -> None:
         while not self._stop_event.is_set():
             try:
-                result = await self._redis.brpop(queue_keys, timeout=int(parse_duration(self.config.pop_timeout).total_seconds()))
+                result = await self._client.brpop(queue_keys, timeout=int(parse_duration(self.config.pop_timeout).total_seconds()))
 
                 if result is None:
                     continue
 
                 queue_key, raw_message = result
-                workflow_id = self._workflow_id_from_queue_key(queue_key)
+                workflow_id = self._workflow_id_from_queue_key(queue_key.decode("utf-8"))
 
                 try:
                     message = json.loads(raw_message)
@@ -106,12 +106,12 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             await self._publish_result(workflow_id, task_id, run_id, state)
 
     async def _wait_for_resume(self, resume_key: str) -> Any:
-        pubsub = self._redis.pubsub()
+        pubsub = self._client.pubsub()
         await pubsub.subscribe(resume_key)
 
         try:
             async for message in pubsub.listen():
-                if message["type"] == "message":
+                if message["type"] == b"message":
                     data = json.loads(message["data"])
                     return data.get("answer")
         finally:
@@ -131,11 +131,11 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
 
         result_ttl = int(parse_duration(self.config.result_ttl).total_seconds())
         if result_ttl > 0:
-            await self._redis.setex(result_key, result_ttl, result)
+            await self._client.setex(result_key, result_ttl, result)
         else:
-            await self._redis.set(result_key, result)
+            await self._client.set(result_key, result)
 
-        await self._redis.publish(result_key, result)
+        await self._client.publish(result_key, result)
 
     async def _publish_stream_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"
@@ -149,19 +149,19 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             "worker_id": self._worker_id,
             "stream_key": stream_key,
         })
-        await self._redis.publish(result_key, result)
+        await self._client.publish(result_key, result)
 
         try:
             async for chunk in state.output:
                 data = chunk if isinstance(chunk, str) else json.dumps(chunk, default=str, ensure_ascii=False)
-                await self._redis.xadd(stream_key, { "event": "chunk", "data": data })
+                await self._client.xadd(stream_key, { "event": "chunk", "data": data })
 
-            await self._redis.xadd(stream_key, { "event": "done" })
+            await self._client.xadd(stream_key, { "event": "done" })
         except Exception as e:
-            await self._redis.xadd(stream_key, { "event": "error", "data": str(e) })
+            await self._client.xadd(stream_key, { "event": "error", "data": str(e) })
         finally:
             if result_ttl > 0:
-                await self._redis.expire(stream_key, result_ttl)
+                await self._client.expire(stream_key, result_ttl)
 
             if hasattr(state.output, 'aclose'):
                 await state.output.aclose()

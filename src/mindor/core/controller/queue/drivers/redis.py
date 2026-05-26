@@ -9,8 +9,8 @@ from mindor.core.utils.time import parse_duration
 import asyncio, json, ulid
 
 class RedisStreamIterator:
-    def __init__(self, redis, stream_key: str, timeout: float):
-        self._redis = redis
+    def __init__(self, client, stream_key: str, timeout: float):
+        self._client = client
         self._stream_key = stream_key
         self._timeout = timeout if timeout > 0 else None
         self._last_id = "0-0"
@@ -32,8 +32,8 @@ class RedisStreamIterator:
             raise TimeoutError(f"Stream read timed out after {self._timeout}s")
 
     async def _read_entry(self):
-        entries = await self._redis.xread(
-            {self._stream_key: self._last_id},
+        entries = await self._client.xread(
+            { self._stream_key: self._last_id },
             count=1, block=5000
         )
 
@@ -43,7 +43,7 @@ class RedisStreamIterator:
         entry_id, fields = entries[0][1][0]
         self._last_id = entry_id
 
-        return fields
+        return self._decode_fields(fields)
 
     def _handle_entry(self, fields: dict):
         event = fields.get("event")
@@ -54,18 +54,24 @@ class RedisStreamIterator:
                 return json.loads(data)
             except (json.JSONDecodeError, TypeError):
                 return data
-        
+
         if event == "done":
             raise StopAsyncIteration
-        
+
         if event == "error":
             raise RuntimeError(fields.get("data", "Unknown streaming error"))
+
+    def _decode_fields(self, fields: dict) -> dict:
+        def _decode(value):
+            return value.decode("utf-8") if isinstance(value, bytes) else value
+        return { _decode(key): _decode(value) for key, value in fields.items() }
 
 @register_controller_queue_service(ControllerQueueDriver.REDIS)
 class RedisControllerQueueService(CommonControllerQueueService):
     def __init__(self, config: RedisControllerQueueConfig):
         super().__init__(config)
-        self._redis = None
+
+        self._client = None
 
     def _get_setup_requirements(self):
         return [ "redis>=5.0.0" ]
@@ -73,19 +79,19 @@ class RedisControllerQueueService(CommonControllerQueueService):
     async def _start(self) -> None:
         import redis.asyncio as aioredis
 
-        self._redis = aioredis.from_url(
+        self._client = aioredis.from_url(
             self._build_redis_url(),
             db=self.config.database,
             password=self.config.password,
-            decode_responses=True,
+            decode_responses=False,
         )
 
         await super()._start()
 
     async def _stop(self) -> None:
-        if self._redis:
-            await self._redis.aclose()
-            self._redis = None
+        if self._client:
+            await self._client.aclose()
+            self._client = None
 
         await super()._stop()
 
@@ -107,11 +113,11 @@ class RedisControllerQueueService(CommonControllerQueueService):
             "input": input,
         }, default=str)
 
-        pubsub = self._redis.pubsub()
+        pubsub = self._client.pubsub()
         await pubsub.subscribe(result_key)
 
         try:
-            await self._redis.lpush(queue_key, message)
+            await self._client.lpush(queue_key, message)
 
             while True:
                 result = await self._wait_for_message(pubsub)
@@ -119,17 +125,19 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 if status == "interrupted" and on_interrupt:
                     answer = await on_interrupt(result.get("interrupt", {}))
-                    await self._redis.publish(resume_key, json.dumps({"answer": answer}, default=str))
+                    await self._client.publish(resume_key, json.dumps({ "answer": answer }, default=str))
                     continue
 
                 if status == "streaming":
                     stream_key = result.get("stream_key")
-                    return RedisStreamIterator(self._redis, stream_key, parse_duration(self.config.timeout).total_seconds())
+                    return RedisStreamIterator(self._client, stream_key, parse_duration(self.config.timeout).total_seconds())
 
                 if status == "failed":
                     raise RuntimeError(result.get("error", "Unknown error from queue worker"))
 
                 return result.get("output")
+        except TimeoutError:
+            raise TimeoutError(f"Queue dispatch timed out after {self.config.timeout} waiting for result") from None
         finally:
             try:
                 await pubsub.unsubscribe(result_key)
@@ -148,14 +156,9 @@ class RedisControllerQueueService(CommonControllerQueueService):
         timeout_secs = parse_duration(self.config.timeout).total_seconds()
         timeout = timeout_secs if timeout_secs > 0 else None
 
-        try:
-            async with async_timeout(timeout):
-                async for message in pubsub.listen():
-                    if message["type"] != "message":
-                        continue
+        async with async_timeout(timeout):
+            async for message in pubsub.listen():
+                if message["type"] != b"message":
+                    continue
 
-                    return json.loads(message["data"])
-        except TimeoutError:
-            pass
-
-        raise TimeoutError(f"Queue dispatch timed out after {self.config.timeout} waiting for result")
+                return json.loads(message["data"])

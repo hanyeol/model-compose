@@ -75,12 +75,6 @@ cd model-compose
 pip install -e .
 ```
 
-추가 개발 의존성과 함께 개발용으로 설치:
-
-```bash
-pip install -e .[dev]
-```
-
 ### 설치 확인
 
 model-compose가 올바르게 설치되었는지 확인합니다:

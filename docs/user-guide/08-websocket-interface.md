@@ -35,14 +35,14 @@ Both interfaces support workflow execution. Choose based on your needs:
 | Multi-task monitoring | WebSocket | One connection for all tasks |
 | curl/Postman testing | REST API | Simple request/response |
 
-### 7.1.3 Delivery Guarantee
+### 7.1.3 Delivery Behavior
 
-The WebSocket interface provides **latest-state delivery** — not an ordered event stream:
+Subscribed clients receive task state changes and per-job lifecycle events in real time:
 
-- When you subscribe, you receive the **current state** immediately.
-- After that, you receive updates when the state changes — but only if the connection is open and the send succeeds.
-- If a task transitions through multiple states rapidly (e.g., `PENDING → PROCESSING → COMPLETED` before you subscribe), intermediate states may be skipped.
-- This is intentional for Phase 1. If your use case requires every state transition to be captured (event sourcing, audit logs), use `GET /tasks/{task_id}` polling or wait for a future version.
+- **`task_state`** — pushed whenever the task's status changes (`pending → processing → completed`, etc.). On subscription, the current state is delivered once in the `task_subscribed` response so the client can catch up immediately.
+- **`job_event`** — pushed for each `started` / `completed` / `failed` / `routed` transition of every job inside the workflow. If the client stays connected for the duration of the run, all events are delivered in the order they occur.
+
+Both message types are sent at emission time and, under normal operation, arrive without loss. Messages are not buffered after they're emitted, so **events that happened before you subscribed are not replayed** — subscribe at workflow start (`run_workflow` with `subscribe_task: true`) to ensure full coverage.
 
 ### 7.1.4 How It Works
 
@@ -411,6 +411,56 @@ Sent in response to `subscribe_task`. Includes the current task state at the tim
 - `interrupt`: Interrupt details when status is `"interrupted"` (`job_id`, `phase`, `message`, `metadata`)
 - `timestamp`: State change time (ISO 8601)
 
+#### `job_event` — Per-Job Lifecycle Event
+
+Pushed for each job inside a workflow as it transitions through its lifecycle. Unlike `task_state` (which reflects the *workflow as a whole*), `job_event` provides fine-grained visibility into individual jobs.
+
+```json
+{
+  "type": "job_event",
+  "data": {
+    "task_id": "01HXYZ...",
+    "run_id": "01HRUN...",
+    "workflow_id": "chat-completion",
+    "job_id": "job-quote",
+    "event": "completed",
+    "elapsed": 1.78,
+    "output": { "quote": "..." },
+    "error": null,
+    "next_job_id": null,
+    "timestamp": "2026-02-06T12:34:56.789Z"
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | Task this job belongs to |
+| `run_id` | string \| string[] \| null | Component action run id(s). A string for a single run, an array when `repeat_count` produces multiple runs, `null` for non-component jobs or when not yet issued (e.g. some `started` events) |
+| `workflow_id` | string | Workflow id |
+| `job_id` | string | Job id from the workflow config |
+| `event` | string | `"started"` \| `"completed"` \| `"failed"` \| `"routed"` |
+| `elapsed` | number | Seconds elapsed since job start (present on `completed` / `failed` / `routed`) |
+| `output` | any | Job output on `completed` (only when JSON-serializable; non-serializable values become `null`) |
+| `error` | string | Error message on `failed` |
+| `next_job_id` | string | Target job id on `routed` (emitted by routing jobs like `switch` / `if` / `random_router`) |
+| `timestamp` | string | Emission time (ISO 8601, UTC) |
+
+**Event ordering for a typical job:**
+
+```
+started → completed
+started → failed
+started → routed → started(next_job) → ...
+```
+
+**Notes:**
+- `job_event` is delivered to all clients subscribed to the parent `task_id` (no separate subscription needed).
+- The `started` event may arrive before `run_id` is available — `run_id` is generated when a `ComponentJob` actually invokes its action, which happens after the job task is scheduled. The `completed` / `failed` event always carries `run_id`.
+- For jobs that aren't backed by a component (e.g. `delay`, `filter`, `switch`), `run_id` stays `null`.
+
 #### `task_resumed` — Task Resumed
 
 ```json
@@ -706,7 +756,49 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 7.6.4 Pattern 4: Multi-Task Dashboard
+### 7.6.4 Pattern 4: Per-Job Progress Visualization
+
+Render a progress timeline by listening to `job_event` messages alongside `task_state`. Useful when you need to show users *which job is running right now* instead of just an overall spinner.
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'run_workflow',
+    id: 'msg-001',
+    data: {
+      workflow_id: 'inspire-with-voice',
+      input: {},
+      subscribe_task: true
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+
+  if (msg.type === 'job_event') {
+    const { job_id, event: phase, elapsed, run_id } = msg.data;
+    if (phase === 'started') {
+      console.log(`▶ ${job_id} started`);
+    } else if (phase === 'completed') {
+      console.log(`✓ ${job_id} completed in ${elapsed.toFixed(2)}s (run_id=${run_id})`);
+    } else if (phase === 'failed') {
+      console.log(`✗ ${job_id} failed: ${msg.data.error}`);
+    } else if (phase === 'routed') {
+      console.log(`→ ${job_id} routed to ${msg.data.next_job_id}`);
+    }
+  }
+
+  if (msg.type === 'task_state' && msg.data.status === 'completed') {
+    console.log('Workflow done.');
+    ws.close();
+  }
+};
+```
+
+### 7.6.5 Pattern 5: Multi-Task Dashboard
 
 Monitor multiple tasks over a single WebSocket connection.
 
@@ -881,6 +973,7 @@ ws.onmessage = (event) => {
   switch (msg.type) {
     case 'workflow_started':
     case 'task_state':
+    case 'job_event':
     case 'task_subscribed':
     case 'task_resumed':
       // Handle normally

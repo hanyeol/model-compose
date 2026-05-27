@@ -75,12 +75,6 @@ cd model-compose
 pip install -e .
 ```
 
-For development with additional dependencies:
-
-```bash
-pip install -e .[dev]
-```
-
 ### Verify Installation
 
 Check that model-compose is installed correctly:

@@ -16,9 +16,6 @@ pip install model-compose
 git clone https://github.com/your-repo/model-compose.git
 cd model-compose
 pip install -e .
-
-# 安装开发依赖
-pip install -e .[dev]
 ```
 
 ### 验证安装

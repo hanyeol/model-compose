@@ -75,12 +75,6 @@ cd model-compose
 pip install -e .
 ```
 
-使用额外依赖进行开发：
-
-```bash
-pip install -e .[dev]
-```
-
 ### 验证安装
 
 检查 model-compose 是否正确安装：

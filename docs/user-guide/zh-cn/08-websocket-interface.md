@@ -35,14 +35,14 @@ WebSocket 接口在 HTTP 服务器控制器上添加 `/ws` 端点，实现客户
 | 多任务监控 | WebSocket | 一个连接监控所有任务 |
 | curl/Postman 测试 | REST API | 简单的请求/响应 |
 
-### 8.1.3 传递保证
+### 8.1.3 传递行为
 
-WebSocket 接口提供**最新状态传递** — 而非有序事件流：
+已订阅的客户端会实时收到任务状态变更和单 job 生命周期事件：
 
-- 订阅时，您会立即收到**当前状态**。
-- 之后，状态变更时会收到更新 — 但仅在连接打开且发送成功时。
-- 如果任务快速经历多个状态转换（例如在订阅前 `PENDING → PROCESSING → COMPLETED`），中间状态可能被跳过。
-- 这是第一阶段的设计意图。如果您的场景需要捕获每个状态转换（事件溯源、审计日志），请使用 `GET /tasks/{task_id}` 轮询或等待未来版本。
+- **`task_state`** — 任务状态变更时推送（`pending → processing → completed` 等）。订阅时，当前状态会通过 `task_subscribed` 响应一次性返回，使客户端可以立即跟上最新状态。
+- **`job_event`** — 工作流内每个 job 的 `started` / `completed` / `failed` / `routed` 转换时推送。如果客户端在整个运行期间保持连接，所有事件按其发生顺序传递。
+
+两种消息均在发出时即时发送，正常运行时无丢失。消息发出后不会保留，因此**订阅之前发生的事件不会重放** — 请在工作流启动时即订阅（`run_workflow` 配合 `subscribe_task: true`），以确保完整覆盖。
 
 ### 8.1.4 工作原理
 
@@ -411,6 +411,56 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 - `interrupt`：状态为 `"interrupted"` 时的中断详情（`job_id`、`phase`、`message`、`metadata`）
 - `timestamp`：状态变更时间（ISO 8601）
 
+#### `job_event` — 单 Job 生命周期事件
+
+工作流中的每个 job 经历其生命周期转换时推送。与反映*整个工作流*的 `task_state` 不同，`job_event` 提供单个 job 的细粒度可见性。
+
+```json
+{
+  "type": "job_event",
+  "data": {
+    "task_id": "01HXYZ...",
+    "run_id": "01HRUN...",
+    "workflow_id": "chat-completion",
+    "job_id": "job-quote",
+    "event": "completed",
+    "elapsed": 1.78,
+    "output": { "quote": "..." },
+    "error": null,
+    "next_job_id": null,
+    "timestamp": "2026-02-06T12:34:56.789Z"
+  }
+}
+```
+
+**字段：**
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `task_id` | string | 此 job 所属的任务 |
+| `run_id` | string \| string[] \| null | 组件 action 的 run id。单次运行为字符串；`repeat_count` 产生多次运行时为数组；非组件 job 或尚未发放时为 `null`（例如部分 `started` 事件） |
+| `workflow_id` | string | 工作流 id |
+| `job_id` | string | 工作流配置中的 job id |
+| `event` | string | `"started"` \| `"completed"` \| `"failed"` \| `"routed"` |
+| `elapsed` | number | job 启动后经过的秒数（出现在 `completed` / `failed` / `routed`） |
+| `output` | any | `completed` 时 job 的输出（仅当 JSON 可序列化时；不可序列化值为 `null`） |
+| `error` | string | `failed` 时的错误信息 |
+| `next_job_id` | string | `routed` 时的目标 job id（由 `switch` / `if` / `random_router` 等路由 job 发出） |
+| `timestamp` | string | 发出时间（ISO 8601, UTC） |
+
+**典型 job 的事件顺序：**
+
+```
+started → completed
+started → failed
+started → routed → started(next_job) → ...
+```
+
+**注意：**
+- `job_event` 自动发送给订阅父 `task_id` 的所有客户端（无需单独订阅）。
+- `started` 事件可能在 `run_id` 可用之前到达 — `run_id` 在 `ComponentJob` 实际调用其 action 时生成，发生在 job task 被调度之后。`completed` / `failed` 事件始终携带 `run_id`。
+- 对于不由组件支持的 job（例如 `delay`、`filter`、`switch`），`run_id` 保持为 `null`。
+
 #### `task_resumed` — 任务已恢复
 
 ```json
@@ -706,7 +756,49 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 8.6.4 模式 4：多任务仪表板
+### 8.6.4 模式 4：单 Job 进度可视化
+
+通过同时监听 `job_event` 和 `task_state` 消息渲染进度时间线。当您需要向用户展示*当前正在运行的具体 job*，而不仅仅是整体进度条时非常有用。
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'run_workflow',
+    id: 'msg-001',
+    data: {
+      workflow_id: 'inspire-with-voice',
+      input: {},
+      subscribe_task: true
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+
+  if (msg.type === 'job_event') {
+    const { job_id, event: phase, elapsed, run_id } = msg.data;
+    if (phase === 'started') {
+      console.log(`▶ ${job_id} 已开始`);
+    } else if (phase === 'completed') {
+      console.log(`✓ ${job_id} 在 ${elapsed.toFixed(2)} 秒内完成 (run_id=${run_id})`);
+    } else if (phase === 'failed') {
+      console.log(`✗ ${job_id} 失败：${msg.data.error}`);
+    } else if (phase === 'routed') {
+      console.log(`→ ${job_id} 路由到 ${msg.data.next_job_id}`);
+    }
+  }
+
+  if (msg.type === 'task_state' && msg.data.status === 'completed') {
+    console.log('工作流完成。');
+    ws.close();
+  }
+};
+```
+
+### 8.6.5 模式 5：多任务仪表板
 
 通过单个 WebSocket 连接监控多个任务。
 
@@ -881,6 +973,7 @@ ws.onmessage = (event) => {
   switch (msg.type) {
     case 'workflow_started':
     case 'task_state':
+    case 'job_event':
     case 'task_subscribed':
     case 'task_resumed':
       // 正常处理

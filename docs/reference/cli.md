@@ -7,9 +7,6 @@ model-compose provides a command-line interface for managing AI model workflows 
 ```bash
 # Install for development
 pip install -e .
-
-# Install with development dependencies  
-pip install -e .[dev]
 ```
 
 ## Commands

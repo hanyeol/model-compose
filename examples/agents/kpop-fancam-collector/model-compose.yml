@@ -35,19 +35,20 @@ workflows:
           region_code: ${input.region_code | KR}
         output: ${output}
 
-  - id: get-video-dimensions
+  - id: get-video-metadata
     private: true
-    name: get_video_dimensions
-    description: Fetch a YouTube video page and return its width and height in pixels. A video is portrait (vertical) when height > width, and landscape when width > height.
+    name: get_video_metadata
+    description: Fetch a YouTube video page and return its width, height, and duration. A video is portrait (vertical) when height > width, and landscape when width > height. Duration is returned in ISO 8601 format (e.g. "PT3M14S" means 3 minutes 14 seconds).
     jobs:
       - id: scrape
-        component: youtube-dimensions-scraper
+        component: youtube-metadata-scraper
         input:
           video_id: ${input.video_id @(description YouTube video ID, e.g. "dQw4w9WgXcQ")}
         output:
           video_id: ${input.video_id}
-          width: ${output[0] as integer}
-          height: ${output[1] as integer}
+          width: ${output.width as integer}
+          height: ${output.height as integer}
+          duration: ${output.duration}
       - id: throttle
         type: delay
         mode: time-interval
@@ -60,7 +61,7 @@ components:
     type: agent
     tools:
       - search-fancams
-      - get-video-dimensions
+      - get-video-metadata
     max_iteration_count: 32
     action:
       model:
@@ -105,10 +106,16 @@ components:
         Track the queries you have already tried in your reasoning. Never repeat the
         exact same query.
 
-        ## Vertical / portrait filtering
+        ## Vertical / portrait filtering and duration
 
-        If the user asks for vertical / portrait / 세로 fancams, use get_video_dimensions
-        on each candidate video ID and keep only the ones where height > width.
+        Use get_video_metadata on a candidate video ID to inspect its dimensions and
+        duration. Returned fields:
+        - width, height (pixels) — portrait when height > width, landscape otherwise
+        - duration — ISO 8601 string like "PT3M14S" (3 minutes 14 seconds). Convert
+          this to mm:ss when presenting in the final summary.
+
+        If the user asks for vertical / portrait / 세로 fancams, call get_video_metadata
+        on each candidate and keep only the ones where height > width.
         Skip videos for which the tool fails.
 
         Orientation filtering typically rejects most candidates. Expect to need 3–5x as
@@ -148,14 +155,15 @@ components:
         tools: ${input.tools}
       output: ${response.choices[0].message}
 
-  - id: youtube-dimensions-scraper
+  - id: youtube-metadata-scraper
     type: web-scraper
     max_concurrent_count: 1
     action:
       url: https://www.youtube.com/watch?v=${input.video_id}
       selector:
-        - meta[property="og:video:width"]
-        - meta[property="og:video:height"]
+        width: meta[property="og:video:width"]
+        height: meta[property="og:video:height"]
+        duration: meta[itemprop="duration"]
       extract_mode: attribute
       attribute: content
       headers:

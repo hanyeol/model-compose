@@ -8,7 +8,7 @@ This workflow provides an end-to-end K-POP fancam discovery service that:
 
 1. **Natural-language Intent**: Accepts free-form prompts in Korean, English, or mixed language
 2. **Agent-Driven Search**: A GPT-4o agent decides how to translate the prompt into YouTube queries and may retry with different keywords
-3. **Orientation Filtering**: For vertical/portrait fancam requests, the agent inspects each candidate's `og:video:width` / `og:video:height` on the watch page
+3. **Orientation & Duration Metadata**: For each candidate the agent can fetch width, height, and ISO 8601 duration from the watch page — used for vertical-only filtering and richer summaries
 4. **Markdown Summary**: Returns a curated list with titles, channels, publish dates, and watch URLs
 
 ## Preparation
@@ -103,7 +103,7 @@ This workflow provides an end-to-end K-POP fancam discovery service that:
 - **Model**: OpenAI GPT-4o (via the `gpt-4o` HTTP client component)
 - **Tools**:
   - `search-fancams` — keyword search through the YouTube Data API
-  - `get-video-dimensions` — extracts `og:video:width` / `og:video:height` from the watch page
+  - `get-video-metadata` — extracts `og:video:width`, `og:video:height`, and ISO 8601 duration from the watch page
 - **Behavior**:
   - Tries multiple query variations (Korean/English, with/without 직캠/fancam) when results are sparse
   - When the prompt asks for vertical/portrait/세로 fancams, filters candidates by `height > width`
@@ -118,13 +118,14 @@ This workflow provides an end-to-end K-POP fancam discovery service that:
   - Configurable sort order (`relevance`, `date`, `viewCount`)
   - Optional `publishedAfter` (RFC3339) and `regionCode`
 
-### YouTube Dimensions Scraper Component (youtube-dimensions-scraper)
+### YouTube Metadata Scraper Component (youtube-metadata-scraper)
 - **Type**: Web scraper component
-- **Purpose**: Read `og:video:width` and `og:video:height` meta tags from a YouTube watch page
+- **Purpose**: Read `og:video:width`, `og:video:height`, and `itemprop="duration"` meta tags from a YouTube watch page
 - **Features**:
   - Static HTML scraping (no JavaScript execution required)
-  - List-form `selector` extracts both dimension values from a single page fetch
+  - Dict-form `selector` extracts all three fields (width, height, duration) from a single page fetch — keys map directly to result fields
   - `max_concurrent_count: 1` plus a per-call throttle delay to avoid Google rate limiting (429)
+  - Duration is returned in ISO 8601 format (e.g. `PT3M14S`) — the agent converts it to mm:ss for the summary
 
 ### GPT-4o Component (gpt-4o)
 - **Type**: HTTP client component
@@ -150,7 +151,7 @@ graph TD
     %% Components (rectangles)
     CA[fancam-agent<br/>Agent]
     CS[youtube-search<br/>HTTP client]
-    CD[youtube-dimensions-scraper<br/>Web scraper]
+    CD[youtube-metadata-scraper<br/>Web scraper]
 
     %% main workflow
     Input((Input)) --> JM
@@ -163,10 +164,10 @@ graph TD
     JS --> CS
     CS -.-> |video list| JS
 
-    %% get-video-dimensions (agent tool)
+    %% get-video-metadata (agent tool)
     CA -.-> |tool call| JD
     JD --> CD
-    CD -.-> |width, height| JD
+    CD -.-> |width, height, duration| JD
     JD --> JT
 ```
 
@@ -188,7 +189,7 @@ graph TD
 These are exposed to the agent as tools and not listed on `/api/workflows`. Flip `private: true` off in `model-compose.yml` if you want to call them directly.
 
 - **`search-fancams`** — Keyword search via YouTube Data API. Inputs: `query`, `max_results`, `order`, `published_after`, `region_code`.
-- **`get-video-dimensions`** — Returns `{video_id, width, height}` for one video by scraping OpenGraph meta tags.
+- **`get-video-metadata`** — Returns `{video_id, width, height, duration}` for one video by scraping OpenGraph and Schema.org meta tags.
 
 ## Customization
 
@@ -202,11 +203,11 @@ Swap the `gpt-4o` component with any chat-completions-compatible endpoint (Azure
 Change defaults in `search-fancams` (e.g. `region_code | KR`, `max_results | 15`) to match your locale or quota budget.
 
 ### Enable JavaScript rendering for the scraper
-If YouTube changes the watch page so OpenGraph meta tags require JS, set `enable_javascript: true` on the `youtube-dimensions-scraper` component (requires Playwright).
+If YouTube changes the watch page so OpenGraph meta tags require JS, set `enable_javascript: true` on the `youtube-metadata-scraper` component (requires Playwright).
 
 ## Notes
 
 - **YouTube quota**: Each `search.list` call costs 100 quota units. The default daily limit is 10,000, so roughly 100 searches per day. The agent may call the tool multiple times per prompt.
 - **Embeddable only**: `search-fancams` filters `videoEmbeddable=true`, so every result is safe for use in a custom video player.
-- **Orientation is best-effort**: `get-video-dimensions` reads OpenGraph meta tags on the watch page. If YouTube changes the markup or rate-limits the scrape, the tool may fail for some videos — the agent is instructed to skip those.
+- **Metadata is best-effort**: `get-video-metadata` reads OpenGraph and Schema.org meta tags on the watch page. If YouTube changes the markup or rate-limits the scrape, the tool may fail for some videos — the agent is instructed to skip those.
 - **No invention**: The agent is instructed to only list videos the search tool actually returned. Cross-check video IDs if anything looks off.

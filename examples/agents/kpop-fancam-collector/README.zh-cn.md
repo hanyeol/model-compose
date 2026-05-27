@@ -8,7 +8,7 @@
 
 1. **自然语言意图**: 接受中文、英语或混合语言的自由格式提示
 2. **代理驱动的搜索**: GPT-4o 代理决定如何将提示翻译为 YouTube 查询,并在结果不足时尝试不同的关键词
-3. **方向过滤**: 当请求竖屏/portrait/vertical 直拍时,代理会检查每个候选视频 watch 页面的 `og:video:width` / `og:video:height`
+3. **方向与时长元数据**: 代理从每个候选视频的 watch 页面提取宽度、高度和 ISO 8601 时长 — 用于竖屏过滤与更丰富的摘要
 4. **Markdown 摘要**: 返回包含标题、频道、发布日期和观看 URL 的精选列表
 
 ## 准备
@@ -103,7 +103,7 @@
 - **模型**: OpenAI GPT-4o (通过 `gpt-4o` HTTP client 组件)
 - **工具**:
   - `search-fancams` — 通过 YouTube Data API 进行关键词搜索
-  - `get-video-dimensions` — 从 watch 页面提取 `og:video:width` / `og:video:height`
+  - `get-video-metadata` — 从 watch 页面提取 `og:video:width`、`og:video:height` 与 ISO 8601 时长
 - **行为**:
   - 在结果稀少时尝试多种查询变体(中英文、有无"直拍"/"fancam")
   - 当提示要求竖屏/portrait/vertical 直拍时,只保留 `height > width` 的视频
@@ -118,13 +118,14 @@
   - 可配置排序方式(`relevance`、`date`、`viewCount`)
   - 可选的 `publishedAfter`(RFC3339)与 `regionCode`
 
-### YouTube 视频尺寸抓取组件 (youtube-dimensions-scraper)
+### YouTube 元数据抓取组件 (youtube-metadata-scraper)
 - **类型**: Web scraper 组件
-- **目的**: 在一次抓取中从 YouTube watch 页面读取 `og:video:width` 与 `og:video:height` 元标签
+- **目的**: 从 YouTube watch 页面读取 `og:video:width`、`og:video:height` 与 `itemprop="duration"` 元标签
 - **特性**:
   - 静态 HTML 抓取(无需执行 JavaScript)
-  - 通过列表形式 `selector` 在一次页面抓取中同时提取两个尺寸值
+  - 通过字典形式 `selector` 在一次页面抓取中提取三个字段(width, height, duration) — 键直接对应结果字段名
   - `max_concurrent_count: 1` 与每次调用后的 throttle 延迟,避免 Google 速率限制(429)
+  - 时长以 ISO 8601 格式返回(如 `PT3M14S`),代理会将其转换为 mm:ss 加入摘要
 
 ### GPT-4o 组件 (gpt-4o)
 - **类型**: HTTP client 组件
@@ -150,7 +151,7 @@ graph TD
     %% Components (rectangles)
     CA[fancam-agent<br/>代理]
     CS[youtube-search<br/>HTTP 客户端]
-    CD[youtube-dimensions-scraper<br/>网页抓取器]
+    CD[youtube-metadata-scraper<br/>网页抓取器]
 
     %% main workflow
     Input((输入)) --> JM
@@ -163,10 +164,10 @@ graph TD
     JS --> CS
     CS -.-> |视频列表| JS
 
-    %% get-video-dimensions (代理工具)
+    %% get-video-metadata (代理工具)
     CA -.-> |工具调用| JD
     JD --> CD
-    CD -.-> |width, height| JD
+    CD -.-> |width, height, duration| JD
     JD --> JT
 ```
 
@@ -188,7 +189,7 @@ graph TD
 以下工作流作为代理的工具暴露,不会出现在 `/api/workflows` 列表中。如需直接调试调用,可在 `model-compose.yml` 中关闭 `private: true`。
 
 - **`search-fancams`** — YouTube Data API 关键词搜索。输入: `query`、`max_results`、`order`、`published_after`、`region_code`。
-- **`get-video-dimensions`** — 通过抓取 OpenGraph 元标签返回某个视频的 `{video_id, width, height}`。
+- **`get-video-metadata`** — 通过抓取 OpenGraph 与 Schema.org 元标签返回某个视频的 `{video_id, width, height, duration}`。
 
 ## 自定义
 
@@ -202,11 +203,11 @@ graph TD
 更改 `search-fancams` 中的默认值(例如 `region_code | KR`、`max_results | 15`)以匹配地区或配额预算。
 
 ### 为抓取器启用 JavaScript 渲染
-如果 YouTube 更改了 watch 页面使 OpenGraph 元标签依赖于 JS 渲染,可以在 `youtube-dimensions-scraper` 组件上设置 `enable_javascript: true`(需要 Playwright)。
+如果 YouTube 更改了 watch 页面使 OpenGraph 元标签依赖于 JS 渲染,可以在 `youtube-metadata-scraper` 组件上设置 `enable_javascript: true`(需要 Playwright)。
 
 ## 注意事项
 
 - **YouTube 配额**: 每次 `search.list` 调用消耗 100 个配额单位。默认日配额是 10,000,因此每天大约可以执行 100 次搜索。代理在一次提示中可能多次调用搜索工具。
 - **仅可嵌入视频**: `search-fancams` 使用 `videoEmbeddable=true` 过滤,所有结果均可安全用于自定义视频播放器。
-- **方向判定为尽力而为(best-effort)**: `get-video-dimensions` 读取 watch 页面的 OpenGraph 元标签。如果 YouTube 更改了标记或限制了抓取,某些视频可能会失败 — 代理被指示跳过这些视频。
+- **元数据为尽力而为(best-effort)**: `get-video-metadata` 读取 watch 页面的 OpenGraph 与 Schema.org 元标签。如果 YouTube 更改了标记或限制了抓取,某些视频可能会失败 — 代理被指示跳过这些视频。
 - **不虚构结果**: 代理被指示只列出搜索工具实际返回的视频。如果发现可疑结果,请核对 video ID。

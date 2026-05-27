@@ -8,7 +8,7 @@
 
 1. **자연어 의도 처리**: 한국어, 영어, 또는 혼합 언어로 작성한 자유 형식 프롬프트를 입력 받음
 2. **에이전트 기반 검색**: GPT-4o 에이전트가 프롬프트를 YouTube 검색 쿼리로 변환하고, 결과가 부족하면 다른 키워드로 재시도
-3. **방향 기반 필터링**: 세로/portrait/vertical 요청 시, 각 후보 영상의 watch 페이지에서 `og:video:width` / `og:video:height`를 확인
+3. **해상도와 길이 메타데이터**: 각 후보 영상의 watch 페이지에서 width/height/ISO 8601 duration을 가져옴 — 세로 영상 필터링과 풍부한 요약에 활용
 4. **마크다운 요약**: 제목, 채널, 게시일, 시청 URL을 포함한 큐레이션 목록 반환
 
 ## 준비사항
@@ -103,7 +103,7 @@
 - **모델**: OpenAI GPT-4o (`gpt-4o` HTTP client 컴포넌트 경유)
 - **도구**:
   - `search-fancams` — YouTube Data API를 통한 키워드 검색
-  - `get-video-dimensions` — watch 페이지에서 `og:video:width` / `og:video:height` 추출
+  - `get-video-metadata` — watch 페이지에서 `og:video:width`, `og:video:height`, ISO 8601 duration 추출
 - **동작**:
   - 결과가 부족하면 다양한 쿼리 변형(한국어/영어, 직캠/fancam 유무)을 시도
   - 프롬프트가 세로/portrait/vertical 직캠을 요청하면 `height > width`인 영상만 남김
@@ -118,13 +118,14 @@
   - 정렬 방식 설정 가능 (`relevance`, `date`, `viewCount`)
   - 선택적 `publishedAfter` (RFC3339), `regionCode`
 
-### YouTube 해상도 스크래퍼 컴포넌트 (youtube-dimensions-scraper)
+### YouTube 메타데이터 스크래퍼 컴포넌트 (youtube-metadata-scraper)
 - **유형**: Web scraper 컴포넌트
-- **목적**: YouTube watch 페이지에서 `og:video:width`와 `og:video:height` 메타 태그를 한 번에 추출
+- **목적**: YouTube watch 페이지에서 `og:video:width`, `og:video:height`, `itemprop="duration"` 메타 태그를 추출
 - **기능**:
   - 정적 HTML 스크래핑 (JavaScript 실행 불필요)
-  - 리스트 형태 `selector`로 한 번의 페이지 fetch에서 두 해상도 값을 동시 추출
+  - dict 형태 `selector`로 한 번의 페이지 fetch에서 세 필드(width, height, duration)를 추출 — key가 그대로 결과 필드명이 됨
   - `max_concurrent_count: 1`과 호출당 throttle delay로 Google rate limiting(429) 회피
+  - duration은 ISO 8601 형식(예: `PT3M14S`)으로 반환되며, 에이전트가 mm:ss로 변환해 요약에 포함
 
 ### GPT-4o 컴포넌트 (gpt-4o)
 - **유형**: HTTP client 컴포넌트
@@ -150,7 +151,7 @@ graph TD
     %% Components (rectangles)
     CA[fancam-agent<br/>에이전트]
     CS[youtube-search<br/>HTTP 클라이언트]
-    CD[youtube-dimensions-scraper<br/>웹 스크래퍼]
+    CD[youtube-metadata-scraper<br/>웹 스크래퍼]
 
     %% main workflow
     Input((입력)) --> JM
@@ -163,10 +164,10 @@ graph TD
     JS --> CS
     CS -.-> |영상 목록| JS
 
-    %% get-video-dimensions (에이전트 도구)
+    %% get-video-metadata (에이전트 도구)
     CA -.-> |도구 호출| JD
     JD --> CD
-    CD -.-> |width, height| JD
+    CD -.-> |width, height, duration| JD
     JD --> JT
 ```
 
@@ -188,7 +189,7 @@ graph TD
 다음 워크플로우는 에이전트의 도구로 노출되며 `/api/workflows`에는 표시되지 않습니다. 직접 호출하고 싶다면 `model-compose.yml`에서 `private: true`를 꺼두면 됩니다.
 
 - **`search-fancams`** — YouTube Data API 키워드 검색. 입력: `query`, `max_results`, `order`, `published_after`, `region_code`.
-- **`get-video-dimensions`** — 한 영상의 OpenGraph 메타 태그를 스크래핑해 `{video_id, width, height}`를 반환.
+- **`get-video-metadata`** — 한 영상의 OpenGraph / Schema.org 메타 태그를 스크래핑해 `{video_id, width, height, duration}`을 반환.
 
 ## 맞춤화
 
@@ -202,11 +203,11 @@ graph TD
 `search-fancams`의 기본값(예: `region_code | KR`, `max_results | 15`)을 지역이나 쿼터 예산에 맞게 변경합니다.
 
 ### 스크래퍼의 JavaScript 렌더링 활성화
-YouTube가 OpenGraph 메타 태그를 JS 렌더링 이후에만 노출하도록 바뀐다면, `youtube-dimensions-scraper` 컴포넌트에서 `enable_javascript: true`로 설정합니다 (Playwright 필요).
+YouTube가 OpenGraph 메타 태그를 JS 렌더링 이후에만 노출하도록 바뀐다면, `youtube-metadata-scraper` 컴포넌트에서 `enable_javascript: true`로 설정합니다 (Playwright 필요).
 
 ## 참고 사항
 
 - **YouTube 쿼터**: `search.list` 한 번에 100 쿼터 단위가 소모됩니다. 기본 일일 한도가 10,000이므로 하루 약 100회 검색이 가능합니다. 에이전트는 한 프롬프트에 여러 번 도구를 호출할 수 있습니다.
 - **임베드 가능한 영상만**: `search-fancams`는 `videoEmbeddable=true`로 필터링하므로 결과 영상은 모두 커스텀 플레이어에서 안전하게 재생 가능합니다.
-- **방향 판정은 best-effort**: `get-video-dimensions`는 watch 페이지의 OpenGraph 메타 태그를 읽습니다. YouTube가 마크업을 바꾸거나 스크래핑을 제한하면 일부 영상에서 실패할 수 있는데, 에이전트는 그런 영상을 건너뛰도록 지시되어 있습니다.
+- **메타데이터는 best-effort**: `get-video-metadata`는 watch 페이지의 OpenGraph와 Schema.org 메타 태그를 읽습니다. YouTube가 마크업을 바꾸거나 스크래핑을 제한하면 일부 영상에서 실패할 수 있는데, 에이전트는 그런 영상을 건너뛰도록 지시되어 있습니다.
 - **임의 생성 금지**: 에이전트는 검색 도구가 실제로 반환한 영상만 결과에 포함하도록 설정되어 있습니다. 이상한 결과가 보이면 video ID를 직접 확인해 보세요.

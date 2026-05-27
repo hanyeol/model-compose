@@ -23,7 +23,10 @@ workflows:
   - id: search-fancams
     private: true
     name: search_fancams
-    description: Search YouTube for KPOP fancam videos by keyword. Returns a list of videos with title, channel, publish date, and video ID. Only embeddable videos are returned.
+    description: >-
+      Search YouTube for KPOP fancam videos by keyword.
+      Returns a list of videos with title, channel, publish date, and video ID.
+      Only embeddable videos are returned.
     jobs:
       - id: search
         component: youtube-search
@@ -38,7 +41,10 @@ workflows:
   - id: get-video-metadata
     private: true
     name: get_video_metadata
-    description: Fetch a YouTube video page and return its width, height, and duration. A video is portrait (vertical) when height > width, and landscape when width > height. Duration is returned in ISO 8601 format (e.g. "PT3M14S" means 3 minutes 14 seconds).
+    description: >-
+      Fetch a YouTube video page and return its width, height, and duration.
+      A video is portrait (vertical) when height > width, and landscape when width > height.
+      Duration is returned in ISO 8601 format (e.g. "PT3M14S" means 3 minutes 14 seconds).
     jobs:
       - id: scrape
         component: youtube-metadata-scraper

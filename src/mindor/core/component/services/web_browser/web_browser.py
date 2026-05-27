@@ -92,7 +92,21 @@ class WebBrowserAction:
         attribute    = await context.render_variable(self.config.attribute) if self.config.attribute else None
         multiple     = await context.render_variable(self.config.multiple)
 
-        return await session.extract(selector, xpath, extract_mode, attribute, bool(multiple))
+        if selector:
+            if isinstance(selector, dict):
+                return { key: await session.extract(expr, None, extract_mode, attribute, bool(multiple)) for key, expr in selector.items() }
+            if isinstance(selector, list):
+                return [ await session.extract(expr, None, extract_mode, attribute, bool(multiple)) for expr in selector ]
+            return await session.extract(selector, None, extract_mode, attribute, bool(multiple))
+        
+        if xpath:
+            if isinstance(xpath, dict):
+                return { key: await session.extract(None, expr, extract_mode, attribute, bool(multiple)) for key, expr in xpath.items() }
+            if isinstance(xpath, list):
+                return [ await session.extract(None, expr, extract_mode, attribute, bool(multiple)) for expr in xpath ]
+            return await session.extract(None, xpath, extract_mode, attribute, bool(multiple))
+        
+        return await session.extract(None, None, extract_mode, attribute, bool(multiple))
 
     # ---- Interaction ----
 

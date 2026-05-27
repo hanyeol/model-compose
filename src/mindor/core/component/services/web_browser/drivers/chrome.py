@@ -107,10 +107,10 @@ class ChromeBrowserSession(WebBrowserSession):
         result = await self.client.send_command("Runtime.evaluate", {
             "expression": script, "returnByValue": True
         })
- 
+
         if "exceptionDetails" in result:
             raise RuntimeError(f"Extract JavaScript error: { result['exceptionDetails'] }")
- 
+
         return result.get("result", {}).get("value")
 
     # ---- Interaction ----

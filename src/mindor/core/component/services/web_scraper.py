@@ -157,48 +157,56 @@ class WebScraperAction:
     def _extract_with_selector(
         self,
         html: str,
-        selector: str,
+        selector: Union[str, List[str], Dict[str, str]],
         extract_mode: str,
         attribute: Optional[str],
         multiple: bool
-    ) -> Union[str, List[str], None]:
-        """Extract content using CSS selector."""
+    ) -> Any:
+        """Extract content using CSS selector. Parses HTML once and reuses the parsed soup."""
         soup = BeautifulSoup(html, 'lxml')
 
-        if multiple:
-            elements = soup.select(selector)
+        def _extract(expr: str) -> Union[str, List[str], None]:
+            if multiple:
+                elements = soup.select(expr)
+                if not elements:
+                    return []
+                return [ self._extract_from_element(element, extract_mode, attribute) for element in elements ]
 
-            if not elements:
-                return []
-
-            return [ self._extract_from_element(element, extract_mode, attribute) for element in elements ]
-        else:
-            element = soup.select_one(selector)
-
+            element = soup.select_one(expr)
             if not element:
                 return None
-
             return self._extract_from_element(element, extract_mode, attribute)
+
+        if isinstance(selector, dict):
+            return { key: _extract(expr) for key, expr in selector.items() }
+        if isinstance(selector, list):
+            return [ _extract(expr) for expr in selector ]
+        return _extract(selector)
 
     def _extract_with_xpath(
         self,
         html: str,
-        xpath: str,
+        xpath: Union[str, List[str], Dict[str, str]],
         extract_mode: str,
         attribute: Optional[str],
         multiple: bool
-    ) -> Union[str, List[str], None]:
-        """Extract content using XPath."""
+    ) -> Any:
+        """Extract content using XPath. Parses HTML once and reuses the parsed tree."""
         tree = etree.HTML(html)
-        elements = tree.xpath(xpath)
 
-        if not elements:
-            return [] if multiple else None
+        def _extract(expr: str) -> Union[str, List[str], None]:
+            elements = tree.xpath(expr)
+            if not elements:
+                return [] if multiple else None
+            if multiple:
+                return [ self._extract_from_xpath_element(elem, extract_mode, attribute) for elem in elements ]
+            return self._extract_from_xpath_element(elements[0], extract_mode, attribute)
 
-        if multiple:
-            return [ self._extract_from_xpath_element(elem, extract_mode, attribute) for elem in elements ]
-
-        return self._extract_from_xpath_element(elements[0], extract_mode, attribute)
+        if isinstance(xpath, dict):
+            return { key: _extract(expr) for key, expr in xpath.items() }
+        if isinstance(xpath, list):
+            return [ _extract(expr) for expr in xpath ]
+        return _extract(xpath)
 
     def _extract_from_element(self, element, extract_mode: str, attribute: Optional[str]) -> Optional[str]:
         """Extract content from a BeautifulSoup element."""

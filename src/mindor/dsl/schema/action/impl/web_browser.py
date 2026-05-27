@@ -48,8 +48,8 @@ class WebBrowserScreenshotActionConfig(CommonWebBrowserActionConfig):
 
 class WebBrowserExtractActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.EXTRACT]
-    selector: Optional[str] = Field(default=None, description="CSS selector.")
-    xpath: Optional[str] = Field(default=None, description="XPath expression.")
+    selector: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="CSS selector(s) to extract elements.")
+    xpath: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="XPath expression(s) to extract elements.")
     extract_mode: Union[Literal["text", "html", "attribute"], str] = Field(default="text", description="Extraction mode.")
     attribute: Optional[str] = Field(default=None, description="Attribute name when extract_mode='attribute'.")
     multiple: Union[bool, str] = Field(default=False, description="Return all matches as a list.")

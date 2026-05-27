@@ -199,7 +199,7 @@ class WebScraperAction:
             if not elements:
                 return [] if multiple else None
             if multiple:
-                return [ self._extract_from_xpath_element(elem, extract_mode, attribute) for elem in elements ]
+                return [ self._extract_from_xpath_element(element, extract_mode, attribute) for element in elements ]
             return self._extract_from_xpath_element(elements[0], extract_mode, attribute)
 
         if isinstance(xpath, dict):

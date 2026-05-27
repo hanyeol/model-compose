@@ -118,12 +118,13 @@ This workflow provides an end-to-end K-POP fancam discovery service that:
   - Configurable sort order (`relevance`, `date`, `viewCount`)
   - Optional `publishedAfter` (RFC3339) and `regionCode`
 
-### YouTube Meta Scraper Component (youtube-meta-scraper)
+### YouTube Dimensions Scraper Component (youtube-dimensions-scraper)
 - **Type**: Web scraper component
-- **Purpose**: Read a single `<meta property="...">` value from a YouTube watch page
+- **Purpose**: Read `og:video:width` and `og:video:height` meta tags from a YouTube watch page
 - **Features**:
   - Static HTML scraping (no JavaScript execution required)
-  - Used by `get-video-dimensions` to fetch `og:video:width` and `og:video:height` separately
+  - List-form `selector` extracts both dimension values from a single page fetch
+  - `max_concurrent_count: 1` plus a per-call throttle delay to avoid Google rate limiting (429)
 
 ### GPT-4o Component (gpt-4o)
 - **Type**: HTTP client component
@@ -143,13 +144,13 @@ graph TD
     %% Jobs (circles)
     JM((main<br/>job))
     JS((search<br/>job))
-    JW((get-width<br/>job))
-    JH((get-height<br/>job))
+    JD((scrape<br/>job))
+    JT((throttle<br/>delay))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>Agent]
     CS[youtube-search<br/>HTTP client]
-    CM[youtube-meta-scraper<br/>Web scraper]
+    CD[youtube-dimensions-scraper<br/>Web scraper]
 
     %% main workflow
     Input((Input)) --> JM
@@ -163,11 +164,10 @@ graph TD
     CS -.-> |video list| JS
 
     %% get-video-dimensions (agent tool)
-    CA -.-> |tool call| JW
-    JW --> CM
-    JW --> JH
-    JH --> CM
-    CM -.-> |width / height| JH
+    CA -.-> |tool call| JD
+    JD --> CD
+    CD -.-> |width, height| JD
+    JD --> JT
 ```
 
 #### Input Parameters
@@ -202,7 +202,7 @@ Swap the `gpt-4o` component with any chat-completions-compatible endpoint (Azure
 Change defaults in `search-fancams` (e.g. `region_code | KR`, `max_results | 15`) to match your locale or quota budget.
 
 ### Enable JavaScript rendering for the scraper
-If YouTube changes the watch page so OpenGraph meta tags require JS, set `enable_javascript: true` on the `youtube-meta-scraper` component (requires Playwright).
+If YouTube changes the watch page so OpenGraph meta tags require JS, set `enable_javascript: true` on the `youtube-dimensions-scraper` component (requires Playwright).
 
 ## Notes
 

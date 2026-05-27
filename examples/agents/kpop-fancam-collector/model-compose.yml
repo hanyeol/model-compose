@@ -40,22 +40,20 @@ workflows:
     name: get_video_dimensions
     description: Fetch a YouTube video page and return its width and height in pixels. A video is portrait (vertical) when height > width, and landscape when width > height.
     jobs:
-      - id: get-width
-        component: youtube-meta-scraper
+      - id: scrape
+        component: youtube-dimensions-scraper
         input:
           video_id: ${input.video_id @(description YouTube video ID, e.g. "dQw4w9WgXcQ")}
-          property: og:video:width
-        output:
-          width: ${output as integer}
-      - id: get-height
-        component: youtube-meta-scraper
-        input:
-          video_id: ${input.video_id}
-          property: og:video:height
         output:
           video_id: ${input.video_id}
-          width: ${jobs.get-width.output.width}
-          height: ${output as integer}
+          width: ${output[0] as integer}
+          height: ${output[1] as integer}
+      - id: throttle
+        type: delay
+        mode: time-interval
+        duration: 1.5
+        output: ${jobs.scrape.output}
+        depends_on: [ scrape ]
 
 components:
   - id: fancam-agent
@@ -150,12 +148,14 @@ components:
         tools: ${input.tools}
       output: ${response.choices[0].message}
 
-  - id: youtube-meta-scraper
+  - id: youtube-dimensions-scraper
     type: web-scraper
     max_concurrent_count: 1
     action:
       url: https://www.youtube.com/watch?v=${input.video_id}
-      selector: meta[property="${input.property}"]
+      selector:
+        - meta[property="og:video:width"]
+        - meta[property="og:video:height"]
       extract_mode: attribute
       attribute: content
       headers:

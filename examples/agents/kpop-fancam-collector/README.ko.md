@@ -118,12 +118,13 @@
   - 정렬 방식 설정 가능 (`relevance`, `date`, `viewCount`)
   - 선택적 `publishedAfter` (RFC3339), `regionCode`
 
-### YouTube 메타 스크래퍼 컴포넌트 (youtube-meta-scraper)
+### YouTube 해상도 스크래퍼 컴포넌트 (youtube-dimensions-scraper)
 - **유형**: Web scraper 컴포넌트
-- **목적**: YouTube watch 페이지에서 특정 `<meta property="...">` 값 하나를 추출
+- **목적**: YouTube watch 페이지에서 `og:video:width`와 `og:video:height` 메타 태그를 한 번에 추출
 - **기능**:
   - 정적 HTML 스크래핑 (JavaScript 실행 불필요)
-  - `get-video-dimensions`가 `og:video:width`와 `og:video:height`를 각각 가져올 때 사용
+  - 리스트 형태 `selector`로 한 번의 페이지 fetch에서 두 해상도 값을 동시 추출
+  - `max_concurrent_count: 1`과 호출당 throttle delay로 Google rate limiting(429) 회피
 
 ### GPT-4o 컴포넌트 (gpt-4o)
 - **유형**: HTTP client 컴포넌트
@@ -143,13 +144,13 @@ graph TD
     %% Jobs (circles)
     JM((main<br/>작업))
     JS((search<br/>작업))
-    JW((get-width<br/>작업))
-    JH((get-height<br/>작업))
+    JD((scrape<br/>작업))
+    JT((throttle<br/>지연))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>에이전트]
     CS[youtube-search<br/>HTTP 클라이언트]
-    CM[youtube-meta-scraper<br/>웹 스크래퍼]
+    CD[youtube-dimensions-scraper<br/>웹 스크래퍼]
 
     %% main workflow
     Input((입력)) --> JM
@@ -163,11 +164,10 @@ graph TD
     CS -.-> |영상 목록| JS
 
     %% get-video-dimensions (에이전트 도구)
-    CA -.-> |도구 호출| JW
-    JW --> CM
-    JW --> JH
-    JH --> CM
-    CM -.-> |width / height| JH
+    CA -.-> |도구 호출| JD
+    JD --> CD
+    CD -.-> |width, height| JD
+    JD --> JT
 ```
 
 #### 입력 매개변수
@@ -202,7 +202,7 @@ graph TD
 `search-fancams`의 기본값(예: `region_code | KR`, `max_results | 15`)을 지역이나 쿼터 예산에 맞게 변경합니다.
 
 ### 스크래퍼의 JavaScript 렌더링 활성화
-YouTube가 OpenGraph 메타 태그를 JS 렌더링 이후에만 노출하도록 바뀐다면, `youtube-meta-scraper` 컴포넌트에서 `enable_javascript: true`로 설정합니다 (Playwright 필요).
+YouTube가 OpenGraph 메타 태그를 JS 렌더링 이후에만 노출하도록 바뀐다면, `youtube-dimensions-scraper` 컴포넌트에서 `enable_javascript: true`로 설정합니다 (Playwright 필요).
 
 ## 참고 사항
 

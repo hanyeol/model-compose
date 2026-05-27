@@ -118,12 +118,13 @@
   - 可配置排序方式(`relevance`、`date`、`viewCount`)
   - 可选的 `publishedAfter`(RFC3339)与 `regionCode`
 
-### YouTube 元数据抓取组件 (youtube-meta-scraper)
+### YouTube 视频尺寸抓取组件 (youtube-dimensions-scraper)
 - **类型**: Web scraper 组件
-- **目的**: 从 YouTube watch 页面读取单个 `<meta property="...">` 值
+- **目的**: 在一次抓取中从 YouTube watch 页面读取 `og:video:width` 与 `og:video:height` 元标签
 - **特性**:
   - 静态 HTML 抓取(无需执行 JavaScript)
-  - 由 `get-video-dimensions` 分别用于获取 `og:video:width` 与 `og:video:height`
+  - 通过列表形式 `selector` 在一次页面抓取中同时提取两个尺寸值
+  - `max_concurrent_count: 1` 与每次调用后的 throttle 延迟,避免 Google 速率限制(429)
 
 ### GPT-4o 组件 (gpt-4o)
 - **类型**: HTTP client 组件
@@ -143,13 +144,13 @@ graph TD
     %% Jobs (circles)
     JM((main<br/>作业))
     JS((search<br/>作业))
-    JW((get-width<br/>作业))
-    JH((get-height<br/>作业))
+    JD((scrape<br/>作业))
+    JT((throttle<br/>延迟))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>代理]
     CS[youtube-search<br/>HTTP 客户端]
-    CM[youtube-meta-scraper<br/>网页抓取器]
+    CD[youtube-dimensions-scraper<br/>网页抓取器]
 
     %% main workflow
     Input((输入)) --> JM
@@ -163,11 +164,10 @@ graph TD
     CS -.-> |视频列表| JS
 
     %% get-video-dimensions (代理工具)
-    CA -.-> |工具调用| JW
-    JW --> CM
-    JW --> JH
-    JH --> CM
-    CM -.-> |width / height| JH
+    CA -.-> |工具调用| JD
+    JD --> CD
+    CD -.-> |width, height| JD
+    JD --> JT
 ```
 
 #### 输入参数
@@ -202,7 +202,7 @@ graph TD
 更改 `search-fancams` 中的默认值(例如 `region_code | KR`、`max_results | 15`)以匹配地区或配额预算。
 
 ### 为抓取器启用 JavaScript 渲染
-如果 YouTube 更改了 watch 页面使 OpenGraph 元标签依赖于 JS 渲染,可以在 `youtube-meta-scraper` 组件上设置 `enable_javascript: true`(需要 Playwright)。
+如果 YouTube 更改了 watch 页面使 OpenGraph 元标签依赖于 JS 渲染,可以在 `youtube-dimensions-scraper` 组件上设置 `enable_javascript: true`(需要 Playwright)。
 
 ## 注意事项
 

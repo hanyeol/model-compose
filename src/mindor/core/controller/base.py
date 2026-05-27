@@ -66,7 +66,20 @@ class TaskState:
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
 
+@dataclass
+class JobEvent:
+    task_id: str
+    workflow_id: str
+    job_id: str
+    event: Literal[ "started", "completed", "failed", "routed" ]
+    run_id: Optional[Union[str, List[str]]] = None
+    elapsed: Optional[float] = None
+    output: Optional[Any] = None
+    error: Optional[str] = None
+    next_job_id: Optional[str] = None
+
 TaskStateListener = Callable[['str', 'TaskState'], Awaitable[None]]
+JobEventListener = Callable[['JobEvent'], Awaitable[None]]
 
 class ControllerService(AsyncService):
     _shared_instance: Optional[ControllerService] = None
@@ -114,6 +127,7 @@ class ControllerService(AsyncService):
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
         self._task_state_listeners: List[TaskStateListener] = []
+        self._job_event_listeners: List[JobEventListener] = []
         self._listener_tasks: Set[asyncio.Task] = set()
 
         if self.config.max_concurrent_count > 0:
@@ -250,8 +264,8 @@ class ControllerService(AsyncService):
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(e), session_id=session_id, metadata=metadata)
             with self.task_states_lock:
                 self.task_states.set(task_id, state, 1 * 3600)
+            self._signal_task_state_change(task_id)
             self._notify_task_state_change(task_id)
-            self._invoke_task_state_listeners(task_id)
             raise
 
         self._inflight_tasks.add(task)
@@ -287,8 +301,8 @@ class ControllerService(AsyncService):
         new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id, session_id=state.session_id, metadata=state.metadata)
         with self.task_states_lock:
             self.task_states.set(task_id, new_state)
+        self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
-        self._invoke_task_state_listeners(task_id)
 
         return new_state
 
@@ -302,6 +316,16 @@ class ControllerService(AsyncService):
     def remove_task_state_listener(self, listener: TaskStateListener) -> None:
         try:
             self._task_state_listeners.remove(listener)
+        except ValueError:
+            pass
+
+    def add_job_event_listener(self, listener: JobEventListener) -> None:
+        if listener not in self._job_event_listeners:
+            self._job_event_listeners.append(listener)
+
+    def remove_job_event_listener(self, listener: JobEventListener) -> None:
+        try:
+            self._job_event_listeners.remove(listener)
         except ValueError:
             pass
 
@@ -517,14 +541,28 @@ class ControllerService(AsyncService):
         state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id, session_id=session_id, metadata=metadata)
         with self.task_states_lock:
             self.task_states.set(task_id, state)
+        self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
-        self._invoke_task_state_listeners(task_id)
+
+        async def _on_job_event(payload: Dict[str, Any]) -> None:
+            event = JobEvent(
+                task_id=task_id,
+                workflow_id=payload.get("workflow_id") or workflow_id,
+                job_id=payload["job_id"],
+                event=payload["event"],
+                run_id=payload.get("run_id"),
+                elapsed=payload.get("elapsed"),
+                output=payload.get("output"),
+                error=payload.get("error"),
+                next_job_id=payload.get("next_job_id"),
+            )
+            self._notify_job_event(event)
 
         try:
             async def _run_workflow(workflow_id, input, interrupt_handler):
                 if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
                     return await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
-                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, _run_workflow, session_id=session_id, metadata=metadata)
+                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, _run_workflow, session_id=session_id, metadata=metadata, on_job_event=_on_job_event)
 
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
             output = await _run_workflow(workflow_id, input, interrupt_handler)
@@ -538,8 +576,8 @@ class ControllerService(AsyncService):
 
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)
+        self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
-        self._invoke_task_state_listeners(task_id)
 
         return state
 
@@ -578,8 +616,8 @@ class ControllerService(AsyncService):
             state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, workflow_id=workflow_id, interrupt=interrupt, session_id=session_id, metadata=task_metadata)
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
+            self._signal_task_state_change(task_id)
             self._notify_task_state_change(task_id)
-            self._invoke_task_state_listeners(task_id)
 
             if on_interrupt:
                 answer = await on_interrupt(interrupt)
@@ -604,21 +642,19 @@ class ControllerService(AsyncService):
         error_state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(task.exception()), session_id=state.session_id if state else None, metadata=state.metadata if state else None)
         with self.task_states_lock:
             self.task_states.set(task_id, error_state, 1 * 3600)
+        self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
-        self._invoke_task_state_listeners(task_id)
 
-    def _notify_task_state_change(self, task_id: str) -> None:
+    def _signal_task_state_change(self, task_id: str) -> None:
         event = self.task_events.get(task_id)
         if event:
             event.set()
 
-    def _invoke_task_state_listeners(self, task_id: str) -> None:
+    def _notify_task_state_change(self, task_id: str) -> None:
         state = self.get_task_state(task_id)
         if state and self._task_state_listeners:
-            for listener in list(self._task_state_listeners):
-                task = asyncio.create_task(
-                    self._invoke_task_state_listener(listener, task_id, state)
-                )
+            for listener in self._task_state_listeners:
+                task = asyncio.create_task(self._invoke_task_state_listener(listener, task_id, state))
                 self._listener_tasks.add(task)
                 task.add_done_callback(self._listener_tasks.discard)
 
@@ -627,6 +663,18 @@ class ControllerService(AsyncService):
             await listener(task_id, state)
         except Exception:
             logging.warning("Task state listener error for task %s", task_id, exc_info=True)
+
+    def _notify_job_event(self, event: JobEvent) -> None:
+        for listener in self._job_event_listeners:
+            task = asyncio.create_task(self._invoke_job_event_listener(listener, event))
+            self._listener_tasks.add(task)
+            task.add_done_callback(self._listener_tasks.discard)
+
+    async def _invoke_job_event_listener(self, listener: JobEventListener, event: JobEvent) -> None:
+        try:
+            await listener(event)
+        except Exception:
+            logging.warning("Job event listener error for task %s job %s", event.task_id, event.job_id, exc_info=True)
 
     async def _cancel_pending_listener_tasks(self) -> None:
         for task in list(self._listener_tasks):

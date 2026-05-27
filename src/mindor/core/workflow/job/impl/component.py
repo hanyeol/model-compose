@@ -27,6 +27,7 @@ class ComponentJob(Job):
 
         async def _run_once(input: Any):
             run_id: str = ulid.ulid()
+            context.record_run_id(self.id, run_id)
 
             job_time_tracker = TimeTracker()
             logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.task_id, run_id, component.id, self.id, context.workflow_id)

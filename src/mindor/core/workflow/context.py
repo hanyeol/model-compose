@@ -27,6 +27,7 @@ class WorkflowContext:
         self.renderer = VariableRenderer(self._resolve_source)
         self.interrupt_handler: InterruptHandler = interrupt_handler
         self.workflow_delegate: WorkflowDelegate = workflow_delegate
+        self.job_run_ids: Dict[str, List[str]] = {}
 
     def complete_job(self, job_id: str, output: Any) -> None:
         self.sources["jobs"][job_id] = { "output": output }
@@ -39,6 +40,9 @@ class WorkflowContext:
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))
+
+    def record_run_id(self, job_id: str, run_id: str) -> None:
+        self.job_run_ids.setdefault(job_id, []).append(run_id)
 
     async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
         if key in self.sources:

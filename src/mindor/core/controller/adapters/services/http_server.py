@@ -12,7 +12,7 @@ from mindor.core.utils.http_request import parse_request_body, parse_options_hea
 from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResource
-from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
+from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
 from ..base import ControllerAdapterService, register_controller_adapter
@@ -370,6 +370,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
     async def _start(self) -> None:
         self.controller.add_task_state_listener(self._on_task_state_change)
+        self.controller.add_job_event_listener(self._on_job_event)
         await super()._start()
 
     async def _serve(self) -> None:
@@ -386,7 +387,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
     async def _shutdown(self) -> None:
         self.controller.remove_task_state_listener(self._on_task_state_change)
+        self.controller.remove_job_event_listener(self._on_job_event)
         await self.websocket_manager.disconnect_all()
+
         if self.server:
             self.server.should_exit = True
 
@@ -397,6 +400,16 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 {
                     "type": "task_state",
                     "data": self._serialize_task_state(task_id, state)
+                }
+            )
+
+    async def _on_job_event(self, event: JobEvent) -> None:
+        if self.websocket_manager.has_task_subscribers(event.task_id):
+            await self.websocket_manager.broadcast_to_task_subscribers(
+                event.task_id,
+                {
+                    "type": "job_event",
+                    "data": self._serialize_job_event(event)
                 }
             )
 
@@ -426,6 +439,33 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 "message": state.interrupt.message,
                 "metadata": state.interrupt.metadata,
             }
+        return result
+
+    def _serialize_job_event(self, event: JobEvent) -> dict:
+        result = {
+            "task_id": event.task_id,
+            "run_id": event.run_id,
+            "workflow_id": event.workflow_id,
+            "job_id": event.job_id,
+            "event": event.event,
+            "elapsed": None,
+            "output": None,
+            "error": None,
+            "next_job_id": None,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        if event.elapsed is not None:
+            result["elapsed"] = event.elapsed
+        if event.output is not None:
+            try:
+                json.dumps(event.output)
+                result["output"] = event.output
+            except (TypeError, ValueError):
+                result["output"] = None
+        if event.error:
+            result["error"] = str(event.error)
+        if event.next_job_id:
+            result["next_job_id"] = event.next_job_id
         return result
 
     async def _handle_websocket_message(self, client_id: str, raw: str) -> None:

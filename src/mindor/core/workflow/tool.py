@@ -34,9 +34,10 @@ class WorkflowToolGenerator():
             return await self._build_input_value(arguments, workflow)
 
         safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
-        arguments = ",".join([ variable.name or "input" for variable in workflow.input ])
+        arguments = ", ".join([ variable.name or "input" for variable in workflow.input ])
+        declarations = ", ".join([ f"{variable.name or 'input'}=None" for variable in workflow.input ])
         code = (
-            f"async def _run_workflow_{safe_workflow_id}({arguments or '_=None'}, context=None):\n"
+            f"async def _run_workflow_{safe_workflow_id}({declarations or '_=None'}, context=None):\n"
             f"    return await _run_workflow(\n"
             f"        '{workflow_id}',\n"
             f"        await _build_input_value([{arguments}]),\n"

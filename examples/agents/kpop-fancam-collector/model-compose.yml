@@ -1,0 +1,138 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: main
+    default: true
+    title: K-POP Fancam Collector
+    description: An autonomous agent that searches YouTube for KPOP fancams based on a natural-language prompt.
+    job:
+      component: fancam-agent
+      input:
+        prompt: ${input.prompt as text}
+      output:
+        summary: ${output[-1].content as markdown}
+        messages: ${output as json}
+
+  - id: search-fancams
+    private: true
+    name: search_fancams
+    description: Search YouTube for KPOP fancam videos by keyword. Returns a list of videos with title, channel, publish date, and video ID. Only embeddable videos are returned.
+    jobs:
+      - id: search
+        component: youtube-search
+        input:
+          query: ${input.query @(description Search keyword, e.g. "aespa Whiplash 직캠")}
+          max_results: ${input.max_results as integer | 15 @(description Maximum number of results, 1-50)}
+          order: ${input.order as select/relevance,date,viewCount | relevance @(description Sort order)}
+          published_after: ${input.published_after @(description Optional RFC3339 timestamp, e.g. "2025-01-01T00:00:00Z")}
+          region_code: ${input.region_code | KR}
+        output: ${output}
+
+  - id: get-video-dimensions
+    private: true
+    name: get_video_dimensions
+    description: Fetch a YouTube video page and return its width and height in pixels. A video is portrait (vertical) when height > width, and landscape when width > height.
+    jobs:
+      - id: get-width
+        component: youtube-meta-scraper
+        input:
+          video_id: ${input.video_id @(description YouTube video ID, e.g. "dQw4w9WgXcQ")}
+          property: og:video:width
+        output:
+          width: ${output as integer}
+      - id: get-height
+        component: youtube-meta-scraper
+        input:
+          video_id: ${input.video_id}
+          property: og:video:height
+        output:
+          video_id: ${input.video_id}
+          width: ${jobs.get-width.output.width}
+          height: ${output as integer}
+
+components:
+  - id: fancam-agent
+    type: agent
+    tools:
+      - search-fancams
+      - get-video-dimensions
+    max_iteration_count: 16
+    action:
+      model:
+        component: gpt-4o
+        input:
+          messages: ${messages}
+          tools: ${tools}
+      system_prompt: |
+        You are a KPOP fancam curator. Given a natural-language request, search YouTube
+        for relevant fancam videos using the search_fancams tool.
+
+        Guidelines:
+        - Try multiple query variations (Korean and English, with and without "직캠"/"fancam")
+          when the first result set is small or low-quality.
+        - Prefer recent stages when the user asks for the latest or by date.
+        - Deduplicate by stage when obvious — same group, same song, same broadcast date.
+        - If the user asks for vertical / portrait / 세로 fancams, use the
+          get_video_dimensions tool on each candidate video ID and keep only the ones
+          where height > width. Skip videos for which the tool fails.
+        - When you have enough results, summarize as a markdown list with title, channel,
+          publish date, and a YouTube watch URL built from the video ID
+          (https://www.youtube.com/watch?v=<videoId>).
+        - Do not invent videos. Only list what the tool actually returned.
+      user_prompt: ${input.prompt}
+
+  - id: gpt-4o
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages: ${input.messages}
+        tools: ${input.tools}
+      output: ${response.choices[0].message}
+
+  - id: youtube-meta-scraper
+    type: web-scraper
+    action:
+      url: https://www.youtube.com/watch?v=${input.video_id}
+      selector: meta[property="${input.property}"]
+      extract_mode: attribute
+      attribute: content
+      headers:
+        User-Agent: Mozilla/5.0 (compatible; ModelComposeBot/1.0)
+      output: ${result}
+
+  - id: youtube-search
+    type: http-client
+    base_url: https://www.googleapis.com/youtube/v3
+    action:
+      path: /search
+      method: GET
+      params:
+        key: ${env.YOUTUBE_API_KEY}
+        part: snippet
+        type: video
+        videoEmbeddable: "true"
+        q: ${input.query}
+        maxResults: ${input.max_results}
+        order: ${input.order}
+        publishedAfter: ${input.published_after}
+        regionCode: ${input.region_code}
+        safeSearch: none
+      output:
+        query: ${input.query}
+        total_results: ${response.pageInfo.totalResults}
+        next_page_token: ${response.nextPageToken}
+        videos: ${response.items as object[]/id.videoId,snippet.title,snippet.channelTitle,snippet.publishedAt}

@@ -49,6 +49,38 @@ class TestWebScraperActionConfig:
         assert config.xpath == "//div[@class='content']"
         assert config.selector is None
 
+    def test_selector_as_list(self):
+        """Test selector accepts a list of CSS selectors for ordered multi-field extraction."""
+        config = WebScraperActionConfig(
+            url="https://example.com",
+            selector=[".title", ".price", ".description"],
+        )
+        assert config.selector == [".title", ".price", ".description"]
+
+    def test_selector_as_dict(self):
+        """Test selector accepts a dict of named CSS selectors for named multi-field extraction."""
+        config = WebScraperActionConfig(
+            url="https://example.com",
+            selector={"title": ".title", "price": ".price"},
+        )
+        assert config.selector == {"title": ".title", "price": ".price"}
+
+    def test_xpath_as_list(self):
+        """Test xpath accepts a list of expressions for ordered multi-field extraction."""
+        config = WebScraperActionConfig(
+            url="https://example.com",
+            xpath=["//h1", "//span[@class='price']"],
+        )
+        assert config.xpath == ["//h1", "//span[@class='price']"]
+
+    def test_xpath_as_dict(self):
+        """Test xpath accepts a dict of named expressions for named multi-field extraction."""
+        config = WebScraperActionConfig(
+            url="https://example.com",
+            xpath={"title": "//h1", "price": "//span[@class='price']"},
+        )
+        assert config.xpath == {"title": "//h1", "price": "//span[@class='price']"}
+
     def test_attribute_extraction(self):
         """Test attribute extraction configuration."""
         config = WebScraperActionConfig(

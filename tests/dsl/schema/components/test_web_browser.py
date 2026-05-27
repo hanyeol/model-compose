@@ -287,6 +287,38 @@ class TestWebBrowserExtractActionConfig:
         with pytest.raises(ValidationError, match="Either 'selector' or 'xpath'"):
             WebBrowserExtractActionConfig(method="extract")
 
+    def test_selector_as_list(self):
+        """Test selector accepts a list of CSS selectors for ordered multi-field extraction."""
+        config = WebBrowserExtractActionConfig(
+            method="extract",
+            selector=[".title", ".price"],
+        )
+        assert config.selector == [".title", ".price"]
+
+    def test_selector_as_dict(self):
+        """Test selector accepts a dict of named CSS selectors for named multi-field extraction."""
+        config = WebBrowserExtractActionConfig(
+            method="extract",
+            selector={"title": ".title", "price": ".price"},
+        )
+        assert config.selector == {"title": ".title", "price": ".price"}
+
+    def test_xpath_as_list(self):
+        """Test xpath accepts a list of expressions for ordered multi-field extraction."""
+        config = WebBrowserExtractActionConfig(
+            method="extract",
+            xpath=["//h1", "//span[@class='price']"],
+        )
+        assert config.xpath == ["//h1", "//span[@class='price']"]
+
+    def test_xpath_as_dict(self):
+        """Test xpath accepts a dict of named expressions for named multi-field extraction."""
+        config = WebBrowserExtractActionConfig(
+            method="extract",
+            xpath={"title": "//h1", "price": "//span[@class='price']"},
+        )
+        assert config.xpath == {"title": "//h1", "price": "//span[@class='price']"}
+
 
 class TestWebBrowserCookieActionConfig:
     """Test cookie action schema validation."""

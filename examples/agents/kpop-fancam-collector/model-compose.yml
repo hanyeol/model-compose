@@ -152,7 +152,7 @@ components:
 
   - id: youtube-meta-scraper
     type: web-scraper
-    max_concurrent_count: 2
+    max_concurrent_count: 1
     action:
       url: https://www.youtube.com/watch?v=${input.video_id}
       selector: meta[property="${input.property}"]

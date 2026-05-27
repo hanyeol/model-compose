@@ -108,13 +108,14 @@ class HttpClient:
     ) -> Union[Any, Tuple[Any, int]]:
         response: aiohttp.ClientResponse = None
         try:
+            merged_headers = { **(self.headers or {}), **(headers or {}) }
             response = await self._request_with_session(
                 session=self.session,
                 url_or_path=url_or_path,
                 method=method,
-                params=params,
+                params={ k: v for k, v in params.items() if v is not None } if params else None,
                 body=body,
-                headers={ **(self.headers or {}), **(headers or {})},
+                headers={ k: v for k, v in merged_headers.items() if v is not None },
                 timeout=timeout or self.timeout
             )
             content, _ = await self._parse_response_content(response, streaming)

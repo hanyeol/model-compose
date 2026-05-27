@@ -25,9 +25,9 @@ class HttpClientPollingCompletion(HttpClientCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient, streaming: bool = False) -> Any:
         url_or_path = await self._resolve_url_or_path(context)
         method      = await context.render_variable(self.config.method)
-        params      = await context.render_variable(self.config.params)
+        params      = _drop_none_values(await context.render_variable(self.config.params))
         body        = await context.render_variable(self.config.body)
-        headers     = await context.render_variable(self.config.headers)
+        headers     = _drop_none_values(await context.render_variable(self.config.headers))
 
         interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
         timeout  = parse_duration((await context.render_variable(self.config.timeout)) or 300.0)

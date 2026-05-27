@@ -1,49 +1,49 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Dict, Any
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriver
 from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
+from ..serialize import serialize_input
 from mindor.core.foundation.compat.asyncio import async_timeout
 from mindor.core.utils.time import parse_duration
+from mindor.core.utils.size import parse_size
+from mindor.core.logger import logging
 import asyncio, json, ulid
 
+if TYPE_CHECKING:
+    from redis.asyncio.client import PubSub
+
 class RedisStreamIterator:
-    def __init__(self, client, stream_key: str, timeout: float):
+    def __init__(self, client, stream_key: str, timeout: Optional[float]):
         self._client = client
         self._stream_key = stream_key
-        self._timeout = timeout if timeout > 0 else None
+        self._timeout = timeout
         self._last_id = "0-0"
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        try:
-            async with async_timeout(self._timeout):
-                while True:
-                    entry = await self._read_entry()
+        async with async_timeout(self._timeout):
+            while True:
+                entry = await self._read_entry()
 
-                    if entry is None:
-                        continue
+                if entry is None:
+                    continue
 
-                    return self._handle_entry(entry)
-        except TimeoutError:
-            raise TimeoutError(f"Stream read timed out after {self._timeout}s")
+                return self._handle_entry(entry)
 
     async def _read_entry(self):
-        entries = await self._client.xread(
-            { self._stream_key: self._last_id },
-            count=1, block=5000
-        )
+        entries = await self._client.xread({ self._stream_key: self._last_id }, count=1, block=5000)
 
-        if not entries:
-            return None
+        if entries:
+            entry_id, fields = entries[0][1][0]
+            self._last_id = entry_id
 
-        entry_id, fields = entries[0][1][0]
-        self._last_id = entry_id
+            return self._decode_fields(fields)
 
-        return self._decode_fields(fields)
+        return None
 
     def _handle_entry(self, fields: dict):
         event = fields.get("event")
@@ -72,6 +72,9 @@ class RedisControllerQueueService(CommonControllerQueueService):
         super().__init__(config)
 
         self._client = None
+        self._timeout: Optional[float] = None
+        self._blob_ttl: int = 0
+        self._max_blob_size: Optional[int] = None
 
     def _get_setup_requirements(self):
         return [ "redis>=5.0.0" ]
@@ -85,6 +88,10 @@ class RedisControllerQueueService(CommonControllerQueueService):
             password=self.config.password,
             decode_responses=False,
         )
+
+        self._timeout = self._resolve_timeout()
+        self._blob_ttl = self._resolve_blob_ttl()
+        self._max_blob_size = self._resolve_max_blob_size()
 
         await super()._start()
 
@@ -103,22 +110,46 @@ class RedisControllerQueueService(CommonControllerQueueService):
         on_interrupt: InterruptCallback
     ) -> Any:
         run_id = ulid.ulid()
-        queue_key = f"{self.config.name}:{workflow_id}"
+        queue_key  = f"{self.config.name}:{workflow_id}"
         result_key = f"{queue_key}:{run_id}"
         resume_key = f"{result_key}:resume"
+        blob_prefix = f"{queue_key}:{run_id}:blob:"
 
-        message = json.dumps({
-            "task_id": task_id,
-            "run_id": run_id,
-            "input": input,
-        }, default=str)
-
-        pubsub = self._client.pubsub()
-        await pubsub.subscribe(result_key)
+        blob_keys: List[str] = []
+        pubsub = None
 
         try:
-            await self._client.lpush(queue_key, message)
+            serialized_input, blob_keys = await serialize_input(
+                input,
+                self._client,
+                blob_prefix,
+                ttl_seconds=self._blob_ttl,
+                max_blob_size=self._max_blob_size,
+            )
+            message = json.dumps({
+                "task_id": task_id,
+                "run_id": run_id,
+                "input": serialized_input,
+            })
 
+            pubsub = self._client.pubsub()
+            await pubsub.subscribe(result_key)
+            await self._client.lpush(queue_key, message)
+        except BaseException:
+            if blob_keys:
+                try:
+                    await self._client.delete(*blob_keys)
+                except BaseException as e:
+                    logging.warning("Failed to cleanup blob keys (%d keys): %s", len(blob_keys), e)
+            if pubsub is not None:
+                try:
+                    await pubsub.unsubscribe(result_key)
+                    await pubsub.aclose()
+                except asyncio.CancelledError:
+                    pass
+            raise
+
+        try:
             while True:
                 result = await self._wait_for_message(pubsub)
                 status = result.get("status", "failed")
@@ -130,7 +161,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 if status == "streaming":
                     stream_key = result.get("stream_key")
-                    return RedisStreamIterator(self._client, stream_key, parse_duration(self.config.timeout).total_seconds())
+                    return RedisStreamIterator(self._client, stream_key, self._timeout)
 
                 if status == "failed":
                     raise RuntimeError(result.get("error", "Unknown error from queue worker"))
@@ -152,13 +183,30 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
         return self.config.url
 
-    async def _wait_for_message(self, pubsub) -> Dict[str, Any]:
-        timeout_secs = parse_duration(self.config.timeout).total_seconds()
-        timeout = timeout_secs if timeout_secs > 0 else None
+    def _resolve_timeout(self) -> Optional[float]:
+        timeout = parse_duration(self.config.timeout).total_seconds()
+        
+        if timeout > 0:
+            return timeout
+        
+        return None
 
-        async with async_timeout(timeout):
+    def _resolve_blob_ttl(self) -> int:
+        if self.config.blob_ttl is not None:
+            return int(parse_duration(self.config.blob_ttl).total_seconds())
+
+        return 3600
+
+    def _resolve_max_blob_size(self) -> Optional[int]:
+        if self.config.max_blob_size is not None:
+            return parse_size(self.config.max_blob_size)
+
+        return None
+
+    async def _wait_for_message(self, pubsub: PubSub) -> Dict[str, Any]:
+        async with async_timeout(self._timeout):
             async for message in pubsub.listen():
-                if message["type"] != b"message":
+                if message["type"] != "message":
                     continue
 
                 return json.loads(message["data"])

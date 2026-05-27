@@ -5,6 +5,12 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
+from mindor.core.controller.queue.serialize import deserialize_input
+from mindor.core.controller.queue.errors import (
+    BlobNotFoundError,
+    BlobCorruptedError,
+    BlobUnauthorizedError,
+)
 from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
@@ -87,16 +93,24 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         task_id = message.get("task_id")
         run_id  = message.get("run_id")
         input   = message.get("input", {})
-        result_key = f"{self.config.name}:{workflow_id}:{run_id}"
-        resume_key = f"{result_key}:resume"
+        result_key  = f"{self.config.name}:{workflow_id}:{run_id}"
+        resume_key  = f"{result_key}:resume"
+        blob_prefix = f"{self.config.name}:{workflow_id}:{run_id}:blob:"
 
-        async def on_interrupt(interrupt):
+        try:
+            input = await deserialize_input(input, self._client, blob_prefix)
+        except (BlobNotFoundError, BlobCorruptedError, BlobUnauthorizedError) as e:
+            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
+            await self._publish_result(workflow_id, task_id, run_id, state)
+            return
+
+        async def _on_interrupt(interrupt):
             state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, interrupt=interrupt)
             await self._publish_result(workflow_id, task_id, run_id, state)
             return await self._wait_for_resume(resume_key)
 
         try:
-            state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True, on_interrupt=on_interrupt)
+            state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True, on_interrupt=_on_interrupt)
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
 
@@ -111,7 +125,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
 
         try:
             async for message in pubsub.listen():
-                if message["type"] == b"message":
+                if message["type"] == "message":
                     data = json.loads(message["data"])
                     return data.get("answer")
         finally:

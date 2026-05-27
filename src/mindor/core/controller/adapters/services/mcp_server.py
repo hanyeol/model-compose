@@ -49,7 +49,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         self._configure_resume_tool()
 
     def _configure_resume_tool(self) -> None:
-        async def resume_workflow(task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
+        async def _resume_workflow(task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
             parsed_answer = json.loads(answer) if answer else None
             try:
                 await self.controller.resume_workflow(task_id, job_id, parsed_answer)
@@ -60,7 +60,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return await self._build_state_response(state)
 
         self.app.add_tool(
-            fn=resume_workflow,
+            fn=_resume_workflow,
             name="resume_workflow",
             title="Resume an interrupted workflow",
             description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.\n\nArgs:\n    task_id (str): The task ID of the interrupted workflow\n    job_id (str): The job ID where the interrupt occurred\n    answer (str): Optional JSON string with answer to resume with",

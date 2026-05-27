@@ -57,10 +57,11 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
 
     def _patch_huggingface_hub_compatibility(self) -> None:
         import huggingface_hub as hub
+    
         if not hasattr(hub, "cached_download"):
-            def cached_download(*args, **kwargs):
+            def _raise_not_implemented(*args, **kwargs):
                 raise NotImplementedError("cached_download is deprecated; not intended to be used.")
-            hub.cached_download = cached_download
+            hub.cached_download = _raise_not_implemented
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git" ]

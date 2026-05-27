@@ -521,13 +521,13 @@ class ControllerService(AsyncService):
         self._invoke_task_state_listeners(task_id)
 
         try:
-            async def run_workflow(workflow_id, input, interrupt_handler):
+            async def _run_workflow(workflow_id, input, interrupt_handler):
                 if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
                     return await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
-                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, run_workflow, session_id=session_id, metadata=metadata)
+                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, _run_workflow, session_id=session_id, metadata=metadata)
 
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
-            output = await run_workflow(workflow_id, input, interrupt_handler)
+            output = await _run_workflow(workflow_id, input, interrupt_handler)
             state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output, session_id=session_id, metadata=metadata)
         except Exception as e:
             import traceback
@@ -567,7 +567,7 @@ class ControllerService(AsyncService):
         on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
         task_metadata: Optional[Any] = None
     ) -> InterruptHandler:
-        async def callback(point: InterruptPoint):
+        async def _callback(point: InterruptPoint):
             interrupt = InterruptState(
                 job_id=point.job_id,
                 phase=point.phase,
@@ -585,7 +585,7 @@ class ControllerService(AsyncService):
                 answer = await on_interrupt(interrupt)
                 point.future.set_result(answer)
 
-        handler = InterruptHandler(callback)
+        handler = InterruptHandler(_callback)
         self.interrupt_handlers[task_id] = handler
 
         return handler

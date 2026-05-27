@@ -110,10 +110,10 @@ class DatasetsAction:
         if not isinstance(dataset, Dataset):
             raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
 
-        def format_example(example):
+        def _format_example(example):
             return { output_column: format_template_example(template, example) }
 
-        return dataset.map(format_example, remove_columns=remove_columns)
+        return dataset.map(_format_example, remove_columns=remove_columns)
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):

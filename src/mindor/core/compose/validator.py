@@ -202,7 +202,7 @@ class ComposeValidator:
         visiting: Set[str] = set()
         visited: Set[str] = set()
 
-        def detect_cycle(job_id: str):
+        def _detect_cycle(job_id: str):
             if job_id in visiting:
                 self.errors.append(
                     f"workflows[{workflow_index}]: Dependency cycle detected involving job '{job_id}' in workflow '{workflow_id}'"
@@ -215,11 +215,11 @@ class ComposeValidator:
             visiting.add(job_id)
 
             for dependency_id in job_map[job_id].depends_on:
-                detect_cycle(dependency_id)
+                _detect_cycle(dependency_id)
 
             visiting.remove(job_id)
             visited.add(job_id)
 
         for job in job_map.values():
             if job.id not in visited:
-                detect_cycle(job.id)
+                _detect_cycle(job.id)

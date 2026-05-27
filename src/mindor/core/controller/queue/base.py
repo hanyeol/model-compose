@@ -23,7 +23,7 @@ class CommonControllerQueueService(AsyncService):
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler
     ) -> Any:
-        async def on_interrupt(data: Dict[str, Any]) -> Any:
+        async def _on_interrupt(data: Dict[str, Any]) -> Any:
             point = InterruptPoint(
                 task_id=task_id,
                 job_id=data.get("job_id", ""),
@@ -35,7 +35,7 @@ class CommonControllerQueueService(AsyncService):
             await interrupt_handler.interrupt(point)
             return await point.future
 
-        return await self._dispatch(task_id, workflow_id, input, on_interrupt)
+        return await self._dispatch(task_id, workflow_id, input, _on_interrupt)
 
     @abstractmethod
     async def _dispatch(

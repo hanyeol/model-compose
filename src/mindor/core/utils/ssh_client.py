@@ -135,7 +135,7 @@ class SshClient:
         """
         def _start_forwarding():
             # Define handler for this specific port forward
-            def port_forward_handler(channel, _, server_addr):
+            def _port_forward_handler(channel, _, server_addr):
                 """Handler called when a connection is made to the forwarded port"""
                 server_port = server_addr[1]
                 if server_port in self.port_forwards:
@@ -154,7 +154,7 @@ class SshClient:
             actual_remote_port = self.transport.request_port_forward(
                 address="0.0.0.0",  # Bind to all interfaces on remote
                 port=remote_port,
-                handler=port_forward_handler
+                handler=_port_forward_handler
             )
 
             self.port_forwards[actual_remote_port] = (local_host, local_port)

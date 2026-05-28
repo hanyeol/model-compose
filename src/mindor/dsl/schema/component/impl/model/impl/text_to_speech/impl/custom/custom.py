@@ -1,15 +1,14 @@
 from typing import Union, Annotated
-from enum import Enum
 from pydantic import Field
-
-class CustomTextToSpeechModelFamily(str, Enum):
-    QWEN = "qwen"
-
-from .qwen import QwenTextToSpeechModelComponentConfig
+from .impl.qwen import QwenTextToSpeechModelComponentConfig
+from .impl.kokoro import KokoroTextToSpeechModelComponentConfig
+from .impl.chatterbox import ChatterboxTextToSpeechModelComponentConfig
 
 CustomTextToSpeechModelComponentConfig = Annotated[
     Union[
         QwenTextToSpeechModelComponentConfig,
+        KokoroTextToSpeechModelComponentConfig,
+        ChatterboxTextToSpeechModelComponentConfig,
     ],
     Field(discriminator="family")
 ]

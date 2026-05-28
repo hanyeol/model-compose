@@ -1,21 +1,14 @@
 from typing import Union, Annotated
-from enum import Enum
 from pydantic import Field
-
-class CustomImageGenerationModelFamily(str, Enum):
-    SDXL          = "sdxl"
-    FLUX          = "flux"
-    HUNYUAN_IMAGE = "hunyuan-image"
-
-from .hunyuan_image import HunyuanImageGenerationModelComponentConfig
-from .flux import FluxImageGenerationModelComponentConfig
-from .sdxl import SdxlImageGenerationModelComponentConfig
+from .impl.sdxl import SdxlImageGenerationModelComponentConfig
+from .impl.flux import FluxImageGenerationModelComponentConfig
+from .impl.hunyuan_image import HunyuanImageGenerationModelComponentConfig
 
 CustomImageGenerationModelComponentConfig = Annotated[
     Union[
-        HunyuanImageGenerationModelComponentConfig,
-        FluxImageGenerationModelComponentConfig,
         SdxlImageGenerationModelComponentConfig,
+        FluxImageGenerationModelComponentConfig,
+        HunyuanImageGenerationModelComponentConfig,
     ],
     Field(discriminator="family")
 ]

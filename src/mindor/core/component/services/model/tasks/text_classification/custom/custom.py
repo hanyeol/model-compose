@@ -1,4 +1,4 @@
-from mindor.dsl.schema.component import ModelComponentConfig, CustomTextClassificationModelFamily
+from mindor.dsl.schema.component import ModelComponentConfig, TextClassificationModelFamily
 from ....base import ModelTaskType, ModelDriver, register_model_task_service
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.CUSTOM)

@@ -1,4 +1,4 @@
-from mindor.dsl.schema.component import ModelComponentConfig, CustomImageToTextModelFamily
+from mindor.dsl.schema.component import ModelComponentConfig, ImageToTextModelFamily
 from ....base import ModelTaskType, ModelDriver, register_model_task_service
 
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.CUSTOM)

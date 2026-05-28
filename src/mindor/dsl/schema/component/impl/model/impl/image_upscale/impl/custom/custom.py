@@ -1,17 +1,9 @@
 from typing import Union, Annotated
-from enum import Enum
 from pydantic import Field
-
-class CustomImageUpscaleModelFamily(str, Enum):
-    ESRGAN      = "esrgan"
-    REAL_ESRGAN = "real-esrgan"
-    LDSR        = "ldsr"
-    SWINIR      = "swinir"
-
-from .esrgan import EsrganImageUpscaleModelComponentConfig
-from .real_esrgan import RealEsrganImageUpscaleModelComponentConfig
-from .ldsr import LdsrImageUpscaleModelComponentConfig
-from .swinir import SwinIRImageUpscaleModelComponentConfig
+from .impl.esrgan import EsrganImageUpscaleModelComponentConfig
+from .impl.real_esrgan import RealEsrganImageUpscaleModelComponentConfig
+from .impl.ldsr import LdsrImageUpscaleModelComponentConfig
+from .impl.swinir import SwinIRImageUpscaleModelComponentConfig
 
 CustomImageUpscaleModelComponentConfig = Annotated[
     Union[

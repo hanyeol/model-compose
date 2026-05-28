@@ -1,4 +1,4 @@
-from mindor.dsl.schema.component import ModelComponentConfig, CustomChatCompletionModelFamily
+from mindor.dsl.schema.component import ModelComponentConfig, ChatCompletionModelFamily
 from ....base import ModelTaskType, ModelDriver, register_model_task_service
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.CUSTOM)

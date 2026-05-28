@@ -1,15 +1,8 @@
 from typing import Union, Annotated
-from enum import Enum
 from pydantic import Field
-
-class CustomFaceEmbeddingModelFamily(str, Enum):
-    INSIGHTFACE = "insightface"
-    FACENET     = "facenet"
-    DLIB        = "dlib"
-
-from .insightface import InsightfaceFaceEmbeddingModelComponentConfig
-from .facenet import FacenetFaceEmbeddingModelComponentConfig
-from .dlib import DlibFaceEmbeddingModelComponentConfig
+from .impl.insightface import InsightfaceFaceEmbeddingModelComponentConfig
+from .impl.facenet import FacenetFaceEmbeddingModelComponentConfig
+from .impl.dlib import DlibFaceEmbeddingModelComponentConfig
 
 CustomFaceEmbeddingModelComponentConfig = Annotated[
     Union[

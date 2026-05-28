@@ -41,12 +41,6 @@ class WebSocketServerComponentConfig(CommonComponentConfig):
     actions: List[WebSocketServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
-    def migrate_path_to_base_path(cls, values: Dict[str, Any]):
-        if "path" in values and "base_path" not in values:
-            values["base_path"] = values.pop("path")
-        return values
-
-    @model_validator(mode="before")
     def inflate_single_script(cls, values: Dict[str, Any]):
         if "manage" not in values:
             values["manage"] = { key: values.pop(key) for key in WebSocketServerManageScripts.model_fields.keys() if key in values }

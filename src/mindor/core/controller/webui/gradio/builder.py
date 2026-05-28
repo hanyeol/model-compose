@@ -75,6 +75,7 @@ class GradioWebUIBuilder:
                 output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
             output_components = self._flatten_output_components(output_components)
+            media_components = [ component for component in output_components if self._is_media_component(component) ]
 
             def _run_button_running():
                 return gr.update(value="⏳ Running...", interactive=False)
@@ -120,15 +121,15 @@ class GradioWebUIBuilder:
                         yield [ _run_button_ready(), *clear_interrupt, buffer ]
                     else:
                         result = await self._save_stream_to_temporary_file(output, workflow.output[0])
-                        yield [ _run_button_ready(), *clear_interrupt, result ]
+                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, result ]
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
                     result = output[0] if len(output) == 1 else output
                     if isinstance(result, (list, tuple)):
-                        yield [ _run_button_ready(), *clear_interrupt, *result ]
+                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, *result ]
                     else:
-                        yield [ _run_button_ready(), *clear_interrupt, result ]
+                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, result ]
 
             async def _resume_workflow(state: Optional[Dict[str, str]], answer_text: str):
                 yield [ _run_button_running(), _resume_button_running(), *(gr.update() for _ in interrupt_components), *(gr.update() for _ in output_components) ]
@@ -168,9 +169,9 @@ class GradioWebUIBuilder:
                 if result is None:
                     yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, *(gr.update() for _ in output_components) ]
                 elif isinstance(result, (list, tuple)):
-                    yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, *result ]
+                    yield [ _run_button_running() if media_components else _run_button_ready(), _resume_button_ready(), *clear_interrupt, *result ]
                 else:
-                    yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, result ]
+                    yield [ _run_button_running() if media_components else _run_button_ready(), _resume_button_ready(), *clear_interrupt, result ]
 
             run_button.click(
                 fn=_run_workflow,
@@ -183,6 +184,9 @@ class GradioWebUIBuilder:
                 inputs=[ interrupt_state, interrupt_answer ],
                 outputs=[ run_button, resume_button, *interrupt_components, *output_components ]
             )
+
+            for component in media_components:
+                component.change(fn=_run_button_ready, inputs=None, outputs=run_button)
 
         return section
 
@@ -467,3 +471,6 @@ class GradioWebUIBuilder:
 
     def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
         return variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]
+
+    def _is_media_component(self, component: gr.Component) -> bool:
+        return isinstance(component, (gr.Image, gr.Audio, gr.Video, gr.File))

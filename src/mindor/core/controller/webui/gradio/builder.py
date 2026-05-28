@@ -325,6 +325,9 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.VIDEO:
             return gr.Video(label=label)
 
+        if variable.type == WorkflowVariableType.FILE:
+            return gr.File(label=label)
+
         if variable.type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
             return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])
 
@@ -403,7 +406,7 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.IMAGE:
             return await self._load_image_from_value(value, variable.subtype, variable.format)
 
-        if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO ]:
+        if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
             return await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
 
         return value

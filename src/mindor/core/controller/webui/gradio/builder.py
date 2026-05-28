@@ -326,7 +326,7 @@ class GradioWebUIBuilder:
             return gr.Video(label=label)
 
         if variable.type == WorkflowVariableType.FILE:
-            return gr.File(label=label)
+            return gr.File(label=label, interactive=False)
 
         if variable.type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
             return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])

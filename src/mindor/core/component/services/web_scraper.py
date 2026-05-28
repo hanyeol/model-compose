@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
+from mindor.core.utils.rate_limit import RateLimiter
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -254,6 +255,8 @@ class WebScraperComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
+        self.rate_limiter: Optional[RateLimiter] = None
+
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "playwright", "beautifulsoup4", "lxml" ]
 
@@ -269,5 +272,15 @@ class WebScraperComponent(ComponentService):
             capture_output=True
         )
 
+    async def _start(self) -> None:
+        self.rate_limiter = RateLimiter(self.config.rate_limit) if self.config.rate_limit else None
+        await super()._start()
+
+    async def _stop(self) -> None:
+        await super()._stop()
+        self.rate_limiter = None
+
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
         return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context)

@@ -3,12 +3,21 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import HttpClientActionConfig, HttpClientPollingCompletionConfig
 from .common import ComponentType, CommonComponentConfig
+from .rate_limit import RateLimitConfig, inflate_rate_limit_shorthand
 
 class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]
     base_url: Optional[str] = Field(default=None, description="Base URL for HTTP requests.")
     headers: Dict[str, Any] = Field(default_factory=dict, description="Default HTTP headers to include in all requests.")
+    rate_limit: Optional[RateLimitConfig] = Field(default=None, description="Optional rate limit applied to all actions in this component.")
     actions: List[HttpClientActionConfig] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    def inflate_rate_limit(cls, values: Dict[str, Any]):
+        rate_limit = values.get("rate_limit")
+        if isinstance(rate_limit, str):
+            values["rate_limit"] = inflate_rate_limit_shorthand(rate_limit)
+        return values
 
     @model_validator(mode="after")
     def validate_baseurl_for_actions(self):

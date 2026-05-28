@@ -6,6 +6,7 @@ from mindor.dsl.schema.transport.http import HttpStreamFormat
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
+from mindor.core.utils.rate_limit import RateLimiter
 from mindor.core.utils.streaming import StreamResource
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -158,15 +159,20 @@ class HttpClientComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[HttpClient] = None
+        self.rate_limiter: Optional[RateLimiter] = None
 
     async def _start(self) -> None:
         self.client = HttpClient(self.config.base_url, self.config.headers)
+        self.rate_limiter = RateLimiter(self.config.rate_limit) if self.config.rate_limit else None
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
         await self.client.close()
         self.client = None
+        self.rate_limiter = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
         return await HttpClientAction(action).run(context, self.client)

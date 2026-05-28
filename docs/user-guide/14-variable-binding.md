@@ -1,10 +1,10 @@
-# 13. Variable Binding
+# 14. Variable Binding
 
 This chapter provides a detailed explanation of model-compose's variable binding syntax. Variable binding is a core feature that uses the `${...}` syntax to reference and transform data.
 
 ---
 
-## 13.1 Syntax Overview
+## 14.1 Syntax Overview
 
 Variable binding specifies a **data source** (`key.path`), and optionally adds **type conversion** (`as type/subtype[attrs];format`), **default value** (`| default`), and **metadata** (`@(annotation)`).
 
@@ -29,18 +29,18 @@ ${input.profile as image/jpeg;url | ${env.DEFAULT_AVATAR} @(description "Profile
 |---------|-------------|----------|
 | **key** | Data source | `input`, `response`, `result`, `env`, `jobs` |
 | **path** | Nested field access with dot notation and array indexing | `.user.name`, `.data[0].id` |
-| **type** | Data type ([13.4](#134-type-conversion)) | `image`, `audio`, `text`, `json` |
+| **type** | Data type ([14.4](#144-type-conversion)) | `image`, `audio`, `text`, `json` |
 | **subtype** | Detailed format of the type | `jpeg`, `png`, `mp3`, `pcm` |
 | **attrs** | Additional parameters in brackets | `sample_rate=24000,channels=1` |
-| **format** | Encoding state of the data ([13.5](#135-format-and-context-semantics)) | `base64`, `url`, `path`, `sse-json` |
-| **default** | Fallback value when value is missing ([13.6](#136-default-values)) | `0`, `"gpt-4o"`, `${env.FALLBACK}` |
-| **annotation** | Metadata for MCP/UI ([13.7](#137-metadata-and-ui-hints)) | `@(description "Username")` |
+| **format** | Encoding state of the data ([14.5](#145-format-and-context-semantics)) | `base64`, `url`, `path`, `sse-json` |
+| **default** | Fallback value when value is missing ([14.6](#146-default-values)) | `0`, `"gpt-4o"`, `${env.FALLBACK}` |
+| **annotation** | Metadata for MCP/UI ([14.7](#147-metadata-and-ui-hints)) | `@(description "Username")` |
 
 ---
 
-## 13.2 Variable Sources
+## 14.2 Variable Sources
 
-### 13.2.1 Workflow Input
+### 14.2.1 Workflow Input
 
 ```yaml
 ${input}                    # Entire input object
@@ -48,7 +48,7 @@ ${input.field}              # field property of input
 ${input.user.email}         # Nested path
 ```
 
-### 13.2.2 Component Response Variables
+### 14.2.2 Component Response Variables
 
 Different component types use different variable names to reference response data.
 
@@ -75,21 +75,21 @@ Different component types use different variable names to reference response dat
 - Shell commands → `${stdout}` or `${stderr}`
 - Workflow invocation → `${output}`
 
-### 13.2.3 Previous Job Outputs
+### 14.2.3 Previous Job Outputs
 
 ```yaml
 ${jobs.job-id.output}           # Specific job output
 ${jobs.job-id.output.field}     # Specific field of job output
 ```
 
-### 13.2.4 Environment Variables
+### 14.2.4 Environment Variables
 
 ```yaml
 ${env.OPENAI_API_KEY}       # Environment variable
 ${env.PORT | 8080}          # With default value
 ```
 
-### 13.2.5 Streaming Chunk References
+### 14.2.5 Streaming Chunk References
 
 Append `[]` to the variable name to receive data as a stream of chunks instead of a single value.
 
@@ -105,7 +105,7 @@ Components that support streaming:
 
 ---
 
-## 13.3 Path Access
+## 14.3 Path Access
 
 Variable paths support dot notation for nested objects and bracket notation for array indexing.
 
@@ -117,11 +117,11 @@ ${input.users[0].name}                     # First element's name field
 
 ---
 
-## 13.4 Type Conversion
+## 14.4 Type Conversion
 
 Type conversion transforms variable values into specific data types using the `as` keyword.
 
-### 13.4.1 Primitive Types
+### 14.4.1 Primitive Types
 
 | Type | Description | Example |
 |------|-------------|---------|
@@ -131,7 +131,7 @@ Type conversion transforms variable values into specific data types using the `a
 | `boolean` | Convert to boolean (`"true"`, `"1"` → true) | `${input.enabled as boolean}` |
 | `json` | Parse JSON string to object | `${input.data as json}` |
 
-### 13.4.2 Object Array Projection
+### 14.4.2 Object Array Projection
 
 Extract specific fields from an array of objects using `subtype` as comma-separated field paths.
 
@@ -145,7 +145,7 @@ ${response.data as object[]/user.id,user.email,status}
 # Result: [{"id": 1, "email": "john@example.com", "status": "active"}, ...]
 ```
 
-### 13.4.3 Media Types
+### 14.4.3 Media Types
 
 | Type | Subtype | Format | Example |
 |------|---------|--------|---------|
@@ -154,7 +154,7 @@ ${response.data as object[]/user.id,user.email,status}
 | `video` | `mp4`, `webm` | `base64`, `url`, `path` | `${result as video/mp4}` |
 | `file` | any | `base64`, `url`, `path` | `${input.document as file}` |
 
-### 13.4.4 Attributes
+### 14.4.4 Attributes
 
 Attributes provide additional key-value parameters using bracket syntax: `type/subtype[key=value,...]`. They are passed as a dictionary alongside type and subtype, allowing extra context for type conversion and downstream processing.
 
@@ -163,7 +163,7 @@ Attributes provide additional key-value parameters using bracket syntax: `type/s
 ${response[] as audio/pcm[sample_rate=24000,channels=1,bit_depth=16]}
 ```
 
-### 13.4.5 Base64 Type vs Base64 Format
+### 14.4.5 Base64 Type vs Base64 Format
 
 These are different concepts:
 
@@ -180,11 +180,11 @@ ${input.photo as image;base64}
 
 ---
 
-## 13.5 Format and Context Semantics
+## 14.5 Format and Context Semantics
 
 Format specifiers describe the **encoding state** of the data. The same `as type;format` syntax behaves differently depending on where it is used.
 
-### 13.5.1 Format Values
+### 14.5.1 Format Values
 
 | Format | Description | Example |
 |--------|-------------|---------|
@@ -195,7 +195,7 @@ Format specifiers describe the **encoding state** of the data. The same `as type
 
 > **Note:** `sse-text` and `sse-json` are **types**, not formats. Use `${output as sse-text}` or `${output as sse-json}` to convert a value to an SSE stream.
 
-### 13.5.2 Input Context
+### 14.5.2 Input Context
 
 In component action `input`, format tells the system **how the incoming data is currently encoded**. The system converts it to the form the component expects.
 
@@ -214,7 +214,7 @@ input:
   image: ${input.photo as image;base64}
 ```
 
-### 13.5.3 Component/Job Output Context
+### 14.5.3 Component/Job Output Context
 
 In component/job action `output`, media file conversion is **not performed**. The value is passed through with only basic type conversion (e.g., `integer`, `json`, `base64` encoding). The format is preserved as metadata for downstream consumers.
 
@@ -231,7 +231,7 @@ In component/job action `output`, media file conversion is **not performed**. Th
 output: ${result as image;base64}
 ```
 
-### 13.5.4 Workflow Output Context
+### 14.5.4 Workflow Output Context
 
 Workflow output variables define `type` and `format` in the workflow schema. These are consumed by **controller adapters** to determine how to display and transmit the data:
 
@@ -252,11 +252,11 @@ workflow:
 
 ---
 
-## 13.6 Default Values
+## 14.6 Default Values
 
 Default values provide fallback data when a variable is missing or null. Using the pipe (`|`) operator, you can specify literal values or reference environment variables.
 
-### 13.6.1 Literal Default Values
+### 14.6.1 Literal Default Values
 
 ```yaml
 ${input.temperature | 0.7}             # Number
@@ -264,14 +264,14 @@ ${input.model | "gpt-4o"}              # String
 ${input.enabled | true}                # Boolean
 ```
 
-### 13.6.2 Environment Variable Default Values
+### 14.6.2 Environment Variable Default Values
 
 ```yaml
 ${input.channel | ${env.DEFAULT_CHANNEL}}     # Use environment variable as default
 ${input.api_key | ${env.API_KEY}}             # Use environment variable as default
 ```
 
-### 13.6.3 Nested Default Values (Environment Variable + Literal)
+### 14.6.3 Nested Default Values (Environment Variable + Literal)
 
 ```yaml
 ${input.api_key | ${env.API_KEY | "default-key"}}
@@ -279,9 +279,9 @@ ${input.api_key | ${env.API_KEY | "default-key"}}
 
 ---
 
-## 13.7 Metadata and UI Hints
+## 14.7 Metadata and UI Hints
 
-### 13.7.1 Annotations
+### 14.7.1 Annotations
 
 Used to provide parameter descriptions for MCP servers.
 
@@ -297,7 +297,7 @@ input:
   max_tokens: ${input.max_tokens as integer | 100 @(description Maximum tokens to generate)}
 ```
 
-### 13.7.2 Select (Dropdown)
+### 14.7.2 Select (Dropdown)
 
 ```yaml
 ${input.voice as select/alloy,echo,fable,onyx,nova,shimmer}
@@ -305,14 +305,14 @@ ${input.model as select/gpt-4o,gpt-4o-mini,o1-mini}
 ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
 ```
 
-### 13.7.3 Slider
+### 14.7.3 Slider
 
 ```yaml
 ${input.temperature as slider/0,2,0.1 | 0.7}
 # Format: slider/min,max,step | default
 ```
 
-### 13.7.4 Textarea
+### 14.7.4 Textarea
 
 ```yaml
 ${input.prompt as text}
@@ -321,9 +321,9 @@ ${input.prompt as text}
 
 ---
 
-## 13.8 Practical Examples
+## 14.8 Practical Examples
 
-### 13.8.1 OpenAI API Call
+### 14.8.1 OpenAI API Call
 
 ```yaml
 body:
@@ -337,7 +337,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 13.8.2 Image Processing Pipeline
+### 14.8.2 Image Processing Pipeline
 
 ```yaml
 jobs:
@@ -355,7 +355,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 13.8.3 Streaming Response
+### 14.8.3 Streaming Response
 
 ```yaml
 workflow:
@@ -370,7 +370,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 13.8.4 Vector Search Result Format
+### 14.8.4 Vector Search Result Format
 
 ```yaml
 component:
@@ -380,7 +380,7 @@ component:
 # Result: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 13.8.5 Conditional Default Values
+### 14.8.5 Conditional Default Values
 
 ```yaml
 component:
@@ -394,4 +394,4 @@ component:
 
 ---
 
-**Next Chapter**: [14. System Integration](./14-system-integration.md)
+**Next Chapter**: [15. System Integration](./15-system-integration.md)

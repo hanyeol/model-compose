@@ -1,12 +1,12 @@
-# 11. 流式模式
+# 13. 流式模式
 
 本章介绍如何使用model-compose的流式功能来生成和处理实时响应。
 
 ---
 
-## 12.1 流式概述
+## 13.1 流式概述
 
-### 12.1.1 什么是流式？
+### 13.1.1 什么是流式？
 
 流式模式在生成时传递部分结果，而不是等待模型或API的完整响应。
 
@@ -23,7 +23,7 @@
 - 翻译服务
 - 代码生成
 
-### 12.1.2 支持的组件
+### 13.1.2 支持的组件
 
 支持流式的组件：
 
@@ -34,7 +34,7 @@
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
 
-### 12.1.3 流式协议
+### 13.1.3 流式协议
 
 model-compose使用**SSE（Server-Sent Events）**协议。
 
@@ -52,9 +52,9 @@ data: chunk3
 
 ---
 
-## 12.2 特定组件的流式配置
+## 13.2 特定组件的流式配置
 
-### 12.2.1 模型组件
+### 13.2.1 模型组件
 
 #### 基本配置
 
@@ -116,7 +116,7 @@ component:
 - 与文本生成相同的流式机制
 - 使用`${result[]}`进行每块处理
 
-### 12.2.2 HTTP组件
+### 13.2.2 HTTP组件
 
 #### HTTP客户端流式
 
@@ -192,9 +192,9 @@ component:
 
 ---
 
-## 12.3 在工作流中使用流式
+## 13.3 在工作流中使用流式
 
-### 12.3.1 基本流式工作流
+### 13.3.1 基本流式工作流
 
 ```yaml
 controller:
@@ -235,7 +235,7 @@ component:
   output: ${output as sse-json}
   ```
 
-### 12.3.2 多步骤工作流流式
+### 13.3.2 多步骤工作流流式
 
 ```yaml
 workflows:
@@ -282,7 +282,7 @@ components:
 - 中间作业必须等待完成
 - 只有最终输出使用`${result[]}`流式
 
-### 12.3.3 条件流式
+### 13.3.3 条件流式
 
 ```yaml
 workflow:
@@ -323,9 +323,9 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 ---
 
-## 12.4 处理流式响应
+## 13.4 处理流式响应
 
-### 12.4.1 API端点
+### 13.4.1 API端点
 
 **流式请求要求：**
 
@@ -357,7 +357,7 @@ data:  time
 
 ```
 
-### 12.4.2 客户端实现（JavaScript）
+### 13.4.2 客户端实现（JavaScript）
 
 **使用EventSource API：**
 
@@ -426,7 +426,7 @@ while (true) {
 }
 ```
 
-### 12.4.3 客户端实现（Python）
+### 13.4.3 客户端实现（Python）
 
 **使用requests库：**
 
@@ -476,7 +476,7 @@ async def stream_workflow():
 asyncio.run(stream_workflow())
 ```
 
-### 12.4.4 Web UI集成
+### 13.4.4 Web UI集成
 
 **Gradio自动流式：**
 
@@ -510,9 +510,9 @@ Gradio Web UI自动：
 
 ---
 
-## 12.5 性能和优化
+## 13.5 性能和优化
 
-### 12.5.1 模型流式优化
+### 13.5.1 模型流式优化
 
 **快速令牌生成的设置：**
 
@@ -546,7 +546,7 @@ component:
 | `max_output_length` | 小 | 快速完成 |
 | `max_output_length` | 大 | 更长的等待时间 |
 
-### 12.5.2 HTTP流式优化
+### 13.5.2 HTTP流式优化
 
 **块大小调整：**
 
@@ -576,7 +576,7 @@ component:
     stream_format: json
 ```
 
-### 12.5.3 内存管理
+### 13.5.3 内存管理
 
 **流式期间的内存使用：**
 
@@ -589,7 +589,7 @@ component:
 - CPU内存：流式期间仅需要块大小
 - 长响应具有内存效率
 
-### 12.5.4 网络优化
+### 13.5.4 网络优化
 
 **最小化延迟：**
 
@@ -611,7 +611,7 @@ component:
   stream_format: text              # 比JSON更轻量
   ```
 
-### 12.5.5 错误处理
+### 13.5.5 错误处理
 
 **重试逻辑：**
 
@@ -657,9 +657,9 @@ fetch(url, {
 
 ---
 
-## 12.6 实际示例
+## 13.6 实际示例
 
-### 12.6.1 实时翻译流式
+### 13.6.1 实时翻译流式
 
 ```yaml
 controller:
@@ -684,7 +684,7 @@ component:
       max_output_length: 512
 ```
 
-### 12.6.2 OpenAI + Claude组合
+### 13.6.2 OpenAI + Claude组合
 
 ```yaml
 workflows:
@@ -739,7 +739,7 @@ components:
       output: ${response[].delta.text}
 ```
 
-### 12.6.3 本地模型流式服务器
+### 13.6.3 本地模型流式服务器
 
 ```yaml
 controller:
@@ -780,7 +780,7 @@ component:
 
 ---
 
-## 12.7 分布式流式传输（队列流式传输）
+## 13.7 分布式流式传输（队列流式传输）
 
 在通过 Redis 队列分发将工作流执行委托给远程工作节点的分布式部署环境中，流式传输同样可以工作。
 
@@ -790,11 +790,11 @@ component:
 Client ← SSE ← [Dispatcher] �� XREAD ← Redis Stream �� XADD ← [Worker] ← LLM 流式传输
 ```
 
-有关队列流式传输的配置、架构和边界情况的详细信息，请参阅 [6.5 章：队列流式传输](./06-controller-configuration.md#65-队列流式传输-queue-streaming)。
+有关队列流式传输的配置、架构和边界情况的详细信息，请参阅 [7.5 节：队列流式传输](./07-controller-configuration.md#75-队列流式传输-queue-streaming)。
 
 ---
 
-## 12.8 流式最佳实践
+## 13.8 流式最佳实践
 
 ### 流式使用建议
 
@@ -842,4 +842,4 @@ Client ← SSE ← [Dispatcher] �� XREAD ← Redis Stream �� XADD ← [W
 
 ---
 
-**下一章**：[13. 变量绑定](./13-variable-binding.md)
+**下一章**：[第14章：变量绑定](./14-variable-binding.md)

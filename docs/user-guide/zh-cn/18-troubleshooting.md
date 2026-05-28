@@ -1,12 +1,12 @@
-# 16. 故障排除
+# 18. 故障排除
 
 本章涵盖使用 model-compose 时的常见问题和解决方案。
 
 ---
 
-## 17.1 常见问题解答（FAQ）
+## 18.1 常见问题解答（FAQ）
 
-### 17.1.1 安装和环境设置
+### 18.1.1 安装和环境设置
 
 **问：Python 版本要求是什么？**
 
@@ -37,7 +37,7 @@ pip install -e .
 docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
-### 17.1.2 组件配置
+### 18.1.2 组件配置
 
 **问：加载模型组件时出现内存不足错误。**
 
@@ -96,7 +96,7 @@ docker ps | grep milvus
 docker ps | grep chroma
 ```
 
-### 17.1.3 工作流执行
+### 18.1.3 工作流执行
 
 **问：执行工作流时出现"找不到变量"错误。**
 
@@ -149,7 +149,7 @@ workflow:
   output: ${output as sse-text}
 ```
 
-### 17.1.4 Web UI
+### 18.1.4 Web UI
 
 **问：Gradio Web UI 无法启动。**
 
@@ -175,7 +175,7 @@ workflow:
     document: ${input.doc as file}
 ```
 
-### 17.1.5 监听器和网关
+### 18.1.5 监听器和网关
 
 **问：监听器无法从外部访问。**
 
@@ -203,9 +203,9 @@ ngrok version
 
 ---
 
-## 17.2 常见错误和解决方案
+## 18.2 常见错误和解决方案
 
-### 17.2.1 模型加载错误
+### 18.2.1 模型加载错误
 
 **错误**：`RuntimeError: CUDA out of memory`
 
@@ -245,7 +245,7 @@ ls ~/.cache/huggingface/hub/
 
 ---
 
-### 17.2.2 网络错误
+### 18.2.2 网络错误
 
 **错误**：`ConnectionError: Failed to connect to API`
 
@@ -286,7 +286,7 @@ component:
 
 ---
 
-### 17.2.3 配置文件错误
+### 18.2.3 配置文件错误
 
 **错误**：`ValidationError: Invalid configuration`
 
@@ -297,7 +297,7 @@ component:
 ```bash
 python -c "import yaml; yaml.safe_load(open('model-compose.yml'))"
 ```
-2. 使用架构参考验证必填字段（第 17 章）
+2. 使用架构参考验证必填字段（第 19 章）
 3. 检查缩进（使用 2 个空格）
 
 ---
@@ -320,7 +320,7 @@ workflow:
 
 ---
 
-### 17.2.4 变量绑定错误
+### 18.2.4 变量绑定错误
 
 **错误**：`ValueError: Cannot resolve variable '${input.field}'`
 
@@ -351,7 +351,7 @@ output: ${binary_data as base64}
 
 ---
 
-### 17.2.5 Docker 运行时错误
+### 18.2.5 Docker 运行时错误
 
 **错误**：`docker.errors.ImageNotFound`
 
@@ -387,9 +387,9 @@ newgrp docker
 
 ---
 
-## 17.3 调试技巧
+## 18.3 调试技巧
 
-### 17.3.1 启用日志记录
+### 18.3.1 启用日志记录
 
 将日志记录器级别设置为 DEBUG 以获取详细日志：
 
@@ -406,7 +406,7 @@ export LOG_LEVEL=DEBUG
 model-compose up
 ```
 
-### 17.3.2 检查变量值
+### 18.3.2 检查变量值
 
 在工作流期间添加临时输出以检查变量值：
 
@@ -425,7 +425,7 @@ components:
           - "Input: ${input}"
 ```
 
-### 17.3.3 逐步执行
+### 18.3.3 逐步执行
 
 通过将复杂工作流分解为步骤来测试：
 
@@ -446,7 +446,7 @@ workflow:
       depends_on: [step1]
 ```
 
-### 17.3.4 检查 API 响应
+### 18.3.4 检查 API 响应
 
 验证 HTTP 客户端响应：
 
@@ -457,7 +457,7 @@ component:
   output: ${response}  # 输出整个响应
 ```
 
-### 17.3.5 Docker 容器日志
+### 18.3.5 Docker 容器日志
 
 使用 Docker 运行时时检查容器日志：
 
@@ -472,7 +472,7 @@ docker logs <container-id>
 docker logs -f <container-id>
 ```
 
-### 17.3.6 验证环境变量
+### 18.3.6 验证环境变量
 
 检查环境变量是否正确设置：
 
@@ -500,7 +500,7 @@ component:
         - ${env.OPENAI_API_KEY}
 ```
 
-### 17.3.7 检查端口冲突
+### 18.3.7 检查端口冲突
 
 检查端口是否已被使用：
 
@@ -518,7 +518,7 @@ controller:
   port: 8081  # 更改为不同的端口
 ```
 
-### 17.3.8 验证依赖项
+### 18.3.8 验证依赖项
 
 检查是否已安装所需的 Python 包：
 
@@ -549,4 +549,4 @@ pip install transformers torch gradio
 
 ---
 
-**下一章**：[18. 附录](./18-appendix.md)
+**下一章**：[第19章：附录](./19-appendix.md)

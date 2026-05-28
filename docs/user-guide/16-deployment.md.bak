@@ -1,12 +1,12 @@
-# 16. Deployment
+# 15. Deployment
 
 This chapter explains how to run model-compose applications in local environments or deploy them as Docker containers.
 
 ---
 
-## 16.1 Local Execution
+## 15.1 Local Execution
 
-### 16.1.1 Basic Execution
+### 15.1.1 Basic Execution
 
 model-compose runs directly in the local environment using native runtime by default.
 
@@ -44,7 +44,7 @@ Stop process:
 3. Graceful service shutdown
 4. Resource cleanup
 
-### 16.1.2 Environment Variable Management
+### 15.1.2 Environment Variable Management
 
 **Using `.env` file:**
 
@@ -78,7 +78,7 @@ Environment variable priority:
 3. Default `.env` file
 4. System environment variables
 
-### 16.1.3 Specifying Configuration File
+### 15.1.3 Specifying Configuration File
 
 **Using custom configuration file:**
 
@@ -92,7 +92,7 @@ model-compose up -f custom-compose.yml
 model-compose up -f base.yml -f override.yml
 ```
 
-### 16.1.4 Running Workflow Standalone
+### 15.1.4 Running Workflow Standalone
 
 Run workflow only without controller:
 
@@ -111,7 +111,7 @@ Features:
 model-compose run my-workflow --input @input.json
 ```
 
-### 16.1.5 Debugging Options
+### 15.1.5 Debugging Options
 
 **Detailed log output:**
 
@@ -129,9 +129,9 @@ logger:
 
 ---
 
-## 16.2 Docker Runtime
+## 15.2 Docker Runtime
 
-### 16.2.1 Basic Docker Configuration
+### 15.2.1 Basic Docker Configuration
 
 **Simple Docker runtime configuration:**
 
@@ -189,7 +189,7 @@ Port formats:
 - Integer: `port` (same for host and container)
 - Object: Advanced configuration (see below)
 
-### 16.2.2 Advanced Docker Options
+### 15.2.2 Advanced Docker Options
 
 **Image build configuration:**
 
@@ -345,7 +345,7 @@ controller:
       version: "1.0.0"
 ```
 
-### 16.2.3 Volumes and Environment Variables
+### 15.2.3 Volumes and Environment Variables
 
 **Volume mount - simple format:**
 
@@ -420,9 +420,9 @@ controller:
 
 ---
 
-## 16.3 Docker Container Build and Deployment
+## 15.3 Docker Container Build and Deployment
 
-### 16.3.1 Automatic Build Process
+### 15.3.1 Automatic Build Process
 
 model-compose automatically builds images when using Docker runtime.
 
@@ -475,7 +475,7 @@ COPY model-compose.yml .
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]
 ```
 
-### 16.3.2 Using Custom Dockerfile
+### 15.3.2 Using Custom Dockerfile
 
 To use a project-specific Docker image, you can create a custom Dockerfile.
 
@@ -531,7 +531,7 @@ controller:
       dockerfile: Dockerfile       # Custom Dockerfile
 ```
 
-### 16.3.3 Multi-stage Build
+### 15.3.3 Multi-stage Build
 
 **Separating development/production:**
 
@@ -591,7 +591,7 @@ controller:
       target: development
 ```
 
-### 16.3.4 Using Image Registry
+### 15.3.4 Using Image Registry
 
 **Building and pushing image:**
 
@@ -620,7 +620,7 @@ On execution:
 2. Creates and starts container
 3. Skips local build process
 
-### 16.3.5 Private Registry Authentication
+### 15.3.5 Private Registry Authentication
 
 **Docker login:**
 
@@ -640,9 +640,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ---
 
-## 16.4 Production Environment Considerations
+## 15.4 Production Environment Considerations
 
-### 16.4.1 Concurrency Control
+### 15.4.1 Concurrency Control
 
 **Controller-level concurrency:**
 
@@ -669,7 +669,7 @@ components:
     max_concurrent_count: 5        # Max 5 concurrent requests for this component
 ```
 
-### 16.4.2 Resource Limits
+### 15.4.2 Resource Limits
 
 **Memory limits:**
 
@@ -701,7 +701,7 @@ CPU settings:
 - `cpus`: Absolute CPU limit (0.5 = 50%, 2.0 = 200%)
 - `cpu_shares`: Relative weight (default 1024)
 
-### 16.4.3 Restart Policy
+### 15.4.3 Restart Policy
 
 **Auto-restart configuration:**
 
@@ -717,7 +717,7 @@ Production recommendations:
 - `unless-stopped`: Restart until manually stopped
 - `on-failure`: Restart only on error
 
-### 16.4.4 Health Check
+### 15.4.4 Health Check
 
 **HTTP endpoint health check:**
 
@@ -756,7 +756,7 @@ controller:
       interval: 20s
 ```
 
-### 16.4.5 Security Considerations
+### 15.4.5 Security Considerations
 
 **Running in non-privileged mode:**
 
@@ -811,7 +811,7 @@ controller:
       - isolated-network           # Use isolated network
 ```
 
-### 16.4.6 Data Persistence
+### 15.4.6 Data Persistence
 
 **Preserving data with volume mounts:**
 
@@ -840,9 +840,9 @@ docker volume inspect model-cache
 
 ---
 
-## 16.5 Monitoring and Logging
+## 15.5 Monitoring and Logging
 
-### 16.5.1 Logger Configuration
+### 15.5.1 Logger Configuration
 
 **Console logger:**
 
@@ -886,7 +886,7 @@ logger:
     level: error                   # Error-only log
 ```
 
-### 16.5.2 Docker Container Logs
+### 15.5.2 Docker Container Logs
 
 **Viewing logs in real-time:**
 
@@ -927,7 +927,7 @@ controller:
         tag: "model-compose"
 ```
 
-### 16.5.3 Workflow Execution Logging
+### 15.5.3 Workflow Execution Logging
 
 **Logging with logger component:**
 
@@ -964,7 +964,7 @@ workflows:
           message: "Workflow completed"
 ```
 
-### 16.5.4 Metrics Collection
+### 15.5.4 Metrics Collection
 
 **Tracking execution time:**
 
@@ -1011,7 +1011,7 @@ workflows:
           tokens_used: ${output.usage.total_tokens}
 ```
 
-### 16.5.5 External Monitoring Systems
+### 15.5.5 External Monitoring Systems
 
 **Prometheus integration example:**
 
@@ -1057,7 +1057,7 @@ controller:
       service: model-compose
 ```
 
-### 16.5.6 Tracer Configuration
+### 15.5.6 Tracer Configuration
 
 Tracers send structured tracing data from workflow and job executions to external observability tools like Langfuse.
 
@@ -1119,7 +1119,7 @@ Traces with the same `session_id` are grouped together in Langfuse UI.
 
 ---
 
-## 16.6 Deployment Best Practices
+## 15.6 Deployment Best Practices
 
 ### Environment-specific Deployment Strategies
 
@@ -1180,4 +1180,4 @@ Try it out:
 
 ---
 
-**Next Chapter**: [17. Practical Examples](./17-practical-examples.md)
+**Next Chapter**: [16. Practical Examples](./16-practical-examples.md)

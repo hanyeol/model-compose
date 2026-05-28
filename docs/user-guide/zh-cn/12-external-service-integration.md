@@ -1,14 +1,14 @@
-# 第11章：外部服务集成
+# 第12章：外部服务集成
 
 本章介绍如何将外部AI服务与model-compose集成。
 
 ---
 
-## 11.1 OpenAI API
+## 12.1 OpenAI API
 
 OpenAI API提供各种AI服务，包括聊天补全、图像生成和音频处理。
 
-### 11.1.1 聊天补全
+### 12.1.1 聊天补全
 
 使用GPT-4o、GPT-4和GPT-3.5模型进行文本生成任务。
 
@@ -66,7 +66,7 @@ body:
 export OPENAI_API_KEY=sk-...
 ```
 
-### 11.1.2 图像生成（DALL-E）
+### 12.1.2 图像生成（DALL-E）
 
 DALL-E 3和DALL-E 2用于AI图像生成。
 
@@ -107,7 +107,7 @@ component:
 - `standard`: 标准质量
 - `hd`: 高细节
 
-### 11.1.3 音频（TTS、转录）
+### 12.1.3 音频（TTS、转录）
 
 #### 文本转语音
 
@@ -152,7 +152,7 @@ component:
 
 ---
 
-## 11.2 Anthropic Claude API
+## 12.2 Anthropic Claude API
 
 Claude API提供最先进的语言模型。
 
@@ -211,7 +211,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ---
 
-## 11.3 Google Gemini API
+## 12.3 Google Gemini API
 
 Google Gemini提供多模态AI能力。
 
@@ -273,7 +273,7 @@ export GOOGLE_API_KEY=AIza...
 
 ---
 
-## 11.4 ElevenLabs（TTS）
+## 12.4 ElevenLabs（TTS）
 
 ElevenLabs提供高质量的文本转语音服务。
 
@@ -330,7 +330,7 @@ export ELEVENLABS_API_KEY=sk_...
 
 ---
 
-## 11.5 Stability AI（图像生成）
+## 12.5 Stability AI（图像生成）
 
 Stability AI为图像生成提供Stable Diffusion模型。
 
@@ -383,7 +383,7 @@ export STABILITY_API_KEY=sk-...
 
 ---
 
-## 11.6 Replicate
+## 12.6 Replicate
 
 Replicate提供对各种开源AI模型的访问。
 
@@ -475,7 +475,7 @@ export REPLICATE_API_TOKEN=r8_...
 
 ---
 
-## 11.7 自定义HTTP API
+## 12.7 自定义HTTP API
 
 使用`http-client`组件集成任何REST API。
 
@@ -586,7 +586,7 @@ workflow:
 
 ---
 
-## 11.8 外部服务集成最佳实践
+## 12.8 外部服务集成最佳实践
 
 ### 1. API密钥管理
 
@@ -657,18 +657,43 @@ component:
 
 **组件级别限制：**
 
+`http-client` 组件支持可选的 `rate_limit` 字段。可以组合两种闸门：令牌桶（`requests`/`period`/`burst`）和连续请求之间的最小间隔（`interval`）。超过限制时，调用将通过 `asyncio.sleep` 挂起直到可继续执行，不会抛出异常。轮询和回调 completion 的重复请求不受此 limiter 限制。
+
 ```yaml
 component:
   type: http-client
   rate_limit:
-    requests_per_minute: 60    # 每分钟最多60个请求
-    requests_per_day: 10000    # 每天最多10,000个请求
+    requests: 60        # 周期内允许的最大请求数
+    period: 1m          # 窗口大小（例如 '1s'、'500ms'、'1m'）
+    burst: 10           # 令牌桶容量（省略时默认为 'requests'）
+    interval: 100ms     # 连续请求之间的最小间隔
   action:
     endpoint: https://api.example.com/v1/process
     headers:
       Authorization: Bearer ${env.API_KEY}
     body: ${input}
 ```
+
+**简写形式：**
+
+```yaml
+component:
+  type: http-client
+  rate_limit: 10/s      # → { requests: 10, period: 1s }
+```
+
+支持的简写：`<整数>/<时长>`，例如 `10/s`、`60/m`、`1000/h`、`5/500ms`。需要 `burst` 或 `interval` 时请使用对象形式。
+
+**仅最小间隔：**
+
+```yaml
+component:
+  type: http-client
+  rate_limit:
+    interval: 250ms     # 请求之间至少 250ms 间隔
+```
+
+> 迁移说明：早期文档中提到的 `requests_per_minute` / `requests_per_day` 字段从未实际实现。请改用 `requests` + `period`。例如 `requests_per_minute: 60` 对应 `requests: 60, period: 1m`（或简写 `60/m`）。
 
 **在工作流中添加延迟：**
 
@@ -754,4 +779,4 @@ component:
 
 ---
 
-**下一章**：[12. 流式模式](./12-streaming-mode.md)
+**下一章**：[第13章：流式模式](./13-streaming-mode.md)

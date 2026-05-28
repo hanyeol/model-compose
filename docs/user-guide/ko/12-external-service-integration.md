@@ -1,14 +1,14 @@
-# 11장: 외부 서비스 통합
+# 12장: 외부 서비스 통합
 
 이 장에서는 OpenAI, Anthropic, Google, ElevenLabs 등 외부 AI 서비스를 model-compose와 통합하는 방법을 다룹니다.
 
 ---
 
-## 11.1 OpenAI API
+## 12.1 OpenAI API
 
 OpenAI API는 GPT 모델, DALL-E 이미지 생성, 오디오 처리 등 다양한 AI 기능을 제공합니다.
 
-### 11.1.1 Chat Completions
+### 12.1.1 Chat Completions
 
 GPT 모델을 사용한 대화형 텍스트 생성입니다.
 
@@ -78,7 +78,7 @@ component:
 - `frequency_penalty`: 단어 반복 패널티
 - `presence_penalty`: 주제 반복 패널티
 
-### 11.1.2 Image Generation (DALL-E)
+### 12.1.2 Image Generation (DALL-E)
 
 텍스트 프롬프트에서 이미지를 생성합니다.
 
@@ -163,7 +163,7 @@ component:
 - DALL-E 3: `1024x1024`, `1024x1792`, `1792x1024`
 - DALL-E 2: `256x256`, `512x512`, `1024x1024`
 
-### 11.1.3 Audio (TTS, Transcriptions)
+### 12.1.3 Audio (TTS, Transcriptions)
 
 **Text-to-Speech (TTS):**
 
@@ -213,7 +213,7 @@ component:
 
 ---
 
-## 11.2 Anthropic Claude API
+## 12.2 Anthropic Claude API
 
 Anthropic의 Claude 모델을 사용합니다.
 
@@ -283,7 +283,7 @@ component:
 
 ---
 
-## 11.3 Google Gemini API
+## 12.3 Google Gemini API
 
 Google의 Gemini 모델을 사용합니다.
 
@@ -367,7 +367,7 @@ component:
 
 ---
 
-## 11.4 ElevenLabs (TTS)
+## 12.4 ElevenLabs (TTS)
 
 ElevenLabs는 고품질 음성 합성 서비스를 제공합니다.
 
@@ -444,7 +444,7 @@ component:
 
 ---
 
-## 11.5 Stability AI (Image Generation)
+## 12.5 Stability AI (Image Generation)
 
 Stability AI의 Stable Diffusion 모델을 사용합니다.
 
@@ -511,7 +511,7 @@ component:
 
 ---
 
-## 11.6 Replicate
+## 12.6 Replicate
 
 Replicate는 다양한 AI 모델을 API로 제공하는 플랫폼입니다.
 
@@ -590,7 +590,7 @@ component:
 
 ---
 
-## 11.7 커스텀 HTTP API
+## 12.7 커스텀 HTTP API
 
 임의의 HTTP API를 통합할 수 있습니다.
 
@@ -719,7 +719,7 @@ component:
 
 ---
 
-## 11.8 외부 서비스 통합 모범 사례
+## 12.8 외부 서비스 통합 모범 사례
 
 ### 1. 환경 변수로 API 키 관리
 
@@ -764,18 +764,43 @@ workflow:
 
 **컴포넌트 레벨 제한:**
 
+`http-client` 컴포넌트는 선택적 `rate_limit` 필드를 받습니다. 토큰 버킷(`requests`/`period`/`burst`)과 연속 요청 간 최소 간격(`interval`) 두 게이트를 조합할 수 있습니다. 제한이 초과되면 `asyncio.sleep`으로 호출을 일시 정지하며, 예외는 발생하지 않습니다. polling/callback completion의 반복 요청은 이 limiter의 대상이 아닙니다.
+
 ```yaml
 component:
   type: http-client
   rate_limit:
-    requests_per_minute: 60    # 분당 최대 60회 요청
-    requests_per_day: 10000    # 일당 최대 10,000회 요청
+    requests: 60        # 주기 내 허용되는 최대 요청 수
+    period: 1m          # 윈도우 크기 (예: '1s', '500ms', '1m')
+    burst: 10           # 토큰 버킷 용량 (생략 시 'requests' 값)
+    interval: 100ms     # 연속 요청 사이의 최소 간격
   action:
     endpoint: https://api.example.com/v1/process
     headers:
       Authorization: Bearer ${env.API_KEY}
     body: ${input}
 ```
+
+**단축 표기:**
+
+```yaml
+component:
+  type: http-client
+  rate_limit: 10/s      # → { requests: 10, period: 1s }
+```
+
+지원 표기: `<정수>/<기간>` — 예: `10/s`, `60/m`, `1000/h`, `5/500ms`. `burst` 또는 `interval`이 필요한 경우 객체 형태를 사용하세요.
+
+**최소 간격만 적용:**
+
+```yaml
+component:
+  type: http-client
+  rate_limit:
+    interval: 250ms     # 요청 사이 최소 250ms 간격
+```
+
+> 마이그레이션 노트: 이전 문서의 `requests_per_minute` / `requests_per_day`는 실제로 구현된 적이 없습니다. `requests` + `period` 형태로 표기하세요. 예를 들어 `requests_per_minute: 60`은 `requests: 60, period: 1m` (또는 단축 표기 `60/m`)에 해당합니다.
 
 **워크플로우에서 지연 추가:**
 
@@ -861,4 +886,4 @@ component:
 
 ---
 
-**다음 장**: [12. 스트리밍 모드](./12-streaming-mode.md)
+**다음 장**: [13. 스트리밍 모드](./13-streaming-mode.md)

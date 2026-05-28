@@ -1,12 +1,12 @@
-# 12. Streaming Mode
+# 13. Streaming Mode
 
 This chapter explains how to use model-compose's streaming capabilities to generate and process real-time responses.
 
 ---
 
-## 12.1 Streaming Overview
+## 13.1 Streaming Overview
 
-### 12.1.1 What is Streaming?
+### 13.1.1 What is Streaming?
 
 Streaming mode delivers partial results as they are generated, rather than waiting for the complete response from a model or API.
 
@@ -23,7 +23,7 @@ Streaming mode delivers partial results as they are generated, rather than waiti
 - Translation services
 - Code generation
 
-### 12.1.2 Supported Components
+### 13.1.2 Supported Components
 
 Components that support streaming:
 
@@ -34,7 +34,7 @@ Components that support streaming:
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
 
-### 12.1.3 Streaming Protocol
+### 13.1.3 Streaming Protocol
 
 model-compose uses the **SSE (Server-Sent Events)** protocol.
 
@@ -52,9 +52,9 @@ Each chunk is sent with a `data:` prefix and separated by blank lines.
 
 ---
 
-## 12.2 Component-Specific Streaming Configuration
+## 13.2 Component-Specific Streaming Configuration
 
-### 12.2.1 Model Components
+### 13.2.1 Model Components
 
 #### Basic Configuration
 
@@ -116,7 +116,7 @@ component:
 - Same streaming mechanism as text generation
 - Per-chunk processing with `${result[]}`
 
-### 12.2.2 HTTP Components
+### 13.2.2 HTTP Components
 
 #### HTTP Client Streaming
 
@@ -192,9 +192,9 @@ component:
 
 ---
 
-## 12.3 Using Streaming in Workflows
+## 13.3 Using Streaming in Workflows
 
-### 12.3.1 Basic Streaming Workflow
+### 13.3.1 Basic Streaming Workflow
 
 ```yaml
 controller:
@@ -235,7 +235,7 @@ component:
   output: ${output as sse-json}
   ```
 
-### 12.3.2 Multi-Step Workflow Streaming
+### 13.3.2 Multi-Step Workflow Streaming
 
 ```yaml
 workflows:
@@ -282,7 +282,7 @@ components:
 - Intermediate jobs must wait for completion
 - Only final output streams with `${result[]}`
 
-### 12.3.3 Conditional Streaming
+### 13.3.3 Conditional Streaming
 
 ```yaml
 workflow:
@@ -323,9 +323,9 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 ---
 
-## 12.4 Processing Streaming Responses
+## 13.4 Processing Streaming Responses
 
-### 12.4.1 API Endpoints
+### 13.4.1 API Endpoints
 
 **Streaming Request Requirements:**
 
@@ -357,7 +357,7 @@ data:  time
 
 ```
 
-### 12.4.2 Client Implementation (JavaScript)
+### 13.4.2 Client Implementation (JavaScript)
 
 **Using EventSource API:**
 
@@ -426,7 +426,7 @@ while (true) {
 }
 ```
 
-### 12.4.3 Client Implementation (Python)
+### 13.4.3 Client Implementation (Python)
 
 **Using requests library:**
 
@@ -476,7 +476,7 @@ async def stream_workflow():
 asyncio.run(stream_workflow())
 ```
 
-### 12.4.4 Web UI Integration
+### 13.4.4 Web UI Integration
 
 **Gradio Auto-Streaming:**
 
@@ -510,9 +510,9 @@ Gradio Web UI automatically:
 
 ---
 
-## 12.5 Performance and Optimization
+## 13.5 Performance and Optimization
 
-### 12.5.1 Model Streaming Optimization
+### 13.5.1 Model Streaming Optimization
 
 **Settings for Fast Token Generation:**
 
@@ -546,7 +546,7 @@ component:
 | `max_output_length` | Small | Quick completion |
 | `max_output_length` | Large | Longer wait time |
 
-### 12.5.2 HTTP Streaming Optimization
+### 13.5.2 HTTP Streaming Optimization
 
 **Chunk Size Adjustment:**
 
@@ -576,7 +576,7 @@ component:
     stream_format: json
 ```
 
-### 12.5.3 Memory Management
+### 13.5.3 Memory Management
 
 **Memory Usage During Streaming:**
 
@@ -589,7 +589,7 @@ component:
 - CPU memory: Only chunk size needed during streaming
 - Long responses are memory efficient
 
-### 12.5.4 Network Optimization
+### 13.5.4 Network Optimization
 
 **Minimize Latency:**
 
@@ -611,7 +611,7 @@ component:
   stream_format: text              # Lighter than JSON
   ```
 
-### 12.5.5 Error Handling
+### 13.5.5 Error Handling
 
 **Retry Logic:**
 
@@ -657,9 +657,9 @@ fetch(url, {
 
 ---
 
-## 12.6 Real-World Examples
+## 13.6 Real-World Examples
 
-### 12.6.1 Real-time Translation Streaming
+### 13.6.1 Real-time Translation Streaming
 
 ```yaml
 controller:
@@ -684,7 +684,7 @@ component:
       max_output_length: 512
 ```
 
-### 12.6.2 OpenAI + Claude Combination
+### 13.6.2 OpenAI + Claude Combination
 
 ```yaml
 workflows:
@@ -739,7 +739,7 @@ components:
       output: ${response[].delta.text}
 ```
 
-### 12.6.3 Local Model Streaming Server
+### 13.6.3 Local Model Streaming Server
 
 ```yaml
 controller:
@@ -780,7 +780,7 @@ component:
 
 ---
 
-## 12.7 Distributed Streaming (Queue Streaming)
+## 13.7 Distributed Streaming (Queue Streaming)
 
 Streaming also works in distributed deployments where workflow execution is delegated to remote workers via Redis queue dispatch.
 
@@ -790,11 +790,11 @@ When a worker executes a streaming workflow, chunks are written to a Redis Strea
 Client ← SSE ← [Dispatcher] ← XREAD ← Redis Stream ← XADD ← [Worker] ← LLM streaming
 ```
 
-For full details on queue streaming configuration, architecture, and edge cases, see [Chapter 6.5: Queue Streaming](./06-controller-configuration.md#65-queue-streaming).
+For full details on queue streaming configuration, architecture, and edge cases, see [Section 7.5: Queue Streaming](./07-controller-configuration.md#75-queue-streaming).
 
 ---
 
-## 12.8 Streaming Best Practices
+## 13.8 Streaming Best Practices
 
 ### Streaming Usage Recommendations
 
@@ -842,4 +842,4 @@ Practice:
 
 ---
 
-**Next Chapter**: [13. Variable Binding](./13-variable-binding.md)
+**Next Chapter**: [14. Variable Binding](./14-variable-binding.md)

@@ -1,10 +1,10 @@
-# Chapter 8: Web UI Configuration
+# Chapter 9: Web UI Configuration
 
 This chapter covers how to configure model-compose's Web UI. Learn how to set up a web interface for testing and running workflows using Gradio and static file drivers.
 
 ---
 
-## 8.1 Web UI Overview
+## 9.1 Web UI Overview
 
 model-compose optionally provides a web interface for testing and running workflows. The Web UI works identically regardless of controller type (`http-server` or `mcp-server`) and automatically executes workflows according to the configured controller.
 
@@ -42,7 +42,7 @@ With this configuration, the controller API runs at `http://localhost:8080/api` 
 
 ---
 
-## 8.2 Gradio Driver
+## 9.2 Gradio Driver
 
 Gradio is an interactive web UI automatically generated based on workflow schemas.
 
@@ -131,7 +131,7 @@ Each workflow is displayed with the following structure:
 
 ---
 
-## 8.3 Static File Driver
+## 9.3 Static File Driver
 
 Serves custom HTML/CSS/JavaScript files. Uses FastAPI's `StaticFiles` to serve static files and automatically serves `index.html` with the `html=True` option.
 
@@ -227,7 +227,7 @@ async function runWorkflow() {
 
 ---
 
-## 8.4 Web UI Deployment via Reverse Proxy
+## 9.4 Web UI Deployment via Reverse Proxy
 
 In production environments, you can deploy both the controller API and Web UI together through a reverse proxy like Nginx.
 
@@ -289,4 +289,4 @@ Try these:
 
 ---
 
-**Previous Chapter**: [7. WebSocket Interface](./07-websocket-interface.md) | **Next Chapter**: [9. Working with Local AI Models](./09-local-ai-models.md)
+**Previous Chapter**: [8. WebSocket Interface](./08-websocket-interface.md) | **Next Chapter**: [10. Working with Local AI Models](./10-local-ai-models.md)

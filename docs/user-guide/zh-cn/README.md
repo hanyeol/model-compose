@@ -28,27 +28,27 @@
 #### 构建工作流
 - [组件配置](./04-component-configuration.md) - 定义可重用组件
 - [编写工作流](./05-writing-workflows.md) - 创建多步骤流水线
-- [变量绑定](./13-variable-binding.md) - 数据流和转换
+- [变量绑定](./14-variable-binding.md) - 数据流和转换
 
 #### 控制器与界面
-- [控制器配置](./06-controller-configuration.md) - HTTP 和 MCP 服务器
-- [Web UI 配置](./08-webui-configuration.md) - 可视化工作流管理
+- [控制器配置](./07-controller-configuration.md) - HTTP 和 MCP 服务器
+- [Web UI 配置](./09-webui-configuration.md) - 可视化工作流管理
 
 #### AI 模型
-- [本地 AI 模型](./09-local-ai-models.md) - 在本地运行模型
-- [外部服务集成](./11-external-service-integration.md) - 连接 OpenAI、Claude 等
-- [流式模式](./12-streaming-mode.md) - 实时输出流
+- [本地 AI 模型](./10-local-ai-models.md) - 在本地运行模型
+- [外部服务集成](./12-external-service-integration.md) - 连接 OpenAI、Claude 等
+- [流式模式](./13-streaming-mode.md) - 实时输出流
 
 #### 系统集成
-- [系统集成](./14-system-integration.md) - 监听器、触发器和网关
+- [系统集成](./15-system-integration.md) - 监听器、触发器和网关
   - HTTP 回调监听器 - 处理异步 webhooks
   - HTTP 触发监听器 - 事件驱动工作流
   - 网关支持 - 安全地暴露本地服务
 
 #### 部署与生产
-- [部署](./15-deployment.md) - Docker、云和生产最佳实践
-- [实践示例](./16-practical-examples.md) - 真实世界用例
-- [故障排除](./17-troubleshooting.md) - 常见问题和解决方案
+- [部署](./16-deployment.md) - Docker、云和生产最佳实践
+- [实践示例](./17-practical-examples.md) - 真实世界用例
+- [故障排除](./18-troubleshooting.md) - 常见问题和解决方案
 
 ---
 
@@ -56,7 +56,7 @@
 
 寻找实践示例？查看：
 
-- **[实践示例](./16-practical-examples.md)** - 完整的工作示例：
+- **[实践示例](./17-practical-examples.md)** - 完整的工作示例：
   - 聊天机器人（OpenAI、Claude）
   - 语音生成流水线
   - 图像分析和编辑
@@ -75,15 +75,15 @@
 | 我想要... | 参考... |
 |--------------|----------|
 | 安装并运行第一个工作流 | [入门指南](./01-getting-started.md) |
-| 调用外部 API（OpenAI、Claude） | [外部服务集成](./11-external-service-integration.md) |
-| 运行本地 AI 模型 | [本地 AI 模型](./09-local-ai-models.md) |
+| 调用外部 API（OpenAI、Claude） | [外部服务集成](./12-external-service-integration.md) |
+| 运行本地 AI 模型 | [本地 AI 模型](./10-local-ai-models.md) |
 | 创建多步骤工作流 | [编写工作流](./05-writing-workflows.md) |
-| 实时流式输出 | [流式模式](./12-streaming-mode.md) |
-| 处理 webhooks 和回调 | [系统集成](./14-system-integration.md) |
-| 部署到生产环境 | [部署](./15-deployment.md) |
-| 构建聊天机器人 | [实践示例 § 15.1](./16-practical-examples.md#151-构建聊天机器人) |
-| 设置 RAG 系统 | [实践示例 § 15.4](./16-practical-examples.md#154-rag-系统使用向量数据库) |
-| 调试问题 | [故障排除](./17-troubleshooting.md) |
+| 实时流式输出 | [流式模式](./13-streaming-mode.md) |
+| 处理 webhooks 和回调 | [系统集成](./15-system-integration.md) |
+| 部署到生产环境 | [部署](./16-deployment.md) |
+| 构建聊天机器人 | [实践示例 § 17.1](./17-practical-examples.md#171-构建聊天机器人) |
+| 设置 RAG 系统 | [实践示例 § 17.2](./17-practical-examples.md#172-rag-系统使用向量数据库) |
+| 调试问题 | [故障排除](./18-troubleshooting.md) |
 
 ### 关键概念
 
@@ -100,16 +100,16 @@
 
 寻找特定的配置选项？
 
-- **[完整配置架构](./18-appendix.md#171-完整配置文件架构)** - 完整 YAML 参考
+- **[完整配置架构](./19-appendix.md#171-完整配置文件架构)** - 完整 YAML 参考
 - **[组件类型](./04-component-configuration.md#41-组件类型)** - 所有可用组件类型
-- **[变量绑定语法](./13-variable-binding.md)** - 完整变量参考
+- **[变量绑定语法](./14-variable-binding.md)** - 完整变量参考
 
 ---
 
 ## 💡 学习建议
 
 1. **从简单开始**：从[入门指南](./01-getting-started.md)开始
-2. **实践操作**：尝试[实践示例](./16-practical-examples.md)
+2. **实践操作**：尝试[实践示例](./17-practical-examples.md)
 3. **循序渐进**：一次添加一个功能
 4. **探索**：查看[示例目录](../../../examples/)获取灵感
 5. **提问**：如果遇到困难，请提交[问题](https://github.com/hanyeol/model-compose/issues)

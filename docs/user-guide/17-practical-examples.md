@@ -1,12 +1,12 @@
-# 16. Practical Examples
+# 17. Practical Examples
 
 This chapter provides step-by-step explanations of real-world use cases using model-compose. Each example includes complete configuration and execution instructions.
 
 ---
 
-## 16.1 Building a Chatbot
+## 17.1 Building a Chatbot
 
-### 16.1.1 OpenAI GPT-4o Chatbot
+### 17.1.1 OpenAI GPT-4o Chatbot
 
 **Goal**: Build a simple conversational chatbot using OpenAI GPT-4o
 
@@ -81,7 +81,7 @@ graph TD
     B -->|⑧ Display text| A
 ```
 
-### 16.1.2 Streaming Chatbot
+### 17.1.2 Streaming Chatbot
 
 **Goal**: Build a streaming chatbot with real-time typing effect
 
@@ -162,9 +162,9 @@ sequenceDiagram
 
 ---
 
-## 16.2 RAG System (Using Vector DB)
+## 17.2 RAG System (Using Vector DB)
 
-### 16.2.1 Text Embedding Search with ChromaDB
+### 17.2.1 Text Embedding Search with ChromaDB
 
 **Goal**: Generate text embeddings, store in ChromaDB, and perform similarity search
 
@@ -272,7 +272,7 @@ curl -X POST http://localhost:8080/api/workflows/delete-sentence-embedding/runs 
   -d '{"input": {"vector_id": "id123"}}'
 ```
 
-### 16.2.2 RAG System with Milvus
+### 17.2.2 RAG System with Milvus
 
 **Goal**: High-performance RAG system using Milvus vector database
 
@@ -374,9 +374,9 @@ graph TD
 
 ---
 
-## 16.3 Graph Store (Knowledge Graphs & Social Networks)
+## 17.3 Graph Store (Knowledge Graphs & Social Networks)
 
-### 16.3.1 Knowledge Graph with Neo4j
+### 17.3.1 Knowledge Graph with Neo4j
 
 **Goal**: Build a knowledge graph to store people and their relationships, then traverse connections
 
@@ -505,7 +505,7 @@ graph TD
     G --> H[Connected Nodes]
 ```
 
-### 16.3.2 Social Graph with ArangoDB
+### 17.3.2 Social Graph with ArangoDB
 
 **Goal**: Build a social network graph and find mutual friends using ArangoDB
 
@@ -565,9 +565,9 @@ components:
 
 ---
 
-## 16.4 Key-Value Store (Caching & Sessions)
+## 17.4 Key-Value Store (Caching & Sessions)
 
-### 16.4.1 API Response Caching
+### 17.4.1 API Response Caching
 
 **Goal**: Cache LLM API responses in Redis to avoid duplicate calls for identical prompts
 
@@ -665,7 +665,7 @@ graph TD
     D --> E[Result<br/>fresh response]
 ```
 
-### 16.4.2 Session Management
+### 17.4.2 Session Management
 
 **Goal**: Store user session data with automatic expiration
 
@@ -702,9 +702,9 @@ components:
 
 ---
 
-## 16.5 Multimodal Workflows
+## 17.5 Multimodal Workflows
 
-### 16.5.1 Image → Text → Speech Pipeline
+### 17.5.1 Image → Text → Speech Pipeline
 
 **Goal**: Analyze image, generate description, and convert to speech
 
@@ -805,7 +805,7 @@ graph TD
     F -->|⑥ Text→Speech<br/>API call| G[Final Result<br/>description: Text<br/>audio: Audio]
 ```
 
-### 16.5.2 Speech → Text → Translation → Speech Pipeline
+### 17.5.2 Speech → Text → Translation → Speech Pipeline
 
 **Goal**: Translate spoken language to another language with speech output
 
@@ -906,9 +906,9 @@ graph TD
 
 ---
 
-## 16.6 Voice Generation Pipeline
+## 17.6 Voice Generation Pipeline
 
-### 16.6.1 Text-to-Speech (OpenAI TTS)
+### 17.6.1 Text-to-Speech (OpenAI TTS)
 
 **Goal**: Convert text to speech using OpenAI TTS API
 
@@ -958,7 +958,7 @@ components:
 - `tts-1-hd`: High-quality audio
 - `gpt-4o-mini-tts`: Latest model
 
-### 16.6.2 Inspiring Quote Voice Generation
+### 17.6.2 Inspiring Quote Voice Generation
 
 **Goal**: Generate motivational quotes with GPT-4o and convert to speech with ElevenLabs TTS
 
@@ -1056,9 +1056,9 @@ graph TD
 
 ---
 
-## 16.7 Image Analysis and Editing
+## 17.7 Image Analysis and Editing
 
-### 16.7.1 Image Captioning (Image-to-Text)
+### 17.7.1 Image Captioning (Image-to-Text)
 
 **Goal**: Generate image descriptions using a local Vision model
 
@@ -1102,7 +1102,7 @@ model-compose run default --input '{"image": "path/to/image.jpg", "prompt": "Des
 - `Salesforce/blip-image-captioning-base`
 - `nlpconnect/vit-gpt2-image-captioning`
 
-### 16.7.2 Image Editing (OpenAI DALL-E)
+### 17.7.2 Image Editing (OpenAI DALL-E)
 
 **Goal**: Edit images using OpenAI DALL-E
 
@@ -1147,9 +1147,9 @@ component:
 
 ---
 
-## 16.8 Browser Automation
+## 17.8 Browser Automation
 
-### 16.8.1 Web Scraping with CAPTCHA Fallback
+### 17.8.1 Web Scraping with CAPTCHA Fallback
 
 **Goal**: Navigate to a page, detect CAPTCHAs, pause for human resolution via noVNC, then extract content
 
@@ -1256,7 +1256,7 @@ graph TD
     F -->|④ Return content| G[Result<br/>content: extracted text]
 ```
 
-### 16.8.2 Login and Scrape Protected Content
+### 17.8.2 Login and Scrape Protected Content
 
 **Goal**: Automate login to a website and extract protected content
 
@@ -1365,7 +1365,7 @@ components:
 5. Navigate to protected content page
 6. Extract content with CSS selector
 
-### 16.8.3 AI-Powered Web Content Analysis
+### 17.8.3 AI-Powered Web Content Analysis
 
 **Goal**: Navigate to a page, extract content, and analyze it with GPT-4o
 
@@ -1467,9 +1467,9 @@ graph TD
 
 ---
 
-## 16.9 Slack Bot (MCP)
+## 17.9 Slack Bot (MCP)
 
-### 16.9.1 Building a Slack Bot with MCP Server
+### 17.9.1 Building a Slack Bot with MCP Server
 
 **Goal**: Build a Slack bot using MCP (Model Context Protocol) server
 
@@ -1573,7 +1573,7 @@ DEFAULT_SLACK_CHANNEL_ID=C...
 }
 ```
 
-### 16.9.2 AI-Powered Slack Auto-Reply Bot
+### 17.9.2 AI-Powered Slack Auto-Reply Bot
 
 **Goal**: Build a bot that automatically responds to Slack messages using AI
 
@@ -1857,4 +1857,4 @@ Practice:
 
 ---
 
-**Next Chapter**: [17. Troubleshooting](./17-troubleshooting.md)
+**Next Chapter**: [18. Troubleshooting](./18-troubleshooting.md)

@@ -28,27 +28,27 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 #### 워크플로우 구축
 - [컴포넌트 설정](./04-component-configuration.md) - 재사용 가능한 컴포넌트 정의
 - [워크플로우 작성](./05-writing-workflows.md) - 여러 단계 파이프라인 생성
-- [변수 바인딩](./13-variable-binding.md) - 데이터 흐름 및 변환
+- [변수 바인딩](./14-variable-binding.md) - 데이터 흐름 및 변환
 
 #### 컨트롤러 & UI
-- [컨트롤러 설정](./06-controller-configuration.md) - HTTP 및 MCP 서버
-- [Web UI 설정](./08-webui-configuration.md) - 시각적 워크플로우 관리
+- [컨트롤러 설정](./07-controller-configuration.md) - HTTP 및 MCP 서버
+- [Web UI 설정](./09-webui-configuration.md) - 시각적 워크플로우 관리
 
 #### AI 모델
-- [로컬 AI 모델 사용하기](./09-local-ai-models.md) - 로컬에서 모델 실행
-- [외부 서비스 통합](./11-external-service-integration.md) - OpenAI, Claude 등 연동
-- [스트리밍 모드](./12-streaming-mode.md) - 실시간 출력 스트리밍
+- [로컬 AI 모델 사용하기](./10-local-ai-models.md) - 로컬에서 모델 실행
+- [외부 서비스 통합](./12-external-service-integration.md) - OpenAI, Claude 등 연동
+- [스트리밍 모드](./13-streaming-mode.md) - 실시간 출력 스트리밍
 
 #### 시스템 통합
-- [시스템 통합](./14-system-integration.md) - 리스너, 트리거, 게이트웨이
+- [시스템 통합](./15-system-integration.md) - 리스너, 트리거, 게이트웨이
   - HTTP Callback 리스너 - 비동기 웹훅 처리
   - HTTP Trigger 리스너 - 이벤트 기반 워크플로우
   - 게이트웨이 지원 - 로컬 서비스 안전하게 공개
 
 #### 배포 & 프로덕션
-- [배포](./15-deployment.md) - Docker, 클라우드, 프로덕션 모범 사례
-- [실전 예제](./16-practical-examples.md) - 실제 사용 사례
-- [문제 해결](./17-troubleshooting.md) - 일반적인 문제 및 해결책
+- [배포](./16-deployment.md) - Docker, 클라우드, 프로덕션 모범 사례
+- [실전 예제](./17-practical-examples.md) - 실제 사용 사례
+- [문제 해결](./18-troubleshooting.md) - 일반적인 문제 및 해결책
 
 ---
 
@@ -56,7 +56,7 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 
 실습 예제를 찾고 계신가요? 확인해보세요:
 
-- **[실전 예제](./16-practical-examples.md)** - 완전한 작동 예제:
+- **[실전 예제](./17-practical-examples.md)** - 완전한 작동 예제:
   - 챗봇 (OpenAI, Claude)
   - 음성 생성 파이프라인
   - 이미지 분석 및 편집
@@ -75,15 +75,15 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 | 하고 싶은 것 | 이동할 곳 |
 |--------------|----------|
 | 설치 및 첫 워크플로우 실행 | [시작하기](./01-getting-started.md) |
-| 외부 API 호출 (OpenAI, Claude) | [외부 서비스 통합](./11-external-service-integration.md) |
-| 로컬 AI 모델 실행 | [로컬 AI 모델](./09-local-ai-models.md) |
+| 외부 API 호출 (OpenAI, Claude) | [외부 서비스 통합](./12-external-service-integration.md) |
+| 로컬 AI 모델 실행 | [로컬 AI 모델](./10-local-ai-models.md) |
 | 여러 단계 워크플로우 생성 | [워크플로우 작성](./05-writing-workflows.md) |
-| 실시간 출력 스트리밍 | [스트리밍 모드](./12-streaming-mode.md) |
-| 웹훅 및 콜백 처리 | [시스템 통합](./14-system-integration.md) |
-| 프로덕션 배포 | [배포](./15-deployment.md) |
-| 챗봇 만들기 | [실전 예제 § 15.1](./16-practical-examples.md#151-챗봇-만들기) |
-| RAG 시스템 구축 | [실전 예제 § 15.4](./16-practical-examples.md#154-rag-시스템-벡터-db-활용) |
-| 문제 디버깅 | [문제 해결](./17-troubleshooting.md) |
+| 실시간 출력 스트리밍 | [스트리밍 모드](./13-streaming-mode.md) |
+| 웹훅 및 콜백 처리 | [시스템 통합](./15-system-integration.md) |
+| 프로덕션 배포 | [배포](./16-deployment.md) |
+| 챗봇 만들기 | [실전 예제 § 17.1](./17-practical-examples.md#171-챗봇-구축) |
+| RAG 시스템 구축 | [실전 예제 § 17.2](./17-practical-examples.md#172-rag-시스템-벡터-db-활용) |
+| 문제 디버깅 | [문제 해결](./18-troubleshooting.md) |
 
 ### 핵심 개념
 
@@ -100,16 +100,16 @@ model-compose가 처음이신가요? 여기서 시작하세요:
 
 특정 설정 옵션을 찾고 계신가요?
 
-- **[전체 설정 스키마](./18-appendix.md#171-전체-설정-파일-스키마)** - 전체 YAML 레퍼런스
+- **[전체 설정 스키마](./19-appendix.md#171-전체-설정-파일-스키마)** - 전체 YAML 레퍼런스
 - **[컴포넌트 타입](./04-component-configuration.md#41-컴포넌트-타입)** - 사용 가능한 모든 컴포넌트 타입
-- **[변수 바인딩 문법](./13-variable-binding.md)** - 완전한 변수 레퍼런스
+- **[변수 바인딩 문법](./14-variable-binding.md)** - 완전한 변수 레퍼런스
 
 ---
 
 ## 💡 학습 팁
 
 1. **간단하게 시작**: [시작하기](./01-getting-started.md) 가이드부터 시작하세요
-2. **실습**: [실전 예제](./16-practical-examples.md)를 시도해보세요
+2. **실습**: [실전 예제](./17-practical-examples.md)를 시도해보세요
 3. **점진적으로**: 한 번에 하나씩 기능을 추가하세요
 4. **탐색**: 영감을 얻기 위해 [examples 디렉토리](../../../examples/)를 확인하세요
 5. **질문**: 막히면 [이슈](https://github.com/hanyeol/model-compose/issues)를 열어주세요

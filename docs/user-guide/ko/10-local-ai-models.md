@@ -1,10 +1,10 @@
-# 9장: 로컬 AI 모델 사용
+# 10장: 로컬 AI 모델 사용
 
 이 장에서는 로컬 AI 모델 사용 방법을 다룹니다.
 
 ---
 
-## 9.1 로컬 모델 개요
+## 10.1 로컬 모델 개요
 
 ### 로컬 모델이란?
 
@@ -94,7 +94,7 @@ component:
 
 ---
 
-## 9.2 모델 설치 및 준비
+## 10.2 모델 설치 및 준비
 
 ### 모델 소스 지정 방법
 
@@ -237,7 +237,7 @@ component:
 
 ---
 
-## 9.3 지원 태스크 유형
+## 10.3 지원 태스크 유형
 
 model-compose는 다음 태스크 타입을 지원합니다:
 
@@ -253,7 +253,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
 
-### 9.3.1 text-generation
+### 10.3.1 text-generation
 
 프롬프트를 기반으로 텍스트를 생성합니다.
 
@@ -277,7 +277,7 @@ component:
 - `top_k`: Top-K sampling
 - `repetition_penalty`: 반복 방지 (1.0~2.0)
 
-### 9.3.2 chat-completion
+### 10.3.2 chat-completion
 
 대화 형식의 메시지를 처리합니다.
 
@@ -301,7 +301,7 @@ component:
 - `role`: `system`, `user`, `assistant`
 - `content`: 메시지 내용
 
-### 9.3.3 text-classification
+### 10.3.3 text-classification
 
 텍스트를 카테고리로 분류합니다.
 
@@ -317,7 +317,7 @@ component:
       score: ${result.score}
 ```
 
-### 9.3.4 text-embedding
+### 10.3.4 text-embedding
 
 텍스트를 고차원 벡터로 변환합니다.
 
@@ -352,7 +352,7 @@ workflow:
         top_k: 5
 ```
 
-### 9.3.5 image-to-text
+### 10.3.5 image-to-text
 
 이미지를 분석하여 텍스트를 생성합니다.
 
@@ -372,7 +372,7 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 9.3.6 image-generation
+### 10.3.6 image-generation
 
 텍스트 프롬프트에서 이미지를 생성합니다.
 
@@ -395,7 +395,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 9.3.7 image-upscale
+### 10.3.7 image-upscale
 
 이미지 해상도를 향상시킵니다.
 
@@ -417,7 +417,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 9.3.8 text-to-speech
+### 10.3.8 text-to-speech
 
 텍스트에서 음성 오디오를 합성합니다. 이 태스크는 `driver: custom`과 `family` 필드로 모델 패밀리를 선택하고, `method` 필드로 생성 방식을 선택합니다.
 
@@ -515,7 +515,7 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 참조 오디오에서 음성 복제 |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 텍스트 설명으로 음성 디자인 |
 
-### 9.3.9 face-embedding
+### 10.3.9 face-embedding
 
 얼굴 이미지에서 특징 벡터를 추출합니다.
 
@@ -530,7 +530,7 @@ component:
 
 ---
 
-## 9.4 모델 설정 (디바이스, 정밀도, 배치 크기)
+## 10.4 모델 설정 (디바이스, 정밀도, 배치 크기)
 
 ### 디바이스 설정
 
@@ -632,7 +632,7 @@ component:
 
 ---
 
-## 9.5 LoRA/PEFT 어댑터 사용
+## 10.5 LoRA/PEFT 어댑터 사용
 
 LoRA (Low-Rank Adaptation)는 전체 모델을 파인튜닝하지 않고 작은 어댑터 모듈을 추가하여 모델을 특정 태스크에 맞게 조정하는 기법입니다.
 
@@ -745,7 +745,7 @@ peft_adapters:
 
 ---
 
-## 9.6 모델 서빙 프레임워크
+## 10.6 모델 서빙 프레임워크
 
 대규모 프로덕션 환경이나 고성능 추론이 필요한 경우, 전용 모델 서빙 프레임워크를 사용할 수 있습니다.
 
@@ -945,7 +945,7 @@ component:
 
 ---
 
-## 9.7 성능 최적화 팁
+## 10.7 성능 최적화 팁
 
 ### 1. 적절한 정밀도 선택
 
@@ -1033,4 +1033,4 @@ component:
 
 ---
 
-**다음 장**: [10. 모델 훈련](./10-model-training.md)
+**다음 장**: [11. 모델 훈련](./11-model-training.md)

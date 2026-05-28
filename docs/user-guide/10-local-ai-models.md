@@ -1,10 +1,10 @@
-# Chapter 9: Working with Local AI Models
+# Chapter 10: Working with Local AI Models
 
 This chapter covers how to use local AI models with model-compose.
 
 ---
 
-## 9.1 Local Model Overview
+## 10.1 Local Model Overview
 
 ### What are Local Models?
 
@@ -94,7 +94,7 @@ component:
 
 ---
 
-## 9.2 Model Installation and Setup
+## 10.2 Model Installation and Setup
 
 ### Specifying Model Sources
 
@@ -237,7 +237,7 @@ component:
 
 ---
 
-## 9.3 Supported Task Types
+## 10.3 Supported Task Types
 
 model-compose supports the following task types:
 
@@ -253,7 +253,7 @@ model-compose supports the following task types:
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 
-### 9.3.1 text-generation
+### 10.3.1 text-generation
 
 Generates text based on prompts.
 
@@ -277,7 +277,7 @@ component:
 - `top_k`: Top-K sampling
 - `repetition_penalty`: Repetition prevention (1.0~2.0)
 
-### 9.3.2 chat-completion
+### 10.3.2 chat-completion
 
 Processes conversational messages.
 
@@ -301,7 +301,7 @@ component:
 - `role`: `system`, `user`, `assistant`
 - `content`: Message content
 
-### 9.3.3 text-classification
+### 10.3.3 text-classification
 
 Classifies text into categories.
 
@@ -317,7 +317,7 @@ component:
       score: ${result.score}
 ```
 
-### 9.3.4 text-embedding
+### 10.3.4 text-embedding
 
 Converts text into high-dimensional vectors.
 
@@ -352,7 +352,7 @@ workflow:
         top_k: 5
 ```
 
-### 9.3.5 image-to-text
+### 10.3.5 image-to-text
 
 Analyzes images and generates text.
 
@@ -372,7 +372,7 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 9.3.6 image-generation
+### 10.3.6 image-generation
 
 Generates images from text prompts.
 
@@ -395,7 +395,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 9.3.7 image-upscale
+### 10.3.7 image-upscale
 
 Enhances image resolution.
 
@@ -417,7 +417,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 9.3.8 text-to-speech
+### 10.3.8 text-to-speech
 
 Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to choose the generation method.
 
@@ -515,7 +515,7 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
-### 9.3.9 face-embedding
+### 10.3.9 face-embedding
 
 Extracts feature vectors from face images.
 
@@ -530,7 +530,7 @@ component:
 
 ---
 
-## 9.4 Model Configuration (Device, Precision, Batch Size)
+## 10.4 Model Configuration (Device, Precision, Batch Size)
 
 ### Device Configuration
 
@@ -632,7 +632,7 @@ component:
 
 ---
 
-## 9.5 Using LoRA/PEFT Adapters
+## 10.5 Using LoRA/PEFT Adapters
 
 LoRA (Low-Rank Adaptation) is a technique for adapting models to specific tasks by adding small adapter modules without fine-tuning the entire model.
 
@@ -745,7 +745,7 @@ peft_adapters:
 
 ---
 
-## 9.6 Model Serving Frameworks
+## 10.6 Model Serving Frameworks
 
 For large-scale production environments or high-performance inference, dedicated model serving frameworks can be used.
 
@@ -945,7 +945,7 @@ component:
 
 ---
 
-## 9.7 Performance Optimization Tips
+## 10.7 Performance Optimization Tips
 
 ### 1. Choose Appropriate Precision
 
@@ -1033,4 +1033,4 @@ Try it out:
 
 ---
 
-**Next Chapter**: [10. Model Training](./10-model-training.md)
+**Next Chapter**: [11. Model Training](./11-model-training.md)

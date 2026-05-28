@@ -1,12 +1,12 @@
-# 14. 部署
+# 16. 部署
 
 本章说明如何在本地环境中运行 model-compose 应用程序或将其部署为 Docker 容器。
 
 ---
 
-## 15.1 本地执行
+## 16.1 本地执行
 
-### 15.1.1 基本执行
+### 16.1.1 基本执行
 
 model-compose 默认使用原生运行时直接在本地环境中运行。
 
@@ -44,7 +44,7 @@ model-compose down
 3. 优雅关闭服务
 4. 资源清理
 
-### 15.1.2 环境变量管理
+### 16.1.2 环境变量管理
 
 **使用 `.env` 文件：**
 
@@ -78,7 +78,7 @@ model-compose up -e OPENAI_API_KEY=sk-proj-... -e LOG_LEVEL=debug
 3. 默认 `.env` 文件
 4. 系统环境变量
 
-### 15.1.3 指定配置文件
+### 16.1.3 指定配置文件
 
 **使用自定义配置文件：**
 
@@ -92,7 +92,7 @@ model-compose up -f custom-compose.yml
 model-compose up -f base.yml -f override.yml
 ```
 
-### 15.1.4 独立运行工作流
+### 16.1.4 独立运行工作流
 
 仅运行工作流而不启动控制器：
 
@@ -111,7 +111,7 @@ model-compose run my-workflow --input '{"text": "Hello"}'
 model-compose run my-workflow --input @input.json
 ```
 
-### 15.1.5 调试选项
+### 16.1.5 调试选项
 
 **详细日志输出：**
 
@@ -129,9 +129,9 @@ logger:
 
 ---
 
-## 15.2 Docker 运行时
+## 16.2 Docker 运行时
 
-### 15.2.1 基本 Docker 配置
+### 16.2.1 基本 Docker 配置
 
 **简单 Docker 运行时配置：**
 
@@ -189,7 +189,7 @@ controller:
 - 整数：`port`（主机和容器相同）
 - 对象：高级配置（见下文）
 
-### 15.2.2 高级 Docker 选项
+### 16.2.2 高级 Docker 选项
 
 **镜像构建配置：**
 
@@ -345,7 +345,7 @@ controller:
       version: "1.0.0"
 ```
 
-### 15.2.3 卷和环境变量
+### 16.2.3 卷和环境变量
 
 **卷挂载 - 简单格式：**
 
@@ -420,9 +420,9 @@ controller:
 
 ---
 
-## 15.3 Docker 容器构建和部署
+## 16.3 Docker 容器构建和部署
 
-### 15.3.1 自动构建流程
+### 16.3.1 自动构建流程
 
 model-compose 在使用 Docker 运行时时会自动构建镜像。
 
@@ -475,7 +475,7 @@ COPY model-compose.yml .
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]
 ```
 
-### 15.3.2 使用自定义 Dockerfile
+### 16.3.2 使用自定义 Dockerfile
 
 要使用特定于项目的 Docker 镜像，您可以创建自定义 Dockerfile。
 
@@ -531,7 +531,7 @@ controller:
       dockerfile: Dockerfile       # 自定义 Dockerfile
 ```
 
-### 15.3.3 多阶段构建
+### 16.3.3 多阶段构建
 
 **分离开发/生产：**
 
@@ -591,7 +591,7 @@ controller:
       target: development
 ```
 
-### 15.3.4 使用镜像注册表
+### 16.3.4 使用镜像注册表
 
 **构建并推送镜像：**
 
@@ -620,7 +620,7 @@ controller:
 2. 创建并启动容器
 3. 跳过本地构建过程
 
-### 15.3.5 私有注册表认证
+### 16.3.5 私有注册表认证
 
 **Docker 登录：**
 
@@ -640,9 +640,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ---
 
-## 15.4 生产环境注意事项
+## 16.4 生产环境注意事项
 
-### 15.4.1 并发控制
+### 16.4.1 并发控制
 
 **控制器级并发：**
 
@@ -669,7 +669,7 @@ components:
     max_concurrent_count: 5        # 此组件最多 5 个并发请求
 ```
 
-### 15.4.2 资源限制
+### 16.4.2 资源限制
 
 **内存限制：**
 
@@ -701,7 +701,7 @@ CPU 设置：
 - `cpus`：绝对 CPU 限制（0.5 = 50%，2.0 = 200%）
 - `cpu_shares`：相对权重（默认 1024）
 
-### 15.4.3 重启策略
+### 16.4.3 重启策略
 
 **自动重启配置：**
 
@@ -717,7 +717,7 @@ controller:
 - `unless-stopped`：重启直到手动停止
 - `on-failure`：仅在错误时重启
 
-### 15.4.4 健康检查
+### 16.4.4 健康检查
 
 **HTTP 端点健康检查：**
 
@@ -756,7 +756,7 @@ controller:
       interval: 20s
 ```
 
-### 15.4.5 安全考虑
+### 16.4.5 安全考虑
 
 **在非特权模式下运行：**
 
@@ -811,7 +811,7 @@ controller:
       - isolated-network           # 使用隔离网络
 ```
 
-### 15.4.6 数据持久化
+### 16.4.6 数据持久化
 
 **使用卷挂载保留数据：**
 
@@ -840,9 +840,9 @@ docker volume inspect model-cache
 
 ---
 
-## 15.5 监控和日志
+## 16.5 监控和日志
 
-### 15.5.1 日志器配置
+### 16.5.1 日志器配置
 
 **控制台日志器：**
 
@@ -886,7 +886,7 @@ logger:
     level: error                   # 仅错误日志
 ```
 
-### 15.5.2 Docker 容器日志
+### 16.5.2 Docker 容器日志
 
 **实时查看日志：**
 
@@ -927,7 +927,7 @@ controller:
         tag: "model-compose"
 ```
 
-### 15.5.3 工作流执行日志
+### 16.5.3 工作流执行日志
 
 **使用 logger 组件记录日志：**
 
@@ -964,7 +964,7 @@ workflows:
           message: "Workflow completed"
 ```
 
-### 15.5.4 指标收集
+### 16.5.4 指标收集
 
 **跟踪执行时间：**
 
@@ -1011,7 +1011,7 @@ workflows:
           tokens_used: ${output.usage.total_tokens}
 ```
 
-### 15.5.5 外部监控系统
+### 16.5.5 外部监控系统
 
 **Prometheus 集成示例：**
 
@@ -1057,7 +1057,7 @@ controller:
       service: model-compose
 ```
 
-### 15.5.6 追踪器配置
+### 16.5.6 追踪器配置
 
 追踪器将工作流和作业执行的结构化追踪数据发送到 Langfuse 等外部可观测性工具。
 
@@ -1119,7 +1119,7 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-## 15.6 部署最佳实践
+## 16.6 部署最佳实践
 
 ### 特定于环境的部署策略
 
@@ -1180,4 +1180,4 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-**下一章**：[16. 实际示例](./16-practical-examples.md)
+**下一章**：[第17章：实际示例](./17-practical-examples.md)

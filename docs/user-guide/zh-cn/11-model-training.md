@@ -1,4 +1,4 @@
-# 第10章：模型训练
+# 第11章：模型训练
 
 > **⚠️ 开发状态**：此功能目前正在开发中。配置模式已定义，但训练执行服务尚未实现。未来版本将提供更新。
 
@@ -6,16 +6,16 @@
 
 ---
 
-## 10.1 训练概述
+## 11.1 训练概述
 
-### 10.1.1 支持的训练任务
+### 11.1.1 支持的训练任务
 
 model-compose 为以下训练任务提供配置：
 
 - **SFT（监督微调）**：基于监督学习的微调
 - **分类**：分类模型训练
 
-### 10.1.2 训练组件结构
+### 11.1.2 训练组件结构
 
 ```yaml
 components:
@@ -36,9 +36,9 @@ components:
 
 ---
 
-## 10.2 数据集准备
+## 11.2 数据集准备
 
-### 10.2.1 数据集组件概述
+### 11.2.1 数据集组件概述
 
 数据集组件提供准备训练数据的工具。
 
@@ -48,7 +48,7 @@ components:
 - 合并和转换数据集
 - 行/列选择和过滤
 
-### 10.2.2 加载 HuggingFace 数据集
+### 11.2.2 加载 HuggingFace 数据集
 
 **基本配置：**
 
@@ -96,7 +96,7 @@ workflows:
         output: ${output}
 ```
 
-### 10.2.3 加载本地数据集
+### 11.2.3 加载本地数据集
 
 **JSON 文件：**
 
@@ -133,7 +133,7 @@ components:
     data_dir: ./data/training       # 目录中的所有 JSON 文件
 ```
 
-### 10.2.4 数据集操作
+### 11.2.4 数据集操作
 
 **合并数据集：**
 
@@ -229,7 +229,7 @@ components:
     template: ${input.template}      # 数据转换模板
 ```
 
-### 10.2.5 数据集格式
+### 11.2.5 数据集格式
 
 **SFT 训练的数据格式：**
 
@@ -268,9 +268,9 @@ components:
 
 ---
 
-## 10.3 训练配置
+## 11.3 训练配置
 
-### 10.3.1 基本训练配置
+### 11.3.1 基本训练配置
 
 ```yaml
 components:
@@ -291,7 +291,7 @@ components:
     output_dir: ./output/model
 ```
 
-### 10.3.2 优化器配置
+### 11.3.2 优化器配置
 
 **支持的优化器：**
 
@@ -327,7 +327,7 @@ components:
 - `adagrad`：Adagrad
 - `rmsprop`：RMSprop
 
-### 10.3.3 学习率调度器
+### 11.3.3 学习率调度器
 
 ```yaml
 components:
@@ -351,7 +351,7 @@ components:
 - `cosine_with_min_lr`：带最小学习率的余弦
 - `warmup_stable_decay`：预热-稳定-衰减
 
-### 10.3.4 优化设置
+### 11.3.4 优化设置
 
 ```yaml
 components:
@@ -373,7 +373,7 @@ components:
 - 有效批量大小 = `per_device_train_batch_size × gradient_accumulation_steps × num_gpus`
 - 当内存不足时，减少批量大小并增加累积步数
 
-### 10.3.5 评估和保存
+### 11.3.5 评估和保存
 
 ```yaml
 components:
@@ -392,7 +392,7 @@ components:
     logging_steps: 10               # 每 10 步记录一次
 ```
 
-### 10.3.6 内存优化
+### 11.3.6 内存优化
 
 ```yaml
 components:
@@ -414,7 +414,7 @@ components:
 - `fp16`：FP16 混合精度，节省内存并提高速度
 - `bf16`：BF16 混合精度，更好的数值稳定性（Ampere+ GPU）
 
-### 10.3.7 可重现性设置
+### 11.3.7 可重现性设置
 
 ```yaml
 components:
@@ -426,9 +426,9 @@ components:
 
 ---
 
-## 10.4 微调
+## 11.4 微调
 
-### 10.4.1 SFT（监督微调）
+### 11.4.1 SFT（监督微调）
 
 **基本配置：**
 
@@ -475,7 +475,7 @@ components:
 - 需要 `text_column` 或 `prompt_column` + `response_column`
 - 如果两者都指定则报错
 
-### 10.4.2 序列打包
+### 11.4.2 序列打包
 
 ```yaml
 components:
@@ -502,9 +502,9 @@ components:
 
 ---
 
-## 10.5 LoRA 训练
+## 11.5 LoRA 训练
 
-### 10.5.1 LoRA 概述
+### 11.5.1 LoRA 概述
 
 LoRA（低秩适应）是一种高效微调大型模型的技术。
 
@@ -514,7 +514,7 @@ LoRA（低秩适应）是一种高效微调大型模型的技术。
 - 更快的训练
 - 可以将多个 LoRA 适配器应用于一个基础模型
 
-### 10.5.2 基本 LoRA 配置
+### 11.5.2 基本 LoRA 配置
 
 ```yaml
 components:
@@ -537,7 +537,7 @@ components:
     output_dir: ./output/lora-adapter
 ```
 
-### 10.5.3 目标模块配置
+### 11.5.3 目标模块配置
 
 ```yaml
 components:
@@ -567,7 +567,7 @@ components:
 - 仅注意力：内存高效，大多数情况下足够
 - 注意力 + MLP：更好的性能，更多内存
 
-### 10.5.4 LoRA 偏置配置
+### 11.5.4 LoRA 偏置配置
 
 ```yaml
 components:
@@ -584,7 +584,7 @@ components:
 - `all`：训练所有偏置
 - `lora_only`：仅训练 LoRA 层偏置
 
-### 10.5.5 QLoRA（量化 LoRA）
+### 11.5.5 QLoRA（量化 LoRA）
 
 QLoRA 将 LoRA 应用于量化的基础模型，以实现更多内存节省。
 
@@ -627,7 +627,7 @@ components:
 - BF16 混合精度
 - 梯度检查点
 
-### 10.5.6 LoRA 超参数指南
+### 11.5.6 LoRA 超参数指南
 
 | 参数 | 低值 | 高值 | 推荐用途 |
 |---------|---------|---------|-----------|
@@ -638,9 +638,9 @@ components:
 
 ---
 
-## 10.6 训练监控
+## 11.6 训练监控
 
-### 10.6.1 日志配置
+### 11.6.1 日志配置
 
 ```yaml
 components:
@@ -659,7 +659,7 @@ components:
 - 梯度范数
 - 训练速度（样本/秒）
 
-### 10.6.2 评估指标
+### 11.6.2 评估指标
 
 ```yaml
 components:
@@ -676,7 +676,7 @@ components:
 - 困惑度
 - 特定任务指标（分类准确率等）
 
-### 10.6.3 TensorBoard 集成（即将推出）
+### 11.6.3 TensorBoard 集成（即将推出）
 
 TensorBoard 集成将在未来版本中添加：
 
@@ -687,9 +687,9 @@ tensorboard --logdir ./output/runs
 
 ---
 
-## 10.7 检查点管理
+## 11.7 检查点管理
 
-### 10.7.1 检查点保存
+### 11.7.1 检查点保存
 
 ```yaml
 components:
@@ -713,7 +713,7 @@ output/checkpoints/
   └── checkpoint-1500/
 ```
 
-### 10.7.2 从检查点恢复
+### 11.7.2 从检查点恢复
 
 将在未来版本中支持：
 
@@ -726,7 +726,7 @@ components:
     resume_from_checkpoint: ./output/checkpoints/checkpoint-1000
 ```
 
-### 10.7.3 保存最终模型
+### 11.7.3 保存最终模型
 
 ```yaml
 components:
@@ -749,9 +749,9 @@ output/final-model/
 
 ---
 
-## 10.8 实际示例
+## 11.8 实际示例
 
-### 10.8.1 Alpaca 风格微调
+### 11.8.1 Alpaca 风格微调
 
 ```yaml
 components:
@@ -803,7 +803,7 @@ workflows:
         depends_on: [load-data]
 ```
 
-### 10.8.2 使用 QLoRA 训练大型模型
+### 11.8.2 使用 QLoRA 训练大型模型
 
 ```yaml
 components:
@@ -838,7 +838,7 @@ components:
     output_dir: ./output/qlora-model
 ```
 
-### 10.8.3 自定义数据集准备和训练
+### 11.8.3 自定义数据集准备和训练
 
 ```yaml
 components:
@@ -896,13 +896,13 @@ workflows:
 
 学习数据集准备后：
 
-- **第 10 章**：外部服务集成 - 利用 API 服务
-- **第 8 章**：使用本地 AI 模型 - 加载 LoRA 适配器和推理
+- **第 12 章**：外部服务集成 - 利用 API 服务
+- **第 10 章**：使用本地 AI 模型 - 加载 LoRA 适配器和推理
 
 当前可用功能：
 - 数据集加载和操作（HuggingFace、本地文件）
 - 数据集合并、过滤、选择
-- 使用 LoRA 适配器进行推理（参见第 8 章）
+- 使用 LoRA 适配器进行推理（参见第 10 章）
 
 待添加功能：
 - 模型训练执行
@@ -911,4 +911,4 @@ workflows:
 
 ---
 
-**下一章**：[11. 外部服务集成](./11-external-service-integration.md)
+**下一章**：[第12章：外部服务集成](./12-external-service-integration.md)

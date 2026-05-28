@@ -1,10 +1,10 @@
-# 14. System Integration
+# 15. System Integration
 
 This chapter covers listeners and gateways for integrating with external systems.
 
 ---
 
-## 14.1 Listener Overview
+## 15.1 Listener Overview
 
 Listeners are HTTP servers for communicating with external systems. There are two types:
 
@@ -32,11 +32,11 @@ Listeners are HTTP servers for communicating with external systems. There are tw
 
 ---
 
-## 14.2 HTTP Callback Listener
+## 15.2 HTTP Callback Listener
 
 HTTP Callback listeners receive asynchronous callbacks from external services. Useful when integrating with services that send results to a callback URL after task completion.
 
-### 14.2.1 HTTP Callback Overview
+### 15.2.1 HTTP Callback Overview
 
 Many external services don't return results immediately, but queue tasks and send results to a callback URL later:
 
@@ -46,7 +46,7 @@ Many external services don't return results immediately, but queue tasks and sen
 4. After completion, sends results to callback URL
 5. Listener receives callback and delivers results to waiting workflow
 
-### 14.2.2 Basic HTTP Callback Configuration
+### 15.2.2 Basic HTTP Callback Configuration
 
 **Simple callback listener:**
 
@@ -61,7 +61,7 @@ listener:
 
 This creates an endpoint at `http://0.0.0.0:8090/callback` that accepts POST requests.
 
-### 14.2.3 Callback Endpoint Configuration
+### 15.2.3 Callback Endpoint Configuration
 
 **Single callback endpoint:**
 
@@ -117,7 +117,7 @@ listener:
       result: ${body.data}
 ```
 
-### 14.2.4 Callback Field Descriptions
+### 15.2.4 Callback Field Descriptions
 
 | Field | Description | Required | Default |
 |-------|-------------|----------|---------|
@@ -131,7 +131,7 @@ listener:
 | `bulk` | Handle multiple items in single request | No | `false` |
 | `item` | Item extraction path in bulk mode | No | - |
 
-### 14.2.5 Bulk Callback Processing
+### 15.2.5 Bulk Callback Processing
 
 When receiving results for multiple tasks in a single callback request:
 
@@ -168,7 +168,7 @@ Callback request example:
 }
 ```
 
-### 14.2.6 Advanced HTTP Callback Configuration
+### 15.2.6 Advanced HTTP Callback Configuration
 
 **Concurrency control:**
 
@@ -193,7 +193,7 @@ listener:
   path: /callback
 ```
 
-### 14.2.7 How HTTP Callback Works
+### 15.2.7 How HTTP Callback Works
 
 Listeners receive callbacks from external services and deliver results to waiting workflows.
 
@@ -247,9 +247,9 @@ sequenceDiagram
 6. **Listener receives**: Listener receives callback and finds workflow using `identify_by`
 7. **Workflow resumes**: Delivers result to workflow and executes next step
 
-**Important**: Listeners only run on local ports. To access from external sources, you need a **gateway** (Section 13.4). Complete examples using gateways are covered in **Section 13.5**.
+**Important**: Listeners only run on local ports. To access from external sources, you need a **gateway** (Section 15.4). Complete examples using gateways are covered in **Section 15.5**.
 
-### 14.2.8 Callback Data Mapping
+### 15.2.8 Callback Data Mapping
 
 Listeners can extract and map various fields from callback requests.
 
@@ -299,11 +299,11 @@ Content-Type: application/json
 
 ---
 
-## 14.3 HTTP Trigger Listener
+## 15.3 HTTP Trigger Listener
 
 HTTP Trigger listeners receive HTTP requests from external sources and immediately start workflows. Can be used as REST API endpoints or webhook receivers.
 
-### 14.3.1 HTTP Trigger Overview
+### 15.3.1 HTTP Trigger Overview
 
 HTTP Triggers are useful in these situations:
 
@@ -316,7 +316,7 @@ HTTP Triggers are useful in these situations:
 - HTTP Callback: Deliver results to already running workflows
 - HTTP Trigger: Start new workflow instances
 
-### 14.3.2 Basic HTTP Trigger Configuration
+### 15.3.2 Basic HTTP Trigger Configuration
 
 **Simple trigger listener:**
 
@@ -334,7 +334,7 @@ listener:
 
 This creates an endpoint at `http://0.0.0.0:8091/trigger/my-workflow` that starts `my-workflow` when receiving a POST request.
 
-### 14.3.3 Trigger Endpoint Configuration
+### 15.3.3 Trigger Endpoint Configuration
 
 **Single trigger endpoint:**
 
@@ -389,7 +389,7 @@ listener:
         options: ${body.options}
 ```
 
-### 14.3.4 Trigger Field Descriptions
+### 15.3.4 Trigger Field Descriptions
 
 | Field | Description | Required | Default |
 |-------|-------------|----------|---------|
@@ -400,7 +400,7 @@ listener:
 | `bulk` | Execute multiple workflows in single request | No | `false` |
 | `item` | Item extraction path in bulk mode | No | - |
 
-### 14.3.5 Bulk Trigger Processing
+### 15.3.5 Bulk Trigger Processing
 
 When processing multiple items at once, executing a workflow for each:
 
@@ -432,7 +432,7 @@ Request example:
 
 This request starts 3 separate workflow instances.
 
-### 14.3.6 How HTTP Trigger Works
+### 15.3.6 How HTTP Trigger Works
 
 **Basic structure:**
 
@@ -481,7 +481,7 @@ sequenceDiagram
 
 **Important**: HTTP Trigger only starts workflows and returns immediately. To receive workflow results, you need separate mechanisms (HTTP Callback, database queries, etc.).
 
-### 14.3.7 Input Data Mapping
+### 15.3.7 Input Data Mapping
 
 You can map various fields from HTTP requests to workflow inputs.
 
@@ -538,7 +538,7 @@ listener:
       timestamp: ${body.timestamp}
 ```
 
-### 14.3.8 Practical Examples
+### 15.3.8 Practical Examples
 
 **GitHub Webhook handling:**
 
@@ -612,11 +612,11 @@ workflow:
 
 ---
 
-## 14.4 Gateways - HTTP Tunneling
+## 15.4 Gateways - HTTP Tunneling
 
 Gateways are tunneling services for exposing locally running services to the internet. Useful for testing webhooks in development or when external access to local services is needed.
 
-### 14.4.1 Gateway Overview
+### 15.4.1 Gateway Overview
 
 Gateways are needed in these scenarios:
 
@@ -633,7 +633,7 @@ Gateways are needed in these scenarios:
 | **HTTP Tunnel (Cloudflare)** | Free unlimited, high reliability | Local development, continuous testing |
 | **SSH Tunnel** | Own server, fixed addresses | Enterprise environments, production-ready |
 
-### 14.4.2 HTTP Tunnel - ngrok
+### 15.4.2 HTTP Tunnel - ngrok
 
 ngrok is a tunneling service that exposes local servers with public URLs.
 
@@ -743,7 +743,7 @@ The format `${gateway:PORT.public_url}` provides the public URL for each exposed
 6. ngrok forwards request to corresponding local port
 7. Listener receives callback and delivers result to workflow
 
-### 14.4.3 HTTP Tunnel - Cloudflare
+### 15.4.3 HTTP Tunnel - Cloudflare
 
 Cloudflare Tunnel (formerly Argo Tunnel) is a stable tunneling service available for free with unlimited bandwidth.
 
@@ -847,7 +847,7 @@ The format `${gateway:PORT.public_url}` provides the public URL for each exposed
 | Speed | Fast | Very fast |
 | URL lifetime | Session-based | Session-based |
 
-### 14.4.4 SSH Tunnel
+### 15.4.4 SSH Tunnel
 
 Use SSH reverse tunnels to expose local services through remote servers.
 
@@ -952,7 +952,7 @@ SSH tunnels are useful when:
 - Fixed IP addresses or ports are needed
 - Exposing services on other machines in local network
 
-### 14.4.5 Advanced Gateway Configuration
+### 15.4.5 Advanced Gateway Configuration
 
 **Runtime configuration:**
 
@@ -1014,7 +1014,7 @@ components:
         # Example: http://remote-server.com:9834/webhook
 ```
 
-### 14.4.6 Real-world Example: SSH Tunnel
+### 15.4.6 Real-world Example: SSH Tunnel
 
 **Callback reception via SSH tunnel:**
 
@@ -1084,7 +1084,7 @@ This setup works as follows:
 4. SSH tunnel forwards the request to local port 8090
 5. Listener receives callback and delivers result to workflow
 
-### 14.4.7 Real-world Example: Slack Bot Webhook
+### 15.4.7 Real-world Example: Slack Bot Webhook
 
 ```yaml
 gateway:
@@ -1138,11 +1138,11 @@ Slack app setup:
 
 ---
 
-## 14.5 Using Listeners and Gateways Together
+## 15.5 Using Listeners and Gateways Together
 
 Using listeners and gateways together allows safe testing of external webhooks in local environments.
 
-### 14.5.1 Integration Example: Async Image Processing
+### 15.5.1 Integration Example: Async Image Processing
 
 ```yaml
 gateway:
@@ -1231,7 +1231,7 @@ workflow:
         savings: ${output.original_size - output.compressed_size}
 ```
 
-### 14.5.2 Architecture Diagram
+### 15.5.2 Architecture Diagram
 
 ```mermaid
 sequenceDiagram
@@ -1268,7 +1268,7 @@ sequenceDiagram
 5. **Matching stage**: Listener finds waiting workflow by task_id
 6. **Completion stage**: Delivers result to workflow and proceeds to next step
 
-### 14.5.3 Production Environment Considerations
+### 15.5.3 Production Environment Considerations
 
 **Local development:**
 ```yaml
@@ -1307,7 +1307,7 @@ components:
 
 ---
 
-## 14.6 System Integration Best Practices
+## 15.6 System Integration Best Practices
 
 ### 1. Listener Security
 
@@ -1465,11 +1465,11 @@ Use these metrics to:
 
 ---
 
-## 14.7 Systems - Infrastructure Management
+## 15.7 Systems - Infrastructure Management
 
 Systems provide declarative management of infrastructure services (such as Docker Compose stacks) that your components depend on. When you run `model-compose up`, systems are started automatically before components; when you run `model-compose down`, they are stopped after components.
 
-### 14.7.1 Systems Overview
+### 15.7.1 Systems Overview
 
 Systems are useful when your components require external infrastructure:
 
@@ -1480,7 +1480,7 @@ Systems are useful when your components require external infrastructure:
 
 Without systems, you would need to manually run `docker compose up -d` before starting model-compose. With systems, this is handled automatically.
 
-### 14.7.2 Docker Compose System
+### 15.7.2 Docker Compose System
 
 The `docker-compose` system type manages services defined in Docker Compose files.
 
@@ -1510,7 +1510,7 @@ This runs `docker compose -f docker-compose.yml up -d --wait` on startup and `do
 | `wait` | boolean | `true` | Wait for services to be healthy (`--wait`) |
 | `wait_timeout` | string | `60s` | Timeout for health check waiting |
 
-### 14.7.3 Multiple Systems
+### 15.7.3 Multiple Systems
 
 You can define multiple systems when different infrastructure stacks are needed:
 
@@ -1528,7 +1528,7 @@ systems:
     wait_timeout: 120s
 ```
 
-### 14.7.4 Complete Example: Browser Automation
+### 15.7.4 Complete Example: Browser Automation
 
 This example shows how systems integrate with components to automate browser tasks:
 
@@ -1593,7 +1593,7 @@ workflows:
 2. Component `browser` disconnects
 3. System `browser-infra` stops: `docker compose down`
 
-### 14.7.5 Lifecycle Order
+### 15.7.5 Lifecycle Order
 
 Systems follow a specific lifecycle order relative to other sections:
 
@@ -1604,7 +1604,7 @@ Shutdown: Controller → Components → Listeners → Gateways → Systems
 
 Systems start first because they provide the infrastructure that other sections depend on, and stop last to ensure graceful shutdown.
 
-### 14.7.6 Prerequisites
+### 15.7.6 Prerequisites
 
 - **Docker** must be installed and available in PATH
 - **Docker Compose** plugin must be available (`docker compose` subcommand)
@@ -1622,4 +1622,4 @@ Experiment with these scenarios:
 
 ---
 
-**Next Chapter**: [15. Deployment](./15-deployment.md)
+**Next Chapter**: [16. Deployment](./16-deployment.md)

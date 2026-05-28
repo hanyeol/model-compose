@@ -1,14 +1,14 @@
-# Chapter 11: External Service Integration
+# Chapter 12: External Service Integration
 
 This chapter covers integrating external AI services with model-compose.
 
 ---
 
-## 11.1 OpenAI API
+## 12.1 OpenAI API
 
 OpenAI API provides various AI services including chat completions, image generation, and audio processing.
 
-### 11.1.1 Chat Completions
+### 12.1.1 Chat Completions
 
 Use GPT-4o, GPT-4, and GPT-3.5 models for text generation tasks.
 
@@ -66,7 +66,7 @@ body:
 export OPENAI_API_KEY=sk-...
 ```
 
-### 11.1.2 Image Generation (DALL-E)
+### 12.1.2 Image Generation (DALL-E)
 
 DALL-E 3 and DALL-E 2 for AI image generation.
 
@@ -107,7 +107,7 @@ component:
 - `standard`: Standard quality
 - `hd`: High detail
 
-### 11.1.3 Audio (TTS, Transcriptions)
+### 12.1.3 Audio (TTS, Transcriptions)
 
 #### Text-to-Speech
 
@@ -152,7 +152,7 @@ component:
 
 ---
 
-## 11.2 Anthropic Claude API
+## 12.2 Anthropic Claude API
 
 Claude API provides state-of-the-art language models.
 
@@ -211,7 +211,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ---
 
-## 11.3 Google Gemini API
+## 12.3 Google Gemini API
 
 Google Gemini provides multimodal AI capabilities.
 
@@ -273,7 +273,7 @@ export GOOGLE_API_KEY=AIza...
 
 ---
 
-## 11.4 ElevenLabs (TTS)
+## 12.4 ElevenLabs (TTS)
 
 ElevenLabs provides high-quality text-to-speech services.
 
@@ -330,7 +330,7 @@ export ELEVENLABS_API_KEY=sk_...
 
 ---
 
-## 11.5 Stability AI (Image Generation)
+## 12.5 Stability AI (Image Generation)
 
 Stability AI provides Stable Diffusion models for image generation.
 
@@ -383,7 +383,7 @@ export STABILITY_API_KEY=sk-...
 
 ---
 
-## 11.6 Replicate
+## 12.6 Replicate
 
 Replicate provides access to various open-source AI models.
 
@@ -475,7 +475,7 @@ export REPLICATE_API_TOKEN=r8_...
 
 ---
 
-## 11.7 Custom HTTP API
+## 12.7 Custom HTTP API
 
 Integrate any REST API using the `http-client` component.
 
@@ -586,7 +586,7 @@ workflow:
 
 ---
 
-## 11.8 External Service Integration Best Practices
+## 12.8 External Service Integration Best Practices
 
 ### 1. API Key Management
 
@@ -657,18 +657,43 @@ External APIs typically have rate limits on requests. Exceeding these limits can
 
 **Component-level limits:**
 
+`http-client` components accept an optional `rate_limit` field. Two gates can be combined: a token bucket (`requests`/`period`/`burst`) and a minimum gap between consecutive requests (`interval`). When a limit would be exceeded, the call is suspended with `asyncio.sleep` until it can proceed — no exception is raised. Polling and callback completions are not throttled by this limiter.
+
 ```yaml
 component:
   type: http-client
   rate_limit:
-    requests_per_minute: 60    # Maximum 60 requests per minute
-    requests_per_day: 10000    # Maximum 10,000 requests per day
+    requests: 60        # Maximum 60 requests per period
+    period: 1m          # Window size (e.g. '1s', '500ms', '1m')
+    burst: 10           # Token bucket capacity (defaults to 'requests')
+    interval: 100ms     # Minimum gap between consecutive requests
   action:
     endpoint: https://api.example.com/v1/process
     headers:
       Authorization: Bearer ${env.API_KEY}
     body: ${input}
 ```
+
+**Shorthand form:**
+
+```yaml
+component:
+  type: http-client
+  rate_limit: 10/s      # → { requests: 10, period: 1s }
+```
+
+Supported shorthand: `<int>/<duration>`, e.g. `10/s`, `60/m`, `1000/h`, `5/500ms`. Use the object form when you need `burst` or `interval`.
+
+**Min-interval only:**
+
+```yaml
+component:
+  type: http-client
+  rate_limit:
+    interval: 250ms     # At least 250ms between requests
+```
+
+> Migration note: earlier docs referenced `requests_per_minute` / `requests_per_day`. These field names were never implemented. Use `requests` + `period` instead — for example, `requests_per_minute: 60` becomes `requests: 60, period: 1m` (or the shorthand `60/m`).
 
 **Add delays in workflows:**
 
@@ -754,4 +779,4 @@ Try experimenting with:
 
 ---
 
-**Next Chapter**: [12. Streaming Mode](./12-streaming-mode.md)
+**Next Chapter**: [13. Streaming Mode](./13-streaming-mode.md)

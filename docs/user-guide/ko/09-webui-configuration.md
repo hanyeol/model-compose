@@ -1,10 +1,10 @@
-# 8장: Web UI 구성
+# 9장: Web UI 구성
 
 이 장에서는 model-compose의 Web UI를 구성하는 방법을 다룹니다. Gradio 드라이버와 정적 파일 드라이버를 사용하여 워크플로우를 테스트하고 실행할 수 있는 웹 인터페이스를 설정하는 방법을 학습합니다.
 
 ---
 
-## 8.1 Web UI 개요
+## 9.1 Web UI 개요
 
 model-compose는 워크플로우를 테스트하고 실행할 수 있는 웹 인터페이스를 선택적으로 제공합니다. Web UI는 컨트롤러 타입(`http-server` 또는 `mcp-server`)에 관계없이 동일하게 동작하며, 설정된 컨트롤러에 맞춰 자동으로 워크플로우를 실행합니다.
 
@@ -42,7 +42,7 @@ controller:
 
 ---
 
-## 8.2 Gradio 드라이버
+## 9.2 Gradio 드라이버
 
 Gradio는 워크플로우 스키마를 기반으로 자동 생성되는 대화형 웹 UI입니다.
 
@@ -131,7 +131,7 @@ http://localhost:8081
 
 ---
 
-## 8.3 정적 파일 드라이버
+## 9.3 정적 파일 드라이버
 
 커스텀 HTML/CSS/JavaScript 파일을 제공합니다. FastAPI의 `StaticFiles`를 사용하여 정적 파일을 서빙하며, `html=True` 옵션으로 `index.html`을 자동으로 제공합니다.
 
@@ -227,7 +227,7 @@ async function runWorkflow() {
 
 ---
 
-## 8.4 리버스 프록시를 통한 Web UI 배포
+## 9.4 리버스 프록시를 통한 Web UI 배포
 
 프로덕션 환경에서는 Nginx 같은 리버스 프록시를 통해 컨트롤러 API와 Web UI를 함께 배포할 수 있습니다.
 
@@ -289,4 +289,4 @@ Web UI는 컨트롤러와 같은 도메인에서 서비스되므로 별도의 CO
 
 ---
 
-**이전 장**: [7. WebSocket 인터페이스](./07-websocket-interface.md) | **다음 장**: [9. 로컬 AI 모델 활용](./09-local-ai-models.md)
+**이전 장**: [8장: WebSocket 인터페이스](./08-websocket-interface.md) | **다음 장**: [10장: 로컬 AI 모델 사용](./10-local-ai-models.md)

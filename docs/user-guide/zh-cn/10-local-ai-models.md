@@ -1,10 +1,10 @@
-# 第9章：使用本地 AI 模型
+# 第10章：使用本地 AI 模型
 
 本章介绍如何在 model-compose 中使用本地 AI 模型。
 
 ---
 
-## 9.1 本地模型概述
+## 10.1 本地模型概述
 
 ### 什么是本地模型？
 
@@ -94,7 +94,7 @@ component:
 
 ---
 
-## 9.2 模型安装和设置
+## 10.2 模型安装和设置
 
 ### 指定模型源
 
@@ -237,7 +237,7 @@ component:
 
 ---
 
-## 9.3 支持的任务类型
+## 10.3 支持的任务类型
 
 model-compose 支持以下任务类型：
 
@@ -253,7 +253,7 @@ model-compose 支持以下任务类型：
 | `text-to-speech` | 文本转语音 | 语音生成、克隆、设计 |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
 
-### 9.3.1 text-generation
+### 10.3.1 text-generation
 
 基于提示生成文本。
 
@@ -277,7 +277,7 @@ component:
 - `top_k`：Top-K 采样
 - `repetition_penalty`：重复惩罚（1.0~2.0）
 
-### 9.3.2 chat-completion
+### 10.3.2 chat-completion
 
 处理对话消息。
 
@@ -301,7 +301,7 @@ component:
 - `role`：`system`、`user`、`assistant`
 - `content`：消息内容
 
-### 9.3.3 text-classification
+### 10.3.3 text-classification
 
 将文本分类到类别中。
 
@@ -317,7 +317,7 @@ component:
       score: ${result.score}
 ```
 
-### 9.3.4 text-embedding
+### 10.3.4 text-embedding
 
 将文本转换为高维向量。
 
@@ -352,7 +352,7 @@ workflow:
         top_k: 5
 ```
 
-### 9.3.5 image-to-text
+### 10.3.5 image-to-text
 
 分析图像并生成文本。
 
@@ -372,7 +372,7 @@ component:
 - `git`：生成式图像到文本
 - `vit-gpt2`：视觉转换器 + GPT-2
 
-### 9.3.6 image-generation
+### 10.3.6 image-generation
 
 从文本提示生成图像。
 
@@ -395,7 +395,7 @@ component:
 - `sdxl`：Stable Diffusion XL
 - `hunyuan`：HunyuanDiT
 
-### 9.3.7 image-upscale
+### 10.3.7 image-upscale
 
 增强图像分辨率。
 
@@ -417,7 +417,7 @@ component:
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
 
-### 9.3.8 text-to-speech
+### 10.3.8 text-to-speech
 
 从文本合成语音音频。此任务使用 `driver: custom` 和 `family` 字段选择模型系列，使用 `method` 字段选择生成方式。
 
@@ -515,7 +515,7 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 从参考音频克隆语音 |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 从文本描述设计语音 |
 
-### 9.3.9 face-embedding
+### 10.3.9 face-embedding
 
 从人脸图像中提取特征向量。
 
@@ -530,7 +530,7 @@ component:
 
 ---
 
-## 9.4 模型配置（设备、精度、批量大小）
+## 10.4 模型配置（设备、精度、批量大小）
 
 ### 设备配置
 
@@ -632,7 +632,7 @@ component:
 
 ---
 
-## 9.5 使用 LoRA/PEFT 适配器
+## 10.5 使用 LoRA/PEFT 适配器
 
 LoRA（低秩适应）是一种通过添加小型适配器模块来将模型适应特定任务的技术，无需微调整个模型。
 
@@ -745,7 +745,7 @@ peft_adapters:
 
 ---
 
-## 9.6 模型服务框架
+## 10.6 模型服务框架
 
 对于大规模生产环境或高性能推理，可以使用专用的模型服务框架。
 
@@ -945,7 +945,7 @@ component:
 
 ---
 
-## 9.7 性能优化技巧
+## 10.7 性能优化技巧
 
 ### 1. 选择适当的精度
 
@@ -1033,4 +1033,4 @@ component:
 
 ---
 
-**下一章**：[10. 模型训练](./10-model-training.md)
+**下一章**：[第11章：模型训练](./11-model-training.md)

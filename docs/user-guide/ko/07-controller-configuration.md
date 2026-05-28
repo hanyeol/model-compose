@@ -1,10 +1,10 @@
-# 6장: 컨트롤러 구성
+# 7장: 컨트롤러 구성
 
 이 장에서는 model-compose의 컨트롤러를 구성하는 방법을 다룹니다. HTTP 서버, MCP 서버 설정과 동시 실행 제어, 포트 및 경로 관리를 학습합니다.
 
 ---
 
-## 6.1 HTTP 서버
+## 7.1 HTTP 서버
 
 HTTP 서버 컨트롤러는 워크플로우를 REST API로 노출합니다.
 
@@ -397,7 +397,7 @@ controller:
 
 ---
 
-## 6.2 MCP 서버
+## 7.2 MCP 서버
 
 MCP (Model Context Protocol) 서버 컨트롤러는 Streamable HTTP 방식으로 Claude Desktop 및 다른 MCP 클라이언트와 통합할 수 있습니다.
 
@@ -551,7 +551,7 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 큐 구독자 (Queue Subscriber)
+## 7.3 큐 구독자 (Queue Subscriber)
 
 큐 구독자 컨트롤러는 메시지 큐(예: Redis)에서 작업을 가져와 워크플로우를 실행합니다. 여러 model-compose 인스턴스가 공유 큐에서 작업을 분산 처리하는 분산 워커 패턴에 사용됩니다.
 
@@ -788,7 +788,7 @@ controller:
 
 ---
 
-## 6.4 큐 디스패치 (분산 배포)
+## 7.4 큐 디스패치 (분산 배포)
 
 큐 디스패치는 HTTP/MCP 진입점 서버가 워크플로우를 로컬에서 실행하는 대신 메시지 큐를 통해 원격 워커에게 위임하는 분산 배포 패턴입니다.
 
@@ -840,7 +840,7 @@ controller:
 | `name` | string | `model-compose:tasks` | 작업 큐 기본 이름. 큐 키: `{name}:{workflow_id}`. 결과 키: `{name}:{workflow_id}:{run_id}` |
 | `timeout` | integer | `0` | 결과 대기 최대 시간(초). `0` = 제한 없음 |
 
-Redis 드라이버 설정(`url` 또는 `host`/`port`/`secure`)은 [큐 구독자](#63-큐-구독자)와 동일합니다.
+Redis 드라이버 설정(`url` 또는 `host`/`port`/`secure`)은 [큐 구독자](#73-큐-구독자)와 동일합니다.
 
 ### 예제: 분산 배포
 
@@ -891,7 +891,7 @@ workflow:
 
 ---
 
-## 6.5 큐 스트리밍 (Queue Streaming)
+## 7.5 큐 스트리밍 (Queue Streaming)
 
 워크플로우가 스트리밍 출력(예: LLM 토큰 단위 생성)을 반환하는 경우, 큐 디스패치 시스템은 Redis Streams를 사용하여 워커에서 디스패처로 실시간으로 chunk를 전달합니다. 클라이언트는 워크플로우가 로컬에서 실행되는 것처럼 SSE 이벤트를 수신합니다.
 
@@ -1034,7 +1034,7 @@ Redis Stream의 각 엔트리에는 `event` 필드가 포함됩니다:
 
 ---
 
-## 6.6 동시 실행 제어
+## 7.6 동시 실행 제어
 
 `max_concurrent_count` 설정은 HTTP 서버와 MCP 서버 모두에서 사용 가능하며, 컨트롤러 레벨에서 동시에 실행할 수 있는 워크플로우 수를 제한합니다.
 
@@ -1111,7 +1111,7 @@ components:
 
 ---
 
-## 6.7 포트 및 호스트 설정
+## 7.7 포트 및 호스트 설정
 
 ### 호스트 (host)
 
@@ -1218,7 +1218,7 @@ server {
 
 ---
 
-## 6.8 컨트롤러 모범 사례
+## 7.8 컨트롤러 모범 사례
 
 ### 1. 환경별 포트 설정
 
@@ -1343,4 +1343,4 @@ POST /api/workflows/runs
 
 ---
 
-**다음 장**: [7. WebSocket 인터페이스](./07-websocket-interface.md)
+**다음 장**: [8장: WebSocket 인터페이스](./08-websocket-interface.md)

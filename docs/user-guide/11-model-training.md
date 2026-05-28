@@ -1,4 +1,4 @@
-# 10. Model Training
+# 11. Model Training
 
 > **⚠️ Development Status**: This feature is currently under development. The configuration schema is defined, but the training execution service is not yet implemented. Updates will be provided in future releases.
 
@@ -6,16 +6,16 @@ This chapter explains how to configure model training using model-compose.
 
 ---
 
-## 10.1 Training Overview
+## 11.1 Training Overview
 
-### 10.1.1 Supported Training Tasks
+### 11.1.1 Supported Training Tasks
 
 model-compose provides configurations for the following training tasks:
 
 - **SFT (Supervised Fine-Tuning)**: Supervised learning-based fine-tuning
 - **Classification**: Classification model training
 
-### 10.1.2 Training Component Structure
+### 11.1.2 Training Component Structure
 
 ```yaml
 components:
@@ -36,9 +36,9 @@ components:
 
 ---
 
-## 10.2 Dataset Preparation
+## 11.2 Dataset Preparation
 
-### 10.2.1 Dataset Component Overview
+### 11.2.1 Dataset Component Overview
 
 The dataset component provides tools for preparing training data.
 
@@ -48,7 +48,7 @@ The dataset component provides tools for preparing training data.
 - Merge and transform datasets
 - Row/column selection and filtering
 
-### 10.2.2 Loading HuggingFace Datasets
+### 11.2.2 Loading HuggingFace Datasets
 
 **Basic Configuration:**
 
@@ -96,7 +96,7 @@ workflows:
         output: ${output}
 ```
 
-### 10.2.3 Loading Local Datasets
+### 11.2.3 Loading Local Datasets
 
 **JSON Files:**
 
@@ -133,7 +133,7 @@ components:
     data_dir: ./data/training       # All JSON files in directory
 ```
 
-### 10.2.4 Dataset Manipulation
+### 11.2.4 Dataset Manipulation
 
 **Merging Datasets:**
 
@@ -229,7 +229,7 @@ components:
     template: ${input.template}      # Data transformation template
 ```
 
-### 10.2.5 Dataset Formats
+### 11.2.5 Dataset Formats
 
 **Data Format for SFT Training:**
 
@@ -268,9 +268,9 @@ components:
 
 ---
 
-## 10.3 Training Configuration
+## 11.3 Training Configuration
 
-### 10.3.1 Basic Training Configuration
+### 11.3.1 Basic Training Configuration
 
 ```yaml
 components:
@@ -291,7 +291,7 @@ components:
     output_dir: ./output/model
 ```
 
-### 10.3.2 Optimizer Configuration
+### 11.3.2 Optimizer Configuration
 
 **Supported Optimizers:**
 
@@ -327,7 +327,7 @@ components:
 - `adagrad`: Adagrad
 - `rmsprop`: RMSprop
 
-### 10.3.3 Learning Rate Scheduler
+### 11.3.3 Learning Rate Scheduler
 
 ```yaml
 components:
@@ -351,7 +351,7 @@ components:
 - `cosine_with_min_lr`: Cosine with minimum learning rate
 - `warmup_stable_decay`: Warmup-Stable-Decay
 
-### 10.3.4 Optimization Settings
+### 11.3.4 Optimization Settings
 
 ```yaml
 components:
@@ -373,7 +373,7 @@ components:
 - Effective batch size = `per_device_train_batch_size × gradient_accumulation_steps × num_gpus`
 - When out of memory, reduce batch size and increase accumulation steps
 
-### 10.3.5 Evaluation and Saving
+### 11.3.5 Evaluation and Saving
 
 ```yaml
 components:
@@ -392,7 +392,7 @@ components:
     logging_steps: 10               # Log every 10 steps
 ```
 
-### 10.3.6 Memory Optimization
+### 11.3.6 Memory Optimization
 
 ```yaml
 components:
@@ -414,7 +414,7 @@ components:
 - `fp16`: FP16 mixed precision, saves memory and improves speed
 - `bf16`: BF16 mixed precision, better numerical stability (Ampere+ GPUs)
 
-### 10.3.7 Reproducibility Settings
+### 11.3.7 Reproducibility Settings
 
 ```yaml
 components:
@@ -426,9 +426,9 @@ components:
 
 ---
 
-## 10.4 Fine-Tuning
+## 11.4 Fine-Tuning
 
-### 10.4.1 SFT (Supervised Fine-Tuning)
+### 11.4.1 SFT (Supervised Fine-Tuning)
 
 **Basic Configuration:**
 
@@ -475,7 +475,7 @@ components:
 - Either `text_column` or `prompt_column` + `response_column` is required
 - Error if both are specified
 
-### 10.4.2 Sequence Packing
+### 11.4.2 Sequence Packing
 
 ```yaml
 components:
@@ -502,9 +502,9 @@ components:
 
 ---
 
-## 10.5 LoRA Training
+## 11.5 LoRA Training
 
-### 10.5.1 LoRA Overview
+### 11.5.1 LoRA Overview
 
 LoRA (Low-Rank Adaptation) is an efficient technique for fine-tuning large models.
 
@@ -514,7 +514,7 @@ LoRA (Low-Rank Adaptation) is an efficient technique for fine-tuning large model
 - Faster training
 - Multiple LoRA adapters can be applied to one base model
 
-### 10.5.2 Basic LoRA Configuration
+### 11.5.2 Basic LoRA Configuration
 
 ```yaml
 components:
@@ -537,7 +537,7 @@ components:
     output_dir: ./output/lora-adapter
 ```
 
-### 10.5.3 Target Module Configuration
+### 11.5.3 Target Module Configuration
 
 ```yaml
 components:
@@ -567,7 +567,7 @@ components:
 - Attention only: Memory efficient, sufficient for most cases
 - Attention + MLP: Better performance, more memory
 
-### 10.5.4 LoRA Bias Configuration
+### 11.5.4 LoRA Bias Configuration
 
 ```yaml
 components:
@@ -584,7 +584,7 @@ components:
 - `all`: Train all biases
 - `lora_only`: Train only LoRA layer biases
 
-### 10.5.5 QLoRA (Quantized LoRA)
+### 11.5.5 QLoRA (Quantized LoRA)
 
 QLoRA applies LoRA to a quantized base model for even more memory savings.
 
@@ -627,7 +627,7 @@ components:
 - BF16 mixed precision
 - Gradient checkpointing
 
-### 10.5.6 LoRA Hyperparameter Guide
+### 11.5.6 LoRA Hyperparameter Guide
 
 | Parameter | Low Value | High Value | Recommended Use |
 |---------|---------|---------|-----------|
@@ -638,9 +638,9 @@ components:
 
 ---
 
-## 10.6 Training Monitoring
+## 11.6 Training Monitoring
 
-### 10.6.1 Logging Configuration
+### 11.6.1 Logging Configuration
 
 ```yaml
 components:
@@ -659,7 +659,7 @@ components:
 - Gradient norm
 - Training speed (samples/sec)
 
-### 10.6.2 Evaluation Metrics
+### 11.6.2 Evaluation Metrics
 
 ```yaml
 components:
@@ -676,7 +676,7 @@ components:
 - Perplexity
 - Task-specific metrics (classification accuracy, etc.)
 
-### 10.6.3 TensorBoard Integration (Coming Soon)
+### 11.6.3 TensorBoard Integration (Coming Soon)
 
 TensorBoard integration will be added in future releases:
 
@@ -687,9 +687,9 @@ tensorboard --logdir ./output/runs
 
 ---
 
-## 10.7 Checkpoint Management
+## 11.7 Checkpoint Management
 
-### 10.7.1 Checkpoint Saving
+### 11.7.1 Checkpoint Saving
 
 ```yaml
 components:
@@ -713,7 +713,7 @@ output/checkpoints/
   └── checkpoint-1500/
 ```
 
-### 10.7.2 Resuming from Checkpoint
+### 11.7.2 Resuming from Checkpoint
 
 To be supported in future releases:
 
@@ -726,7 +726,7 @@ components:
     resume_from_checkpoint: ./output/checkpoints/checkpoint-1000
 ```
 
-### 10.7.3 Saving Final Model
+### 11.7.3 Saving Final Model
 
 ```yaml
 components:
@@ -749,9 +749,9 @@ output/final-model/
 
 ---
 
-## 10.8 Practical Examples
+## 11.8 Practical Examples
 
-### 10.8.1 Alpaca-Style Fine-Tuning
+### 11.8.1 Alpaca-Style Fine-Tuning
 
 ```yaml
 components:
@@ -803,7 +803,7 @@ workflows:
         depends_on: [load-data]
 ```
 
-### 10.8.2 Training Large Models with QLoRA
+### 11.8.2 Training Large Models with QLoRA
 
 ```yaml
 components:
@@ -838,7 +838,7 @@ components:
     output_dir: ./output/qlora-model
 ```
 
-### 10.8.3 Custom Dataset Preparation and Training
+### 11.8.3 Custom Dataset Preparation and Training
 
 ```yaml
 components:
@@ -896,13 +896,13 @@ workflows:
 
 After learning about dataset preparation:
 
-- **Chapter 10**: External Service Integration - Utilizing API services
-- **Chapter 8**: Using Local AI Models - Loading LoRA adapters and inference
+- **Chapter 12**: External Service Integration - Utilizing API services
+- **Chapter 10**: Using Local AI Models - Loading LoRA adapters and inference
 
 Currently Available Features:
 - Dataset loading and manipulation (HuggingFace, local files)
 - Dataset merging, filtering, selection
-- Inference with LoRA adapters (see Chapter 8)
+- Inference with LoRA adapters (see Chapter 10)
 
 Features to be Added:
 - Model training execution
@@ -911,4 +911,4 @@ Features to be Added:
 
 ---
 
-**Next Chapter**: [11. External Service Integration](./11-external-service-integration.md)
+**Next Chapter**: [12. External Service Integration](./12-external-service-integration.md)

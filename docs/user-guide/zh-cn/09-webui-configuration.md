@@ -1,10 +1,10 @@
-# 第8章：Web UI 配置
+# 第9章：Web UI 配置
 
 本章介绍如何配置 model-compose 的 Web UI。学习如何使用 Gradio 和静态文件驱动来设置测试和运行工作流的 Web 界面。
 
 ---
 
-## 8.1 Web UI 概述
+## 9.1 Web UI 概述
 
 model-compose 可选地提供用于测试和运行工作流的 Web 界面。无论控制器类型（`http-server` 或 `mcp-server`）如何，Web UI 的工作方式都相同，并根据配置的控制器自动执行工作流。
 
@@ -42,7 +42,7 @@ controller:
 
 ---
 
-## 8.2 Gradio 驱动
+## 9.2 Gradio 驱动
 
 Gradio 是根据工作流模式自动生成的交互式 Web UI。
 
@@ -131,7 +131,7 @@ http://localhost:8081
 
 ---
 
-## 8.3 静态文件驱动
+## 9.3 静态文件驱动
 
 提供自定义 HTML/CSS/JavaScript 文件。使用 FastAPI 的 `StaticFiles` 提供静态文件，并使用 `html=True` 选项自动提供 `index.html`。
 
@@ -227,7 +227,7 @@ async function runWorkflow() {
 
 ---
 
-## 8.4 通过反向代理部署 Web UI
+## 9.4 通过反向代理部署 Web UI
 
 在生产环境中，您可以通过 Nginx 等反向代理将控制器 API 和 Web UI 一起部署。
 
@@ -289,4 +289,4 @@ server {
 
 ---
 
-**上一章**：[7. WebSocket 接口](./07-websocket-interface.md) | **下一章**：[9. 使用本地 AI 模型](./09-local-ai-models.md)
+**上一章**：[第8章：WebSocket 接口](./08-websocket-interface.md) | **下一章**：[第10章：使用本地 AI 模型](./10-local-ai-models.md)

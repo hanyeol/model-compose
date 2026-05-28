@@ -1,10 +1,10 @@
-# Chapter 6: Controller Configuration
+# Chapter 7: Controller Configuration
 
 This chapter covers how to configure model-compose controllers, including HTTP server and MCP server settings, concurrency control, and port management.
 
 ---
 
-## 6.1 HTTP Server
+## 7.1 HTTP Server
 
 The HTTP server controller exposes workflows as REST APIs.
 
@@ -397,7 +397,7 @@ controller:
 
 ---
 
-## 6.2 MCP Server
+## 7.2 MCP Server
 
 The MCP (Model Context Protocol) server controller integrates with Claude Desktop and other MCP clients using the Streamable HTTP protocol.
 
@@ -551,7 +551,7 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 Queue Subscriber
+## 7.3 Queue Subscriber
 
 The queue subscriber controller consumes tasks from a message queue (e.g., Redis) and executes workflows. This enables distributed worker patterns where multiple model-compose instances process tasks from a shared queue.
 
@@ -788,7 +788,7 @@ controller:
 
 ---
 
-## 6.4 Queue Dispatch (Distributed Deployment)
+## 7.4 Queue Dispatch (Distributed Deployment)
 
 Queue dispatch enables a distributed deployment pattern where an HTTP/MCP entry point server delegates workflow execution to remote workers via a message queue, instead of running workflows locally.
 
@@ -840,7 +840,7 @@ The queue dispatch is **transparent** to adapters — HTTP and MCP server adapte
 | `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
 | `timeout` | integer | `0` | Maximum time in seconds to wait for a result. `0` = no limit |
 
-Redis driver settings (`url` or `host`/`port`/`secure`) are the same as [Queue Subscriber](#63-queue-subscriber).
+Redis driver settings (`url` or `host`/`port`/`secure`) are the same as [Queue Subscriber](#73-queue-subscriber).
 
 ### Example: Distributed Deployment
 
@@ -891,7 +891,7 @@ Workers compete for tasks from the same queue — whichever pops first processes
 
 ---
 
-## 6.5 Queue Streaming
+## 7.5 Queue Streaming
 
 When a workflow produces streaming output (e.g., LLM token-by-token generation), the queue dispatch system automatically delivers chunks in real time from the worker to the dispatcher using Redis Streams. The client receives SSE events as if the workflow were running locally.
 
@@ -1036,7 +1036,7 @@ Each entry in the Redis Stream has an `event` field:
 
 ---
 
-## 6.6 Concurrency Control
+## 7.6 Concurrency Control
 
 The `max_concurrent_count` setting is available for both HTTP and MCP servers, limiting the number of workflows that can execute concurrently at the controller level.
 
@@ -1113,7 +1113,7 @@ components:
 
 ---
 
-## 6.7 Port and Host Configuration
+## 7.7 Port and Host Configuration
 
 ### Host
 
@@ -1220,7 +1220,7 @@ Now external access to `http://example.com/ai/workflows/runs` is forwarded by Ng
 
 ---
 
-## 6.8 Controller Best Practices
+## 7.8 Controller Best Practices
 
 ### 1. Port Configuration by Environment
 
@@ -1345,4 +1345,4 @@ Try these:
 
 ---
 
-**Next Chapter**: [7. WebSocket Interface](./07-websocket-interface.md)
+**Next Chapter**: [8. WebSocket Interface](./08-websocket-interface.md)

@@ -28,27 +28,27 @@ New to model-compose? Start here:
 #### Building Workflows
 - [Component Configuration](./04-component-configuration.md) - Define reusable components
 - [Writing Workflows](./05-writing-workflows.md) - Create multi-step pipelines
-- [Variable Binding](./13-variable-binding.md) - Data flow and transformations
+- [Variable Binding](./14-variable-binding.md) - Data flow and transformations
 
 #### Controllers & UI
-- [Controller Configuration](./06-controller-configuration.md) - HTTP and MCP servers
-- [Web UI Configuration](./08-webui-configuration.md) - Visual workflow management
+- [Controller Configuration](./07-controller-configuration.md) - HTTP and MCP servers
+- [Web UI Configuration](./09-webui-configuration.md) - Visual workflow management
 
 #### AI Models
-- [Working with Local AI Models](./09-local-ai-models.md) - Run models locally
-- [External Service Integration](./11-external-service-integration.md) - Connect to OpenAI, Claude, etc.
-- [Streaming Mode](./12-streaming-mode.md) - Real-time output streaming
+- [Working with Local AI Models](./10-local-ai-models.md) - Run models locally
+- [External Service Integration](./12-external-service-integration.md) - Connect to OpenAI, Claude, etc.
+- [Streaming Mode](./13-streaming-mode.md) - Real-time output streaming
 
 #### System Integration
-- [System Integration](./14-system-integration.md) - Listeners, triggers, and gateways
+- [System Integration](./15-system-integration.md) - Listeners, triggers, and gateways
   - HTTP Callback Listeners - Handle async webhooks
   - HTTP Trigger Listeners - Event-driven workflows
   - Gateway Support - Expose local services securely
 
 #### Deployment & Production
-- [Deployment](./15-deployment.md) - Docker, cloud, and production best practices
-- [Practical Examples](./16-practical-examples.md) - Real-world use cases
-- [Troubleshooting](./17-troubleshooting.md) - Common issues and solutions
+- [Deployment](./16-deployment.md) - Docker, cloud, and production best practices
+- [Practical Examples](./17-practical-examples.md) - Real-world use cases
+- [Troubleshooting](./18-troubleshooting.md) - Common issues and solutions
 
 ---
 
@@ -56,7 +56,7 @@ New to model-compose? Start here:
 
 Looking for hands-on examples? Check out:
 
-- **[Practical Examples](./16-practical-examples.md)** - Complete working examples:
+- **[Practical Examples](./17-practical-examples.md)** - Complete working examples:
   - Chatbots (OpenAI, Claude)
   - Voice generation pipelines
   - Image analysis and editing
@@ -75,15 +75,15 @@ Looking for hands-on examples? Check out:
 | I want to... | Go to... |
 |--------------|----------|
 | Install and run my first workflow | [Getting Started](./01-getting-started.md) |
-| Call external APIs (OpenAI, Claude) | [External Service Integration](./11-external-service-integration.md) |
-| Run local AI models | [Local AI Models](./09-local-ai-models.md) |
+| Call external APIs (OpenAI, Claude) | [External Service Integration](./12-external-service-integration.md) |
+| Run local AI models | [Local AI Models](./10-local-ai-models.md) |
 | Create multi-step workflows | [Writing Workflows](./05-writing-workflows.md) |
-| Stream real-time outputs | [Streaming Mode](./12-streaming-mode.md) |
-| Handle webhooks and callbacks | [System Integration](./14-system-integration.md) |
-| Deploy to production | [Deployment](./15-deployment.md) |
-| Build a chatbot | [Practical Examples § 15.1](./16-practical-examples.md#151-building-a-chatbot) |
-| Set up a RAG system | [Practical Examples § 15.4](./16-practical-examples.md#154-rag-system-using-vector-db) |
-| Debug issues | [Troubleshooting](./17-troubleshooting.md) |
+| Stream real-time outputs | [Streaming Mode](./13-streaming-mode.md) |
+| Handle webhooks and callbacks | [System Integration](./15-system-integration.md) |
+| Deploy to production | [Deployment](./16-deployment.md) |
+| Build a chatbot | [Practical Examples § 17.1](./17-practical-examples.md#171-building-a-chatbot) |
+| Set up a RAG system | [Practical Examples § 17.2](./17-practical-examples.md#172-rag-system-using-vector-db) |
+| Debug issues | [Troubleshooting](./18-troubleshooting.md) |
 
 ### Key Concepts
 
@@ -100,16 +100,16 @@ Looking for hands-on examples? Check out:
 
 Looking for specific configuration options?
 
-- **[Complete Configuration Schema](./18-appendix.md#171-complete-configuration-file-schema)** - Full YAML reference
+- **[Complete Configuration Schema](./19-appendix.md#171-complete-configuration-file-schema)** - Full YAML reference
 - **[Component Types](./04-component-configuration.md#41-component-types)** - All available component types
-- **[Variable Binding Syntax](./13-variable-binding.md)** - Complete variable reference
+- **[Variable Binding Syntax](./14-variable-binding.md)** - Complete variable reference
 
 ---
 
 ## 💡 Tips for Learning
 
 1. **Start Simple**: Begin with the [Getting Started](./01-getting-started.md) guide
-2. **Hands-On**: Try the [Practical Examples](./16-practical-examples.md)
+2. **Hands-On**: Try the [Practical Examples](./17-practical-examples.md)
 3. **Incremental**: Add features one at a time
 4. **Explore**: Check the [examples directory](../../examples/) for inspiration
 5. **Ask**: Open an [issue](https://github.com/hanyeol/model-compose/issues) if you're stuck

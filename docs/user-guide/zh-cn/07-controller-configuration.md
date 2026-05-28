@@ -1,10 +1,10 @@
-# 第 6 章：控制器配置
+# 第 7 章：控制器配置
 
 本章介绍如何配置 model-compose 控制器，包括 HTTP 服务器和 MCP 服务器设置、并发控制和端口管理。
 
 ---
 
-## 6.1 HTTP 服务器
+## 7.1 HTTP 服务器
 
 HTTP 服务器控制器将工作流公开为 REST API。
 
@@ -397,7 +397,7 @@ controller:
 
 ---
 
-## 6.2 MCP 服务器
+## 7.2 MCP 服务器
 
 MCP（模型上下文协议）服务器控制器使用 Streamable HTTP 协议与 Claude Desktop 和其他 MCP 客户端集成。
 
@@ -551,7 +551,7 @@ https://mcp.example.com/mcp
 
 ---
 
-## 6.3 队列订阅者 (Queue Subscriber)
+## 7.3 队列订阅者 (Queue Subscriber)
 
 队列订阅者控制器从消息队列（如 Redis）中消费任务并执行工作流。用于多个 model-compose 实例从共享队列中分布式处理任务的分布式工作者模式。
 
@@ -788,7 +788,7 @@ controller:
 
 ---
 
-## 6.4 队列分发（分布式部署）
+## 7.4 队列分发（分布式部署）
 
 队列分发使 HTTP/MCP 入口服务器能够通过消息队列将工作流执行委派给远程工作节点，而不是在本地运行。
 
@@ -840,7 +840,7 @@ controller:
 | `name` | string | `model-compose:tasks` | 任务队列基础名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
 | `timeout` | integer | `0` | 等待结果的最大时间（秒）。`0` = 无限制 |
 
-Redis 驱动设置（`url` 或 `host`/`port`/`secure`）与[队列订阅者](#63-队列订阅者)相同。
+Redis 驱动设置（`url` 或 `host`/`port`/`secure`）与[队列订阅者](#73-队列订阅者)相同。
 
 ### 示例：分布式部署
 
@@ -891,7 +891,7 @@ workflow:
 
 ---
 
-## 6.5 队列流式传输 (Queue Streaming)
+## 7.5 队列流式传输 (Queue Streaming)
 
 当工作流产生流式输出（例如 LLM 逐 token 生成）时，队列分发系统会自动通过 Redis Streams 将 chunk 从工作节点实时传递到分发器。客户端接收 SSE 事件，就像工作流在本地运行一样。
 
@@ -1034,7 +1034,7 @@ Redis Stream 中的每个条目包含一个 `event` 字段：
 
 ---
 
-## 6.6 并发控制
+## 7.6 并发控制
 
 `max_concurrent_count` 设置适用于 HTTP 和 MCP 服务器，在控制器级别限制可以并发执行的工作流数量。
 
@@ -1111,7 +1111,7 @@ components:
 
 ---
 
-## 6.7 端口和主机配置
+## 7.7 端口和主机配置
 
 ### 主机
 
@@ -1218,7 +1218,7 @@ server {
 
 ---
 
-## 6.8 控制器最佳实践
+## 7.8 控制器最佳实践
 
 ### 1. 按环境配置端口
 
@@ -1343,4 +1343,4 @@ POST /api/workflows/runs
 
 ---
 
-**下一章**: [7. WebSocket 接口](./07-websocket-interface.md)
+**下一章**：[第8章：WebSocket 接口](./08-websocket-interface.md)

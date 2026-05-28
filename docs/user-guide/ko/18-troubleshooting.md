@@ -1,12 +1,12 @@
-# 16. 문제 해결
+# 18. 문제 해결
 
 이 장에서는 model-compose 사용 중 자주 발생하는 문제와 해결 방법을 다룹니다.
 
 ---
 
-## 17.1 자주 묻는 질문 (FAQ)
+## 18.1 자주 묻는 질문 (FAQ)
 
-### 17.1.1 설치 및 환경 설정
+### 18.1.1 설치 및 환경 설정
 
 **Q: Python 버전 요구사항은 무엇인가요?**
 
@@ -37,7 +37,7 @@ A: NVIDIA Container Toolkit이 설치되어 있는지 확인하세요:
 docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
-### 17.1.2 컴포넌트 설정
+### 18.1.2 컴포넌트 설정
 
 **Q: 모델 컴포넌트 로딩 시 메모리 부족 오류가 발생합니다.**
 
@@ -96,7 +96,7 @@ docker ps | grep milvus
 docker ps | grep chroma
 ```
 
-### 17.1.3 워크플로우 실행
+### 18.1.3 워크플로우 실행
 
 **Q: 워크플로우 실행 시 변수를 찾을 수 없다는 오류가 발생합니다.**
 
@@ -149,7 +149,7 @@ workflow:
   output: ${output as sse-text}
 ```
 
-### 17.1.4 Web UI
+### 18.1.4 Web UI
 
 **Q: Gradio Web UI가 시작되지 않습니다.**
 
@@ -175,7 +175,7 @@ workflow:
     document: ${input.doc as file}
 ```
 
-### 17.1.5 리스너와 게이트웨이
+### 18.1.5 리스너와 게이트웨이
 
 **Q: 리스너가 외부에서 접근되지 않습니다.**
 
@@ -203,9 +203,9 @@ ngrok version
 
 ---
 
-## 17.2 일반적인 오류 및 해결책
+## 18.2 일반적인 오류 및 해결책
 
-### 17.2.1 모델 로딩 오류
+### 18.2.1 모델 로딩 오류
 
 **오류**: `RuntimeError: CUDA out of memory`
 
@@ -245,7 +245,7 @@ ls ~/.cache/huggingface/hub/
 
 ---
 
-### 17.2.2 네트워크 오류
+### 18.2.2 네트워크 오류
 
 **오류**: `ConnectionError: Failed to connect to API`
 
@@ -286,7 +286,7 @@ component:
 
 ---
 
-### 17.2.3 설정 파일 오류
+### 18.2.3 설정 파일 오류
 
 **오류**: `ValidationError: Invalid configuration`
 
@@ -297,7 +297,7 @@ component:
 ```bash
 python -c "import yaml; yaml.safe_load(open('model-compose.yml'))"
 ```
-2. 스키마 참조하여 필수 필드 확인 (17장 참조)
+2. 스키마 참조하여 필수 필드 확인 (19장 참조)
 3. 들여쓰기 확인 (공백 2칸 사용)
 
 ---
@@ -320,7 +320,7 @@ workflow:
 
 ---
 
-### 17.2.4 변수 바인딩 오류
+### 18.2.4 변수 바인딩 오류
 
 **오류**: `ValueError: Cannot resolve variable '${input.field}'`
 
@@ -351,7 +351,7 @@ output: ${binary_data as base64}
 
 ---
 
-### 17.2.5 Docker 런타임 오류
+### 18.2.5 Docker 런타임 오류
 
 **오류**: `docker.errors.ImageNotFound`
 
@@ -387,9 +387,9 @@ newgrp docker
 
 ---
 
-## 17.3 디버깅 팁
+## 18.3 디버깅 팁
 
-### 17.3.1 로깅 활성화
+### 18.3.1 로깅 활성화
 
 상세한 로그를 보려면 로거 레벨을 DEBUG로 설정하세요:
 
@@ -406,7 +406,7 @@ export LOG_LEVEL=DEBUG
 model-compose up
 ```
 
-### 17.3.2 변수 값 확인
+### 18.3.2 변수 값 확인
 
 워크플로우 중간에 변수 값을 확인하려면 임시 출력을 추가하세요:
 
@@ -425,7 +425,7 @@ components:
           - "Input: ${input}"
 ```
 
-### 17.3.3 단계별 실행
+### 18.3.3 단계별 실행
 
 복잡한 워크플로우는 단계별로 나누어 테스트하세요:
 
@@ -446,7 +446,7 @@ workflow:
       depends_on: [step1]
 ```
 
-### 17.3.4 API 응답 확인
+### 18.3.4 API 응답 확인
 
 HTTP 클라이언트 응답을 확인하려면:
 
@@ -457,7 +457,7 @@ component:
   output: ${response}  # 전체 응답 출력
 ```
 
-### 17.3.5 Docker 컨테이너 로그
+### 18.3.5 Docker 컨테이너 로그
 
 Docker 런타임 사용 시 컨테이너 로그 확인:
 
@@ -472,7 +472,7 @@ docker logs <container-id>
 docker logs -f <container-id>
 ```
 
-### 17.3.6 환경 변수 확인
+### 18.3.6 환경 변수 확인
 
 환경 변수가 제대로 설정되었는지 확인:
 
@@ -500,7 +500,7 @@ component:
         - ${env.OPENAI_API_KEY}
 ```
 
-### 17.3.7 포트 충돌 확인
+### 18.3.7 포트 충돌 확인
 
 포트가 이미 사용 중인지 확인:
 
@@ -518,7 +518,7 @@ controller:
   port: 8081  # 다른 포트로 변경
 ```
 
-### 17.3.8 의존성 확인
+### 18.3.8 의존성 확인
 
 필요한 Python 패키지가 설치되어 있는지 확인:
 
@@ -549,4 +549,4 @@ pip install transformers torch gradio
 
 ---
 
-**다음 장**: [18. 부록](./18-appendix.md)
+**다음 장**: [19. 부록](./19-appendix.md)

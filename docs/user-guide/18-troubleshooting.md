@@ -1,12 +1,12 @@
-# 17. Troubleshooting
+# 18. Troubleshooting
 
 This chapter covers common issues and solutions when using model-compose.
 
 ---
 
-## 17.1 Frequently Asked Questions (FAQ)
+## 18.1 Frequently Asked Questions (FAQ)
 
-### 17.1.1 Installation and Environment Setup
+### 18.1.1 Installation and Environment Setup
 
 **Q: What are the Python version requirements?**
 
@@ -37,7 +37,7 @@ A: Verify that NVIDIA Container Toolkit is installed:
 docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
-### 17.1.2 Component Configuration
+### 18.1.2 Component Configuration
 
 **Q: I get out-of-memory errors when loading model components.**
 
@@ -96,7 +96,7 @@ docker ps | grep milvus
 docker ps | grep chroma
 ```
 
-### 17.1.3 Workflow Execution
+### 18.1.3 Workflow Execution
 
 **Q: I get "variable not found" errors when executing workflows.**
 
@@ -149,7 +149,7 @@ workflow:
   output: ${output as sse-text}
 ```
 
-### 17.1.4 Web UI
+### 18.1.4 Web UI
 
 **Q: Gradio Web UI doesn't start.**
 
@@ -175,7 +175,7 @@ workflow:
     document: ${input.doc as file}
 ```
 
-### 17.1.5 Listeners and Gateways
+### 18.1.5 Listeners and Gateways
 
 **Q: Listener is not accessible from external sources.**
 
@@ -203,9 +203,9 @@ ngrok version
 
 ---
 
-## 17.2 Common Errors and Solutions
+## 18.2 Common Errors and Solutions
 
-### 17.2.1 Model Loading Errors
+### 18.2.1 Model Loading Errors
 
 **Error**: `RuntimeError: CUDA out of memory`
 
@@ -245,7 +245,7 @@ ls ~/.cache/huggingface/hub/
 
 ---
 
-### 17.2.2 Network Errors
+### 18.2.2 Network Errors
 
 **Error**: `ConnectionError: Failed to connect to API`
 
@@ -286,7 +286,7 @@ component:
 
 ---
 
-### 17.2.3 Configuration File Errors
+### 18.2.3 Configuration File Errors
 
 **Error**: `ValidationError: Invalid configuration`
 
@@ -297,7 +297,7 @@ component:
 ```bash
 python -c "import yaml; yaml.safe_load(open('model-compose.yml'))"
 ```
-2. Verify required fields using schema reference (Chapter 17)
+2. Verify required fields using schema reference (Chapter 19)
 3. Check indentation (use 2 spaces)
 
 ---
@@ -320,7 +320,7 @@ workflow:
 
 ---
 
-### 17.2.4 Variable Binding Errors
+### 18.2.4 Variable Binding Errors
 
 **Error**: `ValueError: Cannot resolve variable '${input.field}'`
 
@@ -351,7 +351,7 @@ output: ${binary_data as base64}
 
 ---
 
-### 17.2.5 Docker Runtime Errors
+### 18.2.5 Docker Runtime Errors
 
 **Error**: `docker.errors.ImageNotFound`
 
@@ -387,9 +387,9 @@ newgrp docker
 
 ---
 
-## 17.3 Debugging Tips
+## 18.3 Debugging Tips
 
-### 17.3.1 Enable Logging
+### 18.3.1 Enable Logging
 
 Set logger level to DEBUG for detailed logs:
 
@@ -406,7 +406,7 @@ export LOG_LEVEL=DEBUG
 model-compose up
 ```
 
-### 17.3.2 Check Variable Values
+### 18.3.2 Check Variable Values
 
 Add temporary output to check variable values during workflow:
 
@@ -425,7 +425,7 @@ components:
           - "Input: ${input}"
 ```
 
-### 17.3.3 Step-by-Step Execution
+### 18.3.3 Step-by-Step Execution
 
 Test complex workflows by breaking them into steps:
 
@@ -446,7 +446,7 @@ workflow:
       depends_on: [step1]
 ```
 
-### 17.3.4 Check API Responses
+### 18.3.4 Check API Responses
 
 To verify HTTP client responses:
 
@@ -457,7 +457,7 @@ component:
   output: ${response}  # Output entire response
 ```
 
-### 17.3.5 Docker Container Logs
+### 18.3.5 Docker Container Logs
 
 Check container logs when using Docker runtime:
 
@@ -472,7 +472,7 @@ docker logs <container-id>
 docker logs -f <container-id>
 ```
 
-### 17.3.6 Verify Environment Variables
+### 18.3.6 Verify Environment Variables
 
 Check if environment variables are properly set:
 
@@ -500,7 +500,7 @@ component:
         - ${env.OPENAI_API_KEY}
 ```
 
-### 17.3.7 Check Port Conflicts
+### 18.3.7 Check Port Conflicts
 
 Check if port is already in use:
 
@@ -518,7 +518,7 @@ controller:
   port: 8081  # Change to different port
 ```
 
-### 17.3.8 Verify Dependencies
+### 18.3.8 Verify Dependencies
 
 Check if required Python packages are installed:
 
@@ -549,4 +549,4 @@ If issues persist:
 
 ---
 
-**Next Chapter**: [18. Appendix](./18-appendix.md)
+**Next Chapter**: [19. Appendix](./19-appendix.md)

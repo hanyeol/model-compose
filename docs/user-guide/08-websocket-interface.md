@@ -1,12 +1,12 @@
-# Chapter 7: WebSocket Interface
+# Chapter 8: WebSocket Interface
 
 This chapter explains how to use model-compose's WebSocket interface for real-time task monitoring, workflow execution, and bidirectional control over a persistent connection.
 
 ---
 
-## 7.1 WebSocket Overview
+## 8.1 WebSocket Overview
 
-### 7.1.1 What is the WebSocket Interface?
+### 8.1.1 What is the WebSocket Interface?
 
 The WebSocket interface adds a `/ws` endpoint to the HTTP server controller, enabling real-time bidirectional communication between clients and the server. Instead of polling `GET /tasks/{task_id}` repeatedly, clients receive instant status updates as tasks progress.
 
@@ -23,7 +23,7 @@ The WebSocket interface adds a `/ws` endpoint to the HTTP server controller, ena
 - Chat applications requiring immediate feedback
 - Multi-task monitoring from a single client
 
-### 7.1.2 WebSocket vs REST API
+### 8.1.2 WebSocket vs REST API
 
 Both interfaces support workflow execution. Choose based on your needs:
 
@@ -35,7 +35,7 @@ Both interfaces support workflow execution. Choose based on your needs:
 | Multi-task monitoring | WebSocket | One connection for all tasks |
 | curl/Postman testing | REST API | Simple request/response |
 
-### 7.1.3 Delivery Behavior
+### 8.1.3 Delivery Behavior
 
 Subscribed clients receive task state changes and per-job lifecycle events in real time:
 
@@ -44,7 +44,7 @@ Subscribed clients receive task state changes and per-job lifecycle events in re
 
 Both message types are sent at emission time and, under normal operation, arrive without loss. Messages are not buffered after they're emitted, so **events that happened before you subscribed are not replayed** — subscribe at workflow start (`run_workflow` with `subscribe_task: true`) to ensure full coverage.
 
-### 7.1.4 How It Works
+### 8.1.4 How It Works
 
 ```
 Client                          Server
@@ -67,9 +67,9 @@ Client                          Server
 
 ---
 
-## 7.2 Configuration
+## 8.2 Configuration
 
-### 7.2.1 Enabling WebSocket
+### 8.2.1 Enabling WebSocket
 
 WebSocket is enabled by default when using the HTTP server controller. No additional configuration is required for basic usage.
 
@@ -81,7 +81,7 @@ controller:
 
 The WebSocket endpoint is available at `ws://localhost:8080/ws`.
 
-### 7.2.2 WebSocket Configuration Options
+### 8.2.2 WebSocket Configuration Options
 
 The `websocket` field accepts either a boolean or a configuration object:
 
@@ -108,7 +108,7 @@ controller:
 | `ping_interval` | integer | `30` | Server-side ping interval in seconds (`0` to disable) |
 | `ping_timeout` | integer | `10` | Ping timeout in seconds |
 
-### 7.2.3 Configuration Examples
+### 8.2.3 Configuration Examples
 
 #### Development Environment
 
@@ -145,9 +145,9 @@ controller:
 
 ---
 
-## 7.3 Connecting to WebSocket
+## 8.3 Connecting to WebSocket
 
-### 7.3.1 Basic Connection
+### 8.3.1 Basic Connection
 
 Connect to the WebSocket endpoint:
 
@@ -183,7 +183,7 @@ async def connect():
 asyncio.run(connect())
 ```
 
-### 7.3.2 Session ID
+### 8.3.2 Session ID
 
 You can specify a session ID via query parameter to identify your connection:
 
@@ -194,9 +194,9 @@ const ws = new WebSocket(`ws://localhost:8080/ws?session=${sessionId}`);
 
 - If not specified, the server generates a UUID automatically.
 - A session ID can only have one active connection. Duplicate connections with the same session ID are rejected (close code `4409`).
-- Session IDs enable REST API integration (see [Section 7.5](#75-rest-api-integration)).
+- Session IDs enable REST API integration (see [Section 8.5](#85-rest-api-integration)).
 
-### 7.3.3 Auto-Subscribe on Connect
+### 8.3.3 Auto-Subscribe on Connect
 
 Subscribe to a task immediately on connection using the `task` query parameter:
 
@@ -208,9 +208,9 @@ This is equivalent to connecting and then sending a `subscribe_task` message.
 
 ---
 
-## 7.4 WebSocket Messages
+## 8.4 WebSocket Messages
 
-### 7.4.1 Message Format
+### 8.4.1 Message Format
 
 All messages use a common JSON envelope:
 
@@ -226,7 +226,7 @@ All messages use a common JSON envelope:
 - `id` (string, optional): Unique message ID for request-response correlation
 - `data` (object, optional per type): Message-specific payload. May be omitted for messages with no payload (e.g., `ping`); the server treats a missing `data` as `{}`.
 
-### 7.4.2 Client → Server Messages
+### 8.4.2 Client → Server Messages
 
 #### `run_workflow` — Execute a Workflow
 
@@ -332,7 +332,7 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
 
 **Response:** `pong` message.
 
-### 7.4.3 Server → Client Messages
+### 8.4.3 Server → Client Messages
 
 #### `workflow_started` — Workflow Execution Started
 
@@ -517,11 +517,11 @@ Sent in response to `resume_task` on success.
 
 ---
 
-## 7.5 REST API Integration
+## 8.5 REST API Integration
 
 WebSocket and REST API can be used together. This is useful when you want to start workflows via REST but monitor them in real time via WebSocket.
 
-### 7.5.1 `subscribe_task` Parameter
+### 8.5.1 `subscribe_task` Parameter
 
 The `POST /workflows/runs` endpoint supports a `subscribe_task` parameter:
 
@@ -541,7 +541,7 @@ curl -X POST "http://localhost:8080/workflows/runs?session_id=my-session-id" \
 - An active WebSocket connection with the matching session ID must exist
 - `wait_for_completion` must be `false` (combining both is not allowed, returns 400)
 
-### 7.5.2 `wait_for_completion` and `subscribe_task` Combinations
+### 8.5.2 `wait_for_completion` and `subscribe_task` Combinations
 
 | wait_for_completion | subscribe_task | Behavior |
 |---------------------|----------------|----------|
@@ -550,7 +550,7 @@ curl -X POST "http://localhost:8080/workflows/runs?session_id=my-session-id" \
 | `false` | `true` | Returns PENDING immediately + auto-subscribes via WebSocket. **Recommended pattern.** |
 | `true` | `true` | **Not allowed.** Returns 400 Bad Request. |
 
-### 7.5.3 Pattern: WebSocket First + REST Execution
+### 8.5.3 Pattern: WebSocket First + REST Execution
 
 The recommended pattern for REST + WebSocket integration:
 
@@ -590,9 +590,9 @@ ws.onopen = async () => {
 
 ---
 
-## 7.6 Usage Patterns
+## 8.6 Usage Patterns
 
-### 7.6.1 Pattern 1: Execute and Monitor via WebSocket
+### 8.6.1 Pattern 1: Execute and Monitor via WebSocket
 
 The simplest pattern — execute a workflow and receive updates over a single WebSocket connection.
 
@@ -672,7 +672,7 @@ async def run_and_monitor():
 asyncio.run(run_and_monitor())
 ```
 
-### 7.6.2 Pattern 2: Interactive Interrupt/Resume
+### 8.6.2 Pattern 2: Interactive Interrupt/Resume
 
 Handle workflows with human-in-the-loop interrupt points.
 
@@ -717,7 +717,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 7.6.3 Pattern 3: Subscribe to Existing Task
+### 8.6.3 Pattern 3: Subscribe to Existing Task
 
 Monitor a task that was started via REST API or another client.
 
@@ -756,7 +756,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 7.6.4 Pattern 4: Per-Job Progress Visualization
+### 8.6.4 Pattern 4: Per-Job Progress Visualization
 
 Render a progress timeline by listening to `job_event` messages alongside `task_state`. Useful when you need to show users *which job is running right now* instead of just an overall spinner.
 
@@ -798,7 +798,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 7.6.5 Pattern 5: Multi-Task Dashboard
+### 8.6.5 Pattern 5: Multi-Task Dashboard
 
 Monitor multiple tasks over a single WebSocket connection.
 
@@ -854,22 +854,22 @@ ws.onmessage = (event) => {
 
 ---
 
-## 7.7 Connection Management
+## 8.7 Connection Management
 
-### 7.7.1 Session and Reconnection
+### 8.7.1 Session and Reconnection
 
 - Each WebSocket connection is identified by a session ID (auto-generated or specified via `?session=`).
 - If a connection drops, you can reconnect with the same session ID (after the previous connection is fully closed).
 - To create a new session, simply omit the `?session=` parameter or use a new UUID.
 
-### 7.7.2 Connection Lifecycle
+### 8.7.2 Connection Lifecycle
 
 When a WebSocket connection closes:
 - All task subscriptions for that client are automatically removed.
 - Running workflows are **not** affected — WebSocket is a monitoring/control channel, not tied to workflow execution.
 - The client can reconnect and re-subscribe to continue monitoring.
 
-### 7.7.3 Connection Limits
+### 8.7.3 Connection Limits
 
 When `max_connections` is configured and the limit is reached, new connections are rejected with close code `4429` (Too Many Connections).
 
@@ -880,7 +880,7 @@ controller:
     max_connections: 50  # Reject connections beyond 50
 ```
 
-### 7.7.4 Keep-Alive with Ping
+### 8.7.4 Keep-Alive with Ping
 
 Use the `ping` message to verify the connection is alive:
 
@@ -895,15 +895,15 @@ setInterval(() => {
 
 ---
 
-## 7.8 Security Considerations
+## 8.8 Security Considerations
 
-### 7.8.1 Session ID Security
+### 8.8.1 Session ID Security
 
 Session IDs (`?session=` and `?session_id=`) are not authentication mechanisms:
 - Anyone who knows a session ID can link REST subscriptions to that session's WebSocket.
 - In untrusted network environments, consider adding token-based authentication at the application level.
 
-### 7.8.2 CORS and Origins
+### 8.8.2 CORS and Origins
 
 The `origins` setting in controller configuration applies to WebSocket connections from browsers:
 
@@ -915,7 +915,7 @@ controller:
 
 Note: This only applies to browser-initiated connections. Server-to-server WebSocket connections are not restricted by CORS.
 
-### 7.8.3 Production Recommendations
+### 8.8.3 Production Recommendations
 
 - Use WSS (WebSocket over TLS) via a reverse proxy
 - Restrict origins to trusted domains
@@ -946,7 +946,7 @@ server {
 
 ---
 
-## 7.9 Best Practices
+## 8.9 Best Practices
 
 ### 1. Use `subscribe_task: true` for Real-Time Monitoring
 
@@ -1065,4 +1065,4 @@ Try these:
 
 ---
 
-**Previous Chapter**: [6. Controller Configuration](./06-controller-configuration.md) | **Next Chapter**: [8. Web UI Configuration](./08-webui-configuration.md)
+**Previous Chapter**: [7. Controller Configuration](./07-controller-configuration.md) | **Next Chapter**: [9. Web UI Configuration](./09-webui-configuration.md)

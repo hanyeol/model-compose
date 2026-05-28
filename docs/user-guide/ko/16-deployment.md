@@ -1,12 +1,12 @@
-# 14. 배포
+# 16. 배포
 
 이 장에서는 model-compose 애플리케이션을 로컬 환경에서 실행하거나 Docker 컨테이너로 배포하는 방법을 설명합니다.
 
 ---
 
-## 15.1 로컬 실행
+## 16.1 로컬 실행
 
-### 15.1.1 기본 실행
+### 16.1.1 기본 실행
 
 model-compose는 기본적으로 네이티브 런타임을 사용하여 로컬 환경에서 직접 실행됩니다.
 
@@ -44,7 +44,7 @@ model-compose down
 3. 서비스 정상 종료
 4. 리소스 정리
 
-### 15.1.2 환경 변수 관리
+### 16.1.2 환경 변수 관리
 
 **`.env` 파일 사용:**
 
@@ -78,7 +78,7 @@ model-compose up -e OPENAI_API_KEY=sk-proj-... -e LOG_LEVEL=debug
 3. 기본 `.env` 파일
 4. 시스템 환경 변수
 
-### 15.1.3 설정 파일 지정
+### 16.1.3 설정 파일 지정
 
 **커스텀 설정 파일 사용:**
 
@@ -92,7 +92,7 @@ model-compose up -f custom-compose.yml
 model-compose up -f base.yml -f override.yml
 ```
 
-### 15.1.4 워크플로우 단독 실행
+### 16.1.4 워크플로우 단독 실행
 
 컨트롤러 없이 워크플로우만 실행:
 
@@ -111,7 +111,7 @@ model-compose run my-workflow --input '{"text": "Hello"}'
 model-compose run my-workflow --input @input.json
 ```
 
-### 15.1.5 디버깅 옵션
+### 16.1.5 디버깅 옵션
 
 **상세 로그 출력:**
 
@@ -129,9 +129,9 @@ logger:
 
 ---
 
-## 15.2 Docker 런타임
+## 16.2 Docker 런타임
 
-### 15.2.1 기본 Docker 설정
+### 16.2.1 기본 Docker 설정
 
 **간단한 Docker 런타임 설정:**
 
@@ -189,7 +189,7 @@ controller:
 - 정수: `포트` (호스트와 컨테이너 동일)
 - 객체: 고급 설정 (아래 참조)
 
-### 15.2.2 고급 Docker 옵션
+### 16.2.2 고급 Docker 옵션
 
 **이미지 빌드 설정:**
 
@@ -345,7 +345,7 @@ controller:
       version: "1.0.0"
 ```
 
-### 15.2.3 볼륨 및 환경 변수
+### 16.2.3 볼륨 및 환경 변수
 
 **볼륨 마운트 - 간단한 형식:**
 
@@ -420,9 +420,9 @@ controller:
 
 ---
 
-## 15.3 Docker 컨테이너 빌드 및 배포
+## 16.3 Docker 컨테이너 빌드 및 배포
 
-### 15.3.1 자동 빌드 프로세스
+### 16.3.1 자동 빌드 프로세스
 
 model-compose는 Docker 런타임 사용 시 자동으로 이미지를 빌드합니다.
 
@@ -475,7 +475,7 @@ COPY model-compose.yml .
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]
 ```
 
-### 15.3.2 커스텀 Dockerfile 사용
+### 16.3.2 커스텀 Dockerfile 사용
 
 프로젝트에 특화된 Docker 이미지를 사용하려면 커스텀 Dockerfile을 작성할 수 있습니다.
 
@@ -533,7 +533,7 @@ controller:
       dockerfile: Dockerfile       # 커스텀 Dockerfile (필수)
 ```
 
-### 15.3.3 멀티 스테이지 빌드
+### 16.3.3 멀티 스테이지 빌드
 
 **개발/프로덕션 분리:**
 
@@ -593,7 +593,7 @@ controller:
       target: development
 ```
 
-### 15.3.4 이미지 레지스트리 사용
+### 16.3.4 이미지 레지스트리 사용
 
 **이미지 빌드 및 푸시:**
 
@@ -622,7 +622,7 @@ controller:
 2. 컨테이너 생성 및 시작
 3. 로컬 빌드 과정 생략
 
-### 15.3.5 프라이빗 레지스트리 인증
+### 16.3.5 프라이빗 레지스트리 인증
 
 **Docker 로그인:**
 
@@ -642,9 +642,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ---
 
-## 15.4 프로덕션 환경 고려사항
+## 16.4 프로덕션 환경 고려사항
 
-### 15.4.1 동시성 제어
+### 16.4.1 동시성 제어
 
 **컨트롤러 레벨 동시성:**
 
@@ -671,7 +671,7 @@ components:
     max_concurrent_count: 5        # 이 컴포넌트는 최대 5개 동시 요청
 ```
 
-### 15.4.2 리소스 제한
+### 16.4.2 리소스 제한
 
 **메모리 제한:**
 
@@ -703,7 +703,7 @@ CPU 설정:
 - `cpus`: 절대적 CPU 제한 (0.5 = 50%, 2.0 = 200%)
 - `cpu_shares`: 상대적 가중치 (기본값 1024)
 
-### 15.4.3 재시작 정책
+### 16.4.3 재시작 정책
 
 **자동 재시작 설정:**
 
@@ -719,7 +719,7 @@ controller:
 - `unless-stopped`: 수동 중지 전까지 재시작
 - `on-failure`: 오류 시에만 재시작
 
-### 15.4.4 헬스 체크
+### 16.4.4 헬스 체크
 
 **HTTP 엔드포인트 헬스 체크:**
 
@@ -758,7 +758,7 @@ controller:
       interval: 20s
 ```
 
-### 15.4.5 보안 고려사항
+### 16.4.5 보안 고려사항
 
 **비권한 모드 실행:**
 
@@ -813,7 +813,7 @@ controller:
       - isolated-network           # 격리된 네트워크 사용
 ```
 
-### 15.4.6 데이터 영속성
+### 16.4.6 데이터 영속성
 
 **볼륨 마운트로 데이터 보존:**
 
@@ -842,9 +842,9 @@ docker volume inspect model-cache
 
 ---
 
-## 15.5 모니터링 및 로깅
+## 16.5 모니터링 및 로깅
 
-### 15.5.1 로거 설정
+### 16.5.1 로거 설정
 
 **콘솔 로거:**
 
@@ -888,7 +888,7 @@ logger:
     level: error                   # 오류 전용 로그
 ```
 
-### 15.5.2 Docker 컨테이너 로그
+### 16.5.2 Docker 컨테이너 로그
 
 **실시간 로그 확인:**
 
@@ -929,7 +929,7 @@ controller:
         tag: "model-compose"
 ```
 
-### 15.5.3 워크플로우 실행 로깅
+### 16.5.3 워크플로우 실행 로깅
 
 **로거 컴포넌트로 로깅:**
 
@@ -966,7 +966,7 @@ workflows:
           message: "워크플로우 종료"
 ```
 
-### 15.5.4 메트릭 수집
+### 16.5.4 메트릭 수집
 
 **실행 시간 추적:**
 
@@ -1013,7 +1013,7 @@ workflows:
           tokens_used: ${output.usage.total_tokens}
 ```
 
-### 15.5.5 외부 모니터링 시스템
+### 16.5.5 외부 모니터링 시스템
 
 **Prometheus 연동 예제:**
 
@@ -1059,7 +1059,7 @@ controller:
       service: model-compose
 ```
 
-### 15.5.6 트레이서 설정
+### 16.5.6 트레이서 설정
 
 트레이서는 워크플로우 및 작업 실행의 구조화된 트레이싱 데이터를 Langfuse 등 외부 관측 도구로 전송합니다.
 
@@ -1121,7 +1121,7 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-## 15.6 배포 모범 사례
+## 16.6 배포 모범 사례
 
 ### 환경별 배포 전략
 
@@ -1182,4 +1182,4 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-**다음 장**: [16. 실전 예제](./16-practical-examples.md)
+**다음 장**: [17. 실전 예제](./17-practical-examples.md)

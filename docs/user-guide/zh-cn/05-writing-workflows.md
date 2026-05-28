@@ -1007,7 +1007,7 @@ graph TB
 
 当组件支持流式传输时，您可以实时流式传输数据。
 
-> **有关更多详细信息，请参阅 [第 11 章：流式模式](./12-streaming-mode.md)。**
+> **有关更多详细信息，请参阅 [第 13 章：流式模式](./13-streaming-mode.md)。**
 
 ### 组件中的流式配置
 
@@ -1342,4 +1342,4 @@ workflows:
 
 ---
 
-**下一章**: [6. 控制器配置](./06-controller-configuration.md)
+**下一章**：[第6章：工作流 Schema](./06-workflow-schema.md)

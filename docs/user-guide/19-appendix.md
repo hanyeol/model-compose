@@ -1,12 +1,12 @@
-# 18. Appendix
+# 19. Appendix
 
 This chapter provides advanced reference materials for model-compose.
 
 ---
 
-## 18.1 Complete Configuration File Schema
+## 19.1 Complete Configuration File Schema
 
-### 18.1.1 Top-Level Structure
+### 19.1.1 Top-Level Structure
 
 ```yaml
 controller:        # Required: HTTP or MCP server configuration
@@ -47,7 +47,7 @@ logger:            # Instead of loggers: [ ... ]
 action:            # Instead of actions: [ ... ] (within a component)
 ```
 
-### 18.1.2 Controller Schema
+### 19.1.2 Controller Schema
 
 **HTTP Server**:
 ```yaml
@@ -81,7 +81,7 @@ controller:
     port: 8081
 ```
 
-### 18.1.3 Component Schema
+### 19.1.3 Component Schema
 
 **Model Component**:
 ```yaml
@@ -279,7 +279,7 @@ components:
       - ${input.message}
 ```
 
-### 18.1.4 Workflow Schema
+### 19.1.4 Workflow Schema
 
 **Basic Structure**:
 ```yaml
@@ -329,7 +329,7 @@ workflows:
   duration: 5s           # Wait 5 seconds
 ```
 
-### 18.1.5 Listener Schema
+### 19.1.5 Listener Schema
 
 ```yaml
 listeners:
@@ -357,7 +357,7 @@ listeners:
       interval: 60
 ```
 
-### 18.1.6 Gateway Schema
+### 19.1.6 Gateway Schema
 
 **ngrok**:
 ```yaml
@@ -397,7 +397,7 @@ gateways:
         password: ${env.SSH_PASSWORD}
 ```
 
-### 18.1.7 Logger Schema
+### 19.1.7 Logger Schema
 
 **Console Logger**:
 ```yaml
@@ -419,7 +419,7 @@ loggers:
       backup_count: 5
 ```
 
-### 18.1.8 Tracer Schema
+### 19.1.8 Tracer Schema
 
 **Langfuse Tracer**:
 ```yaml
@@ -438,7 +438,7 @@ tracers:
       max_payload_bytes: 1048576           # Max payload size (bytes)
 ```
 
-### 18.1.9 Runtime Schema
+### 19.1.9 Runtime Schema
 
 **Docker Runtime**:
 ```yaml
@@ -496,4 +496,4 @@ Try these exercises:
 
 ---
 
-**Previous Chapter**: [17. Troubleshooting](./17-troubleshooting.md)
+**Previous Chapter**: [18. Troubleshooting](./18-troubleshooting.md)

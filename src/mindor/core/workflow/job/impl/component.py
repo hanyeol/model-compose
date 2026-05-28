@@ -22,7 +22,6 @@ class ComponentJob(Job):
             await component.start()
 
         input = (await context.render_variable(self.config.input)) if self.config.input else context.input
-        context.register_source("input", input)
         outputs = []
 
         async def _run_once(input: Any):

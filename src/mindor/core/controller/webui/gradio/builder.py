@@ -237,7 +237,7 @@ class GradioWebUIBuilder:
         return input
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if self._is_media_variable_type(variable.type) and (not variable.internal or not variable.format):
+        if self._is_media_variable(variable) and (not variable.internal or not variable.format):
             if variable.internal and variable.format and variable.format != "path":
                 value = await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
@@ -462,5 +462,5 @@ class GradioWebUIBuilder:
 
         return await save_stream_to_temporary_file(stream, variable.subtype)
 
-    def _is_media_variable_type(self, type: WorkflowVariableType) -> bool:
-        return type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]
+    def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
+        return variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]

@@ -666,3 +666,141 @@ class TestHttpClientIntegration:
         # Action only overrides Authorization
         assert len(action_config.headers) == 1
         assert action_config.headers["Authorization"] == "Bearer custom-token"
+
+
+class TestHttpClientRateLimitConfig:
+    """Test rate_limit field on HttpClientComponentConfig."""
+
+    def test_no_rate_limit(self):
+        config = HttpClientComponentConfig(id="client", type="http-client")
+        assert config.rate_limit is None
+
+    def test_object_form_full(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit={
+                "requests": 60,
+                "period": "1m",
+                "burst": 10,
+                "interval": "100ms"
+            }
+        )
+        assert config.rate_limit is not None
+        assert config.rate_limit.requests == 60
+        assert config.rate_limit.period == "1m"
+        assert config.rate_limit.burst == 10
+        assert config.rate_limit.interval == "100ms"
+
+    def test_object_form_requests_only(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit={"requests": 10, "period": "1s"}
+        )
+        assert config.rate_limit.requests == 10
+        assert config.rate_limit.period == "1s"
+        assert config.rate_limit.burst is None
+        assert config.rate_limit.interval is None
+
+    def test_object_form_interval_only(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit={"interval": "250ms"}
+        )
+        assert config.rate_limit.requests is None
+        assert config.rate_limit.interval == "250ms"
+
+    def test_shorthand_per_second(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit="10/s"
+        )
+        assert config.rate_limit.requests == 10
+        assert config.rate_limit.period == "1s"
+
+    def test_shorthand_per_minute(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit="60/m"
+        )
+        assert config.rate_limit.requests == 60
+        assert config.rate_limit.period == "1m"
+
+    def test_shorthand_with_quantity_ms(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit="5/500ms"
+        )
+        assert config.rate_limit.requests == 5
+        assert config.rate_limit.period == "500ms"
+
+    def test_shorthand_with_fractional_quantity(self):
+        config = HttpClientComponentConfig(
+            id="client",
+            type="http-client",
+            rate_limit="100/1.5s"
+        )
+        assert config.rate_limit.requests == 100
+        assert config.rate_limit.period == "1.5s"
+
+    def test_shorthand_invalid_missing_slash(self):
+        with pytest.raises(ValidationError) as exc_info:
+            HttpClientComponentConfig(id="client", type="http-client", rate_limit="10s")
+        assert "Invalid rate_limit shorthand" in str(exc_info.value)
+
+    def test_shorthand_invalid_missing_unit(self):
+        with pytest.raises(ValidationError) as exc_info:
+            HttpClientComponentConfig(id="client", type="http-client", rate_limit="10/")
+        assert "Invalid rate_limit shorthand" in str(exc_info.value)
+
+    def test_shorthand_invalid_non_numeric(self):
+        with pytest.raises(ValidationError) as exc_info:
+            HttpClientComponentConfig(id="client", type="http-client", rate_limit="abc/s")
+        assert "Invalid rate_limit shorthand" in str(exc_info.value)
+
+    def test_zero_requests_rejected(self):
+        with pytest.raises(ValidationError):
+            HttpClientComponentConfig(
+                id="client",
+                type="http-client",
+                rate_limit={"requests": 0, "period": "1s"}
+            )
+
+    def test_zero_period_rejected(self):
+        with pytest.raises(ValidationError):
+            HttpClientComponentConfig(
+                id="client",
+                type="http-client",
+                rate_limit={"requests": 10, "period": "0s"}
+            )
+
+    def test_negative_interval_rejected(self):
+        with pytest.raises(ValidationError):
+            HttpClientComponentConfig(
+                id="client",
+                type="http-client",
+                rate_limit={"interval": "-1s"}
+            )
+
+    def test_burst_without_requests_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            HttpClientComponentConfig(
+                id="client",
+                type="http-client",
+                rate_limit={"burst": 10}
+            )
+        assert "burst is meaningless without requests" in str(exc_info.value)
+
+    def test_empty_rate_limit_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            HttpClientComponentConfig(
+                id="client",
+                type="http-client",
+                rate_limit={}
+            )
+        assert "at least one of 'requests' or 'interval'" in str(exc_info.value)

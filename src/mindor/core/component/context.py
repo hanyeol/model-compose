@@ -24,7 +24,7 @@ class ComponentActionContext:
     async def render_variable(self, value: Any, ignore_files: bool = False) -> Any:
         return await self.renderer.render(value, ignore_files)
 
-    async def render_image(self, value: Any) -> Optional[PILImage.Image]:
+    async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))
 
     async def render_file(self, value: Any) -> Optional[str]:

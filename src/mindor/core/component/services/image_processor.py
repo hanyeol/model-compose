@@ -70,8 +70,8 @@ class ImageProcessorAction:
         height = await context.render_variable(self.config.height)
 
         if image:
-            return image.crop(x, y, x + width, y + height)
-        
+            return image.crop((x, y, x + width, y + height))
+
         return None
 
     async def _rotate(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
@@ -112,6 +112,8 @@ class ImageProcessorAction:
         if image:
             return image.filter(ImageFilter.GaussianBlur(radius=radius))
 
+        return None
+
     async def _sharpen(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
         image  = await context.render_image(self.config.image)
         factor = await context.render_variable(self.config.factor)
@@ -119,7 +121,7 @@ class ImageProcessorAction:
         if image:
             return ImageEnhance.Sharpness(image).enhance(factor)
 
-        return FileNotFoundError
+        return None
 
     async def _adjust_brightness(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
         image  = await context.render_image(self.config.image)
@@ -137,7 +139,7 @@ class ImageProcessorAction:
         if image:
             return ImageEnhance.Contrast(image).enhance(factor)
 
-        return image
+        return None
 
     async def _adjust_saturation(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
         image  = await context.render_image(self.config.image)

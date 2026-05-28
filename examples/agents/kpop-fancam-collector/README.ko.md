@@ -124,7 +124,7 @@
 - **기능**:
   - 정적 HTML 스크래핑 (JavaScript 실행 불필요)
   - dict 형태 `selector`로 한 번의 페이지 fetch에서 세 필드(width, height, duration)를 추출 — key가 그대로 결과 필드명이 됨
-  - `max_concurrent_count: 1`과 호출당 throttle delay로 Google rate limiting(429) 회피
+  - `rate_limit: { interval: 1500ms }`로 호출 사이에 최소 1.5초 간격을 강제해 Google rate limiting(429) 회피
   - duration은 ISO 8601 형식(예: `PT3M14S`)으로 반환되며, 에이전트가 mm:ss로 변환해 요약에 포함
 
 ### GPT-4o 컴포넌트 (gpt-4o)
@@ -146,7 +146,6 @@ graph TD
     JM((main<br/>작업))
     JS((search<br/>작업))
     JD((scrape<br/>작업))
-    JT((throttle<br/>지연))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>에이전트]
@@ -168,7 +167,6 @@ graph TD
     CA -.-> |도구 호출| JD
     JD --> CD
     CD -.-> |width, height, duration| JD
-    JD --> JT
 ```
 
 #### 입력 매개변수

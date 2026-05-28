@@ -124,7 +124,7 @@ This workflow provides an end-to-end K-POP fancam discovery service that:
 - **Features**:
   - Static HTML scraping (no JavaScript execution required)
   - Dict-form `selector` extracts all three fields (width, height, duration) from a single page fetch — keys map directly to result fields
-  - `max_concurrent_count: 1` plus a per-call throttle delay to avoid Google rate limiting (429)
+  - `rate_limit: { interval: 1500ms }` enforces at least 1.5s between calls to avoid Google rate limiting (429)
   - Duration is returned in ISO 8601 format (e.g. `PT3M14S`) — the agent converts it to mm:ss for the summary
 
 ### GPT-4o Component (gpt-4o)
@@ -146,7 +146,6 @@ graph TD
     JM((main<br/>job))
     JS((search<br/>job))
     JD((scrape<br/>job))
-    JT((throttle<br/>delay))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>Agent]
@@ -168,7 +167,6 @@ graph TD
     CA -.-> |tool call| JD
     JD --> CD
     CD -.-> |width, height, duration| JD
-    JD --> JT
 ```
 
 #### Input Parameters

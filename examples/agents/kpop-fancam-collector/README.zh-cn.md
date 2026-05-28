@@ -124,7 +124,7 @@
 - **特性**:
   - 静态 HTML 抓取(无需执行 JavaScript)
   - 通过字典形式 `selector` 在一次页面抓取中提取三个字段(width, height, duration) — 键直接对应结果字段名
-  - `max_concurrent_count: 1` 与每次调用后的 throttle 延迟,避免 Google 速率限制(429)
+  - `rate_limit: { interval: 1500ms }` 强制调用之间至少间隔 1.5 秒,避免 Google 速率限制(429)
   - 时长以 ISO 8601 格式返回(如 `PT3M14S`),代理会将其转换为 mm:ss 加入摘要
 
 ### GPT-4o 组件 (gpt-4o)
@@ -146,7 +146,6 @@ graph TD
     JM((main<br/>作业))
     JS((search<br/>作业))
     JD((scrape<br/>作业))
-    JT((throttle<br/>延迟))
 
     %% Components (rectangles)
     CA[fancam-agent<br/>代理]
@@ -168,7 +167,6 @@ graph TD
     CA -.-> |工具调用| JD
     JD --> CD
     CD -.-> |width, height, duration| JD
-    JD --> JT
 ```
 
 #### 输入参数

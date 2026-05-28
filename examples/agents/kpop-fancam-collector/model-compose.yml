@@ -55,12 +55,6 @@ workflows:
           width: ${output.width as integer}
           height: ${output.height as integer}
           duration: ${output.duration}
-      - id: throttle
-        type: delay
-        mode: time-interval
-        duration: 1.5
-        output: ${jobs.scrape.output}
-        depends_on: [ scrape ]
 
 components:
   - id: fancam-agent
@@ -163,7 +157,8 @@ components:
 
   - id: youtube-metadata-scraper
     type: web-scraper
-    max_concurrent_count: 1
+    rate_limit:
+      interval: 1500ms
     action:
       url: https://www.youtube.com/watch?v=${input.video_id}
       selector:

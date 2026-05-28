@@ -17,7 +17,7 @@ class WorkflowVariableType(str, Enum):
     # Encoded data
     BASE64   = "base64"
     MARKDOWN = "markdown"
-    # Media and files
+    # Media
     IMAGE    = "image"
     AUDIO    = "audio"
     VIDEO    = "video"

@@ -75,7 +75,6 @@ class GradioWebUIBuilder:
                 output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
             output_components = self._flatten_output_components(output_components)
-            has_media_output = self._has_media_output(workflow.output)
 
             def _run_button_running():
                 return gr.update(value="⏳ Running...", interactive=False)
@@ -89,28 +88,23 @@ class GradioWebUIBuilder:
             def _resume_button_ready():
                 return gr.update(value="▶️ Resume", interactive=True)
 
-            def _workflow_done():
-                return _run_button_running() if has_media_output else _run_button_ready()
-
-            if has_media_output:
-                media_components = self._collect_media_output_components(workflow.output, output_components)
-                for component in media_components:
-                    component.change(fn=_run_button_ready, inputs=None, outputs=run_button)
-
             async def _run_workflow(*args):
                 yield [ _run_button_running(), *self._clear_interrupt_updates(), *self._clear_output_values(workflow.output) ]
 
                 input  = await self._build_input_value(args, workflow.input)
                 output = await runner().run_workflow(workflow_id, input, workflow)
 
+                # Check if the result is an interrupted TaskResult
                 if isinstance(output, dict) and output.get("status") == "interrupted" and "task_id" in output:
                     yield [ _run_button_running(), *self._build_interrupt_updates(output), *(gr.update() for _ in output_components) ]
                     return
 
+                # Check if the result is a failed TaskResult
                 if isinstance(output, dict) and output.get("status") == "failed":
                     yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
                     raise gr.Error(str(output.get("error", "Workflow failed")))
 
+                # Clear interrupt panel for normal results
                 clear_interrupt = self._clear_interrupt_updates()
 
                 if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
@@ -126,15 +120,15 @@ class GradioWebUIBuilder:
                         yield [ _run_button_ready(), *clear_interrupt, buffer ]
                     else:
                         result = await self._save_stream_to_temporary_file(output, workflow.output[0])
-                        yield [ _workflow_done(), *clear_interrupt, result ]
+                        yield [ _run_button_ready(), *clear_interrupt, result ]
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
                     result = output[0] if len(output) == 1 else output
                     if isinstance(result, (list, tuple)):
-                        yield [ _workflow_done(), *clear_interrupt, *result ]
+                        yield [ _run_button_ready(), *clear_interrupt, *result ]
                     else:
-                        yield [ _workflow_done(), *clear_interrupt, result ]
+                        yield [ _run_button_ready(), *clear_interrupt, result ]
 
             async def _resume_workflow(state: Optional[Dict[str, str]], answer_text: str):
                 yield [ _run_button_running(), _resume_button_running(), *(gr.update() for _ in interrupt_components), *(gr.update() for _ in output_components) ]
@@ -158,10 +152,12 @@ class GradioWebUIBuilder:
 
                 clear_interrupt = self._clear_interrupt_updates()
 
+                # Check if the result is a failed TaskResult
                 if result.get("status") == "failed":
                     yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
                     raise gr.Error(str(result.get("error", "Workflow failed")))
 
+                # Completed — fetch output
                 output = await runner().get_task_output(task_id)
                 if workflow.output and output is not None:
                     output = await self._flatten_output_value(output, workflow.output)
@@ -172,9 +168,9 @@ class GradioWebUIBuilder:
                 if result is None:
                     yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, *(gr.update() for _ in output_components) ]
                 elif isinstance(result, (list, tuple)):
-                    yield [ _workflow_done(), _resume_button_ready(), *clear_interrupt, *result ]
+                    yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, *result ]
                 else:
-                    yield [ _workflow_done(), _resume_button_ready(), *clear_interrupt, result ]
+                    yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, result ]
 
             run_button.click(
                 fn=_run_workflow,
@@ -241,7 +237,7 @@ class GradioWebUIBuilder:
         return input
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ] and (not variable.internal or not variable.format):
+        if self._is_media_variable_type(variable.type) and (not variable.internal or not variable.format):
             if variable.internal and variable.format and variable.format != "path":
                 value = await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
@@ -343,34 +339,6 @@ class GradioWebUIBuilder:
             else:
                 flattened.append(item)
         return flattened
-
-    def _is_media_variable_type(self, type: WorkflowVariableType) -> bool:
-        return type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.IMAGE, WorkflowVariableType.FILE ]
-
-    def _flatten_output_variables(
-        self,
-        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
-    ) -> List[WorkflowVariableConfig]:
-        flattened: List[WorkflowVariableConfig] = []
-        for variable in variables:
-            if isinstance(variable, WorkflowVariableGroupConfig):
-                count = variable.repeat_count if variable.repeat_count != 0 else 100
-                for _ in range(count):
-                    flattened.extend(self._flatten_output_variables(variable.variables))
-            else:
-                flattened.append(variable)
-        return flattened
-
-    def _has_media_output(self, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> bool:
-        return any(self._is_media_variable_type(v.type) for v in self._flatten_output_variables(variables))
-
-    def _collect_media_output_components(
-        self,
-        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
-        components: List[gr.Component]
-    ) -> List[gr.Component]:
-        flattened_variables = self._flatten_output_variables(variables)
-        return [ component for variable, component in zip(flattened_variables, components) if self._is_media_variable_type(variable.type) ]
 
     def _clear_output_values(self, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> List[Any]:
         cleared = []
@@ -493,3 +461,6 @@ class GradioWebUIBuilder:
             return await save_stream_to_temporary_file(WavStreamResource(PcmStreamResource(stream, variable.attrs)), "wav")
 
         return await save_stream_to_temporary_file(stream, variable.subtype)
+
+    def _is_media_variable_type(self, type: WorkflowVariableType) -> bool:
+        return type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]

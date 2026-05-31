@@ -23,7 +23,6 @@ dependencies = [
     "uvicorn",
     "mcp>=1.10.1",
     "ulid",
-    "gradio>=6.0.0",
     "Pillow",
     "beautifulsoup4",
     "lxml",

@@ -356,6 +356,7 @@ class ControllerService(AsyncService):
             await self._start_adapters()
 
             if self.config.webui:
+                await self._setup_webui()
                 await self._start_webui()
 
             asyncio.create_task(self._watch_stop_request())
@@ -484,6 +485,9 @@ class ControllerService(AsyncService):
 
     async def _stop_adapters(self) -> None:
         await asyncio.gather(*[ adapter.stop() for adapter in self._create_adapters() ])
+
+    async def _setup_webui(self) -> None:
+        await asyncio.gather(*[ self._create_webui().setup() ])
 
     async def _start_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().start() ])

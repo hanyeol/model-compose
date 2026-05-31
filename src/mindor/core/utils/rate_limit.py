@@ -12,7 +12,7 @@ class RateLimiter:
         self._interval_enabled: bool = config.interval is not None
 
         if self._token_bucket_enabled:
-            self._period_seconds: float = parse_duration(config.period).total_seconds()
+            self._period_seconds: float = parse_duration(config.period)
             self._refill_rate: float = config.requests / self._period_seconds
             self._capacity: float = float(config.burst if config.burst is not None else config.requests)
             self._tokens: float = self._capacity
@@ -25,7 +25,7 @@ class RateLimiter:
             self._last_refill = 0.0
 
         if self._interval_enabled:
-            self._interval_seconds: float = parse_duration(config.interval).total_seconds()
+            self._interval_seconds: float = parse_duration(config.interval)
             self._next_allowed_at: float = 0.0
         else:
             self._interval_seconds = 0.0

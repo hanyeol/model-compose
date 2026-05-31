@@ -38,7 +38,7 @@ class WebScraperAction:
         # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }
         merged_cookies = { **self.cookies, **cookies }
-        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0).total_seconds()
+        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
 
         # Fetch HTML content (with optional form submission)
         if submit or enable_javascript:

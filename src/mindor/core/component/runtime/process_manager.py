@@ -39,8 +39,8 @@ class ComponentProcessRuntimeManager(ProcessRuntimeManager):
         """Convert DSL ProcessRuntimeConfig to foundation ProcessWorkerParams"""
         return ProcessWorkerParams(
             env=config.env,
-            start_timeout=parse_duration(config.start_timeout).total_seconds(),
-            stop_timeout=parse_duration(config.stop_timeout).total_seconds()
+            start_timeout=parse_duration(config.start_timeout),
+            stop_timeout=parse_duration(config.stop_timeout)
         )
 
     def _component_worker_factory(

@@ -364,7 +364,7 @@ class ControllerService(AsyncService):
 
     async def _stop(self) -> None:
         self._shutting_down = True
-        timeout = parse_duration(self.config.shutdown_timeout).total_seconds()
+        timeout = parse_duration(self.config.shutdown_timeout)
 
         if self._inflight_tasks:
             logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))

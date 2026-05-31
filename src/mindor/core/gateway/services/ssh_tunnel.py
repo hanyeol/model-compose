@@ -34,8 +34,8 @@ class SshTunnelGateway(GatewayService):
         return port in self.ports
 
     async def _serve(self) -> None:
-        watch_interval = parse_duration(self.config.connection.watch_interval).total_seconds()
-        retry_interval = parse_duration(self.config.connection.retry_interval).total_seconds()
+        watch_interval = parse_duration(self.config.connection.watch_interval)
+        retry_interval = parse_duration(self.config.connection.retry_interval)
 
         self._shutdown_event = asyncio.Event()
         retry_count = 0
@@ -100,7 +100,7 @@ class SshTunnelGateway(GatewayService):
             host=config.host,
             port=config.port,
             auth=self._build_auth_params(config.auth),
-            keepalive_interval=int(parse_duration(config.keepalive_interval).total_seconds())
+            keepalive_interval=int(parse_duration(config.keepalive_interval))
         )
     
     def _build_auth_params(self, config: SshAuthConfig) -> SshAuthParams:

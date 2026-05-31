@@ -184,7 +184,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
         return self.config.url
 
     def _resolve_timeout(self) -> Optional[float]:
-        timeout = parse_duration(self.config.timeout).total_seconds()
+        timeout = parse_duration(self.config.timeout)
         
         if timeout > 0:
             return timeout
@@ -193,7 +193,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
     def _resolve_blob_ttl(self) -> int:
         if self.config.blob_ttl is not None:
-            return int(parse_duration(self.config.blob_ttl).total_seconds())
+            return int(parse_duration(self.config.blob_ttl))
 
         return 3600
 

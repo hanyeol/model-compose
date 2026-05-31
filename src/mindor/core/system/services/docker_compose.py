@@ -76,7 +76,7 @@ class DockerComposeSystem(SystemService):
         if self.config.wait:
             command.append("--wait")
             if self.config.wait_timeout:
-                timeout_seconds = int(parse_duration(self.config.wait_timeout).total_seconds())
+                timeout_seconds = int(parse_duration(self.config.wait_timeout))
                 command += ["--wait-timeout", str(timeout_seconds)]
 
         return command

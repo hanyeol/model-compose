@@ -31,8 +31,7 @@ class DelayJob(Job):
     
     async def _delay_for_time_interval(self, context: WorkflowContext) -> Any:
         duration = parse_duration((await context.render_variable(self.config.duration)) or 0.0)
-        duration = duration.total_seconds()
-        
+
         job_time_tracker = TimeTracker()
         logging.debug("[task-%s] Delay started for time interval: %d seconds.", context.task_id, int(duration))
 

@@ -73,7 +73,7 @@ class ComponentJob(Job):
         message  = (await context.render_variable(point.message) ) if point.message  else None
         metadata = (await context.render_variable(point.metadata)) if point.metadata else None
 
-        loop = asyncio.get_running_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         future = loop.create_future()
 
         point = InterruptPoint(

@@ -65,7 +65,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _consumer_loop(self, worker_index: int, queue_keys: list[str]) -> None:
         while not self._stop_event.is_set():
             try:
-                result = await self._client.brpop(queue_keys, timeout=int(parse_duration(self.config.pop_timeout).total_seconds()))
+                result = await self._client.brpop(queue_keys, timeout=int(parse_duration(self.config.pop_timeout)))
 
                 if result is None:
                     continue
@@ -139,7 +139,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             **(self._get_task_output(state) or {}),
         }, default=str)
 
-        result_ttl = int(parse_duration(self.config.result_ttl).total_seconds())
+        result_ttl = int(parse_duration(self.config.result_ttl))
         if result_ttl > 0:
             await self._client.setex(result_key, result_ttl, result)
         else:
@@ -150,7 +150,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     async def _publish_stream_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"
         stream_key = f"{result_key}:stream"
-        result_ttl = int(parse_duration(self.config.result_ttl).total_seconds())
+        result_ttl = int(parse_duration(self.config.result_ttl))
 
         result = json.dumps({
             "task_id": task_id,

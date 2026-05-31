@@ -1,17 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VectorStoreComponentConfig, VectorStoreDriver
-from mindor.dsl.schema.action import ActionConfig, VectorStoreActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import VectorStoreService, VectorStoreServiceRegistry
-
-class VectorStoreAction:
-    def __init__(self, config: VectorStoreActionConfig):
-        self.config: VectorStoreActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: VectorStoreService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.VECTOR_STORE)
 class VectorStoreComponent(ComponentService):
@@ -44,4 +37,4 @@ class VectorStoreComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await VectorStoreAction(action).run(context, self.service)
+        return await self.service.run(action, context)

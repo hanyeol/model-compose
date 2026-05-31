@@ -257,7 +257,7 @@ class ChromaVectorStoreService(VectorStoreService):
             return HttpClient(
                 **self._resolve_connection_params(),
                 **self._resolve_database_params(),
-                timeout=parse_duration(self.config.timeout).total_seconds()
+                timeout=parse_duration(self.config.timeout)
             )
 
         if self.config.mode == "local":

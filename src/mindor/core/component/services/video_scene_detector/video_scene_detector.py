@@ -1,17 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, VideoSceneDetectorDriver
-from mindor.dsl.schema.action import ActionConfig, VideoSceneDetectorActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import VideoSceneDetectorService, VideoSceneDetectorServiceRegistry
-
-class VideoSceneDetectorAction:
-    def __init__(self, config: VideoSceneDetectorActionConfig):
-        self.config: VideoSceneDetectorActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: VideoSceneDetectorService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.VIDEO_SCENE_DETECTOR)
 class VideoSceneDetectorComponent(ComponentService):
@@ -44,4 +37,4 @@ class VideoSceneDetectorComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await VideoSceneDetectorAction(action).run(context, self.service)
+        return await self.service.run(action, context)

@@ -1,17 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoConverterComponentConfig, VideoConverterDriver
-from mindor.dsl.schema.action import ActionConfig, VideoConverterActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import VideoConverterService, VideoConverterServiceRegistry
-
-class VideoConverterAction:
-    def __init__(self, config: VideoConverterActionConfig):
-        self.config: VideoConverterActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: VideoConverterService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.VIDEO_CONVERTER)
 class VideoConverterComponent(ComponentService):
@@ -43,4 +36,4 @@ class VideoConverterComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await VideoConverterAction(action).run(context, self.service)
+        return await self.service.run(action, context)

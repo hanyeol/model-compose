@@ -1,16 +1,9 @@
 from typing import Optional, List, Any
 from mindor.dsl.schema.component import AudioConverterComponentConfig, AudioConverterDriver
-from mindor.dsl.schema.action import ActionConfig, AudioConverterActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import AudioConverterService, AudioConverterServiceRegistry
-
-class AudioConverterAction:
-    def __init__(self, config: AudioConverterActionConfig):
-        self.config: AudioConverterActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: AudioConverterService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.AUDIO_CONVERTER)
 class AudioConverterComponent(ComponentService):
@@ -42,4 +35,4 @@ class AudioConverterComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await AudioConverterAction(action).run(context, self.service)
+        return await self.service.run(action, context)

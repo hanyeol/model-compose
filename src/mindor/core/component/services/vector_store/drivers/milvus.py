@@ -317,7 +317,7 @@ class MilvusVectorStoreService(VectorStoreService):
             user=self.config.user or "",
             password=self.config.password or "",
             db_name=self.config.database or "",
-            timeout=parse_duration(self.config.timeout).total_seconds()
+            timeout=parse_duration(self.config.timeout)
         )
 
     async def _shutdown(self) -> None:

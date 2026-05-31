@@ -706,7 +706,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             return JSONResponse(status_code=202, content=TaskResult.to_dict(state))
 
         if state.status == TaskStatus.FAILED:
-            return JSONResponse(content=TaskResult.to_dict(state))
+            raise HTTPException(status_code=500, detail=str(state.error))
 
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))

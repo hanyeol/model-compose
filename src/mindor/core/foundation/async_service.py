@@ -64,7 +64,7 @@ class AsyncService(ABC):
             await self.daemon_task
 
     def run_in_thread(self, runner: Callable[[], Awaitable[Any]]) -> asyncio.Future:
-        loop = asyncio.get_running_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
 
         def _start_in_thread():

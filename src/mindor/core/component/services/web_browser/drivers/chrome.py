@@ -29,7 +29,7 @@ class ChromeBrowserSession(WebBrowserSession):
         }.get(wait_until)
 
         if event:
-            loop = asyncio.get_running_loop()
+            loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
             nav_done: asyncio.Future = loop.create_future()
 
             async def _on_event(params):

@@ -56,7 +56,7 @@ class CdpClient:
 
     async def send_command(self, method: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         cmd_id = next(self._id_counter)
-        loop = asyncio.get_running_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         self._pending[cmd_id] = future
 

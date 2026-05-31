@@ -219,14 +219,14 @@ class ImageValueRenderer:
     async def _render_element(self, element: Any) -> Any:
         if isinstance(element, UploadFile):
             return await load_image_from_stream(UploadFileStreamResource(element))
-        
-        if isinstance(element, dict):
-            return { key: await self._render_element(value) for key, value in element.items() }
+
+        if isinstance(element, (PILImage.Image, AsyncIterator)):
+            return element
 
         if isinstance(element, (list, tuple)):
             return [ await self._render_element(item) for item in element ]
-        
-        return element if isinstance(element, PILImage.Image) else None
+
+        return None
 
 class FileValueRenderer:
     async def render(self, value: Any) -> Optional[str]:

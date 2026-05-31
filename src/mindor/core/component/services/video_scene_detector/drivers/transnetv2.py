@@ -4,6 +4,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.logger import logging
+from mindor.core.utils.time import format_timecode
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 import asyncio
@@ -52,11 +53,11 @@ class TransNetV2VideoSceneDetectorAction:
 
             scenes.append({
                 "index": i,
-                "start": TransNetV2VideoSceneDetectorAction._format_timecode(start_time),
-                "end": TransNetV2VideoSceneDetectorAction._format_timecode(end_time),
+                "start": format_timecode(start_time),
+                "end": format_timecode(end_time),
                 "start_frame": start_frame,
                 "end_frame": end_frame,
-                "duration": TransNetV2VideoSceneDetectorAction._format_timecode(end_time - start_time)
+                "duration": format_timecode(end_time - start_time)
             })
 
         logging.info(f"TransNetV2 detected {len(scenes)} scenes in '{video}'")
@@ -83,13 +84,6 @@ class TransNetV2VideoSceneDetectorAction:
         numerator, denominator = frame_rate.split("/")
 
         return float(numerator) / float(denominator)
-
-    @staticmethod
-    def _format_timecode(seconds: float) -> str:
-        h = int(seconds // 3600)
-        m = int((seconds % 3600) // 60)
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:06.3f}"
 
 @register_video_scene_detector_service(VideoSceneDetectorDriver.TRANSNETV2)
 class TransNetV2VideoSceneDetectorService(VideoSceneDetectorService):

@@ -4,6 +4,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.logger import logging
+from mindor.core.utils.time import format_timecode
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 import asyncio
@@ -44,11 +45,11 @@ class FFmpegVideoSceneDetectorAction:
             end = boundaries[i + 1]
             scenes.append({
                 "index": i,
-                "start": self._format_timecode(start),
-                "end": self._format_timecode(end),
+                "start": format_timecode(start),
+                "end": format_timecode(end),
                 "start_frame": int(start * frame_rate),
                 "end_frame": int(end * frame_rate),
-                "duration": self._format_timecode(end - start)
+                "duration": format_timecode(end - start)
             })
 
         return { "scenes": scenes, "total_scenes": len(scenes) }
@@ -130,13 +131,6 @@ class FFmpegVideoSceneDetectorAction:
         result = json.loads(stdout.decode("utf-8"))
 
         return float(result["format"]["duration"])
-
-    @staticmethod
-    def _format_timecode(seconds: float) -> str:
-        h = int(seconds // 3600)
-        m = int((seconds % 3600) // 60)
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:06.3f}"
 
 @register_video_scene_detector_service(VideoSceneDetectorDriver.FFMPEG)
 class FFmpegVideoSceneDetectorService(VideoSceneDetectorService):

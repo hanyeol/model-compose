@@ -8,8 +8,8 @@ from fastapi import FastAPI
 import uvicorn
 
 class GradioDriver(WebUIDriver):
-    def __init__(self, config, workflow_schemas, controller_config):
-        super().__init__(config, workflow_schemas, controller_config)
+    def __init__(self, config, workflow_schemas):
+        super().__init__(config, workflow_schemas)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)

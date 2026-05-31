@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
+from mindor.core.controller.base import TaskStatus
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
@@ -18,6 +19,7 @@ import json, re
 
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
+    from mindor.core.controller.base import TaskState
 
 _VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
@@ -92,20 +94,23 @@ class GradioWebUIBuilder:
             async def _run_workflow(*args):
                 yield [ _run_button_running(), *self._clear_interrupt_updates(), *self._clear_output_values(workflow.output) ]
 
-                input  = await self._build_input_value(args, workflow.input)
-                output = await runner().run_workflow(workflow_id, input, workflow)
+                input = await self._build_input_value(args, workflow.input)
 
-                # Check if the result is an interrupted TaskResult
-                if isinstance(output, dict) and output.get("status") == "interrupted" and "task_id" in output:
-                    yield [ _run_button_running(), *self._build_interrupt_updates(output), *(gr.update() for _ in output_components) ]
+                try:
+                    state = await runner().run_workflow(workflow_id, input, workflow)
+                except Exception as e:
+                    yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    raise gr.Error(str(e))
+
+                if state.status == TaskStatus.INTERRUPTED:
+                    yield [ _run_button_running(), *self._build_interrupt_updates(state), *(gr.update() for _ in output_components) ]
                     return
 
-                # Check if the result is a failed TaskResult
-                if isinstance(output, dict) and output.get("status") == "failed":
+                if state.status == TaskStatus.FAILED:
                     yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
-                    raise gr.Error(str(output.get("error", "Workflow failed")))
+                    raise gr.Error(str(state.error))
 
-                # Clear interrupt panel for normal results
+                output = state.output
                 clear_interrupt = self._clear_interrupt_updates()
 
                 if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
@@ -131,10 +136,10 @@ class GradioWebUIBuilder:
                     else:
                         yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, result ]
 
-            async def _resume_workflow(state: Optional[Dict[str, str]], answer_text: str):
+            async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
                 yield [ _run_button_running(), _resume_button_running(), *(gr.update() for _ in interrupt_components), *(gr.update() for _ in output_components) ]
 
-                task_id, job_id = state["task_id"], state["job_id"]
+                task_id, job_id = ui_state["task_id"], ui_state["job_id"]
 
                 # Parse answer: try JSON first, fallback to string
                 answer = answer_text
@@ -144,22 +149,25 @@ class GradioWebUIBuilder:
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-                await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
-                result = await runner().wait_for_completion(task_id)
+                try:
+                    await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
+                    state = await runner().wait_for_completion(task_id)
+                except Exception as e:
+                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    raise gr.Error(str(e))
 
-                if result.get("status") == "interrupted":
-                    yield [ _run_button_running(), _resume_button_ready(), *self._build_interrupt_updates(result), *(gr.update() for _ in output_components) ]
+                if state.status == TaskStatus.INTERRUPTED:
+                    yield [ _run_button_running(), _resume_button_ready(), *self._build_interrupt_updates(state), *(gr.update() for _ in output_components) ]
                     return
+
+                if state.status == TaskStatus.FAILED:
+                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    raise gr.Error(str(state.error))
 
                 clear_interrupt = self._clear_interrupt_updates()
 
-                # Check if the result is a failed TaskResult
-                if result.get("status") == "failed":
-                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
-                    raise gr.Error(str(result.get("error", "Workflow failed")))
-
-                # Completed — fetch output
-                output = await runner().get_task_output(task_id)
+                # Completed
+                output = state.output
                 if workflow.output and output is not None:
                     output = await self._flatten_output_value(output, workflow.output)
                     result = output[0] if len(output) == 1 else output
@@ -269,14 +277,14 @@ class GradioWebUIBuilder:
 
         return [ message, metadata, answer ]
 
-    def _build_interrupt_updates(self, result: dict) -> List[Any]:
-        interrupt = result.get("interrupt", {})
-        state = { "task_id": result["task_id"], "job_id": interrupt.get("job_id") }
-        message = interrupt.get("message") or "The workflow is waiting for your input."
-        metadata = interrupt.get("metadata")
+    def _build_interrupt_updates(self, state: "TaskState") -> List[Any]:
+        interrupt = state.interrupt
+        ui_state = { "task_id": state.task_id, "job_id": interrupt.job_id if interrupt else None }
+        message = (interrupt.message if interrupt else None) or "The workflow is waiting for your input."
+        metadata = interrupt.metadata if interrupt else None
 
         return [
-            state,
+            ui_state,
             gr.update(visible=True),
             gr.update(value=message),
             gr.update(value=metadata, visible=metadata is not None),

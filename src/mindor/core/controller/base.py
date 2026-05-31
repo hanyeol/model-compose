@@ -512,7 +512,7 @@ class ControllerService(AsyncService):
         return create_workflow(*WorkflowResolver(self.workflows).resolve(workflow_id), global_configs)
 
     def _create_webui(self) -> ControllerWebUI:
-        return create_webui(self.config.webui, self.config, self.components, self.workflows, self.daemon)
+        return create_webui(self.config.webui, self.components, self.workflows, self.daemon)
 
     def _create_tracers(self) -> List[TracerService]:
         return [ create_tracer(f"tracer-{index}", config, self.daemon) for index, config in enumerate(self.tracers) ]

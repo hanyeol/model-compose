@@ -24,7 +24,7 @@ class ShellAction:
         command = await context.render_variable(self.config.command)
         env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
 
-        timeout = parse_duration(self.config.timeout).total_seconds() if self.config.timeout else None
+        timeout = parse_duration(self.config.timeout) if self.config.timeout else None
         result = await self._run_command(command, working_dir, env, timeout)
         context.register_source("result", result)
 

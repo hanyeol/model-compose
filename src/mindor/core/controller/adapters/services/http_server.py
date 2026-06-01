@@ -41,6 +41,11 @@ class WorkflowResumeRequestBody(BaseModel):
     job_id: str
     answer: Optional[Any] = None
 
+class WebSocketMessage(BaseModel):
+    type: str
+    id: Optional[str] = None
+    data: Dict[str, Any] = {}
+
 class InterruptResult(BaseModel):
     job_id: str
     phase: Literal[ "before", "after" ]
@@ -255,9 +260,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self.websocket_manager: WebSocketConnectionManager = WebSocketConnectionManager()
 
         self._configure_server()
-        self._configure_routes()
+        self._configure_http_routes()
         if self.config.websocket is not False:
-            self._configure_websocket()
+            self._configure_websocket_routes()
         self.app.include_router(self.router, prefix=self.config.base_path or "")
 
     def _configure_server(self) -> None:
@@ -269,7 +274,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             allow_headers=["*"],
         )
 
-    def _configure_routes(self) -> None:
+    def _configure_http_routes(self) -> None:
         @self.router.get("/workflows")
         async def get_workflow_list(
             include_schema: bool = False
@@ -321,9 +326,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         async def health_check():
             return JSONResponse(content={ "status": "ok" })
 
-    def _configure_websocket(self) -> None:
+    def _configure_websocket_routes(self) -> None:
         @self.router.websocket(self.config.websocket.path)
-        async def websocket_endpoint(
+        async def serve_websocket(
             websocket: WebSocket,
             session: Optional[str] = None,
             task: Optional[str] = None,
@@ -360,8 +365,16 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
             try:
                 while True:
-                    raw_message = await websocket.receive_text()
-                    await self._handle_websocket_message(client_id, raw_message)
+                    message_text = await websocket.receive_text()
+                    try:
+                        message = WebSocketMessage(**json.loads(message_text))
+                    except json.JSONDecodeError:
+                        await self._websocket_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
+                        continue
+                    except Exception as e:
+                        await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Invalid message: {e}")
+                        continue
+                    await self._handle_websocket_message(client_id, message)
             except WebSocketDisconnect:
                 await self.websocket_manager.disconnect(client_id)
             except Exception as e:
@@ -532,17 +545,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             result["next_job_id"] = event.next_job_id
         return result
 
-    async def _handle_websocket_message(self, client_id: str, raw: str) -> None:
-        try:
-            message = json.loads(raw)
-        except json.JSONDecodeError:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", "Invalid JSON")
-            return
-
-        message_type = message.get("type")
-        message_id = message.get("id")
-        data = message.get("data") or {}
-
+    async def _handle_websocket_message(self, client_id: str, message: WebSocketMessage) -> None:
         handlers = {
             "run_workflow": self._websocket_run_workflow,
             "subscribe_task": self._websocket_subscribe_task,
@@ -552,14 +555,14 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             "ping": self._websocket_ping,
         }
 
-        handler = handlers.get(message_type)
+        handler = handlers.get(message.type)
         if handler:
             try:
-                await handler(client_id, message_id, data)
+                await handler(client_id, message.id, message.data)
             except Exception as e:
-                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), message_id)
+                await self._websocket_send_error(client_id, "INTERNAL_ERROR", str(e), message.id)
         else:
-            await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Unknown message type: {message_type}", message_id)
+            await self._websocket_send_error(client_id, "INVALID_REQUEST", f"Unknown message type: {message.type}", message.id)
 
     async def _websocket_run_workflow(self, client_id: str, message_id: str, data: dict) -> None:
         workflow_id = data.get("workflow_id", "__default__")

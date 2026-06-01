@@ -14,7 +14,7 @@ from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResou
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
-from mindor.core.errors import ShutdownError, TaskError
+from mindor.core.errors import TaskError, ShutdownError
 from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi import WebSocket, WebSocketDisconnect

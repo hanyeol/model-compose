@@ -651,7 +651,13 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
 
         try:
-            state = await self.controller.run_workflow(workflow_id, body.input, body.wait_for_completion, session_id=body.session_id, metadata=body.metadata)
+            state = await self.controller.run_workflow(
+                workflow_id,
+                body.input,
+                body.wait_for_completion,
+                session_id=body.session_id,
+                metadata=body.metadata
+            )
         except ShutdownError:
             raise HTTPException(status_code=503, detail="Service is shutting down")
 

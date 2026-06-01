@@ -393,6 +393,70 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if self.server:
             self.server.should_exit = True
 
+    async def _handle_workflow_run_request(self, request: Request) -> Response:
+        body = await self._parse_workflow_run_body(request)
+
+        workflow_id = self._resolve_workflow_id(body.workflow_id or "__default__")
+
+        if not workflow_id or not self.controller.is_workflow_available(workflow_id):
+            raise HTTPException(status_code=404, detail=f"Workflow '{body.workflow_id or '__default__'}' not found.")
+
+        if body.subscribe_task and body.wait_for_completion:
+            raise HTTPException(status_code=400, detail="subscribe_task=true requires wait_for_completion=false")
+
+        session_id = request.query_params.get("session_id")
+
+        if body.subscribe_task:
+            if not session_id:
+                raise HTTPException(status_code=400, detail="session_id query parameter required when subscribe_task=true")
+            if not self.websocket_manager.has_connection(session_id):
+                raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
+
+        try:
+            state = await self.controller.run_workflow(
+                workflow_id,
+                body.input,
+                body.wait_for_completion,
+                session_id=body.session_id,
+                metadata=body.metadata
+            )
+        except ShutdownError:
+            raise HTTPException(status_code=503, detail="Service is shutting down")
+
+        if body.subscribe_task and session_id:
+            self.websocket_manager.subscribe_to_task(session_id, state.task_id)
+            current = self.controller.get_task_state(state.task_id)
+            if current:
+                await self.websocket_manager.send_message(session_id, {
+                    "type": "task_state",
+                    "data": self._serialize_task_state(state.task_id, current)
+                })
+
+        if body.output_only and not body.wait_for_completion:
+            raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
+
+        return self._render_task_response(state, body.output_only)
+
+    async def _parse_workflow_run_body(self, request: Request) -> WorkflowRunRequestBody:
+        content_type, _ = parse_options_header(request.headers, "Content-Type")
+
+        if content_type not in [ "application/json", "multipart/form-data", "application/x-www-form-urlencoded" ]:
+            if not content_type:
+                raise HTTPException(status_code=400, detail="Missing or empty Content-Type header.")
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
+
+        try:
+            return WorkflowRunRequestBody(**await parse_request_body(request, content_type, nested=True))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
+
+    def _resolve_workflow_id(self, workflow_id: str) -> Optional[str]:
+        if workflow_id == "__default__":
+            resolved_id, _ = WorkflowResolver(self.controller.workflows).resolve(workflow_id, raise_on_error=False)
+            return resolved_id
+        return workflow_id
+
     async def _on_task_state_change(self, task_id: str, state: TaskState) -> None:
         if self.websocket_manager.has_task_subscribers(task_id):
             await self.websocket_manager.broadcast_to_task_subscribers(
@@ -630,70 +694,6 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if message_id:
             payload["id"] = message_id
         await self.websocket_manager.send_message(client_id, payload)
-
-    async def _handle_workflow_run_request(self, request: Request) -> Response:
-        body = await self._parse_workflow_run_body(request)
-
-        workflow_id = self._resolve_workflow_id(body.workflow_id or "__default__")
-
-        if not workflow_id or not self.controller.is_workflow_available(workflow_id):
-            raise HTTPException(status_code=404, detail=f"Workflow '{body.workflow_id or '__default__'}' not found.")
-
-        if body.subscribe_task and body.wait_for_completion:
-            raise HTTPException(status_code=400, detail="subscribe_task=true requires wait_for_completion=false")
-
-        session_id = request.query_params.get("session_id")
-
-        if body.subscribe_task:
-            if not session_id:
-                raise HTTPException(status_code=400, detail="session_id query parameter required when subscribe_task=true")
-            if not self.websocket_manager.has_connection(session_id):
-                raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
-
-        try:
-            state = await self.controller.run_workflow(
-                workflow_id,
-                body.input,
-                body.wait_for_completion,
-                session_id=body.session_id,
-                metadata=body.metadata
-            )
-        except ShutdownError:
-            raise HTTPException(status_code=503, detail="Service is shutting down")
-
-        if body.subscribe_task and session_id:
-            self.websocket_manager.subscribe_to_task(session_id, state.task_id)
-            current = self.controller.get_task_state(state.task_id)
-            if current:
-                await self.websocket_manager.send_message(session_id, {
-                    "type": "task_state",
-                    "data": self._serialize_task_state(state.task_id, current)
-                })
-
-        if body.output_only and not body.wait_for_completion:
-            raise HTTPException(status_code=400, detail="output_only requires wait_for_completion=true.")
-
-        return self._render_task_response(state, body.output_only)
-
-    async def _parse_workflow_run_body(self, request: Request) -> WorkflowRunRequestBody:
-        content_type, _ = parse_options_header(request.headers, "Content-Type")
-
-        if content_type not in [ "application/json", "multipart/form-data", "application/x-www-form-urlencoded" ]:
-            if not content_type:
-                raise HTTPException(status_code=400, detail="Missing or empty Content-Type header.")
-            else:
-                raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
-
-        try:
-            return WorkflowRunRequestBody(**await parse_request_body(request, content_type, nested=True))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
-
-    def _resolve_workflow_id(self, workflow_id: str) -> Optional[str]:
-        if workflow_id == "__default__":
-            resolved_id, _ = WorkflowResolver(self.controller.workflows).resolve(workflow_id, raise_on_error=False)
-            return resolved_id
-        return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
         if not output_only and isinstance(state.output, (StreamResource, AsyncIterator)):

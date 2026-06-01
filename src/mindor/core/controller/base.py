@@ -14,7 +14,6 @@ from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.tracer import TracerConfig
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
 from mindor.core.foundation import AsyncService
-from mindor.core.errors import ShutdownError
 from mindor.core.controller.adapters import create_controller_adapter
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
@@ -26,6 +25,8 @@ from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.controller.webui import ControllerWebUI, create_webui
 from mindor.core.tracer import TracerService, create_tracer
 from mindor.core.logger import LoggerService, create_logger, logging
+from mindor.core.controller.errors import TaskNotFoundError, TaskNotInterruptedError, JobIdMismatchError, InterruptNotActiveError
+from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import parse_duration
@@ -282,21 +283,21 @@ class ControllerService(AsyncService):
             state = self.task_states.get(task_id)
 
         if not state:
-            raise ValueError(f"Task not found: {task_id}")
+            raise TaskNotFoundError(f"Task not found: {task_id}")
 
         if state.status != TaskStatus.INTERRUPTED:
-            raise ValueError(f"Task '{task_id}' is not in interrupted state (current: {state.status})")
+            raise TaskNotInterruptedError(f"Task '{task_id}' is not in interrupted state (current: {state.status})")
 
         if state.interrupt and state.interrupt.job_id != job_id:
-            raise ValueError(f"Job ID mismatch: expected '{state.interrupt.job_id}', got '{job_id}'")
+            raise JobIdMismatchError(f"Job ID mismatch: expected '{state.interrupt.job_id}', got '{job_id}'")
 
         handler = self.interrupt_handlers.get(task_id)
         if not handler:
-            raise ValueError(f"No active interrupt handler for task '{task_id}'")
+            raise InterruptNotActiveError(f"No active interrupt handler for task '{task_id}'")
 
         success = handler.resolve(task_id, job_id, answer)
         if not success:
-            raise ValueError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
+            raise InterruptNotActiveError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
 
         new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id, session_id=state.session_id, metadata=state.metadata)
         with self.task_states_lock:

@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
-from mindor.core.errors import ShutdownError
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.http_response import HttpEventStreamer
@@ -15,6 +14,7 @@ from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResou
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
+from mindor.core.errors import ShutdownError, TaskError
 from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi import WebSocket, WebSocketDisconnect
@@ -653,17 +653,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     "status": state.status.value if hasattr(state.status, 'value') else state.status
                 }
             })
-        except ValueError as e:
-            error_msg = str(e)
-            if "not in interrupted state" in error_msg:
-                code = "TASK_NOT_INTERRUPTED"
-            elif "Job ID mismatch" in error_msg:
-                code = "JOB_ID_MISMATCH"
-            elif "not found" in error_msg.lower():
-                code = "TASK_NOT_FOUND"
-            else:
-                code = "INVALID_REQUEST"
-            await self._websocket_send_error(client_id, code, error_msg, message_id)
+        except TaskError as e:
+            await self._websocket_send_error(client_id, e.code, str(e), message_id)
 
     async def _websocket_get_task(self, client_id: str, message_id: str, data: dict) -> None:
         task_id = data.get("task_id")

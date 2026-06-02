@@ -115,16 +115,17 @@ class ComponentEventNotifier:
 
     async def notify(
         self,
-        event: Literal[ "started", "completed", "failed", "step" ],
+        event: Literal[ "started", "completed", "failed", "internal" ],
         job_id: str,
         component_id: str,
         run_id: str,
+        kind: Optional[str] = None,
         input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
     ) -> None:
         if self.callback:
-            payload = self._build_payload(event, job_id, component_id, run_id, input, output, error)
+            payload = self._build_payload(event, job_id, component_id, run_id, kind, input, output, error)
             try:
                 await self.callback(payload)
             except Exception:
@@ -132,10 +133,11 @@ class ComponentEventNotifier:
 
     def _build_payload(
         self,
-        event: Literal[ "started", "completed", "failed", "step" ],
+        event: Literal[ "started", "completed", "failed", "internal" ],
         job_id: str,
         component_id: str,
         run_id: str,
+        kind: Optional[str],
         input: Optional[Any],
         output: Optional[Any],
         error: Optional[str],
@@ -147,6 +149,8 @@ class ComponentEventNotifier:
             "component_id": component_id,
             "run_id": run_id,
         }
+        if kind is not None:
+            payload["kind"] = kind
         if input is not None:
             payload["input"] = input
         if output is not None:

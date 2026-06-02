@@ -87,7 +87,8 @@ class ComponentEvent:
     job_id: str
     component_id: str
     run_id: str
-    event: Literal[ "started", "completed", "failed", "step" ]
+    event: Literal[ "started", "completed", "failed", "internal" ]
+    kind: Optional[str] = None
     input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -607,6 +608,7 @@ class ControllerService(AsyncService):
                 component_id=payload["component_id"],
                 run_id=payload["run_id"],
                 event=payload["event"],
+                kind=payload.get("kind"),
                 input=payload.get("input"),
                 output=payload.get("output"),
                 error=payload.get("error"),

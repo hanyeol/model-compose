@@ -686,7 +686,7 @@ class GradioWebUIBuilder:
 
     def _log_format_task_title(self, state: TaskState) -> Optional[str]:
         if state.status == TaskStatus.PROCESSING:
-            return "🟢 Task started"
+            return "● Task started"
         if state.status == TaskStatus.INTERRUPTED:
             return "⏸ Task interrupted"
         if state.status == TaskStatus.COMPLETED:
@@ -697,7 +697,7 @@ class GradioWebUIBuilder:
 
     def _log_format_job_title(self, event: JobEvent) -> str:
         if event.event == "started":
-            return f"▶ Job '{event.job_id}' started"
+            return f"● Job '{event.job_id}' started"
         if event.event == "completed":
             return f"✓ Job '{event.job_id}' completed · {event.elapsed:.2f}s"
         if event.event == "failed":
@@ -708,31 +708,35 @@ class GradioWebUIBuilder:
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:
         if event.event == "started":
-            return f"▶ Component '{event.component_id}' started"
+            return f"● Component '{event.component_id}' started"
         if event.event == "completed":
             return f"✓ Component '{event.component_id}' completed"
         if event.event == "failed":
             return f"✗ Component '{event.component_id}' failed"
-        if event.event == "step":
-            return f"• Component '{event.component_id}' step"
+        if event.event == "internal":
+            return f"⎿ Component '{event.component_id}' reported" + (f" · {event.kind}" if event.kind else "")
         return f"• Component '{event.component_id}' {event.event}"
 
     def _log_format_payload(self, value: Any) -> Optional[str]:
-        if value is None:
-            return None
         if isinstance(value, bytes):
             return f"_(bytes, {len(value)} bytes)_"
         if isinstance(value, str):
-            if len(value) > 200 or "\n" in value:
-                return f"```\n{value}\n```"
-            return value
+            return self._log_format_string(value)
         if isinstance(value, (dict, list)):
-            try:
-                serialized = json.dumps(value, ensure_ascii=False, indent=2, default=self._log_json_default)
-            except Exception:
-                serialized = repr(value)
-            return f"```json\n{serialized}\n```"
-        return str(value)
+            return self._log_format_json(value)
+        return str(value) if value is not None else None
+
+    def _log_format_string(self, value: str) -> str:
+        if len(value) > 200 or "\n" in value:
+            return f"```\n{value}\n```"
+        return value
+
+    def _log_format_json(self, value: Any) -> str:
+        try:
+            text = json.dumps(value, ensure_ascii=False, indent=2, default=self._log_json_default)
+        except Exception:
+            text = repr(value)
+        return f"```json\n{text}\n```"
 
     def _log_json_default(self, obj: Any) -> Any:
         if isinstance(obj, bytes):

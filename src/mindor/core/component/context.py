@@ -19,7 +19,8 @@ class ComponentActionEventNotifier:
 
     async def notify(
         self,
-        event: Literal[ "started", "completed", "failed", "step" ],
+        event: Literal[ "started", "completed", "failed", "internal" ],
+        kind: Optional[str] = None,
         input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
@@ -31,6 +32,7 @@ class ComponentActionEventNotifier:
             job_id=self.job_id,
             component_id=self.component_id,
             run_id=self.run_id,
+            kind=kind,
             input=input,
             output=output,
             error=error,

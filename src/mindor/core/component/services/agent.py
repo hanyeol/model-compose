@@ -49,7 +49,7 @@ class AgentAction:
 
                     assistant_message = await self._build_assistant_message(response)
                     messages.append(assistant_message)
-                    await context.event_notifier.notify("step", output=assistant_message)
+                    await context.event_notifier.notify("internal", kind="agent.message", output=assistant_message)
                     yield assistant_message
 
                     tool_calls = self._extract_tool_calls(response)
@@ -59,7 +59,7 @@ class AgentAction:
                     tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
                     for tool_message in tool_messages:
                         messages.append(tool_message)
-                        await context.event_notifier.notify("step", output=tool_message)
+                        await context.event_notifier.notify("internal", kind="agent.tool", output=tool_message)
                         yield tool_message
 
             return _stream_message_generator()
@@ -70,7 +70,7 @@ class AgentAction:
 
             assistant_message = await self._build_assistant_message(response)
             messages.append(assistant_message)
-            await context.event_notifier.notify("step", output=assistant_message)
+            await context.event_notifier.notify("internal", kind="agent.message", output=assistant_message)
 
             tool_calls = self._extract_tool_calls(response)
             if not tool_calls:
@@ -79,7 +79,7 @@ class AgentAction:
             tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
             for tool_message in tool_messages:
                 messages.append(tool_message)
-                await context.event_notifier.notify("step", output=tool_message)
+                await context.event_notifier.notify("internal", kind="agent.tool", output=tool_message)
 
         return messages
 

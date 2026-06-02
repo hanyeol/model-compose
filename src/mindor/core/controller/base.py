@@ -62,7 +62,7 @@ class TaskState:
     status: TaskStatus
     workflow_id: Optional[str] = None
     output: Optional[Any] = None
-    error: Optional[Any] = None
+    error: Optional[str] = None
     interrupt: Optional[InterruptState] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None

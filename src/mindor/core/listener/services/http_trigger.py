@@ -16,7 +16,7 @@ import asyncio, uvicorn
 if TYPE_CHECKING:
     from mindor.core.controller import ControllerService, TaskState
 
-class TaskResult(BaseModel):
+class TaskStateResult(BaseModel):
     task_id: str
     status: Literal[ "pending", "processing", "completed", "failed" ]
     output: Optional[Any] = None
@@ -123,9 +123,9 @@ class HttpTriggerListener(ListenerService):
 
     def _render_task_states(self, states: List[TaskState], bulk: bool) -> Response:
         if bulk:
-            return JSONResponse(content=[ TaskResult.to_dict(state) for state in states ])
+            return JSONResponse(content=[ TaskStateResult.to_dict(state) for state in states ])
         else:
-            return JSONResponse(content=TaskResult.to_dict(states[0]))
+            return JSONResponse(content=TaskStateResult.to_dict(states[0]))
 
     async def _serve(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(

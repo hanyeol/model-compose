@@ -714,7 +714,7 @@ class GradioWebUIBuilder:
         if event.event == "failed":
             return f"✗ Component '{event.component_id}' failed"
         if event.event == "internal":
-            return f"└ Component '{event.component_id}' reported" + (f" · {event.kind}" if event.kind else "")
+            return f"└ Component '{event.component_id}' reported" + (f" · [{event.kind}]" if event.kind else "")
         return f"• Component '{event.component_id}' {event.event}"
 
     def _log_format_payload(self, value: Any) -> Optional[str]:

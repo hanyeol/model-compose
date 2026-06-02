@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml",
     "pydantic",
     "python-dotenv",
+    "packaging",
     "docker",
     "aiohttp",
     "aiofiles",

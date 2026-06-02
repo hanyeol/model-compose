@@ -6,7 +6,7 @@ from .http_request import build_request_body, parse_options_header
 from .streaming import StreamResource
 from .url import encode_url
 from requests.structures import CaseInsensitiveDict
-import aiohttp, json
+import aiohttp, asyncio, json
 
 class HttpStreamResource(StreamResource):
     def __init__(
@@ -74,26 +74,28 @@ class HttpEventStreamResource(StreamResource):
                     yield b"\n".join(parts)
 
 class HttpClient:
-    shared_instance: Optional[HttpClient] = None
+    _shared_instance: Optional[HttpClient] = None
 
     def __init__(
         self,
         base_url: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
+        shared: bool = False
     ):
         self.base_url: Optional[str] = base_url
         self.headers: Optional[Dict[str, str]] = headers
         self.timeout: Optional[float] = timeout
-        self.session: aiohttp.ClientSession = self._create_session(self.base_url)
+        self.shared: bool = shared
+        self._sessions: Dict[int, aiohttp.ClientSession] = {}
 
     async def __aenter__(self):
-        if not self.session:
-            self.session = self._create_session(self.base_url)
+        await self._get_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        if not self.shared:
+            await self.close()
 
     async def request(
         self,
@@ -110,7 +112,7 @@ class HttpClient:
         try:
             merged_headers = { **(self.headers or {}), **(headers or {}) }
             response = await self._request_with_session(
-                session=self.session,
+                session=await self._get_session(),
                 url_or_path=url_or_path,
                 method=method,
                 params={ k: v for k, v in params.items() if v is not None } if params else None,
@@ -134,16 +136,19 @@ class HttpClient:
             raise e
 
     async def close(self) -> None:
-        if self.session:
-            await self.session.close()
-            self.session = None
+        sessions, self._sessions = self._sessions, {}
+        for session in sessions.values():
+            try:
+                await session.close()
+            except Exception:
+                pass
 
     @classmethod
-    def get_shared_instance(cls) -> "HttpClient":
-        if not cls.shared_instance:
-            cls.shared_instance = HttpClient()
-        return cls.shared_instance
-    
+    def get_shared_instance(cls) -> HttpClient:
+        if not cls._shared_instance:
+            cls._shared_instance = HttpClient(shared=True)
+        return cls._shared_instance
+
     @classmethod
     async def request_once(cls, *args, **kwargs):
         instance = cls()
@@ -151,6 +156,18 @@ class HttpClient:
             return await instance.request(*args, **kwargs)
         finally:
             await instance.close()
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        key = id(asyncio.get_running_loop())
+        session = self._sessions.get(key)
+
+        if session and not session.closed:
+            return session
+
+        session = self._create_session(self.base_url)
+        self._sessions[key] = session
+
+        return session
 
     def _create_session(self, base_url: Optional[str]) -> aiohttp.ClientSession:
         return aiohttp.ClientSession(base_url.rstrip("/") + "/" if base_url else None)

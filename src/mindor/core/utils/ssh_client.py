@@ -73,9 +73,6 @@ class SshConnectionParams:
         }
 
 class SshClient:
-    """SSH client with remote port forwarding support"""
-    shared_instance: Optional["SshClient"] = None
-
     def __init__(self, params: SshConnectionParams):
         self.params: SshConnectionParams = params
         self.client: Optional[paramiko.SSHClient] = None
@@ -247,10 +244,3 @@ class SshClient:
     def is_connected(self) -> bool:
         """Check if SSH connection is active"""
         return self.client is not None and self.transport is not None and self.transport.is_active()
-
-    @classmethod
-    def get_shared_instance(cls, params: SshConnectionParams) -> "SshClient":
-        """Get or create shared SSH client instance"""
-        if not cls.shared_instance:
-            cls.shared_instance = SshClient(params)
-        return cls.shared_instance

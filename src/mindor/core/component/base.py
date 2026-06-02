@@ -86,21 +86,31 @@ class ComponentService(AsyncService):
         if self._docker_manager:
             await self._stop_docker_runtime()
 
-    async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None) -> Dict[str, Any]:
+    async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None, job_id: Optional[str] = None) -> Dict[str, Any]:
         if self._process_manager:
             return await self._process_manager.run(action_id, run_id, input)
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentActionContext(run_id, input, workflow=workflow)
+        context = ComponentActionContext(run_id, input, workflow=workflow, component_id=self.id, job_id=job_id)
 
-        if self.work_queue:
-            return await (await self.work_queue.schedule(action, context))
+        await context.event_notifier.notify("started", input=input)
 
-        self._active_counter.acquire()
         try:
-            return await self._run(action, context)
-        finally:
-            self._active_counter.release()
+            if self.work_queue:
+                output = await (await self.work_queue.schedule(action, context))
+            else:
+                self._active_counter.acquire()
+                try:
+                    output = await self._run(action, context)
+                finally:
+                    self._active_counter.release()
+        except Exception as e:
+            await context.event_notifier.notify("failed", error=str(e))
+            raise
+
+        await context.event_notifier.notify("completed", output=output)
+
+        return output
 
     async def _start(self) -> None:
         if self.work_queue:

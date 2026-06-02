@@ -80,9 +80,22 @@ class JobEvent:
     error: Optional[str] = None
     next_job_id: Optional[str] = None
 
+@dataclass
+class ComponentEvent:
+    task_id: str
+    workflow_id: str
+    job_id: str
+    component_id: str
+    run_id: str
+    event: Literal[ "started", "completed", "failed", "step" ]
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    error: Optional[str] = None
+
 TaskStateListener = Callable[[str, TaskState], Awaitable[None]]
 JobEventListener = Callable[[JobEvent], Awaitable[None]]
-TaskEventCallback = Callable[[Union[JobEvent, TaskState]], Awaitable[None]]
+ComponentEventListener = Callable[[ComponentEvent], Awaitable[None]]
+TaskEventCallback = Callable[[Union[TaskState, JobEvent, ComponentEvent]], Awaitable[None]]
 
 class ControllerService(AsyncService):
     _shared_instance: Optional[ControllerService] = None
@@ -131,6 +144,7 @@ class ControllerService(AsyncService):
         self._shutting_down: bool = False
         self._task_state_listeners: List[TaskStateListener] = []
         self._job_event_listeners: List[JobEventListener] = []
+        self._component_event_listeners: List[ComponentEventListener] = []
         self._task_event_callbacks: Dict[str, TaskEventCallback] = {}
         self._listener_tasks: Set[asyncio.Task] = set()
 
@@ -338,6 +352,16 @@ class ControllerService(AsyncService):
     def remove_job_event_listener(self, listener: JobEventListener) -> None:
         try:
             self._job_event_listeners.remove(listener)
+        except ValueError:
+            pass
+
+    def add_component_event_listener(self, listener: ComponentEventListener) -> None:
+        if listener not in self._component_event_listeners:
+            self._component_event_listeners.append(listener)
+
+    def remove_component_event_listener(self, listener: ComponentEventListener) -> None:
+        try:
+            self._component_event_listeners.remove(listener)
         except ValueError:
             pass
 
@@ -575,19 +599,57 @@ class ControllerService(AsyncService):
             )
             self._notify_job_event(event)
 
+        async def _on_component_event(payload: Dict[str, Any]) -> None:
+            event = ComponentEvent(
+                task_id=task_id,
+                workflow_id=payload.get("workflow_id") or workflow_id,
+                job_id=payload["job_id"],
+                component_id=payload["component_id"],
+                run_id=payload["run_id"],
+                event=payload["event"],
+                input=payload.get("input"),
+                output=payload.get("output"),
+                error=payload.get("error"),
+            )
+            self._notify_component_event(event)
+
         try:
             async def _run_workflow(workflow_id, input, interrupt_handler):
                 if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
                     return await self._queue.dispatch(task_id, workflow_id, input, interrupt_handler)
-                return await self._create_workflow(workflow_id).run(task_id, input, interrupt_handler, _run_workflow, session_id=session_id, metadata=metadata, on_job_event=_on_job_event)
+
+                return await self._create_workflow(workflow_id).run(
+                    task_id,
+                    input,
+                    interrupt_handler,
+                    _run_workflow,
+                    session_id=session_id,
+                    metadata=metadata,
+                    on_job_event=_on_job_event,
+                    on_component_event=_on_component_event
+                )
 
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
             output = await _run_workflow(workflow_id, input, interrupt_handler)
-            state = TaskState(task_id=task_id, status=TaskStatus.COMPLETED, workflow_id=workflow_id, output=output, session_id=session_id, metadata=metadata)
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.COMPLETED,
+                workflow_id=workflow_id,
+                output=output,
+                session_id=session_id,
+                metadata=metadata
+            )
         except Exception as e:
             import traceback
             error_message = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=error_message, session_id=session_id, metadata=metadata)
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.FAILED,
+                workflow_id=workflow_id,
+                error=error_message,
+                session_id=session_id,
+                metadata=metadata
+            )
         finally:
             self._detach_interrupt_handler(task_id)
 
@@ -630,7 +692,14 @@ class ControllerService(AsyncService):
                 metadata=point.metadata
             )
             session_id = self.get_task_state(task_id).session_id if self.get_task_state(task_id) else None
-            state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, workflow_id=workflow_id, interrupt=interrupt, session_id=session_id, metadata=task_metadata)
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.INTERRUPTED,
+                workflow_id=workflow_id,
+                interrupt=interrupt,
+                session_id=session_id,
+                metadata=task_metadata
+            )
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
             self._signal_task_state_change(task_id)
@@ -656,9 +725,16 @@ class ControllerService(AsyncService):
         if state and state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
 
-        error_state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(task.exception()), session_id=state.session_id if state else None, metadata=state.metadata if state else None)
+        state = TaskState(
+            task_id=task_id,
+            status=TaskStatus.FAILED,
+            workflow_id=workflow_id,
+            error=str(task.exception()),
+            session_id=state.session_id if state else None,
+            metadata=state.metadata if state else None
+        )
         with self.task_states_lock:
-            self.task_states.set(task_id, error_state, 1 * 3600)
+            self.task_states.set(task_id, state, 1 * 3600)
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
@@ -707,7 +783,25 @@ class ControllerService(AsyncService):
         except Exception:
             logging.warning("Job event listener error for task %s job %s", event.task_id, event.job_id, exc_info=True)
 
-    async def _invoke_event_callback(self, callback: TaskEventCallback, event: Union[JobEvent, TaskState]) -> None:
+    def _notify_component_event(self, event: ComponentEvent) -> None:
+        callback = self._task_event_callbacks.get(event.task_id)
+        if callback:
+            task = asyncio.create_task(self._invoke_event_callback(callback, event))
+            self._listener_tasks.add(task)
+            task.add_done_callback(self._listener_tasks.discard)
+
+        for listener in self._component_event_listeners:
+            task = asyncio.create_task(self._invoke_component_event_listener(listener, event))
+            self._listener_tasks.add(task)
+            task.add_done_callback(self._listener_tasks.discard)
+
+    async def _invoke_component_event_listener(self, listener: ComponentEventListener, event: ComponentEvent) -> None:
+        try:
+            await listener(event)
+        except Exception:
+            logging.warning("Component event listener error for task %s component %s", event.task_id, event.component_id, exc_info=True)
+
+    async def _invoke_event_callback(self, callback: TaskEventCallback, event: Union[JobEvent, TaskState, ComponentEvent]) -> None:
         try:
             await callback(event)
         except Exception:

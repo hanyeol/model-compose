@@ -1,6 +1,12 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
 from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
 from mindor.core.workflow.interrupt import InterruptHandler
+
+if TYPE_CHECKING:
+    from mindor.core.workflow.workflow import JobEventNotifier, ComponentEventNotifier
 
 WorkflowDelegate = Callable[[str, Dict[str, Any], InterruptHandler], Awaitable[Any]]
 
@@ -12,8 +18,10 @@ class WorkflowContext:
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler,
         workflow_delegate: WorkflowDelegate,
+        job_event_notifier: JobEventNotifier,
+        component_event_notifier: ComponentEventNotifier,
         session_id: Optional[str] = None,
-        metadata: Optional[Any] = None
+        metadata: Optional[Any] = None,
     ):
         self.task_id: str = task_id
         self.workflow_id: str = workflow_id
@@ -27,6 +35,8 @@ class WorkflowContext:
         self.renderer = VariableRenderer(self._resolve_source)
         self.interrupt_handler: InterruptHandler = interrupt_handler
         self.workflow_delegate: WorkflowDelegate = workflow_delegate
+        self.job_event_notifier: JobEventNotifier = job_event_notifier
+        self.component_event_notifier: ComponentEventNotifier = component_event_notifier
         self.job_run_ids: Dict[str, List[str]] = {}
 
     def complete_job(self, job_id: str, output: Any) -> None:

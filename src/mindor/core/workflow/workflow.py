@@ -12,6 +12,7 @@ from .job import Job, RoutingTarget, create_job
 import asyncio
 
 JobEventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
+ComponentEventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
 
 class JobGraphValidator:
     def __init__(self, jobs: Dict[str, JobConfig]):
@@ -58,9 +59,9 @@ class JobGraphValidator:
                 _assert_no_cycle(job_id)
 
 class JobEventNotifier:
-    def __init__(self, workflow_id: str, on_job_event: Optional[JobEventCallback]):
+    def __init__(self, workflow_id: str, callback: Optional[JobEventCallback]):
         self.workflow_id: str = workflow_id
-        self.on_job_event: Optional[JobEventCallback] = on_job_event
+        self.callback: Optional[JobEventCallback] = callback
 
     async def notify(
         self,
@@ -73,10 +74,10 @@ class JobEventNotifier:
         error: Optional[str] = None,
         next_job_id: Optional[str] = None
     ) -> None:
-        if self.on_job_event:
+        if self.callback:
             payload = self._build_payload(event, job_id, context, elapsed, input, output, error, next_job_id)
             try:
-                await self.on_job_event(payload)
+                await self.callback(payload)
             except Exception:
                 logging.warning("on_job_event callback failed for job '%s'", job_id, exc_info=True)
 
@@ -107,6 +108,53 @@ class JobEventNotifier:
             payload["next_job_id"] = next_job_id
         return payload
 
+class ComponentEventNotifier:
+    def __init__(self, workflow_id: str, callback: Optional[ComponentEventCallback]):
+        self.workflow_id: str = workflow_id
+        self.callback: Optional[ComponentEventCallback] = callback
+
+    async def notify(
+        self,
+        event: Literal[ "started", "completed", "failed", "step" ],
+        job_id: str,
+        component_id: str,
+        run_id: str,
+        input: Optional[Any] = None,
+        output: Optional[Any] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        if self.callback:
+            payload = self._build_payload(event, job_id, component_id, run_id, input, output, error)
+            try:
+                await self.callback(payload)
+            except Exception:
+                logging.warning("on_component_event callback failed for component '%s' in job '%s'", component_id, job_id, exc_info=True)
+
+    def _build_payload(
+        self,
+        event: Literal[ "started", "completed", "failed", "step" ],
+        job_id: str,
+        component_id: str,
+        run_id: str,
+        input: Optional[Any],
+        output: Optional[Any],
+        error: Optional[str],
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "event": event,
+            "workflow_id": self.workflow_id,
+            "job_id": job_id,
+            "component_id": component_id,
+            "run_id": run_id,
+        }
+        if input is not None:
+            payload["input"] = input
+        if output is not None:
+            payload["output"] = output
+        if error is not None:
+            payload["error"] = error
+        return payload
+
 class WorkflowResolver:
     def __init__(self, workflows: List[WorkflowConfig]):
         self.workflows: List[WorkflowConfig] = workflows
@@ -127,11 +175,15 @@ class WorkflowResolver:
         return workflow.id, workflow
 
 class WorkflowRunner:
-    def __init__(self, id: str, jobs: List[JobConfig], global_configs: ComponentGlobalConfigs, on_job_event: Optional[JobEventCallback] = None):
+    def __init__(
+        self,
+        id: str,
+        jobs: List[JobConfig],
+        global_configs: ComponentGlobalConfigs,
+    ):
         self.id: str = id
         self.jobs: Dict[str, JobConfig] = { job.id: job for job in jobs }
         self.global_configs: ComponentGlobalConfigs = global_configs
-        self.job_event_notifier: JobEventNotifier = JobEventNotifier(id, on_job_event)
 
     async def run(self, context: WorkflowContext) -> Any:
         routing_job_ids: Set[str] = { job_id for job in self.jobs.values() for job_id in job.get_routing_jobs() }
@@ -157,7 +209,7 @@ class WorkflowRunner:
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
-                    await self.job_event_notifier.notify("started", job.id, context=context, input=context.input)
+                    await context.job_event_notifier.notify("started", job.id, context=context, input=context.input)
                     tracing.on_job_start(context.task_id, job.id, self.id, context.input)
                     logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job.id, self.id)
                     logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job.id, self.id, context.input)
@@ -174,7 +226,7 @@ class WorkflowRunner:
                     completed_job_output = await completed_job_task
                 except Exception as e:
                     elapsed = job_time_trackers[completed_job_id].elapsed()
-                    await self.job_event_notifier.notify("failed", completed_job_id, context=context, elapsed=elapsed, error=str(e))
+                    await context.job_event_notifier.notify("failed", completed_job_id, context=context, elapsed=elapsed, error=str(e))
                     raise
 
                 if isinstance(completed_job_output, RoutingTarget):
@@ -182,23 +234,23 @@ class WorkflowRunner:
                     elapsed = job_time_trackers[completed_job_id].elapsed()
 
                     if next_job_id in routing_jobs:
-                        await self.job_event_notifier.notify("routed", completed_job_id, context=context, elapsed=elapsed, next_job_id=next_job_id)
+                        await context.job_event_notifier.notify("routed", completed_job_id, context=context, elapsed=elapsed, next_job_id=next_job_id)
                         logging.info("[task-%s] Routing to job '%s' from job '%s'.", context.task_id, next_job_id, completed_job_id)
                         pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
                         context.job_run_ids[next_job_id] = []
                         scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(context))
                         running_job_ids.add(next_job_id)
                         job_time_trackers[next_job_id] = TimeTracker()
-                        await self.job_event_notifier.notify("started", next_job_id, context=context, input=context.input)
+                        await context.job_event_notifier.notify("started", next_job_id, context=context, input=context.input)
                         tracing.on_job_start(context.task_id, next_job_id, self.id, context.input)
                     else:
                         context.complete_job(completed_job_id, completed_job_output)
-                        await self.job_event_notifier.notify("completed", completed_job_id, context=context, elapsed=elapsed, output=None)
+                        await context.job_event_notifier.notify("completed", completed_job_id, context=context, elapsed=elapsed, output=None)
                         logging.info("[task-%s] Job '%s:%s' completed without routing.", context.task_id, completed_job_id, self.id)
                 else:
                     context.complete_job(completed_job_id, completed_job_output)
                     elapsed = job_time_trackers[completed_job_id].elapsed()
-                    await self.job_event_notifier.notify("completed", completed_job_id, context=context, elapsed=elapsed, output=completed_job_output)
+                    await context.job_event_notifier.notify("completed", completed_job_id, context=context, elapsed=elapsed, output=completed_job_output)
                     tracing.on_job_end(context.task_id, completed_job_id, self.id, completed_job_output, elapsed)
                     logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, completed_job_id, self.id, elapsed)
                     logging.debug("[task-%s] Job '%s:%s' output: %s", context.task_id, completed_job_id, self.id, completed_job_output)
@@ -257,10 +309,21 @@ class Workflow:
         workflow_delegate: WorkflowDelegate = None,
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None,
-        on_job_event: Optional[JobEventCallback] = None
+        on_job_event: Optional[JobEventCallback] = None,
+        on_component_event: Optional[ComponentEventCallback] = None,
     ) -> Any:
-        runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs, on_job_event=on_job_event)
-        context = WorkflowContext(task_id, self.id, input, interrupt_handler, workflow_delegate, session_id=session_id, metadata=metadata)
+        runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
+        context = WorkflowContext(
+            task_id,
+            self.id,
+            input,
+            interrupt_handler,
+            workflow_delegate,
+            JobEventNotifier(self.id, on_job_event),
+            ComponentEventNotifier(self.id, on_component_event),
+            session_id=session_id,
+            metadata=metadata,
+        )
 
         time_tracker = TimeTracker()
         tracing.on_workflow_start(task_id, self.id, input, session_id, metadata)

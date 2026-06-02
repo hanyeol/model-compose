@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.controller.base import TaskStatus, TaskState, JobEvent
+from mindor.core.controller.base import TaskStatus, TaskState, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
@@ -29,28 +29,26 @@ class ComponentGroup:
 
 class WorkflowLogPanel:
     def __init__(self):
-        self.accordion: Optional[gr.Accordion] = None
         self.chatbot: Optional[gr.Chatbot] = None
 
     def build(self) -> List[gr.Component]:
-        with gr.Accordion("Log", open=True) as self.accordion:
-            self.chatbot = gr.Chatbot(
-                show_label=False,
-                height="80vh",
-                buttons=[],
-                editable=False,
-                feedback_options=None,
-            )
-        return [ self.accordion, self.chatbot ]
+        self.chatbot = gr.Chatbot(
+            label="Log",
+            height="80vh",
+            buttons=[],
+            editable=False,
+            feedback_options=None,
+        )
+        return [ self.chatbot ]
 
     def reset_update(self) -> List[Any]:
-        return [ gr.update(), [] ]
+        return [ [] ]
 
     def value_update(self, messages: List[Dict]) -> List[Any]:
-        return [ gr.update(), list(messages) ]
+        return [ list(messages) ]
 
     def ignore_update(self) -> List[Any]:
-        return [ gr.update(), gr.update() ]
+        return [ gr.update() ]
 
 class GradioWebUIBuilder:
     def __init__(self):
@@ -633,11 +631,13 @@ class GradioWebUIBuilder:
     def _is_media_component(self, component: gr.Component) -> bool:
         return isinstance(component, (gr.Image, gr.Audio, gr.Video, gr.File))
 
-    def _log_messages_for_event(self, event: Union[JobEvent, TaskState]) -> List[Dict]:
+    def _log_messages_for_event(self, event: Union[JobEvent, TaskState, ComponentEvent]) -> List[Dict]:
         if isinstance(event, TaskState):
             return self._log_messages_for_task_state(event)
         if isinstance(event, JobEvent):
             return self._log_messages_for_job_event(event)
+        if isinstance(event, ComponentEvent):
+            return self._log_messages_for_component_event(event)
         return []
 
     def _log_messages_for_task_state(self, state: TaskState) -> List[Dict]:
@@ -657,6 +657,17 @@ class GradioWebUIBuilder:
         if event.event == "completed" and event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
         if event.event == "failed" and event.error:
+            messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
+        return messages
+
+    def _log_messages_for_component_event(self, event: ComponentEvent) -> List[Dict]:
+        title = self._log_format_component_title(event)
+        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        if event.input is not None:
+            messages.append(self._log_payload_message(event.input, title="Input"))
+        if event.output is not None:
+            messages.append(self._log_payload_message(event.output, title="Output"))
+        if event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
         return messages
 
@@ -694,6 +705,17 @@ class GradioWebUIBuilder:
         if event.event == "routed":
             return f"→ {event.job_id} → {event.next_job_id} · {event.elapsed:.2f}s"
         return f"• Job '{event.job_id}' {event.event}"
+
+    def _log_format_component_title(self, event: ComponentEvent) -> str:
+        if event.event == "started":
+            return f"▶ Component '{event.component_id}' started"
+        if event.event == "completed":
+            return f"✓ Component '{event.component_id}' completed"
+        if event.event == "failed":
+            return f"✗ Component '{event.component_id}' failed"
+        if event.event == "step":
+            return f"• Component '{event.component_id}' step"
+        return f"• Component '{event.component_id}' {event.event}"
 
     def _log_format_payload(self, value: Any) -> Optional[str]:
         if value is None:

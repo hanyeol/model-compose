@@ -38,7 +38,7 @@ class ComponentJob(Job):
                 if answer is not None:
                     input = answer
 
-            output = await component.run(self.config.action, run_id, input, workflow=context)
+            output = await component.run(self.config.action, run_id, input, workflow=context, job_id=self.id)
             context.register_source("output", output)
 
             if self.config.interrupt and self.config.interrupt.after:

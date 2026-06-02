@@ -686,7 +686,7 @@ class GradioWebUIBuilder:
 
     def _log_format_task_title(self, state: TaskState) -> Optional[str]:
         if state.status == TaskStatus.PROCESSING:
-            return "● Task started"
+            return "▶ Task started"
         if state.status == TaskStatus.INTERRUPTED:
             return "⏸ Task interrupted"
         if state.status == TaskStatus.COMPLETED:
@@ -697,7 +697,7 @@ class GradioWebUIBuilder:
 
     def _log_format_job_title(self, event: JobEvent) -> str:
         if event.event == "started":
-            return f"● Job '{event.job_id}' started"
+            return f"▶ Job '{event.job_id}' started"
         if event.event == "completed":
             return f"✓ Job '{event.job_id}' completed · {event.elapsed:.2f}s"
         if event.event == "failed":
@@ -708,7 +708,7 @@ class GradioWebUIBuilder:
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:
         if event.event == "started":
-            return f"● Component '{event.component_id}' started"
+            return f"▶ Component '{event.component_id}' started"
         if event.event == "completed":
             return f"✓ Component '{event.component_id}' completed"
         if event.event == "failed":

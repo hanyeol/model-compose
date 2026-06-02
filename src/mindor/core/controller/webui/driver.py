@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
+from typing import TYPE_CHECKING, Optional, Dict, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig
-from mindor.core.controller.runner import ControllerRunner
 from mindor.core.workflow.schema import WorkflowSchema
+
+if TYPE_CHECKING:
+    from mindor.core.controller.runner import ControllerRunner
 
 class WebUIDriver(ABC):
     requires_runner: bool = True
@@ -19,6 +21,8 @@ class WebUIDriver(ABC):
         self.runner: Optional[ControllerRunner] = None
 
     async def start(self) -> None:
+        from mindor.core.controller.runner import ControllerRunner
+
         if self.requires_runner:
             self.runner = ControllerRunner()
         try:

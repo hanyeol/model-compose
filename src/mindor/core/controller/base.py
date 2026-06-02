@@ -75,13 +75,14 @@ class JobEvent:
     event: Literal[ "started", "completed", "failed", "routed" ]
     run_id: Optional[Union[str, List[str]]] = None
     elapsed: Optional[float] = None
+    input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
     next_job_id: Optional[str] = None
 
-TaskStateListener = Callable[['str', 'TaskState'], Awaitable[None]]
-JobEventListener = Callable[['JobEvent'], Awaitable[None]]
-TaskEventCallback = Callable[[Union['JobEvent', 'TaskState']], Awaitable[None]]
+TaskStateListener = Callable[[str, TaskState], Awaitable[None]]
+JobEventListener = Callable[[JobEvent], Awaitable[None]]
+TaskEventCallback = Callable[[Union[JobEvent, TaskState]], Awaitable[None]]
 
 class ControllerService(AsyncService):
     _shared_instance: Optional[ControllerService] = None
@@ -567,6 +568,7 @@ class ControllerService(AsyncService):
                 event=payload["event"],
                 run_id=payload.get("run_id"),
                 elapsed=payload.get("elapsed"),
+                input=payload.get("input"),
                 output=payload.get("output"),
                 error=payload.get("error"),
                 next_job_id=payload.get("next_job_id"),

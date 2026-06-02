@@ -16,7 +16,7 @@ class WebBrowserAction:
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
-        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 30.0).total_seconds()
+        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 30.0)
 
         result = await self._dispatch(context, session, timeout)
         context.register_source("result", result)

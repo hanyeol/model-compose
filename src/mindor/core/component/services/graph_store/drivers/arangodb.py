@@ -260,7 +260,7 @@ class ArangoDBGraphStoreService(GraphStoreService):
         url = self.config.url if self.config.url else f"{self.config.protocol}://{self.config.host}:{self.config.port}"
         client = ArangoClient(
             hosts=url,
-            request_timeout=parse_duration(self.config.timeout).total_seconds()
+            request_timeout=parse_duration(self.config.timeout)
         )
 
         database = client.db(

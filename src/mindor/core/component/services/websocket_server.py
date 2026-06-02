@@ -23,7 +23,7 @@ class WebSocketServerAction:
         format  = await context.render_variable(self.config.receive.format)
         collect = await context.render_variable(self.config.receive.collect)
         timeout_str = await context.render_variable(self.config.receive.timeout)
-        timeout = parse_duration(timeout_str).total_seconds() if timeout_str else None
+        timeout = parse_duration(timeout_str) if timeout_str else None
 
         connection, owned = await client.connect(
             path=path,
@@ -145,8 +145,8 @@ class WebSocketServerComponent(ComponentService):
         base_url = f"ws://localhost:{self.config.port}" + (self.config.base_path or "")
         self.client = WebSocketClient(
             base_url=base_url,
-            ping_interval=parse_duration(self.config.ping_interval).total_seconds() if self.config.ping_interval else None,
-            ping_timeout=parse_duration(self.config.ping_timeout).total_seconds() if self.config.ping_timeout else None,
+            ping_interval=parse_duration(self.config.ping_interval) if self.config.ping_interval else None,
+            ping_timeout=parse_duration(self.config.ping_timeout) if self.config.ping_timeout else None,
             additional_headers=self.config.headers or None,
             params=self.config.params or None
         )

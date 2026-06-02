@@ -68,12 +68,13 @@ class JobEventNotifier:
         job_id: str,
         context: WorkflowContext,
         elapsed: Optional[float] = None,
+        input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
         next_job_id: Optional[str] = None
     ) -> None:
         if self.on_job_event:
-            payload = self._build_payload(event, job_id, context, elapsed, output, error, next_job_id)
+            payload = self._build_payload(event, job_id, context, elapsed, input, output, error, next_job_id)
             try:
                 await self.on_job_event(payload)
             except Exception:
@@ -85,6 +86,7 @@ class JobEventNotifier:
         job_id: str,
         context: WorkflowContext,
         elapsed: Optional[float],
+        input: Optional[Any],
         output: Optional[Any],
         error: Optional[str],
         next_job_id: Optional[str]
@@ -95,6 +97,8 @@ class JobEventNotifier:
             payload["run_id"] = run_ids[0] if len(run_ids) == 1 else list(run_ids)
         if elapsed is not None:
             payload["elapsed"] = elapsed
+        if input is not None:
+            payload["input"] = input
         if output is not None:
             payload["output"] = output
         if error is not None:
@@ -153,7 +157,7 @@ class WorkflowRunner:
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
-                    await self.job_event_notifier.notify("started", job.id, context=context)
+                    await self.job_event_notifier.notify("started", job.id, context=context, input=context.input)
                     tracing.on_job_start(context.task_id, job.id, self.id, context.input)
                     logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job.id, self.id)
                     logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job.id, self.id, context.input)
@@ -185,7 +189,7 @@ class WorkflowRunner:
                         scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(context))
                         running_job_ids.add(next_job_id)
                         job_time_trackers[next_job_id] = TimeTracker()
-                        await self.job_event_notifier.notify("started", next_job_id, context=context)
+                        await self.job_event_notifier.notify("started", next_job_id, context=context, input=context.input)
                         tracing.on_job_start(context.task_id, next_job_id, self.id, context.input)
                     else:
                         context.complete_job(completed_job_id, completed_job_output)

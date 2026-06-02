@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
-from mindor.core.workflow.schema import WorkflowSchema
+from mindor.core.controller.base import TaskEventCallback
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService, TaskState
@@ -16,8 +16,18 @@ class ControllerRunner:
 
         self.service: ControllerService = service
 
-    async def run_workflow(self, workflow_id: Optional[str], input: Any, schema: WorkflowSchema) -> TaskState:
-        return await self.service.run_workflow(workflow_id, input, wait_for_completion=True)
+    async def run_workflow(
+        self,
+        workflow_id: Optional[str],
+        input: Any,
+        on_event: Optional[TaskEventCallback] = None,
+    ) -> TaskState:
+        return await self.service.run_workflow(
+            workflow_id,
+            input,
+            wait_for_completion=True,
+            on_event=on_event
+        )
 
     async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> None:
         await self.service.resume_workflow(task_id, job_id, answer)

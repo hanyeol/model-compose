@@ -306,5 +306,5 @@ class Neo4jGraphStoreService(GraphStoreService):
         return AsyncGraphDatabase.driver(
             url,
             auth=auth,
-            connection_timeout=parse_duration(self.config.timeout).total_seconds()
+            connection_timeout=parse_duration(self.config.timeout)
         )

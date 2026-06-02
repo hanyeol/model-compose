@@ -24,7 +24,7 @@ class RateLimitConfig(BaseModel):
     def validate_positive_duration(cls, value):
         if value is None:
             return value
-        if parse_duration(value).total_seconds() <= 0:
+        if parse_duration(value) <= 0:
             raise ValueError("must be a positive duration")
         return value
 

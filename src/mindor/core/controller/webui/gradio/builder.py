@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.controller.base import TaskStatus
+from mindor.core.controller.base import TaskStatus, TaskState, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
@@ -15,11 +15,10 @@ from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
 from mindor.core.utils.resolvers import FieldResolver
 from PIL import Image as PILImage
 import gradio as gr
-import json, re
+import asyncio, json, re
 
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
-    from mindor.core.controller.base import TaskState
 
 _VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
@@ -27,6 +26,31 @@ class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
         self.group: gr.Component = group
         self.components: List[gr.Component] = components
+
+class WorkflowLogPanel:
+    def __init__(self):
+        self.accordion: Optional[gr.Accordion] = None
+        self.chatbot: Optional[gr.Chatbot] = None
+
+    def build(self) -> List[gr.Component]:
+        with gr.Accordion("Log", open=True) as self.accordion:
+            self.chatbot = gr.Chatbot(
+                show_label=False,
+                height="80vh",
+                buttons=[],
+                editable=False,
+                feedback_options=None,
+            )
+        return [ self.accordion, self.chatbot ]
+
+    def reset_update(self) -> List[Any]:
+        return [ gr.update(), [] ]
+
+    def value_update(self, messages: List[Dict]) -> List[Any]:
+        return [ gr.update(), list(messages) ]
+
+    def ignore_update(self) -> List[Any]:
+        return [ gr.update(), gr.update() ]
 
 class GradioWebUIBuilder:
     def __init__(self):
@@ -58,26 +82,32 @@ class GradioWebUIBuilder:
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
 
-            gr.Markdown("#### Input Parameters")
-            input_components = [ self._build_input_component(variable) for variable in workflow.input ]
+            with gr.Row():
+                with gr.Column(scale=2):
+                    gr.Markdown("#### Input Parameters")
+                    input_components = [ self._build_input_component(variable) for variable in workflow.input ]
 
-            run_button = gr.Button("🚀 Run Workflow", variant="primary")
+                    run_button = gr.Button("🚀 Run Workflow", variant="primary")
 
-            interrupt_state = gr.State(value=None)
-            with gr.Column(visible=False) as interrupt_panel:
-                interrupt_components = self._build_interrupt_components()
-                interrupt_answer = interrupt_components[-1]
-                resume_button = gr.Button("▶️ Resume", variant="primary")
-            interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
+                    interrupt_state = gr.State(value=None)
+                    with gr.Column(visible=False) as interrupt_panel:
+                        interrupt_components = self._build_interrupt_components()
+                        interrupt_answer = interrupt_components[-1]
+                        resume_button = gr.Button("▶️ Resume", variant="primary")
+                    interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
 
-            gr.Markdown("#### Output Values")
-            output_components = [ self._build_output_component(variable) for variable in workflow.output ]
+                    gr.Markdown("#### Output Values")
+                    output_components = [ self._build_output_component(variable) for variable in workflow.output ]
 
-            if not output_components:
-                output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
+                    if not output_components:
+                        output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
-            output_components = self._flatten_output_components(output_components)
-            media_components = [ component for component in output_components if self._is_media_component(component) ]
+                    output_components = self._flatten_output_components(output_components)
+                    media_components = [ component for component in output_components if self._is_media_component(component) ]
+
+                with gr.Column(scale=1):
+                    log_panel = WorkflowLogPanel()
+                    log_components = log_panel.build()
 
             def _run_button_running():
                 return gr.update(value="⏳ Running...", interactive=False)
@@ -92,26 +122,79 @@ class GradioWebUIBuilder:
                 return gr.update(value="▶️ Resume", interactive=True)
 
             async def _run_workflow(*args):
-                yield [ _run_button_running(), *self._clear_interrupt_updates(), *self._clear_output_values(workflow.output) ]
+                messages: List[Dict] = []
+                queue: asyncio.Queue = asyncio.Queue()
+
+                async def on_event(event):
+                    for message in self._log_messages_for_event(event):
+                        queue.put_nowait(message)
+
+                yield [
+                    _run_button_running(),
+                    *self._clear_interrupt_updates(),
+                    *self._clear_output_values(workflow.output),
+                    *log_panel.reset_update(),
+                ]
 
                 input = await self._build_input_value(args, workflow.input)
+                task = asyncio.create_task(runner().run_workflow(workflow_id, input, on_event=on_event))
+
+                while not task.done():
+                    try:
+                        message = await asyncio.wait_for(queue.get(), timeout=0.1)
+                        messages.append(message)
+                        yield [
+                            _run_button_running(),
+                            *(gr.update() for _ in interrupt_components),
+                            *(gr.update() for _ in output_components),
+                            *log_panel.value_update(messages),
+                        ]
+                    except asyncio.TimeoutError:
+                        pass
+
+                while not queue.empty():
+                    messages.append(queue.get_nowait())
+
+                if messages:
+                    yield [
+                        _run_button_running(),
+                        *(gr.update() for _ in interrupt_components),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
 
                 try:
-                    state = await runner().run_workflow(workflow_id, input, workflow)
+                    state = task.result()
                 except Exception as e:
-                    yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_ready(),
+                        *self._clear_interrupt_updates(),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
                     raise gr.Error(str(e))
 
                 if state.status == TaskStatus.INTERRUPTED:
-                    yield [ _run_button_running(), *self._build_interrupt_updates(state), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_running(),
+                        *self._build_interrupt_updates(state),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
                     return
 
                 if state.status == TaskStatus.FAILED:
-                    yield [ _run_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_ready(),
+                        *self._clear_interrupt_updates(),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
                     raise gr.Error(str(state.error))
 
                 output = state.output
                 clear_interrupt = self._clear_interrupt_updates()
+                log_done = log_panel.value_update(messages)
 
                 if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
                     if workflow.output[0].type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
@@ -122,22 +205,53 @@ class GradioWebUIBuilder:
                                 buffer += chunk[0] or ""
                             else:
                                 buffer.append(chunk[0])
-                            yield [ _run_button_running(), *clear_interrupt, buffer ]
-                        yield [ _run_button_ready(), *clear_interrupt, buffer ]
+                            yield [
+                                _run_button_running(),
+                                *clear_interrupt,
+                                buffer,
+                                *log_done,
+                            ]
+                        yield [
+                            _run_button_ready(),
+                            *clear_interrupt,
+                            buffer,
+                            *log_done,
+                        ]
                     else:
                         result = await self._save_stream_to_temporary_file(output, workflow.output[0])
-                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, result ]
+                        yield [
+                            _run_button_running() if media_components else _run_button_ready(),
+                            *clear_interrupt,
+                            result,
+                            *log_done,
+                        ]
                 else:
                     if workflow.output:
                         output = await self._flatten_output_value(output, workflow.output)
                     result = output[0] if len(output) == 1 else output
                     if isinstance(result, (list, tuple)):
-                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, *result ]
+                        yield [
+                            _run_button_running() if media_components else _run_button_ready(),
+                            *clear_interrupt,
+                            *result,
+                            *log_done,
+                        ]
                     else:
-                        yield [ _run_button_running() if media_components else _run_button_ready(), *clear_interrupt, result ]
+                        yield [
+                            _run_button_running() if media_components else _run_button_ready(),
+                            *clear_interrupt,
+                            result,
+                            *log_done,
+                        ]
 
             async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
-                yield [ _run_button_running(), _resume_button_running(), *(gr.update() for _ in interrupt_components), *(gr.update() for _ in output_components) ]
+                yield [
+                    _run_button_running(),
+                    _resume_button_running(),
+                    *(gr.update() for _ in interrupt_components),
+                    *(gr.update() for _ in output_components),
+                    *log_panel.ignore_update(),
+                ]
 
                 task_id, job_id = ui_state["task_id"], ui_state["job_id"]
 
@@ -153,15 +267,33 @@ class GradioWebUIBuilder:
                     await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
                     state = await runner().wait_for_completion(task_id)
                 except Exception as e:
-                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_ready(),
+                        _resume_button_ready(),
+                        *self._clear_interrupt_updates(),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.ignore_update(),
+                    ]
                     raise gr.Error(str(e))
 
                 if state.status == TaskStatus.INTERRUPTED:
-                    yield [ _run_button_running(), _resume_button_ready(), *self._build_interrupt_updates(state), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_running(),
+                        _resume_button_ready(),
+                        *self._build_interrupt_updates(state),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.ignore_update(),
+                    ]
                     return
 
                 if state.status == TaskStatus.FAILED:
-                    yield [ _run_button_ready(), _resume_button_ready(), *self._clear_interrupt_updates(), *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_ready(),
+                        _resume_button_ready(),
+                        *self._clear_interrupt_updates(),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.ignore_update(),
+                    ]
                     raise gr.Error(str(state.error))
 
                 clear_interrupt = self._clear_interrupt_updates()
@@ -175,22 +307,40 @@ class GradioWebUIBuilder:
                     result = output
 
                 if result is None:
-                    yield [ _run_button_ready(), _resume_button_ready(), *clear_interrupt, *(gr.update() for _ in output_components) ]
+                    yield [
+                        _run_button_ready(),
+                        _resume_button_ready(),
+                        *clear_interrupt,
+                        *(gr.update() for _ in output_components),
+                        *log_panel.ignore_update(),
+                    ]
                 elif isinstance(result, (list, tuple)):
-                    yield [ _run_button_running() if media_components else _run_button_ready(), _resume_button_ready(), *clear_interrupt, *result ]
+                    yield [
+                        _run_button_running() if media_components else _run_button_ready(),
+                        _resume_button_ready(),
+                        *clear_interrupt,
+                        *result,
+                        *log_panel.ignore_update(),
+                    ]
                 else:
-                    yield [ _run_button_running() if media_components else _run_button_ready(), _resume_button_ready(), *clear_interrupt, result ]
+                    yield [
+                        _run_button_running() if media_components else _run_button_ready(),
+                        _resume_button_ready(),
+                        *clear_interrupt,
+                        result,
+                        *log_panel.ignore_update(),
+                    ]
 
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=[ run_button, *interrupt_components, *output_components ]
+                outputs=[ run_button, *interrupt_components, *output_components, *log_components ]
             )
 
             resume_button.click(
                 fn=_resume_workflow,
                 inputs=[ interrupt_state, interrupt_answer ],
-                outputs=[ run_button, resume_button, *interrupt_components, *output_components ]
+                outputs=[ run_button, resume_button, *interrupt_components, *output_components, *log_components ]
             )
 
             for component in media_components:
@@ -482,3 +632,87 @@ class GradioWebUIBuilder:
 
     def _is_media_component(self, component: gr.Component) -> bool:
         return isinstance(component, (gr.Image, gr.Audio, gr.Video, gr.File))
+
+    def _log_messages_for_event(self, event: Union[JobEvent, TaskState]) -> List[Dict]:
+        if isinstance(event, TaskState):
+            return self._log_messages_for_task_state(event)
+        if isinstance(event, JobEvent):
+            return self._log_messages_for_job_event(event)
+        return []
+
+    def _log_messages_for_task_state(self, state: TaskState) -> List[Dict]:
+        title = self._log_format_task_title(state)
+        if title is None:
+            return []
+        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        if state.status == TaskStatus.FAILED and state.error:
+            messages.append(self._log_assistant_message(f"```\n{state.error}\n```", title="Error"))
+        return messages
+
+    def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
+        title = self._log_format_job_title(event)
+        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        if event.event == "started" and event.input is not None:
+            messages.append(self._log_payload_message(event.input, title="Input"))
+        if event.event == "completed" and event.output is not None:
+            messages.append(self._log_payload_message(event.output, title="Output"))
+        if event.event == "failed" and event.error:
+            messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
+        return messages
+
+    def _log_assistant_message(self, text: str, title: Optional[str] = None) -> Dict:
+        message: Dict = {
+            "role": "assistant",
+            "content": [ {"type": "text", "text": text} ],
+        }
+        if title:
+            message["metadata"] = { "title": title }
+        return message
+
+    def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
+        text = self._log_format_payload(value)
+        return self._log_assistant_message(text or "", title=title)
+
+    def _log_format_task_title(self, state: TaskState) -> Optional[str]:
+        if state.status == TaskStatus.PROCESSING:
+            return "🟢 Task started"
+        if state.status == TaskStatus.INTERRUPTED:
+            return "⏸ Task interrupted"
+        if state.status == TaskStatus.COMPLETED:
+            return "✓ Task completed"
+        if state.status == TaskStatus.FAILED:
+            return "✗ Task failed"
+        return None
+
+    def _log_format_job_title(self, event: JobEvent) -> str:
+        if event.event == "started":
+            return f"▶ Job '{event.job_id}' started"
+        if event.event == "completed":
+            return f"✓ Job '{event.job_id}' completed · {event.elapsed:.2f}s"
+        if event.event == "failed":
+            return f"✗ Job '{event.job_id}' failed · {event.elapsed:.2f}s"
+        if event.event == "routed":
+            return f"→ {event.job_id} → {event.next_job_id} · {event.elapsed:.2f}s"
+        return f"• Job '{event.job_id}' {event.event}"
+
+    def _log_format_payload(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return f"_(bytes, {len(value)} bytes)_"
+        if isinstance(value, str):
+            if len(value) > 200 or "\n" in value:
+                return f"```\n{value}\n```"
+            return value
+        if isinstance(value, (dict, list)):
+            try:
+                serialized = json.dumps(value, ensure_ascii=False, indent=2, default=self._log_json_default)
+            except Exception:
+                serialized = repr(value)
+            return f"```json\n{serialized}\n```"
+        return str(value)
+
+    def _log_json_default(self, obj: Any) -> Any:
+        if isinstance(obj, bytes):
+            return f"<bytes len={len(obj)}>"
+        return repr(obj)

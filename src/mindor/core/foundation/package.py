@@ -2,20 +2,20 @@ from typing import Optional, Tuple, List
 from packaging.requirements import Requirement, SpecifierSet
 from packaging.utils import canonicalize_name
 from importlib.metadata import version, PackageNotFoundError
-import sys, subprocess, re
+import sys, subprocess, shutil, importlib.util
 import asyncio
 
 async def install_package(package_spec: str, pip_options: Optional[List[str]] = None) -> None:
-    """Install a package using pip.
+    """Install a package using pip or uv.
 
     Args:
         package_spec: Package specification to install (e.g., "torch>=2.0.0" or "git+https://github.com/...")
         pip_options: Additional pip options (e.g., ["--index-url", "https://download.pytorch.org/whl/cu128"])
     """
-    cmd = [ sys.executable, "-m", "pip", "install", package_spec ] + (pip_options or [])
+    command = _build_install_command(package_spec, pip_options)
 
     process = await asyncio.create_subprocess_exec(
-        *cmd,
+        *command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
@@ -25,7 +25,7 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
     if process.returncode != 0:
         raise subprocess.CalledProcessError(
             process.returncode,
-            cmd,
+            command,
             output=stdout,
             stderr=stderr
         )
@@ -64,3 +64,11 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
         return True
 
     return specifier.contains(installed_version, prereleases=True)
+
+def _build_install_command(package_spec: str, pip_options: Optional[List[str]]) -> List[str]:
+    if importlib.util.find_spec("pip") is None:
+        uv_path = shutil.which("uv")
+        if uv_path:
+            return [ uv_path, "pip", "install", "--python", sys.executable, package_spec ] + (pip_options or [])
+
+    return [ sys.executable, "-m", "pip", "install", package_spec ] + (pip_options or [])

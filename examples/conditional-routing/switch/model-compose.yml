@@ -1,0 +1,64 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Multi-way Routing with `switch` Job
+  description: |
+    Picks a localized greeting based on the `language` input value. Demonstrates
+    the `switch` job type with multiple cases and an `otherwise` fallback.
+  jobs:
+    - id: pick-language
+      type: switch
+      input: ${input.language}
+      cases:
+        - value: ko
+          then: greet-ko
+        - value: ja
+          then: greet-ja
+        - value: en
+          then: greet-en
+      otherwise: greet-default
+
+    - id: greet-ko
+      component: greeter
+      input:
+        language: Korean
+        text: "안녕하세요, ${input.name}님!"
+      output: ${output}
+
+    - id: greet-ja
+      component: greeter
+      input:
+        language: Japanese
+        text: "こんにちは、${input.name}さん！"
+      output: ${output}
+
+    - id: greet-en
+      component: greeter
+      input:
+        language: English
+        text: "Hello, ${input.name}!"
+      output: ${output}
+
+    - id: greet-default
+      component: greeter
+      input:
+        language: Unknown
+        text: "Hi, ${input.name}. (no localized greeting for '${input.language}')"
+      output: ${output}
+
+components:
+  - id: greeter
+    type: shell
+    action:
+      command: [ "echo", "[${input.language}] ${input.text}" ]
+      output:
+        language: ${input.language}
+        message: ${input.text}
+        rendered: ${result.stdout}

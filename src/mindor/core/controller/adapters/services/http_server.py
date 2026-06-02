@@ -436,8 +436,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
             try:
                 state = await self.controller.run_workflow(
-                    workflow_id, body.input, body.wait_for_completion,
-                    session_id=body.session_id, metadata=body.metadata,
+                    workflow_id,
+                    body.input,
+                    wait_for_completion=body.wait_for_completion,
+                    session_id=body.session_id,
+                    metadata=body.metadata,
                 )
             except ShutdownError:
                 raise HTTPException(status_code=503, detail="Service is shutting down")
@@ -550,8 +553,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 return
 
             state = await self.controller.run_workflow(
-                workflow_id, payload.input, wait_for_completion=False,
-                session_id=payload.session_id, metadata=payload.metadata,
+                workflow_id,
+                payload.input,
+                wait_for_completion=False,
+                session_id=payload.session_id,
+                metadata=payload.metadata,
             )
 
             if payload.subscribe_task:

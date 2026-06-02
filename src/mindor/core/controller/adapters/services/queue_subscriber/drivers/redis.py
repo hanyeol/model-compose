@@ -106,7 +106,12 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             return await self._wait_for_resume(resume_key)
 
         try:
-            state = await self.controller.run_workflow(workflow_id, input, wait_for_completion=True, on_interrupt=_on_interrupt)
+            state = await self.controller.run_workflow(
+                workflow_id,
+                input,
+                wait_for_completion=True,
+                on_interrupt=_on_interrupt
+            )
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
 

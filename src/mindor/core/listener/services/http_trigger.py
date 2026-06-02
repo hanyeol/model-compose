@@ -111,7 +111,11 @@ class HttpTriggerListener(ListenerService):
                 input       = await item.render_variable(trigger.input)
 
                 try:
-                    state = await controller.run_workflow(workflow_id, input, wait_for_completion=False)
+                    state = await controller.run_workflow(
+                        workflow_id,
+                        input,
+                        wait_for_completion=False
+                    )
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=f"Failed to trigger workflow: {str(e)}")
 

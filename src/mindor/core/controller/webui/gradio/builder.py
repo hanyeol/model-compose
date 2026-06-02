@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
 
 _VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
+_SPINNER_FRAMES = [ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" ]
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
@@ -122,6 +123,7 @@ class GradioWebUIBuilder:
             async def _run_workflow(*args):
                 messages: List[Dict] = []
                 queue: asyncio.Queue = asyncio.Queue()
+                spinner_frame = 0
 
                 async def on_event(event):
                     for message in self._log_messages_for_event(event):
@@ -141,14 +143,15 @@ class GradioWebUIBuilder:
                     try:
                         message = await asyncio.wait_for(queue.get(), timeout=0.1)
                         messages.append(message)
-                        yield [
-                            _run_button_running(),
-                            *(gr.update() for _ in interrupt_components),
-                            *(gr.update() for _ in output_components),
-                            *log_panel.value_update(messages),
-                        ]
                     except asyncio.TimeoutError:
                         pass
+                    spinner_frame = (spinner_frame + 1) % len(_SPINNER_FRAMES)
+                    yield [
+                        _run_button_running(),
+                        *(gr.update() for _ in interrupt_components),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages + [self._log_spinner_message(spinner_frame)]),
+                    ]
 
                 while not queue.empty():
                     messages.append(queue.get_nowait())
@@ -683,6 +686,9 @@ class GradioWebUIBuilder:
     def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
         text = self._log_format_payload(value)
         return self._log_assistant_message(text or "", title=title)
+
+    def _log_spinner_message(self, frame: int) -> Dict:
+        return self._log_assistant_message(f"{_SPINNER_FRAMES[frame % len(_SPINNER_FRAMES)]} Running...")
 
     def _log_format_task_title(self, state: TaskState) -> Optional[str]:
         if state.status == TaskStatus.PROCESSING:

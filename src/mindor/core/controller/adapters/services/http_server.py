@@ -132,6 +132,7 @@ class JobEventResult(BaseModel):
     run_id: Optional[Union[str, List[str]]] = None
     workflow_id: str
     job_id: str
+    job_type: str
     event: Literal[ "started", "completed", "failed", "routed" ]
     elapsed: Optional[float] = None
     output: Optional[Any] = None
@@ -145,6 +146,7 @@ class JobEventResult(BaseModel):
             run_id=instance.run_id,
             workflow_id=instance.workflow_id,
             job_id=instance.job_id,
+            job_type=instance.job_type,
             event=instance.event,
             elapsed=instance.elapsed,
             output=instance.output,

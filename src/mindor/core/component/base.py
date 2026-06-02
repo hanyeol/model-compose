@@ -91,7 +91,7 @@ class ComponentService(AsyncService):
             return await self._process_manager.run(action_id, run_id, input)
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
-        context = ComponentActionContext(run_id, input, workflow=workflow, component_id=self.id, job_id=job_id)
+        context = ComponentActionContext(run_id, input, workflow=workflow, component_id=self.id, component_type=self.config.type.value, job_id=job_id)
 
         await context.event_notifier.notify("started", input=input)
 

@@ -655,7 +655,7 @@ class GradioWebUIBuilder:
 
     def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
         title = self._log_format_job_title(event)
-        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`job_type: {event.job_type}`") ]
         if event.event == "started" and event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
         if event.event == "completed" and event.output is not None:
@@ -666,7 +666,7 @@ class GradioWebUIBuilder:
 
     def _log_messages_for_component_event(self, event: ComponentEvent) -> List[Dict]:
         title = self._log_format_component_title(event)
-        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`run_id: {event.run_id}`") ]
+        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`component_type: {event.component_type}`\n`run_id: {event.run_id}`") ]
         if event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
         if event.output is not None:
@@ -713,7 +713,7 @@ class GradioWebUIBuilder:
             return f"✗ Job '**{job_id}**' failed · {event.elapsed:.2f}s"
         if event.event == "routed":
             next_job_id = self._escape_markdown(event.next_job_id)
-            return f"→ '**{job_id}**' → '**{next_job_id}**' · {event.elapsed:.2f}s"
+            return f"→ Job '**{job_id}**' routed to '**{next_job_id}**' · {event.elapsed:.2f}s"
         return f"• Job '**{job_id}**' {event.event}"
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:

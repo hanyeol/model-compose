@@ -11,9 +11,10 @@ if TYPE_CHECKING:
     from mindor.core.workflow.workflow import ComponentEventNotifier
 
 class ComponentActionEventNotifier:
-    def __init__(self, notifier: Optional[ComponentEventNotifier], component_id: Optional[str], job_id: Optional[str], run_id: Optional[str]):
+    def __init__(self, notifier: Optional[ComponentEventNotifier], component_id: Optional[str], component_type: Optional[str], job_id: Optional[str], run_id: Optional[str]):
         self.notifier: Optional[ComponentEventNotifier] = notifier
         self.component_id: Optional[str] = component_id
+        self.component_type: Optional[str] = component_type
         self.job_id: Optional[str] = job_id
         self.run_id: Optional[str] = run_id
 
@@ -31,6 +32,7 @@ class ComponentActionEventNotifier:
             event=event,
             job_id=self.job_id,
             component_id=self.component_id,
+            component_type=self.component_type,
             run_id=self.run_id,
             kind=kind,
             input=input,
@@ -45,12 +47,14 @@ class ComponentActionContext:
         input: Dict[str, Any],
         workflow: Optional[WorkflowContext] = None,
         component_id: Optional[str] = None,
+        component_type: Optional[str] = None,
         job_id: Optional[str] = None,
     ):
         self.run_id: str = run_id
         self.input: Dict[str, Any] = input
         self.workflow: Optional[WorkflowContext] = workflow
         self.component_id: Optional[str] = component_id
+        self.component_type: Optional[str] = component_type
         self.job_id: Optional[str] = job_id
         self.context: Dict[str, Any] = { "run_id": run_id }
         self.sources: Dict[str, Any] = {}
@@ -100,6 +104,7 @@ class ComponentActionContext:
         return ComponentActionEventNotifier(
             self.workflow.component_event_notifier if self.workflow else None,
             self.component_id,
+            self.component_type,
             self.job_id,
             self.run_id
         )

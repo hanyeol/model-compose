@@ -72,6 +72,7 @@ class JobEvent:
     task_id: str
     workflow_id: str
     job_id: str
+    job_type: str
     event: Literal[ "started", "completed", "failed", "routed" ]
     run_id: Optional[Union[str, List[str]]] = None
     elapsed: Optional[float] = None
@@ -86,6 +87,7 @@ class ComponentEvent:
     workflow_id: str
     job_id: str
     component_id: str
+    component_type: str
     run_id: str
     event: Literal[ "started", "completed", "failed", "internal" ]
     kind: Optional[str] = None
@@ -590,6 +592,7 @@ class ControllerService(AsyncService):
                 task_id=task_id,
                 workflow_id=payload.get("workflow_id") or workflow_id,
                 job_id=payload["job_id"],
+                job_type=payload["job_type"],
                 event=payload["event"],
                 run_id=payload.get("run_id"),
                 elapsed=payload.get("elapsed"),
@@ -606,6 +609,7 @@ class ControllerService(AsyncService):
                 workflow_id=payload.get("workflow_id") or workflow_id,
                 job_id=payload["job_id"],
                 component_id=payload["component_id"],
+                component_type=payload["component_type"],
                 run_id=payload["run_id"],
                 event=payload["event"],
                 kind=payload.get("kind"),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Callable, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.controller.base import TaskStatus, TaskState, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
@@ -35,10 +35,11 @@ class WorkflowLogPanel:
     def build(self) -> List[gr.Component]:
         self.chatbot = gr.Chatbot(
             label="Log",
-            height="80vh",
+            min_height="80vh",
             buttons=[],
             editable=False,
             feedback_options=None,
+            elem_classes=[ "log-panel-chatbot" ],
         )
         return [ self.chatbot ]
 
@@ -59,7 +60,7 @@ class GradioWebUIBuilder:
         self,
         workflow_schemas: Dict[str, WorkflowSchema],
         runner: Callable[[], ControllerRunner]
-    ) -> gr.Blocks:
+    ) -> Tuple[gr.Blocks, str]:
         with gr.Blocks() as blocks:
             for workflow_id, workflow in workflow_schemas.items():
                 if len(workflow_schemas) > 1:
@@ -68,7 +69,7 @@ class GradioWebUIBuilder:
                 else:
                     self._build_workflow_section(workflow_id, workflow, runner)
 
-        return blocks
+        return blocks, self._global_css()
 
     def _build_workflow_section(self,
         workflow_id: str,
@@ -81,8 +82,8 @@ class GradioWebUIBuilder:
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
 
-            with gr.Row():
-                with gr.Column(scale=2):
+            with gr.Row(equal_height=True):
+                with gr.Column(scale=2, elem_classes=["input-output-column"]):
                     gr.Markdown("#### Input Parameters")
                     input_components = [ self._build_input_component(variable) for variable in workflow.input ]
 
@@ -647,7 +648,7 @@ class GradioWebUIBuilder:
         title = self._log_format_task_title(state)
         if title is None:
             return []
-        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {state.task_id}`") ]
         if state.status == TaskStatus.FAILED and state.error:
             messages.append(self._log_assistant_message(f"```\n{state.error}\n```", title="Error"))
         return messages
@@ -665,7 +666,7 @@ class GradioWebUIBuilder:
 
     def _log_messages_for_component_event(self, event: ComponentEvent) -> List[Dict]:
         title = self._log_format_component_title(event)
-        messages: List[Dict] = [ self._log_assistant_message(title) ]
+        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`run_id: {event.run_id}`") ]
         if event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
         if event.output is not None:
@@ -691,37 +692,44 @@ class GradioWebUIBuilder:
         return self._log_assistant_message(f"{_SPINNER_FRAMES[frame % len(_SPINNER_FRAMES)]} Running...")
 
     def _log_format_task_title(self, state: TaskState) -> Optional[str]:
+        workflow_id = self._escape_markdown(state.workflow_id)
         if state.status == TaskStatus.PROCESSING:
-            return "▶ Task started"
+            return f"▶ Workflow '**{workflow_id}**' started"
         if state.status == TaskStatus.INTERRUPTED:
-            return "⏸ Task interrupted"
+            return f"⏸ Workflow '**{workflow_id}**' interrupted"
         if state.status == TaskStatus.COMPLETED:
-            return "✓ Task completed"
+            return f"✓ Workflow '**{workflow_id}**' completed"
         if state.status == TaskStatus.FAILED:
-            return "✗ Task failed"
+            return f"✗ Workflow '**{workflow_id}**' failed"
         return None
 
     def _log_format_job_title(self, event: JobEvent) -> str:
+        job_id = self._escape_markdown(event.job_id)
         if event.event == "started":
-            return f"▶ Job '{event.job_id}' started"
+            return f"▶ Job '**{job_id}**' started"
         if event.event == "completed":
-            return f"✓ Job '{event.job_id}' completed · {event.elapsed:.2f}s"
+            return f"✓ Job '**{job_id}**' completed · {event.elapsed:.2f}s"
         if event.event == "failed":
-            return f"✗ Job '{event.job_id}' failed · {event.elapsed:.2f}s"
+            return f"✗ Job '**{job_id}**' failed · {event.elapsed:.2f}s"
         if event.event == "routed":
-            return f"→ {event.job_id} → {event.next_job_id} · {event.elapsed:.2f}s"
-        return f"• Job '{event.job_id}' {event.event}"
+            next_job_id = self._escape_markdown(event.next_job_id)
+            return f"→ '**{job_id}**' → '**{next_job_id}**' · {event.elapsed:.2f}s"
+        return f"• Job '**{job_id}**' {event.event}"
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:
+        component_id = self._escape_markdown(event.component_id)
         if event.event == "started":
-            return f"▶ Component '{event.component_id}' started"
+            return f"▶ Component '**{component_id}**' started"
         if event.event == "completed":
-            return f"✓ Component '{event.component_id}' completed"
+            return f"✓ Component '**{component_id}**' completed"
         if event.event == "failed":
-            return f"✗ Component '{event.component_id}' failed"
+            return f"✗ Component '**{component_id}**' failed"
         if event.event == "internal":
-            return f"└ Component '{event.component_id}' reported" + (f" · [{event.kind}]" if event.kind else "")
-        return f"• Component '{event.component_id}' {event.event}"
+            return f"└ Component '**{component_id}**' reported" + (f" · [{event.kind}]" if event.kind else "")
+        return f"• Component '**{component_id}**' {event.event}"
+
+    def _escape_markdown(self, value: str) -> str:
+        return re.sub(r"([\\`*_{}\[\]()#+!~])", r"\\\1", value)
 
     def _log_format_payload(self, value: Any) -> Optional[str]:
         if isinstance(value, bytes):
@@ -748,3 +756,33 @@ class GradioWebUIBuilder:
         if isinstance(obj, bytes):
             return f"<bytes len={len(obj)}>"
         return repr(obj)
+
+    def _global_css(self) -> str:
+        return """
+        .log-panel-chatbot {
+            flex-grow: 1 !important;
+            flex-shrink: 1 !important;
+            flex-basis: 0 !important;
+            height: auto !important;
+            min-height: 80vh !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
+        }
+        .log-panel-chatbot * {
+            min-height: 0 !important;
+        }
+        .log-panel-chatbot > .wrap,
+        .log-panel-chatbot > .wrapper {
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
+        }
+        .log-panel-chatbot .bubble-wrap {
+            flex-grow: 1 !important;
+            max-height: 100% !important;
+            overflow-y: auto !important;
+        }
+        .input-output-column > * {
+            flex-grow: 0 !important;
+        }
+        """

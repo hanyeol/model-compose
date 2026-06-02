@@ -14,11 +14,11 @@ class GradioDriver(WebUIDriver):
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
 
-        blocks = GradioWebUIBuilder().build(
+        blocks, css = GradioWebUIBuilder().build(
             workflow_schemas=self.workflow_schemas,
             runner=lambda: self.runner
         )
-        self.app = mount_gradio_app(self.app, blocks, path="")
+        self.app = mount_gradio_app(self.app, blocks, path="", css=css)
 
     async def _start(self) -> None:
         self.server = uvicorn.Server(uvicorn.Config(

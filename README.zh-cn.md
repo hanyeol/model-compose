@@ -77,8 +77,16 @@ model-compose 的目标不是构建另一个封闭平台，而是将架构自主
 
 ## 安装
 
+使用 pip：
+
 ```
 pip install model-compose
+```
+
+或使用 [uv](https://docs.astral.sh/uv/)：
+
+```
+uv pip install model-compose
 ```
 
 或从源代码安装：
@@ -86,7 +94,7 @@ pip install model-compose
 ```
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
-pip install -e .
+pip install -e .   # 或：uv pip install -e .
 ```
 
 > 要求：Python 3.10 或更高版本

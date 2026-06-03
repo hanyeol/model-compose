@@ -77,8 +77,16 @@ The goal of model-compose is not to build another closed platform, but to restor
 
 ## Installation
 
+Using pip:
+
 ```
 pip install model-compose
+```
+
+Or using [uv](https://docs.astral.sh/uv/):
+
+```
+uv pip install model-compose
 ```
 
 Or install from source:
@@ -86,7 +94,7 @@ Or install from source:
 ```
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
-pip install -e .
+pip install -e .   # or: uv pip install -e .
 ```
 
 > Requires: Python 3.10 or higher

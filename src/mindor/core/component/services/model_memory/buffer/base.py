@@ -2,7 +2,6 @@ from typing import Type, Optional, Dict, List, Any, Tuple
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelMemoryBufferDriver
 
-
 class SessionBuffer:
     """Per-session in-memory data: turns, summary, snapshot."""
 
@@ -37,7 +36,6 @@ class SessionBuffer:
         self.pending_turns.clear()
         return True
 
-
 class ModelMemoryBuffer(ABC):
     """Buffer ABC with raw-data abstract methods and shared business logic.
 
@@ -59,46 +57,6 @@ class ModelMemoryBuffer(ABC):
     async def close(self) -> None:
         pass
 
-    # --- Raw data operations (abstract, implemented by each driver) ---
-
-    @abstractmethod
-    async def _read_turns(self, session_id: str) -> List[List[Any]]:
-        pass
-
-    @abstractmethod
-    async def _write_turns(self, session_id: str, turns: List[List[Any]]) -> None:
-        pass
-
-    @abstractmethod
-    async def _remove_all(self, session_id: str) -> None:
-        pass
-
-    # --- Hooks (overridable by drivers) ---
-
-    async def _on_update_turns(self, session_id: str) -> None:
-        """Called when settled turns are written (locally or remotely).
-        Clears local pending. Drivers can override to broadcast changes
-        (e.g. Pub/Sub), calling super() to keep the pending cleanup."""
-        session = self._sessions.get(session_id)
-        if session is not None:
-            session.clear_pending()
-
-    # --- Business logic (concrete) ---
-
-    def has_session(self, session_id: str) -> bool:
-        return session_id in self._sessions
-
-    def _get_session(self, session_id: str) -> Optional[SessionBuffer]:
-        return self._sessions.get(session_id)
-
-    async def _ensure_session(self, session_id: str) -> SessionBuffer:
-        session = self._sessions.get(session_id)
-        if session is None:
-            session = SessionBuffer()
-            self._sessions[session_id] = session
-            await self._write_turns(session_id, [])
-        return session
-
     async def get_turns(self, session_id: str) -> Optional[List[List[Any]]]:
         """Returns all turns (settled + pending), or None if session not in buffer."""
         session = self._sessions.get(session_id)
@@ -108,14 +66,14 @@ class ModelMemoryBuffer(ABC):
 
     async def set_turns(self, session_id: str, turns: List[List[Any]]) -> None:
         """Auto-creates session if needed."""
-        session = await self._ensure_session(session_id)
+        session = await self._acquire_session(session_id)
         session.settled_turns = list(turns)
         await self._write_turns(session_id, turns)
         await self._on_update_turns(session_id)
 
     async def append_turn(self, session_id: str, messages: List[Any]) -> None:
         """Auto-creates session if needed."""
-        session = await self._ensure_session(session_id)
+        session = await self._acquire_session(session_id)
         session.append_turn(messages)
 
     async def get_summary(self, session_id: str) -> Optional[str]:
@@ -127,7 +85,7 @@ class ModelMemoryBuffer(ABC):
 
     async def set_summary(self, session_id: str, summary: str) -> None:
         """Auto-creates session if needed."""
-        session = await self._ensure_session(session_id)
+        session = await self._acquire_session(session_id)
         session.summary = summary
 
     async def merge_buffer(self, session_id: str) -> None:
@@ -157,6 +115,45 @@ class ModelMemoryBuffer(ABC):
         await self._remove_all(session_id)
         self._sessions.pop(session_id, None)
 
+    def has_session(self, session_id: str) -> bool:
+        return session_id in self._sessions
+
+    # --- Raw data operations (abstract, implemented by each driver) ---
+
+    @abstractmethod
+    async def _read_turns(self, session_id: str) -> List[List[Any]]:
+        pass
+
+    @abstractmethod
+    async def _write_turns(self, session_id: str, turns: List[List[Any]]) -> None:
+        pass
+
+    @abstractmethod
+    async def _remove_all(self, session_id: str) -> None:
+        pass
+
+    # --- Hooks (overridable by drivers) ---
+
+    async def _on_update_turns(self, session_id: str) -> None:
+        """Called when settled turns are written (locally or remotely).
+        Clears local pending. Drivers can override to broadcast changes
+        (e.g. Pub/Sub), calling super() to keep the pending cleanup."""
+        session = self._sessions.get(session_id)
+        if session is not None:
+            session.clear_pending()
+
+    # --- Internal helpers ---
+
+    async def _acquire_session(self, session_id: str) -> SessionBuffer:
+        session = self._sessions.get(session_id)
+        if session is None:
+            session = SessionBuffer()
+            self._sessions[session_id] = session
+            await self._write_turns(session_id, [])
+        return session
+
+    def _get_session(self, session_id: str) -> Optional[SessionBuffer]:
+        return self._sessions.get(session_id)
 
 def register_model_memory_buffer(driver: ModelMemoryBufferDriver):
     def decorator(cls: Type[ModelMemoryBuffer]) -> Type[ModelMemoryBuffer]:

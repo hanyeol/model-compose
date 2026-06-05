@@ -2,12 +2,13 @@ from typing import Dict, List, Any
 from mindor.dsl.schema.component import MemoryModelMemoryBufferConfig, ModelMemoryBufferDriver
 from ..base import ModelMemoryBuffer, register_model_memory_buffer
 
-
 @register_model_memory_buffer(ModelMemoryBufferDriver.MEMORY)
 class MemoryModelMemoryBuffer(ModelMemoryBuffer):
     def __init__(self, config: MemoryModelMemoryBufferConfig):
         super().__init__()
+
         self.config = config
+
         self._turns: Dict[str, List[List[Any]]] = {}
 
     async def setup(self) -> None:

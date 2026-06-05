@@ -24,11 +24,17 @@ class ModelMemoryWindowConfig(BaseModel):
     max_turn_count: Optional[int] = Field(default=None, description="Maximum number of recent turns to keep.")
     max_message_count: Optional[int] = Field(default=None, description="Maximum number of recent messages to keep (respects turn boundaries).")
 
+    @model_validator(mode="after")
+    def validate_limits(self):
+        if not self.max_turn_count and not self.max_message_count:
+            raise ValueError("window requires at least one of max_turn_count or max_message_count")
+        return self
+
 class ModelMemorySummaryConfig(BaseModel):
     component: str = Field(..., description="Component ID to use for summarization.")
     action: str = Field(default="__default__", description="Action ID on the summary component.")
-    input: Dict[str, Any] = Field(default_factory=lambda: {"messages": "${messages}"}, description="Input mapping for summary component.")
-    instruction: str = Field(default="Summarize the following conversation concisely:", description="Summary instruction prompt.")
+    instruction: Optional[str] = Field(default=None, description="Summary instruction prompt. If omitted, a built-in default is used.")
+    input: Optional[Dict[str, Any]] = Field(default=None, description="Input mapping for summary component. If omitted, a default messages array is built from instruction, previous_summary, and turns.")
 
 class ModelMemoryComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_MEMORY]

@@ -36,8 +36,8 @@ class ComposeConfigLoader:
         config_dicts = []
         for config_file in config_files:
             try:
-                with open(config_file, "r", encoding="utf-8") as f:
-                    text = self._resolve_environment_variables(f.read(), env)
+                with open(config_file, "r", encoding="utf-8") as file:
+                    text = self._resolve_environment_variables(file.read(), env)
                     try:
                         config_dicts.append(yaml.safe_load(text))
                     except yaml.YAMLError as e:

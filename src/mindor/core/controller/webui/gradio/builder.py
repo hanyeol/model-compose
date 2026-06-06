@@ -133,7 +133,7 @@ class GradioWebUIBuilder:
                 yield [
                     _run_button_running(),
                     *self._clear_interrupt_updates(),
-                    *self._clear_output_values(workflow.output),
+                    *self._clear_output_updates(output_components),
                     *log_panel.reset_update(),
                 ]
 
@@ -228,23 +228,15 @@ class GradioWebUIBuilder:
                             *log_done,
                         ]
                 else:
-                    if workflow.output:
-                        output = await self._flatten_output_value(output, workflow.output)
-                    result = output[0] if len(output) == 1 else output
-                    if isinstance(result, (list, tuple)):
-                        yield [
-                            _run_button_running() if media_components else _run_button_ready(),
-                            *clear_interrupt,
-                            *result,
-                            *log_done,
-                        ]
-                    else:
-                        yield [
-                            _run_button_running() if media_components else _run_button_ready(),
-                            *clear_interrupt,
-                            result,
-                            *log_done,
-                        ]
+                    output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
+                    result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
+
+                    yield [
+                        _run_button_running() if media_components else _run_button_ready(),
+                        *clear_interrupt,
+                        *result,
+                        *log_done,
+                    ]
 
             async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
                 yield [
@@ -302,13 +294,7 @@ class GradioWebUIBuilder:
 
                 # Completed
                 output = state.output
-                if workflow.output and output is not None:
-                    output = await self._flatten_output_value(output, workflow.output)
-                    result = output[0] if len(output) == 1 else output
-                else:
-                    result = output
-
-                if result is None:
+                if output is None:
                     yield [
                         _run_button_ready(),
                         _resume_button_ready(),
@@ -316,22 +302,18 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in output_components),
                         *log_panel.ignore_update(),
                     ]
-                elif isinstance(result, (list, tuple)):
-                    yield [
-                        _run_button_running() if media_components else _run_button_ready(),
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        *result,
-                        *log_panel.ignore_update(),
-                    ]
-                else:
-                    yield [
-                        _run_button_running() if media_components else _run_button_ready(),
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        result,
-                        *log_panel.ignore_update(),
-                    ]
+                    return
+
+                output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
+                result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
+
+                yield [
+                    _run_button_running() if media_components else _run_button_ready(),
+                    _resume_button_ready(),
+                    *clear_interrupt,
+                    *result,
+                    *log_panel.ignore_update(),
+                ]
 
             run_button.click(
                 fn=_run_workflow,
@@ -414,14 +396,6 @@ class GradioWebUIBuilder:
 
         return value if value != "" else None
 
-    async def _format_workflow_output(self, output: Any, workflow: WorkflowSchema) -> Optional[list]:
-        if workflow.output and output is not None:
-            output = await self._flatten_output_value(output, workflow.output)
-        if output is None:
-            return None
-        result = output[0] if isinstance(output, (list, tuple)) and len(output) == 1 else output
-        return list(result) if isinstance(result, (list, tuple)) else [result]
-
     def _build_interrupt_components(self):
         message  = gr.Markdown("")
         metadata = gr.JSON(label="Metadata", visible=False)
@@ -429,7 +403,7 @@ class GradioWebUIBuilder:
 
         return [ message, metadata, answer ]
 
-    def _build_interrupt_updates(self, state: "TaskState") -> List[Any]:
+    def _build_interrupt_updates(self, state: TaskState) -> List[Any]:
         interrupt = state.interrupt
         ui_state = { "task_id": state.task_id, "job_id": interrupt.job_id if interrupt else None }
         message = (interrupt.message if interrupt else None) or "The workflow is waiting for your input."
@@ -449,7 +423,7 @@ class GradioWebUIBuilder:
             gr.update(visible=False),
             gr.update(value=""),
             gr.update(value=None, visible=False),
-            gr.update(value=""),
+            gr.update(value=None),
         ]
 
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
@@ -495,28 +469,33 @@ class GradioWebUIBuilder:
         if variable.type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
             return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])
 
+        if variable.type == WorkflowVariableType.NONE:
+            return gr.Markdown(value="")
+
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
 
     def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
         flattened = []
+
         for item in components:
             if isinstance(item, list):
                 for group in item:
                     flattened.extend(group.components)
             else:
                 flattened.append(item)
+
         return flattened
 
-    def _clear_output_values(self, variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]) -> List[Any]:
-        cleared = []
-        for variable in variables:
-            if isinstance(variable, WorkflowVariableGroupConfig):
-                count = variable.repeat_count if variable.repeat_count != 0 else 100
-                for _ in range(count):
-                    cleared.extend(self._clear_output_values(variable.variables))
+    def _clear_output_updates(self, components: List[gr.Component]) -> List[Any]:
+        updates = []
+
+        for component in components:
+            if isinstance(component, gr.Markdown):
+                updates.append(gr.update(value=""))
             else:
-                cleared.append(gr.update(value=None) if variable.type != WorkflowVariableType.MARKDOWN else gr.update(value=""))
-        return cleared
+                updates.append(gr.update(value=None))
+
+        return updates
 
     async def _flatten_output_value(
         self,
@@ -524,6 +503,7 @@ class GradioWebUIBuilder:
         variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]
     ) -> Any:
         flattened = []
+
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
                 group = self._resolve_variable_output(output, variable)
@@ -532,6 +512,7 @@ class GradioWebUIBuilder:
             else:
                 value = self._resolve_variable_output(output, variable)
                 flattened.append(await self._convert_output_value(value, variable))
+
         return flattened
 
     def _resolve_variable_output(
@@ -558,6 +539,9 @@ class GradioWebUIBuilder:
         return None if variable.name else output
 
     async def _convert_output_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
+        if variable.type == WorkflowVariableType.NONE:
+            return f"✅ {variable.name}" if variable.name else "✅ Completed"
+
         if variable.type == WorkflowVariableType.SSE_JSON:
             return self._resolve_json_field_from_bytes(value, variable.subtype, variable.format)
 

@@ -17,6 +17,7 @@ class ComponentProcessWorker(ProcessWorker):
         response_queue: Queue
     ):
         super().__init__(component_id, request_queue, response_queue)
+
         self.config = config
         self.global_configs = global_configs
         self.component = None

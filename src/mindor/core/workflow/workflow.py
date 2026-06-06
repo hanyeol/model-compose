@@ -177,7 +177,7 @@ class WorkflowResolver:
 
         if workflow is None:
             if raise_on_error:
-                raise ValueError(f"Workflow not found: {workflow_id}")
+                raise LookupError(f"Workflow not found: {workflow_id}")
             else:
                 return None, None
 

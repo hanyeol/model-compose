@@ -24,6 +24,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         daemon: bool
     ):
         super().__init__(config, controller, daemon)
+
         self._client = None
         self._workers: List[asyncio.Task] = []
         self._stop_event: asyncio.Event = asyncio.Event()

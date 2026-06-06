@@ -25,7 +25,7 @@ class ActionResolver:
 
         if action is None:
             if raise_on_error:
-                raise ValueError(f"Action not found: {action_id}")
+                raise LookupError(f"Action not found: {action_id}")
             else:
                 return (None, None)
 

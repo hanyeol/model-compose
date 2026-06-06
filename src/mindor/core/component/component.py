@@ -17,7 +17,7 @@ class ComponentResolver:
 
         if component is None:
             if raise_on_error:
-                raise ValueError(f"Component not found: {component_id}")
+                raise LookupError(f"Component not found: {component_id}")
             else:
                 return None, None
 

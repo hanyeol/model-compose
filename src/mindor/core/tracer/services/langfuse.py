@@ -16,7 +16,7 @@ class LangfuseTracerService(TracerService):
     def _get_setup_requirements(self):
         return [ "langfuse>=4.0" ]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         from langfuse import Langfuse
 
         self._client = Langfuse(
@@ -25,6 +25,7 @@ class LangfuseTracerService(TracerService):
             base_url=self._resolve_base_url(),
             timeout=self.config.timeout
         )
+        await super()._start()
 
     def _resolve_base_url(self) -> str:
         if self.config.url:
@@ -35,7 +36,8 @@ class LangfuseTracerService(TracerService):
             return f"{scheme}://{self.config.host}"
         return f"{scheme}://{self.config.host}:{self.config.port}"
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self._client:
             self._client.shutdown()
             self._client = None

@@ -45,8 +45,8 @@ class WorkflowContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_variable(self, value: Any, ignore_files: bool = True) -> Any:
-        return await self.renderer.render(value, ignore_files)
+    async def render_variable(self, value: Any, save_media_as_file: bool = False) -> Any:
+        return await self.renderer.render(value, save_media_as_file)
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))

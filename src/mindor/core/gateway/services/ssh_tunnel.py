@@ -15,6 +15,7 @@ class SshTunnelGateway(GatewayService):
 
         self.client: Optional[SshClient] = None
         self.ports: Dict[int, int] = {}  # {local_port: remote_port}
+
         self._shutdown_event: Optional[asyncio.Event] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:

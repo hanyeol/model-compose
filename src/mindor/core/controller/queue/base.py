@@ -14,6 +14,7 @@ InterruptCallback = Callable[[Dict[str, Any]], Awaitable[Any]]
 class CommonControllerQueueService(AsyncService):
     def __init__(self, config: CommonControllerQueueConfig):
         super().__init__(daemon=False)
+
         self.config = config
 
     async def dispatch(

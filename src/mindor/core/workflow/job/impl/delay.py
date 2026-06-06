@@ -15,7 +15,7 @@ class DelayJob(Job):
     async def run(self, context: WorkflowContext) -> Any:
         output = await self._delay(self.config.mode, context)
         
-        output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
+        output = (await context.render_variable(self.config.output)) if self.config.output else output
         context.register_source("output", output)
 
         return output

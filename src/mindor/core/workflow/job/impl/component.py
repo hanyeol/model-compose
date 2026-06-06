@@ -51,7 +51,7 @@ class ComponentJob(Job):
 
             logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.task_id, run_id, component.id, self.id, context.workflow_id, job_time_tracker.elapsed())
 
-            output = (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
+            output = (await context.render_variable(self.config.output)) if self.config.output else output
             outputs.append(output)
 
         repeat_count = (await context.render_variable(self.config.repeat_count)) if self.config.repeat_count else None

@@ -37,10 +37,12 @@ class ModelComponent(ComponentService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.task_service.get_setup_requirements()
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         await self.task_service.start()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         await self.task_service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

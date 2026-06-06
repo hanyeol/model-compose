@@ -87,11 +87,11 @@ class LlamaCppChatCompletionTaskAction:
 
     async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
         context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else chunk
+        return (await context.render_variable(self.config.output)) if self.config.output else chunk
 
     async def _render_output(self, context: ComponentActionContext, result: Any) -> Any:
         context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length = await context.render_variable(self.config.params.max_output_length)

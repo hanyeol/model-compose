@@ -38,14 +38,16 @@ class ModelTaskService(AsyncService):
 
         return await self.run_in_thread(_run)
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         if self.config.preload:
             self._load_model()
             self._model_loaded = True
         else:
             logging.info(f"Component '{self.id}': model will be loaded on demand")
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self._model_loaded:
             self._unload_model()
             self._model_loaded = False

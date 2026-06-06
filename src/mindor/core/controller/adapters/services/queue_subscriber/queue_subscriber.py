@@ -17,6 +17,7 @@ class QueueSubscriberControllerAdapterService(ControllerAdapterService):
         daemon: bool
     ):
         super().__init__(config, controller, daemon)
+
         self.service: CommonQueueSubscriberControllerAdapterService = self._create_service(config.driver)
 
     def _create_service(self, driver: QueueSubscriberDriver) -> CommonQueueSubscriberControllerAdapterService:

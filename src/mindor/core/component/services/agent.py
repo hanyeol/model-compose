@@ -1,5 +1,5 @@
-from typing import Optional, Dict, List, Any
-from mindor.dsl.schema.component import AgentComponentConfig
+from typing import Optional, Dict, List, Tuple, Union, Any
+from mindor.dsl.schema.component import AgentComponentConfig, ComponentConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig, AgentModelConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
@@ -29,8 +29,7 @@ class AgentAction:
     async def run(self, context: ComponentActionContext) -> Any:
         messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
 
-        model_config = self.action.model
-        model_component = self._create_component(model_config.component)
+        model_component = self._create_component(self.action.model.component, self.action.model.component)
         if not model_component.started:
             await model_component.start()
 
@@ -44,8 +43,8 @@ class AgentAction:
                     yield message
 
                 for _ in range(max_iteration_count):
-                    model_input = await self._render_model_input(context, model_config.input, messages, tools)
-                    response = await model_component.run(model_config.action, ulid.ulid(), model_input)
+                    model_input = await self._render_model_input(context, self.action.model.input, messages, tools)
+                    response = await model_component.run(self.action.model.action, ulid.ulid(), model_input)
 
                     assistant_message = await self._build_assistant_message(response)
                     messages.append(assistant_message)
@@ -65,8 +64,8 @@ class AgentAction:
             return _stream_message_generator()
 
         for _ in range(max_iteration_count):
-            model_input = await self._render_model_input(context, model_config.input, messages, tools)
-            response = await model_component.run(model_config.action, ulid.ulid(), model_input)
+            model_input = await self._render_model_input(context, self.action.model.input, messages, tools)
+            response = await model_component.run(self.action.model.action, ulid.ulid(), model_input)
 
             assistant_message = await self._build_assistant_message(response)
             messages.append(assistant_message)
@@ -76,7 +75,7 @@ class AgentAction:
             if not tool_calls:
                 break
 
-            tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
+            tool_messages = await asyncio.gather(*[self._execute_tool_call(tool_call, context) for tool_call in tool_calls])
             for tool_message in tool_messages:
                 messages.append(tool_message)
                 await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -96,10 +95,6 @@ class AgentAction:
             content = f"Error: Unknown tool '{tool_name}'"
 
         return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
-
-    def _create_component(self, component_id: str) -> ComponentService:
-        _, config = ComponentResolver(self.global_configs.components).resolve(component_id)
-        return create_component(component_id, config, self.global_configs, daemon=False)
 
     async def _render_model_input(
         self,
@@ -147,34 +142,14 @@ class AgentAction:
             return message
         return { "role": "assistant", "content": str(response) }
 
-async def _build_function_schema(name: str, tool: WorkflowTool) -> Dict[str, Any]:
-    properties: Dict[str, Any] = {}
-    required: List[str] = []
+    def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
+        return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)
 
-    for param in tool.parameters:
-        prop: Dict[str, Any] = { "type": _JSON_SCHEMA_TYPE_MAP.get(param.type, "string") }
-        if param.description:
-            prop["description"] = param.description
-        if param.default is not None:
-            prop["default"] = param.default
-        if param.required:
-            required.append(param.name)
-        properties[param.name] = prop
+    def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
+        if isinstance(component, str):
+            return ComponentResolver(self.global_configs.components).resolve(component)
 
-    schema: Dict[str, Any] = {
-        "type": "function",
-        "function": {
-            "name": name,
-            "parameters": {"type": "object", "properties": properties}
-        }
-    }
-
-    if tool.description:
-        schema["function"]["description"] = tool.description
-    if required:
-        schema["function"]["parameters"]["required"] = required
-
-    return schema
+        return id, component
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):
@@ -192,7 +167,7 @@ class AgentComponent(ComponentService):
 
     async def _start(self) -> None:
         self.tools = await self._generate_tools()
-        self.function_schemas = await asyncio.gather(*[ _build_function_schema(name, tool) for name, tool in self.tools.items() ])
+        self.function_schemas = await asyncio.gather(*[ self._build_function_schema(name, tool) for name, tool in self.tools.items() ])
         await super()._start()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
@@ -204,13 +179,42 @@ class AgentComponent(ComponentService):
 
         for workflow_id in self.config.tools:
             if workflow_id not in workflow_schemas:
-                raise ValueError(f"Workflow not found for tool: {workflow_id}")
+                raise LookupError(f"Workflow not found for tool: {workflow_id}")
 
             workflow = workflow_schemas[workflow_id]
             tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow)
             tools[workflow.name or workflow_id] = tool
 
         return tools
+
+    async def _build_function_schema(self, name: str, tool: WorkflowTool) -> Dict[str, Any]:
+        properties: Dict[str, Any] = {}
+        required: List[str] = []
+
+        for param in tool.parameters:
+            prop: Dict[str, Any] = { "type": _JSON_SCHEMA_TYPE_MAP.get(param.type, "string") }
+            if param.description:
+                prop["description"] = param.description
+            if param.default is not None:
+                prop["default"] = param.default
+            if param.required:
+                required.append(param.name)
+            properties[param.name] = prop
+
+        schema: Dict[str, Any] = {
+            "type": "function",
+            "function": {
+                "name": name,
+                "parameters": {"type": "object", "properties": properties}
+            }
+        }
+
+        if tool.description:
+            schema["function"]["description"] = tool.description
+        if required:
+            schema["function"]["parameters"]["required"] = required
+
+        return schema
 
     async def _run_workflow(self, workflow_id: str, input: Any, context=None) -> Any:
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)

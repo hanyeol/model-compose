@@ -38,7 +38,7 @@ class ControllerRunner:
     async def get_task_state(self, task_id: str) -> TaskState:
         state = self.service.get_task_state(task_id)
         if state is None:
-            raise RuntimeError(f"Task not found: {task_id}")
+            raise LookupError(f"Task not found: {task_id}")
         return state
 
     async def close(self) -> None:

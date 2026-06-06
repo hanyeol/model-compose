@@ -70,7 +70,7 @@ class ChromaVectorStoreAction:
         result = await self._dispatch(context, client)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
         if self.config.method == VectorStoreActionMethod.INSERT:
@@ -237,10 +237,12 @@ class ChromaVectorStoreService(VectorStoreService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "chromadb" ]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.client = self._create_client()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self.client:
             self.client = None
 

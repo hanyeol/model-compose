@@ -27,12 +27,14 @@ class ConsoleLogger(LoggerService):
         self.logger.setLevel(_LEVEL_MAP[self.config.level])
         self.logger.propagate = False
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.handler = logging.StreamHandler()
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         self.logger.removeHandler(self.handler)
         self.handler = None
 

@@ -347,6 +347,7 @@ class ChromeBrowserSession(WebBrowserSession):
 class ChromeWebBrowserService(WebBrowserService):
     def __init__(self, id: str, config: Any, daemon: bool):
         super().__init__(id, config, daemon)
+
         debugger = config.debugger
         self._url: str = debugger.url or f"{debugger.protocol}://{debugger.host}:{debugger.port}"
         self._target_ids: List[str] = []

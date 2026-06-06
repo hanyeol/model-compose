@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, List, Tuple, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.core.utils.audio import PcmStreamResource
@@ -24,7 +24,7 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
         temperature   = await context.render_variable(self.config.temperature)
         audio_path    = await self._get_reference_audio(context)
 
-        generate_params = {}
+        generate_params: Dict[str, Any] = {}
         if exaggeration is not None:
             generate_params["exaggeration"] = float(exaggeration)
         if cfg_weight is not None:

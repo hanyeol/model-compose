@@ -103,7 +103,7 @@ class HttpClientAction:
             async def _stream_output_generator(stream: StreamResource):
                 async for chunk in stream:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                    chunk = await context.render_variable(self.config.output, ignore_files=True)
+                    chunk = await context.render_variable(self.config.output)
                     if chunk is not None:
                         yield chunk
 
@@ -119,7 +119,7 @@ class HttpClientAction:
                 async def _stream_output_generator(stream: StreamResource):
                     async for chunk in stream:
                         context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                        chunk = await context.render_variable(self.config.output, ignore_files=True)
+                        chunk = await context.render_variable(self.config.output)
                         if chunk is not None:
                             yield chunk
 
@@ -127,7 +127,7 @@ class HttpClientAction:
 
             context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else (result or response)
+        return (await context.render_variable(self.config.output)) if self.config.output else (result or response)
 
     async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
         if self.config.path:

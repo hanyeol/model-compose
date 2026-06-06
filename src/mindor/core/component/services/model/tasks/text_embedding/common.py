@@ -63,11 +63,11 @@ class TextEmbeddingTaskAction:
 
     async def _render_output_item(self, context: ComponentActionContext, embedding: List[float]) -> Any:
         context.register_source("result[]", embedding)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else embedding
+        return (await context.render_variable(self.config.output)) if self.config.output else embedding
 
     async def _render_output(self, context: ComponentActionContext, result: Union[List[float], List[List[float]]]) -> Any:
         context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
 class TextEmbeddingTaskService(ModelTaskService):
     pass

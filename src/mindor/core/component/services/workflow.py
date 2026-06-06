@@ -13,7 +13,7 @@ class WorkflowAction:
         output = await context.workflow.workflow_delegate(self.config.workflow, input, context.workflow.interrupt_handler)
         context.register_source("output", output)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else output
+        return (await context.render_variable(self.config.output)) if self.config.output else output
 
 @register_component(ComponentType.WORKFLOW)
 class WorkflowComponent(ComponentService):

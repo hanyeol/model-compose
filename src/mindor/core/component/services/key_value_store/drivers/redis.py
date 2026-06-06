@@ -19,7 +19,7 @@ class RedisKeyValueStoreAction:
         result = await self._dispatch(context, client)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, client: AsyncRedis) -> Dict[str, Any]:
         if self.config.method == KeyValueStoreActionMethod.GET:
@@ -95,10 +95,12 @@ class RedisKeyValueStoreService(KeyValueStoreService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "redis" ]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.client = self._create_client()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self.client:
             await self.client.close()
             self.client = None

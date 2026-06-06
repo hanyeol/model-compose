@@ -184,6 +184,7 @@ class PlaywrightBrowserSession(WebBrowserSession):
 class PlaywrightWebBrowserService(WebBrowserService):
     def __init__(self, id: str, config: Any, daemon: bool):
         super().__init__(id, config, daemon)
+
         self._playwrite = None
         self._browser = None
 

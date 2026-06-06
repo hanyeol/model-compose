@@ -10,4 +10,4 @@ class FilterJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else None
+        return (await context.render_variable(self.config.output)) if self.config.output else None

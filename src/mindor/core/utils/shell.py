@@ -20,7 +20,7 @@ async def run_command(
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         if await kill_process(process):
-            raise RuntimeError(f"Command timed out: {' '.join(command)}")
+            raise TimeoutError(f"Command timed out: {' '.join(command)}")
 
     return (stdout, stderr, process.returncode)
 

@@ -21,7 +21,7 @@ class WebBrowserAction:
         result = await self._dispatch(context, session, timeout)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, session: WebBrowserSession, timeout: float) -> Any:
         # Navigation
@@ -190,7 +190,7 @@ class WebBrowserComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         session_key = await self._resolve_session_key(action, context)
-        session     = await self._get_or_create_session(session_key)
+        session     = await self._acquire_session(session_key)
 
         return await WebBrowserAction(action, self.config.timeout).run(context, session)
 
@@ -200,7 +200,7 @@ class WebBrowserComponent(ComponentService):
 
         return _DEFAULT_SESSION_KEY
 
-    async def _get_or_create_session(self, session_key: str) -> WebBrowserSession:
+    async def _acquire_session(self, session_key: str) -> WebBrowserSession:
         if session_key not in self._sessions:
             async with self._sessions_lock:
                 if session_key not in self._sessions:

@@ -110,7 +110,7 @@ class MilvusVectorStoreAction:
         result = await self._dispatch(context, client)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
         if self.config.method == VectorStoreActionMethod.INSERT:
@@ -309,7 +309,7 @@ class MilvusVectorStoreService(VectorStoreService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "pymilvus" ]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         from pymilvus import AsyncMilvusClient
 
         self.client = AsyncMilvusClient(
@@ -319,8 +319,10 @@ class MilvusVectorStoreService(VectorStoreService):
             db_name=self.config.database or "",
             timeout=parse_duration(self.config.timeout)
         )
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self.client:
             await self.client.close()
             self.client = None

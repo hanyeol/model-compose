@@ -35,7 +35,7 @@ class PySceneVideoSceneDetectorAction:
         }
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     def _detect(
         self,

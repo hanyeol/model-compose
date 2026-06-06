@@ -89,8 +89,8 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
             config = self._build_named_tunnel_config(self.config.tunnel, self.config.credentials_file)
 
             fd, path = tempfile.mkstemp(suffix=".yml", prefix="cloudflared-")
-            with os.fdopen(fd, "w") as f:
-                f.write(config)
+            with os.fdopen(fd, "w") as file:
+                file.write(config)
 
             return [ "cloudflared", "tunnel", "--config", path, "run", self.config.tunnel ]
 

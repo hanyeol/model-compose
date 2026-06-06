@@ -8,6 +8,7 @@ from ...context import ComponentActionContext
 class AudioExtractorService(AsyncService):
     def __init__(self, id: str, config: AudioExtractorComponentConfig, daemon: bool):
         super().__init__(daemon)
+
         self.id: str = id
         self.config: AudioExtractorComponentConfig = config
 

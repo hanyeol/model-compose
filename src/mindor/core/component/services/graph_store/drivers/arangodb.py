@@ -84,7 +84,7 @@ class ArangoDBGraphStoreAction:
         result = await self._dispatch(context, db)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, db: StandardDatabase) -> Any:
         if self.config.method == GraphStoreActionMethod.QUERY:
@@ -239,10 +239,12 @@ class ArangoDBGraphStoreService(GraphStoreService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return ["python-arango"]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.client, self.database = self._create_client()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self.client:
             self.client.close()
             self.client = None

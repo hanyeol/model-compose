@@ -78,6 +78,7 @@ class SshClient:
         self.client: Optional[paramiko.SSHClient] = None
         self.transport: Optional[paramiko.Transport] = None
         self.port_forwards: Dict[int, Tuple[str, int]] = {}  # remote_port -> (local_host, local_port)
+
         self._shutdown_event: Optional[threading.Event] = None
         self._forward_threads: List[threading.Thread] = []
 

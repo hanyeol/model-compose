@@ -29,7 +29,7 @@ class ModelMemoryAction:
         result = await self._dispatch(context, buffer, storage)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> Any:
         if self.config.method == ModelMemoryActionMethod.LOAD:
@@ -85,12 +85,12 @@ class ModelMemoryAction:
             raise ValueError("'messages' is required for append")
 
         if not isinstance(messages, list):
-            raise ValueError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
+            raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
 
         turns = await buffer.get_turns(session_id)
 
         if turns is None:
-            raise ValueError(f"Session not loaded: {session_id}. Call load before append.")
+            raise LookupError(f"Session not loaded: {session_id}. Call load before append.")
 
         await buffer.append_turn(session_id, messages)
 
@@ -107,12 +107,12 @@ class ModelMemoryAction:
             raise ValueError("'session_id' is required for save")
 
         if messages is not None and not isinstance(messages, list):
-            raise ValueError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
+            raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
 
         turns = await buffer.get_turns(session_id)
 
         if turns is None:
-            raise ValueError(f"Session not loaded: {session_id}. Call load before save.")
+            raise LookupError(f"Session not loaded: {session_id}. Call load before save.")
 
         if messages is not None:
             await buffer.append_turn(session_id, messages)

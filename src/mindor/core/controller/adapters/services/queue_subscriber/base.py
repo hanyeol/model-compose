@@ -17,6 +17,7 @@ class CommonQueueSubscriberControllerAdapterService(AsyncService):
         daemon: bool
     ):
         super().__init__(daemon)
+
         self.config = config
         self.controller = controller
 

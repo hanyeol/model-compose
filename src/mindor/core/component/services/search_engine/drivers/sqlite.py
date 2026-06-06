@@ -15,7 +15,7 @@ class SQLiteSearchEngineAction:
         result = await self._dispatch(context, database_path)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, database_path: str) -> Dict[str, Any]:
         if self.config.method == SearchEngineActionMethod.INDEX:
@@ -45,7 +45,7 @@ class SQLiteSearchEngineAction:
 
             if meta is None:
                 if not self.config.fields:
-                    raise ValueError(f"Index '{index_name}' does not exist and no fields were provided.")
+                    raise LookupError(f"Index '{index_name}' does not exist and no fields were provided.")
                 meta = self._create_index(database, index_name, self.config.fields)
 
             column_names = [ f["name"] for f in meta["fields"] ]
@@ -88,7 +88,7 @@ class SQLiteSearchEngineAction:
         try:
             meta = self._load_meta(database, index_name)
             if meta is None:
-                raise ValueError(f"Index '{index_name}' does not exist.")
+                raise LookupError(f"Index '{index_name}' does not exist.")
 
             match_expr = ("{" + " ".join(search_fields) + "}: " + str(query)) if search_fields else str(query)
 

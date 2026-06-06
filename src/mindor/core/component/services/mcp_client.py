@@ -16,7 +16,7 @@ class McpClientAction:
         response = [ await self._convert_output_value(content) for content in await client.call_tool(tool, arguments) ]
         context.register_source("response", response)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else response
+        return (await context.render_variable(self.config.output)) if self.config.output else response
 
     async def _convert_output_value(self, content: ContentBlock) -> Any:
         if isinstance(content, TextContent):

@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir \
     pyyaml \
     pydantic \
     python-dotenv \
+    packaging \
     docker \
     aiohttp \
     aiofiles \
@@ -27,7 +28,6 @@ RUN pip install --no-cache-dir \
     uvicorn \
     'mcp>=1.10.1' \
     ulid \
-    'gradio>=6.0.0' \
     Pillow \
     beautifulsoup4 \
     lxml \

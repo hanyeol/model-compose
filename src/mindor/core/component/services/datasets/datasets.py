@@ -20,7 +20,7 @@ class DatasetsAction:
         result = await self._dispatch(context)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext) -> Dataset:
         if self.config.method == DatasetsActionMethod.LOAD:
@@ -71,7 +71,7 @@ class DatasetsAction:
 
         for dataset in datasets:
             if not isinstance(dataset, Dataset):
-                raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+                raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
 
         return concatenate_datasets(
             datasets,
@@ -87,7 +87,7 @@ class DatasetsAction:
         columns = await context.render_variable(self.config.columns)
 
         if not isinstance(dataset, Dataset):
-            raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+            raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
 
         if axis == "rows":
             if indices is None:
@@ -108,7 +108,7 @@ class DatasetsAction:
         remove_columns = await context.render_variable(self.config.remove_columns)
 
         if not isinstance(dataset, Dataset):
-            raise ValueError(f"Expected Dataset instance, but got {type(dataset).__name__}")
+            raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
 
         def _format_example(example):
             return { output_column: format_template_example(template, example) }

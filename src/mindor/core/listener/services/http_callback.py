@@ -27,15 +27,15 @@ class HttpCallbackContext:
         for item in await self._items():
             yield HttpCallbackContext(item, self.query, False, None)
 
-    async def render_variable(self, template: str, ignore_files: bool = True) -> Any:
-        return await self.renderer.render(template, ignore_files)
+    async def render_variable(self, template: str, save_media_as_file: bool = False) -> Any:
+        return await self.renderer.render(template, save_media_as_file)
 
     async def _items(self) -> List[Any]:
         item = await self.renderer.render(self.item) if self.item else self.body
 
         if self.bulk:
             if not isinstance(item, list):
-               raise ValueError("Expected a list because 'bulk' is true, but got a non-list")
+               raise TypeError("Expected a list because 'bulk' is true, but got a non-list")
             return item
 
         return [ item ]
@@ -89,7 +89,7 @@ class HttpCallbackListener(ListenerService):
 
                 if future:
                     if succeeded:
-                        future.set_result((await item.render_variable(callback.result, ignore_files=True)) if callback.result else item.body)
+                        future.set_result((await item.render_variable(callback.result)) if callback.result else item.body)
                     else:
                         future.set_exception(RuntimeError(f"Task failed for '{callback_id}'"))
                     self._remove_pending_future(callback_id)

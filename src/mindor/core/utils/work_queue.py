@@ -41,7 +41,7 @@ class WorkQueue:
 
     async def start(self):
         if self.queue:
-            raise ValueError("Queue already started")
+            raise RuntimeError("Queue already started")
 
         self.queue = asyncio.Queue()
         self.stopped = False
@@ -54,7 +54,7 @@ class WorkQueue:
 
     async def schedule(self, *args: Any, **kwargs: Any) -> asyncio.Future:
         if not self.queue:
-            raise ValueError("Queue not started")
+            raise RuntimeError("Queue not started")
 
         if self.draining or self.stopped:
             raise ShutdownError("Queue is shutting down")
@@ -66,7 +66,7 @@ class WorkQueue:
 
     async def stop(self, timeout: float = 30.0):
         if not self.queue:
-            raise ValueError("Queue not started")
+            raise RuntimeError("Queue not started")
 
         # Phase 1: drain — reject new work, wait for active handlers to finish
         self.draining = True

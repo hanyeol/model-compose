@@ -17,7 +17,7 @@ class DockerComposeSystem(SystemService):
 
     async def _setup(self) -> None:
         if not shutil.which("docker"):
-            raise RuntimeError("'docker' command not found. Please install Docker to use docker-compose systems.")
+            raise FileNotFoundError("'docker' command not found. Please install Docker to use docker-compose systems.")
 
     async def _serve(self) -> None:
         command = self._build_up_command()

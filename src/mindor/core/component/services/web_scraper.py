@@ -55,7 +55,7 @@ class WebScraperAction:
             result = self._extract_full_page(html_content, extract_mode)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _fetch_html_with_javascript(
         self,
@@ -132,7 +132,7 @@ class WebScraperAction:
                         if element:
                             await element.evaluate("form => form.submit()")
                         else:
-                            raise ValueError("No <form> element found on the page to submit")
+                            raise LookupError("No <form> element found on the page to submit")
 
                     # Wait for navigation or specific element after submit
                     if wait_for:

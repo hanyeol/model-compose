@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, FileValueRenderer
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, FileValueRenderer, SizeValueRenderer
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
 
@@ -64,14 +64,17 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_variable(self, value: Any, ignore_files: bool = False) -> Any:
-        return await self.renderer.render(value, ignore_files)
+    async def render_variable(self, value: Any, save_media_as_file: bool = False) -> Any:
+        return await self.renderer.render(value, save_media_as_file)
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))
 
     async def render_file(self, value: Any) -> Optional[str]:
-        return await FileValueRenderer().render(await self.render_variable(value))
+        return await FileValueRenderer().render(await self.render_variable(value, save_media_as_file=True))
+
+    async def render_size(self, value: Any, default: Optional[int] = None) -> Optional[int]:
+        return await SizeValueRenderer().render(await self.render_variable(value), default)
 
     def contains_variable_reference(self, key: str, value: Any) -> bool:
         return self.renderer.contains_reference(key, value)

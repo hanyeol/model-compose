@@ -15,6 +15,7 @@ class AudioConverterComponent(ComponentService):
         daemon: bool
     ):
         super().__init__(id, config, global_configs, daemon)
+
         self.service: AudioConverterService = self._create_service(self.config.driver)
 
     def _create_service(self, driver: AudioConverterDriver) -> AudioConverterService:
@@ -28,10 +29,12 @@ class AudioConverterComponent(ComponentService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         await self.service.start()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

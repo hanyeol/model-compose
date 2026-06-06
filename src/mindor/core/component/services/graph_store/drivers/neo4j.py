@@ -124,7 +124,7 @@ class Neo4jGraphStoreAction:
         result = await self._dispatch(context, driver, default_database)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, driver: AsyncDriver, default_database: Optional[str]) -> Any:
         if self.config.method == GraphStoreActionMethod.QUERY:
@@ -286,10 +286,12 @@ class Neo4jGraphStoreService(GraphStoreService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return ["neo4j"]
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         self.driver = self._create_driver()
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         if self.driver:
             await self.driver.close()
             self.driver = None

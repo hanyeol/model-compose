@@ -54,7 +54,7 @@ class SpeechToTextTaskAction:
 
     async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
         context.register_source("result", result)
-        return (await context.render_variable(self.config.output, ignore_files=True)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _load_audio_from_path(self, path: str, sample_rate: int = 16000) -> np.ndarray:
         import torchaudio

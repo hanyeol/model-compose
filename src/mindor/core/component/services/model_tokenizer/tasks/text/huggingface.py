@@ -30,7 +30,7 @@ class HuggingfaceTextModelTokenizerTaskAction:
         padding    = await context.render_variable(self.config.padding)
         truncation = await context.render_variable(self.config.truncation)
 
-        encode_params = {}
+        encode_params: Dict[str, Any] = {}
         if max_length is not None:
             encode_params["max_length"] = int(max_length)
         if padding:

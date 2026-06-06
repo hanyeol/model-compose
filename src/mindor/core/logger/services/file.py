@@ -27,13 +27,15 @@ class FileLogger(LoggerService):
         self.logger.setLevel(_LEVEL_MAP[self.config.level])
         self.logger.propagate = False
 
-    async def _serve(self) -> None:
+    async def _start(self) -> None:
         Path(self.config.path).parent.mkdir(parents=True, exist_ok=True)
         self.handler = logging.FileHandler(self.config.path, mode="a", encoding="utf-8")
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
+        await super()._start()
 
-    async def _shutdown(self) -> None:
+    async def _stop(self) -> None:
+        await super()._stop()
         self.logger.removeHandler(self.handler)
         self.handler = None
 

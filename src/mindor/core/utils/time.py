@@ -1,6 +1,11 @@
 from typing import Union, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from enum import Enum
 import zoneinfo
+
+class TimezoneFormat(str, Enum):
+    ZULU   = "z"
+    OFFSET = "offset"
 
 class TimeTracker:
     def __init__(self):
@@ -60,3 +65,17 @@ def format_timecode(seconds: float) -> str:
     s = seconds % 60
 
     return f"{h:02d}:{m:02d}:{s:06.3f}"
+
+def format_datetime_iso_string(value: Union[datetime, int, float], tz_format: TimezoneFormat = TimezoneFormat.ZULU) -> str:
+    if isinstance(value, (int, float)):
+        value = datetime.fromtimestamp(value, tz=timezone.utc)
+    
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+
+    string = value.astimezone(timezone.utc).isoformat()
+
+    if tz_format == TimezoneFormat.ZULU:
+        string = string.replace("+00:00", "Z")
+
+    return string

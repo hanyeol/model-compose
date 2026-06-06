@@ -33,7 +33,7 @@ class DockerSystem(SystemService):
 
     async def _setup(self) -> None:
         if not shutil.which("docker"):
-            raise RuntimeError("'docker' command not found. Please install Docker to use docker systems.")
+            raise FileNotFoundError("'docker' command not found. Please install Docker to use docker systems.")
 
         if self.config.build:
             await self._runtime.build_image()

@@ -6,6 +6,7 @@ from .websocket_server import *
 from .websocket_client import *
 from .mcp_server import *
 from .mcp_client import *
+from .agent import *
 from .model import *
 from .model_memory import *
 from .model_trainer import *
@@ -17,7 +18,6 @@ from .shell import *
 from .text_splitter import *
 from .image_processor import *
 from .web_scraper import *
-from .agent import *
 from .web_browser import *
 from .video_converter import *
 from .video_scene_detector import *
@@ -25,4 +25,5 @@ from .audio_extractor import *
 from .audio_converter import *
 from .key_value_store import *
 from .graph_store import *
+from .file_store import *
 from .search_engine import *

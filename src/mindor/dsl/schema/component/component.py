@@ -27,6 +27,7 @@ ComponentConfig = Annotated[
         AudioExtractorComponentConfig,
         KeyValueStoreComponentConfig,
         GraphStoreComponentConfig,
+        FileStoreComponentConfig,
         SearchEngineComponentConfig
     ],
     Field(discriminator="type")

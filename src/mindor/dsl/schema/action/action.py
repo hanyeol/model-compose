@@ -23,5 +23,6 @@ ActionConfig = Union[
     AudioExtractorActionConfig,
     KeyValueStoreActionConfig,
     GraphStoreActionConfig,
+    FileStoreActionConfig,
     SearchEngineActionConfig
 ]

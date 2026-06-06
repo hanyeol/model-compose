@@ -120,11 +120,12 @@ class HttpClient:
                 headers={ k: v for k, v in merged_headers.items() if v is not None },
                 timeout=timeout or self.timeout
             )
-            content, _ = await self._parse_response_content(response, streaming)
 
             if raise_on_error and response.status >= 400:
-                error_detail = json.dumps(content, indent=2) if isinstance(content, dict) else str(content)
-                raise ValueError(f"Request failed with status {response.status}\nURL: {url_or_path}\nResponse: {error_detail}")
+                error = await self._parse_response_error(response)
+                raise ValueError(f"Request failed with status {response.status}\nURL: {url_or_path}\nResponse: {error}")
+
+            content, _ = await self._parse_response_content(response, streaming)
 
             if not isinstance(content, StreamResource):
                 response.close()
@@ -224,6 +225,13 @@ class HttpClient:
         filename = disposition.get("filename")
 
         return (HttpStreamResource(response, content_type, filename), content_type)
+
+    async def _parse_response_error(self, response: aiohttp.ClientResponse) -> str:
+        body = await response.text()
+        try:
+            return json.dumps(json.loads(body), indent=2)
+        except (ValueError, json.JSONDecodeError):
+            return body
 
 async def create_stream_with_url(url: str) -> HttpStreamResource:
     return await HttpClient.get_shared_instance().request(url)

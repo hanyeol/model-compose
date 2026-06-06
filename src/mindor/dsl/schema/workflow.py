@@ -27,6 +27,8 @@ class WorkflowVariableType(str, Enum):
     SSE_JSON = "sse-json"
     # UI-related types
     SELECT   = "select"
+    # No output
+    NONE     = "none"
 
 class WorkflowVariableFormat(str, Enum):
     BASE64   = "base64"

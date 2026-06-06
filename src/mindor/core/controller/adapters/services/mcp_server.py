@@ -134,6 +134,9 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(value, (dict, list)):
             return TextContent(type="text", text=json.dumps(value))
 
+        if type == WorkflowVariableType.NONE:
+            return TextContent(type="text", text="")
+
         return TextContent(type="text", text=str(value))
 
     async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:

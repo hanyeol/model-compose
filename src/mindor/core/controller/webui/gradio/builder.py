@@ -603,6 +603,9 @@ class GradioWebUIBuilder:
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value, subtype)
 
+        if isinstance(value, PILImage.Image):
+            return value
+
         return None
 
     async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[WorkflowVariableFormat]) -> Optional[str]:

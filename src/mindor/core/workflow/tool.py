@@ -98,3 +98,30 @@ class WorkflowToolGenerator():
             return "int"
 
         return "str"
+
+class ResumeToolGenerator():
+    def generate(
+        self,
+        workflow_id: str,
+        runner: Callable[[str, str, Any], Awaitable[Any]]
+    ) -> WorkflowTool:
+        async def _resume_workflow(task_id, job_id, answer=None) -> Any:
+            return await runner(task_id, job_id, answer)
+
+        safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
+        code = (
+            f"async def _resume_workflow_{safe_workflow_id}(task_id=None, job_id=None, answer=''):\n"
+            f"    return await _resume_workflow(task_id, job_id, answer)"
+        )
+        context = { "_resume_workflow": _resume_workflow }
+        exec(compile(code, f"<string>", "exec"), context)
+
+        return WorkflowTool(
+            function=context[f"_resume_workflow_{safe_workflow_id}"],
+            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.",
+            parameters=[
+                WorkflowToolParameter(name="task_id", type="str", description="The task ID of the interrupted workflow", default=None, required=True),
+                WorkflowToolParameter(name="job_id",  type="str", description="The job ID where the interrupt occurred",  default=None, required=True),
+                WorkflowToolParameter(name="answer",  type="str", description="Optional JSON string with answer to resume with", default="", required=False),
+            ]
+        )

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, List, Any
 from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
+from mindor.core.workflow.tool import WorkflowToolGenerator, ResumeToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.utils.streaming import StreamResource, Base64StreamResource
 from mindor.core.utils.streaming import save_stream_to_temporary_file
@@ -49,23 +49,24 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         self._configure_resume_tool()
 
     def _configure_resume_tool(self) -> None:
-        async def _resume_workflow(task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
-            parsed_answer = json.loads(answer) if answer else None
-            try:
-                await self.controller.resume_workflow(task_id, job_id, parsed_answer)
-            except ValueError as e:
-                return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
-
-            state = await self.controller.wait_for_terminal_state(task_id)
-            return await self._build_state_response(state)
-
+        tool = ResumeToolGenerator().generate("resume", self._resume_workflow_as_tool)
         self.app.add_tool(
-            fn=_resume_workflow,
+            fn=tool.function,
             name="resume_workflow",
             title="Resume an interrupted workflow",
-            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.\n\nArgs:\n    task_id (str): The task ID of the interrupted workflow\n    job_id (str): The job ID where the interrupt occurred\n    answer (str): Optional JSON string with answer to resume with",
+            description=self._build_tool_description(tool),
             annotations=None
         )
+
+    async def _resume_workflow_as_tool(self, task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
+        parsed_answer = json.loads(answer) if answer else None
+        try:
+            await self.controller.resume_workflow(task_id, job_id, parsed_answer)
+        except ValueError as e:
+            return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
+
+        state = await self.controller.wait_for_terminal_state(task_id)
+        return await self._build_state_response(state)
 
     async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
         state = await self.controller.run_workflow(

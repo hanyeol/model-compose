@@ -62,7 +62,7 @@ class DatasetsAction:
         raise ValueError(f"Unsupported dataset provider: {self.config.provider}")
 
     async def _concat(self, context: ComponentActionContext) -> Dataset:
-        from datasets import concatenate_datasets
+        from datasets import Dataset, concatenate_datasets
 
         datasets  = await context.render_variable(self.config.datasets)
         direction = await context.render_variable(self.config.direction)
@@ -81,6 +81,8 @@ class DatasetsAction:
         )
 
     async def _select(self, context: ComponentActionContext) -> Dataset:
+        from datasets import Dataset
+
         dataset = await context.render_variable(self.config.dataset)
         axis    = await context.render_variable(self.config.axis)
         indices = await context.render_variable(self.config.indices)
@@ -102,6 +104,8 @@ class DatasetsAction:
         raise ValueError(f"Unsupported axis: {axis}")
 
     async def _map(self, context: ComponentActionContext) -> Dataset:
+        from datasets import Dataset
+
         dataset        = await context.render_variable(self.config.dataset)
         template       = await context.render_variable(self.config.template)
         output_column  = await context.render_variable(self.config.output_column)

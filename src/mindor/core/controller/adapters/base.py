@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 class ControllerAdapterService(AsyncService):
     def __init__(self, config: ControllerAdapterConfig, controller: ControllerService, daemon: bool):
         super().__init__(daemon)
+
         self.config: ControllerAdapterConfig = config
         self.controller: ControllerService = controller
 

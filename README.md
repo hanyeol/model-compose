@@ -18,9 +18,9 @@
 
 **Compose AI Systems, Deploy Anywhere.**
 
-Define AI workflows, agents, models, and tools in a single YAML file — then run them locally, in containers, or in production without rewriting your stack.
+Build AI agents, RAG pipelines, MCP servers, and multi-model workflows in a single YAML file. Run the same system locally, in containers, or in production without rewriting your stack.
 
-Inspired by `docker-compose` — one YAML file defines your entire AI system.
+Inspired by `docker-compose`, model-compose provides a portable runtime for AI systems — combining cloud APIs and local models without vendor lock-in.
 
 <div align="center">
 

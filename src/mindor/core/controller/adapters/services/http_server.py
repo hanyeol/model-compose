@@ -11,7 +11,7 @@ from mindor.core.utils.http_request import parse_request_body, parse_options_hea
 from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.image import ImageStreamResource
 from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResource
-from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, JobEvent
+from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
 from mindor.core.errors import TaskError, ShutdownError
@@ -156,6 +156,37 @@ class JobEventResult(BaseModel):
 
     @classmethod
     def to_dict(cls, instance: JobEvent) -> Dict[str, Any]:
+        return cls.from_instance(instance).model_dump(exclude_none=True)
+
+class TaskEventResult(BaseModel):
+    task_id: str
+    workflow_id: Optional[str] = None
+    event: Literal[ "started", "interrupted", "resumed", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    output: Optional[Any] = None
+    error: Optional[str] = None
+    interrupt: Optional[InterruptResult] = None
+    elapsed: Optional[float] = None
+    session_id: Optional[str] = None
+    metadata: Optional[Any] = None
+
+    @classmethod
+    def from_instance(cls, instance: TaskEvent) -> Self:
+        return cls(
+            task_id=instance.task_id,
+            workflow_id=instance.workflow_id,
+            event=instance.event,
+            status=instance.status,
+            output=instance.output,
+            error=instance.error,
+            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None,
+            elapsed=instance.elapsed,
+            session_id=instance.session_id,
+            metadata=instance.metadata,
+        )
+
+    @classmethod
+    def to_dict(cls, instance: TaskEvent) -> Dict[str, Any]:
         return cls.from_instance(instance).model_dump(exclude_none=True)
 
 class WorkflowVariableResult(BaseModel):
@@ -652,6 +683,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
     async def _start(self) -> None:
         self.controller.add_task_state_listener(self._on_task_state_change)
+        self.controller.add_task_event_listener(self._on_task_event)
         self.controller.add_job_event_listener(self._on_job_event)
 
         await super()._start()
@@ -671,6 +703,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
     async def _shutdown(self) -> None:
         self.controller.remove_task_state_listener(self._on_task_state_change)
+        self.controller.remove_task_event_listener(self._on_task_event)
         self.controller.remove_job_event_listener(self._on_job_event)
         await self.websocket_manager.dispose()
 
@@ -684,6 +717,16 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 WebSocketMessage(
                     type="task_state",
                     data=TaskStateResult.to_dict(state)
+                )
+            )
+
+    async def _on_task_event(self, event: TaskEvent) -> None:
+        if self.websocket_manager.has_task_subscribers(event.task_id):
+            await self.websocket_manager.broadcast_task_message(
+                event.task_id,
+                WebSocketMessage(
+                    type="task_event",
+                    data=TaskEventResult.to_dict(event)
                 )
             )
 

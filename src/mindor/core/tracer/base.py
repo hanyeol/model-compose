@@ -16,7 +16,7 @@ class TracerService(AsyncService):
         pass
 
     @abstractmethod
-    def on_workflow_end(self, task_id: str, workflow_id: str, output: Any, elapsed: float) -> None:
+    def on_workflow_end(self, task_id: str, workflow_id: str, output: Any, elapsed: float, is_streaming: bool) -> None:
         pass
 
     @abstractmethod

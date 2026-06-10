@@ -68,6 +68,19 @@ class TaskState:
     metadata: Optional[Any] = None
 
 @dataclass
+class TaskEvent:
+    task_id: str
+    event: Literal[ "started", "interrupted", "resumed", "completed", "failed" ]
+    status: TaskStatus
+    workflow_id: Optional[str] = None
+    output: Optional[Any] = None
+    error: Optional[str] = None
+    interrupt: Optional[InterruptState] = None
+    elapsed: Optional[float] = None
+    session_id: Optional[str] = None
+    metadata: Optional[Any] = None
+
+@dataclass
 class JobEvent:
     task_id: str
     workflow_id: str
@@ -96,9 +109,10 @@ class ComponentEvent:
     error: Optional[str] = None
 
 TaskStateListener = Callable[[str, TaskState], Awaitable[None]]
+TaskEventListener = Callable[[TaskEvent], Awaitable[None]]
 JobEventListener = Callable[[JobEvent], Awaitable[None]]
 ComponentEventListener = Callable[[ComponentEvent], Awaitable[None]]
-TaskEventCallback = Callable[[Union[TaskState, JobEvent, ComponentEvent]], Awaitable[None]]
+TaskEventCallback = Callable[[Union[TaskState, TaskEvent, JobEvent, ComponentEvent]], Awaitable[None]]
 
 class ControllerService(AsyncService):
     _shared_instance: Optional[ControllerService] = None
@@ -146,9 +160,11 @@ class ControllerService(AsyncService):
         self._inflight_tasks: Set[asyncio.Task] = set()
         self._shutting_down: bool = False
         self._task_state_listeners: List[TaskStateListener] = []
+        self._task_event_listeners: List[TaskEventListener] = []
         self._job_event_listeners: List[JobEventListener] = []
         self._component_event_listeners: List[ComponentEventListener] = []
         self._task_event_callbacks: Dict[str, TaskEventCallback] = {}
+        self._task_previous_status: Dict[str, TaskStatus] = {}
         self._listener_tasks: Set[asyncio.Task] = set()
 
         if self.config.max_concurrent_count > 0:
@@ -364,6 +380,16 @@ class ControllerService(AsyncService):
     def remove_task_state_listener(self, listener: TaskStateListener) -> None:
         try:
             self._task_state_listeners.remove(listener)
+        except ValueError:
+            pass
+
+    def add_task_event_listener(self, listener: TaskEventListener) -> None:
+        if listener not in self._task_event_listeners:
+            self._task_event_listeners.append(listener)
+
+    def remove_task_event_listener(self, listener: TaskEventListener) -> None:
+        try:
+            self._task_event_listeners.remove(listener)
         except ValueError:
             pass
 
@@ -773,6 +799,12 @@ class ControllerService(AsyncService):
         if not state:
             return
 
+        previous_status = self._task_previous_status.get(task_id)
+        if state.status in [ TaskStatus.COMPLETED, TaskStatus.FAILED ]:
+            self._task_previous_status.pop(task_id, None)
+        else:
+            self._task_previous_status[task_id] = state.status
+
         callback = self._task_event_callbacks.get(task_id)
         if callback:
             task = asyncio.create_task(self._invoke_event_callback(callback, state))
@@ -784,11 +816,60 @@ class ControllerService(AsyncService):
             self._listener_tasks.add(task)
             task.add_done_callback(self._listener_tasks.discard)
 
+        event = self._derive_task_event(state, previous_status)
+        if event is not None:
+            self._notify_task_event(event)
+
+    def _derive_task_event(self, state: TaskState, previous_status: Optional[TaskStatus]) -> Optional[TaskEvent]:
+        if state.status == TaskStatus.PROCESSING:
+            if previous_status == TaskStatus.INTERRUPTED:
+                event_name = "resumed"
+            else:
+                event_name = "started"
+        elif state.status == TaskStatus.INTERRUPTED:
+            event_name = "interrupted"
+        elif state.status == TaskStatus.COMPLETED:
+            event_name = "completed"
+        elif state.status == TaskStatus.FAILED:
+            event_name = "failed"
+        else:
+            return None
+
+        return TaskEvent(
+            task_id=state.task_id,
+            event=event_name,
+            status=state.status,
+            workflow_id=state.workflow_id,
+            output=state.output,
+            error=state.error,
+            interrupt=state.interrupt,
+            session_id=state.session_id,
+            metadata=state.metadata,
+        )
+
+    def _notify_task_event(self, event: TaskEvent) -> None:
+        callback = self._task_event_callbacks.get(event.task_id)
+        if callback:
+            task = asyncio.create_task(self._invoke_event_callback(callback, event))
+            self._listener_tasks.add(task)
+            task.add_done_callback(self._listener_tasks.discard)
+
+        for listener in self._task_event_listeners:
+            task = asyncio.create_task(self._invoke_task_event_listener(listener, event))
+            self._listener_tasks.add(task)
+            task.add_done_callback(self._listener_tasks.discard)
+
     async def _invoke_task_state_listener(self, listener: TaskStateListener, task_id: str, state: TaskState) -> None:
         try:
             await listener(task_id, state)
         except Exception:
             logging.warning("Task state listener error for task %s", task_id, exc_info=True)
+
+    async def _invoke_task_event_listener(self, listener: TaskEventListener, event: TaskEvent) -> None:
+        try:
+            await listener(event)
+        except Exception:
+            logging.warning("Task event listener error for task %s", event.task_id, exc_info=True)
 
     def _notify_job_event(self, event: JobEvent) -> None:
         callback = self._task_event_callbacks.get(event.task_id)

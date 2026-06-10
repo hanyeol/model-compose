@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Callable, Any
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
-from mindor.core.controller.base import TaskStatus, TaskState, JobEvent, ComponentEvent
+from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
@@ -13,6 +13,7 @@ from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
 from mindor.core.utils.resolvers import FieldResolver
+from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 import gradio as gr
 import asyncio, json, re
@@ -76,6 +77,8 @@ class GradioWebUIBuilder:
         workflow: WorkflowSchema,
         runner: Callable[[], ControllerRunner]
     ) -> gr.Column:
+        log_message_queue: EventQueue = EventQueue()
+
         with gr.Column() as section:
             gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")
 
@@ -121,14 +124,13 @@ class GradioWebUIBuilder:
             def _resume_button_ready():
                 return gr.update(value="▶️ Resume", interactive=True)
 
-            async def _run_workflow(*args):
-                messages: List[Dict] = []
-                queue: asyncio.Queue = asyncio.Queue()
-                spinner_frame = 0
+            async def _on_workflow_event(event):
+                for message in self._log_messages_for_event(event):
+                    log_message_queue.put(message)
 
-                async def on_event(event):
-                    for message in self._log_messages_for_event(event):
-                        queue.put_nowait(message)
+            async def _run_workflow(*args):
+                log_message_queue.reset()
+                spinner_frame = 0
 
                 yield [
                     _run_button_running(),
@@ -138,24 +140,20 @@ class GradioWebUIBuilder:
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
-                task = asyncio.create_task(runner().run_workflow(workflow_id, input, on_event=on_event))
+                task = asyncio.create_task(runner().run_workflow(workflow_id, input, on_event=_on_workflow_event))
 
                 while not task.done():
-                    try:
-                        message = await asyncio.wait_for(queue.get(), timeout=0.1)
-                        messages.append(message)
-                    except asyncio.TimeoutError:
-                        pass
+                    await log_message_queue.poll(timeout=0.1)
                     spinner_frame = (spinner_frame + 1) % len(_SPINNER_FRAMES)
                     yield [
                         _run_button_running(),
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages + [self._log_spinner_message(spinner_frame)]),
+                        *log_panel.value_update(log_message_queue.get(consume=False) + [ self._log_spinner_message(spinner_frame) ]),
                     ]
 
-                while not queue.empty():
-                    messages.append(queue.get_nowait())
+                log_message_queue.drain()
+                messages = log_message_queue.get(consume=False)
 
                 if messages:
                     yield [
@@ -239,6 +237,8 @@ class GradioWebUIBuilder:
                     ]
 
             async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
+                spinner_frame = 0
+
                 yield [
                     _run_button_running(),
                     _resume_button_running(),
@@ -259,7 +259,7 @@ class GradioWebUIBuilder:
 
                 try:
                     await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
-                    state = await runner().wait_for_completion(task_id)
+                    task = asyncio.create_task(runner().wait_for_completion(task_id))
                 except Exception as e:
                     yield [
                         _run_button_ready(),
@@ -270,13 +270,48 @@ class GradioWebUIBuilder:
                     ]
                     raise gr.Error(str(e))
 
+                while not task.done():
+                    await log_message_queue.poll(timeout=0.1)
+                    spinner_frame = (spinner_frame + 1) % len(_SPINNER_FRAMES)
+                    yield [
+                        _run_button_running(),
+                        _resume_button_running(),
+                        *(gr.update() for _ in interrupt_components),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(log_message_queue.get(consume=False) + [ self._log_spinner_message(spinner_frame) ]),
+                    ]
+
+                log_message_queue.drain()
+                messages = log_message_queue.get(consume=False)
+
+                if messages:
+                    yield [
+                        _run_button_running(),
+                        _resume_button_running(),
+                        *(gr.update() for _ in interrupt_components),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
+
+                try:
+                    state = task.result()
+                except Exception as e:
+                    yield [
+                        _run_button_ready(),
+                        _resume_button_ready(),
+                        *self._clear_interrupt_updates(),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.value_update(messages),
+                    ]
+                    raise gr.Error(str(e))
+
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
                         _run_button_running(),
                         _resume_button_ready(),
                         *self._build_interrupt_updates(state),
                         *(gr.update() for _ in output_components),
-                        *log_panel.ignore_update(),
+                        *log_panel.value_update(messages),
                     ]
                     return
 
@@ -286,11 +321,12 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.ignore_update(),
+                        *log_panel.value_update(messages),
                     ]
                     raise gr.Error(str(state.error))
 
                 clear_interrupt = self._clear_interrupt_updates()
+                log_done = log_panel.value_update(messages)
 
                 # Completed
                 output = state.output
@@ -300,7 +336,7 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *clear_interrupt,
                         *(gr.update() for _ in output_components),
-                        *log_panel.ignore_update(),
+                        *log_done,
                     ]
                     return
 
@@ -312,7 +348,7 @@ class GradioWebUIBuilder:
                     _resume_button_ready(),
                     *clear_interrupt,
                     *result,
-                    *log_panel.ignore_update(),
+                    *log_done,
                 ]
 
             run_button.click(
@@ -620,22 +656,22 @@ class GradioWebUIBuilder:
     def _is_media_component(self, component: gr.Component) -> bool:
         return isinstance(component, (gr.Image, gr.Audio, gr.Video, gr.File))
 
-    def _log_messages_for_event(self, event: Union[JobEvent, TaskState, ComponentEvent]) -> List[Dict]:
-        if isinstance(event, TaskState):
-            return self._log_messages_for_task_state(event)
+    def _log_messages_for_event(self, event: Union[TaskEvent, JobEvent, ComponentEvent]) -> List[Dict]:
+        if isinstance(event, TaskEvent):
+            return self._log_messages_for_task_event(event)
         if isinstance(event, JobEvent):
             return self._log_messages_for_job_event(event)
         if isinstance(event, ComponentEvent):
             return self._log_messages_for_component_event(event)
         return []
 
-    def _log_messages_for_task_state(self, state: TaskState) -> List[Dict]:
-        title = self._log_format_task_title(state)
+    def _log_messages_for_task_event(self, event: TaskEvent) -> List[Dict]:
+        title = self._log_format_task_title(event)
         if title is None:
             return []
-        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {state.task_id}`") ]
-        if state.status == TaskStatus.FAILED and state.error:
-            messages.append(self._log_assistant_message(f"```\n{state.error}\n```", title="Error"))
+        messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {event.task_id}`") ]
+        if event.event == "failed" and event.error:
+            messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
         return messages
 
     def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
@@ -676,15 +712,17 @@ class GradioWebUIBuilder:
     def _log_spinner_message(self, frame: int) -> Dict:
         return self._log_assistant_message(f"{_SPINNER_FRAMES[frame % len(_SPINNER_FRAMES)]} Running...")
 
-    def _log_format_task_title(self, state: TaskState) -> Optional[str]:
-        workflow_id = self._escape_markdown(state.workflow_id)
-        if state.status == TaskStatus.PROCESSING:
+    def _log_format_task_title(self, event: TaskEvent) -> Optional[str]:
+        workflow_id = self._escape_markdown(event.workflow_id)
+        if event.event == "started":
             return f"▶ Workflow '**{workflow_id}**' started"
-        if state.status == TaskStatus.INTERRUPTED:
+        if event.event == "resumed":
+            return f"▶ Workflow '**{workflow_id}**' resumed"
+        if event.event == "interrupted":
             return f"⏸ Workflow '**{workflow_id}**' interrupted"
-        if state.status == TaskStatus.COMPLETED:
+        if event.event == "completed":
             return f"✓ Workflow '**{workflow_id}**' completed"
-        if state.status == TaskStatus.FAILED:
+        if event.event == "failed":
             return f"✗ Workflow '**{workflow_id}**' failed"
         return None
 

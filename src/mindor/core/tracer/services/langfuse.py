@@ -62,16 +62,19 @@ class LangfuseTracerService(TracerService):
         )
         self._trace_spans[task_id] = trace_span
 
-    def on_workflow_end(self, task_id: str, workflow_id: str, output: Any, elapsed: float) -> None:
+    def on_workflow_end(self, task_id: str, workflow_id: str, output: Any, elapsed: float, is_streaming: bool) -> None:
         trace_span = self._trace_spans.pop(task_id, None)
 
         if trace_span:
+            metadata = {
+                "workflow_id": workflow_id,
+                "elapsed": elapsed,
+            }
+            if is_streaming:
+                metadata["is_streaming"] = True
             trace_span.update(
                 output=self._capture_output(output),
-                metadata={
-                    "workflow_id": workflow_id,
-                    "elapsed": elapsed
-                }
+                metadata=metadata,
             )
             trace_span.end()
 

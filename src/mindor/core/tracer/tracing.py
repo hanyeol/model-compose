@@ -9,10 +9,10 @@ def on_workflow_start(task_id: str, workflow_id: str, input: Any, session_id: Op
         except Exception:
             logging.warning("Tracer '%s' failed on_workflow_start", tracer.id, exc_info=True)
 
-def on_workflow_end(task_id: str, workflow_id: str, output: Any, elapsed: float) -> None:
+def on_workflow_end(task_id: str, workflow_id: str, output: Any, elapsed: float, is_streaming: bool = False) -> None:
     for tracer in TracerInstances.values():
         try:
-            tracer.on_workflow_end(task_id, workflow_id, output, elapsed)
+            tracer.on_workflow_end(task_id, workflow_id, output, elapsed, is_streaming)
         except Exception:
             logging.warning("Tracer '%s' failed on_workflow_end", tracer.id, exc_info=True)
 

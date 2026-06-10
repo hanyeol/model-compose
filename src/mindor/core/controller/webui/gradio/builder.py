@@ -383,7 +383,7 @@ class GradioWebUIBuilder:
         return input
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if self._is_media_variable(variable) and variable.format == "path":
+        if self._is_media_variable(variable) and variable.format in (None, WorkflowVariableFormat.PATH):
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:

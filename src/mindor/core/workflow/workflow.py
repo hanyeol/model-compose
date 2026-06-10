@@ -200,15 +200,41 @@ class WorkflowRunner:
         routing_jobs: Dict[str, Job] = { job_id: create_job(job_id, self.jobs[job_id], self.global_configs) for job_id in routing_job_ids }
         pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() if job_id not in routing_job_ids }
         routable_job_ids: Set[str] = { job_id for job_id in self.jobs if self._is_routable_job(job_id, routing_job_ids) }
+
+        workflow_time_tracker = TimeTracker()
+        tracing.on_workflow_start(context.task_id, self.id, context.input, context.context.get("session_id"), context.context.get("metadata"))
+        logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
+
+        try:
+            output = await self._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
+
+            workflow_elapsed = workflow_time_tracker.elapsed()
+            if isinstance(output, GeneratorType):
+                tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed, is_streaming=True)
+                logging.info("[task-%s] Workflow '%s' completed in %.2f seconds (streaming output pending consumption).", context.task_id, self.id, workflow_elapsed)
+            else:
+                tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed)
+                logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_elapsed)
+
+            return output
+        except Exception as e:
+            workflow_elapsed = workflow_time_tracker.elapsed()
+            tracing.on_workflow_error(context.task_id, self.id, e, workflow_elapsed)
+            logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, workflow_elapsed, e, exc_info=True)
+            raise
+
+    async def _run_jobs(
+        self,
+        context: WorkflowContext,
+        pending_jobs: Dict[str, Job],
+        routing_jobs: Dict[str, Job],
+        routable_job_ids: Set[str],
+    ) -> Any:
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
         job_time_trackers: Dict[str, TimeTracker] = {}
         output: Any = None
-
-        workflow_time_tracker = TimeTracker()
-        tracing.on_workflow_start(context.task_id, self.id, context.input, context.context.get("session_id"), context.context.get("metadata"))
-        logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
 
         while pending_jobs:
             runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids, routable_job_ids) ]
@@ -267,12 +293,12 @@ class WorkflowRunner:
                             next_job_id=next_job_id
                         )
                         logging.info("[task-%s] Routing to job '%s' from job '%s'.", context.task_id, next_job_id, completed_job_id)
-                        
+
                         pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
                         context.job_run_ids[next_job_id] = []
                         scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(JobContext(context, next_job_id)))
                         running_job_ids.add(next_job_id)
-                        
+
                         job_time_trackers[next_job_id] = TimeTracker()
                         await context.job_event_notifier.notify(
                             "started",
@@ -318,14 +344,6 @@ class WorkflowRunner:
                 completed_job_ids.add(completed_job_id)
                 del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
-
-        workflow_elapsed = workflow_time_tracker.elapsed()
-        if isinstance(output, GeneratorType):
-            tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed, is_streaming=True)
-            logging.info("[task-%s] Workflow '%s' completed in %.2f seconds (streaming output pending consumption).", context.task_id, self.id, workflow_elapsed)
-        else:
-            tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed)
-            logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_elapsed)
 
         return output
 
@@ -383,16 +401,7 @@ class Workflow:
             metadata=metadata,
         )
 
-        time_tracker = TimeTracker()
-        tracing.on_workflow_start(task_id, self.id, input, session_id, metadata)
-
-        try:
-            output = await runner.run(context)
-            tracing.on_workflow_end(task_id, self.id, output, time_tracker.elapsed())
-            return output
-        except Exception as e:
-            tracing.on_workflow_error(task_id, self.id, e, time_tracker.elapsed())
-            raise
+        return await runner.run(context)
 
     def validate(self) -> None:
         JobGraphValidator(self.config.jobs).validate()

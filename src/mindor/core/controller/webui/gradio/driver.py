@@ -27,6 +27,8 @@ class GradioDriver(WebUIDriver):
             port=self.config.port,
             log_level="info"
         ))
+        self._configure_shutdown_handler(self.server)
+
         try:
             await self.server.serve()
         finally:
@@ -35,3 +37,13 @@ class GradioDriver(WebUIDriver):
     async def _stop(self) -> None:
         if self.server:
             self.server.should_exit = True
+
+    def _configure_shutdown_handler(self, server: uvicorn.Server) -> None:
+        shutdown = server.shutdown
+
+        async def _shutdown(sockets=None) -> None:
+            for connection in list(server.server_state.connections):
+                connection.transport.close()
+            await shutdown(sockets)
+
+        server.shutdown = _shutdown

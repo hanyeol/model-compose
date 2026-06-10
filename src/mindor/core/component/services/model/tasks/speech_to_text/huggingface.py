@@ -27,7 +27,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         self.model: PreTrainedModel = model
         self.processor: ProcessorMixin = processor
 
-    async def _transcribe(self, audios: List[Any], context: ComponentActionContext) -> List[str]:
+    async def _transcribe(self, audios: List[Tuple[Any, int]], context: ComponentActionContext) -> List[str]:
         import torch
 
         language      = await context.render_variable(self.config.language)
@@ -41,8 +41,10 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         if task is not None:
             generation_params["task"] = task
 
+        waveforms = [ self._preprocess_audio(waveform, sample_rate) for waveform, sample_rate in audios ]
+
         input_features = self.processor(
-            audios,
+            waveforms,
             sampling_rate=16000,
             return_tensors="pt",
             padding=True,
@@ -87,6 +89,20 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
+    def _preprocess_audio(self, waveform: Any, sample_rate: int) -> Any:
+        import numpy as np
+        import torch
+        import torchaudio.functional as F
+
+        if waveform.ndim > 1:
+            waveform = waveform.mean(axis=0)  # mono
+
+        if sample_rate != 16000:
+            tensor = torch.from_numpy(waveform).float()
+            waveform = F.resample(tensor, sample_rate, 16000).numpy()
+
+        return waveform.astype(np.float32)
+
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
     async def _run(
@@ -108,10 +124,7 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
-        if self.config.architecture in (
-            SpeechToTextModelArchitecture.WHISPER,
-            SpeechToTextModelArchitecture.WHISPER_LARGE
-        ):
+        if self.config.architecture in [ SpeechToTextModelArchitecture.WHISPER, SpeechToTextModelArchitecture.WHISPER_LARGE ]:
             from transformers import WhisperProcessor
             return WhisperProcessor
 
@@ -121,7 +134,6 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return [
             "transformers>=4.21.0",
             "torch",
-            "librosa",
-            "soundfile",
+            "torchaudio",
             "accelerate"
         ]

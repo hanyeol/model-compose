@@ -1,7 +1,15 @@
-from typing import Union, Optional, Dict, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Union, Optional, Tuple, Dict, Any
 from collections.abc import AsyncIterator
-from .streaming import StreamResource, BytesStreamResource
+from .streaming import StreamResource, BytesStreamResource, UploadFileStreamResource, read_stream_to_bytes
+from .media import MediaSource
+from starlette.datastructures import UploadFile
 import struct
+
+if TYPE_CHECKING:
+    import numpy as np
 
 _AUDIO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "wav":  "audio/wav",
@@ -16,6 +24,22 @@ _AUDIO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "pcm":  "audio/pcm",
 }
 
+_PCM_BIT_DEPTH_FORMAT_MAP: Dict[int, str] = {
+     8: "u8",
+    16: "s16le",
+    24: "s24le",
+    32: "s32le",
+}
+
+_PCM_FORMAT_NUMPY_DTYPE_MAP: Dict[str, str] = {
+    "u8":    "uint8",
+    "s16le": "<i2",
+    "s24le": "<i4",  # 24-bit handled specially below
+    "s32le": "<i4",
+    "f32le": "<f4",
+    "f64le": "<f8",
+}
+
 class PcmStreamResource(StreamResource):
     def __init__(
         self,
@@ -27,6 +51,10 @@ class PcmStreamResource(StreamResource):
 
         self.samples: StreamResource = samples if isinstance(samples, StreamResource) else BytesStreamResource(samples)
         self.attrs: Dict[str, Any] = attrs or {}
+
+    @property
+    def format(self) -> str:
+        return _PCM_BIT_DEPTH_FORMAT_MAP.get(int(self.attrs.get("bit_depth", 16)), "s16le")
 
     async def close(self) -> None:
         await self.samples.close()
@@ -106,8 +134,57 @@ class AudioStreamResource(StreamResource):
     def _resolve_content_type(format: Optional[str]) -> str:
         if format:
             return _AUDIO_CONTENT_TYPE_MAP.get(format.lower(), "application/octet-stream")
+
         return "application/octet-stream"
 
     @staticmethod
     def _resolve_size(source: Union[StreamResource, bytes]) -> Optional[int]:
         return source.size if isinstance(source, StreamResource) else len(source)
+
+def create_audio_source(value: Any) -> MediaSource:
+    if isinstance(value, PcmStreamResource):
+        return MediaSource(value.samples, value.format, value.attrs)
+
+    if isinstance(value, WavStreamResource):
+        return MediaSource(value, "wav", value.attrs)
+
+    if isinstance(value, AudioStreamResource):
+        return MediaSource(value.source, value.format, value.attrs)
+
+    if isinstance(value, StreamResource):
+        return MediaSource(value)
+
+    if isinstance(value, UploadFile):
+        return MediaSource(UploadFileStreamResource(value))
+
+    if isinstance(value, (bytes, bytearray)):
+        return MediaSource(BytesStreamResource(bytes(value)))
+
+    raise TypeError(f"Unsupported audio source: {value.__class__.__name__}")
+
+async def load_audio_array(source: MediaSource) -> Tuple[np.ndarray, int]:
+    import torchaudio, io
+    import numpy as np
+    
+    data = await read_stream_to_bytes(source.stream)
+
+    if source.format in _PCM_FORMAT_NUMPY_DTYPE_MAP:
+        sample_rate = int(source.attrs.get("sample_rate", 16000))
+        channels = int(source.attrs.get("channels", 1))
+
+        if source.format == "s24le":
+            raw = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+            padded = np.zeros((raw.shape[0], 4), dtype=np.uint8)
+            padded[:, 1:] = raw
+            waveform = padded.view("<i4").reshape(-1) >> 8
+        else:
+            dtype = _PCM_FORMAT_NUMPY_DTYPE_MAP[source.format]
+            waveform = np.frombuffer(data, dtype=np.dtype(dtype))
+
+        if channels > 1:
+            waveform = waveform.reshape(-1, channels).T
+
+        return waveform, sample_rate
+
+    waveform, sample_rate = torchaudio.load(io.BytesIO(data))
+    return waveform.numpy(), int(sample_rate)

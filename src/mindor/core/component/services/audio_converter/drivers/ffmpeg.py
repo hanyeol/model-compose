@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Any
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
+from mindor.core.utils.audio import AudioStreamResource
+from mindor.core.utils.media import MediaSource
+from mindor.core.utils.streaming import FileStreamResource, StreamResource
+from mindor.core.utils.files import create_temporary_file
 from mindor.core.logger import logging
 from ..base import AudioConverterService, AudioConverterDriver, register_audio_converter_service
 from ..base import ComponentActionContext
 from .common import AudioConverterAction
 import asyncio
-import tempfile
-import os
 
 _FORMAT_CODEC_MAP: dict[str, str] = {
     "mp3":  "libmp3lame",
@@ -23,51 +25,43 @@ _FORMAT_CODEC_MAP: dict[str, str] = {
 
 class FFmpegAudioConverterAction(AudioConverterAction):
     async def run(self, context: ComponentActionContext) -> Any:
-        data, source_attrs = await self._render_audio(context)
+        source      = await self._render_audio(context)
         format      = await context.render_variable(self.config.format) if self.config.format else "wav"
         codec       = await context.render_variable(self.config.codec) if self.config.codec else None
         bitrate     = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
         sample_rate = await context.render_variable(self.config.sample_rate) if isinstance(self.config.sample_rate, str) else self.config.sample_rate
         channels    = await context.render_variable(self.config.channels) if isinstance(self.config.channels, str) else self.config.channels
 
-        output_path = await self._convert(data, source_attrs, format, codec, bitrate, sample_rate, channels)
-        result = {
-            "path": output_path,
-            "format": format
-        }
+        result = await self._convert(source, format, codec, bitrate, sample_rate, channels)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _convert(
         self,
-        data: Any,
-        source_attrs: Dict[str, Any],
+        source: MediaSource,
         format: str,
         codec: Optional[str],
         bitrate: Optional[str],
         sample_rate: Optional[Union[int, str]],
         channels: Optional[Union[int, str]],
-    ) -> str:
-        output_path = os.path.join(tempfile.gettempdir(), f"audio_converter_{os.getpid()}_{id(self)}.{format}")
-
-        is_path = isinstance(data, str) and not source_attrs
-        input_path = data if is_path else None
+    ) -> AudioStreamResource:
+        output_path = create_temporary_file(format)
 
         command = [ "ffmpeg", "-hide_banner" ]
 
-        if source_attrs.get("format"):
-            command.extend([ "-f", str(source_attrs["format"]) ])
-        if source_attrs.get("sample_rate"):
-            command.extend([ "-ar", str(source_attrs["sample_rate"]) ])
-        if source_attrs.get("channels"):
-            command.extend([ "-ac", str(source_attrs["channels"]) ])
+        if source.format:
+            command.extend([ "-f", source.format ])
+        if source.attrs.get("sample_rate"):
+            command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
+        if source.attrs.get("channels"):
+            command.extend([ "-ac", str(source.attrs["channels"]) ])
 
-        command.extend([ "-i", input_path if is_path else "pipe:0" ])
+        command.extend([ "-i", "pipe:0" ])
 
-        resolved_codec = codec or _FORMAT_CODEC_MAP.get(format)
-        if resolved_codec:
-            command.extend([ "-c:a", resolved_codec ])
+        codec = codec or _FORMAT_CODEC_MAP.get(format)
+        if codec:
+            command.extend([ "-c:a", codec ])
         if bitrate:
             command.extend([ "-b:a", bitrate ])
         if sample_rate:
@@ -77,25 +71,43 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         command.extend([ "-y", output_path ])
 
-        logging.info(f"Converting '{input_path if is_path else 'pipe:0'}' to '{format}' format")
+        logging.debug(f"Converting audio stream to '{format}' format")
 
         process = await asyncio.create_subprocess_exec(
             *command,
-            stdin=asyncio.subprocess.PIPE if not is_path else None,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
-        raw = bytes(data) if isinstance(data, (bytes, bytearray)) else None
-        _, stderr = await process.communicate(input=raw)
+        stderr = await self._pipe_stream(process, source.stream)
 
         if process.returncode != 0:
             error = stderr.decode("utf-8", errors="replace")
             raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error}")
 
-        logging.info(f"Audio conversion completed: '{output_path}'")
+        logging.debug(f"Audio conversion completed: '{output_path}'")
 
-        return output_path
+        return AudioStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
+
+    async def _pipe_stream(self, process: asyncio.subprocess.Process, source: StreamResource) -> bytes:
+        async def _feed() -> None:
+            try:
+                async for chunk in source:
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+            finally:
+                process.stdin.close()
+                await source.close()
+
+        feeder = asyncio.create_task(_feed())
+        try:
+            stderr = await process.stderr.read()
+            await process.wait()
+        finally:
+            await feeder
+
+        return stderr
 
 @register_audio_converter_service(AudioConverterDriver.FFMPEG)
 class FFmpegAudioConverterService(AudioConverterService):

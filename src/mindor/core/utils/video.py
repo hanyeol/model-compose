@@ -1,6 +1,8 @@
 from typing import Union, Optional, Dict, Any
 from collections.abc import AsyncIterator
-from .streaming import StreamResource, BytesStreamResource
+from .streaming import StreamResource, BytesStreamResource, UploadFileStreamResource
+from .media import MediaSource
+from starlette.datastructures import UploadFile
 
 _VIDEO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "mp4":  "video/mp4",
@@ -43,8 +45,24 @@ class VideoStreamResource(StreamResource):
     def _resolve_content_type(format: Optional[str]) -> str:
         if format:
             return _VIDEO_CONTENT_TYPE_MAP.get(format.lower(), "application/octet-stream")
+
         return "application/octet-stream"
 
     @staticmethod
     def _resolve_size(source: Union[StreamResource, bytes]) -> Optional[int]:
         return source.size if isinstance(source, StreamResource) else len(source)
+
+def create_video_source(value: Any) -> MediaSource:
+    if isinstance(value, VideoStreamResource):
+        return MediaSource(value.source, value.format, value.attrs)
+
+    if isinstance(value, StreamResource):
+        return MediaSource(value)
+
+    if isinstance(value, UploadFile):
+        return MediaSource(UploadFileStreamResource(value))
+
+    if isinstance(value, (bytes, bytearray)):
+        return MediaSource(BytesStreamResource(bytes(value)))
+
+    raise TypeError(f"Unsupported video source: {value.__class__.__name__}")

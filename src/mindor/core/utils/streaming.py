@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, List
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -39,18 +39,25 @@ class FileStreamResource(StreamResource):
         path: str,
         content_type: Optional[str] = None,
         filename: Optional[str] = None,
-        chunk_size: int = 8192
+        chunk_size: int = 8192,
+        auto_delete: bool = False
     ):
         super().__init__(content_type, filename or os.path.basename(path), size=os.path.getsize(path))
 
         self.path = path
         self.chunk_size: int = chunk_size
+        self.auto_delete: bool = auto_delete
         self.stream: Optional[aiofiles.threadpool.text.AsyncTextIOWrapper] = None
 
     async def close(self) -> None:
         if self.stream:
             await self.stream.close()
             self.stream = None
+        if self.auto_delete:
+            try:
+                os.remove(self.path)
+            except FileNotFoundError:
+                pass
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         if not self.stream:
@@ -246,6 +253,13 @@ async def read_stream_to_buffer(stream: StreamResource) -> io.BytesIO:
             buffer.write(chunk)
     buffer.seek(0)
     return buffer
+
+async def read_stream_to_bytes(stream: StreamResource) -> bytes:
+    chunks: List[bytes] = []
+    async with stream:
+        async for chunk in stream:
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 async def encode_stream_to_base64(stream: StreamResource) -> str:
     buffer = io.BytesIO()

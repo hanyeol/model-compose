@@ -272,7 +272,13 @@ class ControllerService(AsyncService):
             raise ShutdownError("Service is shutting down")
 
         task_id = ulid.ulid()
-        state = TaskState(task_id=task_id, status=TaskStatus.PENDING, workflow_id=workflow_id, session_id=session_id, metadata=metadata)
+        state = TaskState(
+            task_id=task_id,
+            status=TaskStatus.PENDING,
+            workflow_id=workflow_id,
+            session_id=session_id,
+            metadata=metadata
+        )
         with self.task_states_lock:
             self.task_states.set(task_id, state)
 
@@ -281,13 +287,20 @@ class ControllerService(AsyncService):
 
         try:
             if self.task_queue:
-                future = await self.task_queue.schedule(task_id, workflow_id, input, None, session_id, metadata)
+                future = await self.task_queue.schedule(task_id, workflow_id, input, on_interrupt, session_id, metadata)
                 task = asyncio.ensure_future(future)
             else:
                 task = asyncio.create_task(self._run_workflow(task_id, workflow_id, input, on_interrupt, session_id, metadata))
         except Exception as e:
             self._task_event_callbacks.pop(task_id, None)
-            state = TaskState(task_id=task_id, status=TaskStatus.FAILED, workflow_id=workflow_id, error=str(e), session_id=session_id, metadata=metadata)
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.FAILED,
+                workflow_id=workflow_id,
+                error=str(e),
+                session_id=session_id,
+                metadata=metadata
+            )
             with self.task_states_lock:
                 self.task_states.set(task_id, state, 1 * 3600)
             self._signal_task_state_change(task_id)
@@ -327,13 +340,19 @@ class ControllerService(AsyncService):
         if not success:
             raise InterruptNotActiveError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
 
-        new_state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=state.workflow_id, session_id=state.session_id, metadata=state.metadata)
+        state = TaskState(
+            task_id=task_id,
+            status=TaskStatus.PROCESSING,
+            workflow_id=state.workflow_id,
+            session_id=state.session_id,
+            metadata=state.metadata
+        )
         with self.task_states_lock:
-            self.task_states.set(task_id, new_state)
+            self.task_states.set(task_id, state)
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
-        return new_state
+        return state
 
     async def wait_for_terminal_state(self, task_id: str) -> TaskState:
         return await self._wait_for_terminal_state(task_id)

@@ -45,6 +45,9 @@ class WorkflowContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
+    async def resolve_source(self, key: str, index: Optional[int]) -> Any:
+        return await self._resolve_source(key, index, None)
+
     async def render_variable(self, value: Any) -> Any:
         return await self.renderer.render(value)
 
@@ -60,7 +63,7 @@ class WorkflowContext:
     def record_run_id(self, job_id: str, run_id: str) -> None:
         self.job_run_ids.setdefault(job_id, []).append(run_id)
 
-    async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         if key in self.sources:
             return self.sources[key][index] if index is not None else self.sources[key]
 

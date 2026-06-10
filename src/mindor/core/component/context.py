@@ -58,7 +58,7 @@ class ComponentActionContext:
         self.job_id: Optional[str] = job_id
         self.context: Dict[str, Any] = { "run_id": run_id }
         self.sources: Dict[str, Any] = {}
-        self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
+        self.renderer: VariableRenderer = VariableRenderer(self.resolve_source)
         self.event_notifier: ComponentActionEventNotifier = self._build_event_notifier()
 
     def register_source(self, key: str, source: Any) -> None:
@@ -85,7 +85,7 @@ class ComponentActionContext:
     def contains_variable_reference(self, key: str, value: Any) -> bool:
         return self.renderer.contains_reference(key, value)
 
-    async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
+    async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         if key in self.sources:
             return self.sources[key][index] if index is not None else self.sources[key]
 

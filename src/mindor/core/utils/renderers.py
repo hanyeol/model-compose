@@ -22,8 +22,8 @@ _STREAM_FORMAT_MAP = {
 }
 
 class VariableRenderer:
-    def __init__(self, source_resolver: Callable[[str, Optional[int]], Awaitable[Any]]):
-        self.source_resolver: Callable[[str, Optional[int]], Awaitable[Any]] = source_resolver
+    def __init__(self, source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]]):
+        self.source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]] = source_resolver
         self.field_resolver: FieldResolver = FieldResolver()
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
@@ -39,54 +39,54 @@ class VariableRenderer:
             "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
-    async def render(self, value: Any) -> Any:
-        return await self._render_element(value)
+    async def render(self, value: Any, scope: Optional[str] = None) -> Any:
+        return await self._render_element(value, scope)
 
     def contains_reference(self, key: str, value: Any) -> bool:
         return self._contains_reference(key, value)
 
-    async def _render_element(self, element: Any) -> Any:
+    async def _render_element(self, element: Any, scope: Optional[str]) -> Any:
         if isinstance(element, str):
-            return await self._render_text(element)
+            return await self._render_text(element, scope)
 
         if isinstance(element, BaseModel):
-            return await self._render_element(element.model_dump(by_alias=True))
+            return await self._render_element(element.model_dump(by_alias=True), scope)
 
         if isinstance(element, dict):
-            return await self._render_dict(element)
+            return await self._render_dict(element, scope)
 
         if isinstance(element, (list, tuple)):
-            return await self._render_list(element)
+            return await self._render_list(element, scope)
 
         return element
 
-    async def _render_dict(self, element: dict) -> dict:
+    async def _render_dict(self, element: dict, scope: Optional[str]) -> dict:
         values = {}
         for key, value in element.items():
             if key == "...":
-                value = await self._render_element(value)
+                value = await self._render_element(value, scope)
                 if isinstance(value, dict) or value is None:
                     values.update(value or {})
                 else:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             else:
-                values[key] = await self._render_element(value)
+                values[key] = await self._render_element(value, scope)
         return values
 
-    async def _render_list(self, element: list) -> list:
+    async def _render_list(self, element: list, scope: Optional[str]) -> list:
         values = []
         for item in element:
             if isinstance(item, str) and self._is_spread_expression(item):
-                value = await self._render_text(item[3:])
+                value = await self._render_text(item[3:], scope)
                 if isinstance(value, (list, tuple)) or value is None:
                     values.extend(value or [])
                 else:
                     raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
-                values.append(await self._render_element(item))
+                values.append(await self._render_element(item, scope))
         return values
 
-    async def _render_text(self, text: str) -> Any:
+    async def _render_text(self, text: str, scope: Optional[str]) -> Any:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
@@ -95,15 +95,15 @@ class VariableRenderer:
             is_list = bool(is_list)
 
             if attrs:
-                attrs = await self._render_attrs(attrs)
+                attrs = await self._render_attrs(attrs, scope)
 
             try:
-                value = self.field_resolver.resolve(await self.source_resolver(key, index), path)
+                value = self.field_resolver.resolve(await self.source_resolver(key, index, scope), path)
             except Exception:
                 value = None
 
             if value is None and default is not None:
-                value = await self._render_element(default)
+                value = await self._render_element(default, scope)
 
             if type and value is not None:
                 value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format)
@@ -276,14 +276,14 @@ class VariableRenderer:
 
         raise ValueError(f"Unknown format: {format}")
 
-    async def _render_attrs(self, value: str) -> Dict[str, Any]:
+    async def _render_attrs(self, value: str, scope: Optional[str]) -> Dict[str, Any]:
         attrs: Dict[str, Any] = {}
 
         for pair in self._split_attrs(value):
             pair = pair.strip()
             if "=" in pair:
                 k, _, v = pair.partition("=")
-                attrs[k.strip()] = await self._render_text(v.strip())
+                attrs[k.strip()] = await self._render_text(v.strip(), scope)
 
         return attrs
 

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from mindor.dsl.schema.job import JobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.workflow.context import WorkflowContext
+from .context import JobContext
 
 class RoutingTarget:
     def __init__(self, job_id):
@@ -16,7 +16,7 @@ class Job(ABC):
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     @abstractmethod
-    async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
+    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         pass
 
 def register_job(type: JobType):

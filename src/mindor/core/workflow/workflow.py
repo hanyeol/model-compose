@@ -9,6 +9,7 @@ from mindor.core.tracer import tracing
 from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .job import Job, RoutingTarget, create_job
+from .job.context import JobContext
 import asyncio
 
 JobEventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
@@ -214,7 +215,7 @@ class WorkflowRunner:
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
                     context.job_run_ids[job.id] = []
-                    scheduled_job_tasks[job.id] = asyncio.create_task(job.run(context))
+                    scheduled_job_tasks[job.id] = asyncio.create_task(job.run(JobContext(context, job.id)))
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
@@ -247,7 +248,7 @@ class WorkflowRunner:
                         logging.info("[task-%s] Routing to job '%s' from job '%s'.", context.task_id, next_job_id, completed_job_id)
                         pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
                         context.job_run_ids[next_job_id] = []
-                        scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(context))
+                        scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(JobContext(context, next_job_id)))
                         running_job_ids.add(next_job_id)
                         job_time_trackers[next_job_id] = TimeTracker()
                         await context.job_event_notifier.notify("started", next_job_id, self.jobs[next_job_id].type.value, context=context, input=context.input)

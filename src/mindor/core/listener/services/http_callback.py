@@ -40,7 +40,7 @@ class HttpCallbackContext:
 
         return [ item ]
 
-    async def _resolve_source(self, key: str, index: Optional[int]) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         if key == "body" or key == "item":
             return self.body
 

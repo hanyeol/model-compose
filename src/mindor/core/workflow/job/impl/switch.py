@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.job import SwitchJobConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.logger import logging
-from ..base import Job, JobType, WorkflowContext, RoutingTarget, register_job
+from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 import asyncio
 
 @register_job(JobType.SWITCH)
@@ -10,11 +10,11 @@ class SwitchJob(Job):
     def __init__(self, id: str, config: SwitchJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: WorkflowContext) -> Union[Any, RoutingTarget]:
-        input = (await context.render_variable(self.config.input)) if self.config.input else context.input
+    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
 
         for case in self.config.cases:
-            value = await context.render_variable(case.value)
+            value = await context.render_variable(None, case.value)
             if input == value:
                 return RoutingTarget(case.then)
 

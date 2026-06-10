@@ -161,6 +161,7 @@ class JobEventResult(BaseModel):
 class WorkflowVariableResult(BaseModel):
     name: Optional[str]
     type: str
+    is_list: bool
     subtype: Optional[str]
     format: Optional[str]
     default: Optional[Any]
@@ -170,6 +171,7 @@ class WorkflowVariableResult(BaseModel):
         return cls(
             name=instance.name,
             type=instance.type,
+            is_list=instance.is_list,
             subtype=instance.subtype,
             format=instance.format,
             default=instance.default

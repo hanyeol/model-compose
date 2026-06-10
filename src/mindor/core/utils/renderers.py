@@ -3,16 +3,18 @@ from collections.abc import AsyncIterator
 from pydantic import BaseModel
 from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventIteratorStreamResource, StreamFormat
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
-from .http_request import create_upload_file
 from .http_client import create_stream_with_url
+from .url import UrlStreamResource, parse_data_uri
 from .image import load_image_from_stream, ImageStreamResource
-from .audio import PcmStreamResource, WavStreamResource
+from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource
+from .video import VideoStreamResource
+from .streaming import FileStreamResource
 from .resolvers import FieldResolver
 from .size import parse_size
-from .files import get_file_extension
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
-import os, re, json, base64
+from urllib.parse import unquote_to_bytes
+import re, json, base64, aiofiles
 
 _STREAM_FORMAT_MAP = {
     "sse-text": StreamFormat.TEXT,
@@ -25,74 +27,75 @@ class VariableRenderer:
         self.field_resolver: FieldResolver = FieldResolver()
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                                       # ${
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                    # key: input, result[], result[0], result[-1], etc.
-                    (?:\.([^\s|}]+))?                                                          # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;\[}]+)(?:\[([^\]]*)\])?)?(?:;([^\s}]+))?)? # type/subtype[attrs];format
-                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?              # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                       # annotations
-                \s*\}""",                                                                      # }
+                r"""\$\{                                                                                                # ${
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                                             # key: input, result[], result[0], result[-1], etc.
+                    (?:\.([^\s|}]+))?                                                                                   # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;\[}]+)(\[\])?(?:/([^\s;\[}]+)(?:\[((?:\$\{[^}]*\}|[^\]])*)\])?)?(?:;([^\s}]+))?)? # type[]/subtype[attrs];format (attrs may contain nested ${...})
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?                                       # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                                                # annotations
+                \s*\}""",                                                                                               # }
                 re.VERBOSE,
             ),
             "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
-    async def render(self, value: Any, save_media_as_file: bool = False) -> Any:
-        return await self._render_element(value, save_media_as_file)
+    async def render(self, value: Any) -> Any:
+        return await self._render_element(value)
 
     def contains_reference(self, key: str, value: Any) -> bool:
         return self._contains_reference(key, value)
 
-    async def _render_element(self, element: Any, save_media_as_file: bool) -> Any:
+    async def _render_element(self, element: Any) -> Any:
         if isinstance(element, str):
-            return await self._render_text(element, save_media_as_file)
+            return await self._render_text(element)
 
         if isinstance(element, BaseModel):
-            return await self._render_element(element.model_dump(by_alias=True), save_media_as_file)
+            return await self._render_element(element.model_dump(by_alias=True))
 
         if isinstance(element, dict):
-            return await self._render_dict(element, save_media_as_file)
+            return await self._render_dict(element)
 
         if isinstance(element, (list, tuple)):
-            return await self._render_list(element, save_media_as_file)
+            return await self._render_list(element)
 
         return element
 
-    async def _render_dict(self, element: dict, save_media_as_file: bool) -> dict:
+    async def _render_dict(self, element: dict) -> dict:
         values = {}
         for key, value in element.items():
             if key == "...":
-                value = await self._render_element(value, save_media_as_file)
+                value = await self._render_element(value)
                 if isinstance(value, dict) or value is None:
                     values.update(value or {})
                 else:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             else:
-                values[key] = await self._render_element(value, save_media_as_file)
+                values[key] = await self._render_element(value)
         return values
 
-    async def _render_list(self, element: list, save_media_as_file: bool) -> list:
+    async def _render_list(self, element: list) -> list:
         values = []
         for item in element:
             if isinstance(item, str) and self._is_spread_expression(item):
-                value = await self._render_text(item[3:], save_media_as_file)
+                value = await self._render_text(item[3:])
                 if isinstance(value, (list, tuple)) or value is None:
                     values.extend(value or [])
                 else:
                     raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
-                values.append(await self._render_element(item, save_media_as_file))
+                values.append(await self._render_element(item))
         return values
 
-    async def _render_text(self, text: str, save_media_as_file: bool) -> Any:
+    async def _render_text(self, text: str) -> Any:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
-            key, index, path, type, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8)
+            key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
             index = int(index) if index else None
+            is_list = bool(is_list)
 
             if attrs:
-                attrs = self._parse_attrs(attrs)
+                attrs = await self._render_attrs(attrs)
 
             try:
                 value = self.field_resolver.resolve(await self.source_resolver(key, index), path)
@@ -100,10 +103,10 @@ class VariableRenderer:
                 value = None
 
             if value is None and default is not None:
-                value = await self._render_text(default, save_media_as_file)
+                value = await self._render_element(default)
 
             if type and value is not None:
-                value = await self._convert_value_to_type(value, type, subtype, attrs, format, save_media_as_file)
+                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format)
 
             start, end = m.span()
 
@@ -114,7 +117,39 @@ class VariableRenderer:
 
         return text
 
-    async def _convert_value_to_type(self, value: Any, type: str, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[str], save_media_as_file: bool) -> Any:
+    async def _convert_value_to_type(
+        self,
+        value: Any,
+        type: str,
+        is_list: bool,
+        subtype: Optional[str],
+        attrs: Optional[Dict[str, Any]],
+        format: Optional[str],
+    ) -> Any:
+        if is_list:
+            if type in [ "sse-text", "sse-json" ]:
+                raise ValueError(f"`{type}[]` is not allowed: SSE is a single stream by nature")
+
+            if not isinstance(value, (list, tuple)):
+                raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
+
+            return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format) for v in value ]
+
+        if value is None:
+            return None
+
+        if type in [ "string", "text", "integer", "number", "boolean", "list", "object", "json", "base64", "markdown" ]:
+            if format in [ "path", "url", "data-uri", "base64" ] and isinstance(value, str):
+                value = await self._load_bytes_from_format(value, format)
+
+        if type in [ "json", "object", "list" ] and isinstance(value, (str, bytes)):
+            value = json.loads(value)
+
+        if type in [ "string", "text", "markdown" ]:
+            if isinstance(value, bytes):
+                return value.decode("utf-8")
+            return value if isinstance(value, str) else str(value)
+
         if type == "number":
             return float(value)
 
@@ -122,47 +157,73 @@ class VariableRenderer:
             return int(value)
 
         if type == "boolean":
+            if isinstance(value, bytes):
+                return value.lower() in [ b"true", b"1" ]
             return str(value).lower() in [ "true", "1" ]
 
-        if type == "json":
-            if isinstance(value, str):
-                return json.loads(value)
+        if type == "list":
+            if not isinstance(value, list):
+                raise ValueError(f"`list` requires a list input, got {value.__class__.__name__}")
             return value
 
-        if type == "object[]":
-            if isinstance(value, list):
-                objects = [ v for v in value if isinstance(v, dict) ]
-                if subtype:
-                    paths = [ ( path, path.split(".")[-1] ) for path in subtype.split(",") ]
-                    return [ { key: self.field_resolver.resolve(object, path) for path, key in paths } for object in objects ]
-                return objects
-            return []
+        if type == "object":
+            if not isinstance(value, dict):
+                raise ValueError(f"`object` requires a dict input, got {value.__class__.__name__}")
+            if subtype:
+                paths = [ ( path, path.split(".")[-1] ) for path in subtype.split(",") ]
+                return { key: self.field_resolver.resolve(value, path) for path, key in paths }
+            return value
 
         if type == "base64":
             if isinstance(value, PILImage.Image):
-                return await encode_stream_to_base64(ImageStreamResource(value, format))
+                return await encode_stream_to_base64(ImageStreamResource(value))
             if isinstance(value, UploadFile):
                 return await encode_stream_to_base64(UploadFileStreamResource(value))
             if isinstance(value, StreamResource):
                 return await encode_stream_to_base64(value)
             if isinstance(value, str):
                 return base64.b64encode(value.encode("utf-8")).decode("ascii")
-            return base64.b64encode(value)
+            return base64.b64encode(value).decode("ascii")
 
         if type in [ "image", "audio", "video", "file" ]:
-            if isinstance(value, UploadFile) and format == "path":
-                return await save_stream_to_temporary_file(UploadFileStreamResource(value), get_file_extension(value.filename))
-            if type == "audio" and subtype == "pcm":
+            if isinstance(value, AsyncIterator) and not isinstance(value, StreamResource):
+                return value
+
+            if format in [ "path", "url", "data-uri", "base64" ] and isinstance(value, str):
+                value = await self._load_stream_from_format(value, format)
+
+            if isinstance(value, UploadFile):
+                value = UploadFileStreamResource(value)
+
+            if type == "image":
+                if not isinstance(value, (StreamResource, PILImage.Image)):
+                    raise TypeError(f"`image` requires an image or raw image bytes, got {value.__class__.__name__}")
+                if isinstance(value, StreamResource):
+                    value = await load_image_from_stream(value)
+                if subtype:
+                    value = ImageStreamResource(value, subtype)
+                return value
+
+            if type == "audio":
+                if not isinstance(value, (StreamResource, bytes)):
+                    raise TypeError(f"`audio` requires raw audio bytes, got {value.__class__.__name__}")
+                if subtype == "pcm":
+                    return PcmStreamResource(value, attrs)
+                if subtype == "wav":
+                    return WavStreamResource(value)
+                return AudioStreamResource(value, subtype, attrs)
+
+            if type == "video":
+                if not isinstance(value, (StreamResource, bytes)):
+                    raise TypeError(f"`video` requires raw video input, got {value.__class__.__name__}")
+                return VideoStreamResource(value, subtype, attrs)
+
+            if type == "file":
+                if not isinstance(value, (StreamResource, bytes)):
+                    raise TypeError(f"`file` requires a binary input, got {value.__class__.__name__}")
                 if isinstance(value, bytes):
-                    value = PcmStreamResource(value, attrs)
-            if type == "audio" and subtype == "wav":
-                if isinstance(value, PcmStreamResource):
-                    value = WavStreamResource(value)
-            if save_media_as_file and not isinstance(value, UploadFile):
-                if format != "path":
-                    value = await self._save_value_to_temporary_file(value, subtype, attrs, format)
-                return create_upload_file(value, type, subtype)
-            return value
+                    value = BytesStreamResource(value)
+                return value
 
         if type in [ "sse-text", "sse-json" ]:
             if isinstance(value, (StreamResource, AsyncIterator)):
@@ -173,31 +234,84 @@ class VariableRenderer:
 
         return value
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[str]) -> Optional[str]:
-        if format == "base64" and isinstance(value, str):
-            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
+    async def _load_bytes_from_format(self, value: str, format: str) -> bytes:
+        if format == "url":
+            stream = await create_stream_with_url(value)
+            chunks: List[bytes] = []
+            async with stream:
+                async for chunk in stream:
+                    chunks.append(chunk)
+            return b"".join(chunks)
 
-        if format == "url" and isinstance(value, str):
-            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
+        if format == "path":
+            async with aiofiles.open(value, "rb") as file:
+                return await file.read()
 
-        if isinstance(value, bytes):
-            return await save_stream_to_temporary_file(BytesStreamResource(value), subtype)
+        if format == "base64":
+            return base64.b64decode(value)
 
-        if isinstance(value, StreamResource):
-            return await save_stream_to_temporary_file(value, subtype)
+        if format == "data-uri":
+            _, meta, data = parse_data_uri(value)
+            if "base64" in meta.split(";"):
+                return base64.b64decode(data)
+            return unquote_to_bytes(data)
 
-        return None
+        raise ValueError(f"Unknown format: {format}")
 
-    def _parse_attrs(self, value: Optional[str]) -> Optional[Dict[str, str]]:
-        attrs: Dict[str, str] = {}
+    async def _load_stream_from_format(self, value: str, format: str) -> StreamResource:
+        if format == "url":
+            return UrlStreamResource(value)
 
-        for pair in value.split(","):
+        if format == "path":
+            return FileStreamResource(value)
+
+        if format == "base64":
+            return Base64StreamResource(value)
+
+        if format == "data-uri":
+            _, meta, data = parse_data_uri(value)
+            if "base64" in meta.split(";"):
+                return Base64StreamResource(data)
+            return BytesStreamResource(unquote_to_bytes(data))
+
+        raise ValueError(f"Unknown format: {format}")
+
+    async def _render_attrs(self, value: str) -> Dict[str, Any]:
+        attrs: Dict[str, Any] = {}
+
+        for pair in self._split_attrs(value):
             pair = pair.strip()
             if "=" in pair:
                 k, _, v = pair.partition("=")
-                attrs[k.strip()] = v.strip()
+                attrs[k.strip()] = await self._render_text(v.strip())
 
         return attrs
+
+    def _split_attrs(self, value: str) -> List[str]:
+        parts: List[str] = []
+        start, depth = 0, 0
+        index, length = 0, len(value)
+
+        while index < length:
+            ch = value[index]
+            if ch == "$" and index + 1 < length and value[index + 1] == "{":
+                depth += 1
+                index += 2
+                continue
+            if ch == "}" and depth > 0:
+                depth -= 1
+                index += 1
+                continue
+            if ch == "," and depth == 0:
+                parts.append(value[start:index])
+                start = index + 1
+                index += 1
+                continue
+            index += 1
+
+        parts.append(value[start:])
+
+        return parts
 
     def _is_spread_expression(self, text: str) -> bool:
         return self.patterns["spread"].fullmatch(text) is not None
@@ -219,10 +333,39 @@ class ImageValueRenderer:
         return await self._render_element(value)
 
     async def _render_element(self, element: Any) -> Any:
-        if isinstance(element, UploadFile):
-            return await load_image_from_stream(UploadFileStreamResource(element))
+        if isinstance(element, (list, tuple)):
+            return [ await self._render_element(item) for item in element ]
+
+        if isinstance(element, ImageStreamResource):
+            return element.image
+
+        if isinstance(element, StreamResource):
+            return await load_image_from_stream(element)
 
         if isinstance(element, (PILImage.Image, AsyncIterator)):
+            return element
+
+        return None
+
+class AudioValueRenderer:
+    async def render(self, value: Any) -> Any:
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> Any:
+        if isinstance(element, (list, tuple)):
+            return [ await self._render_element(item) for item in element ]
+
+        if isinstance(element, (StreamResource, AsyncIterator)):
+            return element
+
+        return None
+
+class VideoValueRenderer:
+    async def render(self, value: Any) -> Any:
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> Any:
+        if isinstance(element, (StreamResource, AsyncIterator)):
             return element
 
         if isinstance(element, (list, tuple)):
@@ -231,20 +374,12 @@ class ImageValueRenderer:
         return None
 
 class FileValueRenderer:
-    async def render(self, value: Any) -> Optional[str]:
-        if isinstance(value, UploadFile):
-            return await save_stream_to_temporary_file(UploadFileStreamResource(value), get_file_extension(value.filename))
-
-        if isinstance(value, bytes):
-            return await save_stream_to_temporary_file(BytesStreamResource(value), None)
+    async def render(self, value: Any) -> Any:
+        if isinstance(value, (list, tuple)):
+            return [ await self.render(item) for item in value ]
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, None)
-
-        if isinstance(value, str):
-            if os.path.isfile(value):
-                return value
-            return await save_stream_to_temporary_file(Base64StreamResource(value), None)
 
         return None
 

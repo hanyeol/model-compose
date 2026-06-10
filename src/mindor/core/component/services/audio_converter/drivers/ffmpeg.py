@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Union, Any
+from typing import Optional, Union, Dict, Any
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.logger import logging
 from ..base import AudioConverterService, AudioConverterDriver, register_audio_converter_service
 from ..base import ComponentActionContext
-from .common import AudioConverterAction, AudioSource
+from .common import AudioConverterAction
 import asyncio
 import tempfile
 import os
@@ -23,14 +23,14 @@ _FORMAT_CODEC_MAP: dict[str, str] = {
 
 class FFmpegAudioConverterAction(AudioConverterAction):
     async def run(self, context: ComponentActionContext) -> Any:
-        source      = await self._render_source(context)
+        data, source_attrs = await self._render_audio(context)
         format      = await context.render_variable(self.config.format) if self.config.format else "wav"
         codec       = await context.render_variable(self.config.codec) if self.config.codec else None
         bitrate     = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
         sample_rate = await context.render_variable(self.config.sample_rate) if isinstance(self.config.sample_rate, str) else self.config.sample_rate
         channels    = await context.render_variable(self.config.channels) if isinstance(self.config.channels, str) else self.config.channels
 
-        output_path = await self._convert(source, format, codec, bitrate, sample_rate, channels)
+        output_path = await self._convert(data, source_attrs, format, codec, bitrate, sample_rate, channels)
         result = {
             "path": output_path,
             "format": format
@@ -41,7 +41,8 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
     async def _convert(
         self,
-        source: AudioSource,
+        data: Any,
+        source_attrs: Dict[str, Any],
         format: str,
         codec: Optional[str],
         bitrate: Optional[str],
@@ -50,17 +51,19 @@ class FFmpegAudioConverterAction(AudioConverterAction):
     ) -> str:
         output_path = os.path.join(tempfile.gettempdir(), f"audio_converter_{os.getpid()}_{id(self)}.{format}")
 
+        is_path = isinstance(data, str) and not source_attrs
+        input_path = data if is_path else None
+
         command = [ "ffmpeg", "-hide_banner" ]
 
-        if source.format:
-            command.extend([ "-f", source.format ])
-        if source.sample_rate:
-            command.extend([ "-ar", str(source.sample_rate) ])
-        if source.channels:
-            command.extend([ "-ac", str(source.channels) ])
+        if source_attrs.get("format"):
+            command.extend([ "-f", str(source_attrs["format"]) ])
+        if source_attrs.get("sample_rate"):
+            command.extend([ "-ar", str(source_attrs["sample_rate"]) ])
+        if source_attrs.get("channels"):
+            command.extend([ "-ac", str(source_attrs["channels"]) ])
 
-        is_pipe = source.data is not None
-        command.extend([ "-i", "pipe:0" if is_pipe else source.path ])
+        command.extend([ "-i", input_path if is_path else "pipe:0" ])
 
         resolved_codec = codec or _FORMAT_CODEC_MAP.get(format)
         if resolved_codec:
@@ -74,21 +77,21 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         command.extend([ "-y", output_path ])
 
-        logging.info(f"Converting '{'pipe:0' if is_pipe else source.path}' to '{format}' format")
+        logging.info(f"Converting '{input_path if is_path else 'pipe:0'}' to '{format}' format")
 
         process = await asyncio.create_subprocess_exec(
             *command,
-            stdin=asyncio.subprocess.PIPE if is_pipe else None,
+            stdin=asyncio.subprocess.PIPE if not is_path else None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
-        raw = bytes(source.data) if isinstance(source.data, (bytes, bytearray)) else None
+        raw = bytes(data) if isinstance(data, (bytes, bytearray)) else None
         _, stderr = await process.communicate(input=raw)
 
         if process.returncode != 0:
-            error_output = stderr.decode("utf-8", errors="replace")
-            raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error_output}")
+            error = stderr.decode("utf-8", errors="replace")
+            raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error}")
 
         logging.info(f"Audio conversion completed: '{output_path}'")
 

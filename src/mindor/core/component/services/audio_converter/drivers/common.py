@@ -1,33 +1,22 @@
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Any, Dict, Optional, Tuple
 from mindor.dsl.schema.action import AudioConverterActionConfig, AudioSourceConfig
 from ..base import ComponentActionContext
-
-class AudioSource:
-    def __init__(self, path: Optional[str], data: Any, format: Optional[str], sample_rate: Optional[int], channels: Optional[int]):
-        self.path        = path
-        self.data        = data
-        self.format      = format
-        self.sample_rate = sample_rate
-        self.channels    = channels
 
 class AudioConverterAction:
     def __init__(self, config: AudioConverterActionConfig):
         self.config: AudioConverterActionConfig = config
 
-    async def _render_source(self, context: ComponentActionContext) -> AudioSource:
-        source = self.config.source
-        if isinstance(source, AudioSourceConfig):
-            path        = await context.render_variable(source.path) if source.path else None
-            data        = await context.render_variable(source.data) if source.data else None
-            format      = await context.render_variable(source.format) if source.format else None
-            sample_rate = await context.render_variable(source.sample_rate) if isinstance(source.sample_rate, str) else source.sample_rate
-            channels    = await context.render_variable(source.channels) if isinstance(source.channels, str) else source.channels
-        else:
-            path        = await context.render_variable(source)
-            data        = None
-            format      = None
-            sample_rate = None
-            channels    = None
-        return AudioSource(path, data, format, sample_rate, channels)
+    async def _render_audio(self, context: ComponentActionContext) -> Tuple[Any, Dict[str, Any]]:
+        if isinstance(self.config.audio, AudioSourceConfig):
+            data        = await context.render_variable(self.config.audio.data)
+            format      = await context.render_variable(self.config.audio.format) if self.config.audio.format else None
+            sample_rate = await context.render_variable(self.config.audio.sample_rate) if isinstance(self.config.audio.sample_rate, str) else self.config.audio.sample_rate
+            channels    = await context.render_variable(self.config.audio.channels) if isinstance(self.config.audio.channels, str) else self.config.audio.channels
+            attrs: Dict[str, Any] = {}
+            if format is not None:        attrs["format"] = format
+            if sample_rate is not None:   attrs["sample_rate"] = sample_rate
+            if channels is not None:      attrs["channels"] = channels
+            return data, attrs
+        return await context.render_variable(self.config.audio), {}

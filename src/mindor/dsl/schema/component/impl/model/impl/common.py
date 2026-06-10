@@ -60,7 +60,7 @@ class OnDemandPriority(str, Enum):
     NORMAL = "normal"
     LOW    = "low"
 
-class ModelSpecs(BaseModel):
+class ModelRuntimeSpec(BaseModel):
     vram: Optional[int] = Field(default=None, description="Estimated VRAM usage in MB.")
     ram: Optional[int] = Field(default=None, description="Estimated system RAM usage in MB.")
 
@@ -138,7 +138,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="cpu", description="Computation device to use.")
-    specs: Optional[ModelSpecs] = Field(default=None, description="Resource specification hints for the model.")
+    runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime specification hints for the model.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")

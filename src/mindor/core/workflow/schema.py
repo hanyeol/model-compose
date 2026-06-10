@@ -18,6 +18,7 @@ class WorkflowVariableAnnotation:
 class WorkflowVariable:
     name: Optional[str]
     type: str
+    is_list: bool
     subtype: Optional[str]
     attrs: Optional[Dict[str, str]]
     format: Optional[str]
@@ -45,13 +46,13 @@ class WorkflowVariableResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
-                r"""\$\{                                                                       # ${
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                    # key: input, result[], result[0], result[-1], etc.
-                    (?:\.([^\s|}]+))?                                                          # path: key, key.path[0], etc.
-                    (?:\s*as\s*([^\s/;}]+)(?:/([^\s;\[}]+)(?:\[([^\]]*)\])?)?(?:;([^\s}]+))?)? # type/subtype[attrs];format
-                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?              # default value after `|`
-                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                       # annotations
-                \s*\}""",                                                                      # }
+                r"""\$\{                                                                                                # ${
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                                             # key: input, result[], result[0], result[-1], etc.
+                    (?:\.([^\s|}]+))?                                                                                   # path: key, key.path[0], etc.
+                    (?:\s*as\s*([^\s/;\[}]+)(\[\])?(?:/([^\s;\[}]+)(?:\[((?:\$\{[^}]*\}|[^\]])*)\])?)?(?:;([^\s}]+))?)? # type[]/subtype[attrs];format (attrs may contain nested ${...})
+                    (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?                                       # default value after `|`
+                    (?:\s*(@\(\s*[\w]+\s+(?:\\[$@{}]|(?!\s*\$\{).)+\)))?                                                # annotations
+                \s*\}""",                                                                                               # }
                 re.VERBOSE,
             ),
             "annotation": {
@@ -66,7 +67,8 @@ class WorkflowVariableResolver:
             variables: List[WorkflowVariable] = []
 
             for m in self.patterns["variable"].finditer(value):
-                key, index, path, type, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
+                key, index, path, type, is_list, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+                is_list = bool(is_list)
 
                 if attrs:
                     attrs = self._parse_attrs(attrs)
@@ -75,12 +77,13 @@ class WorkflowVariableResolver:
                     annotations = self._parse_annotations(annotations)
 
                 if default and type:
-                    default = self._convert_value_to_type(default, type)
+                    default = self._convert_value_to_type(default, type, is_list)
 
                 if key == wanted_key:
                     variables.append(WorkflowVariable(
                         name=path,
                         type=type or "string",
+                        is_list=is_list,
                         subtype=subtype,
                         attrs=attrs,
                         format=format,
@@ -107,7 +110,8 @@ class WorkflowVariableResolver:
         
         if isinstance(value, str):
             for m in self.patterns["variable"].finditer(value):
-                key, index, path, type, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
+                key, index, path, type, is_list, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+                is_list = bool(is_list)
 
                 if attrs:
                     attrs = self._parse_attrs(attrs)
@@ -116,11 +120,12 @@ class WorkflowVariableResolver:
                     annotations = self._parse_annotations(annotations)
 
                 if default and type:
-                    default = self._convert_value_to_type(default, type)
+                    default = self._convert_value_to_type(default, type, is_list)
 
                 variables.append(WorkflowVariable(
                     name=name,
                     type=type or "string",
+                    is_list=is_list,
                     subtype=subtype,
                     attrs=attrs,
                     format=format,
@@ -128,7 +133,7 @@ class WorkflowVariableResolver:
                     annotations=annotations,
                     internal=internal
                 ))
-            
+
             return variables
         
         if isinstance(value, BaseModel):
@@ -175,7 +180,32 @@ class WorkflowVariableResolver:
 
         return WorkflowVariableConfig(**config_dict)
 
-    def _convert_value_to_type(self, value: Any, type: str) -> Any:
+    def _convert_value_to_type(self, value: str, type: str, is_list: bool) -> Any:
+        if is_list:
+            try:
+                value = json.loads(self._quote_variable_references(value))
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Expected a JSON list, but failed to parse: {e}")
+
+            if not isinstance(value, list):
+                raise ValueError(f"Expected a JSON list, got {type(value).__name__}")
+
+            return value
+
+        if type in [ "list", "object", "json" ]:
+            try:
+                value = json.loads(self._quote_variable_references(value))
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Expected a JSON value, but failed to parse: {e}")
+
+            if type == "list" and not isinstance(value, list):
+                raise ValueError(f"Expected a JSON list, got {type(value).__name__}")
+
+            if type == "object" and not isinstance(value, dict):
+                raise ValueError(f"Expected a JSON object, got {type(value).__name__}")
+
+            return value
+
         if type == "integer":
             return int(value)
 
@@ -183,12 +213,12 @@ class WorkflowVariableResolver:
             return float(value)
 
         if type == "boolean":
-            return str(value).lower() in [ "true", "1" ]
-        
-        if type == "json":
-            return json.loads(value)
- 
+            return value.lower() in [ "true", "1" ]
+
         return value
+
+    def _quote_variable_references(self, value: str) -> str:
+        return self.patterns["variable"].sub(lambda m: '"' + m.group(0) + '"', value)
 
     def _parse_attrs(self, value: Optional[str]) -> Optional[Dict[str, str]]:
         attrs: Dict[str, str] = {}

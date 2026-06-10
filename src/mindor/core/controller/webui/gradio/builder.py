@@ -383,16 +383,14 @@ class GradioWebUIBuilder:
         return input
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if self._is_media_variable(variable) and (not variable.internal or not variable.format):
-            if variable.internal and variable.format and variable.format != "path":
-                value = await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
+        if self._is_media_variable(variable) and variable.format == "path":
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
 
         if variable.type == WorkflowVariableType.LIST:
-            return str(value).split(",")
+            return [ item.strip() for item in str(value).split(",") ] if value != "" else None
 
         return value if value != "" else None
 
@@ -451,7 +449,7 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.MARKDOWN:
             return gr.Markdown(label=label)
 
-        if variable.type in [ WorkflowVariableType.JSON, WorkflowVariableType.OBJECTS ]:
+        if variable.type == WorkflowVariableType.JSON or (variable.type == WorkflowVariableType.OBJECT and variable.is_list):
             return gr.JSON(label=label)
 
         if variable.type == WorkflowVariableType.IMAGE:
@@ -543,7 +541,7 @@ class GradioWebUIBuilder:
             return f"✅ {variable.name}" if variable.name else "✅ Completed"
 
         if variable.type == WorkflowVariableType.SSE_JSON:
-            return self._resolve_json_field_from_bytes(value, variable.subtype, variable.format)
+            return self._resolve_json_field_from_bytes(value, variable.subtype)
 
         if variable.type == WorkflowVariableType.SSE_TEXT:
             return self._convert_value_to_string(value, variable.subtype, variable.format)
@@ -552,10 +550,10 @@ class GradioWebUIBuilder:
             return self._convert_value_to_string(value, variable.subtype, variable.format)
 
         if variable.type == WorkflowVariableType.IMAGE:
-            return await self._load_image_from_value(value, variable.subtype, variable.format)
+            return await self._load_image_from_value(value, variable.format)
 
         if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
-            return await self._save_value_to_temporary_file(value, variable.subtype, variable.attrs, variable.format)
+            return await self._save_value_to_temporary_file(value, variable.subtype, variable.format)
 
         return value
 
@@ -571,28 +569,28 @@ class GradioWebUIBuilder:
 
         return None
 
-    def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[Any]:
+    def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str]) -> Optional[Any]:
         try:
             return self.field_resolver.resolve(json.loads(value), subtype)
         except Exception:
             return None
 
-    async def _load_image_from_value(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
+    async def _load_image_from_value(self, value: Any, format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
-            return await load_image_from_stream(Base64StreamResource(value), subtype)
+            return await load_image_from_stream(Base64StreamResource(value))
 
         if format == WorkflowVariableFormat.URL and isinstance(value, str):
-            return await load_image_from_stream(await create_stream_with_url(value), subtype)
+            return await load_image_from_stream(await create_stream_with_url(value))
 
         if isinstance(value, StreamResource):
-            return await load_image_from_stream(value, subtype)
+            return await load_image_from_stream(value)
 
         if isinstance(value, PILImage.Image):
             return value
 
         return None
 
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], attrs: Optional[Dict[str, str]], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
+    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 

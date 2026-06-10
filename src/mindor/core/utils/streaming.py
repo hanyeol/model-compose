@@ -233,14 +233,11 @@ async def save_stream_to_file(stream: StreamResource, path: str) -> None:
             await file.write(chunk)
 
 async def save_stream_to_temporary_file(stream: StreamResource, extension: Optional[str]) -> Optional[str]:
-    try:
-        path = create_temporary_file(extension)
-        async with stream, aiofiles.open(path, "wb") as file:
-            async for chunk in stream:
-                await file.write(chunk)
-        return path
-    except Exception:
-        return None
+    path = create_temporary_file(extension)
+    async with stream, aiofiles.open(path, "wb") as file:
+        async for chunk in stream:
+            await file.write(chunk)
+    return path
 
 async def read_stream_to_buffer(stream: StreamResource) -> io.BytesIO:
     buffer = io.BytesIO()

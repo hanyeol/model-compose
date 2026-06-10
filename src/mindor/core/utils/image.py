@@ -57,12 +57,9 @@ class ImageStreamResource(StreamResource):
     def _resolve_pil_format(self, format: str) -> str:
         return _PIL_FORMAT_MAP.get(format, "PNG")
 
-async def load_image_from_stream(stream: StreamResource, extension: Optional[str] = None) -> Optional[PILImage.Image]:
-    try:
-        data = bytearray()
-        async with stream:
-            async for chunk in stream:
-                data.extend(chunk)
-            return PILImage.open(io.BytesIO(data))
-    except Exception as e:
-        return None
+async def load_image_from_stream(stream: StreamResource) -> PILImage.Image:
+    data = bytearray()
+    async with stream:
+        async for chunk in stream:
+            data.extend(chunk)
+    return PILImage.open(io.BytesIO(data))

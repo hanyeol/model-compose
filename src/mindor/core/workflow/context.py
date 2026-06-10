@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer
 from mindor.core.workflow.interrupt import InterruptHandler
 
 if TYPE_CHECKING:
@@ -45,11 +45,17 @@ class WorkflowContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_variable(self, value: Any, save_media_as_file: bool = False) -> Any:
-        return await self.renderer.render(value, save_media_as_file)
+    async def render_variable(self, value: Any) -> Any:
+        return await self.renderer.render(value)
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))
+
+    async def render_audio(self, value: Any) -> Any:
+        return await AudioValueRenderer().render(await self.render_variable(value))
+
+    async def render_video(self, value: Any) -> Any:
+        return await VideoValueRenderer().render(await self.render_variable(value))
 
     def record_run_id(self, job_id: str, run_id: str) -> None:
         self.job_run_ids.setdefault(job_id, []).append(run_id)

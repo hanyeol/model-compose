@@ -53,8 +53,8 @@ class HttpTriggerContext:
         for item in await self._items():
             yield HttpTriggerContext(item, self.query, False, None)
 
-    async def render_variable(self, template: str, save_media_as_file: bool = False) -> Any:
-        return await self.renderer.render(template, save_media_as_file)
+    async def render_variable(self, template: str) -> Any:
+        return await self.renderer.render(template)
 
     async def _items(self) -> List[Any]:
         item = await self.renderer.render(self.item) if self.item else self.body

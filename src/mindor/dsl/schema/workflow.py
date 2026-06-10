@@ -12,8 +12,8 @@ class WorkflowVariableType(str, Enum):
     NUMBER   = "number"
     BOOLEAN  = "boolean"
     LIST     = "list"
+    OBJECT   = "object"
     JSON     = "json"
-    OBJECTS  = "object[]"
     # Encoded data
     BASE64   = "base64"
     MARKDOWN = "markdown"
@@ -43,7 +43,17 @@ class WorkflowVariableAnnotationConfig(BaseModel):
 class WorkflowVariableConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the variable.")
     type: WorkflowVariableType = Field(..., description="Type of the variable.")
+    is_list: bool = Field(default=False, description="Whether the variable is a list of `type` (corresponds to the `[]` marker in DSL).")
     subtype: Optional[str] = Field(default=None, description="Subtype of the variable.")
+
+    @model_validator(mode="before")
+    def normalize_list_marker(cls, values: Any):
+        if isinstance(values, dict):
+            type_value = values.get("type")
+            if isinstance(type_value, str) and type_value.endswith("[]"):
+                values["type"] = type_value[:-2]
+                values["is_list"] = True
+        return values
     attrs: Optional[Dict[str, str]] = Field(default=None, description="Attributes of the variable (e.g. sample_rate, channels for pcm).")
     format: Optional[WorkflowVariableFormat] = Field(default=None, description="Format of the variable.")
     options: Optional[List[str]] = Field(default=None, description="List of valid options for file or select type.")

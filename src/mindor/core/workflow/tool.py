@@ -57,23 +57,9 @@ class WorkflowToolGenerator():
         input: Dict[str, Any] = {}
 
         for value, variable in zip(arguments, workflow.input):
-            input[variable.name or "input"] = await self._convert_input_value(value, variable.type, variable.subtype, variable.format, variable.default)
+            input[variable.name or "input"] = value
 
         return input
-
-    async def _convert_input_value(
-        self,
-        value: Any,
-        type: WorkflowVariableType,
-        subtype: Optional[str],
-        format: Optional[WorkflowVariableFormat],
-        default: Optional[Any]
-    ) -> Any:
-        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
-            if format and format != "path":
-                pass
-
-        return value if value != "" else None
 
     def _generate_parameters(self, workflow: WorkflowSchema) -> List[WorkflowToolParameter]:
         return [
@@ -88,16 +74,19 @@ class WorkflowToolGenerator():
         ]
 
     def _get_type(self, variable: WorkflowVariableConfig) -> str:
-        if variable.type == WorkflowVariableType.OBJECTS:
-            return "list[dict]"
+        if variable.type == WorkflowVariableType.LIST:
+            return "list[list]" if variable.is_list else "list"
+
+        if variable.type == WorkflowVariableType.OBJECT:
+            return "list[dict]" if variable.is_list else "dict"
 
         if variable.type == WorkflowVariableType.NUMBER:
-            return "float"
+            return "list[float]" if variable.is_list else "float"
 
         if variable.type == WorkflowVariableType.INTEGER:
-            return "int"
+            return "list[int]" if variable.is_list else "int"
 
-        return "str"
+        return "list[str]" if variable.is_list else "str"
 
 class ResumeToolGenerator():
     def generate(

@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Optional, Any
 import re
 
 class FieldResolver:
@@ -7,8 +7,11 @@ class FieldResolver:
             "keypath": re.compile(r"[-_\w]+|\[-?\d+\]|\[\*\]"),
         }
 
-    def resolve(self, object: Any, path: str, default: Any = None) -> Any:
-        return self._resolve_value(object, self.patterns["keypath"].findall(path), default)
+    def resolve(self, object: Any, path: Optional[str], default: Any = None) -> Any:
+        if path is not None:
+            return self._resolve_value(object, self.patterns["keypath"].findall(path), default)
+
+        return object
 
     def _resolve_value(self, object: Any, segments: List[str], default: Any) -> Any:
         value = object

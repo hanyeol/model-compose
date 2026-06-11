@@ -4,26 +4,32 @@ import re
 class FieldResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
-            "keypath": re.compile(r"[-_\w]+|\[-?\d+\]"),
+            "keypath": re.compile(r"[-_\w]+|\[-?\d+\]|\[\*\]"),
         }
 
-    def resolve(self, object: dict, path: str, default: Any = None) -> Any:
-        parts: List[str] = self.patterns["keypath"].findall(path) if path else []
-        current = object
+    def resolve(self, object: Any, path: str, default: Any = None) -> Any:
+        return self._resolve_value(object, self.patterns["keypath"].findall(path), default)
 
-        for part in parts:
-            if isinstance(current, dict) and not part.startswith("["):
-                if part in current:
-                    current = current[part]
-                else:
+    def _resolve_value(self, object: Any, segments: List[str], default: Any) -> Any:
+        value = object
+        for index, segment in enumerate(segments):
+            if segment == "[*]":
+                if not isinstance(value, list):
                     return default
-            elif isinstance(current, list) and part.startswith("["):
-                index = int(part[1:-1])
-                if -len(current) <= index < len(current):
-                    current = current[index]
-                else:
+                return [ self._resolve_value(item, segments[index + 1:], default) for item in value ]
+
+            if segment.startswith("["):
+                if not isinstance(value, list):
                     return default
+                i = int(segment[1:-1])
+                if not -len(value) <= i < len(value):
+                    return default
+                value = value[i]
             else:
-                return default
-        
-        return current
+                if not isinstance(value, dict):
+                    return default
+                if segment not in value:
+                    return default
+                value = value[segment]
+
+        return value

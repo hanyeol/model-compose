@@ -389,7 +389,7 @@ class GradioWebUIBuilder:
             return gr.Image(label=label, type="filepath")
 
         if variable.type == WorkflowVariableType.AUDIO:
-            return gr.Audio(label=label, type="filepath")
+            return gr.Audio(label=label, sources=[ "upload", "microphone" ], type="filepath")
 
         if variable.type == WorkflowVariableType.VIDEO:
             return gr.Video(label=label)

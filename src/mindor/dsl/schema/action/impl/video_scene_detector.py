@@ -11,7 +11,7 @@ class VideoSceneDetectorType(str, Enum):
     HASH      = "hash"
 
 class VideoSceneDetectorActionConfig(CommonActionConfig):
-    video: str = Field(..., description="Video file path or variable reference.")
+    video: str = Field(..., description="Video source.")
     detector: Optional[Union[VideoSceneDetectorType, str]] = Field(default=None, description="Scene detection algorithm. Interpretation depends on the driver.")
     threshold: Optional[Union[float, str]] = Field(default=None, description="Detection sensitivity threshold.")
     start_time: Optional[str] = Field(default=None, description="Start time for detection (e.g. '00:01:00', '60s').")

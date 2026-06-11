@@ -25,7 +25,7 @@ _FORMAT_CODEC_MAP: dict[str, str] = {
 
 class FFmpegAudioConverterAction(AudioConverterAction):
     async def run(self, context: ComponentActionContext) -> Any:
-        source      = await self._render_audio(context)
+        source      = await context.render_audio(self.config.audio)
         format      = await context.render_variable(self.config.format) if self.config.format else "wav"
         codec       = await context.render_variable(self.config.codec) if self.config.codec else None
         bitrate     = await context.render_variable(self.config.bitrate) if self.config.bitrate else None

@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Optional, Awaitable, Any
+from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
 from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventIteratorStreamResource, StreamFormat
@@ -6,8 +6,9 @@ from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, B
 from .http_client import create_stream_with_url
 from .url import UrlStreamResource, parse_data_uri
 from .image import load_image_from_stream, ImageStreamResource
-from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource
-from .video import VideoStreamResource
+from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource, create_audio_source
+from .video import VideoStreamResource, create_video_source
+from .media import MediaSource
 from .streaming import FileStreamResource
 from .resolvers import FieldResolver
 from .size import parse_size
@@ -329,13 +330,13 @@ class VariableRenderer:
         return False
 
 class ImageValueRenderer:
-    async def render(self, value: Any) -> Any:
+    async def render(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator, List[Union[PILImage.Image, AsyncIterator]]]]:
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(element) for element in value ]
+
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> Any:
-        if isinstance(element, (list, tuple)):
-            return [ await self._render_element(item) for item in element ]
-
+    async def _render_element(self, element: Any) -> Optional[Union[PILImage.Image, AsyncIterator]]:
         if isinstance(element, ImageStreamResource):
             return element.image
 
@@ -348,38 +349,35 @@ class ImageValueRenderer:
         return None
 
 class AudioValueRenderer:
-    async def render(self, value: Any) -> Any:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(element) for element in value ]
+
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> Any:
-        if isinstance(element, (list, tuple)):
-            return [ await self._render_element(item) for item in element ]
-
-        if isinstance(element, (StreamResource, AsyncIterator)):
-            return element
-
-        return None
+    async def _render_element(self, element: Any) -> MediaSource:
+        return create_audio_source(element)
 
 class VideoValueRenderer:
-    async def render(self, value: Any) -> Any:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(element) for element in value ]
+
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> Any:
-        if isinstance(element, (StreamResource, AsyncIterator)):
-            return element
-
-        if isinstance(element, (list, tuple)):
-            return [ await self._render_element(item) for item in element ]
-
-        return None
+    async def _render_element(self, element: Any) -> MediaSource:
+        return create_video_source(element)
 
 class FileValueRenderer:
-    async def render(self, value: Any) -> Any:
+    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]]]]:
         if isinstance(value, (list, tuple)):
-            return [ await self.render(item) for item in value ]
+            return [ await self._render_element(element) for element in value ]
 
-        if isinstance(value, StreamResource):
-            return await save_stream_to_temporary_file(value, None)
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> Optional[str]:
+        if isinstance(element, StreamResource):
+            return await save_stream_to_temporary_file(element, None)
 
         return None
 

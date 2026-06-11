@@ -25,7 +25,7 @@ _FORMAT_CODEC_MAP: dict[str, tuple[str, str]] = {
 
 class FFmpegVideoConverterAction(VideoConverterAction):
     async def run(self, context: ComponentActionContext) -> Any:
-        source     = await self._render_video(context)
+        source     = await context.render_video(self.config.video)
         format     = await context.render_variable(self.config.format) if self.config.format else "mp4"
         video_codec, audio_codec = await self._resolve_codec(context, format)
         bitrate    = await context.render_variable(self.config.bitrate) if self.config.bitrate else None

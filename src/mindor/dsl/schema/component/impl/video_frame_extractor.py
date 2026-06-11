@@ -5,10 +5,10 @@ from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from .common import CommonComponentConfig, ComponentType
 
 class VideoFrameExtractorDriver(str, Enum):
-    OPENCV = "opencv"
     FFMPEG = "ffmpeg"
+    OPENCV = "opencv"
 
 class VideoFrameExtractorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_FRAME_EXTRACTOR]
-    driver: Union[VideoFrameExtractorDriver, str] = Field(default=VideoFrameExtractorDriver.OPENCV, description="Video frame extraction backend driver.")
+    driver: Union[VideoFrameExtractorDriver, str] = Field(default=VideoFrameExtractorDriver.FFMPEG, description="Video frame extraction backend driver.")
     actions: List[VideoFrameExtractorActionConfig] = Field(default_factory=list)

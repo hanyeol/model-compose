@@ -1,2 +1,2 @@
-from .opencv import *
 from .ffmpeg import *
+from .opencv import *

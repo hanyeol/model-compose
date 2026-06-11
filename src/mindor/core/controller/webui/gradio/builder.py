@@ -718,8 +718,7 @@ class GradioWebUIBuilder:
         return message
 
     def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
-        text = self._log_format_payload(value)
-        return self._log_assistant_message(text or "", title=title)
+        return self._log_assistant_message(self._log_format_payload(value) or "", title=title)
 
     def _log_spinner_message(self, frame: int) -> Dict:
         return self._log_assistant_message(f"{_SPINNER_FRAMES[frame % len(_SPINNER_FRAMES)]} Running...")

@@ -35,7 +35,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         result = await self._convert(source, format, video_codec, audio_codec, bitrate, resolution, fps)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
     async def _convert(
         self,

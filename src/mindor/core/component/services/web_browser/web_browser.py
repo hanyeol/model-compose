@@ -21,7 +21,7 @@ class WebBrowserAction:
         result = await self._dispatch(context, session, timeout)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
     async def _dispatch(self, context: ComponentActionContext, session: WebBrowserSession, timeout: float) -> Any:
         # Navigation

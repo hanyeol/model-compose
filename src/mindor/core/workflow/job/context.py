@@ -12,8 +12,8 @@ class JobContext:
     def register_source(self, run_id: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(run_id or "__global__", {})[key] = source
 
-    async def render_variable(self, run_id: Optional[str], value: Any) -> Any:
-        return await self.renderer.render(value, run_id)
+    async def render_variable(self, run_id: Optional[str], value: Any, convert_media: bool = False) -> Any:
+        return await self.renderer.render(value, run_id, convert_media=convert_media)
 
     async def render_image(self, run_id: Optional[str], value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(run_id, value))

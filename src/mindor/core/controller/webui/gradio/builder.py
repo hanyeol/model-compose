@@ -489,12 +489,16 @@ class GradioWebUIBuilder:
             return gr.JSON(label=label)
 
         if variable.type == WorkflowVariableType.IMAGE:
+            if variable.is_list:
+                return gr.Gallery(label=label, interactive=False)
             return gr.Image(label=label, interactive=False)
 
         if variable.type == WorkflowVariableType.AUDIO:
             return gr.Audio(label=label)
 
         if variable.type == WorkflowVariableType.VIDEO:
+            if variable.is_list:
+                return gr.Gallery(label=label, interactive=False)
             return gr.Video(label=label)
 
         if variable.type == WorkflowVariableType.FILE:
@@ -586,9 +590,17 @@ class GradioWebUIBuilder:
             return self._convert_value_to_string(value, variable.subtype, variable.format)
 
         if variable.type == WorkflowVariableType.IMAGE:
+            if variable.is_list:
+                if isinstance(value, list):
+                    return [ await self._load_image_from_value(v, variable.format) for v in value ]
+                return None
             return await self._load_image_from_value(value, variable.format)
 
         if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
+            if variable.is_list:
+                if isinstance(value, list):
+                    return [ await self._save_value_to_temporary_file(v, variable.subtype, variable.format) for v in value ]
+                return None
             return await self._save_value_to_temporary_file(value, variable.subtype, variable.format)
 
         return value
@@ -654,7 +666,7 @@ class GradioWebUIBuilder:
         return variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]
 
     def _is_media_component(self, component: gr.Component) -> bool:
-        return isinstance(component, (gr.Image, gr.Audio, gr.Video, gr.File))
+        return isinstance(component, (gr.Image, gr.Gallery, gr.Audio, gr.Video, gr.File))
 
     def _log_messages_for_event(self, event: Union[TaskEvent, JobEvent, ComponentEvent]) -> List[Dict]:
         if isinstance(event, TaskEvent):

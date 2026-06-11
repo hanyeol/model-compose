@@ -63,11 +63,11 @@ class TextClassificationTaskAction:
 
     async def _render_output_item(self, context: ComponentActionContext, prediction: Any) -> Any:
         context.register_source("result[]", prediction)
-        return (await context.render_variable(self.config.output)) if self.config.output else prediction
+        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else prediction
 
     async def _render_output(self, context: ComponentActionContext, result: Any) -> Any:
         context.register_source("result", result)
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
 class TextClassificationTaskService(ModelTaskService):
     pass

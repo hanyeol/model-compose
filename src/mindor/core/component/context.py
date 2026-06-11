@@ -66,8 +66,8 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any) -> None:
         self.sources[key] = source
 
-    async def render_variable(self, value: Any) -> Any:
-        return await self.renderer.render(value)
+    async def render_variable(self, value: Any, convert_media: bool = True) -> Any:
+        return await self.renderer.render(value, convert_media=convert_media)
 
     async def render_image(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator, List[Union[PILImage.Image, AsyncIterator]]]]:
         return await ImageValueRenderer().render(await self.render_variable(value))

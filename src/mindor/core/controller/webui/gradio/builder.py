@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
 
 _VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
-_SPINNER_FRAMES = [ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" ]
 
 class ComponentGroup:
     def __init__(self, group: gr.Component, components: List[gr.Component]):
@@ -44,13 +43,13 @@ class WorkflowLogPanel:
         )
         return [ self.chatbot ]
 
-    def reset_update(self) -> List[Any]:
+    def update(self, messages: List[Dict], spinner: Optional[Dict] = None) -> List[Any]:
+        return [ [ *messages, spinner ] if spinner else list(messages) ]
+
+    def clear(self) -> List[Any]:
         return [ [] ]
 
-    def value_update(self, messages: List[Dict]) -> List[Any]:
-        return [ list(messages) ]
-
-    def ignore_update(self) -> List[Any]:
+    def ignore(self) -> List[Any]:
         return [ gr.update() ]
 
 class GradioWebUIBuilder:
@@ -130,27 +129,25 @@ class GradioWebUIBuilder:
 
             async def _run_workflow(*args):
                 log_message_queue.reset()
-                spinner_frame = 0
 
                 yield [
                     _run_button_running(),
                     *self._clear_interrupt_updates(),
                     *self._clear_output_updates(output_components),
-                    *log_panel.reset_update(),
+                    *log_panel.update([], self._log_spinner_message()),
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
                 task = asyncio.create_task(runner().run_workflow(workflow_id, input, on_event=_on_workflow_event))
 
                 while not task.done():
-                    await log_message_queue.poll(timeout=0.1)
-                    spinner_frame = (spinner_frame + 1) % len(_SPINNER_FRAMES)
-                    yield [
-                        _run_button_running(),
-                        *(gr.update() for _ in interrupt_components),
-                        *(gr.update() for _ in output_components),
-                        *log_panel.value_update(log_message_queue.get(consume=False) + [ self._log_spinner_message(spinner_frame) ]),
-                    ]
+                    if await log_message_queue.poll(timeout=0.1):
+                        yield [
+                            _run_button_running(),
+                            *(gr.update() for _ in interrupt_components),
+                            *(gr.update() for _ in output_components),
+                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
+                        ]
 
                 log_message_queue.drain()
                 messages = log_message_queue.get(consume=False)
@@ -160,7 +157,7 @@ class GradioWebUIBuilder:
                         _run_button_running(),
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
 
                 try:
@@ -170,7 +167,7 @@ class GradioWebUIBuilder:
                         _run_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     raise gr.Error(str(e))
 
@@ -179,7 +176,7 @@ class GradioWebUIBuilder:
                         _run_button_running(),
                         *self._build_interrupt_updates(state),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     return
 
@@ -188,13 +185,13 @@ class GradioWebUIBuilder:
                         _run_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     raise gr.Error(str(state.error))
 
                 output = state.output
                 clear_interrupt = self._clear_interrupt_updates()
-                log_done = log_panel.value_update(messages)
+                log_done = log_panel.update(messages)
 
                 if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
                     if workflow.output[0].type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
@@ -237,14 +234,12 @@ class GradioWebUIBuilder:
                     ]
 
             async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
-                spinner_frame = 0
-
                 yield [
                     _run_button_running(),
                     _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in output_components),
-                    *log_panel.ignore_update(),
+                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
                 ]
 
                 task_id, job_id = ui_state["task_id"], ui_state["job_id"]
@@ -266,20 +261,19 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.ignore_update(),
+                        *log_panel.ignore(),
                     ]
                     raise gr.Error(str(e))
 
                 while not task.done():
-                    await log_message_queue.poll(timeout=0.1)
-                    spinner_frame = (spinner_frame + 1) % len(_SPINNER_FRAMES)
-                    yield [
-                        _run_button_running(),
-                        _resume_button_running(),
-                        *(gr.update() for _ in interrupt_components),
-                        *(gr.update() for _ in output_components),
-                        *log_panel.value_update(log_message_queue.get(consume=False) + [ self._log_spinner_message(spinner_frame) ]),
-                    ]
+                    if await log_message_queue.poll(timeout=0.1):
+                        yield [
+                            _run_button_running(),
+                            _resume_button_running(),
+                            *(gr.update() for _ in interrupt_components),
+                            *(gr.update() for _ in output_components),
+                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
+                        ]
 
                 log_message_queue.drain()
                 messages = log_message_queue.get(consume=False)
@@ -290,7 +284,7 @@ class GradioWebUIBuilder:
                         _resume_button_running(),
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
 
                 try:
@@ -301,7 +295,7 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     raise gr.Error(str(e))
 
@@ -311,7 +305,7 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *self._build_interrupt_updates(state),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     return
 
@@ -321,12 +315,12 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
-                        *log_panel.value_update(messages),
+                        *log_panel.update(messages),
                     ]
                     raise gr.Error(str(state.error))
 
                 clear_interrupt = self._clear_interrupt_updates()
-                log_done = log_panel.value_update(messages)
+                log_done = log_panel.update(messages)
 
                 # Completed
                 output = state.output
@@ -720,8 +714,8 @@ class GradioWebUIBuilder:
     def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
         return self._log_assistant_message(self._log_format_payload(value) or "", title=title)
 
-    def _log_spinner_message(self, frame: int) -> Dict:
-        return self._log_assistant_message(f"{_SPINNER_FRAMES[frame % len(_SPINNER_FRAMES)]} Running...")
+    def _log_spinner_message(self) -> Dict:
+        return self._log_assistant_message("<span class=\"log-spinner\">Running...</span>")
 
     def _log_format_task_title(self, event: TaskEvent) -> Optional[str]:
         workflow_id = self._escape_markdown(event.workflow_id)
@@ -815,6 +809,29 @@ class GradioWebUIBuilder:
             flex-grow: 1 !important;
             max-height: 100% !important;
             overflow-y: auto !important;
+        }
+        .log-panel-chatbot .log-spinner {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .log-panel-chatbot .log-spinner::before {
+            content: "⠋";
+            display: inline-block;
+            width: 1em;
+            animation: log-panel-spinner 0.8s steps(1, end) infinite;
+        }
+        @keyframes log-panel-spinner {
+            0%   { content: "⠋"; }
+            10%  { content: "⠙"; }
+            20%  { content: "⠹"; }
+            30%  { content: "⠸"; }
+            40%  { content: "⠼"; }
+            50%  { content: "⠴"; }
+            60%  { content: "⠦"; }
+            70%  { content: "⠧"; }
+            80%  { content: "⠇"; }
+            90%  { content: "⠏"; }
         }
         .input-output-column > * {
             flex-grow: 0 !important;

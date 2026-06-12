@@ -195,19 +195,19 @@ class ReaderStreamResource(StreamResource):
             yield chunk
 
 class ChunkedStreamResource(StreamResource):
-    def __init__(self, source: StreamResource, chunk_size: int):
-        super().__init__(source.content_type, source.filename, size=source.size)
+    def __init__(self, stream: StreamResource, chunk_size: int):
+        super().__init__(stream.content_type, stream.filename, size=stream.size)
 
-        self.source: StreamResource = source
+        self.stream: StreamResource = stream
         self.chunk_size: int = chunk_size
 
     async def close(self) -> None:
-        await self.source.close()
+        await self.stream.close()
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         buffer = bytearray()
 
-        async for chunk in self.source:
+        async for chunk in self.stream:
             buffer.extend(chunk)
             while len(buffer) >= self.chunk_size:
                 yield bytes(buffer[:self.chunk_size])

@@ -37,7 +37,7 @@ class LlamaCppChatCompletionTaskAction:
         }
 
         if tools:
-            call_params["tools"] = [self._build_tool_definition(t) for t in tools]
+            call_params["tools"] = [ self._build_tool_definition(t) for t in tools ]
             call_params["tool_choice"] = "auto"
 
         if streaming:
@@ -48,7 +48,8 @@ class LlamaCppChatCompletionTaskAction:
                     delta = chunk["choices"][0].get("delta", {})
                     token = delta.get("content", "")
                     if token:
-                        yield await self._render_output_chunk(context, token)
+                        context.register_source("result[]", token)
+                        yield (await context.render_variable(self.config.output)) if self.config.output else token
 
             return _stream_output_generator()
         else:
@@ -66,7 +67,9 @@ class LlamaCppChatCompletionTaskAction:
             else:
                 result = message.get("content", "")
 
-            return await self._render_output(context, result)
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if self.config.output else result
 
     def _normalize_message(self, message: Any) -> Dict[str, Any]:
         if isinstance(message, dict):
@@ -84,14 +87,6 @@ class LlamaCppChatCompletionTaskAction:
             func = dict(tool)
 
         return {"type": "function", "function": func}
-
-    async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
-        context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output)) if self.config.output else chunk
-
-    async def _render_output(self, context: ComponentActionContext, result: Any) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length = await context.render_variable(self.config.params.max_output_length)

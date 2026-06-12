@@ -4,7 +4,7 @@ from pydantic import model_validator
 from .common import CommonModelActionConfig
 
 class TextGenerationParamsConfig(BaseModel):
-    max_output_length: Union[int, str] = Field(default=1024, description="Maximum number of tokens to generate.")
+    max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens to generate. None lets the model/backend use its own configured limit.")
     min_output_length: Union[int, str] = Field(default=1, description="Minimum number of tokens to generate.")
     num_return_sequences: Union[int, str] = Field(default=1, description="Number of generated sequences to return.")
     do_sample: bool = Field(default=True, description="Whether to use sampling to generate diverse texts.")

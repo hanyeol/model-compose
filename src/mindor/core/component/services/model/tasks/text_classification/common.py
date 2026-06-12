@@ -28,7 +28,8 @@ class TextClassificationTaskAction:
                 if uses_array_output:
                     rendered_outputs = []
                     for prediction in predictions:
-                        rendered_outputs.append(await self._render_output_item(context, prediction))
+                        context.register_source("result[]", prediction)
+                        rendered_outputs.append((await context.render_variable(self.config.output)) if self.config.output else prediction)
                     yield rendered_outputs
                 else:
                     yield predictions
@@ -38,7 +39,8 @@ class TextClassificationTaskAction:
                 async for predictions in _process():
                     if not uses_array_output:
                         for prediction in predictions:
-                            yield await self._render_output(context, prediction)
+                            context.register_source("result", prediction)
+                            yield (await context.render_variable(self.config.output)) if self.config.output else prediction
                     else:
                         for prediction in predictions:
                             yield prediction
@@ -50,7 +52,8 @@ class TextClassificationTaskAction:
 
             if not uses_array_output:
                 result = results[0] if is_single_input else results
-                return await self._render_output(context, result)
+                context.register_source("result", result)
+                return (await context.render_variable(self.config.output)) if self.config.output else result
             else:
                 return results
 
@@ -60,14 +63,6 @@ class TextClassificationTaskAction:
     @abstractmethod
     async def _predict(self, texts: List[str], labels: Optional[List[str]], context: ComponentActionContext) -> List[Any]:
         pass
-
-    async def _render_output_item(self, context: ComponentActionContext, prediction: Any) -> Any:
-        context.register_source("result[]", prediction)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else prediction
-
-    async def _render_output(self, context: ComponentActionContext, result: Any) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
 class TextClassificationTaskService(ModelTaskService):
     pass

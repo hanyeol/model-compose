@@ -36,7 +36,10 @@ class ImageUpscaleTaskAction:
             upscaled_images = await self._upscale(batch_images, params)
             results.extend(upscaled_images)
 
-        return results[0] if is_single_input else results
+        result = results[0] if is_single_input else results
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[PILImage.Image, List[PILImage.Image]]:
         return await context.render_image(self.config.image)

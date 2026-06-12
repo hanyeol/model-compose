@@ -30,7 +30,7 @@ class VideoFrameExtractorAction:
         result = { "frames": frames, "frame_count": len(frames) }
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     @abstractmethod
     async def _extract(

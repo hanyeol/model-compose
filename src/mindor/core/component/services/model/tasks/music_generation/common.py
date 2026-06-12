@@ -20,7 +20,10 @@ class MusicGenerationTaskAction:
         lyrics = await context.render_variable(self.config.lyrics) if self.config.lyrics is not None else None
         params = await self._resolve_generation_params(context)
 
-        return await self._generate(prompt, lyrics, params)
+        result = await self._generate(prompt, lyrics, params)
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         duration  = await context.render_variable(self.config.params.duration)

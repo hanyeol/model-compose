@@ -100,13 +100,13 @@ class WavStreamResource(StreamResource):
         byte_rate   = sample_rate * channels * bit_depth // 8
         block_align = channels * bit_depth // 8
 
-        # Streaming WAV: use 0xFFFFFFFF for unknown chunk sizes (RIFF convention).
-        # Most decoders (ffmpeg, VLC, browsers) read until EOF instead of trusting the size.
+        # Streaming WAV: use 0x7FFFFFFF (signed int32 max, ~2GB) for unknown chunk sizes.
+        # Decoders read until EOF; signed max is more compatible than 0xFFFFFFFF with strict parsers.
         return (
-            b"RIFF" + struct.pack("<I", 0xFFFFFFFF) + b"WAVE"
+            b"RIFF" + struct.pack("<I", 0x7FFFFFFF) + b"WAVE"
             + b"fmt " + struct.pack("<I", 16)
             + struct.pack("<HHIIHH", 1, channels, sample_rate, byte_rate, block_align, bit_depth)
-            + b"data" + struct.pack("<I", 0xFFFFFFFF)
+            + b"data" + struct.pack("<I", 0x7FFFFFFF)
         )
 
 class AudioStreamResource(StreamResource):

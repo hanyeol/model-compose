@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from .common import CommonModelActionConfig
 
 class SpeechToTextParamsConfig(BaseModel):
-    max_output_length: Union[int, str] = Field(default=448, description="Maximum number of tokens to generate.")
+    max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens to generate. None lets the model use its own configured limit.")
     num_beams: Union[int, str] = Field(default=1, description="Number of beams to use for beam search.")
     temperature: Union[float, str] = Field(default=0.0, description="Sampling temperature; 0.0 for greedy decoding.")
     compression_ratio_threshold: Union[float, str] = Field(default=2.4, description="Threshold for gzip compression ratio of generated tokens.")

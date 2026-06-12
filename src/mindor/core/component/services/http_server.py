@@ -97,7 +97,7 @@ class HttpServerAction:
             async def _stream_output_generator(stream: StreamResource):
                 async for chunk in stream:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                    chunk = await context.render_variable(self.config.output, convert_media=False)
+                    chunk = await context.render_variable(self.config.output)
                     if chunk is not None:
                         yield chunk
 
@@ -113,7 +113,7 @@ class HttpServerAction:
                 async def _stream_output_generator(stream: StreamResource):
                     async for chunk in stream:
                         context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                        chunk = await context.render_variable(self.config.output, convert_media=False)
+                        chunk = await context.render_variable(self.config.output)
                         if chunk is not None:
                             yield chunk
 
@@ -121,7 +121,7 @@ class HttpServerAction:
 
             context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else (result or response)
+        return (await context.render_variable(self.config.output)) if self.config.output else (result or response)
 
     def _convert_stream_chunk(self, chunk: bytes, format: HttpStreamFormat) -> Any:
         if format == HttpStreamFormat.JSON:

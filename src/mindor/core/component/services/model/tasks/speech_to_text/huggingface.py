@@ -70,13 +70,16 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
 
         params: Dict[str, Any] = {
-            "max_new_tokens": max_output_length,
             "num_beams": num_beams,
         }
 
-        if temperature and temperature > 0:
+        if max_output_length is not None:
+            params["max_new_tokens"] = max_output_length
+
+        if temperature is not None:
             params["temperature"] = temperature
-            params["do_sample"] = True
+            if temperature > 0:
+                params["do_sample"] = True
 
         if compression_ratio_threshold is not None:
             params["compression_ratio_threshold"] = compression_ratio_threshold

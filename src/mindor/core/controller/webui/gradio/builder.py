@@ -189,17 +189,27 @@ class GradioWebUIBuilder:
                     ]
                     raise gr.Error(str(state.error))
 
-                output = state.output
+                # Completed
                 clear_interrupt = self._clear_interrupt_updates()
                 log_done = log_panel.update(messages)
 
-                if isinstance(output, StreamResource) and len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig):
-                    if workflow.output[0].type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
-                        buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
-                        async for chunk in output:
-                            chunk = await self._flatten_output_value(chunk, [ workflow.output[0]])
+                output = state.output
+                if output is None:
+                    yield [
+                        _run_button_ready(),
+                        *clear_interrupt,
+                        *(gr.update() for _ in output_components),
+                        *log_done,
+                    ]
+                    return
+
+                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
+                    buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
+                    async for chunk in output:
+                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
+                        if chunk[0] is not None:
                             if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
-                                buffer += chunk[0] or ""
+                                buffer += chunk[0]
                             else:
                                 buffer.append(chunk[0])
                             yield [
@@ -208,20 +218,12 @@ class GradioWebUIBuilder:
                                 buffer,
                                 *log_done,
                             ]
-                        yield [
-                            _run_button_ready(),
-                            *clear_interrupt,
-                            buffer,
-                            *log_done,
-                        ]
-                    else:
-                        result = await self._save_stream_to_temporary_file(output, workflow.output[0])
-                        yield [
-                            _run_button_running() if media_components else _run_button_ready(),
-                            *clear_interrupt,
-                            result,
-                            *log_done,
-                        ]
+                    yield [
+                        _run_button_ready(),
+                        *clear_interrupt,
+                        buffer,
+                        *log_done,
+                    ]
                 else:
                     output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
                     result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
@@ -319,10 +321,10 @@ class GradioWebUIBuilder:
                     ]
                     raise gr.Error(str(state.error))
 
+                # Completed
                 clear_interrupt = self._clear_interrupt_updates()
                 log_done = log_panel.update(messages)
 
-                # Completed
                 output = state.output
                 if output is None:
                     yield [
@@ -334,16 +336,40 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
-                result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
+                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
+                    buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
+                    async for chunk in output:
+                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
+                        if chunk[0] is not None:
+                            if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
+                                buffer += chunk[0]
+                            else:
+                                buffer.append(chunk[0])
+                            yield [
+                                _run_button_running(),
+                                _resume_button_ready(),
+                                *clear_interrupt,
+                                buffer,
+                                *log_done,
+                            ]
+                    yield [
+                        _run_button_ready(),
+                        _resume_button_ready(),
+                        *clear_interrupt,
+                        buffer,
+                        *log_done,
+                    ]
+                else:
+                    output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
+                    result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
 
-                yield [
-                    _run_button_running() if media_components else _run_button_ready(),
-                    _resume_button_ready(),
-                    *clear_interrupt,
-                    *result,
-                    *log_done,
-                ]
+                    yield [
+                        _run_button_running() if media_components else _run_button_ready(),
+                        _resume_button_ready(),
+                        *clear_interrupt,
+                        *result,
+                        *log_done,
+                    ]
 
             run_button.click(
                 fn=_run_workflow,
@@ -650,11 +676,15 @@ class GradioWebUIBuilder:
 
         return None
 
-    async def _save_stream_to_temporary_file(self, stream: StreamResource, variable: WorkflowVariableConfig) -> Optional[str]:
-        if variable.type == WorkflowVariableType.AUDIO and variable.subtype == "pcm":
-            return await save_stream_to_temporary_file(WavStreamResource(PcmStreamResource(stream, variable.attrs)), "wav")
-
-        return await save_stream_to_temporary_file(stream, variable.subtype)
+    def _is_single_variable_output(
+        self,
+        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
+        allowed_types: Optional[List[WorkflowVariableType]] = None,
+    ) -> bool:
+        if len(variables) == 1 and isinstance(variables[0], WorkflowVariableConfig):
+            if not allowed_types or variables[0].type in allowed_types:
+                return True
+        return False
 
     def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
         return variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]

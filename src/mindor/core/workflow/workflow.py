@@ -237,12 +237,12 @@ class WorkflowRunner:
         output: Any = None
 
         while pending_jobs:
-            runnable_jobs = [ job for job in pending_jobs.values() if self._can_run_job(job, running_job_ids, completed_job_ids, routable_job_ids) ]
+            runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids, routable_job_ids) ]
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
                     context.job_run_ids[job.id] = []
-                    scheduled_job_tasks[job.id] = asyncio.create_task(job.run(JobContext(context, job.id)))
+                    scheduled_job_tasks[job.id] = self._schedule_job(job, context)
                     running_job_ids.add(job.id)
 
                     job_time_trackers[job.id] = TimeTracker()
@@ -296,7 +296,7 @@ class WorkflowRunner:
 
                         pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
                         context.job_run_ids[next_job_id] = []
-                        scheduled_job_tasks[next_job_id] = asyncio.create_task(pending_jobs[next_job_id].run(JobContext(context, next_job_id)))
+                        scheduled_job_tasks[next_job_id] = self._schedule_job(pending_jobs[next_job_id], context)
                         running_job_ids.add(next_job_id)
 
                         job_time_trackers[next_job_id] = TimeTracker()
@@ -347,7 +347,10 @@ class WorkflowRunner:
 
         return output
 
-    def _can_run_job(
+    def _schedule_job(self, job: Job, context: WorkflowContext) -> asyncio.Task:
+        return asyncio.create_task(job.run(JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id))))
+
+    def _is_runnable_job(
         self,
         job: Job,
         running_job_ids: Set[str],
@@ -364,7 +367,7 @@ class WorkflowRunner:
         remaining = [ job_id for job_id in job.config.depends_on if job_id not in completed_job_ids ]
 
         return bool(completed) and all(job_id in routable_job_ids for job_id in remaining)
-    
+
     def _is_terminal_job(self, job_id: str) -> bool:
         return all(job_id not in job.depends_on for other_id, job in self.jobs.items() if other_id != job_id)
     

@@ -30,7 +30,8 @@ class TextGenerationTaskAction:
                 async for chunk in AsyncStreamer(streamer, loop):
                     token = chunk["choices"][0].get("text", "")
                     if token:
-                        yield await self._render_output_chunk(context, token)
+                        context.register_source("result[]", token)
+                        yield (await context.render_variable(self.config.output)) if self.config.output else token
 
             return _stream_output_generator()
         else:
@@ -41,7 +42,9 @@ class TextGenerationTaskAction:
                 results.extend([c["text"] for c in response["choices"]])
 
             result = results[0] if is_single_input else results
-            return await self._render_output(context, result)
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_variable(self.config.text)
@@ -49,14 +52,6 @@ class TextGenerationTaskAction:
     @abstractmethod
     async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool) -> Union[Dict[str, Any], Iterator[Dict[str, Any]]]:
         pass
-
-    async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
-        context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else chunk
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
 class TextGenerationTaskService(ModelTaskService):
     pass

@@ -48,8 +48,8 @@ class WorkflowContext:
     async def resolve_source(self, key: str, index: Optional[int]) -> Any:
         return await self._resolve_source(key, index, None)
 
-    async def render_variable(self, value: Any, convert_media: bool = False) -> Any:
-        return await self.renderer.render(value, convert_media=convert_media)
+    async def render_variable(self, value: Any, skip_decode: bool = False) -> Any:
+        return await self.renderer.render(value, skip_decode=skip_decode)
 
     async def render_image(self, value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(value))

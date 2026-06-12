@@ -40,54 +40,54 @@ class VariableRenderer:
             "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
-    async def render(self, value: Any, scope: Optional[str] = None, convert_media: bool = True) -> Any:
-        return await self._render_element(value, scope, convert_media)
+    async def render(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
+        return await self._render_element(value, scope, skip_decode)
 
     def contains_reference(self, key: str, value: Any) -> bool:
         return self._contains_reference(key, value)
 
-    async def _render_element(self, element: Any, scope: Optional[str], convert_media: bool) -> Any:
+    async def _render_element(self, element: Any, scope: Optional[str], skip_decode: bool) -> Any:
         if isinstance(element, str):
-            return await self._render_text(element, scope, convert_media)
+            return await self._render_text(element, scope, skip_decode)
 
         if isinstance(element, BaseModel):
-            return await self._render_element(element.model_dump(by_alias=True), scope, convert_media)
+            return await self._render_element(element.model_dump(by_alias=True), scope, skip_decode)
 
         if isinstance(element, dict):
-            return await self._render_dict(element, scope, convert_media)
+            return await self._render_dict(element, scope, skip_decode)
 
         if isinstance(element, (list, tuple)):
-            return await self._render_list(element, scope, convert_media)
+            return await self._render_list(element, scope, skip_decode)
 
         return element
 
-    async def _render_dict(self, element: dict, scope: Optional[str], convert_media: bool) -> dict:
+    async def _render_dict(self, element: dict, scope: Optional[str], skip_decode: bool) -> dict:
         values = {}
         for key, value in element.items():
             if key == "...":
-                value = await self._render_element(value, scope, convert_media)
+                value = await self._render_element(value, scope, skip_decode)
                 if isinstance(value, dict) or value is None:
                     values.update(value or {})
                 else:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             else:
-                values[key] = await self._render_element(value, scope, convert_media)
+                values[key] = await self._render_element(value, scope, skip_decode)
         return values
 
-    async def _render_list(self, element: list, scope: Optional[str], convert_media: bool) -> list:
+    async def _render_list(self, element: list, scope: Optional[str], skip_decode: bool) -> list:
         values = []
         for item in element:
             if isinstance(item, str) and self._is_spread_expression(item):
-                value = await self._render_text(item[3:], scope, convert_media)
+                value = await self._render_text(item[3:], scope, skip_decode)
                 if isinstance(value, (list, tuple)) or value is None:
                     values.extend(value or [])
                 else:
                     raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
-                values.append(await self._render_element(item, scope, convert_media))
+                values.append(await self._render_element(item, scope, skip_decode))
         return values
 
-    async def _render_text(self, text: str, scope: Optional[str], convert_media: bool) -> Any:
+    async def _render_text(self, text: str, scope: Optional[str], skip_decode: bool) -> Any:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
@@ -104,10 +104,10 @@ class VariableRenderer:
                 value = None
 
             if value is None and default is not None:
-                value = await self._render_element(default, scope, convert_media)
+                value = await self._render_element(default, scope, skip_decode)
 
             if type and value is not None:
-                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format, convert_media)
+                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format, skip_decode)
 
             start, end = m.span()
 
@@ -126,18 +126,18 @@ class VariableRenderer:
         subtype: Optional[str],
         attrs: Optional[Dict[str, Any]],
         format: Optional[str],
-        convert_media: bool = True,
+        skip_decode: bool = False,
     ) -> Any:
         if is_list:
             if type in [ "sse-text", "sse-json" ]:
                 raise ValueError(f"`{type}[]` is not allowed: SSE is a single stream by nature")
-
             if not isinstance(value, (list, tuple)):
                 raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
+            return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, skip_decode) for v in value ]
 
-            return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, convert_media) for v in value ]
-
-        if not convert_media and type in [ "image", "audio", "video", "file" ]:
+        if skip_decode and format in [ "base64", "url", "data-uri" ]:
+            if not isinstance(value, str):
+                raise TypeError(f"`{format}` format requires a string value, got {value.__class__.__name__}")
             return value
 
         if value is None:

@@ -54,7 +54,7 @@ class WebSocketClientAction:
             response = BytesStreamResource(bytes(response), "application/octet-stream")
 
         context.register_source("response", response)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else response
+        return (await context.render_variable(self.config.output)) if self.config.output else response
 
     async def _send(self, connection: WebSocketConnection, message: Any) -> None:
         if isinstance(message, (dict, list)):
@@ -96,7 +96,7 @@ class WebSocketClientAction:
                 frame = self._decode_frame(frame, format)
                 if frame is not None:
                     context.register_source("response[]", frame)
-                    yield await context.render_variable(self.config.output, convert_media=False)
+                    yield await context.render_variable(self.config.output)
         finally:
             if owned:
                 await connection.close()

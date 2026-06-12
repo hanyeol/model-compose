@@ -15,7 +15,10 @@ class TextSplitterAction:
         chunk_size     = await context.render_variable(self.config.chunk_size)
         chunk_overlap  = await context.render_variable(self.config.chunk_overlap)
 
-        return self._split_text(text, separators or ["\n\n", "\n", " ", ""], chunk_size, chunk_overlap)
+        result = self._split_text(text, separators or ["\n\n", "\n", " ", ""], chunk_size, chunk_overlap)
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     def _split_text(self, text: str, separators: List[str], chunk_size: int, chunk_overlap: int) -> List[str]:
         """Split text using recursive character text splitting."""

@@ -80,7 +80,9 @@ class AgentAction:
                 messages.append(tool_message)
                 await context.event_notifier.notify("internal", kind="tool", output=tool_message)
 
-        return messages
+        context.register_source("result", messages)
+
+        return (await context.render_variable(self.action.output)) if self.action.output else messages
 
     async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
         tool_name = tool_call["function"]["name"]

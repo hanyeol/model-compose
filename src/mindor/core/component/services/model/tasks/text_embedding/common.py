@@ -28,7 +28,8 @@ class TextEmbeddingTaskAction:
                 if uses_array_output:
                     rendered_outputs = []
                     for embedding in embeddings:
-                        rendered_outputs.append(await self._render_output_item(context, embedding))
+                        context.register_source("result[]", embedding)
+                        rendered_outputs.append((await context.render_variable(self.config.output)) if self.config.output else embedding)
                     yield rendered_outputs
                 else:
                     yield embeddings
@@ -38,7 +39,8 @@ class TextEmbeddingTaskAction:
                 async for embeddings in _process():
                     if not uses_array_output:
                         for embedding in embeddings:
-                            yield await self._render_output(context, embedding)
+                            context.register_source("result", embedding)
+                            yield (await context.render_variable(self.config.output)) if self.config.output else embedding
                     else:
                         for embedding in embeddings:
                             yield embedding
@@ -50,7 +52,8 @@ class TextEmbeddingTaskAction:
 
             if not uses_array_output:
                 result = results[0] if is_single_input else results
-                return await self._render_output(context, result)
+                context.register_source("result", result)
+                return (await context.render_variable(self.config.output)) if self.config.output else result
             else:
                 return results
 
@@ -60,14 +63,6 @@ class TextEmbeddingTaskAction:
     @abstractmethod
     async def _embed(self, texts: List[str], context: ComponentActionContext) -> List[List[float]]:
         pass
-
-    async def _render_output_item(self, context: ComponentActionContext, embedding: List[float]) -> Any:
-        context.register_source("result[]", embedding)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else embedding
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[List[float], List[List[float]]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
 class TextEmbeddingTaskService(ModelTaskService):
     pass

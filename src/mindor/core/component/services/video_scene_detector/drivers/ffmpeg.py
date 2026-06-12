@@ -24,7 +24,7 @@ class FFmpegVideoSceneDetectorAction:
         scenes = await self._detect(video, float(threshold), start_time, end_time)
         context.register_source("result", scenes)
 
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else scenes
+        return (await context.render_variable(self.config.output)) if self.config.output else scenes
 
     async def _detect(
         self,

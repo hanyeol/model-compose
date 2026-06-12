@@ -102,7 +102,6 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
 
         params = {
-            "max_new_tokens": max_output_length,
             "min_length": min_output_length,
             "num_return_sequences": num_return_sequences,
             "do_sample": do_sample,
@@ -110,6 +109,9 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
             "pad_token_id": getattr(self.processor.tokenizer, "pad_token_id", None),
             "eos_token_id": getattr(self.processor.tokenizer, "eos_token_id", None),
         }
+
+        if max_output_length is not None:
+            params["max_new_tokens"] = max_output_length
 
         if do_sample:
             if temperature is not None:

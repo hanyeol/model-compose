@@ -26,7 +26,10 @@ class TextToSpeechTaskAction:
             audio_bytes = await self._generate(text, context)
             results.append(audio_bytes)
 
-        return results[0] if is_single_input else results
+        result = results[0] if is_single_input else results
+        context.register_source("result", result)
+
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_variable(self.config.text)

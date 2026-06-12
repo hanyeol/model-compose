@@ -3,17 +3,18 @@ from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, Au
 from mindor.core.workflow.context import WorkflowContext
 
 class JobContext:
-    def __init__(self, workflow: WorkflowContext, job_id: str):
+    def __init__(self, workflow: WorkflowContext, job_id: str, is_terminal: bool = False):
         self.workflow: WorkflowContext = workflow
         self.job_id: str = job_id
+        self.is_terminal: bool = is_terminal
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
 
     def register_source(self, run_id: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(run_id or "__global__", {})[key] = source
 
-    async def render_variable(self, run_id: Optional[str], value: Any, convert_media: bool = False) -> Any:
-        return await self.renderer.render(value, run_id, convert_media=convert_media)
+    async def render_variable(self, run_id: Optional[str], value: Any, skip_decode: bool = False) -> Any:
+        return await self.renderer.render(value, run_id, skip_decode=skip_decode)
 
     async def render_image(self, run_id: Optional[str], value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(run_id, value))

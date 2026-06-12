@@ -31,7 +31,8 @@ class ImageToTextTaskAction:
             async def _stream_output_generator():
                 async for chunk in AsyncStreamer(streamer, loop):
                     if chunk:
-                        yield await self._render_output_chunk(context, chunk)
+                        context.register_source("result[]", chunk)
+                        yield (await context.render_variable(self.config.output)) if self.config.output else chunk
 
             return _stream_output_generator()
         else:
@@ -43,7 +44,9 @@ class ImageToTextTaskAction:
                 results.extend(outputs)
 
             result = results[0] if is_single_input else results
-            return await self._render_output(context, result)
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Union[PILImage.Image, List[PILImage.Image]], Optional[Union[str, List[str]]]]:
         image = await context.render_image(self.config.image)
@@ -54,14 +57,6 @@ class ImageToTextTaskAction:
     @abstractmethod
     async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], context: ComponentActionContext, streaming: bool) -> Union[List[str], Iterator[str]]:
         pass
-
-    async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
-        context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else chunk
-
-    async def _render_output(self, context: ComponentActionContext, result: Union[str, List[str]]) -> Any:
-        context.register_source("result", result)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
 
 class ImageToTextTaskService(ModelTaskService):
     pass

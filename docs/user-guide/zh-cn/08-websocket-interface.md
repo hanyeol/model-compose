@@ -96,7 +96,7 @@ controller:
   origins: "*"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 **配置字段：**
@@ -104,7 +104,7 @@ controller:
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `path` | string | `/ws` | WebSocket 端点路径 |
-| `max_connections` | integer | 无限制 | 最大并发 WebSocket 连接数（尽力保证；连接计数检查与接受之间可能出现小幅超限） |
+| `max_connection_count` | integer | 无限制 | 最大并发 WebSocket 连接数（尽力保证；连接计数检查与接受之间可能出现小幅超限） |
 | `ping_interval` | integer | `30` | 服务器端 ping 间隔（秒）（`0` 禁用） |
 | `ping_timeout` | integer | `10` | Ping 超时时间（秒） |
 
@@ -131,7 +131,7 @@ controller:
   origins: "https://app.example.com"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 #### 禁用 WebSocket
@@ -358,7 +358,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "id": "msg-002",
   "data": {
     "task_id": "01HXYZ...",
-    "current_state": {
+    "state": {
       "task_id": "01HXYZ...",
       "status": "processing",
       "output": null,
@@ -748,7 +748,7 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   if (msg.type === 'task_subscribed') {
-    console.log('当前状态:', msg.data.current_state.status);
+    console.log('当前状态:', msg.data.state.status);
   }
   if (msg.type === 'task_state') {
     console.log('已更新:', msg.data.status);
@@ -871,13 +871,13 @@ WebSocket 连接关闭时：
 
 ### 8.7.3 连接限制
 
-配置 `max_connections` 并达到限制时，新连接将以关闭代码 `4429`（Too Many Connections）被拒绝。
+配置 `max_connection_count` 并达到限制时，新连接将以关闭代码 `4429`（Too Many Connections）被拒绝。
 
 ```yaml
 controller:
   type: http-server
   websocket:
-    max_connections: 50  # 超过 50 个连接将被拒绝
+    max_connection_count: 50  # 超过 50 个连接将被拒绝
 ```
 
 ### 8.7.4 Ping 保活
@@ -919,7 +919,7 @@ controller:
 
 - 通过反向代理使用 WSS（WebSocket over TLS）
 - 将来源限制为可信域名
-- 设置 `max_connections` 防止资源耗尽
+- 设置 `max_connection_count` 防止资源耗尽
 - 考虑添加应用层认证
 
 **Nginx 反向代理 WebSocket 配置：**

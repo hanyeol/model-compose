@@ -448,7 +448,7 @@ body:
 
 ```yaml
 ${response.field}   # HTTP-based components (http-client, http-server, vector-store, etc.)
-${result.field}     # Local execution components (model, datasets, text-splitter, key-value-store, etc.)
+${result.field}     # Local execution components (model, datasets, text-splitter, key-value-store, file-store, etc.)
 ${stdout}           # Shell commands (shell)
 ${output}           # Workflow invocation (workflow)
 ```

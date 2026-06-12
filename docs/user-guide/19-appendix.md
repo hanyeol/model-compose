@@ -95,7 +95,7 @@ components:
     device: cuda | cpu | mps
     dtype: float32 | float16 | bfloat16 | int8 | int4
     batch_size: 1
-    streaming: false
+    streaming: false                   # text-generation / chat-completion / image-to-text only
 
     # Parameters
     params:
@@ -232,6 +232,53 @@ components:
       - id: get
         method: get
         key: "cache:${input.key}"
+```
+
+**File Store**:
+```yaml
+components:
+  - id: file-store-id
+    type: file-store
+    driver: local | aws-s3 | gcp-storage | azure-blob
+
+    # Common
+    base_path: workflows/        # logical prefix (optional)
+
+    # Driver-specific
+    bucket: my-bucket            # aws-s3, gcp-storage
+    container: my-container      # azure-blob
+    region: us-east-1            # aws-s3
+    access_key_id: ${env.AWS_ACCESS_KEY_ID}
+    secret_access_key: ${env.AWS_SECRET_ACCESS_KEY}
+    # endpoint_url: http://minio.local:9000   # S3-compatible
+    # connection_string: ${env.AZURE_STORAGE_CONNECTION_STRING}  # azure-blob
+
+    # Actions
+    actions:
+      - id: put
+        method: put
+        path: ${input.path}
+        source: ${input.file}          # UploadFile / StreamResource / bytes / str
+        content_type: image/png
+
+      - id: get
+        method: get
+        path: ${input.path}
+        # destination: /tmp/${input.path}     # save to local file
+        # streaming: true                     # lazy stream to next job
+
+      - id: delete
+        method: delete
+        path: ${input.path}
+
+      - id: exists
+        method: exists
+        path: ${input.path}
+
+      - id: list
+        method: list
+        path: images/
+        max_results: 100
 ```
 
 **Dataset**:

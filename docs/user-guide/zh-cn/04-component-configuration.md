@@ -31,7 +31,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `text-splitter` | 分割文本 | 将文档分割成块 |
 | `image-processor` | 处理图像 | 图像转换、调整大小等 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
-| `video-frame-extractor` | 视频帧提取 | 使用 FFmpeg 或 OpenCV 从视频中解码帧 |
+| `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
 

@@ -95,7 +95,7 @@ components:
     device: cuda | cpu | mps
     dtype: float32 | float16 | bfloat16 | int8 | int4
     batch_size: 1
-    streaming: false
+    streaming: false                   # 仅适用于 text-generation / chat-completion / image-to-text
 
     # LoRA 适配器
     peft_adapters:

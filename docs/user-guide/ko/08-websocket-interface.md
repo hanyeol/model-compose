@@ -96,7 +96,7 @@ controller:
   origins: "*"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 **설정 필드:**
@@ -104,7 +104,7 @@ controller:
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `path` | string | `/ws` | WebSocket 엔드포인트 경로 |
-| `max_connections` | integer | 무제한 | 최대 동시 WebSocket 연결 수 (best-effort: 연결 수 검사~accept 사이에 소수의 초과가 발생할 수 있음) |
+| `max_connection_count` | integer | 무제한 | 최대 동시 WebSocket 연결 수 (best-effort: 연결 수 검사~accept 사이에 소수의 초과가 발생할 수 있음) |
 | `ping_interval` | integer | `30` | 서버 측 ping 간격 (초, `0`이면 비활성화) |
 | `ping_timeout` | integer | `10` | ping 타임아웃 (초) |
 
@@ -131,7 +131,7 @@ controller:
   origins: "https://app.example.com"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 #### WebSocket 비활성화
@@ -358,7 +358,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "id": "msg-002",
   "data": {
     "task_id": "01HXYZ...",
-    "current_state": {
+    "state": {
       "task_id": "01HXYZ...",
       "status": "processing",
       "output": null,
@@ -748,7 +748,7 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   if (msg.type === 'task_subscribed') {
-    console.log('현재 상태:', msg.data.current_state.status);
+    console.log('현재 상태:', msg.data.state.status);
   }
   if (msg.type === 'task_state') {
     console.log('업데이트:', msg.data.status);
@@ -871,13 +871,13 @@ WebSocket 연결이 종료되면:
 
 ### 8.7.3 연결 제한
 
-`max_connections`가 설정되어 있고 한도에 도달하면, 새 연결은 close code `4429` (Too Many Connections)로 거부됩니다.
+`max_connection_count`가 설정되어 있고 한도에 도달하면, 새 연결은 close code `4429` (Too Many Connections)로 거부됩니다.
 
 ```yaml
 controller:
   type: http-server
   websocket:
-    max_connections: 50  # 50개 초과 연결 거부
+    max_connection_count: 50  # 50개 초과 연결 거부
 ```
 
 ### 8.7.4 Ping을 통한 연결 유지
@@ -919,7 +919,7 @@ controller:
 
 - 리버스 프록시를 통한 WSS (WebSocket over TLS) 사용
 - 신뢰할 수 있는 도메인으로 origins 제한
-- 리소스 고갈 방지를 위한 `max_connections` 설정
+- 리소스 고갈 방지를 위한 `max_connection_count` 설정
 - 애플리케이션 수준 인증 추가 고려
 
 **WebSocket용 Nginx 리버스 프록시:**

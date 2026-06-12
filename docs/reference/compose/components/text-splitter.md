@@ -33,7 +33,6 @@ Text splitter actions support the following options:
 | `chunk_size` | integer | `1000` | Maximum number of characters per chunk |
 | `chunk_overlap` | integer | `200` | Number of overlapping characters between chunks |
 | `separators` | array | `null` | Custom separators for splitting (defaults to standard text separators) |
-| `streaming` | boolean | `false` | Whether to stream chunks one by one instead of returning full list |
 
 ## Usage Examples
 
@@ -95,21 +94,6 @@ component:
       separators: [ " ", "\n", "\t" ]
       output:
         word_chunks: ${response.chunks}
-```
-
-### Streaming Text Chunks
-
-```yaml
-component:
-  type: text-splitter
-  action:
-    text: ${input.large_document}
-    chunk_size: 1500
-    chunk_overlap: 150
-    streaming: true
-    output:
-      # Streaming output provides chunks one by one
-      streaming_chunks: ${response.stream}
 ```
 
 ## Separator Strategies
@@ -440,23 +424,6 @@ components:
         chunk_lengths: ${response.chunks | map(length)}
 ```
 
-### Streaming for Large Documents
-
-Handle very large documents with streaming:
-
-```yaml
-component:
-  type: text-splitter
-  action:
-    text: ${input.large_document}  # Multi-GB document
-    chunk_size: 2000
-    chunk_overlap: 200
-    streaming: true
-    output:
-      # Process chunks as they become available
-      chunk_stream: ${response.stream}
-```
-
 ## Overlap Visualization
 
 Understanding how overlap works:
@@ -482,7 +449,6 @@ component:
     chunk_size: ${input.max_chunk_size as integer | 1000}
     chunk_overlap: ${input.overlap_ratio as integer | 200}
     separators: ${input.custom_separators | ['\n\n', '\n', ' ', '']}
-    streaming: ${input.enable_streaming as boolean | false}
 ```
 
 ## Best Practices

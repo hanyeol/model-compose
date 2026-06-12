@@ -26,12 +26,13 @@ model-compose provides various component types for performing different tasks.
 | `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
 | `search-engine` | Full-text search | BM25-ranked keyword search with SQLite FTS5 |
 | `key-value-store` | Key-value storage | Caching, session management with Redis |
+| `file-store` | File/object storage | Local filesystem, AWS S3, GCP Storage, Azure Blob with streaming I/O |
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
 | `image-processor` | Process images | Image transformation, resizing, etc. |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
-| `video-frame-extractor` | Extract video frames | Decode frames from video with FFmpeg or OpenCV |
+| `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 
@@ -52,6 +53,7 @@ model-compose provides various component types for performing different tasks.
 - Graph storage → `graph-store`
 - Full-text search → `search-engine`
 - Key-value storage → `key-value-store`
+- File/object storage → `file-store`
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
 - Video scene detection → `video-scene-detector`

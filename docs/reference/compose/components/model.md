@@ -425,21 +425,21 @@ component:
 
 ### Streaming Text Generation
 
+The `streaming` action field is only available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, and `image-to-text`. Other tasks (such as `text-embedding`, `text-classification`, `translation`, `summarization`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+
 ```yaml
 component:
   type: model
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   action:
-    prompt: ${input.prompt}
+    text: ${input.prompt}
+    streaming: true
     params:
       max_output_length: 4096
       temperature: 0.8
       do_sample: true
-      # Enable streaming for real-time generation
-      stream: true
-    output:
-      generated_text: ${response.generated_text}
+    output: ${result[]}
 ```
 
 ### Batch Processing

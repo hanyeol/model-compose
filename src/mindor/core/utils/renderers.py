@@ -341,14 +341,14 @@ class ImageValueRenderer:
         return await self._render_element(value)
 
     async def _render_element(self, element: Any) -> Optional[Union[PILImage.Image, AsyncIterator]]:
+        if isinstance(element, (PILImage.Image, AsyncIterator)):
+            return element
+
         if isinstance(element, ImageStreamResource):
             return element.image
 
         if isinstance(element, StreamResource):
             return await load_image_from_stream(element)
-
-        if isinstance(element, (PILImage.Image, AsyncIterator)):
-            return element
 
         return None
 

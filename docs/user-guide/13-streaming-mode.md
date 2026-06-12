@@ -31,8 +31,16 @@ Components that support streaming:
 |---------------|------------------|---------------|
 | `model` (text-generation) | ✅ | `streaming: true` |
 | `model` (chat-completion) | ✅ | `streaming: true` |
+| `model` (image-to-text) | ✅ | `streaming: true` |
+| `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
+
+> **Note on `model` vs `agent` streaming**
+>
+> The `streaming` flag on a `model` component yields **tokens** as the model decodes them within a single response.
+> The `streaming` flag on an `agent` component yields **whole messages** (assistant replies and tool results) as the ReAct loop produces them across multiple model calls.
+> The two flags operate at different granularities and can be enabled independently. An agent with `streaming: true` does not automatically enable token streaming on the underlying model — it always consumes complete model responses and forwards them as message-level chunks.
 
 ### 13.1.3 Streaming Protocol
 

@@ -175,7 +175,7 @@ Confirms a subscription and includes the current state at the moment of subscrip
   "id": "msg-002",
   "data": {
     "task_id": "01HXYZ...",
-    "current_state": {
+    "state": {
       "task_id": "01HXYZ...",
       "status": "processing",
       "output": null,
@@ -345,11 +345,11 @@ Returned when a client request can't be processed. May carry the `id` of the req
 | Code | Reason |
 |------|--------|
 | `4409` | Session already connected (duplicate `session` parameter) |
-| `4429` | Connection limit reached (`max_connections` exceeded) |
+| `4429` | Connection limit reached (`max_connection_count` exceeded) |
 
 ## Delivery Semantics
 
-- **`task_state`** — emitted on every task status change. On subscription, the current state is delivered once via `task_subscribed.current_state`.
+- **`task_state`** — emitted on every task status change. On subscription, the current state is delivered once via `task_subscribed.state`.
 - **`job_event`** — emitted once per job lifecycle transition (`started` / `completed` / `failed` / `routed`). Subscribers connected throughout the run receive all events in emission order.
 - **Replay** — neither message type is buffered after emission. Events emitted before a client subscribes are not replayed; subscribe at workflow start (e.g. `run_workflow` with `subscribe_task: true`) for full coverage.
 - **Subscriptions** — scoped to the WebSocket connection. Closing the connection removes all subscriptions for that client. The underlying workflow is not affected.

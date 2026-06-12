@@ -31,8 +31,16 @@
 |-------------|------------|---------|
 | `model` (text-generation) | ✅ | `streaming: true` |
 | `model` (chat-completion) | ✅ | `streaming: true` |
+| `model` (image-to-text) | ✅ | `streaming: true` |
+| `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
+
+> **`model`과 `agent`의 streaming 차이**
+>
+> `model` 컴포넌트의 `streaming` 플래그는 한 번의 응답 안에서 모델이 디코딩하는 **토큰**을 흘려보냅니다.
+> `agent` 컴포넌트의 `streaming` 플래그는 ReAct 루프가 여러 번의 모델 호출에 걸쳐 생성하는 **메시지 단위**(어시스턴트 응답, 도구 결과)를 흘려보냅니다.
+> 두 플래그는 서로 다른 단위로 동작하며 독립적으로 켤 수 있습니다. agent의 `streaming: true`는 내부에서 사용하는 model의 토큰 스트리밍을 자동으로 켜지 않으며, 항상 모델의 완성된 응답을 받아 메시지 단위 chunk로 전달합니다.
 
 ### 13.1.3 스트리밍 프로토콜
 

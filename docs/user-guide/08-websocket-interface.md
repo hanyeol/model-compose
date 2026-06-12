@@ -96,7 +96,7 @@ controller:
   origins: "*"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 **Configuration Fields:**
@@ -104,7 +104,7 @@ controller:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `path` | string | `/ws` | WebSocket endpoint path |
-| `max_connections` | integer | unlimited | Maximum concurrent WebSocket connections (best-effort; a small overrun is possible between the connection count check and accept) |
+| `max_connection_count` | integer | unlimited | Maximum concurrent WebSocket connections (best-effort; a small overrun is possible between the connection count check and accept) |
 | `ping_interval` | integer | `30` | Server-side ping interval in seconds (`0` to disable) |
 | `ping_timeout` | integer | `10` | Ping timeout in seconds |
 
@@ -131,7 +131,7 @@ controller:
   origins: "https://app.example.com"
   websocket:
     path: /ws
-    max_connections: 100
+    max_connection_count: 100
 ```
 
 #### Disable WebSocket
@@ -358,7 +358,7 @@ Sent in response to `run_workflow`.
   "id": "msg-002",
   "data": {
     "task_id": "01HXYZ...",
-    "current_state": {
+    "state": {
       "task_id": "01HXYZ...",
       "status": "processing",
       "output": null,
@@ -748,7 +748,7 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   if (msg.type === 'task_subscribed') {
-    console.log('Current state:', msg.data.current_state.status);
+    console.log('Current state:', msg.data.state.status);
   }
   if (msg.type === 'task_state') {
     console.log('Updated:', msg.data.status);
@@ -871,13 +871,13 @@ When a WebSocket connection closes:
 
 ### 8.7.3 Connection Limits
 
-When `max_connections` is configured and the limit is reached, new connections are rejected with close code `4429` (Too Many Connections).
+When `max_connection_count` is configured and the limit is reached, new connections are rejected with close code `4429` (Too Many Connections).
 
 ```yaml
 controller:
   type: http-server
   websocket:
-    max_connections: 50  # Reject connections beyond 50
+    max_connection_count: 50  # Reject connections beyond 50
 ```
 
 ### 8.7.4 Keep-Alive with Ping
@@ -919,7 +919,7 @@ Note: This only applies to browser-initiated connections. Server-to-server WebSo
 
 - Use WSS (WebSocket over TLS) via a reverse proxy
 - Restrict origins to trusted domains
-- Set `max_connections` to prevent resource exhaustion
+- Set `max_connection_count` to prevent resource exhaustion
 - Consider adding application-level authentication
 
 **Nginx reverse proxy for WebSocket:**

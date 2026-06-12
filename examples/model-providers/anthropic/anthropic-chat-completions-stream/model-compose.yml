@@ -26,7 +26,7 @@ component:
       Content-Type: application/json
     body:
       model: ${input.model as select/claude-sonnet-4-20250514,claude-haiku-4-5-20251001,claude-opus-4-20250514 | claude-sonnet-4-20250514}
-      max_tokens: ${input.max_tokens as number | 1024}
+      max_tokens: ${input.max_tokens as integer | 1024}
       messages:
         - role: user
           content: ${input.prompt as text}

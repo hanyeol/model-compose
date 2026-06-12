@@ -240,6 +240,7 @@ class TestDockerMountsResolver:
         assert result[1]["ReadOnly"] is True
 
 
+@pytest.mark.anyio
 class TestDockerRuntimeManager:
     """Test DockerRuntimeManager class"""
 

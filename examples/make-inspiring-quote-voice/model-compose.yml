@@ -22,7 +22,7 @@ workflow:
         text: ${jobs.job-quote.output.quote}
         voice_id: ${input.voice_id | JBFqnCBsd6RMkjVDRZzb}
       output:
-        quote: ${jobs.job-quote.output.quote}
+        quote: ${jobs.job-quote.output.quote as text}
         audio: ${output as audio/mp3;base64}
       depends_on: [ job-quote ]
 

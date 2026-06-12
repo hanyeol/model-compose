@@ -441,7 +441,7 @@ def make_action(action_config, component_config, global_configs=None):
     """Create a ModelMemoryAction instance with optional global configs."""
     if global_configs is None:
         global_configs = MagicMock()
-    return ModelMemoryAction(action_config, component_config, global_configs)
+    return ModelMemoryAction(action_config, component_config.window, component_config.summary, global_configs)
 
 
 class TestModelMemoryActionE2E:
@@ -459,7 +459,6 @@ class TestModelMemoryActionE2E:
 
         assert result["messages"] == []
         assert result["summary"] == ""
-        assert result["total_message_count"] == 0
 
     @pytest.mark.anyio
     async def test_load_append_save_cycle(self, sqlite_storage, mock_context):
@@ -477,15 +476,11 @@ class TestModelMemoryActionE2E:
         append_config = ModelMemoryAppendActionConfig(method="append", session_id="s1", messages=messages)
         action = make_action(append_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
-        assert result["buffer_turn_count"] == 1
 
         # Save
         save_config = ModelMemorySaveActionConfig(method="save", session_id="s1")
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
-        assert result["turn_count"] == 1
 
         # Verify persisted
         turns, _ = await sqlite_storage.load("s1")
@@ -509,8 +504,6 @@ class TestModelMemoryActionE2E:
         result = await action.run(mock_context, buffer, sqlite_storage)
 
         assert result["summary"] == "greeting convo"
-        assert result["total_message_count"] == 4
-        assert result["window_message_count"] == 4
         assert len(result["messages"]) == 4
 
     @pytest.mark.anyio
@@ -527,8 +520,6 @@ class TestModelMemoryActionE2E:
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
-        assert result["total_message_count"] == 5
-        assert result["window_message_count"] == 2
         assert len(result["messages"]) == 2
         # Should be the last 2 turns
         assert result["messages"][0]["content"] == "turn3"
@@ -557,7 +548,6 @@ class TestModelMemoryActionE2E:
         clear_config = ModelMemoryClearActionConfig(method="clear", session_id="s1")
         action = make_action(clear_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
 
         # Verify buffer is cleared
         turns = await buffer.get_turns("s1")
@@ -580,7 +570,6 @@ class TestModelMemoryActionE2E:
         delete_config = ModelMemoryDeleteActionConfig(method="delete", session_id="s1")
         action = make_action(delete_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
 
         # Verify
         assert await buffer.get_turns("s1") is None
@@ -588,24 +577,19 @@ class TestModelMemoryActionE2E:
         assert turns == []
 
     @pytest.mark.anyio
-    async def test_save_with_implicit_load(self, sqlite_storage, mock_context):
-        """Save without prior load should auto-load from storage."""
+    async def test_save_without_prior_load_raises(self, sqlite_storage, mock_context):
+        """Save requires an explicit load first; calling save on an unloaded session raises."""
         await sqlite_storage.save("s1", turns=[[{"role": "user", "content": "old"}]], summary="")
 
         buffer = make_buffer()
         component_config = make_component_config()
 
-        # Save with messages (no prior load)
         new_messages = [{"role": "user", "content": "new"}]
         save_config = ModelMemorySaveActionConfig(method="save", session_id="s1", messages=new_messages)
         action = make_action(save_config, component_config)
-        result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
-        assert result["turn_count"] == 2
 
-        # Verify persisted
-        turns, _ = await sqlite_storage.load("s1")
-        assert len(turns) == 2
+        with pytest.raises(ValueError, match="Session not loaded"):
+            await action.run(mock_context, buffer, sqlite_storage)
 
     @pytest.mark.anyio
     async def test_default_session_id(self, sqlite_storage, mock_context):
@@ -691,7 +675,6 @@ class TestModelMemoryActionE2E:
         save_config = ModelMemorySaveActionConfig(method="save", session_id="s1")
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["turn_count"] == 2
 
         # Simulate fresh start: new buffer, reload from storage
         buffer2 = make_buffer()
@@ -699,7 +682,6 @@ class TestModelMemoryActionE2E:
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer2, sqlite_storage)
 
-        assert result["total_message_count"] == 3
         assert result["messages"][0]["content"] == "hello"
         assert result["messages"][1]["content"] == "hi there"
         assert result["messages"][2]["content"] == "how are you?"
@@ -719,8 +701,6 @@ class TestModelMemoryActionE2E:
         save_config = ModelMemorySaveActionConfig(method="save", session_id="s1", messages=[])
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
-        assert result["success"] is True
-        assert result["turn_count"] == 1  # one empty turn appended
 
     @pytest.mark.anyio
     async def test_append_with_non_list_messages_raises(self, sqlite_storage, mock_context):
@@ -737,7 +717,7 @@ class TestModelMemoryActionE2E:
         append_config = ModelMemoryAppendActionConfig(method="append", session_id="s1", messages="not a list")
         action = make_action(append_config, component_config)
 
-        with pytest.raises(ValueError, match="messages must be a list"):
+        with pytest.raises(ValueError, match=r"'messages' must be a list"):
             await action.run(mock_context, buffer, sqlite_storage)
 
     @pytest.mark.anyio
@@ -758,7 +738,6 @@ class TestModelMemoryActionE2E:
         result = await action.run(mock_context, buffer, sqlite_storage)
 
         # Should still have the turn (latest turn preserved)
-        assert result["window_message_count"] == 10
         assert len(result["messages"]) == 10
 
     @pytest.mark.anyio
@@ -785,7 +764,6 @@ class TestModelMemoryActionE2E:
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
-        assert result["total_message_count"] == 1
         assert result["messages"][0]["content"] == "buffered"
 
 
@@ -809,8 +787,8 @@ async def redis_buffer(fake_redis_server):
     buf = RedisModelMemoryBuffer(config)
     buf.client = fakeredis.aioredis.FakeRedis(server=fake_redis_server)
     buf._pubsub = buf.client.pubsub()
-    await buf._pubsub.subscribe(buf._channel)
-    buf._listener_task = asyncio.create_task(buf._listen())
+    await buf._pubsub.subscribe(buf._updates_channel())
+    buf._listener_task = asyncio.create_task(buf._listen_updates())
     yield buf
     await buf.close()
 
@@ -916,8 +894,8 @@ async def make_redis_buffer(server) -> RedisModelMemoryBuffer:
     buf = RedisModelMemoryBuffer(config)
     buf.client = fakeredis.aioredis.FakeRedis(server=server)
     buf._pubsub = buf.client.pubsub()
-    await buf._pubsub.subscribe(buf._channel)
-    buf._listener_task = asyncio.create_task(buf._listen())
+    await buf._pubsub.subscribe(buf._updates_channel())
+    buf._listener_task = asyncio.create_task(buf._listen_updates())
     return buf
 
 
@@ -1080,7 +1058,7 @@ class TestModelMemorySchemaNegative:
             "window": -1,
             "actions": [],
         })
-        # Schema accepts; runtime _apply_window treats falsy/negative as no-limit.
+        # Schema accepts; runtime _split_turns_by_window treats falsy/negative as no-limit.
         assert config.window.max_turn_count == -1
 
     def test_window_wrong_type_rejected(self):
@@ -1123,7 +1101,7 @@ class TestModelMemorySchemaNegative:
 class _StubSummaryComponent:
     """Minimal stub matching create_component()'s expected surface.
 
-    _invoke_summary calls: component.started, component.start(), component.run(action, run_id, input), component.stop()
+    _summarize_turns calls: component.started, component.start(), component.run(action, run_id, input), component.stop()
     """
 
     def __init__(self, response):
@@ -1181,12 +1159,12 @@ def install_stub_component(component_id: str, response):
 
 
 class TestSummaryE2E:
-    """Test _prune_and_summarize / _invoke_summary code paths."""
+    """Test _prune_and_summarize / _summarize_turns code paths."""
 
     @pytest.mark.anyio
     async def test_summary_only_summarizes_all_and_clears_turns(self, sqlite_storage, mock_context, summary_global_configs):
         """summary-only (no window): after append, all turns are summarized and cleared."""
-        stub = install_stub_component("summarizer", {"content": "SUMMARY_V1"})
+        stub = install_stub_component("summarizer", "SUMMARY_V1")
 
         buffer = make_buffer()
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
@@ -1219,7 +1197,7 @@ class TestSummaryE2E:
     @pytest.mark.anyio
     async def test_summary_accumulates_previous_summary(self, sqlite_storage, mock_context, summary_global_configs):
         """Subsequent summarization should be passed the previous summary."""
-        stub = install_stub_component("summarizer", {"content": "SUMMARY_V2"})
+        stub = install_stub_component("summarizer", "SUMMARY_V2")
 
         buffer = make_buffer()
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
@@ -1244,19 +1222,18 @@ class TestSummaryE2E:
         )
         await action.run(mock_context, buffer, sqlite_storage)
 
-        # Stub was invoked; verify register_source was called with previous_summary
-        mock_calls = [c.args for c in mock_context.register_source.call_args_list]
-        prev_sources = [args for args in mock_calls if args and args[0] == "previous_summary"]
-        assert prev_sources, "previous_summary should be registered as a source"
-        assert prev_sources[-1][1] == "PREVIOUS"
+        # Verify previous summary was embedded in the messages sent to the summarizer
+        assert len(stub.calls) == 1
+        _, input = stub.calls[0]
+        contents = [m.get("content", "") for m in input["messages"]]
+        assert any("PREVIOUS" in c for c in contents), f"previous summary should appear in prompt: {contents}"
 
         assert await buffer.get_summary("s1") == "SUMMARY_V2"
-        assert len(stub.calls) == 1
 
     @pytest.mark.anyio
     async def test_window_plus_summary_summarizes_only_older_turns(self, sqlite_storage, mock_context, summary_global_configs):
         """With window=2 + summary, appending a 3rd turn summarizes only the oldest, keeps recent 2."""
-        stub = install_stub_component("summarizer", {"content": "OLDER_SUMMARY"})
+        stub = install_stub_component("summarizer", "OLDER_SUMMARY")
 
         buffer = make_buffer()
         component_config = make_component_config(
@@ -1334,8 +1311,6 @@ class TestSummaryE2E:
 
         assert result["summary"] == "EXISTING"
         assert result["messages"] == []
-        assert result["total_message_count"] == 1
-        assert result["window_message_count"] == 0
 
 
 # ──────────────────────────────────────────────
@@ -1361,19 +1336,19 @@ class TestModelMemoryComponentLifecycle:
             assert isinstance(comp._storage, SqliteModelMemoryStorage)
 
     @pytest.mark.anyio
-    async def test_serve_and_shutdown_initialize_and_close(self):
-        """_serve sets up buffer+storage; _shutdown closes them cleanly."""
+    async def test_start_and_stop_initialize_and_close(self):
+        """_start sets up buffer+storage; _stop closes them cleanly."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
             comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
 
-            await comp._serve()
+            await comp._start()
             # Storage usable after setup
             turns, summary = await comp._storage.load("s1")
             assert turns == []
             assert summary == ""
 
-            await comp._shutdown()
+            await comp._stop()
 
     @pytest.mark.anyio
     async def test_run_dispatches_to_action(self, mock_context):
@@ -1381,15 +1356,14 @@ class TestModelMemoryComponentLifecycle:
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
             comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
-            await comp._serve()
+            await comp._start()
             try:
                 action_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
                 result = await comp._run(action_config, mock_context)
                 assert result["messages"] == []
                 assert result["summary"] == ""
-                assert result["total_message_count"] == 0
             finally:
-                await comp._shutdown()
+                await comp._stop()
 
     def test_unsupported_buffer_driver_raises(self, monkeypatch):
         """An empty buffer registry should raise a clear ValueError."""

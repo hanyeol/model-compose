@@ -8,9 +8,8 @@ from pydantic import BaseModel, Field, ValidationError
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
-from mindor.core.utils.http_response import HttpEventStreamer
 from mindor.core.utils.image import ImageStreamResource
-from mindor.core.utils.streaming import StreamResource, EventIteratorStreamResource
+from mindor.core.utils.streaming import StreamResource
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
@@ -767,9 +766,6 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
-        if isinstance(state.output, EventIteratorStreamResource):
-            return self._render_http_event_stream(state.output)
-
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
@@ -780,16 +776,6 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             return Response(content=state.output, media_type="application/octet-stream")
 
         return JSONResponse(content=state.output)
-
-    def _render_http_event_stream(self, resource: StreamResource) -> Response:
-        format = resource.format if isinstance(resource, EventIteratorStreamResource) else None
-        return StreamingResponse(
-            HttpEventStreamer(resource, format).stream(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache"
-            }
-        )
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:
         return StreamingResponse(

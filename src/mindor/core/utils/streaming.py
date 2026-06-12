@@ -1,10 +1,10 @@
 from typing import Any, Optional, List, Protocol, Union, Awaitable, runtime_checkable
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
 from enum import Enum
 from .files import create_temporary_file
 from starlette.datastructures import UploadFile
-import aiofiles, os, io, base64
+import aiofiles, os, io, base64, json
 
 @runtime_checkable
 class BytesReader(Protocol):
@@ -157,19 +157,43 @@ class Base64StreamResource(StreamResource):
         padding = 2 if data.endswith("==") else (1 if data.endswith("=") else 0)
         return (len(data) // 4) * 3 - padding
 
-class EventIteratorStreamResource(StreamResource):
-    def __init__(self, iterator, format=None):
+class EventStreamResource(StreamResource):
+    def __init__(
+        self,
+        iterator: AsyncIterable,
+        format: Optional[StreamFormat] = None
+    ):
         super().__init__("text/event-stream", None)
 
-        self.iterator = iterator
-        self.format = format
+        self.iterator: Optional[AsyncIterable] = iterator
+        self.format: Optional[StreamFormat] = format
 
     async def close(self):
         self.iterator = None
 
-    async def _iterate_stream(self):
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.iterator:
-            yield chunk
+            if chunk is not None:
+                encoded = self._encode_chunk(chunk)
+                for line in self._split_chunk(encoded):
+                    yield b"data: " + line + b"\n"
+                yield b"\n"
+
+    def _encode_chunk(self, chunk: Any) -> Any:
+        if self.format == StreamFormat.TEXT:
+            return chunk if isinstance(chunk, str) else str(chunk)
+        if self.format == StreamFormat.JSON:
+            return json.dumps(chunk, ensure_ascii=False, default=str)
+        if not isinstance(chunk, (str, bytes)):
+            return json.dumps(chunk, ensure_ascii=False, default=str)
+        return chunk
+
+    def _split_chunk(self, chunk: Any) -> List[bytes]:
+        if isinstance(chunk, str):
+            return [ line.encode("utf-8") for line in chunk.split("\n") ]
+        if isinstance(chunk, bytes):
+            return [ line for line in chunk.split(b"\n") ]
+        return [ chunk ]
 
 class ReaderStreamResource(StreamResource):
     def __init__(
@@ -243,6 +267,41 @@ async def resolve_stream_resource(source: Any) -> StreamResource:
 
     raise TypeError(f"Unsupported source type: {type(source).__name__}")
 
+async def decode_event_stream(stream: StreamResource) -> AsyncIterator[bytes]:
+    buffer = bytearray()
+
+    async for chunk in stream:
+        buffer += chunk.replace(b"\r\n", b"\n")
+
+        while True:
+            pos = buffer.find(b"\n\n")
+            if pos < 0:
+                break
+
+            block, buffer = buffer[:pos], buffer[pos + 2:]
+            parts = []
+
+            for line in block.split(b"\n"):
+                if line.startswith(b"data:"):
+                    parts.append(line[6:] if line[5:6] == b" " else line[5:])
+                    continue
+                if line == b"data":
+                    parts.append(b"")
+                    continue
+                if line.startswith(b":"): # comment
+                    continue
+
+            if parts:
+                yield b"\n".join(parts)
+
+async def encode_stream_to_base64(stream: StreamResource) -> str:
+    buffer = io.BytesIO()
+    async with stream:
+        async for chunk in stream:
+            buffer.write(chunk)
+    buffer.seek(0)
+    return base64.b64encode(buffer.read()).decode("utf-8")
+
 async def save_stream_to_file(stream: StreamResource, path: str) -> None:
     async with stream, aiofiles.open(path, "wb") as file:
         async for chunk in stream:
@@ -269,11 +328,3 @@ async def read_stream_to_bytes(stream: StreamResource) -> bytes:
         async for chunk in stream:
             chunks.append(chunk)
     return b"".join(chunks)
-
-async def encode_stream_to_base64(stream: StreamResource) -> str:
-    buffer = io.BytesIO()
-    async with stream:
-        async for chunk in stream:
-            buffer.write(chunk)
-    buffer.seek(0)
-    return base64.b64encode(buffer.read()).decode("utf-8")

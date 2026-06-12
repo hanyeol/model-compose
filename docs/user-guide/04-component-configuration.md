@@ -31,6 +31,7 @@ model-compose provides various component types for performing different tasks.
 | `text-splitter` | Split text | Split documents into chunks |
 | `image-processor` | Process images | Image transformation, resizing, etc. |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
+| `video-frame-extractor` | Extract video frames | Decode frames from video with FFmpeg or OpenCV |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 
@@ -54,6 +55,7 @@ model-compose provides various component types for performing different tasks.
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
 - Video scene detection → `video-scene-detector`
+- Video frame extraction → `video-frame-extractor`
 - Web scraping → `web-scraper`
 
 **Browser Automation**

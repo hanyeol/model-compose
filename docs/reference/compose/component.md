@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | workflow | shell | text-splitter | image-processor | video-scene-detector | web-scraper | web-browser
+  type: agent | http-client | http-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-frame-extractor | web-scraper | web-browser
   id: component-id
   runtime: embedded | docker  # default: embedded
   max_concurrent_count: 1
@@ -58,6 +58,7 @@ Model-compose supports the following component types:
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
+| `video-frame-extractor` | Video frame extraction (FFmpeg, OpenCV) | [video-frame-extractor.md](components/video-frame-extractor.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 

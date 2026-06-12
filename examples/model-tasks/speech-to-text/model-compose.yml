@@ -18,11 +18,14 @@ workflow:
 component:
   type: model
   task: speech-to-text
+  driver: huggingface
   architecture: whisper
   model: openai/whisper-large-v3-turbo
-  device: cuda:0
+  device: mps
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}
     language: ${input.language}
     task: ${input.task | transcribe}
+    params:
+      max_output_length: 444

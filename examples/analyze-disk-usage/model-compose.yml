@@ -23,7 +23,7 @@ workflow:
           You are a Unix system expert. When given the output of df -h, provide a detailed analysis of disk usage, highlight any volumes with critically high usage, and recommend specific actions to free up space.
         user_prompt: ${jobs.get-disk-usage.output}
       output: 
-        usage: ${jobs.get-disk-usage.output}
+        usage: ${jobs.get-disk-usage.output as text}
         advice: ${output as markdown}
       depends_on: [ get-disk-usage ]
 

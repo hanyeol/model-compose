@@ -1,7 +1,7 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventIteratorStreamResource, StreamFormat
+from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventStreamResource, StreamFormat
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
 from .http_client import create_stream_with_url
 from .url import UrlStreamResource, parse_data_uri
@@ -232,10 +232,10 @@ class VariableRenderer:
 
         if type in [ "sse-text", "sse-json" ]:
             if isinstance(value, (StreamResource, AsyncIterator)):
-                return EventIteratorStreamResource(value, _STREAM_FORMAT_MAP[type])
+                return EventStreamResource(value, _STREAM_FORMAT_MAP[type])
             async def _stream_output_generator():
                 yield value
-            return EventIteratorStreamResource(_stream_output_generator(), _STREAM_FORMAT_MAP[type])
+            return EventStreamResource(_stream_output_generator(), _STREAM_FORMAT_MAP[type])
 
         return value
 
@@ -288,7 +288,7 @@ class VariableRenderer:
             pair = pair.strip()
             if "=" in pair:
                 k, _, v = pair.partition("=")
-                attrs[k.strip()] = await self._render_text(v.strip(), scope)
+                attrs[k.strip()] = await self._render_text(v.strip(), scope, skip_decode=False)
 
         return attrs
 

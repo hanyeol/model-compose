@@ -54,12 +54,14 @@ def anyio_backend():
 
 @pytest.fixture
 def mock_ws():
-    """Create a mock WebSocketClient."""
+    """Create a mock WebSocketConnection. The patched WebSocketClient.connect()
+    returns (connection, owned) — we reuse the same mock for both client and
+    connection since CdpClient only interacts with the connection."""
     ws = MagicMock()
-    ws.connect = AsyncMock()
     ws.close = AsyncMock()
     ws.send_message = AsyncMock()
     ws.receive_message = AsyncMock()
+    ws.connect = AsyncMock(return_value=(ws, True))
     return ws
 
 @pytest.fixture
@@ -141,7 +143,7 @@ class TestCdpClientConnection:
             await client.connect()
 
             mock_ws.connect.assert_awaited_once()
-            assert client._ws is mock_ws
+            assert client._websocket is mock_ws
             assert client._reader_task is not None
 
             await client.close()
@@ -157,7 +159,7 @@ class TestCdpClientConnection:
 
             mock_ws.close.assert_awaited_once()
             assert client._reader_task is None
-            assert client._ws is None
+            assert client._websocket is None
 
     @pytest.mark.anyio
     async def test_close_idempotent(self, client):
@@ -165,7 +167,7 @@ class TestCdpClientConnection:
         await client.close()
 
         assert client._reader_task is None
-        assert client._ws is None
+        assert client._websocket is None
 
 
 class TestCdpClientSendCommand:
@@ -390,15 +392,15 @@ class TestCdpClientDiscover:
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
         mock_ws = MagicMock()
-        mock_ws.connect = AsyncMock()
         mock_ws.close = AsyncMock()
         mock_ws.receive_message = AsyncMock(side_effect=asyncio.CancelledError)
+        mock_ws.connect = AsyncMock(return_value=(mock_ws, True))
 
         with (
             patch("mindor.core.utils.cdp_client.aiohttp.ClientSession", return_value=mock_session),
             patch("mindor.core.utils.cdp_client.WebSocketClient", return_value=mock_ws) as MockWS,
         ):
-            client = await CdpClient.discover("localhost", 9222, target_index=0, timeout=5.0)
+            client = await CdpClient.discover("http://localhost:9222", target_index=0, timeout=5.0)
 
             assert client.ws_url == "ws://localhost:9222/devtools/page/abc"
             assert client.timeout == 5.0
@@ -426,15 +428,15 @@ class TestCdpClientDiscover:
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
         mock_ws = MagicMock()
-        mock_ws.connect = AsyncMock()
         mock_ws.close = AsyncMock()
         mock_ws.receive_message = AsyncMock(side_effect=asyncio.CancelledError)
+        mock_ws.connect = AsyncMock(return_value=(mock_ws, True))
 
         with (
             patch("mindor.core.utils.cdp_client.aiohttp.ClientSession", return_value=mock_session),
             patch("mindor.core.utils.cdp_client.WebSocketClient", return_value=mock_ws),
         ):
-            client = await CdpClient.discover("localhost", 9222, target_index=1)
+            client = await CdpClient.discover("http://localhost:9222", target_index=1)
 
             assert client.ws_url == "ws://localhost:9222/devtools/page/second"
 
@@ -459,7 +461,7 @@ class TestCdpClientDiscover:
 
         with patch("mindor.core.utils.cdp_client.aiohttp.ClientSession", return_value=mock_session):
             with pytest.raises(ConnectionError, match="No 'page' target found"):
-                await CdpClient.discover("localhost", 9222)
+                await CdpClient.discover("http://localhost:9222")
 
     @pytest.mark.anyio
     async def test_discover_target_index_out_of_range(self):
@@ -480,7 +482,7 @@ class TestCdpClientDiscover:
 
         with patch("mindor.core.utils.cdp_client.aiohttp.ClientSession", return_value=mock_session):
             with pytest.raises(IndexError, match="out of range"):
-                await CdpClient.discover("localhost", 9222, target_index=5)
+                await CdpClient.discover("http://localhost:9222", target_index=5)
 
 # ---- Integration Tests (real Chrome, skipped if unavailable) ----
 
@@ -491,20 +493,20 @@ class TestCdpClientIntegrationConnection:
     @pytest.mark.anyio
     async def test_connect_and_close(self, chrome):
         """Test connecting to a real Chrome instance and closing."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
-        assert client._ws is not None
+        assert client._websocket is not None
         assert client._reader_task is not None
 
         await client.close()
 
-        assert client._ws is None
+        assert client._websocket is None
         assert client._reader_task is None
 
     @pytest.mark.anyio
     async def test_discover(self, chrome):
         """Test factory method discovers correct WebSocket URL."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         assert "ws://" in client.ws_url
         assert "devtools" in client.ws_url
@@ -519,7 +521,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_page_navigate(self, chrome):
         """Test Page.navigate command."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
         result = await client.send_command("Page.navigate", {"url": "data:text/html,<h1>Hello</h1>"})
@@ -531,7 +533,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_runtime_evaluate(self, chrome):
         """Test Runtime.evaluate command."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         result = await client.send_command("Runtime.evaluate", {
             "expression": "1 + 2",
@@ -545,7 +547,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_runtime_evaluate_string(self, chrome):
         """Test Runtime.evaluate with string result."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         result = await client.send_command("Runtime.evaluate", {
             "expression": "'hello' + ' ' + 'world'",
@@ -559,7 +561,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_runtime_evaluate_object(self, chrome):
         """Test Runtime.evaluate with object result."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         result = await client.send_command("Runtime.evaluate", {
             "expression": "({a: 1, b: 'two'})",
@@ -573,7 +575,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_dom_get_document(self, chrome):
         """Test DOM.getDocument command."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
         await client.send_command("Page.navigate", {"url": "data:text/html,<div id='test'>content</div>"})
@@ -589,7 +591,7 @@ class TestCdpClientIntegrationCommands:
     @pytest.mark.anyio
     async def test_multiple_commands_sequentially(self, chrome):
         """Test sending multiple commands on the same connection."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         r1 = await client.send_command("Runtime.evaluate", {"expression": "1", "returnByValue": True})
         r2 = await client.send_command("Runtime.evaluate", {"expression": "2", "returnByValue": True})
@@ -609,7 +611,7 @@ class TestCdpClientIntegrationEvents:
     @pytest.mark.anyio
     async def test_page_load_event(self, chrome):
         """Test receiving Page.loadEventFired event."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
 
@@ -635,7 +637,7 @@ class TestCdpClientIntegrationEvents:
     @pytest.mark.anyio
     async def test_page_dom_content_event(self, chrome):
         """Test receiving Page.domContentEventFired event."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
 
@@ -657,7 +659,7 @@ class TestCdpClientIntegrationEvents:
     @pytest.mark.anyio
     async def test_remove_event_listener_stops_callback(self, chrome):
         """Test that removed listeners are no longer called."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
 
@@ -690,18 +692,18 @@ class TestCdpClientIntegrationErrorHandling:
     async def test_discover_invalid_port(self):
         """Test ConnectionError on unreachable port."""
         with pytest.raises((ConnectionError, OSError)):
-            await CdpClient.discover("localhost", 19999, timeout=2.0)
+            await CdpClient.discover("http://localhost:19999", timeout=2.0)
 
     @pytest.mark.anyio
     async def test_discover_target_index_out_of_range(self, chrome):
         """Test IndexError when target_index is too large."""
         with pytest.raises(IndexError, match="out of range"):
-            await CdpClient.discover("localhost", chrome["port"], target_index=999, timeout=5.0)
+            await CdpClient.discover(f"http://localhost:{chrome['port']}", target_index=999, timeout=5.0)
 
     @pytest.mark.anyio
     async def test_invalid_command(self, chrome):
         """Test sending an invalid CDP command."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         with pytest.raises(RuntimeError, match="CDP error"):
             await client.send_command("NonExistent.method")
@@ -711,7 +713,7 @@ class TestCdpClientIntegrationErrorHandling:
     @pytest.mark.anyio
     async def test_navigate_and_evaluate_after_navigation(self, chrome):
         """Test full navigate → evaluate flow."""
-        client = await CdpClient.discover("localhost", chrome["port"], timeout=5.0)
+        client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
         await client.send_command("Page.enable")
 

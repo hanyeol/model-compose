@@ -1,831 +1,182 @@
-"""Tests for the HTTP server controller adapter, WebSocket connection manager, and task output rendering."""
+"""Tests for the WebSocketManager used by the HTTP server controller adapter."""
 
 import json
 
 import pytest
-from starlette.responses import JSONResponse, Response, StreamingResponse
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 from mindor.core.controller.adapters.services.http_server import (
-    WebSocketConnectionManager,
-    HttpServerControllerAdapterService,
+    WebSocketManager,
+    WebSocketMessage,
 )
-from mindor.core.controller.base import TaskState, TaskStatus, InterruptState
-from mindor.core.utils.streaming import (
-    StreamResource,
-    BytesStreamResource,
-    EventIteratorStreamResource,
-    StreamFormat,
-)
-from mindor.dsl.schema.controller.adapter.impl.http_server import (
-    HttpServerControllerAdapterConfig,
-    WebSocketConfig,
-)
-from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
 
 
 @pytest.fixture
 def anyio_backend():
-    """Configure anyio to use asyncio backend."""
     return "asyncio"
 
 
-# ---- Helpers ----
-
-
 def make_websocket():
-    """Create a mock WebSocket connection."""
     ws = AsyncMock()
     ws.accept = AsyncMock()
-    ws.send_json = AsyncMock()
     ws.send_text = AsyncMock()
     ws.close = AsyncMock()
-    ws.receive_text = AsyncMock()
     return ws
 
 
-def make_task_state(
-    task_id="task-1",
-    status=TaskStatus.PENDING,
-    output=None,
-    error=None,
-    interrupt=None,
-):
-    """Create a TaskState instance with sensible defaults."""
-    return TaskState(
-        task_id=task_id,
-        status=status,
-        workflow_id="test_workflow",
-        output=output,
-        error=error,
-        interrupt=interrupt,
-    )
-
-
-def make_controller(workflow_ids=None, task_state=None):
-    """Create a mock controller with configurable workflows and task state."""
-    controller = MagicMock()
-    ids = workflow_ids or ["__default__"]
-    controller.workflow_schemas = {wid: MagicMock(workflow_id=wid) for wid in ids}
-    controller.get_task_state = MagicMock(return_value=task_state)
-    controller.run_workflow = AsyncMock(return_value=task_state or make_task_state())
-    controller.resume_workflow = AsyncMock(return_value=task_state or make_task_state())
-    controller.add_task_state_listener = MagicMock()
-    controller.remove_task_state_listener = MagicMock()
-    return controller
-
-
-def make_adapter(websocket=True, max_connections=None, controller=None):
-    """Create an HttpServerControllerAdapterService with configurable options."""
-    ws_config = WebSocketConfig(max_connections=max_connections) if websocket else False
-    config = HttpServerControllerAdapterConfig(
-        type=ControllerAdapterType.HTTP_SERVER,
-        host="localhost",
-        port=8080,
-        websocket=ws_config if isinstance(ws_config, WebSocketConfig) else websocket,
-    )
-    ctrl = controller or make_controller()
-    return HttpServerControllerAdapterService(config, ctrl, daemon=False)
-
-
-# ============================
-# WebSocketConnectionManager
-# ============================
-
-
-class TestWebSocketConnectionManagerConnect:
-    """Test WebSocket connection manager connect behavior."""
-
+class TestWebSocketManagerAccept:
     @pytest.mark.anyio
-    async def test_connect_accepts_and_registers(self):
-        """Test that connect accepts the WebSocket and registers the client."""
-        manager = WebSocketConnectionManager()
+    async def test_accept_registers_connection(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        result = await manager.connect("client-1", ws)
+        result = await manager.accept("client-1", ws)
         assert result is True
         ws.accept.assert_awaited_once()
         assert manager.has_connection("client-1")
 
     @pytest.mark.anyio
-    async def test_connect_duplicate_session_rejects(self):
-        """Test that connecting with a duplicate session ID rejects the new connection."""
-        manager = WebSocketConnectionManager()
+    async def test_accept_duplicate_session_rejects(self):
+        manager = WebSocketManager()
         ws1 = make_websocket()
         ws2 = make_websocket()
-        await manager.connect("client-1", ws1)
-        result = await manager.connect("client-1", ws2)
+        await manager.accept("client-1", ws1)
+        result = await manager.accept("client-1", ws2)
         assert result is False
         ws2.close.assert_awaited_once_with(code=4409, reason="Session already connected")
 
     @pytest.mark.anyio
-    async def test_has_connection_false_before_connect(self):
-        """Test that has_connection returns False for unknown clients."""
-        manager = WebSocketConnectionManager()
+    async def test_has_connection_false_before_accept(self):
+        manager = WebSocketManager()
         assert manager.has_connection("unknown") is False
 
 
-class TestWebSocketConnectionManagerDisconnect:
-    """Test WebSocket connection manager disconnect behavior."""
-
+class TestWebSocketManagerClose:
     @pytest.mark.anyio
-    async def test_disconnect_removes_connection(self):
-        """Test that disconnect removes the client connection."""
-        manager = WebSocketConnectionManager()
+    async def test_close_removes_connection(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        await manager.disconnect("client-1")
+        await manager.accept("client-1", ws)
+        await manager.close("client-1")
         assert not manager.has_connection("client-1")
 
     @pytest.mark.anyio
-    async def test_disconnect_cleans_up_task_subscriptions(self):
-        """Test that disconnect cleans up all task subscriptions for the client."""
-        manager = WebSocketConnectionManager()
+    async def test_close_cleans_up_task_subscriptions(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        manager.subscribe_to_task("client-1", "task-1")
-        manager.subscribe_to_task("client-1", "task-2")
-        await manager.disconnect("client-1")
-        assert "client-1" not in (manager._task_subscriptions.get("task-1") or set())
-        assert "client-1" not in (manager._task_subscriptions.get("task-2") or set())
+        await manager.accept("client-1", ws)
+        manager.subscribe_task("client-1", "task-1")
+        manager.subscribe_task("client-1", "task-2")
+        await manager.close("client-1")
+        assert not manager.has_task_subscribers("task-1")
+        assert not manager.has_task_subscribers("task-2")
 
     @pytest.mark.anyio
-    async def test_disconnect_nonexistent_is_noop(self):
-        """Test that disconnecting a nonexistent client does not raise."""
-        manager = WebSocketConnectionManager()
-        await manager.disconnect("no-such-client")  # should not raise
+    async def test_close_nonexistent_is_noop(self):
+        manager = WebSocketManager()
+        await manager.close("no-such-client")
 
 
-class TestWebSocketConnectionManagerSendMessage:
-    """Test WebSocket connection manager send_message behavior."""
-
+class TestWebSocketManagerSendMessage:
     @pytest.mark.anyio
-    async def test_send_message_returns_true_on_success(self):
-        """Test that send_message returns True on successful delivery."""
-        manager = WebSocketConnectionManager()
+    async def test_send_message_delivers_serialized_payload(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        result = await manager.send_message("client-1", {"type": "ping"})
-        assert result is True
-        ws.send_json.assert_awaited_once_with({"type": "ping"})
+        await manager.accept("client-1", ws)
+        await manager.send_message("client-1", WebSocketMessage(type="ping"))
+        ws.send_text.assert_awaited_once()
+        sent = json.loads(ws.send_text.call_args[0][0])
+        assert sent["type"] == "ping"
 
     @pytest.mark.anyio
-    async def test_send_message_returns_false_for_unknown_client(self):
-        """Test that send_message returns False for an unknown client."""
-        manager = WebSocketConnectionManager()
-        result = await manager.send_message("nobody", {"type": "ping"})
-        assert result is False
+    async def test_send_message_unknown_client_is_noop(self):
+        manager = WebSocketManager()
+        await manager.send_message("nobody", WebSocketMessage(type="ping"))
 
     @pytest.mark.anyio
-    async def test_send_message_disconnects_on_error(self):
-        """Test that send_message disconnects the client on send error."""
-        manager = WebSocketConnectionManager()
+    async def test_send_error_emits_error_message(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        ws.send_json.side_effect = RuntimeError("broken pipe")
-        await manager.connect("client-1", ws)
-        result = await manager.send_message("client-1", {"type": "ping"})
-        assert result is False
-        assert not manager.has_connection("client-1")
+        await manager.accept("client-1", ws)
+        await manager.send_error("client-1", "INVALID_REQUEST", "bad input", message_id="msg-1")
+        ws.send_text.assert_awaited_once()
+        sent = json.loads(ws.send_text.call_args[0][0])
+        assert sent["type"] == "error"
+        assert sent["id"] == "msg-1"
+        assert sent["data"] == {"code": "INVALID_REQUEST", "message": "bad input"}
 
 
-class TestWebSocketConnectionManagerSubscriptions:
-    """Test WebSocket connection manager task subscription behavior."""
-
+class TestWebSocketManagerSubscriptions:
     @pytest.mark.anyio
-    async def test_subscribe_to_task(self):
-        """Test that subscribe_to_task registers the subscription."""
-        manager = WebSocketConnectionManager()
+    async def test_subscribe_task_records_subscription(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        manager.subscribe_to_task("client-1", "task-1")
-        assert "client-1" in manager._task_subscriptions["task-1"]
-        assert "task-1" in manager._client_subscriptions["client-1"]
+        await manager.accept("client-1", ws)
+        manager.subscribe_task("client-1", "task-1")
+        assert manager.has_task_subscribers("task-1")
 
     @pytest.mark.anyio
-    async def test_unsubscribe_from_task(self):
-        """Test that unsubscribe_from_task removes the subscription."""
-        manager = WebSocketConnectionManager()
+    async def test_unsubscribe_task_removes_subscription(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        manager.subscribe_to_task("client-1", "task-1")
-        manager.unsubscribe_from_task("client-1", "task-1")
-        assert "task-1" not in manager._task_subscriptions
-        assert "task-1" not in manager._client_subscriptions["client-1"]
+        await manager.accept("client-1", ws)
+        manager.subscribe_task("client-1", "task-1")
+        manager.unsubscribe_task("client-1", "task-1")
+        assert not manager.has_task_subscribers("task-1")
 
     @pytest.mark.anyio
-    async def test_unsubscribe_last_subscriber_removes_task_entry(self):
-        """Test that unsubscribing the last subscriber removes the task entry."""
-        manager = WebSocketConnectionManager()
+    async def test_unsubscribe_last_subscriber_clears_entry(self):
+        manager = WebSocketManager()
         ws = make_websocket()
-        await manager.connect("client-1", ws)
-        manager.subscribe_to_task("client-1", "task-1")
-        manager.unsubscribe_from_task("client-1", "task-1")
-        assert "task-1" not in manager._task_subscriptions
+        await manager.accept("client-1", ws)
+        manager.subscribe_task("client-1", "task-1")
+        manager.unsubscribe_task("client-1", "task-1")
+        assert not manager.has_task_subscribers("task-1")
 
     @pytest.mark.anyio
-    async def test_broadcast_to_task_subscribers(self):
-        """Test that broadcast sends messages to all task subscribers."""
-        manager = WebSocketConnectionManager()
+    async def test_broadcast_task_message_reaches_all_subscribers(self):
+        manager = WebSocketManager()
         ws1 = make_websocket()
         ws2 = make_websocket()
-        await manager.connect("c1", ws1)
-        await manager.connect("c2", ws2)
-        manager.subscribe_to_task("c1", "task-1")
-        manager.subscribe_to_task("c2", "task-1")
-        await manager.broadcast_to_task_subscribers("task-1", {"type": "task_state"})
+        await manager.accept("c1", ws1)
+        await manager.accept("c2", ws2)
+        manager.subscribe_task("c1", "task-1")
+        manager.subscribe_task("c2", "task-1")
+        await manager.broadcast_task_message("task-1", WebSocketMessage(type="task_state"))
         ws1.send_text.assert_awaited_once()
         ws2.send_text.assert_awaited_once()
 
     @pytest.mark.anyio
-    async def test_broadcast_to_no_subscribers_is_noop(self):
-        """Test that broadcasting with no subscribers does not raise."""
-        manager = WebSocketConnectionManager()
-        await manager.broadcast_to_task_subscribers("task-1", {"type": "task_state"})
+    async def test_broadcast_no_subscribers_is_noop(self):
+        manager = WebSocketManager()
+        await manager.broadcast_task_message("task-1", WebSocketMessage(type="task_state"))
 
     @pytest.mark.anyio
-    async def test_broadcast_disconnects_broken_client(self):
-        """Test that broadcast disconnects clients that fail to receive."""
-        manager = WebSocketConnectionManager()
-        ws = make_websocket()
-        ws.send_text.side_effect = RuntimeError("broken")
-        await manager.connect("client-1", ws)
-        manager.subscribe_to_task("client-1", "task-1")
-        await manager.broadcast_to_task_subscribers("task-1", {"type": "task_state"})
-        assert not manager.has_connection("client-1")
+    async def test_broadcast_swallows_per_client_errors(self):
+        manager = WebSocketManager()
+        ws_good = make_websocket()
+        ws_bad = make_websocket()
+        ws_bad.send_text.side_effect = RuntimeError("broken")
+        await manager.accept("good", ws_good)
+        await manager.accept("bad", ws_bad)
+        manager.subscribe_task("good", "task-1")
+        manager.subscribe_task("bad", "task-1")
+        await manager.broadcast_task_message("task-1", WebSocketMessage(type="task_state"))
+        ws_good.send_text.assert_awaited_once()
 
 
-class TestWebSocketConnectionManagerDisconnectAll:
-    """Test WebSocket connection manager disconnect_all behavior."""
-
+class TestWebSocketManagerDispose:
     @pytest.mark.anyio
-    async def test_disconnect_all_clears_everything(self):
-        """Test that disconnect_all removes all connections and subscriptions."""
-        manager = WebSocketConnectionManager()
+    async def test_dispose_closes_and_clears_all(self):
+        manager = WebSocketManager()
         ws1 = make_websocket()
         ws2 = make_websocket()
-        await manager.connect("c1", ws1)
-        await manager.connect("c2", ws2)
-        manager.subscribe_to_task("c1", "task-1")
-        await manager.disconnect_all()
+        await manager.accept("c1", ws1)
+        await manager.accept("c2", ws2)
+        manager.subscribe_task("c1", "task-1")
+        await manager.dispose()
+        ws1.close.assert_awaited_once()
+        ws2.close.assert_awaited_once()
         assert not manager.has_connection("c1")
         assert not manager.has_connection("c2")
-
-
-# ============================
-# HttpServerControllerAdapterService
-# ============================
-
-
-class TestHttpServerAdapterInit:
-    """Test HTTP server adapter initialization."""
-
-    def test_websocket_manager_created(self):
-        """Test that the adapter creates a WebSocket connection manager."""
-        adapter = make_adapter()
-        assert isinstance(adapter.websocket_manager, WebSocketConnectionManager)
-
-    def test_websocket_disabled_skips_route(self):
-        """Test that disabling WebSocket does not cause errors during creation."""
-        adapter = make_adapter(websocket=False)
-        # WebSocket route not registered — no exception during creation
-        assert adapter is not None
-
-
-class TestHttpServerAdapterStartShutdown:
-    """Test HTTP server adapter start and shutdown lifecycle."""
-
-    @pytest.mark.anyio
-    async def test_start_registers_listener(self):
-        """Test that start registers the task state change listener."""
-        controller = make_controller()
-        adapter = make_adapter(controller=controller)
-        await adapter._start()
-        controller.add_task_state_listener.assert_called_once_with(adapter._on_task_state_change)
-
-    @pytest.mark.anyio
-    async def test_shutdown_removes_listener(self):
-        """Test that shutdown removes the task state change listener."""
-        controller = make_controller()
-        adapter = make_adapter(controller=controller)
-        await adapter._start()
-        await adapter._shutdown()
-        controller.remove_task_state_listener.assert_called_once_with(adapter._on_task_state_change)
-
-    @pytest.mark.anyio
-    async def test_shutdown_disconnects_all_clients(self):
-        """Test that shutdown disconnects all WebSocket clients."""
-        controller = make_controller()
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-        await adapter._shutdown()
-        assert not adapter.websocket_manager.has_connection("client-1")
-
-
-class TestOnTaskStateChange:
-    """Test task state change broadcasting."""
-
-    @pytest.mark.anyio
-    async def test_broadcasts_task_state_to_subscribers(self):
-        """Test that task state changes are broadcast to subscribed clients."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-        adapter.websocket_manager.subscribe_to_task("client-1", "task-1")
-
-        state = make_task_state("task-1", TaskStatus.COMPLETED, output={"result": 42})
-        await adapter._on_task_state_change("task-1", state)
-
-        ws.send_text.assert_awaited_once()
-        sent = json.loads(ws.send_text.call_args[0][0])
-        assert sent["type"] == "task_state"
-        assert sent["data"]["task_id"] == "task-1"
-        assert sent["data"]["status"] == "completed"
-
-    @pytest.mark.anyio
-    async def test_broadcasts_nothing_with_no_subscribers(self):
-        """Test that task state changes with no subscribers do not raise."""
-        adapter = make_adapter()
-        state = make_task_state("task-1", TaskStatus.PROCESSING)
-        await adapter._on_task_state_change("task-1", state)  # should not raise
-
-
-class TestSerializeTaskState:
-    """Test task state serialization."""
-
-    def test_pending_state(self):
-        """Test that a pending state serializes correctly."""
-        adapter = make_adapter()
-        state = make_task_state("task-1", TaskStatus.PENDING)
-        result = adapter._serialize_task_state("task-1", state)
-        assert result["task_id"] == "task-1"
-        assert result["status"] == "pending"
-        assert result["output"] is None
-        assert result["error"] is None
-        assert result["interrupt"] is None
-        assert "timestamp" in result
-
-    def test_completed_state_with_json_output(self):
-        """Test that a completed state with JSON output serializes correctly."""
-        adapter = make_adapter()
-        state = make_task_state("task-1", TaskStatus.COMPLETED, output={"key": "value"})
-        result = adapter._serialize_task_state("task-1", state)
-        assert result["status"] == "completed"
-        assert result["output"] == {"key": "value"}
-
-    def test_completed_state_with_non_serializable_output(self):
-        """Test that non-serializable output is replaced with None."""
-        adapter = make_adapter()
-        state = make_task_state("task-1", TaskStatus.COMPLETED, output=object())
-        result = adapter._serialize_task_state("task-1", state)
-        assert result["output"] is None
-
-    def test_failed_state_with_error(self):
-        """Test that a failed state includes the error message."""
-        adapter = make_adapter()
-        state = make_task_state("task-1", TaskStatus.FAILED, error=ValueError("oops"))
-        result = adapter._serialize_task_state("task-1", state)
-        assert result["status"] == "failed"
-        assert "oops" in result["error"]
-
-    def test_interrupted_state_with_interrupt(self):
-        """Test that an interrupted state includes interrupt details."""
-        adapter = make_adapter()
-        interrupt = InterruptState(job_id="job-1", phase="before", message="confirm?")
-        state = make_task_state("task-1", TaskStatus.INTERRUPTED, interrupt=interrupt)
-        result = adapter._serialize_task_state("task-1", state)
-        assert result["status"] == "interrupted"
-        assert result["interrupt"]["job_id"] == "job-1"
-        assert result["interrupt"]["phase"] == "before"
-        assert result["interrupt"]["message"] == "confirm?"
-
-
-# ============================
-# WebSocket message handlers
-# ============================
-
-
-class TestHandleWsMessage:
-    """Test WebSocket message handler dispatch."""
-
-    @pytest.mark.anyio
-    async def test_invalid_json_sends_error(self):
-        """Test that invalid JSON input sends an error response."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-        await adapter._handle_websocket_message("client-1", "not-json{{{")
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "INVALID_REQUEST"
-
-    @pytest.mark.anyio
-    async def test_unknown_message_type_sends_error(self):
-        """Test that an unknown message type sends an error response."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-        await adapter._handle_websocket_message("client-1", json.dumps({"type": "unknown_op"}))
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-
-
-class TestWsRunWorkflow:
-    """Test WebSocket run_workflow message handler."""
-
-    @pytest.mark.anyio
-    async def test_run_workflow_sends_workflow_started(self):
-        """Test that run_workflow sends a workflow_started response."""
-        state = make_task_state("task-99", TaskStatus.PENDING)
-        controller = make_controller(task_state=state)
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        data = {"workflow_id": "__default__", "subscribe_task": False}
-        await adapter._websocket_run_workflow("client-1", "msg-1", data)
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "workflow_started"
-        assert sent["id"] == "msg-1"
-        assert sent["data"]["task_id"] == "task-99"
-
-    @pytest.mark.anyio
-    async def test_run_workflow_subscribes_when_requested(self):
-        """Test that run_workflow subscribes the client to task updates when requested."""
-        state = make_task_state("task-99", TaskStatus.PENDING)
-        controller = make_controller(task_state=state)
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        data = {"workflow_id": "__default__", "subscribe_task": True}
-        await adapter._websocket_run_workflow("client-1", "msg-1", data)
-
-        assert "client-1" in adapter.websocket_manager._task_subscriptions.get("task-99", set())
-
-    @pytest.mark.anyio
-    async def test_run_workflow_not_found_sends_error(self):
-        """Test that run_workflow with a nonexistent workflow sends an error."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        data = {"workflow_id": "nonexistent"}
-        await adapter._websocket_run_workflow("client-1", "msg-1", data)
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "WORKFLOW_NOT_FOUND"
-
-
-class TestWsSubscribeTask:
-    """Test WebSocket subscribe_task message handler."""
-
-    @pytest.mark.anyio
-    async def test_subscribe_sends_task_subscribed(self):
-        """Test that subscribe_task sends a task_subscribed response."""
-        state = make_task_state("task-1", TaskStatus.PROCESSING)
-        controller = make_controller(task_state=state)
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_subscribe_task("client-1", "msg-1", {"task_id": "task-1"})
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "task_subscribed"
-        assert sent["data"]["task_id"] == "task-1"
-
-    @pytest.mark.anyio
-    async def test_subscribe_missing_task_id_sends_error(self):
-        """Test that subscribe_task without task_id sends an error."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_subscribe_task("client-1", "msg-1", {})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "INVALID_REQUEST"
-
-    @pytest.mark.anyio
-    async def test_subscribe_unknown_task_sends_error(self):
-        """Test that subscribe_task for an unknown task sends an error."""
-        controller = make_controller()
-        controller.get_task_state.return_value = None
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_subscribe_task("client-1", "msg-1", {"task_id": "no-such-task"})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "TASK_NOT_FOUND"
-
-
-class TestWsUnsubscribeTask:
-    """Test WebSocket unsubscribe_task message handler."""
-
-    @pytest.mark.anyio
-    async def test_unsubscribe_sends_task_unsubscribed(self):
-        """Test that unsubscribe_task sends a task_unsubscribed response."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-        adapter.websocket_manager.subscribe_to_task("client-1", "task-1")
-
-        await adapter._websocket_unsubscribe_task("client-1", "msg-1", {"task_id": "task-1"})
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "task_unsubscribed"
-        assert sent["data"]["task_id"] == "task-1"
-
-    @pytest.mark.anyio
-    async def test_unsubscribe_missing_task_id_sends_error(self):
-        """Test that unsubscribe_task without task_id sends an error."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_unsubscribe_task("client-1", "msg-1", {})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "INVALID_REQUEST"
-
-
-class TestWsResumeTask:
-    """Test WebSocket resume_task message handler."""
-
-    @pytest.mark.anyio
-    async def test_resume_sends_task_resumed(self):
-        """Test that resume_task sends a task_resumed response."""
-        state = make_task_state("task-1", TaskStatus.PROCESSING)
-        controller = make_controller(task_state=state)
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_resume_task(
-            "client-1", "msg-1",
-            {"task_id": "task-1", "job_id": "job-1", "answer": "yes"}
-        )
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "task_resumed"
-        assert sent["data"]["task_id"] == "task-1"
-
-    @pytest.mark.anyio
-    async def test_resume_missing_fields_sends_error(self):
-        """Test that resume_task with missing fields sends an error."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_resume_task("client-1", "msg-1", {"task_id": "task-1"})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "INVALID_REQUEST"
-
-    @pytest.mark.anyio
-    async def test_resume_not_interrupted_sends_error(self):
-        """Test that resuming a non-interrupted task sends an error."""
-        controller = make_controller()
-        controller.resume_workflow.side_effect = ValueError("task is not in interrupted state")
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_resume_task(
-            "client-1", "msg-1",
-            {"task_id": "task-1", "job_id": "job-1"}
-        )
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "TASK_NOT_INTERRUPTED"
-
-    @pytest.mark.anyio
-    async def test_resume_job_id_mismatch_sends_error(self):
-        """Test that resuming with a mismatched job ID sends an error."""
-        controller = make_controller()
-        controller.resume_workflow.side_effect = ValueError("Job ID mismatch")
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_resume_task(
-            "client-1", "msg-1",
-            {"task_id": "task-1", "job_id": "wrong-job"}
-        )
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["data"]["code"] == "JOB_ID_MISMATCH"
-
-
-class TestWsGetTask:
-    """Test WebSocket get_task message handler."""
-
-    @pytest.mark.anyio
-    async def test_get_task_sends_task_state(self):
-        """Test that get_task sends the current task state."""
-        state = make_task_state("task-1", TaskStatus.COMPLETED, output={"x": 1})
-        controller = make_controller(task_state=state)
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_get_task("client-1", "msg-1", {"task_id": "task-1"})
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "task_state"
-        assert sent["id"] == "msg-1"
-        assert sent["data"]["task_id"] == "task-1"
-
-    @pytest.mark.anyio
-    async def test_get_task_missing_task_id_sends_error(self):
-        """Test that get_task without task_id sends an error."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_get_task("client-1", "msg-1", {})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "error"
-        assert sent["data"]["code"] == "INVALID_REQUEST"
-
-    @pytest.mark.anyio
-    async def test_get_task_not_found_sends_error(self):
-        """Test that get_task for an unknown task sends an error."""
-        controller = make_controller()
-        controller.get_task_state.return_value = None
-        adapter = make_adapter(controller=controller)
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_get_task("client-1", "msg-1", {"task_id": "ghost"})
-
-        sent = ws.send_json.call_args[0][0]
-        assert sent["data"]["code"] == "TASK_NOT_FOUND"
-
-
-class TestWsPing:
-    """Test WebSocket ping message handler."""
-
-    @pytest.mark.anyio
-    async def test_ping_sends_pong(self):
-        """Test that a ping message receives a pong response."""
-        adapter = make_adapter()
-        ws = make_websocket()
-        await adapter.websocket_manager.connect("client-1", ws)
-
-        await adapter._websocket_ping("client-1", "msg-1", {})
-
-        ws.send_json.assert_awaited_once()
-        sent = ws.send_json.call_args[0][0]
-        assert sent["type"] == "pong"
-        assert sent["id"] == "msg-1"
-        assert "timestamp" in sent["data"]
-
-
-# ============================
-# _render_task_output branching
-# ============================
-
-
-def make_async_iterator(items):
-    """Create an AsyncIterator from a list."""
-    async def _gen():
-        for item in items:
-            yield item
-    return _gen()
-
-
-class TestRenderTaskOutputStatusBranching:
-    """Test _render_task_output status-based response branching."""
-
-    def test_pending_returns_202(self):
-        """Test that a pending task returns a 202 response."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.PENDING)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-        assert response.status_code == 202
-
-    def test_processing_returns_202(self):
-        """Test that a processing task returns a 202 response."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.PROCESSING)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-        assert response.status_code == 202
-
-    def test_interrupted_returns_202(self):
-        """Test that an interrupted task returns a 202 response."""
-        adapter = make_adapter()
-        interrupt = InterruptState(job_id="job-1", phase="before", message="confirm?")
-        state = make_task_state(status=TaskStatus.INTERRUPTED, interrupt=interrupt)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-        assert response.status_code == 202
-
-    def test_failed_raises_500(self):
-        """Test that a failed task raises an HTTP 500 exception."""
-        from starlette.exceptions import HTTPException
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.FAILED, error=ValueError("oops"))
-        with pytest.raises(HTTPException) as exc_info:
-            adapter._render_task_output(state)
-        assert exc_info.value.status_code == 500
-
-
-class TestRenderTaskOutputTypeBranching:
-    """Test _render_task_output output-type-based response branching."""
-
-    def test_dict_output_returns_json_response(self):
-        """Test that dict output returns a JSONResponse."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output={"key": "value"})
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-
-    def test_bytes_output_returns_octet_stream(self):
-        """Test that bytes output returns an octet-stream Response."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output=b"binary data")
-        response = adapter._render_task_output(state)
-        assert isinstance(response, Response)
-        assert response.media_type == "application/octet-stream"
-
-    def test_iterator_stream_resource_returns_streaming_response(self):
-        """Test that an EventIteratorStreamResource returns a streaming SSE response."""
-        adapter = make_adapter()
-        resource = EventIteratorStreamResource(
-            make_async_iterator(["chunk"]), StreamFormat.TEXT
-        )
-        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, StreamingResponse)
-        assert response.media_type == "text/event-stream"
-
-    def test_bytes_stream_resource_returns_streaming_response(self):
-        """Test that a BytesStreamResource returns a streaming response with correct media type."""
-        adapter = make_adapter()
-        resource = BytesStreamResource(b"file data", "application/pdf")
-        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, StreamingResponse)
-        assert response.media_type == "application/pdf"
-
-    def test_async_iterator_returns_streaming_response(self):
-        """Test that a raw async iterator returns an octet-stream streaming response."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output=make_async_iterator([b"hello", b"world"]))
-        response = adapter._render_task_output(state)
-        assert isinstance(response, StreamingResponse)
-        assert response.media_type == "application/octet-stream"
-
-    def test_stream_resource_with_event_stream_type_returns_sse(self):
-        """Test that an EventIteratorStreamResource with TEXT format returns SSE."""
-        adapter = make_adapter()
-        resource = EventIteratorStreamResource(
-            make_async_iterator(["chunk"]), StreamFormat.TEXT
-        )
-        state = make_task_state(status=TaskStatus.COMPLETED, output=resource)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, StreamingResponse)
-        assert response.media_type == "text/event-stream"
-
-    def test_string_output_returns_json_response(self):
-        """Test that string output returns a JSONResponse."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output="hello")
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-
-    def test_none_output_returns_json_response(self):
-        """Test that None output returns a JSONResponse."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output=None)
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
-
-    def test_list_output_returns_json_response(self):
-        """Test that list output returns a JSONResponse."""
-        adapter = make_adapter()
-        state = make_task_state(status=TaskStatus.COMPLETED, output=[1, 2, 3])
-        response = adapter._render_task_output(state)
-        assert isinstance(response, JSONResponse)
+        assert not manager.has_task_subscribers("task-1")

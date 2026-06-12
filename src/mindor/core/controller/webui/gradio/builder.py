@@ -7,7 +7,7 @@ from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEve
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file
+from mindor.core.utils.streaming import save_stream_to_temporary_file, decode_event_stream
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
@@ -205,7 +205,7 @@ class GradioWebUIBuilder:
 
                 if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
                     buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
-                    async for chunk in output:
+                    async for chunk in decode_event_stream(output):
                         chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
                         if chunk[0] is not None:
                             if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
@@ -338,7 +338,7 @@ class GradioWebUIBuilder:
 
                 if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
                     buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
-                    async for chunk in output:
+                    async for chunk in decode_event_stream(output):
                         chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
                         if chunk[0] is not None:
                             if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:

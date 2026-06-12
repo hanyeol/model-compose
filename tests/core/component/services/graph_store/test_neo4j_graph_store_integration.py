@@ -843,7 +843,7 @@ class TestServiceLifecycle:
 
         assert service.driver is None
 
-        await service._serve()
+        await service._start()
         assert service.driver is not None
 
         # Verify driver works
@@ -852,7 +852,7 @@ class TestServiceLifecycle:
             records = await result.data()
             assert records[0]["n"] == 1
 
-        await service._shutdown()
+        await service._stop()
         assert service.driver is None
 
     def test_service_setup_requirements(self):

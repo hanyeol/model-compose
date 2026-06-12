@@ -15,8 +15,20 @@ workflow:
     output: ${output as audio/wav}
 
 component:
-  type: websocket-client
-  base_url: ws://192.168.0.208:3000/stream
+  type: websocket-server
+  runtime:
+    type: docker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vibevoice-realtime-tts
+    container_name: vibevoice-realtime-tts
+    ports:
+      - "3000:3000"
+    gpus: all
+    restart: unless-stopped
+  port: 3000
+  base_path: /stream
   action:
     params:
       text: ${input.text as text}

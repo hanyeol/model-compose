@@ -3,16 +3,16 @@ from __future__ import annotations
 from typing import Union, Optional, Dict, Tuple, Any
 from collections.abc import AsyncIterator
 from .http_request import build_request_body, parse_options_header
-from .streaming import StreamResource
+from .streaming import StreamResource, decode_event_stream
 from .url import encode_url
 from requests.structures import CaseInsensitiveDict
 import aiohttp, asyncio, json
 
-class HttpStreamResource(StreamResource):
+class HttpReaderStreamResource(StreamResource):
     def __init__(
-        self, 
+        self,
         response: aiohttp.ClientResponse,
-        content_type: Optional[str] = None, 
+        content_type: Optional[str] = None,
         filename: Optional[str] = None
     ):
         super().__init__(content_type, filename)
@@ -35,43 +35,36 @@ class HttpStreamResource(StreamResource):
                 break
             yield chunk
 
+class HttpStreamResource(StreamResource):
+    def __init__(
+        self,
+        response: aiohttp.ClientResponse,
+        content_type: Optional[str] = None,
+        filename: Optional[str] = None
+    ):
+        super().__init__(content_type, filename)
+
+        self.source: HttpReaderStreamResource = HttpReaderStreamResource(response, content_type, filename)
+
+    async def close(self) -> None:
+        await self.source.close()
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        async for chunk in self.source:
+            yield chunk
+
 class HttpEventStreamResource(StreamResource):
     def __init__(self, response: aiohttp.ClientResponse):
         super().__init__(None, None)
 
-        self.response: aiohttp.ClientResponse = response
-        self.stream: aiohttp.StreamReader = response.content
-        self._buffer: bytearray = bytearray()
+        self.source: HttpReaderStreamResource = HttpReaderStreamResource(response)
 
     async def close(self) -> None:
-        self.response.close()
-        self.response = None
-        self.stream = None
+        await self.source.close()
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in self.stream:
-            self._buffer += chunk.replace(b"\r\n", b"\n")
-
-            while True:
-                pos = self._buffer.find(b"\n\n")
-                if pos < 0:
-                    break
-
-                block, self._buffer = self._buffer[:pos], self._buffer[pos + 2:]
-                parts = []
-
-                for line in block.split(b"\n"):
-                    if line.startswith(b"data:"):
-                        parts.append(line[6:] if line[5:6] == b" " else line[5:])
-                        continue
-                    if line == b"data":
-                        parts.append(b"")
-                        continue
-                    if line.startswith(b":"): # comment
-                        continue
-
-                if parts:
-                    yield b"\n".join(parts)
+        async for chunk in decode_event_stream(self.source):
+            yield chunk
 
 class HttpClient:
     _shared_instance: Optional[HttpClient] = None
@@ -233,5 +226,5 @@ class HttpClient:
         except (ValueError, json.JSONDecodeError):
             return body
 
-async def create_stream_with_url(url: str) -> HttpStreamResource:
+async def create_stream_with_url(url: str) -> Union[HttpStreamResource, HttpEventStreamResource]:
     return await HttpClient.get_shared_instance().request(url)

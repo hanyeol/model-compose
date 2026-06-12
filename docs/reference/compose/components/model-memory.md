@@ -124,7 +124,7 @@ The `summary` block follows the same component invoke pattern as `AgentModelConf
 |-------|------|---------|-------------|
 | `component` | string | **required** | Component ID to use for summarization |
 | `action` | string | `__default__` | Action ID of the component |
-| `input` | object | `{messages: ${messages}}` | Input mapping when invoking the component |
+| `input` | object | `None` | Input mapping when invoking the component. If omitted, a complete `messages` array is auto-assembled from `instruction`, `previous_summary`, and the turns being summarized |
 | `instruction` | string | `"Summarize the following conversation concisely:"` | Summarization instruction |
 
 #### How Summary Works
@@ -136,13 +136,15 @@ Summary is **updated incrementally at append time**:
 3. When `save` is called, the current in-memory state (turns + summary) is persisted to storage
 4. `load` is read-only — even if unsummarized turns exist in storage, they are not modified (auto-summarized on next `append`)
 
-#### Summary Internal Variables
+#### Summary Input Modes
 
-Variables provided by model-memory when invoking the summary component:
+**Default (no `input` specified)** — model-memory assembles `{ "messages": [...] }` and passes it directly. The messages array contains: `instruction` (as a system message), `previous_summary` (as a system message), and the original conversation turns with their roles preserved.
+
+**Custom `input` mapping** — when you specify `input`, you take full control of the request shape. The following raw variables are exposed for use in your mapping:
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| `${messages}` | array | Messages array including the instruction as a system message |
+| `${messages}` | array | Raw conversation turns being summarized (no instruction or previous_summary mixed in) |
 | `${instruction}` | string | The configured summarization instruction |
 | `${previous_summary}` | string | Existing summary text (for incremental updates) |
 
@@ -152,7 +154,7 @@ Variables provided by model-memory when invoking the summary component:
 |--------|---------|----------|
 | not set | not set | Returns all raw messages |
 | set | not set | Returns only messages within window range; excess is permanently deleted |
-| not set | set | Summarizes everything; returns `messages: []` |
+| not set | set | Summarizes everything; returns `messages: []`. **Note**: summarization runs on every `append`, so this mode invokes the summary LLM on every turn — high cost/latency. Pair with `window` to summarize only when turns overflow. |
 | set | set | Returns recent messages within window + summary of the rest |
 
 ### Message Storage Model
@@ -180,14 +182,14 @@ Adds 1 turn (message bundle) to the buffer. Does not persist to storage. Perform
 **Output:**
 
 ```json
-{"success": true, "buffer_turn_count": 3}
+{}
 ```
 
 ### save
 
 Persists the buffer's current state (turns + summary) to storage. If `messages` is provided, performs an implicit append (with prune + summarize) before persisting.
 
-> If `save(messages)` is called without a prior `load`, it implicitly performs load → append → persist. Without messages and without a prior load, it's a no-op.
+> **Precondition**: `load` must have been called first with the same `session_id`. Calling `save` on an unloaded session raises an error.
 
 **Input:**
 
@@ -199,7 +201,7 @@ Persists the buffer's current state (turns + summary) to storage. If `messages` 
 **Output:**
 
 ```json
-{"success": true, "total_turn_count": 15}
+{}
 ```
 
 ### load
@@ -220,9 +222,7 @@ Reads the session's memory from storage and returns it (read-only, no storage mo
   "messages": [
     {"role": "user", "content": "What should I have for lunch?"},
     {"role": "assistant", "content": "How about pasta?"}
-  ],
-  "total_message_count": 42,
-  "window_message_count": 20
+  ]
 }
 ```
 
@@ -230,8 +230,6 @@ Reads the session's memory from storage and returns it (read-only, no storage mo
 |-------|------|-------------|
 | `summary` | string | Summary text. Empty string if summary is not configured |
 | `messages` | array | Raw messages within window range. All messages if neither window nor summary is set. Empty array if only summary is configured |
-| `total_message_count` | int | Total raw message count in storage (excludes pruned messages) |
-| `window_message_count` | int | Number of messages included in the window |
 
 ### clear
 
@@ -246,7 +244,7 @@ Rolls back to the state at the last persist point. Restores to the snapshot from
 **Output:**
 
 ```json
-{"success": true}
+{}
 ```
 
 ### delete
@@ -262,7 +260,7 @@ Deletes the session's entire history from storage, including summary.
 **Output:**
 
 ```json
-{"success": true}
+{}
 ```
 
 ## Usage Examples

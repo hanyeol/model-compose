@@ -1,18 +1,18 @@
 controller:
   adapter:
     type: http-server
-    port: 8080
+    port: 8083
     base_path: /api
   webui:
     driver: gradio
-    port: 8081
+    port: 8084
 
 workflow:
   title: Text to Speech with Voice Cloning
   description: Clone a voice from reference audio and generate speech using Qwen3-TTS.
   job:
     input: ${input}
-    output: ${output as audio/wav}
+    output: ${output}
 
 component:
   type: model
@@ -20,10 +20,11 @@ component:
   driver: custom
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
-  device: cuda:0
+  device: cpu
   max_concurrent_count: 1
   action:
     method: clone
     text: ${input.text as text}
-    ref_audio: ${input.ref_audio as audio}
-    ref_text: ${input.ref_text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text as text}
+    output: ${result as audio/wav}

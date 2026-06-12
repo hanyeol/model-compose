@@ -20,20 +20,20 @@ class LlamaCppChatCompletionTaskAction:
         self.model: Llama = model
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        messages      = await context.render_variable(self.config.messages)
-        tools         = await context.render_variable(self.config.tools)
-        streaming     = await context.render_variable(self.config.streaming)
-        gen_params    = await self._resolve_generation_params(context)
+        messages  = await context.render_variable(self.config.messages)
+        tools     = await context.render_variable(self.config.tools)
+        streaming = await context.render_variable(self.config.streaming)
 
         if not isinstance(messages, list):
-            messages = [messages]
+            messages = [ messages ]
 
-        normalized_messages = [self._normalize_message(m) for m in messages]
+        messages = [ self._normalize_message(m) for m in messages ]
+        generation_params = await self._resolve_generation_params(context)
 
         call_params: Dict[str, Any] = {
-            "messages": normalized_messages,
+            "messages": messages,
             "stream": bool(streaming),
-            **gen_params,
+            **generation_params,
         }
 
         if tools:
@@ -87,11 +87,11 @@ class LlamaCppChatCompletionTaskAction:
 
     async def _render_output_chunk(self, context: ComponentActionContext, chunk: str) -> Any:
         context.register_source("result[]", chunk)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else chunk
+        return (await context.render_variable(self.config.output)) if self.config.output else chunk
 
     async def _render_output(self, context: ComponentActionContext, result: Any) -> Any:
         context.register_source("result", result)
-        return (await context.render_variable(self.config.output, convert_media=False)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if self.config.output else result
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length = await context.render_variable(self.config.params.max_output_length)

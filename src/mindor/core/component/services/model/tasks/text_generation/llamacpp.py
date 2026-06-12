@@ -33,7 +33,7 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
                 result = self.model(text, stream=False, **generation_params)
                 choices.append(result["choices"][0])
 
-            return {"choices": choices}
+            return { "choices": choices }
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length = await context.render_variable(self.config.params.max_output_length)

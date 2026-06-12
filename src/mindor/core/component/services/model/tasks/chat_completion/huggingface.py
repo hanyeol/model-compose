@@ -28,7 +28,7 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         messages = await context.render_variable(self.config.messages)
         tools    = await context.render_variable(self.config.tools)
 
-        tools = [ self._build_tool_definition(tool) for tool in tools ] if tools else None
+        tools = [ self._build_function_tool(tool) for tool in tools ] if tools else None
 
         return self.tokenizer.apply_chat_template(
             messages,
@@ -37,10 +37,10 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
             **({ "tools": tools } if tools else {})
         )
 
-    def _build_tool_definition(self, tool: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_function_tool(self, function: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "type": "function",
-            "function": { k: v for k, v in tool.items() if v is not None }
+            "function": { k: v for k, v in function.items() if v is not None }
         }
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)

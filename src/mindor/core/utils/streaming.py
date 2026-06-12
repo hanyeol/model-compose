@@ -1,10 +1,18 @@
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Protocol, Union, Awaitable, runtime_checkable
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from enum import Enum
 from .files import create_temporary_file
 from starlette.datastructures import UploadFile
 import aiofiles, os, io, base64
+
+@runtime_checkable
+class BytesReader(Protocol):
+    def read(self, size: int, /) -> Union[bytes, Awaitable[bytes]]: ...
+
+@runtime_checkable
+class ClosableBytesReader(BytesReader, Protocol):
+    def close(self) -> Union[None, Awaitable[None]]: ...
 
 class StreamFormat(str, Enum):
     TEXT = "text"
@@ -166,7 +174,7 @@ class EventIteratorStreamResource(StreamResource):
 class ReaderStreamResource(StreamResource):
     def __init__(
         self,
-        reader: Any,
+        reader: BytesReader,
         content_type: Optional[str] = None,
         filename: Optional[str] = None,
         chunk_size: int = 8192,
@@ -174,16 +182,17 @@ class ReaderStreamResource(StreamResource):
     ):
         super().__init__(content_type, filename, size=size)
 
-        self.reader: Any = reader
+        self.reader: BytesReader = reader
         self.chunk_size: int = chunk_size
 
     async def close(self) -> None:
-        try:
-            result = getattr(self.reader, "close", lambda: None)()
-            if hasattr(result, "__await__"):
-                await result
-        except Exception:
-            pass
+        if isinstance(self.reader, ClosableBytesReader):
+            try:
+                result = self.reader.close()
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                pass
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         while True:
@@ -229,7 +238,7 @@ async def resolve_stream_resource(source: Any) -> StreamResource:
     if isinstance(source, str):
         return BytesStreamResource(source.encode("utf-8"), content_type="text/plain")
 
-    if hasattr(source, "read") and callable(source.read):
+    if isinstance(source, BytesReader):
         return ReaderStreamResource(source)
 
     raise TypeError(f"Unsupported source type: {type(source).__name__}")

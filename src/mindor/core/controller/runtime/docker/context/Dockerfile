@@ -25,13 +25,11 @@ RUN pip install --no-cache-dir \
     brotlicffi \
     requests \
     fastapi \
+    websockets \
     uvicorn \
     'mcp>=1.10.1' \
     ulid \
-    Pillow \
-    beautifulsoup4 \
-    lxml \
-    websockets
+    Pillow
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

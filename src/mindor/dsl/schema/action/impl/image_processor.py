@@ -28,6 +28,7 @@ class FlipDirection(str, Enum):
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
     image: str = Field(..., description="Input image (file path, base64 string, or variable reference).")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images to process in a single batch.")
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.RESIZE]
@@ -56,7 +57,7 @@ class ImageProcessorGrayscaleActionConfig(CommonImageProcessorActionConfig):
 
 class ImageProcessorBlurActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.BLUR]
-    radius: Union[float, str] = Field(defulat=2.0, description="Blur radius in pixels.")
+    radius: Union[float, str] = Field(default=2.0, description="Blur radius in pixels.")
 
 class ImageProcessorSharpenActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.SHARPEN]

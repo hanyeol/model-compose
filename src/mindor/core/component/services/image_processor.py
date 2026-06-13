@@ -1,159 +1,201 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection
+from mindor.core.utils.iterator import AsyncSourceIterator
+from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from PIL import Image as PILImage, ImageFilter, ImageEnhance
+import asyncio
 
 class ImageProcessorAction:
     def __init__(self, config: ImageProcessorActionConfig):
         self.config: ImageProcessorActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        result = await self._dispatch(context)
+        image      = await context.render_image(self.config.image)
+        batch_size = await context.render_variable(self.config.batch_size)
+
+        is_stream_input  = isinstance(image, AsyncIterator)
+        is_stream_output = context.contains_variable_reference("result[]", self.config.output)
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+        is_stream_mode   = is_stream_output or (is_stream_input and is_direct_output)
+
+        if is_stream_mode:
+            async def _stream_output_generator():
+                async for batch_images in AsyncSourceIterator(image, batch_size=batch_size or 1):
+                    processed_images = await self._process_batch(batch_images, context)
+                    for processed_image in processed_images:
+                        context.register_source("result[]", processed_image)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else processed_image
+
+            return _stream_output_generator()
+
+        is_single_input: bool = not isinstance(image, (list, AsyncIterator))
+        results = []
+        async for batch_images in AsyncSourceIterator(image, batch_size=batch_size or 1):
+            processed_images = await self._process_batch(batch_images, context)
+            results.extend(processed_images)
+
+        result = results[0] if is_single_input else results
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _dispatch(self, context: ComponentActionContext) -> Any:
-        if self.config.method == ImageProcessorActionMethod.RESIZE:
-            return await self._resize(context)
+    async def _process_batch(self, images: List[PILImage.Image], context: ComponentActionContext) -> Any:
+        method = await context.render_variable(self.config.method)
 
-        if self.config.method == ImageProcessorActionMethod.CROP:
-            return await self._crop(context)
+        if method is None:
+            raise ValueError("'method' must be specified for image processor")
 
-        if self.config.method == ImageProcessorActionMethod.ROTATE:
-            return await self._rotate(context)
+        try:
+            method = ImageProcessorActionMethod(method)
+        except ValueError:
+            raise ValueError(f"Unsupported image processing action method: {method}")
 
-        if self.config.method == ImageProcessorActionMethod.FLIP:
-            return await self._flip(context)
+        params = await self._render_params(method, context)
 
-        if self.config.method == ImageProcessorActionMethod.GRAYSCALE:
-            return await self._grayscale(context)
+        return await asyncio.gather(*[
+            asyncio.to_thread(self._process, image, method, params) for image in images
+        ])
 
-        if self.config.method == ImageProcessorActionMethod.BLUR:
-            return await self._blur(context)
+    async def _render_params(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+        if method == ImageProcessorActionMethod.RESIZE:
+            width      = await context.render_variable(self.config.width) if self.config.width else None
+            height     = await context.render_variable(self.config.height) if self.config.height else None
+            scale_mode = await context.render_variable(self.config.scale_mode)
 
-        if self.config.method == ImageProcessorActionMethod.SHARPEN:
-            return await self._sharpen(context)
+            if width is None and height is None:
+                raise ValueError("At least one of 'width' or 'height' must be specified for 'resize' method")
 
-        if self.config.method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
-            return await self._adjust_brightness(context)
+            try:
+                scale_mode = ImageScaleMode(scale_mode)
+            except ValueError:
+                raise ValueError(f"Invalid scale_mode: {scale_mode}")
 
-        if self.config.method == ImageProcessorActionMethod.ADJUST_CONTRAST:
-            return await self._adjust_contrast(context)
+            return { "width": width, "height": height, "scale_mode": scale_mode }
 
-        if self.config.method == ImageProcessorActionMethod.ADJUST_SATURATION:
-            return await self._adjust_saturation(context)
+        if method == ImageProcessorActionMethod.CROP:
+            x      = await context.render_variable(self.config.x)
+            y      = await context.render_variable(self.config.y)
+            width  = await context.render_variable(self.config.width)
+            height = await context.render_variable(self.config.height)
+
+            if x is None or y is None or width is None or height is None:
+                raise ValueError("'x', 'y', 'width', and 'height' must all be specified for 'crop' method")
+
+            return { "x": x, "y": y, "width": width, "height": height }
+
+        if method == ImageProcessorActionMethod.ROTATE:
+            angle  = await context.render_variable(self.config.angle)
+            expand = await context.render_variable(self.config.expand)
+
+            if angle is None:
+                raise ValueError("'angle' must be specified for 'rotate' method")
+
+            return { "angle": angle, "expand": expand }
+
+        if method == ImageProcessorActionMethod.FLIP:
+            direction = await context.render_variable(self.config.direction)
+
+            if direction is None:
+                raise ValueError("'direction' must be specified for 'flip' method")
+
+            try:
+                direction = FlipDirection(direction)
+            except ValueError:
+                raise ValueError(f"Invalid flip direction: {direction}")
+
+            return { "direction": direction }
+
+        if method == ImageProcessorActionMethod.GRAYSCALE:
+            return {}
+
+        if method == ImageProcessorActionMethod.BLUR:
+            radius = await context.render_variable(self.config.radius)
+
+            if radius is None:
+                raise ValueError("'radius' must be specified for 'blur' method")
+
+            return { "radius": radius }
+
+        if method == ImageProcessorActionMethod.SHARPEN:
+            factor = await context.render_variable(self.config.factor)
+
+            if factor is None:
+                raise ValueError("'factor' must be specified for 'sharpen' method")
+
+            return { "factor": factor }
+
+        if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
+            factor = await context.render_variable(self.config.factor)
+
+            if factor is None:
+                raise ValueError("'factor' must be specified for 'adjust-brightness' method")
+
+            return { "factor": factor }
+
+        if method == ImageProcessorActionMethod.ADJUST_CONTRAST:
+            factor = await context.render_variable(self.config.factor)
+
+            if factor is None:
+                raise ValueError("'factor' must be specified for 'adjust-contrast' method")
+
+            return { "factor": factor }
+
+        if method == ImageProcessorActionMethod.ADJUST_SATURATION:
+            factor = await context.render_variable(self.config.factor)
+
+            if factor is None:
+                raise ValueError("'factor' must be specified for 'adjust-saturation' method")
+
+            return { "factor": factor }
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
-    async def _resize(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image      = await context.render_image(self.config.image)
-        width      = await context.render_variable(self.config.width) if self.config.width else None
-        height     = await context.render_variable(self.config.height) if self.config.height else None
-        scale_mode = await context.render_variable(self.config.scale_mode)
+    def _process(self, image: PILImage.Image, method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
+        if image is None:
+            logging.debug("[image-processor] received None image for '%s' method, skipping", method)
+            return None
 
-        if width is None and height is None:
-            raise ValueError("At least one of width or height must be specified for resize")
+        if method == ImageProcessorActionMethod.RESIZE:
+            return self._resize(image, params)
 
-        if image:
-            return self._resize_image(image, width, height, scale_mode)
-        
-        return None
+        if method == ImageProcessorActionMethod.CROP:
+            return self._crop(image, params)
 
-    async def _crop(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        x      = await context.render_variable(self.config.x)
-        y      = await context.render_variable(self.config.y)
-        width  = await context.render_variable(self.config.width)
-        height = await context.render_variable(self.config.height)
+        if method == ImageProcessorActionMethod.ROTATE:
+            return self._rotate(image, params)
 
-        if image:
-            return image.crop((x, y, x + width, y + height))
+        if method == ImageProcessorActionMethod.FLIP:
+            return self._flip(image, params)
 
-        return None
+        if method == ImageProcessorActionMethod.GRAYSCALE:
+            return self._grayscale(image, params)
 
-    async def _rotate(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        angle  = await context.render_variable(self.config.angle)
-        expand = await context.render_variable(self.config.expand)
+        if method == ImageProcessorActionMethod.BLUR:
+            return self._blur(image, params)
 
-        if image:
-            return image.rotate(-angle, expand=expand, resample=PILImage.Resampling.BICUBIC)
+        if method == ImageProcessorActionMethod.SHARPEN:
+            return self._sharpen(image, params)
 
-        return None
+        if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
+            return self._adjust_brightness(image, params)
 
-    async def _flip(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image     = await context.render_image(self.config.image)
-        direction = await context.render_variable(self.config.direction)
+        if method == ImageProcessorActionMethod.ADJUST_CONTRAST:
+            return self._adjust_contrast(image, params)
 
-        if image:
-            if direction == FlipDirection.HORIZONTAL:
-                return image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+        if method == ImageProcessorActionMethod.ADJUST_SATURATION:
+            return self._adjust_saturation(image, params)
 
-            if direction == FlipDirection.VERTICAL:
-                return image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+        raise ValueError(f"Unsupported image processing action method: {method}")
 
-        return None
-
-    async def _grayscale(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image = await context.render_image(self.config.image)
-
-        if image:
-            return image.convert("L")
-
-        return None
-
-    async def _blur(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        radius = await context.render_variable(self.config.radius)
-
-        if image:
-            return image.filter(ImageFilter.GaussianBlur(radius=radius))
-
-        return None
-
-    async def _sharpen(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        factor = await context.render_variable(self.config.factor)
-
-        if image:
-            return ImageEnhance.Sharpness(image).enhance(factor)
-
-        return None
-
-    async def _adjust_brightness(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        factor = await context.render_variable(self.config.factor)
-
-        if image:
-            return ImageEnhance.Brightness(image).enhance(factor)
-
-        return None
-
-    async def _adjust_contrast(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        factor = await context.render_variable(self.config.factor)
-
-        if image:
-            return ImageEnhance.Contrast(image).enhance(factor)
-
-        return None
-
-    async def _adjust_saturation(self, context: ComponentActionContext) -> Optional[PILImage.Image]:
-        image  = await context.render_image(self.config.image)
-        factor = await context.render_variable(self.config.factor)
-
-        if image:
-            return ImageEnhance.Color(image).enhance(factor)
-
-        return None
-
-    def _resize_image(self, image: PILImage.Image, width: int, height: int, scale_mode: str) -> PILImage.Image:
+    def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        scale_mode = params["scale_mode"]
         original_width, original_height = image.size
-        target_width  = width  or original_width
-        target_height = height or original_height
+        target_width  = params["width"]  or original_width
+        target_height = params["height"] or original_height
 
         if scale_mode == ImageScaleMode.FIT:
             new_width, new_height = self._get_size_aspect_fit(target_width, target_height, original_width, original_height)
@@ -166,10 +208,42 @@ class ImageProcessorAction:
             crop_box = self._get_center_crop_box(new_width, new_height, target_width, target_height)
             return image.crop(crop_box)
 
-        if scale_mode == ImageScaleMode.STRETCH:
-            return image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
+        return image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
 
-        raise ValueError(f"Invalid scale_mode: {scale_mode}")
+    def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        x      = params["x"]
+        y      = params["y"]
+        width  = params["width"]
+        height = params["height"]
+
+        return image.crop((x, y, x + width, y + height))
+
+    def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return image.rotate(-params["angle"], expand=params["expand"], resample=PILImage.Resampling.BICUBIC)
+
+    def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        if params["direction"] == FlipDirection.HORIZONTAL:
+            return image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+        else:
+            return image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+
+    def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return image.convert("L")
+
+    def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return image.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+
+    def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return ImageEnhance.Sharpness(image).enhance(params["factor"])
+
+    def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return ImageEnhance.Brightness(image).enhance(params["factor"])
+
+    def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return ImageEnhance.Contrast(image).enhance(params["factor"])
+
+    def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        return ImageEnhance.Color(image).enhance(params["factor"])
 
     def _get_size_aspect_fit(
         self,

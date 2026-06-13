@@ -27,8 +27,8 @@ class ImageGenerationTaskAction:
 
         for index in range(0, len(texts), batch_size):
             batch_texts = texts[index:index + batch_size]
-            upscaled_images = await self._generate(batch_texts, params)
-            results.extend(upscaled_images)
+            generated_images = await self._generate(batch_texts, params)
+            results.extend(generated_images)
 
         result = results[0] if is_single_input else results
         context.register_source("result", result)

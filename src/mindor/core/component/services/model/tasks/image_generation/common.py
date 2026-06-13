@@ -19,7 +19,7 @@ class ImageGenerationTaskAction:
     async def run(self, context: ComponentActionContext) -> Any:
         text = await self._prepare_input(context)
         is_single_input = not isinstance(text, list)
-        texts: List[PILImage.Image] = [ text ] if is_single_input else text
+        texts: List[str] = [ text ] if is_single_input else text
         results = []
 
         batch_size = await context.render_variable(self.config.batch_size)

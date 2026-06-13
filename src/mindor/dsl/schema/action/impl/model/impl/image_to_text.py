@@ -21,4 +21,5 @@ class ImageToTextModelActionConfig(CommonModelActionConfig):
     batch_size: Union[int, str] = Field(default=1, description="Number of input images to process in a single batch.")
     max_input_length: Union[int, str] = Field(default=1024, description="Maximum number of tokens per input text.")
     stop_sequences: Union[Union[str, List[str]], str] = Field(default=None, description="Stop sequence.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether to stream generated tokens as they are produced.")
     params: ImageToTextParamsConfig = Field(default_factory=ImageToTextParamsConfig, description="Image to text configuration parameters.")

@@ -39,5 +39,6 @@ class ChatCompletionModelActionConfig(CommonModelActionConfig):
     batch_size: Union[int, str] = Field(default=1, description="Number of input texts to process in a single batch.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input text.")
     stop_sequences: Union[List[str], str] = Field(default=None, description="List of stop sequences.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether to stream generated tokens as they are produced.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion configuration parameters.")
     tools: Optional[List[ToolFunction]] = Field(default=None, description="Available tools the model can call.")

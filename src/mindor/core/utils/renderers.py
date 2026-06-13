@@ -380,6 +380,9 @@ class FileValueRenderer:
         return await self._render_element(value)
 
     async def _render_element(self, element: Any) -> Optional[str]:
+        if isinstance(element, FileStreamResource):
+            return element.path
+
         if isinstance(element, StreamResource):
             return await save_stream_to_temporary_file(element, None)
 

@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionType, HttpClientCompletionConfig
-from mindor.dsl.schema.transport.http import HttpStreamFormat
+from mindor.dsl.schema.streaming import StreamChunkFormat
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
@@ -26,9 +26,9 @@ class HttpClientPollingCompletion(HttpClientCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient, streaming: bool = False) -> Any:
         url_or_path = await self._resolve_url_or_path(context)
         method      = await context.render_variable(self.config.method)
-        params      = _drop_none_values(await context.render_variable(self.config.params))
+        params      = await context.render_variable(self.config.params)
         body        = await context.render_variable(self.config.body)
-        headers     = _drop_none_values(await context.render_variable(self.config.headers))
+        headers     = await context.render_variable(self.config.headers)
 
         interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
         timeout  = parse_duration((await context.render_variable(self.config.timeout)) or 300.0)
@@ -102,7 +102,7 @@ class HttpClientAction:
         if isinstance(response, StreamResource) and is_streaming:
             async def _stream_output_generator(stream: StreamResource):
                 async for chunk in stream:
-                    context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
+                    context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.chunk_format))
                     chunk = await context.render_variable(self.config.output)
                     if chunk is not None:
                         yield chunk
@@ -118,7 +118,7 @@ class HttpClientAction:
             if isinstance(result, StreamResource) and is_streaming:
                 async def _stream_output_generator(stream: StreamResource):
                     async for chunk in stream:
-                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))
+                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.chunk_format))
                         chunk = await context.render_variable(self.config.output)
                         if chunk is not None:
                             yield chunk
@@ -135,14 +135,14 @@ class HttpClientAction:
 
         return await context.render_variable(self.config.endpoint)
 
-    def _convert_stream_chunk(self, chunk: bytes, format: HttpStreamFormat) -> Any:
-        if format == HttpStreamFormat.JSON:
+    def _convert_stream_chunk(self, chunk: bytes, format: StreamChunkFormat) -> Any:
+        if format == StreamChunkFormat.JSON:
             try:
                 return json.loads(chunk)
             except:
                 return None
 
-        if format == HttpStreamFormat.TEXT:
+        if format == StreamChunkFormat.TEXT:
             return chunk.decode("utf-8", errors="replace")
 
         return chunk

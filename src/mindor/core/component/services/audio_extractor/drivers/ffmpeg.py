@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Optional, Dict, Set, Any
 from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
+from mindor.core.utils.audio import AudioStreamResource
+from mindor.core.utils.media import MediaSource
+from mindor.core.utils.streaming import FileStreamResource, StreamResource, save_stream_to_temporary_file
+from mindor.core.utils.files import create_temporary_file
 from mindor.core.logger import logging
 from ..base import AudioExtractorService, AudioExtractorDriver, register_audio_extractor_service
 from ..base import ComponentActionContext
-import asyncio
-import tempfile
-import os
+from .common import AudioExtractorAction
+import asyncio, os
 
 _FORMAT_CODEC_MAP: Dict[str, str] = {
     "mp3":  "libmp3lame",
@@ -20,66 +23,118 @@ _FORMAT_CODEC_MAP: Dict[str, str] = {
     "ogg":  "libvorbis",
 }
 
-class FFmpegAudioExtractorAction:
-    def __init__(self, config: AudioExtractorActionConfig):
-        self.config: AudioExtractorActionConfig = config
+# Container formats safe to feed through ffmpeg pipe:0. Other formats (mp4/mov/mkv/webm/avi/...) or
+# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
+_STREAMABLE_INPUT_FORMATS: Set[str] = {
+    "mp3", "wav", "flac", "ogg", "opus", "aac",
+}
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        source  = await context.render_file(self.config.source)
-        format  = await context.render_variable(self.config.format) if self.config.format else "mp3"
-        codec   = await context.render_variable(self.config.codec) if self.config.codec else None
-        bitrate = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
-        track   = int(await context.render_variable(self.config.track)) if self.config.track is not None else None
-
-        output_path = await self._extract(source, format, codec, bitrate, track)
-        result = {
-            "path": output_path,
-            "format": format
-        }
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
+class FFmpegAudioExtractorAction(AudioExtractorAction):
     async def _extract(
         self,
-        source: str,
+        source: MediaSource,
         format: str,
         codec: Optional[str],
         bitrate: Optional[str],
         track: Optional[int]
-    ) -> str:
-        output_path = os.path.join(tempfile.gettempdir(), f"audio_extractor_{os.getpid()}_{id(self)}.{format}")
+    ) -> AudioStreamResource:
+        output_path = create_temporary_file(format)
+        codec = codec or _FORMAT_CODEC_MAP.get(format)
 
-        command = [ "ffmpeg", "-hide_banner", "-i", source, "-vn" ]
+        input_path, spooled = await self._resolve_input_path(source)
+
+        command = [ "ffmpeg", "-hide_banner" ]
+        command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
+        command.extend([ "-vn" ])
 
         if track is not None:
             command.extend([ "-map", f"0:a:{track}" ])
-
-        resolved_codec = codec or _FORMAT_CODEC_MAP.get(format)
-        if resolved_codec:
-            command.extend([ "-c:a", resolved_codec ])
+        if codec:
+            command.extend([ "-c:a", codec ])
         if bitrate:
             command.extend([ "-b:a", bitrate ])
 
         command.extend([ "-y", output_path ])
 
-        logging.info(f"Extracting audio from '{source}' to '{format}' format")
+        logging.debug(f"Extracting audio to '{format}' format")
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        try:
+            if input_path is not None:
+                process = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await process.communicate()
+            else:
+                process = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stderr = await self._pipe_stream(process, source.stream)
 
-        _, stderr = await process.communicate()
+            if process.returncode != 0:
+                error_output = stderr.decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg audio extraction failed (exit code {process.returncode}): {error_output}")
+        finally:
+            if spooled and input_path is not None:
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
-        if process.returncode != 0:
-            error_output = stderr.decode("utf-8", errors="replace")
-            raise RuntimeError(f"ffmpeg audio extraction failed (exit code {process.returncode}): {error_output}")
+        logging.debug(f"Audio extraction completed: '{output_path}'")
 
-        logging.info(f"Audio extraction completed: '{output_path}'")
+        return AudioStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
-        return output_path
+    async def _resolve_input_path(self, source: MediaSource) -> tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
+
+    async def _pipe_stream(self, process: asyncio.subprocess.Process, source: StreamResource) -> bytes:
+        async def _feed() -> None:
+            try:
+                async for chunk in source:
+                    try:
+                        process.stdin.write(chunk)
+                        await process.stdin.drain()
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+            finally:
+                try:
+                    process.stdin.close()
+                except Exception:
+                    pass
+                await source.close()
+
+        feeder = asyncio.create_task(_feed())
+        try:
+            stderr = await process.stderr.read()
+            await process.wait()
+        finally:
+            await feeder
+
+        return stderr
 
 @register_audio_extractor_service(AudioExtractorDriver.FFMPEG)
 class FFmpegAudioExtractorService(AudioExtractorService):

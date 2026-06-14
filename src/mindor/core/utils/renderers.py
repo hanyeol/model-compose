@@ -8,7 +8,7 @@ from .url import UrlStreamResource, parse_data_uri
 from .image import load_image_from_stream, ImageStreamResource
 from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource, create_audio_source
 from .video import VideoStreamResource, create_video_source
-from .media import MediaSource
+from .media import MediaSource, create_media_source
 from .streaming import FileStreamResource
 from .resolvers import FieldResolver
 from .size import parse_size
@@ -371,6 +371,16 @@ class VideoValueRenderer:
 
     async def _render_element(self, element: Any) -> MediaSource:
         return create_video_source(element)
+
+class MediaValueRenderer:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(element) for element in value ]
+
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> MediaSource:
+        return create_media_source(element)
 
 class FileValueRenderer:
     async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]]]]:

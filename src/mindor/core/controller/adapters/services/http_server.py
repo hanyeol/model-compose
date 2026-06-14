@@ -88,6 +88,7 @@ class InterruptResult(BaseModel):
 class TaskStateResult(BaseModel):
     task_id: str
     status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    workflow_id: Optional[str] = None
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[InterruptResult] = None
@@ -99,6 +100,7 @@ class TaskStateResult(BaseModel):
         return cls(
             task_id=instance.task_id,
             status=instance.status,
+            workflow_id=instance.workflow_id,
             output=instance.output,
             error=instance.error,
             interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None,

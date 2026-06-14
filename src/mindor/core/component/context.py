@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer, FileValueRenderer, SizeValueRenderer
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer, MediaValueRenderer, FileValueRenderer, SizeValueRenderer
 from mindor.core.utils.media import MediaSource
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
@@ -77,6 +77,9 @@ class ComponentActionContext:
 
     async def render_video(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
         return await VideoValueRenderer().render(await self.render_variable(value))
+
+    async def render_media(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+        return await MediaValueRenderer().render(await self.render_variable(value))
 
     async def render_file(self, value: Any) -> Any:
         return await FileValueRenderer().render(await self.render_variable(value))

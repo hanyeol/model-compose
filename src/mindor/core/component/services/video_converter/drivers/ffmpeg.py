@@ -24,19 +24,6 @@ _FORMAT_CODEC_MAP: dict[str, tuple[str, str]] = {
 }
 
 class FFmpegVideoConverterAction(VideoConverterAction):
-    async def run(self, context: ComponentActionContext) -> Any:
-        source     = await context.render_video(self.config.video)
-        format     = await context.render_variable(self.config.format) if self.config.format else "mp4"
-        video_codec, audio_codec = await self._resolve_codec(context, format)
-        bitrate    = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
-        resolution = await context.render_variable(self.config.resolution) if self.config.resolution else None
-        fps        = await context.render_variable(self.config.fps) if self.config.fps else None
-
-        result = await self._convert(source, format, video_codec, audio_codec, bitrate, resolution, fps)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
     async def _convert(
         self,
         source: MediaSource,
@@ -93,21 +80,6 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         logging.debug(f"Video conversion completed: '{output_path}'")
 
         return VideoStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
-
-    async def _resolve_codec(self, context: ComponentActionContext, format: str) -> Tuple[Optional[str], Optional[str]]:
-        default_video_codec, default_audio_codec = _FORMAT_CODEC_MAP.get(format, (None, None))
-
-        if isinstance(self.config.codec, VideoAudioCodecConfig):
-            video_codec = await context.render_variable(self.config.codec.video) if self.config.codec.video else default_video_codec
-            audio_codec = await context.render_variable(self.config.codec.audio) if self.config.codec.audio else default_audio_codec
-        elif self.config.codec:
-            video_codec = await context.render_variable(self.config.codec)
-            audio_codec = default_audio_codec
-        else:
-            video_codec = default_video_codec
-            audio_codec = default_audio_codec
-
-        return video_codec, audio_codec
 
     async def _pipe_stream(self, process: asyncio.subprocess.Process, source: StreamResource) -> bytes:
         async def _feed() -> None:

@@ -7,12 +7,11 @@ from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEve
 from mindor.core.workflow.schema import WorkflowSchema
 
 from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file, decode_event_stream
+from mindor.core.utils.streaming import save_stream_to_temporary_file
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.utils.image import load_image_from_stream
 from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
-from mindor.core.utils.resolvers import FieldResolver
 from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 import gradio as gr
@@ -53,9 +52,6 @@ class WorkflowLogPanel:
         return [ gr.update() ]
 
 class GradioWebUIBuilder:
-    def __init__(self):
-        self.field_resolver: FieldResolver = FieldResolver()
-
     def build(
         self,
         workflow_schemas: Dict[str, WorkflowSchema],
@@ -203,12 +199,12 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
-                    buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
-                    async for chunk in decode_event_stream(output):
+                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
+                    buffer = "" if workflow.output[0].subtype != "json" else []
+                    async for chunk in output:
                         chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
                         if chunk[0] is not None:
-                            if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
+                            if workflow.output[0].subtype != "json":
                                 buffer += chunk[0]
                             else:
                                 buffer.append(chunk[0])
@@ -336,12 +332,13 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]):
-                    buffer = "" if workflow.output[0].type == WorkflowVariableType.SSE_TEXT else []
-                    async for chunk in decode_event_stream(output):
-                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
+                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
+                    variable = workflow.output[0]
+                    buffer = "" if variable.subtype != "json" else []
+                    async for chunk in output:
+                        chunk = await self._flatten_output_value(chunk, [ variable ])
                         if chunk[0] is not None:
-                            if workflow.output[0].type == WorkflowVariableType.SSE_TEXT:
+                            if variable.subtype != "json":
                                 buffer += chunk[0]
                             else:
                                 buffer.append(chunk[0])
@@ -524,7 +521,9 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label, interactive=False)
 
-        if variable.type in [ WorkflowVariableType.SSE_TEXT, WorkflowVariableType.SSE_JSON ]:
+        if variable.type == WorkflowVariableType.EVENT_STREAM:
+            if variable.subtype == "json":
+                return gr.JSON(label=label)
             return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])
 
         if variable.type == WorkflowVariableType.NONE:
@@ -600,12 +599,6 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.NONE:
             return f"✅ {variable.name}" if variable.name else "✅ Completed"
 
-        if variable.type == WorkflowVariableType.SSE_JSON:
-            return self._resolve_json_field_from_bytes(value, variable.subtype)
-
-        if variable.type == WorkflowVariableType.SSE_TEXT:
-            return self._convert_value_to_string(value, variable.subtype, variable.format)
-
         if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
             return self._convert_value_to_string(value, variable.subtype, variable.format)
 
@@ -623,6 +616,11 @@ class GradioWebUIBuilder:
                 return None
             return await self._save_value_to_temporary_file(value, variable.subtype, variable.format)
 
+        if variable.type == WorkflowVariableType.EVENT_STREAM:
+            if variable.subtype == "json":
+                return value
+            return self._convert_value_to_string(value, variable.subtype, variable.format)
+
         return value
 
     def _convert_value_to_string(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
@@ -636,12 +634,6 @@ class GradioWebUIBuilder:
             return str(value)
 
         return None
-
-    def _resolve_json_field_from_bytes(self, value: Any, subtype: Optional[str]) -> Optional[Any]:
-        try:
-            return self.field_resolver.resolve(json.loads(value), subtype)
-        except Exception:
-            return None
 
     async def _load_image_from_value(self, value: Any, format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):

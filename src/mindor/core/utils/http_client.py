@@ -1,70 +1,12 @@
 from __future__ import annotations
 
 from typing import Union, Optional, Dict, Tuple, Any
-from collections.abc import AsyncIterator
 from .http_request import build_request_body, parse_options_header
-from .streaming import StreamResource, decode_event_stream
+from .http_stream import HttpStreamResource, HttpEventStreamResource
+from .streaming import StreamResource
 from .url import encode_url
 from requests.structures import CaseInsensitiveDict
 import aiohttp, asyncio, json
-
-class HttpReaderStreamResource(StreamResource):
-    def __init__(
-        self,
-        response: aiohttp.ClientResponse,
-        content_type: Optional[str] = None,
-        filename: Optional[str] = None
-    ):
-        super().__init__(content_type, filename)
-
-        self.response: aiohttp.ClientResponse = response
-        self.stream: aiohttp.StreamReader = response.content
-
-    async def close(self) -> None:
-        self.response.close()
-        self.response = None
-        self.stream = None
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        _, buffer_size = self.stream.get_read_buffer_limits()
-        chunk_size = buffer_size or 65536
-
-        while not self.stream.at_eof():
-            chunk = await self.stream.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
-
-class HttpStreamResource(StreamResource):
-    def __init__(
-        self,
-        response: aiohttp.ClientResponse,
-        content_type: Optional[str] = None,
-        filename: Optional[str] = None
-    ):
-        super().__init__(content_type, filename)
-
-        self.source: HttpReaderStreamResource = HttpReaderStreamResource(response, content_type, filename)
-
-    async def close(self) -> None:
-        await self.source.close()
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in self.source:
-            yield chunk
-
-class HttpEventStreamResource(StreamResource):
-    def __init__(self, response: aiohttp.ClientResponse):
-        super().__init__(None, None)
-
-        self.source: HttpReaderStreamResource = HttpReaderStreamResource(response)
-
-    async def close(self) -> None:
-        await self.source.close()
-
-    async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in decode_event_stream(self.source):
-            yield chunk
 
 class HttpClient:
     _shared_instance: Optional[HttpClient] = None

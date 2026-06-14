@@ -9,7 +9,8 @@ from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, Cont
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.image import ImageStreamResource
-from mindor.core.utils.streaming import StreamResource
+from mindor.core.utils.streaming import StreamResource, EventStreamIterator
+from mindor.core.utils.http_stream import HttpEventStreamer
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
@@ -747,7 +748,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator)):
+        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator, EventStreamIterator)):
             raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
 
         if output_only:
@@ -768,6 +769,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
+        if isinstance(state.output, EventStreamIterator):
+            return self._render_event_stream(state.output)
+
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
@@ -785,6 +789,15 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             media_type=resource.content_type,
             headers=self._build_stream_resource_headers(resource),
             background=BackgroundTask(resource.close)
+        )
+
+    def _render_event_stream(self, iterator: EventStreamIterator) -> Response:
+        return StreamingResponse(
+            HttpEventStreamer(iterator, iterator.format).stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache"
+            }
         )
 
     def _build_stream_resource_headers(self, resource: StreamResource) -> Dict[str, str]:

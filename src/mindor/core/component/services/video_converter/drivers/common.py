@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoConverterActionConfig, VideoAudioCodecConfig
-from mindor.core.utils.iterator import AsyncSourceIterator
+from mindor.core.utils.iterators import AsyncSourceIterator
 from mindor.core.utils.video import VideoStreamResource
 from mindor.core.utils.media import MediaSource
 from mindor.core.logger import logging
@@ -32,23 +32,23 @@ class VideoConverterAction:
         is_stream_input  = isinstance(video, AsyncIterator)
         is_stream_output = context.contains_variable_reference("result[]", self.config.output)
         is_direct_output = not self.config.output or self.config.output == "${result}"
-        is_stream_mode   = is_stream_output or (is_stream_input and is_direct_output)
+        is_stream_mode   = is_stream_output or is_stream_input
 
         if is_stream_mode:
             async def _stream_output_generator():
                 async for batch_videos in AsyncSourceIterator(video, batch_size=batch_size or 1):
-                    processed_videos = await self._process_batch(batch_videos, context)
-                    for processed_video in processed_videos:
-                        context.register_source("result[]", processed_video)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else processed_video
+                    batch_results = await self._process_batch(batch_videos, context)
+                    for result in batch_results:
+                        context.register_source("result[]", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
 
         is_single_input: bool = not isinstance(video, (list, AsyncIterator))
         results = []
         async for batch_videos in AsyncSourceIterator(video, batch_size=batch_size or 1):
-            processed_videos = await self._process_batch(batch_videos, context)
-            results.extend(processed_videos)
+            batch_results = await self._process_batch(batch_videos, context)
+            results.extend(batch_results)
 
         result = results[0] if is_single_input else results
         context.register_source("result", result)

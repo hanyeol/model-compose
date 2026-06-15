@@ -1,9 +1,16 @@
-"""Tests for the FFmpeg video-converter driver."""
+"""Tests for the FFmpeg video-converter driver.
+
+Covers two layers:
+  - Conversion behavior (format / codec / resolution / fps / errors / output template)
+  - I/O matrix (single / list / AsyncIterator input, ${result[]} stream output, batch_size)
+"""
 
 import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -28,14 +35,44 @@ def anyio_backend():
     return "asyncio"
 
 
-def make_context():
+def _make_context(video_value: Any = None) -> ComponentActionContext:
+    """Build a mock context where render_video yields VideoStreamResource(s).
+
+    `video_value` may be:
+      - a single file path (str) → single MediaSource
+      - a list of file paths → List[MediaSource]
+      - a zero-arg callable returning an AsyncIterator → AsyncIterator[MediaSource]
+      - None → behaves like the old make_context: render_video echoes its input
+    """
     from mindor.core.utils.video import create_video_source
 
     ctx = MagicMock(spec=ComponentActionContext)
-    ctx.register_source = MagicMock()
-    ctx.contains_variable_reference = MagicMock(return_value=False)
+    sources: dict = {}
+
+    def register_source(key: str, value: Any) -> None:
+        sources[key] = value
+    ctx.register_source = MagicMock(side_effect=register_source)
+
+    def contains_ref(key: str, value: Any) -> bool:
+        if isinstance(value, str):
+            return f"${{{key}" in value
+        return False
+    ctx.contains_variable_reference = MagicMock(side_effect=contains_ref)
 
     async def render_variable(value, **kwargs):
+        if isinstance(value, str):
+            if value == "${result[]}":
+                return sources.get("result[]")
+            if value == "${result}":
+                return sources.get("result")
+            if value.startswith("${result[].") and value.endswith("}"):
+                attr = value[len("${result[]."):-1]
+                target = sources.get("result[]")
+                return getattr(target, attr, None)
+            if value.startswith("${result.") and value.endswith("}"):
+                attr = value[len("${result."):-1]
+                target = sources.get("result")
+                return getattr(target, attr, None)
         return value
 
     def resolve_one(value):
@@ -45,16 +82,34 @@ def make_context():
         return create_video_source(value)
 
     async def render_video(value):
-        if isinstance(value, list):
-            return [resolve_one(v) for v in value]
-        return resolve_one(value)
+        target = video_value if video_value is not None else value
+        if callable(target) and not isinstance(target, str):
+            source = target()
+            assert isinstance(source, AsyncIterator)
+
+            async def _map():
+                async for item in source:
+                    yield resolve_one(item)
+            return _map()
+        if isinstance(target, list):
+            return [resolve_one(v) for v in target]
+        return resolve_one(target)
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_video = AsyncMock(side_effect=render_video)
     return ctx
 
 
+# Back-compat alias for the existing conversion-behavior tests.
+def make_context():
+    return _make_context()
+
+
 def make_config(video, **kwargs):
+    return VideoConverterActionConfig(video=video, **kwargs)
+
+
+def _make_config(video: Any = "<placeholder>", **kwargs) -> VideoConverterActionConfig:
     return VideoConverterActionConfig(video=video, **kwargs)
 
 
@@ -257,3 +312,189 @@ class TestFFmpegVideoConverter:
         assert "result" in registered
         assert isinstance(registered["result"], VideoStreamResource)
         await registered["result"].close()
+
+
+@ffmpeg_required
+class TestSingleInput:
+    """I/O matrix: single input with various output references."""
+
+    @pytest.mark.anyio
+    async def test_no_output_returns_single_resource(self, sample_mp4_path):
+        config = _make_config(format="mp4")
+        ctx = _make_context(sample_mp4_path)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, VideoStreamResource)
+        assert result.format == "mp4"
+        await result.close()
+
+    @pytest.mark.anyio
+    async def test_passthrough_output_returns_single_resource(self, sample_mp4_path):
+        config = _make_config(output="${result}", format="mp4")
+        ctx = _make_context(sample_mp4_path)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, VideoStreamResource)
+        await result.close()
+
+
+@ffmpeg_required
+class TestListInput:
+    """I/O matrix: list input returns list of resources."""
+
+    @pytest.mark.anyio
+    async def test_list_returns_list_of_resources(self, sample_mp4_path):
+        config = _make_config(format="mp4")
+        ctx = _make_context([sample_mp4_path, sample_mp4_path])
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(item, VideoStreamResource) for item in result)
+        for item in result:
+            await item.close()
+
+
+@ffmpeg_required
+class TestStreamInput:
+    """I/O matrix: AsyncIterator input always produces stream output (stream-in → stream-out)."""
+
+    @pytest.mark.anyio
+    async def test_stream_input_no_output_yields_resources(self, sample_mp4_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_mp4_path
+                yield sample_mp4_path
+            return _gen()
+
+        config = _make_config(format="mp4")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 2
+        assert all(isinstance(item, VideoStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_passthrough_output_yields_resources(self, sample_mp4_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_mp4_path
+            return _gen()
+
+        config = _make_config(output="${result}", format="mp4")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1
+        assert isinstance(items[0], VideoStreamResource)
+        await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_with_stream_output_template(self, sample_mp4_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_mp4_path
+                yield sample_mp4_path
+                yield sample_mp4_path
+            return _gen()
+
+        config = _make_config(output="${result[]}", format="mp4")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 3
+        assert all(isinstance(item, VideoStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+
+@ffmpeg_required
+class TestStreamOutput:
+    """I/O matrix: ${result[]} stream output yields AsyncIterator."""
+
+    @pytest.mark.anyio
+    async def test_stream_output_returns_async_iterator(self, sample_mp4_path):
+        config = _make_config(output="${result[]}", format="mp4")
+        ctx = _make_context([sample_mp4_path, sample_mp4_path])
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 2
+        assert all(isinstance(item, VideoStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+    @pytest.mark.anyio
+    async def test_stream_output_with_single_input_yields_one(self, sample_mp4_path):
+        config = _make_config(output="${result[]}", format="mp4")
+        ctx = _make_context(sample_mp4_path)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1
+        await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_output_per_item_attribute_expression(self, sample_mp4_path):
+        """`${result[].<attr>}` evaluates per yielded item, extracting an attribute."""
+        config = _make_config(output="${result[].format}", format="mp4")
+        ctx = _make_context([sample_mp4_path, sample_mp4_path])
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert items == ["mp4", "mp4"]
+
+
+@ffmpeg_required
+class TestBatchSize:
+    """I/O matrix: batch_size affects internal chunking but not result shape."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("batch_size", [1, 2, 3])
+    async def test_list_with_batch_size(self, sample_mp4_path, batch_size: int):
+        config = _make_config(batch_size=batch_size, format="mp4")
+        ctx = _make_context([sample_mp4_path] * 3)
+
+        result = await FFmpegVideoConverterAction(config).run(ctx)
+
+        assert isinstance(result, list)
+        assert len(result) == 3
+        for item in result:
+            assert isinstance(item, VideoStreamResource)
+            await item.close()
+
+
+@ffmpeg_required
+class TestErrorPropagation:
+    """I/O matrix: errors in list inputs propagate via asyncio.gather."""
+
+    @pytest.mark.anyio
+    async def test_invalid_input_in_list_raises(self, sample_mp4_path, tmp_path):
+        bogus = tmp_path / "bogus.mp4"
+        bogus.write_bytes(b"definitely not a video" * 32)
+
+        config = _make_config(format="mp4")
+        ctx = _make_context([sample_mp4_path, str(bogus)])
+
+        with pytest.raises(RuntimeError, match="ffmpeg video conversion failed"):
+            await FFmpegVideoConverterAction(config).run(ctx)

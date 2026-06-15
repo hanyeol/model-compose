@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
@@ -29,35 +29,18 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def _embed(self, texts: List[str], context: ComponentActionContext) -> List[List[float]]:
-        import torch, torch.nn.functional as F
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        tokenizer_params = await self._resolve_tokenizer_params(context)
-        pooling          = await context.render_variable(self.config.params.pooling)
-        normalize        = await context.render_variable(self.config.params.normalize)
+        params["tokenizer"] = self._build_tokenizer_params(params["max_input_length"])
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **tokenizer_params)
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        return params
 
-        with torch.inference_mode():
-            outputs: BaseModelOutput = self.model(**inputs)
-            last_hidden_state = outputs.last_hidden_state
-
-        attention_mask = inputs.get("attention_mask", None)
-        embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, pooling)
-
-        if normalize:
-            embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
-
-        return embeddings.cpu().tolist()
-
-    async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length)
-
+    def _build_tokenizer_params(self, max_input_length: Optional[int]) -> Dict[str, Any]:
         params: Dict[str, Any] = {
             "return_tensors": "pt",
             "padding": True,
-            "truncation": False
+            "truncation": False,
         }
 
         if max_input_length is not None:
@@ -65,6 +48,24 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             params["truncation"] = True
 
         return params
+
+    async def _embed(self, texts: List[str], params: Dict[str, Any]) -> List[List[float]]:
+        import torch, torch.nn.functional as F
+
+        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
+        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+
+        with torch.inference_mode():
+            outputs: BaseModelOutput = self.model(**inputs)
+            last_hidden_state = outputs.last_hidden_state
+
+        attention_mask = inputs.get("attention_mask", None)
+        embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, params["pooling"])
+
+        if params["normalize"]:
+            embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
+
+        return embeddings.cpu().tolist()
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
         import torch
@@ -97,7 +98,7 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+        return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModel

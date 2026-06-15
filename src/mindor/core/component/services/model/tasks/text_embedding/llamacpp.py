@@ -22,24 +22,22 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         self.model: Llama = model
 
-    async def _embed(self, texts: List[str], context: ComponentActionContext) -> List[List[float]]:
+    async def _embed(self, texts: List[str], params: Dict[str, Any]) -> List[List[float]]:
         import math
 
-        normalize = await context.render_variable(self.config.params.normalize)
         embeddings = self.model.embed(texts)
 
-        if normalize:
-            normalized = []
-            for emb in embeddings:
-                norm = math.sqrt(sum(x * x for x in emb))
+        if params["normalize"]:
+            normalized_embeddings = []
+            for embedding in embeddings:
+                norm = math.sqrt(sum(x * x for x in embedding))
                 if norm > 1e-12:
-                    normalized.append([x / norm for x in emb])
+                    normalized_embeddings.append([x / norm for x in embedding])
                 else:
-                    normalized.append(emb)
-            return normalized
+                    normalized_embeddings.append(embedding)
+            return normalized_embeddings
 
         return embeddings
-
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)
 class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
@@ -59,4 +57,4 @@ class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context)
+        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context, loop)

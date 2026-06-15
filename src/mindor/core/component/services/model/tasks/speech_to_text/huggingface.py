@@ -35,12 +35,14 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         params = await super()._resolve_params(context)
 
         generation = await self._resolve_generation_params(context)
+
         if params["language"] is not None:
             generation["language"] = params["language"]
         if params["task"] is not None:
             generation["task"] = params["task"]
 
         params["generation"] = generation
+
         return params
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:

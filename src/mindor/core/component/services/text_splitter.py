@@ -1,7 +1,10 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-import re
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+import re, asyncio
 from mindor.dsl.schema.component import TextSplitterComponentConfig
 from mindor.dsl.schema.action import ActionConfig, TextSplitterActionConfig
+from mindor.core.utils.iterator import AsyncSourceIterator
+from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 
@@ -10,27 +13,109 @@ class TextSplitterAction:
         self.config: TextSplitterActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        text           = await context.render_variable(self.config.text)
-        separators     = await context.render_variable(self.config.separators)
-        chunk_size     = await context.render_variable(self.config.chunk_size)
-        chunk_overlap  = await context.render_variable(self.config.chunk_overlap)
+        text       = await context.render_variable(self.config.text)
+        batch_size = await context.render_variable(self.config.batch_size)
+        streaming  = await context.render_variable(self.config.streaming)
 
-        result = self._split_text(text, separators or ["\n\n", "\n", " ", ""], chunk_size, chunk_overlap)
-        context.register_source("result", result)
+        is_stream_input  = isinstance(text, AsyncIterator)
+        is_list_input    = isinstance(text, (list, tuple))
+        is_single_input  = not is_stream_input and not is_list_input
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        async def _emit_chunks(chunks: List[str], scope: str) -> Any:
+            if is_direct_output:
+                async def _yield_chunks():
+                    for chunk in chunks:
+                        context.register_source("result[]", chunk, scope=scope)
+                        yield chunk
+                return _yield_chunks()
 
-    def _split_text(self, text: str, separators: List[str], chunk_size: int, chunk_overlap: int) -> List[str]:
-        """Split text using recursive character text splitting."""
-        if not text:
-            return []
+            async def _yield_rendered():
+                for chunk in chunks:
+                    context.register_source("result[]", chunk, scope=scope)
+                    yield await context.render_variable(self.config.output, scope=scope)
+            return _yield_rendered()
+
+        async def _collect_chunks(chunks: List[str], scope: str) -> List[Any]:
+            if is_direct_output:
+                return chunks
+            results: List[Any] = []
+            for chunk in chunks:
+                context.register_source("result[]", chunk, scope=scope)
+                results.append(await context.render_variable(self.config.output, scope=scope))
+            return results
+
+        if is_single_input:
+            chunks = self._process(text, await self._resolve_params(context))
+            if streaming:
+                return await _emit_chunks(chunks or [], scope="stream:0")
+            return await _collect_chunks(chunks or [], scope="stream:0")
+
+        if is_list_input:
+            batched_chunks_list: List[List[str]] = []
+            stream_index = 0
+            async for batch_texts in AsyncSourceIterator(text, batch_size=batch_size or 1):
+                batched_chunks = await self._process_batch(batch_texts, context)
+                batched_chunks_list.extend(batched_chunks)
+
+            results: List[Any] = []
+            for chunks in batched_chunks_list:
+                scope = f"stream:{stream_index}"
+                stream_index += 1
+                if streaming:
+                    results.append(await _emit_chunks(chunks or [], scope=scope))
+                else:
+                    results.append(await _collect_chunks(chunks or [], scope=scope))
+            return results
+
+        async def _stream_input_generator():
+            stream_index = 0
+            async for batch_texts in AsyncSourceIterator(text, batch_size=batch_size or 1):
+                batched_chunks = await self._process_batch(batch_texts, context)
+                for chunks in batched_chunks:
+                    scope = f"stream:{stream_index}"
+                    stream_index += 1
+                    if streaming:
+                        yield await _emit_chunks(chunks or [], scope=scope)
+                    else:
+                        yield await _collect_chunks(chunks or [], scope=scope)
+
+        return _stream_input_generator()
+
+    async def _process_batch(self, texts: List[str], context: ComponentActionContext) -> List[Optional[List[str]]]:
+        params = await self._resolve_params(context)
+
+        return await asyncio.gather(*[
+            asyncio.to_thread(self._process, text, params) for text in texts
+        ])
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        separators    = await context.render_variable(self.config.separators)
+        chunk_size    = await context.render_variable(self.config.chunk_size)
+        chunk_overlap = await context.render_variable(self.config.chunk_overlap)
+
+        if chunk_size is None:
+            raise ValueError("'chunk_size' must be specified for text splitter")
+
+        if chunk_overlap is None:
+            raise ValueError("'chunk_overlap' must be specified for text splitter")
 
         if chunk_overlap > chunk_size:
             raise ValueError(f"Got a larger chunk overlap ({chunk_overlap}) than chunk size ({chunk_size}), should be smaller.")
 
-        return self._split_text_recursive(text, separators, chunk_size, chunk_overlap)
+        if not separators:
+            separators = [ "\n\n", "\n", " ", "" ]
 
-    def _split_text_recursive(self, text: str, separators: List[str], chunk_size: int, chunk_overlap: int) -> List[str]:
+        return { "separators": separators, "chunk_size": chunk_size, "chunk_overlap": chunk_overlap }
+
+    def _process(self, text: str, params: Dict[str, Any]) -> Optional[List[str]]:
+        if text is None:
+            logging.debug("Text splitter skipped because no text was provided.")
+            return None
+
+        return self._split_text(text, params["separators"], params["chunk_size"], params["chunk_overlap"])
+
+    def _split_text(self, text: str, separators: List[str], chunk_size: int, chunk_overlap: int) -> List[str]:
         """Recursively split text by separators."""
         final_chunks = []
 
@@ -66,7 +151,7 @@ class TextSplitterAction:
                 if not remaining_separators:
                     final_chunks.append(s)
                 else:
-                    other_info = self._split_text_recursive(s, remaining_separators, chunk_size, chunk_overlap)
+                    other_info = self._split_text(s, remaining_separators, chunk_size, chunk_overlap)
                     final_chunks.extend(other_info)
 
         if good_splits:

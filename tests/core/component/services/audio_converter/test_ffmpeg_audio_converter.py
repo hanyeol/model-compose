@@ -65,8 +65,13 @@ def sample_wav_path():
 def _make_context(audio_value: Any) -> ComponentActionContext:
     """Build a mock context where render_audio reads file paths into MediaSource.
 
-    Supports single value or list of values. Tracks registered sources so that
-    `${result[]}` / `${result}` output references resolve correctly.
+    `audio_value` may be:
+      - a single file path (str) → single MediaSource
+      - a list of file paths → List[MediaSource]
+      - a zero-arg callable returning an AsyncIterator of file paths → AsyncIterator[MediaSource]
+
+    Tracks registered sources so that output templates resolve correctly. Supports
+    `${result}`, `${result[]}`, and simple `${result[].<attr>}` path expressions.
     """
     from mindor.core.utils.audio import create_audio_source
 
@@ -78,8 +83,8 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
     ctx.register_source = MagicMock(side_effect=register_source)
 
     def contains_ref(key: str, value: Any) -> bool:
-        if key == "result[]" and isinstance(value, str):
-            return "${result[]" in value
+        if isinstance(value, str):
+            return f"${{{key}" in value
         return False
     ctx.contains_variable_reference = MagicMock(side_effect=contains_ref)
 
@@ -89,6 +94,15 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
                 return sources.get("result[]")
             if value == "${result}":
                 return sources.get("result")
+            # ${result[].<attr>} → getattr(sources["result[]"], <attr>)
+            if value.startswith("${result[].") and value.endswith("}"):
+                attr = value[len("${result[]."):-1]
+                target = sources.get("result[]")
+                return getattr(target, attr, None)
+            if value.startswith("${result.") and value.endswith("}"):
+                attr = value[len("${result."):-1]
+                target = sources.get("result")
+                return getattr(target, attr, None)
         return value
 
     def resolve_one(value):
@@ -99,6 +113,14 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
         return create_audio_source(value)
 
     async def render_audio(_value):
+        if callable(audio_value):
+            source = audio_value()
+            assert isinstance(source, AsyncIterator)
+
+            async def _map():
+                async for item in source:
+                    yield resolve_one(item)
+            return _map()
         if isinstance(audio_value, list):
             return [resolve_one(v) for v in audio_value]
         return resolve_one(audio_value)
@@ -315,6 +337,70 @@ class TestListInput:
 
 
 @ffmpeg_required
+class TestStreamInput:
+    """I/O matrix: AsyncIterator input always produces stream output (stream-in → stream-out)."""
+
+    @pytest.mark.anyio
+    async def test_stream_input_no_output_yields_resources(self, sample_wav_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_wav_path
+                yield sample_wav_path
+            return _gen()
+
+        config = _make_config(format="mp3")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 2
+        assert all(isinstance(item, AudioStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_passthrough_output_yields_resources(self, sample_wav_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_wav_path
+            return _gen()
+
+        config = _make_config(output="${result}", format="mp3")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1
+        assert isinstance(items[0], AudioStreamResource)
+        await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_with_stream_output_template(self, sample_wav_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_wav_path
+                yield sample_wav_path
+                yield sample_wav_path
+            return _gen()
+
+        config = _make_config(output="${result[]}", format="wav")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 3
+        assert all(isinstance(item, AudioStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+
+@ffmpeg_required
 class TestStreamOutput:
     """I/O matrix: ${result[]} stream output yields AsyncIterator."""
 
@@ -343,6 +429,18 @@ class TestStreamOutput:
         items = [item async for item in result]
         assert len(items) == 1
         await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_output_per_item_attribute_expression(self, sample_wav_path):
+        """`${result[].<attr>}` evaluates per yielded item, extracting an attribute."""
+        config = _make_config(output="${result[].format}", format="mp3")
+        ctx = _make_context([sample_wav_path, sample_wav_path])
+
+        result = await FFmpegAudioConverterAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert items == ["mp3", "mp3"]
 
 
 @ffmpeg_required

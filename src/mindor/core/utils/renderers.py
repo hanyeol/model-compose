@@ -1,7 +1,7 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventStreamResource, StreamFormat
+from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventStreamIterator, StreamChunkFormat
 from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
 from .http_client import create_stream_with_url
 from .url import UrlStreamResource, parse_data_uri
@@ -16,11 +16,6 @@ from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
 import re, json, base64, aiofiles
-
-_STREAM_FORMAT_MAP = {
-    "sse-text": StreamFormat.TEXT,
-    "sse-json": StreamFormat.JSON,
-}
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]]):
@@ -129,8 +124,8 @@ class VariableRenderer:
         skip_decode: bool = False,
     ) -> Any:
         if is_list:
-            if type in [ "sse-text", "sse-json" ]:
-                raise ValueError(f"`{type}[]` is not allowed: SSE is a single stream by nature")
+            if type == "event-stream":
+                raise ValueError(f"`{type}[]` is not allowed: stream is single by nature")
             if not isinstance(value, (list, tuple)):
                 raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
             return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, skip_decode) for v in value ]
@@ -230,12 +225,13 @@ class VariableRenderer:
                     value = BytesStreamResource(value)
                 return value
 
-        if type in [ "sse-text", "sse-json" ]:
+        if type == "event-stream":
+            format = StreamChunkFormat(subtype) if subtype else StreamChunkFormat.TEXT
             if isinstance(value, (StreamResource, AsyncIterator)):
-                return EventStreamResource(value, _STREAM_FORMAT_MAP[type])
+                return EventStreamIterator(value, format)
             async def _stream_output_generator():
                 yield value
-            return EventStreamResource(_stream_output_generator(), _STREAM_FORMAT_MAP[type])
+            return EventStreamIterator(_stream_output_generator(), format)
 
         return value
 

@@ -22,9 +22,8 @@ class WorkflowVariableType(str, Enum):
     AUDIO    = "audio"
     VIDEO    = "video"
     FILE     = "file"
-    # SSE streaming types
-    SSE_TEXT = "sse-text"
-    SSE_JSON = "sse-json"
+    # Streaming
+    EVENT_STREAM = "event-stream"
     # UI-related types
     SELECT   = "select"
     # No output

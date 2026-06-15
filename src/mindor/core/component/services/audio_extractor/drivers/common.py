@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioExtractorActionConfig
-from mindor.core.utils.iterator import AsyncSourceIterator
+from mindor.core.utils.iterators import AsyncSourceIterator
 from mindor.core.utils.audio import AudioStreamResource
 from mindor.core.utils.media import MediaSource
 from mindor.core.logger import logging
@@ -22,23 +22,23 @@ class AudioExtractorAction:
         is_stream_input  = isinstance(source, AsyncIterator)
         is_stream_output = context.contains_variable_reference("result[]", self.config.output)
         is_direct_output = not self.config.output or self.config.output == "${result}"
-        is_stream_mode   = is_stream_output or (is_stream_input and is_direct_output)
+        is_stream_mode   = is_stream_output or is_stream_input
 
         if is_stream_mode:
             async def _stream_output_generator():
                 async for batch_sources in AsyncSourceIterator(source, batch_size=batch_size or 1):
-                    processed_sources = await self._process_batch(batch_sources, context)
-                    for processed_source in processed_sources:
-                        context.register_source("result[]", processed_source)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else processed_source
+                    batch_results = await self._process_batch(batch_sources, context)
+                    for result in batch_results:
+                        context.register_source("result[]", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
 
         is_single_input: bool = not isinstance(source, (list, AsyncIterator))
         results = []
         async for batch_sources in AsyncSourceIterator(source, batch_size=batch_size or 1):
-            processed_sources = await self._process_batch(batch_sources, context)
-            results.extend(processed_sources)
+            batch_results = await self._process_batch(batch_sources, context)
+            results.extend(batch_results)
 
         result = results[0] if is_single_input else results
         context.register_source("result", result)

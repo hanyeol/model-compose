@@ -86,6 +86,7 @@ def _make_context(source_value: Any) -> ComponentActionContext:
       - bytes: treated as in-memory data → BytesStreamResource
       - MediaSource: passed through as-is
       - list of any of the above: returned as list
+      - zero-arg callable returning an AsyncIterator of values: AsyncIterator[MediaSource]
     """
     ctx = MagicMock(spec=ComponentActionContext)
     sources: dict = {}
@@ -95,8 +96,8 @@ def _make_context(source_value: Any) -> ComponentActionContext:
     ctx.register_source = MagicMock(side_effect=register_source)
 
     def contains_ref(key: str, value: Any) -> bool:
-        if key == "result[]" and isinstance(value, str):
-            return "${result[]" in value
+        if isinstance(value, str):
+            return f"${{{key}" in value
         return False
     ctx.contains_variable_reference = MagicMock(side_effect=contains_ref)
 
@@ -106,6 +107,14 @@ def _make_context(source_value: Any) -> ComponentActionContext:
                 return sources.get("result[]")
             if value == "${result}":
                 return sources.get("result")
+            if value.startswith("${result[].") and value.endswith("}"):
+                attr = value[len("${result[]."):-1]
+                target = sources.get("result[]")
+                return getattr(target, attr, None)
+            if value.startswith("${result.") and value.endswith("}"):
+                attr = value[len("${result."):-1]
+                target = sources.get("result")
+                return getattr(target, attr, None)
         return value
 
     def resolve_one(value):
@@ -114,6 +123,14 @@ def _make_context(source_value: Any) -> ComponentActionContext:
         return create_media_source(value)
 
     async def render_media(_value):
+        if callable(source_value):
+            source = source_value()
+            assert isinstance(source, AsyncIterator)
+
+            async def _map():
+                async for item in source:
+                    yield resolve_one(item)
+            return _map()
         if isinstance(source_value, list):
             return [resolve_one(v) for v in source_value]
         return resolve_one(source_value)
@@ -438,6 +455,70 @@ class TestListInput:
 
 
 @ffmpeg_required
+class TestStreamInput:
+    """I/O matrix: AsyncIterator input always produces stream output (stream-in → stream-out)."""
+
+    @pytest.mark.anyio
+    async def test_stream_input_no_output_yields_resources(self, sample_video_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_video_path
+                yield sample_video_path
+            return _gen()
+
+        config = _make_config(format="mp3")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 2
+        assert all(isinstance(item, AudioStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_passthrough_output_yields_resources(self, sample_video_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_video_path
+            return _gen()
+
+        config = _make_config(output="${result}", format="mp3")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1
+        assert isinstance(items[0], AudioStreamResource)
+        await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_input_with_stream_output_template(self, sample_video_path):
+        def _make_iter():
+            async def _gen():
+                yield sample_video_path
+                yield sample_video_path
+                yield sample_video_path
+            return _gen()
+
+        config = _make_config(output="${result[]}", format="mp3")
+        ctx = _make_context(_make_iter)
+
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 3
+        assert all(isinstance(item, AudioStreamResource) for item in items)
+        for item in items:
+            await item.close()
+
+
+@ffmpeg_required
 class TestStreamOutput:
     """I/O matrix: ${result[]} stream output yields AsyncIterator."""
 
@@ -466,6 +547,18 @@ class TestStreamOutput:
         items = [item async for item in result]
         assert len(items) == 1
         await items[0].close()
+
+    @pytest.mark.anyio
+    async def test_stream_output_per_item_attribute_expression(self, sample_video_path):
+        """`${result[].<attr>}` evaluates per yielded item, extracting an attribute."""
+        config = _make_config(output="${result[].format}", format="mp3")
+        ctx = _make_context([sample_video_path, sample_video_path])
+
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
+
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert items == ["mp3", "mp3"]
 
 
 @ffmpeg_required

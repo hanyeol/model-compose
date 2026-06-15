@@ -5,13 +5,14 @@ from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
 from mindor.core.utils.audio import AudioStreamResource
 from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streaming import FileStreamResource, StreamResource, save_stream_to_temporary_file
+from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
 from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import AudioExtractorService, AudioExtractorDriver, register_audio_extractor_service
 from ..base import ComponentActionContext
 from .common import AudioExtractorAction
-import asyncio, os
+import os
 
 _FORMAT_CODEC_MAP: Dict[str, str] = {
     "mp3":  "libmp3lame",
@@ -59,21 +60,11 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         logging.debug(f"Extracting audio to '{format}' format")
 
         try:
-            if input_path is not None:
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                _, stderr = await process.communicate()
-            else:
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stderr = await self._pipe_stream(process, source.stream)
+            process, _, stderr = await run_subprocess(
+                command,
+                source.stream if input_path is None else None,
+                stderr_handler=lambda r: r.read(),
+            )
 
             if process.returncode != 0:
                 error_output = stderr.decode("utf-8", errors="replace")
@@ -110,31 +101,6 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
 
         return spooled_path, True
-
-    async def _pipe_stream(self, process: asyncio.subprocess.Process, source: StreamResource) -> bytes:
-        async def _feed() -> None:
-            try:
-                async for chunk in source:
-                    try:
-                        process.stdin.write(chunk)
-                        await process.stdin.drain()
-                    except (BrokenPipeError, ConnectionResetError):
-                        break
-            finally:
-                try:
-                    process.stdin.close()
-                except Exception:
-                    pass
-                await source.close()
-
-        feeder = asyncio.create_task(_feed())
-        try:
-            stderr = await process.stderr.read()
-            await process.wait()
-        finally:
-            await feeder
-
-        return stderr
 
 @register_audio_extractor_service(AudioExtractorDriver.FFMPEG)
 class FFmpegAudioExtractorService(AudioExtractorService):

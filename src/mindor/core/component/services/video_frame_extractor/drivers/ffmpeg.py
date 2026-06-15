@@ -1,21 +1,28 @@
 from __future__ import annotations
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Optional, Dict, List, Set, Tuple, Any
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streaming import StreamResource
+from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
+from PIL import Image as PILImage
 from io import BytesIO
-import asyncio
-import re
+import asyncio, os, re
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 _PNG_SIGNATURE    = b"\x89PNG\r\n\x1a\n"
 _PNG_IEND_MARKER  = b"IEND\xaeB`\x82"
+
+# Container formats safe to feed through ffmpeg pipe:0. Other formats (mp4/mov/mkv/webm/avi/...) or
+# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
+_STREAMABLE_INPUT_FORMATS: Set[str] = {
+    "mpegts", "ts", "flv", "ogg", "webm",
+}
 
 class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
     async def _extract(
@@ -26,9 +33,11 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         end_time: Optional[float],
         max_frame_count: Optional[int],
     ) -> List[Dict[str, Any]]:
+        input_path, spooled = await self._resolve_input_path(video)
+
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info" ]
 
-        if video.format:
+        if video.format and input_path is None:
             command.extend([ "-f", video.format ])
         if video.attrs.get("resolution"):
             command.extend([ "-s", str(video.attrs["resolution"]) ])
@@ -42,7 +51,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         if end_time is not None:
             command.extend([ "-to", str(end_time) ])
 
-        command.extend([ "-i", "pipe:0" ])
+        command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 
         filters: List[str] = []
         if frame_interval > 1:
@@ -56,84 +65,64 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         command.extend([ "-f", "image2pipe", "-vcodec", "png", "pipe:1" ])
 
-        logging.debug("Extracting frames with ffmpeg via stdin pipe")
-
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        logging.debug(f"Extracting frames with ffmpeg ({'path' if input_path else 'pipe'} input)")
 
         try:
-            feeder       = asyncio.create_task(self._feed_stdin(process, video.stream))
-            stderr_task  = asyncio.create_task(self._read_stderr(process))
-            frames       = await self._read_frames(process, frame_interval, max_frame_count)
+            process, frames, (timestamps, raw) = await run_subprocess(
+                command,
+                video.stream if input_path is None else None,
+                stdout_handler=lambda r: self._handle_stdout(r, frame_interval, max_frame_count),
+                stderr_handler=self._handle_stderr,
+            )
 
-            timestamps = await stderr_task
-            await feeder
+            if process.returncode != 0:
+                stderr_text = b"".join(raw).decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {stderr_text}")
 
-            return_code = await process.wait()
-            if return_code != 0:
-                stderr_text = b"".join(timestamps[1]).decode("utf-8", errors="replace") if isinstance(timestamps, tuple) else ""
-                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {return_code}): {stderr_text}")
-
-            pts_list = timestamps[0] if isinstance(timestamps, tuple) else timestamps
             for index, frame in enumerate(frames):
-                frame["timestamp"] = pts_list[index] if index < len(pts_list) else 0.0
+                frame["timestamp"] = timestamps[index] if index < len(timestamps) else 0.0
 
             return frames
         finally:
-            if process.returncode is None:
-                process.kill()
-                await process.wait()
-            await video.stream.close()
+            if spooled and input_path is not None:
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
-    async def _feed_stdin(self, process: asyncio.subprocess.Process, stream: StreamResource) -> None:
-        assert process.stdin is not None
-        try:
-            async for chunk in stream:
-                process.stdin.write(chunk)
-                await process.stdin.drain()
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-        finally:
-            try:
-                process.stdin.close()
-            except (BrokenPipeError, ConnectionResetError):
-                pass
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
 
-    async def _read_stderr(self, process: asyncio.subprocess.Process) -> Tuple[List[float], List[bytes]]:
-        assert process.stderr is not None
-        timestamps: List[float] = []
-        raw: List[bytes] = []
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
 
-        while True:
-            line = await process.stderr.readline()
-            if not line:
-                break
-            raw.append(line)
-            match = _PTS_TIME_PATTERN.search(line)
-            if match:
-                timestamps.append(float(match.group(1)))
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
 
-        return timestamps, raw
+        if video.format and video.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
 
-    async def _read_frames(
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
+
+    async def _handle_stdout(
         self,
-        process: asyncio.subprocess.Process,
+        reader: asyncio.StreamReader,
         frame_interval: int,
         max_frame_count: Optional[int],
     ) -> List[Dict[str, Any]]:
-        from PIL import Image as PILImage
-
-        assert process.stdout is not None
-
         frames: List[Dict[str, Any]] = []
         buffer = b""
 
         while True:
-            chunk = await process.stdout.read(65536)
+            chunk = await reader.read(65536)
             if not chunk:
                 break
 
@@ -165,6 +154,21 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                     return frames
 
         return frames
+
+    async def _handle_stderr(self, reader: asyncio.StreamReader) -> Tuple[List[float], List[bytes]]:
+        timestamps: List[float] = []
+        raw: List[bytes] = []
+
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            raw.append(line)
+            match = _PTS_TIME_PATTERN.search(line)
+            if match:
+                timestamps.append(float(match.group(1)))
+
+        return timestamps, raw
 
 @register_video_frame_extractor_service(VideoFrameExtractorDriver.FFMPEG)
 class FFmpegVideoFrameExtractorService(VideoFrameExtractorService):

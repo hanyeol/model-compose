@@ -1,63 +1,90 @@
 from __future__ import annotations
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
+from mindor.core.utils.media import MediaSource
+from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
+from .common import VideoSceneDetectorAction
+import asyncio, os
 
-class PySceneVideoSceneDetectorAction:
-    def __init__(self, config: VideoSceneDetectorActionConfig):
-        self.config: VideoSceneDetectorActionConfig = config
+class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
+    async def _detect(
+        self,
+        video: MediaSource,
+        detector: Optional[str],
+        threshold: Optional[float],
+        start_time: Optional[float],
+        end_time: Optional[float]
+    ) -> Dict[str, Any]:
+        input_path, spooled = await self._resolve_input_path(video)
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        video      = await context.render_file(self.config.video)
-        detector   = await context.render_variable(self.config.detector) if self.config.detector else None
-        threshold  = await context.render_variable(self.config.threshold) if self.config.threshold else None
-        start_time = await context.render_variable(self.config.start_time) if self.config.start_time else None
-        end_time   = await context.render_variable(self.config.end_time) if self.config.end_time else None
+        try:
+            scenes = await asyncio.to_thread(self._detect_scenes, input_path, detector, threshold, start_time, end_time)
 
-        scenes = self._detect(video, detector, threshold, start_time, end_time)
-        result = {
-            "scenes": [
-                {
-                    "index": i,
-                    "start": start.get_timecode(),
-                    "end": end.get_timecode(),
-                    "start_frame": start.get_frames(),
-                    "end_frame": end.get_frames(),
-                    "duration": (end - start).get_timecode()
-                }
-                for i, (start, end) in enumerate(scenes)
-            ],
-            "total_scenes": len(scenes)
-        }
-        context.register_source("result", result)
+            return {
+                "scenes": [
+                    {
+                        "index": i,
+                        "start": start.get_timecode(),
+                        "end": end.get_timecode(),
+                        "start_frame": start.get_frames(),
+                        "end_frame": end.get_frames(),
+                        "duration": (end - start).get_timecode()
+                    }
+                    for i, (start, end) in enumerate(scenes)
+                ],
+                "total_scenes": len(scenes)
+            }
+        finally:
+            if spooled:
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
+        """
+        PySceneDetect requires an on-disk path.
 
-    def _detect(
+        - FileStreamResource: use its path directly (no spooling).
+        - Otherwise: spool the stream to a temp file.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        logging.debug("Spooling video stream to a temp file before scene detection")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
+
+    def _detect_scenes(
         self,
         video: str,
         detector: Optional[str],
         threshold: Optional[float],
-        start_time: Optional[str],
-        end_time: Optional[str]
+        start_time: Optional[float],
+        end_time: Optional[float]
     ) -> List:
         from scenedetect import detect
 
         scene_detector = self._create_detector(detector, threshold)
 
-        kwargs: Dict[str, Any] = {}
+        params: Dict[str, Any] = {}
         if start_time:
-            kwargs["start_time"] = start_time
+            params["start_time"] = start_time
         if end_time:
-            kwargs["end_time"] = end_time
+            params["end_time"] = end_time
 
-        logging.info(f"Detecting scenes in '{video}' with {type(scene_detector).__name__}")
+        logging.debug(f"Detecting scenes in '{video}' with {type(scene_detector).__name__}")
 
-        return detect(video, scene_detector, **kwargs)
+        return detect(video, scene_detector, **params)
 
     def _create_detector(self, detector: Optional[str], threshold: Optional[float]) -> Any:
         detector = detector or VideoSceneDetectorType.ADAPTIVE

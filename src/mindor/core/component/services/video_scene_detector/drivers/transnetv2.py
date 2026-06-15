@@ -1,46 +1,83 @@
 from __future__ import annotations
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.logger import logging
+from mindor.core.utils.media import MediaSource
+from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.shell import run_command
 from mindor.core.utils.time import format_timecode
+from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
-import asyncio
-import json
+from .common import VideoSceneDetectorAction
+import asyncio, json, os
 
-class TransNetV2VideoSceneDetectorAction:
-    def __init__(self, config: VideoSceneDetectorActionConfig):
-        self.config: VideoSceneDetectorActionConfig = config
+class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
+    async def _detect(
+        self,
+        video: MediaSource,
+        detector: Optional[str],
+        threshold: Optional[float],
+        start_time: Optional[float],
+        end_time: Optional[float]
+    ) -> Dict[str, Any]:
+        threshold = threshold if threshold is not None else 0.5
+        input_path, spooled = await self._resolve_input_path(video)
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        video     = await context.render_file(self.config.video)
-        threshold = await context.render_variable(self.config.threshold) if self.config.threshold else 0.5
+        try:
+            predictions = await asyncio.to_thread(self._predict, input_path)
+            frame_rate  = await self._get_frame_rate(input_path)
 
-        predictions = self._predict(video)
-        frame_rate  = await self._get_frame_rate(video)
+            start_frame = int(start_time * frame_rate) if start_time is not None else 0
+            end_frame   = int(end_time * frame_rate) if end_time is not None else len(predictions)
+            predictions = predictions[start_frame:end_frame]
 
-        result = self._build_result(video, predictions, float(threshold), frame_rate)
-        context.register_source("result", result)
+            return self._predictions_to_scenes(input_path, predictions, threshold, frame_rate)
+        finally:
+            if spooled:
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
+        """
+        TransNetV2 requires an on-disk path.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Otherwise: spool the stream to a temp file.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        logging.debug("Spooling video stream to a temp file before scene detection")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
 
     @staticmethod
     def _predict(video: str) -> Any:
         from transnetv2 import TransNetV2
 
         model = TransNetV2()
-        _, single_frame_predictions, _ = model.predict_video(video)
+        _, predictions, _ = model.predict_video(video)
 
-        return single_frame_predictions
+        return predictions
 
     @staticmethod
-    def _build_result(video: str, single_frame_predictions: Any, threshold: float, frame_rate: float) -> Dict[str, Any]:
+    def _predictions_to_scenes(video: str, predictions: Any, threshold: float, frame_rate: float) -> Dict[str, Any]:
         import numpy as np
 
-        scene_boundaries = np.where(single_frame_predictions > threshold)[0]
-        total_frames = len(single_frame_predictions)
+        total_frames = len(predictions)
+
+        if total_frames == 0:
+            return { "scenes": [], "total_scenes": 0 }
+
+        scene_boundaries = np.where(predictions > threshold)[0]
 
         scenes: List[Dict[str, Any]] = []
         boundaries = [0] + scene_boundaries.tolist() + [total_frames]
@@ -60,26 +97,23 @@ class TransNetV2VideoSceneDetectorAction:
                 "duration": format_timecode(end_time - start_time)
             })
 
-        logging.info(f"TransNetV2 detected {len(scenes)} scenes in '{video}'")
+        logging.debug(f"TransNetV2 detected {len(scenes)} scenes in '{video}'")
 
         return { "scenes": scenes, "total_scenes": len(scenes) }
 
     @staticmethod
-    async def _get_frame_rate(video: str) -> float:
+    async def _get_frame_rate(input_path: str) -> float:
         command = [
             "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-select_streams", "v:0", "-show_streams", video
+            "-select_streams", "v:0", "-show_streams", input_path,
         ]
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        stdout, _, returncode = await run_command(command)
 
-        stdout, _ = await process.communicate()
+        if returncode != 0:
+            raise RuntimeError(f"ffprobe failed to read frame rate (exit code {returncode})")
+
         result = json.loads(stdout.decode("utf-8"))
-
         frame_rate = result["streams"][0].get("r_frame_rate", "30/1")
         numerator, denominator = frame_rate.split("/")
 

@@ -81,6 +81,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                         "image": PILImage.fromarray(rgb_frame)
                     })
                     extracted_count += 1
+
                     if max_frame_count is not None and extracted_count >= max_frame_count:
                         break
 

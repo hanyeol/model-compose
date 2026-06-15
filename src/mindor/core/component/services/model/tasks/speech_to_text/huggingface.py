@@ -1,17 +1,21 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Optional, Dict, List, Iterator, Any
 from mindor.dsl.schema.component import SpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
+from mindor.core.utils.audio import load_audio_array
+from mindor.core.utils.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext
+from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
 from .common import SpeechToTextTaskAction
+from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, ProcessorMixin
+    import numpy as np
     import torch
 
 class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
@@ -27,38 +31,17 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         self.model: PreTrainedModel = model
         self.processor: ProcessorMixin = processor
 
-    async def _transcribe(self, audios: List[Tuple[Any, int]], context: ComponentActionContext) -> List[str]:
-        import torch
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        language      = await context.render_variable(self.config.language)
-        task          = await context.render_variable(self.config.task)
-        chunk_length  = await context.render_variable(self.config.chunk_length)
+        generation = await self._resolve_generation_params(context)
+        if params["language"] is not None:
+            generation["language"] = params["language"]
+        if params["task"] is not None:
+            generation["task"] = params["task"]
 
-        generation_params = await self._resolve_generation_params(context)
-
-        if language is not None:
-            generation_params["language"] = language
-        if task is not None:
-            generation_params["task"] = task
-
-        waveforms = [ self._preprocess_audio(waveform, sample_rate) for waveform, sample_rate in audios ]
-
-        input_features = self.processor(
-            waveforms,
-            sampling_rate=16000,
-            return_tensors="pt",
-            padding=True,
-            chunk_length=chunk_length
-        )
-        input_features = input_features.to(self.device)
-
-        with torch.inference_mode():
-            predicted_ids = self.model.generate(
-                **input_features,
-                **generation_params
-            )
-
-        return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+        params["generation"] = generation
+        return params
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length           = await context.render_variable(self.config.params.max_output_length)
@@ -92,10 +75,54 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    def _preprocess_audio(self, waveform: Any, sample_rate: int) -> Any:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool) -> Union[List[str], List[Iterator[str]]]:
+        import torch
+
+        waveforms = [ await self._preprocess_audio(audio) for audio in audios ]
+
+        input_features = self.processor(
+            waveforms,
+            sampling_rate=16000,
+            return_tensors="pt",
+            padding=True,
+            chunk_length=params["chunk_length"]
+        )
+        input_features = input_features.to(self.device)
+
+        if streaming:
+            streamer = BatchTextIteratorStreamer(
+                self.processor.tokenizer,
+                batch_size=len(waveforms),
+                skip_prompt=True,
+                skip_special_tokens=True
+            )
+
+            def _run():
+                with torch.inference_mode():
+                    self.model.generate(
+                        **input_features,
+                        **params["generation"],
+                        streamer=streamer
+                    )
+
+            Thread(target=_run, daemon=True).start()
+
+            return [ streamer[index] for index in range(len(waveforms)) ]
+
+        with torch.inference_mode():
+            predicted_ids = self.model.generate(
+                **input_features,
+                **params["generation"]
+            )
+
+        return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+
+    async def _preprocess_audio(self, audio: MediaSource) -> np.ndarray:
         import numpy as np
         import torch
         import torchaudio.functional as F
+
+        waveform, sample_rate = await load_audio_array(audio)
 
         if waveform.ndim > 1:
             waveform = waveform.mean(axis=0)  # mono

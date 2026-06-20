@@ -1,66 +1,49 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from __future__ import annotations
+
+from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ActionConfig, ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection
-from mindor.core.utils.iterator import AsyncSourceIterator
+from abc import abstractmethod
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
-from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
-from ..context import ComponentActionContext
-from PIL import Image as PILImage, ImageFilter, ImageEnhance
+from ..base import ComponentActionContext
+from PIL import Image as PILImage
 import asyncio
 
 class ImageProcessorAction:
     def __init__(self, config: ImageProcessorActionConfig):
         self.config: ImageProcessorActionConfig = config
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)
+        method     = self.config.method
 
-        is_stream_input  = isinstance(image, AsyncIterator)
-        is_stream_output = context.contains_variable_reference("result[]", self.config.output)
+        params = await self._resolve_params(method, context)
+
+        is_single_input  = not isinstance(image, (list, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
-        is_stream_mode   = is_stream_output or (is_stream_input and is_direct_output)
 
-        if is_stream_mode:
+        if isinstance(image, AsyncIterator):
             async def _stream_output_generator():
-                async for batch_images in AsyncSourceIterator(image, batch_size=batch_size or 1):
-                    processed_images = await self._process_batch(batch_images, context)
-                    for processed_image in processed_images:
-                        context.register_source("result[]", processed_image)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else processed_image
+                async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_images, method, params, loop)
+                    for result in batch_results:
+                        yield result
 
             return _stream_output_generator()
+        else:
+            results = []
+            async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_images, method, params, loop)
+                results.extend(batch_results)
 
-        is_single_input: bool = not isinstance(image, (list, AsyncIterator))
-        results = []
-        async for batch_images in AsyncSourceIterator(image, batch_size=batch_size or 1):
-            processed_images = await self._process_batch(batch_images, context)
-            results.extend(processed_images)
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    async def _process_batch(self, images: List[PILImage.Image], context: ComponentActionContext) -> Any:
-        method = await context.render_variable(self.config.method)
-
-        if method is None:
-            raise ValueError("'method' must be specified for image processor")
-
-        try:
-            method = ImageProcessorActionMethod(method)
-        except ValueError:
-            raise ValueError(f"Unsupported image processing action method: {method}")
-
-        params = await self._render_params(method, context)
-
-        return await asyncio.gather(*[
-            asyncio.to_thread(self._process, image, method, params) for image in images
-        ])
-
-    async def _render_params(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _resolve_params(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == ImageProcessorActionMethod.RESIZE:
             width      = await context.render_variable(self.config.width) if self.config.width else None
             height     = await context.render_variable(self.config.height) if self.config.height else None
@@ -154,9 +137,20 @@ class ImageProcessorAction:
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
+    async def _process_batch(
+        self,
+        images: List[PILImage.Image],
+        method: ImageProcessorActionMethod,
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+    ) -> List[Optional[PILImage.Image]]:
+        return await asyncio.gather(*[
+            asyncio.to_thread(self._process, image, method, params) for image in images
+        ])
+
     def _process(self, image: PILImage.Image, method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
         if image is None:
-            logging.debug("[image-processor] received None image for '%s' method, skipping", method)
+            logging.debug("Image processor (%s) skipped because no image was provided.", method)
             return None
 
         if method == ImageProcessorActionMethod.RESIZE:
@@ -191,114 +185,42 @@ class ImageProcessorAction:
 
         raise ValueError(f"Unsupported image processing action method: {method}")
 
+    @abstractmethod
     def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        scale_mode = params["scale_mode"]
-        original_width, original_height = image.size
-        target_width  = params["width"]  or original_width
-        target_height = params["height"] or original_height
+        pass
 
-        if scale_mode == ImageScaleMode.FIT:
-            new_width, new_height = self._get_size_aspect_fit(target_width, target_height, original_width, original_height)
-            return image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
-
-        if scale_mode == ImageScaleMode.FILL:
-            new_width, new_height = self._get_size_aspect_fill(target_width, target_height, original_width, original_height)
-            image = image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
-
-            crop_box = self._get_center_crop_box(new_width, new_height, target_width, target_height)
-            return image.crop(crop_box)
-
-        return image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
-
+    @abstractmethod
     def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        x      = params["x"]
-        y      = params["y"]
-        width  = params["width"]
-        height = params["height"]
+        pass
 
-        return image.crop((x, y, x + width, y + height))
-
+    @abstractmethod
     def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.rotate(-params["angle"], expand=params["expand"], resample=PILImage.Resampling.BICUBIC)
+        pass
 
+    @abstractmethod
     def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        if params["direction"] == FlipDirection.HORIZONTAL:
-            return image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
-        else:
-            return image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+        pass
 
+    @abstractmethod
     def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.convert("L")
+        pass
 
+    @abstractmethod
     def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+        pass
 
+    @abstractmethod
     def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Sharpness(image).enhance(params["factor"])
+        pass
 
+    @abstractmethod
     def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Brightness(image).enhance(params["factor"])
+        pass
 
+    @abstractmethod
     def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Contrast(image).enhance(params["factor"])
+        pass
 
+    @abstractmethod
     def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Color(image).enhance(params["factor"])
-
-    def _get_size_aspect_fit(
-        self,
-        target_width: int,
-        target_height: int,
-        original_width: int,
-        original_height: int
-    ) -> Tuple[int, int]:
-        aspect_ratio = original_width / original_height
-
-        height = target_height
-        width  = height * aspect_ratio
-
-        if width > target_width:
-            width  = target_width
-            height = width / aspect_ratio
-
-        return (int(width), int(height))
-
-    def _get_size_aspect_fill(
-        self,
-        target_width: int,
-        target_height: int,
-        original_width: int,
-        original_height: int
-    ) -> Tuple[int, int]:
-        aspect_ratio = original_width / original_height
-
-        height = target_height
-        width  = height * aspect_ratio
-
-        if width < target_width:
-            width  = target_width
-            height = width / aspect_ratio
-
-        return (int(width), int(height))
-
-    def _get_center_crop_box(self, image_width: int, image_height: int, target_width: int, target_height: int) -> Tuple[int, int, int, int]:
-        left   = (image_width  - target_width ) // 2
-        top    = (image_height - target_height) // 2
-        right  = left + target_width
-        bottom = top + target_height
-
-        return (left, top, right, bottom)
-
-@register_component(ComponentType.IMAGE_PROCESSOR)
-class ImageProcessorComponent(ComponentService):
-    def __init__(
-        self,
-        id: str,
-        config: ImageProcessorComponentConfig,
-        global_configs: ComponentGlobalConfigs,
-        daemon: bool
-    ):
-        super().__init__(id, config, global_configs, daemon)
-
-    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ImageProcessorAction(action).run(context)
+        pass

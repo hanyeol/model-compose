@@ -1,17 +1,9 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from collections.abc import AsyncIterator
+from typing import Optional, List, Any
 from mindor.dsl.schema.component import KeyValueStoreComponentConfig, KeyValueStoreDriver
-from mindor.dsl.schema.action import ActionConfig, KeyValueStoreActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import KeyValueStoreService, KeyValueStoreServiceRegistry
-
-class KeyValueStoreAction:
-    def __init__(self, config: KeyValueStoreActionConfig):
-        self.config: KeyValueStoreActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: KeyValueStoreService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.KEY_VALUE_STORE)
 class KeyValueStoreComponent(ComponentService):
@@ -46,4 +38,4 @@ class KeyValueStoreComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await KeyValueStoreAction(action).run(context, self.service)
+        return await self.service.run(action, context)

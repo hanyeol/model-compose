@@ -18,7 +18,7 @@ class LlamaCppModelTaskService(ModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "llama-cpp-python" ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         from llama_cpp import Llama
 
         model_path = self._get_model_path()
@@ -27,7 +27,7 @@ class LlamaCppModelTaskService(ModelTaskService):
         logging.info(f"Component '{self.id}': loading llama.cpp model from '{model_path}'")
         self.model = Llama(model_path=model_path, **params)
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
 
     def _get_model_path(self) -> str:

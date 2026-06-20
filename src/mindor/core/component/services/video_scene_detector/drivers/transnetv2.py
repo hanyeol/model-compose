@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Union, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.core.utils.shell import run_command
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
@@ -20,8 +22,10 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         detector: Optional[str],
         threshold: Optional[float],
         start_time: Optional[float],
-        end_time: Optional[float]
-    ) -> Dict[str, Any]:
+        end_time: Optional[float],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
         threshold = threshold if threshold is not None else 0.5
         input_path, spooled = await self._resolve_input_path(video)
 
@@ -127,5 +131,5 @@ class TransNetV2VideoSceneDetectorService(VideoSceneDetectorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "transnetv2" ]
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
-        return await TransNetV2VideoSceneDetectorAction(action).run(context)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        return await TransNetV2VideoSceneDetectorAction(action).run(context, loop)

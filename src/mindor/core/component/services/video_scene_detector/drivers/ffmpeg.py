@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Union, Callable, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.core.utils.shell import run_command, run_subprocess
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
@@ -22,38 +24,34 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         detector: Optional[str],
         threshold: Optional[float],
         start_time: Optional[float],
-        end_time: Optional[float]
-    ) -> Dict[str, Any]:
-        threshold = threshold if threshold is not None else 0.3
+        end_time: Optional[float],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
+        threshold = threshold if threshold is not None else 0.3
 
-        try:
-            timestamps = await self._detect_scenes(input_path, threshold, start_time, end_time)
-            duration   = await self._get_duration(input_path)
-            frame_rate = await self._get_frame_rate(input_path)
+        command: List[str] = [ "ffmpeg", "-hide_banner" ]
 
-            scenes: List[Dict[str, Any]] = []
-            boundaries = [ 0.0 ] + timestamps + [ duration ]
+        if start_time is not None:
+            command.extend([ "-ss", str(start_time) ])
+        if end_time is not None:
+            command.extend([ "-to", str(end_time) ])
 
-            for i in range(len(boundaries) - 1):
-                start = boundaries[i]
-                end = boundaries[i + 1]
-                scenes.append({
-                    "index": i,
-                    "start": format_timecode(start),
-                    "end": format_timecode(end),
-                    "start_frame": int(start * frame_rate),
-                    "end_frame": int(end * frame_rate),
-                    "duration": format_timecode(end - start)
-                })
+        command.extend([ "-i", input_path ])
+        command.extend([ "-vf", f"select='gt(scene,{threshold})',showinfo" ])
+        command.extend([ "-f", "null", "-" ])
 
-            return { "scenes": scenes, "total_scenes": len(scenes) }
-        finally:
+        logging.debug(f"Detecting scenes with ffmpeg (threshold={threshold}, streaming={streaming})")
+
+        def _cleanup() -> None:
             if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:
                     pass
+
+        return await self._collect_scenes(command, input_path, _cleanup)
 
     async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
         """
@@ -74,53 +72,68 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
         return spooled_path, True
 
-    async def _detect_scenes(
+    async def _collect_scenes(
         self,
+        command: List[str],
         input_path: str,
-        threshold: float,
-        start_time: Optional[float],
-        end_time: Optional[float],
-    ) -> List[float]:
-        command: List[str] = [ "ffmpeg", "-hide_banner" ]
+        cleanup: Callable[[], None],
+    ) -> Dict[str, Any]:
+        """Run ffmpeg to completion and assemble the per-video scene result."""
+        async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], List[bytes]]:
+            timestamps: List[float] = []
+            error: List[bytes] = []
 
-        if start_time is not None:
-            command.extend([ "-ss", str(start_time) ])
-        if end_time is not None:
-            command.extend([ "-to", str(end_time) ])
+            while True:
+                line = await reader.readline()
 
-        command.extend([ "-i", input_path ])
-        command.extend([ "-vf", f"select='gt(scene,{threshold})',showinfo" ])
-        command.extend([ "-f", "null", "-" ])
+                if not line:
+                    break
 
-        logging.debug(f"Detecting scenes with ffmpeg (threshold={threshold})")
+                match = _PTS_TIME_PATTERN.search(line)
 
-        process, _, timestamps = await run_subprocess(
-            command,
-            stderr_handler=self._handle_stderr,
-        )
+                if match:
+                    timestamps.append(float(match.group(1)))
+                else:
+                    error.append(line)
 
-        if process.returncode != 0:
-            raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode})")
+            return timestamps, error
 
-        return timestamps
+        try:
+            process, _, (timestamps, error) = await run_subprocess(
+                command,
+                stderr_handler=_handle_stderr,
+            )
 
-    async def _handle_stderr(self, reader: asyncio.StreamReader) -> List[float]:
-        timestamps: List[float] = []
+            if process.returncode != 0:
+                error_text = b"".join(error).decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_text}")
 
-        while True:
-            line = await reader.readline()
-            if not line:
-                break
-            match = _PTS_TIME_PATTERN.search(line)
-            if match:
-                timestamps.append(float(match.group(1)))
+            duration   = await self._get_duration(input_path)
+            frame_rate = await self._get_frame_rate(input_path)
 
-        return timestamps
+            scenes: List[Dict[str, Any]] = []
+            boundaries = [ 0.0 ] + timestamps + [ duration ]
 
-    async def _get_frame_rate(self, input_path: str) -> float:
+            for i in range(len(boundaries) - 1):
+                start = boundaries[i]
+                end = boundaries[i + 1]
+                scenes.append({
+                    "index": i,
+                    "start": format_timecode(start),
+                    "end": format_timecode(end),
+                    "start_frame": int(start * frame_rate),
+                    "end_frame": int(end * frame_rate),
+                    "duration": format_timecode(end - start)
+                })
+
+            return { "scenes": scenes, "total_scenes": len(scenes) }
+        finally:
+            cleanup()
+
+    async def _get_frame_rate(self, video_path: str) -> float:
         command = [
             "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-select_streams", "v:0", "-show_streams", input_path,
+            "-select_streams", "v:0", "-show_streams", video_path,
         ]
 
         stdout, _, returncode = await run_command(command)
@@ -134,10 +147,10 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
         return float(numerator) / float(denominator)
 
-    async def _get_duration(self, input_path: str) -> float:
+    async def _get_duration(self, video_path: str) -> float:
         command = [
             "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", input_path,
+            "-show_format", video_path,
         ]
 
         stdout, _, returncode = await run_command(command)
@@ -153,5 +166,5 @@ class FFmpegVideoSceneDetectorService(VideoSceneDetectorService):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
-        return await FFmpegVideoSceneDetectorAction(action).run(context)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        return await FFmpegVideoSceneDetectorAction(action).run(context, loop)

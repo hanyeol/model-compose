@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
-from collections.abc import AsyncIterator
+from typing import Optional, Dict, List, Union, Any
+from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
-from mindor.core.utils.iterator import AsyncSourceIterator
-from mindor.core.utils.media import MediaSource
+from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
@@ -20,38 +20,46 @@ class VideoFrameExtractorAction:
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
-        is_stream_input  = isinstance(video, AsyncIterator)
-        is_stream_output = context.contains_variable_reference("result[]", self.config.output)
-        is_direct_output = not self.config.output or self.config.output == "${result}"
-        is_stream_mode   = streaming or is_stream_output or (is_stream_input and is_direct_output)
-
-        if is_stream_mode:
-            async def _stream_output_generator():
-                async for batch_videos in AsyncSourceIterator(video, batch_size=batch_size or 1):
-                    batched_frames = await self._process_batch(batch_videos, context)
-                    for frames in batched_frames:
-                        context.register_source("result[]", frames)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else frames
-
-            return _stream_output_generator()
-
-        is_single_input: bool = not isinstance(video, (list, AsyncIterator))
-        results = []
-        async for batch_videos in AsyncSourceIterator(video, batch_size=batch_size or 1):
-            batched_frames = await self._process_batch(batch_videos, context)
-            results.extend(batched_frames)
-
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    async def _process_batch(self, videos: List[MediaSource], context: ComponentActionContext) -> List[Optional[Dict[str, Any]]]:
         params = await self._resolve_params(context)
 
-        return await asyncio.gather(*[
-            self._process(video, params) for video in videos
-        ])
+        is_single_input  = not isinstance(video, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(video, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                    for result in batch_results:
+                        if isinstance(result, AsyncIterable):
+                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                                async for chunk in result:
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                            yield StreamChunkIterator(_stream_chunk_generator())
+                        else:
+                            yield result
+
+            return _stream_output_generator()
+        else:
+            results = []
+            async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                for result in batch_results:
+                    if isinstance(result, AsyncIterable):
+                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async for chunk in result:
+                                context.register_source("result[]", chunk, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                        results.append(StreamChunkIterator(_stream_chunk_generator()))
+                    else:
+                        results.append(result)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_interval  = int(await context.render_variable(self.config.frame_interval))
@@ -72,20 +80,37 @@ class VideoFrameExtractorAction:
             "max_frame_count": max_frame_count,
         }
 
-    async def _process(self, video: MediaSource, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _process_batch(
+        self,
+        videos: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]]:
+        return await asyncio.gather(*[
+            self._process(video, params, streaming, loop) for video in videos
+        ])
+
+    async def _process(
+        self,
+        video: MediaSource,
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         if video is None:
             logging.debug("Video frame extractor skipped because no video was provided.")
             return None
 
-        frames = await self._extract(
+        return await self._extract(
             video,
             params["frame_interval"],
             params["start_time"],
             params["end_time"],
             params["max_frame_count"],
+            streaming,
+            loop,
         )
-
-        return { "frames": frames, "frame_count": len(frames) }
 
     @abstractmethod
     async def _extract(
@@ -95,5 +120,7 @@ class VideoFrameExtractorAction:
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
-    ) -> List[Dict[str, Any]]:
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
         pass

@@ -5,7 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
 from mindor.core.logger import logging
-from mindor.core.utils.audio import PcmStreamResource
+from mindor.core.utils.streaming.audio import PcmStreamResource
 from ....base import ComponentActionContext
 from ..common import MusicGenerationTaskService, MusicGenerationTaskAction
 import asyncio
@@ -20,44 +20,53 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         self.config: AceStepMusicGenerationModelActionConfig = config
         self.handler: AceStepHandler = handler
 
-    async def _generate(self, prompt: str, lyrics: Optional[str], params: Dict[str, Any]) -> Any:
-        from acestep.inference import generate_music, GenerationParams, GenerationConfig
+    async def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Any]:
+        return await loop.run_in_executor(None, self._generate_batch, prompts, lyrics, params)
 
-        generation_params = GenerationParams(
-            caption=prompt,
-            lyrics=lyrics or "",
-            duration=int(params["duration"]),
-            bpm=int(params["bpm"]),
-            keyscale=params["key_scale"] or "",
-            timesignature=params["time_signature"] or "",
-            inference_steps=int(params["inference_steps"]),
-            guidance_scale=float(params["guidance_scale"]),
-            seed=int(params["seed"]) if params["seed"] is not None else -1,
-        )
+    def _generate_batch(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
+        from acestep.inference import generate_music, GenerationParams, GenerationConfig
 
         generation_config = GenerationConfig(
             batch_size=1,
             audio_format="wav",
         )
 
-        result = generate_music(
-            dit_handler=self.handler,
-            llm_handler=None,
-            params=generation_params,
-            config=generation_config,
-        )
+        results: List[Any] = []
+        lyrics_batch = lyrics if lyrics is not None else [ None ] * len(prompts)
 
-        if not result.success:
-            raise RuntimeError(f"Music generation failed: {result.error}")
+        for prompt, song_lyrics in zip(prompts, lyrics_batch):
+            generation_params = GenerationParams(
+                caption=prompt,
+                lyrics=song_lyrics or "",
+                duration=int(params["duration"]),
+                bpm=int(params["bpm"]),
+                keyscale=params["key_scale"] or "",
+                timesignature=params["time_signature"] or "",
+                inference_steps=int(params["inference_steps"]),
+                guidance_scale=float(params["guidance_scale"]),
+                seed=int(params["seed"]) if params["seed"] is not None else -1,
+            )
 
-        frames, channels = self._encode_samples_to_pcm16(result.audios[0]["tensor"])
-        sample_rate = result.audios[0].get("sample_rate", 48000)
+            result = generate_music(
+                dit_handler=self.handler,
+                llm_handler=None,
+                params=generation_params,
+                config=generation_config,
+            )
 
-        return PcmStreamResource(frames, {
-            "sample_rate": str(sample_rate),
-            "channels": str(channels),
-            "bit_depth": "16",
-        })
+            if not result.success:
+                raise RuntimeError(f"Music generation failed: {result.error}")
+
+            frames, channels = self._encode_samples_to_pcm16(result.audios[0]["tensor"])
+            sample_rate = result.audios[0].get("sample_rate", 48000)
+
+            results.append(PcmStreamResource(frames, {
+                "sample_rate": str(sample_rate),
+                "channels":    str(channels),
+                "bit_depth":   "16",
+            }))
+
+        return results
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_generation_params(context)
@@ -86,13 +95,13 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
             "soundfile"
         ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         if isinstance(self.config.model, HuggingfaceModelConfig):
             raise ValueError("ACE-Step does not support HuggingFace Hub models. Use a local model path instead.")
 
         self.handler = self._load_generation_handler()
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.handler = None
 
     def _load_generation_handler(self) -> AceStepHandler:
@@ -113,4 +122,4 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await AceStepMusicGenerationTaskAction(action, self.handler).run(context)
+        return await AceStepMusicGenerationTaskAction(action, self.handler).run(context, loop)

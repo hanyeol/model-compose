@@ -2,11 +2,11 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import HttpServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpServerActionConfig, HttpServerCompletionType, HttpServerCompletionConfig
-from mindor.dsl.schema.transport.http import HttpStreamFormat
+from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
-from mindor.core.utils.streaming import StreamResource
+from mindor.core.utils.streaming.stream import StreamResource
 from mindor.core.utils.time import parse_duration
 from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -19,11 +19,11 @@ class HttpServerCompletion(ABC):
         self.config: HttpServerCompletionConfig = config
 
     @abstractmethod
-    async def run(self, context: ComponentActionContext, client: HttpClient, streaming: bool = False) -> Any:
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         pass
 
 class HttpServerPollingCompletion(HttpServerCompletion):
-    async def run(self, context: ComponentActionContext, client: HttpClient, streaming: bool = False) -> Any:
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         path    = await context.render_variable(self.config.path)
         method  = await context.render_variable(self.config.method)
         params  = await context.render_variable(self.config.params)
@@ -37,7 +37,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
         await asyncio.sleep(interval.total_seconds())
 
         while datetime.now(timezone.utc) < deadline:
-            response, status_code = await client.request(path or "", method, params, body, headers, raise_on_error=False, streaming=streaming)
+            response, status_code = await client.request(path or "", method, params, body, headers, raise_on_error=False)
             context.register_source("result", response)
 
             status = (await context.render_variable(self.config.status)) if self.config.status else None
@@ -57,7 +57,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
         raise TimeoutError(f"Polling timed out after {timeout}.")
 
 class HttpServerCallbackCompletion(HttpServerCompletion):
-    async def run(self, context: ComponentActionContext, client: HttpClient, streaming: bool = False) -> Any:
+    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         callback_id = await context.render_variable(self.config.wait_for) if self.config.wait_for else "__callback__"
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         HttpCallbackListener.register_pending_future(callback_id, future)
@@ -90,47 +90,45 @@ class HttpServerAction:
         body    = await context.render_variable(self.config.body)
         headers = await context.render_variable(self.config.headers)
 
-        is_streaming = context.contains_variable_reference("response[]", self.config.output)
-        response, result = await client.request(path or "", method, params, body, headers, streaming=is_streaming), None
+        is_direct_output = not self.config.output or self.config.output == "${response}"
 
-        if isinstance(response, StreamResource) and is_streaming:
-            async def _stream_output_generator(stream: StreamResource):
-                async for chunk in stream:
+        response = await client.request(path or "", method, params, body, headers)
+
+        if isinstance(response, StreamResource):
+            async def _stream_chunk_generator():
+                async for chunk in response:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                    chunk = await context.render_variable(self.config.output)
-                    if chunk is not None:
-                        yield chunk
+                    yield (await context.render_variable(self.config.output)) if not is_direct_output else chunk
 
-            return _stream_output_generator(response)
+            return _stream_chunk_generator()
 
         context.register_source("response", response)
 
         if self.completion:
-            is_streaming = context.contains_variable_reference("result[]", self.config.output)
-            result = await self.completion.run(context, client, streaming=is_streaming)
+            is_direct_output = not self.config.output or self.config.output == "${result}"
 
-            if isinstance(result, StreamResource) and is_streaming:
-                async def _stream_output_generator(stream: StreamResource):
-                    async for chunk in stream:
+            result = await self.completion.run(context, client)
+
+            if isinstance(result, StreamResource):
+                async def _stream_chunk_generator():
+                    async for chunk in result:
                         context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                        chunk = await context.render_variable(self.config.output)
-                        if chunk is not None:
-                            yield chunk
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else chunk
 
-                return _stream_output_generator(result)
+                return _stream_chunk_generator()
 
             context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if self.config.output else (result or response)
 
-    def _convert_stream_chunk(self, chunk: bytes, format: HttpStreamFormat) -> Any:
-        if format == HttpStreamFormat.JSON:
+    def _convert_stream_chunk(self, chunk: bytes, format: HttpEventStreamFormat) -> Any:
+        if format == HttpEventStreamFormat.JSON:
             try:
                 return json.loads(chunk)
             except:
                 return None
 
-        if format == HttpStreamFormat.TEXT:
+        if format == HttpEventStreamFormat.TEXT:
             return chunk.decode("utf-8", errors="replace")
 
         return chunk

@@ -1,10 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, List, Tuple, Any
+from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
-from mindor.core.utils.audio import PcmStreamResource
+from mindor.dsl.schema.action import KokoroTextToSpeechGenerateModelActionConfig
+from mindor.core.utils.streaming.audio import PcmStreamResource
+from mindor.core.utils.streaming.stream import StreamResource
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
 import asyncio
@@ -13,25 +15,35 @@ if TYPE_CHECKING:
     import torch
 
 class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
-    def __init__(self, config: ModelActionConfig, pipeline: Any, device: Optional[torch.device]):
+    def __init__(self, config: KokoroTextToSpeechGenerateModelActionConfig, pipeline: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
+        self.config: KokoroTextToSpeechGenerateModelActionConfig = config  # For type only
         self.pipeline = pipeline
 
-    async def _generate(self, text: str, context: ComponentActionContext) -> Any:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
         voice = await context.render_variable(self.config.voice)
         speed = await context.render_variable(self.config.speed)
 
-        samples, sample_rate = await asyncio.get_event_loop().run_in_executor(
-            None, self._synthesize, text, voice or "af_heart", float(speed) if speed else 1.0
-        )
-        frames, channels = self._encode_samples_to_pcm16(samples)
+        params["voice"] = voice or "af_heart"
+        params["speed"] = float(speed) if speed is not None else 1.0
 
-        return PcmStreamResource(frames, {
-            "sample_rate": str(sample_rate),
-            "channels": str(channels),
-            "bit_depth": "16",
-        })
+        return params
+
+    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
+        async def _synthesize(text: str) -> StreamResource:
+            samples, sample_rate = await loop.run_in_executor(None, self._synthesize, text, params["voice"], params["speed"])
+            frames, channels = self._encode_samples_to_pcm16(samples)
+
+            return PcmStreamResource(frames, {
+                "sample_rate": str(sample_rate),
+                "channels":    str(channels),
+                "bit_depth":   "16",
+            })
+
+        return [ await _synthesize(text) for text in texts ]
 
     def _synthesize(self, text: str, voice: str, speed: float) -> Tuple[Any, int]:
         import numpy as np
@@ -41,6 +53,7 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
             chunks.append(audio)
 
         samples = np.concatenate(chunks, axis=0) if len(chunks) > 1 else chunks[0]
+
         return samples, 24000
 
 class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
@@ -53,10 +66,10 @@ class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return ["kokoro", "numpy", "soundfile"]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.pipeline, self.device = self._load_pretrained_model()
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.pipeline = None
         self.device = None
 
@@ -76,6 +89,6 @@ class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
         loop: asyncio.AbstractEventLoop,
     ) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await KokoroTextToSpeechGenerateTaskAction(action, self.pipeline, self.device).run(context)
+            return await KokoroTextToSpeechGenerateTaskAction(action, self.pipeline, self.device).run(context, loop)
 
         raise ValueError(f"Unknown method: {action.method}")

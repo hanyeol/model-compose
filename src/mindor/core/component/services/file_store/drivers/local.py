@@ -1,45 +1,25 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, AsyncIterator
+from typing import Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import LocalFileStoreComponentConfig
-from mindor.dsl.schema.action import FileStoreActionConfig, LocalFileStoreActionConfig, FileStoreActionMethod
-from mindor.core.utils.streaming import StreamResource, FileStreamResource, ChunkedStreamResource
-from mindor.core.utils.streaming import save_stream_to_file, resolve_stream_resource
+from mindor.dsl.schema.action import FileStoreActionConfig, LocalFileStoreActionConfig
+from mindor.core.utils.streaming.stream import ChunkedStreamResource
+from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.utils.streaming.stream import save_stream_to_file
+from mindor.core.utils.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import list_dir, walk_dir, is_glob_match, is_path_within, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
 from ..base import ComponentActionContext
+from .common import FileStoreAction
 import aiofiles, os, stat as stat_module, sys, urllib.parse
 
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8MB — for put and save_to downloads
 _DEFAULT_STREAMING_CHUNK_SIZE = 8 * 1024  # 8KB — for streaming output, matching other StreamResources
 
-class LocalFileStoreAction:
+class LocalFileStoreAction(FileStoreAction):
     def __init__(self, config: LocalFileStoreActionConfig, base_path: str):
-        self.config: LocalFileStoreActionConfig = config
+        super().__init__(config)
         self.base_path: str = base_path  # absolute, normalized
-
-    async def run(self, context: ComponentActionContext) -> Any:
-        result = await self._dispatch(context)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
-    async def _dispatch(self, context: ComponentActionContext) -> Dict[str, Any]:
-        if self.config.method == FileStoreActionMethod.PUT:
-            return await self._put(context)
-
-        if self.config.method == FileStoreActionMethod.GET:
-            return await self._get(context)
-
-        if self.config.method == FileStoreActionMethod.DELETE:
-            return await self._delete(context)
-
-        if self.config.method == FileStoreActionMethod.EXISTS:
-            return await self._exists(context)
-
-        if self.config.method == FileStoreActionMethod.LIST:
-            return await self._list(context)
-
-        raise ValueError(f"Unsupported file store action method: {self.config.method}")
 
     async def _put(self, context: ComponentActionContext) -> Dict[str, Any]:
         path         = await context.render_variable(self.config.path)

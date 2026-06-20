@@ -2,15 +2,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dataclasses import dataclass
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, AsyncContextManager, Any
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import AwsS3FileStoreComponentConfig
-from mindor.dsl.schema.action import FileStoreActionConfig, AwsS3FileStoreActionConfig, FileStoreActionMethod
-from mindor.core.utils.streaming import ReaderStreamResource, save_stream_to_file, resolve_stream_resource
+from mindor.dsl.schema.action import FileStoreActionConfig, AwsS3FileStoreActionConfig
+from mindor.core.utils.streaming.stream import ReaderStreamResource, save_stream_to_file
+from mindor.core.utils.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import is_glob_match, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
-from mindor.core.utils.aws_s3 import upload, multipart_upload
+from mindor.core.utils.providers.aws_s3 import upload, multipart_upload
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
 from ..base import ComponentActionContext
+from .common import FileStoreAction
 from contextlib import AsyncExitStack
 import os, urllib.parse
 
@@ -27,7 +29,7 @@ class S3Location:
     region: Optional[str] = None
     endpoint: Optional[str] = None
 
-class AwsS3FileStoreAction:
+class AwsS3FileStoreAction(FileStoreAction):
     def __init__(
         self,
         config: AwsS3FileStoreActionConfig,
@@ -35,34 +37,10 @@ class AwsS3FileStoreAction:
         location: S3Location,
         base_path: Optional[str] = None,
     ):
-        self.config: AwsS3FileStoreActionConfig = config
+        super().__init__(config)
         self.client: S3Client = client
         self.location: S3Location = location
         self.base_path: Optional[str] = base_path
-
-    async def run(self, context: ComponentActionContext) -> Any:
-        result = await self._dispatch(context)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
-    async def _dispatch(self, context: ComponentActionContext) -> Dict[str, Any]:
-        if self.config.method == FileStoreActionMethod.PUT:
-            return await self._put(context)
-
-        if self.config.method == FileStoreActionMethod.GET:
-            return await self._get(context)
-
-        if self.config.method == FileStoreActionMethod.DELETE:
-            return await self._delete(context)
-
-        if self.config.method == FileStoreActionMethod.EXISTS:
-            return await self._exists(context)
-
-        if self.config.method == FileStoreActionMethod.LIST:
-            return await self._list(context)
-
-        raise ValueError(f"Unsupported file store action method: {self.config.method}")
 
     async def _put(self, context: ComponentActionContext) -> Dict[str, Any]:
         path                = await context.render_variable(self.config.path)

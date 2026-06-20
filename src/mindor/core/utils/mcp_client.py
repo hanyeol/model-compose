@@ -1,7 +1,7 @@
 from typing import Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent
+from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource
 from mcp.types import Resource, TextResourceContents, BlobResourceContents, GetPromptResult, Prompt
 from mcp import ClientSession, Tool
 

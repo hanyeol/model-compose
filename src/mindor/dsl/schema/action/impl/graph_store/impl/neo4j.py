@@ -10,19 +10,19 @@ from .common import (
 )
 
 class Neo4jGraphQueryActionConfig(CommonGraphQueryActionConfig):
-    database: Optional[str] = Field(default=None, description="Target Neo4j database for this query.")
+    pass
 
 class Neo4jGraphInsertActionConfig(CommonGraphInsertActionConfig):
-    database: Optional[str] = Field(default=None, description="Target Neo4j database for this operation.")
+    pass
 
 class Neo4jGraphUpdateActionConfig(CommonGraphUpdateActionConfig):
-    database: Optional[str] = Field(default=None, description="Target Neo4j database for this operation.")
+    pass
 
 class Neo4jGraphDeleteActionConfig(CommonGraphDeleteActionConfig):
-    database: Optional[str] = Field(default=None, description="Target Neo4j database for this operation.")
+    pass
 
 class Neo4jGraphTraverseActionConfig(CommonGraphTraverseActionConfig):
-    database: Optional[str] = Field(default=None, description="Target Neo4j database for this operation.")
+    pass
 
 Neo4jGraphStoreActionConfig = Annotated[
     Union[

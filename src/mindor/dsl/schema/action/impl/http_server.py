@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from mindor.dsl.schema.streaming import StreamChunkFormat
+from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from .common import CommonActionConfig
 
 class HttpServerCompletionType(str, Enum):
@@ -11,7 +11,7 @@ class HttpServerCompletionType(str, Enum):
 
 class HttpServerCommonCompletionConfig(BaseModel):
     type: HttpServerCompletionType
-    chunk_format: Optional[StreamChunkFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
+    stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
 
 class HttpServerPollingCompletionConfig(HttpServerCommonCompletionConfig):
     type: Literal[HttpServerCompletionType.POLLING]
@@ -51,5 +51,5 @@ class HttpServerActionConfig(CommonActionConfig):
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers to include in responses from this endpoint.")
     body: Dict[str, Any] = Field(default_factory=dict, description="Default response body template for this endpoint.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Expected URL query parameters for this endpoint.")
-    chunk_format: Optional[StreamChunkFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
+    stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
     completion: Optional[HttpServerCompletionConfig] = Field(default=None, description="Configuration for handling asynchronous request completion via polling or callbacks.")

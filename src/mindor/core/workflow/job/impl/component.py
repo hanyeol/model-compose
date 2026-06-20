@@ -21,46 +21,44 @@ class ComponentJob(Job):
         if not component.started:
             await component.start()
 
-        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
-        outputs = []
-
-        async def _run_once(input: Any):
-            run_id: str = ulid.ulid()
-            context.workflow.record_run_id(self.id, run_id)
-
-            job_time_tracker = TimeTracker()
-            logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
-
-            if self.config.interrupt and self.config.interrupt.before:
-                logging.info("[task-%s] Job '%s:%s' interrupted at 'before' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
-                context.register_source(run_id, "job", { "input": input })
-                answer = await self._interrupt(context, run_id, "before", self.config.interrupt.before)
-                if answer is not None:
-                    input = answer
-
-            output = await component.run(self.config.action, run_id, input, workflow=context.workflow, job_id=self.id)
-            context.register_source(run_id, "output", output)
-
-            if self.config.interrupt and self.config.interrupt.after:
-                logging.info("[task-%s] Job '%s:%s' interrupted at 'after' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
-                context.register_source(run_id, "job", { "input": input, "output": output })
-                answer = await self._interrupt(context, run_id, "after", self.config.interrupt.after)
-                if answer is not None:
-                    output = answer
-                context.register_source(run_id, "output", output)
-
-            logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
-
-            output = (await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
-            outputs.append(output)
-
+        input        = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
         repeat_count = (await context.render_variable(None, self.config.repeat_count)) if self.config.repeat_count else None
-        await asyncio.gather(*[ _run_once(input) for _ in range(int(repeat_count or 1)) ])
+
+        outputs = await asyncio.gather(*[ self._run(input, component, context) for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None
         context.register_source(None, "output", output)
 
         return output
+
+    async def _run(self, input: Any, component: ComponentService, context: JobContext) -> Any:
+        run_id: str = ulid.ulid()
+        context.workflow.record_run_id(self.id, run_id)
+
+        job_time_tracker = TimeTracker()
+        logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
+
+        if self.config.interrupt and self.config.interrupt.before:
+            logging.info("[task-%s] Job '%s:%s' interrupted at 'before' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
+            context.register_source(run_id, "job", { "input": input })
+            answer = await self._interrupt(context, run_id, "before", self.config.interrupt.before)
+            if answer is not None:
+                input = answer
+
+        output = await component.run(self.config.action, run_id, input, workflow=context.workflow, job_id=self.id)
+        context.register_source(run_id, "output", output)
+
+        if self.config.interrupt and self.config.interrupt.after:
+            logging.info("[task-%s] Job '%s:%s' interrupted at 'after' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
+            context.register_source(run_id, "job", { "input": input, "output": output })
+            answer = await self._interrupt(context, run_id, "after", self.config.interrupt.after)
+            if answer is not None:
+                output = answer
+            context.register_source(run_id, "output", output)
+
+        logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
+
+        return (await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
 
     async def _interrupt(self, context: JobContext, run_id: str, phase: str, point: ComponentInterruptPointConfig) -> Any:
         if point.condition:

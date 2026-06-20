@@ -22,7 +22,7 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         self.model: Llama = model
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any]) -> List[List[float]]:
+    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
         import math
 
         embeddings = self.model.embed(texts)
@@ -41,7 +41,15 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)
 class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
-    def _load_model(self) -> None:
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext,
+        loop: asyncio.AbstractEventLoop
+    ) -> Any:
+        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context, loop)
+
+    async def _load_model(self) -> None:
         from llama_cpp import Llama
 
         model_path = self._get_model_path()
@@ -50,11 +58,3 @@ class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
 
         logging.info(f"Component '{self.id}': loading llama.cpp embedding model from '{model_path}'")
         self.model = Llama(model_path=model_path, **params)
-
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context, loop)

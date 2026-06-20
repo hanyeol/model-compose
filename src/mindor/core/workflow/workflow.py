@@ -241,11 +241,11 @@ class WorkflowRunner:
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
+                    job_time_trackers[job.id] = TimeTracker()
                     context.job_run_ids[job.id] = []
                     scheduled_job_tasks[job.id] = self._schedule_job(job, context)
                     running_job_ids.add(job.id)
 
-                    job_time_trackers[job.id] = TimeTracker()
                     await context.job_event_notifier.notify(
                         "started",
                         job.id,
@@ -295,11 +295,12 @@ class WorkflowRunner:
                         logging.info("[task-%s] Routing to job '%s' from job '%s'.", context.task_id, next_job_id, completed_job_id)
 
                         pending_jobs[next_job_id] = routing_jobs.pop(next_job_id)
+
+                        job_time_trackers[next_job_id] = TimeTracker()
                         context.job_run_ids[next_job_id] = []
                         scheduled_job_tasks[next_job_id] = self._schedule_job(pending_jobs[next_job_id], context)
                         running_job_ids.add(next_job_id)
 
-                        job_time_trackers[next_job_id] = TimeTracker()
                         await context.job_event_notifier.notify(
                             "started",
                             next_job_id,

@@ -12,8 +12,9 @@ class IfJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+        input = await context.render_variable(None, self.config.input)
+
         for condition in self.config.conditions:
-            input = await context.render_variable(None, condition.input)
             value = await context.render_variable(None, condition.value)
 
             logging.debug("[task-%s] Evaluating condition: %s %s %s", context.workflow.task_id, input, condition.operator, value)

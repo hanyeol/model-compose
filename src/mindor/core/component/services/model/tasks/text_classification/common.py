@@ -1,67 +1,58 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from abc import ABC, abstractmethod
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
 from mindor.dsl.schema.action import TextClassificationModelActionConfig
+from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ModelTaskService, ComponentActionContext
+import asyncio
 
 class TextClassificationTaskAction:
-    def __init__(self, config: TextClassificationModelActionConfig):
+    def __init__(self, config: TextClassificationModelActionConfig, labels: Optional[List[str]]):
         self.config: TextClassificationModelActionConfig = config
+        self.labels: Optional[List[str]] = labels
 
-    async def run(self, context: ComponentActionContext, labels: Optional[List[str]]) -> Any:
-        text = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(text, list))
-        uses_array_output: bool = context.contains_variable_reference("result[]", self.config.output)
-        texts: List[str] = [ text ] if is_single_input else text
-        results = []
-
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        text       = await context.render_variable(self.config.text)
         batch_size = await context.render_variable(self.config.batch_size)
-        streaming  = await context.render_variable(self.config.streaming)
 
-        async def _process():
-            for index in range(0, len(texts), batch_size):
-                batch_texts = texts[index:index + batch_size]
-                predictions = await self._predict(batch_texts, labels, context)
+        params = await self._resolve_params(context)
 
-                if uses_array_output:
-                    rendered_outputs = []
-                    for prediction in predictions:
-                        context.register_source("result[]", prediction)
-                        rendered_outputs.append((await context.render_variable(self.config.output)) if self.config.output else prediction)
-                    yield rendered_outputs
-                else:
-                    yield predictions
+        is_single_input  = not isinstance(text, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if streaming:
+        if isinstance(text, AsyncIterator):
             async def _stream_output_generator():
-                async for predictions in _process():
-                    if not uses_array_output:
-                        for prediction in predictions:
-                            context.register_source("result", prediction)
-                            yield (await context.render_variable(self.config.output)) if self.config.output else prediction
-                    else:
-                        for prediction in predictions:
-                            yield prediction
+                async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                    batch_results = await self._predict(batch_texts, params, self.labels, loop)
+                    for result in batch_results:
+                        yield result
 
             return _stream_output_generator()
         else:
-            async for predictions in _process():
-                results.extend(predictions)
+            results: List[Any] = []
+            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                batch_results = await self._predict(batch_texts, params, self.labels, loop)
+                results.extend(batch_results)
 
-            if not uses_array_output:
-                result = results[0] if is_single_input else results
-                context.register_source("result", result)
-                return (await context.render_variable(self.config.output)) if self.config.output else result
-            else:
-                return results
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        max_input_length     = await context.render_variable(self.config.max_input_length) if self.config.max_input_length is not None else None
+        return_probabilities = await context.render_variable(self.config.params.return_probabilities)
+
+        return {
+            "max_input_length":     max_input_length,
+            "return_probabilities": return_probabilities,
+        }
 
     @abstractmethod
-    async def _predict(self, texts: List[str], labels: Optional[List[str]], context: ComponentActionContext) -> List[Any]:
+    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> List[Any]:
         pass
 
 class TextClassificationTaskService(ModelTaskService):

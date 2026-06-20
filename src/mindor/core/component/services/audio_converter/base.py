@@ -4,6 +4,7 @@ from mindor.dsl.schema.component import AudioConverterComponentConfig, AudioConv
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
+import asyncio
 
 class AudioConverterService(AsyncService):
     def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
@@ -16,10 +17,11 @@ class AudioConverterService(AsyncService):
         return None
 
     async def run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
-        return await self._run(action, context)
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        return await self._run(action, context, loop)
 
     @abstractmethod
-    async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
+    async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         pass
 
 def register_audio_converter_service(driver: AudioConverterDriver):

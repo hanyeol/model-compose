@@ -17,4 +17,5 @@ class SpeechToTextModelActionConfig(CommonModelActionConfig):
     task: Optional[Union[str, str]] = Field(default="transcribe", description="Task to perform: 'transcribe' or 'translate'.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs to process in a single batch.")
     chunk_length: Optional[Union[float, str]] = Field(default=30.0, description="Length of audio chunks in seconds for long-form transcription.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether to stream transcribed tokens as they are produced.")
     params: SpeechToTextParamsConfig = Field(default_factory=SpeechToTextParamsConfig, description="Speech-to-text generation parameters.")

@@ -1,8 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from collections.abc import AsyncIterator
+from typing import Optional, List, Any
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod, DatasetsProvider
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
@@ -17,25 +16,25 @@ class DatasetsAction:
         self.config: DatasetsActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        result = await self._dispatch(context)
+        result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if self.config.output else result
 
-    async def _dispatch(self, context: ComponentActionContext) -> Dataset:
-        if self.config.method == DatasetsActionMethod.LOAD:
+    async def _dispatch(self, method: DatasetsActionMethod, context: ComponentActionContext) -> Dataset:
+        if method == DatasetsActionMethod.LOAD:
             return await self._load(context)
 
-        if self.config.method == DatasetsActionMethod.CONCAT:
+        if method == DatasetsActionMethod.CONCAT:
             return await self._concat(context)
 
-        if self.config.method == DatasetsActionMethod.SELECT:
+        if method == DatasetsActionMethod.SELECT:
             return await self._select(context)
 
-        if self.config.method == DatasetsActionMethod.MAP:
+        if method == DatasetsActionMethod.MAP:
             return await self._map(context)
 
-        raise ValueError(f"Unsupported datasets action method: {self.config.method}")
+        raise ValueError(f"Unsupported datasets action method: {method}")
 
     async def _load(self, context: ComponentActionContext) -> Dataset:
         fraction = await context.render_variable(self.config.fraction)

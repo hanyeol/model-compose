@@ -7,3 +7,4 @@ class JobType(str, Enum):
     SWITCH        = "switch"
     RANDOM_ROUTER = "random-router"
     FILTER        = "filter"
+    FOR_EACH      = "for-each"

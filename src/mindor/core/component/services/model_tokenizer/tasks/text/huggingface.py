@@ -1,11 +1,15 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.dsl.schema.action.impl.model_tokenizer.impl.common import ModelTokenizerMethod
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.renderers import ArrayValue
 from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
 from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext
+import asyncio
 
 class HuggingfaceTextModelTokenizerTaskAction:
     def __init__(self, config: ModelTokenizerActionConfig, tokenizer: Any):
@@ -13,52 +17,122 @@ class HuggingfaceTextModelTokenizerTaskAction:
         self.tokenizer = tokenizer
 
     async def run(self, context: ComponentActionContext) -> Any:
-        if self.config.method == ModelTokenizerMethod.ENCODE:
-            return await self._encode(context)
+        value      = await self._prepare_input(self.config.method, context)
+        batch_size = await context.render_variable(self.config.batch_size)
 
-        if self.config.method == ModelTokenizerMethod.DECODE:
-            return await self._decode(context)
+        params = await self._resolve_params(self.config.method, context)
 
-        if self.config.method == ModelTokenizerMethod.COUNT:
-            return await self._count(context)
+        is_single_input  = not isinstance(value, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        raise ValueError(f"Unsupported tokenizer method: {self.config.method}")
+        if isinstance(value, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
+                    batch_results = await self._process(self.config.method, batch_inputs, params)
+                    for result in batch_results:
+                        yield result
 
-    async def _encode(self, context: ComponentActionContext) -> Dict[str, Any]:
-        text       = await context.render_variable(self.config.text)
-        max_length = await context.render_variable(self.config.max_length)
-        padding    = await context.render_variable(self.config.padding)
-        truncation = await context.render_variable(self.config.truncation)
+            return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
+                batch_results = await self._process(self.config.method, batch_inputs, params)
+                results.extend(batch_results)
 
-        encode_params: Dict[str, Any] = {}
-        if max_length is not None:
-            encode_params["max_length"] = int(max_length)
-        if padding:
-            encode_params["padding"] = "max_length" if max_length else True
-        if truncation:
-            encode_params["truncation"] = True
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-        encoded = self.tokenizer(text, **encode_params)
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-        return {
-            "input_ids": encoded["input_ids"],
-            "attention_mask": encoded["attention_mask"]
-        }
+    async def _prepare_input(self, method: ModelTokenizerMethod, context: ComponentActionContext) -> Any:
+        if method == ModelTokenizerMethod.ENCODE:
+            return await context.render_text(self.config.text)
 
-    async def _decode(self, context: ComponentActionContext) -> Dict[str, str]:
-        token_ids           = await context.render_variable(self.config.token_ids)
-        skip_special_tokens = await context.render_variable(self.config.skip_special_tokens)
+        if method == ModelTokenizerMethod.DECODE:
+            return await context.render_array(self.config.token_ids)
 
-        text = self.tokenizer.decode(token_ids, skip_special_tokens=bool(skip_special_tokens))
+        if method == ModelTokenizerMethod.COUNT:
+            return await context.render_text(self.config.text)
 
-        return { "text": text }
+        raise ValueError(f"Unsupported tokenizer method: {method}")
 
-    async def _count(self, context: ComponentActionContext) -> Dict[str, int]:
-        text = await context.render_variable(self.config.text)
+    async def _resolve_params(self, method: ModelTokenizerMethod, context: ComponentActionContext) -> Dict[str, Any]:
+        if method == ModelTokenizerMethod.ENCODE:
+            max_length         = await context.render_variable(self.config.max_length)
+            padding            = await context.render_variable(self.config.padding)
+            truncation         = await context.render_variable(self.config.truncation)
+            additional_returns = await context.render_variable(self.config.additional_returns) or []
 
-        token_ids = self.tokenizer.encode(text)
+            encode_params: Dict[str, Any] = {}
+            if max_length is not None:
+                encode_params["max_length"] = int(max_length)
+            if padding:
+                encode_params["padding"] = "max_length" if max_length is not None else True
+            if truncation:
+                encode_params["truncation"] = True
+            if "special_tokens_mask" in additional_returns:
+                encode_params["return_special_tokens_mask"] = True
+            if "offset_mapping" in additional_returns:
+                encode_params["return_offsets_mapping"] = True
+            if "length" in additional_returns:
+                encode_params["return_length"] = True
 
-        return { "count": len(token_ids) }
+            return {
+                "encode_params":      encode_params,
+                "additional_returns": additional_returns,
+            }
+
+        if method == ModelTokenizerMethod.DECODE:
+            skip_special_tokens = await context.render_variable(self.config.skip_special_tokens)
+
+            return {
+                "skip_special_tokens": bool(skip_special_tokens),
+            }
+
+        if method == ModelTokenizerMethod.COUNT:
+            return {}
+
+        raise ValueError(f"Unsupported tokenizer method: {method}")
+
+    async def _process(self, method: ModelTokenizerMethod, inputs: List[Any], params: Dict[str, Any]) -> List[Any]:
+        if method == ModelTokenizerMethod.ENCODE:
+            return await asyncio.to_thread(self._encode, inputs, params)
+
+        if method == ModelTokenizerMethod.DECODE:
+            return await asyncio.to_thread(self._decode, inputs, params)
+
+        if method == ModelTokenizerMethod.COUNT:
+            return await asyncio.to_thread(self._count, inputs, params)
+
+        raise ValueError(f"Unsupported tokenizer method: {method}")
+
+    def _encode(self, texts: List[str], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        outputs = self.tokenizer(texts, **params["encode_params"])
+
+        results: List[Dict[str, Any]] = []
+        for i in range(len(texts)):
+            result: Dict[str, Any] = { "input_ids": outputs["input_ids"][i] }
+            if "attention_mask" in outputs:
+                result["attention_mask"] = outputs["attention_mask"][i]
+            for key in params["additional_returns"]:
+                if key in outputs:
+                    result[key] = outputs[key][i]
+            results.append(result)
+
+        return results
+
+    def _decode(self, token_ids: List[ArrayValue], params: Dict[str, Any]) -> List[Dict[str, str]]:
+        outputs = self.tokenizer.batch_decode(
+            [ token_ids.values for token_ids in token_ids ],
+            skip_special_tokens=params["skip_special_tokens"],
+        )
+
+        return [ { "text": text } for text in outputs ]
+
+    def _count(self, texts: List[str], params: Dict[str, Any]) -> List[Dict[str, int]]:
+        outputs = self.tokenizer(texts)
+
+        return [ { "count": len(outputs["input_ids"][i]) } for i in range(len(texts)) ]
 
 @register_model_tokenizer_task_service(ModelTokenizerTaskType.TEXT, ModelTokenizerDriver.HUGGINGFACE)
 class HuggingfaceTextModelTokenizerTaskService(HuggingfaceModelTokenizerTaskService):

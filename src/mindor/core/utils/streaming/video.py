@@ -1,6 +1,8 @@
 from typing import Union, Optional, Dict, Any
 from collections.abc import AsyncIterator
-from .streaming import StreamResource, BytesStreamResource, UploadFileStreamResource
+from .stream import StreamResource
+from .bytes import BytesStreamResource
+from .file import UploadFileStreamResource
 from .media import MediaSource
 from starlette.datastructures import UploadFile
 

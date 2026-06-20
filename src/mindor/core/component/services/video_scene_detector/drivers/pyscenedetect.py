@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Union, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
-from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streaming import FileStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
@@ -18,8 +20,10 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         detector: Optional[str],
         threshold: Optional[float],
         start_time: Optional[float],
-        end_time: Optional[float]
-    ) -> Dict[str, Any]:
+        end_time: Optional[float],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
 
         try:
@@ -119,5 +123,5 @@ class PySceneVideoSceneDetectorService(VideoSceneDetectorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "scenedetect[opencv]" ]
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
-        return await PySceneVideoSceneDetectorAction(action).run(context)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        return await PySceneVideoSceneDetectorAction(action).run(context, loop)

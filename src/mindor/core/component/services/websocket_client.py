@@ -3,7 +3,7 @@ from mindor.dsl.schema.component import WebSocketClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketClientActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
 from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
-from mindor.core.utils.streaming import BytesStreamResource
+from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.core.utils.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -21,8 +21,7 @@ class WebSocketClientAction:
 
         format  = await context.render_variable(self.config.receive.format)
         collect = await context.render_variable(self.config.receive.collect)
-        timeout_str = await context.render_variable(self.config.receive.timeout)
-        timeout = parse_duration(timeout_str) if timeout_str else None
+        timeout = parse_duration(await context.render_variable(self.config.receive.timeout)) if self.config.receive.timeout else None
 
         connection, owned = await client.connect(
             path=path,

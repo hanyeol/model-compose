@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import TextGenerationModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
 from .common import TextGenerationTaskAction
 from threading import Thread
 import asyncio
@@ -30,7 +30,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool) -> Union[Dict[str, Any], Iterator[Dict[str, Any]]]:
+    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
@@ -44,9 +44,12 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
         if streaming:
-            from transformers import TextIteratorStreamer
-
-            streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True)
+            streamer = BatchTextIteratorStreamer(
+                self.tokenizer,
+                batch_size=len(texts),
+                skip_prompt=True,
+                skip_special_tokens=True,
+            )
 
             def _run():
                 with torch.inference_mode():
@@ -54,27 +57,21 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
                         **inputs,
                         generation_config=GenerationConfig(**generation_params),
                         stopping_criteria=stopping_criteria,
-                        streamer=streamer
+                        streamer=streamer,
                     )
 
             Thread(target=_run, daemon=True).start()
 
-            def _chunk_iterator():
-                for token in streamer:
-                    if token:
-                        yield {"choices": [{"text": token}]}
+            return [ streamer[index] for index in range(len(texts)) ]
 
-            return _chunk_iterator()
-        else:
-            with torch.inference_mode():
-                outputs = self.model.generate(
-                    **inputs,
-                    generation_config=GenerationConfig(**generation_params),
-                    stopping_criteria=stopping_criteria,
-                )
+        with torch.inference_mode():
+            outputs = self.model.generate(
+                **inputs,
+                generation_config=GenerationConfig(**generation_params),
+                stopping_criteria=stopping_criteria,
+            )
 
-            decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            return {"choices": [{"text": text} for text in decoded]}
+        return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
     async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)

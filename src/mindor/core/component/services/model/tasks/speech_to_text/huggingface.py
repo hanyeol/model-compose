@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Optional, Dict, List, Iterator, Any
 from mindor.dsl.schema.component import SpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
-from mindor.core.utils.audio import load_audio_array
-from mindor.core.utils.media import MediaSource
+from mindor.core.utils.streaming.audio import load_audio_array
+from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
@@ -34,14 +34,14 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        generation = await self._resolve_generation_params(context)
+        generation_params: Dict[str, Any] = await self._resolve_generation_params(context)
 
         if params["language"] is not None:
-            generation["language"] = params["language"]
+            generation_params["language"] = params["language"]
         if params["task"] is not None:
-            generation["task"] = params["task"]
+            generation_params["task"] = params["task"]
 
-        params["generation"] = generation
+        params["generation"] = generation_params
 
         return params
 
@@ -77,7 +77,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         import torch
 
         waveforms = [ await self._preprocess_audio(audio) for audio in audios ]
@@ -146,17 +146,14 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture in (
-            SpeechToTextModelArchitecture.WHISPER,
-            SpeechToTextModelArchitecture.WHISPER_LARGE
-        ):
+        if self.config.architecture == SpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperForConditionalGeneration
             return WhisperForConditionalGeneration
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
-        if self.config.architecture in [ SpeechToTextModelArchitecture.WHISPER, SpeechToTextModelArchitecture.WHISPER_LARGE ]:
+        if self.config.architecture == SpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperProcessor
             return WhisperProcessor
 

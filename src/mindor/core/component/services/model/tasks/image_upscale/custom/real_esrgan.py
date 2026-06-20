@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscaleModelActionConfig
 from mindor.core.logger import logging
@@ -26,25 +26,41 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
         self.config: RealEsrganImageUpscaleModelActionConfig = config
         self.model: RealESRGAN = model
 
-    async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
-        import numpy as np
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        upscaled_images = []
-        for image in images:
-            upscaled_image = self.model.predict(np.array(image), **params)
-            upscaled_images.append(upscaled_image)
+        tile_batch_size = await context.render_variable(self.config.params.tile_batch_size)
+        tile_size       = await context.render_variable(self.config.params.tile_size)
+        tile_pad_size   = await context.render_variable(self.config.params.tile_pad_size)
+        pre_pad_size    = await context.render_variable(self.config.params.pre_pad_size)
 
-        return upscaled_images
-
-    async def _resolve_upscale_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        params = await super()._resolve_upscale_params(context)
-
-        params["batch_size"  ] = await context.render_variable(self.config.params.tile_batch_size)
-        params["patches_size"] = await context.render_variable(self.config.params.tile_size)
-        params["padding"     ] = await context.render_variable(self.config.params.tile_pad_size)
-        params["pad_size"    ] = await context.render_variable(self.config.params.pre_pad_size)
+        params.update({
+            "batch_size":   tile_batch_size,
+            "patches_size": tile_size,
+            "padding":      tile_pad_size,
+            "pad_size":     pre_pad_size,
+        })
 
         return params
+
+    async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
+        return await loop.run_in_executor(None, self._upscale_batch, images, params)
+
+    def _upscale_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+        import numpy as np
+
+        upscaled_images: List[PILImage.Image] = []
+
+        for image in images:
+            upscaled_images.append(self.model.predict(
+                np.array(image),
+                batch_size=params["batch_size"],
+                patches_size=params["patches_size"],
+                padding=params["padding"],
+                pad_size=params["pad_size"],
+            ))
+
+        return upscaled_images
 
 class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -57,7 +73,7 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
 
     def _patch_huggingface_hub_compatibility(self) -> None:
         import huggingface_hub as hub
-    
+
         if not hasattr(hub, "cached_download"):
             def _raise_not_implemented(*args, **kwargs):
                 raise NotImplementedError("cached_download is deprecated; not intended to be used.")
@@ -66,10 +82,10 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git" ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
@@ -88,4 +104,4 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await RealEsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)
+        return await RealEsrganImageUpscaleTaskAction(action, self.model, self.device).run(context, loop)

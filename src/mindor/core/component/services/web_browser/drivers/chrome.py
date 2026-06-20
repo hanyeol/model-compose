@@ -1,7 +1,8 @@
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriver
 from mindor.core.utils.cdp_client import CdpClient
-from ..base import WebBrowserService, WebBrowserSession, register_web_browser_service
+from ..base import WebBrowserService, register_web_browser_service
+from .common import WebBrowserSession
 import asyncio
 
 class ChromeBrowserSession(WebBrowserSession):
@@ -10,8 +11,6 @@ class ChromeBrowserSession(WebBrowserSession):
     def __init__(self, client: CdpClient):
         self.client = client
         self._lifecycle_enabled = False
-
-    # ---- Navigation ----
 
     async def navigate(self, url: str, wait_until: str, timeout: float) -> Dict[str, Any]:
         await self.client.send_command("Page.enable")
@@ -50,15 +49,13 @@ class ChromeBrowserSession(WebBrowserSession):
 
         return { "url": url, "frameId": result.get("frameId") }
 
-    # ---- Query ----
-
     async def wait_for(
         self,
         selector: Optional[str],
         xpath: Optional[str],
         condition: str,
         timeout: float
-    ) -> Dict[str, Any]:
+    ) -> None:
         script = self._build_wait_condition_script(selector, xpath, condition)
         deadline = asyncio.get_event_loop().time() + timeout
 
@@ -68,11 +65,10 @@ class ChromeBrowserSession(WebBrowserSession):
             })
             value = result.get("result", {}).get("value")
             if value:
-                return {"found": True}
+                return
             await asyncio.sleep(0.3)
 
-        target = selector or xpath
-        raise TimeoutError(f"wait_for '{target}' ({condition}) timed out after {timeout}s")
+        raise TimeoutError(f"wait_for '{selector or xpath}' ({condition}) timed out after {timeout}s")
 
     async def screenshot(
         self,
@@ -90,7 +86,7 @@ class ChromeBrowserSession(WebBrowserSession):
         if selector:
             box = await self._find_element_bounding_box(selector, None)
             if box:
-                params["clip"] = {**box, "scale": 1}
+                params["clip"] = { **box, "scale": 1 }
 
         result = await self.client.send_command("Page.captureScreenshot", params)
         return result["data"]  # base64-encoded
@@ -112,8 +108,6 @@ class ChromeBrowserSession(WebBrowserSession):
             raise RuntimeError(f"Extract JavaScript error: { result['exceptionDetails'] }")
 
         return result.get("result", {}).get("value")
-
-    # ---- Interaction ----
 
     async def click(
         self,
@@ -191,22 +185,16 @@ class ChromeBrowserSession(WebBrowserSession):
 
         return result.get("result", {}).get("value")
 
-    # ---- State ----
-
     async def get_cookies(self, urls: Optional[List[str]]) -> List[Dict[str, Any]]:
         result = await self.client.send_command("Network.getCookies", { "urls": urls } if urls else {})
+ 
         return result.get("cookies", [])
 
-    async def set_cookies(self, cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def set_cookies(self, cookies: List[Dict[str, Any]]) -> None:
         await self.client.send_command("Network.setCookies", {"cookies": cookies})
-        return { "set": len(cookies) }
-
-    # ---- Lifecycle ----
 
     async def close(self) -> None:
         await self.client.close()
-
-    # ---- Internal helpers ----
 
     async def _get_element_center(self, selector: Optional[str], xpath: Optional[str], timeout: float) -> tuple:
         deadline = asyncio.get_event_loop().time() + timeout

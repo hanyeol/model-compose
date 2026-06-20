@@ -29,7 +29,7 @@ class CommonSearchIndexActionConfig(CommonSearchEngineActionConfig):
 class CommonSearchSearchActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.SEARCH]
     index: str = Field(..., description="Target index name to search.")
-    query: Union[str, str] = Field(..., description="Search query string.")
+    query: str = Field(..., description="Search query string.")
     search_fields: Optional[Union[List[str], str]] = Field(default=None, description="Fields to search in. When omitted, all text fields are searched.")
     limit: Union[int, str] = Field(default=10, description="Maximum number of search results to return.")
 

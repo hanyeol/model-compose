@@ -3,7 +3,9 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Tuple, Dict, Any
 from collections.abc import AsyncIterator
-from .streaming import StreamResource, BytesStreamResource, UploadFileStreamResource, read_stream_to_bytes
+from .stream import StreamResource, read_stream_to_bytes
+from .bytes import BytesStreamResource
+from .file import UploadFileStreamResource
 from .media import MediaSource
 from starlette.datastructures import UploadFile
 import struct
@@ -165,7 +167,7 @@ def create_audio_source(value: Any) -> MediaSource:
 async def load_audio_array(source: MediaSource) -> Tuple[np.ndarray, int]:
     import torchaudio, io
     import numpy as np
-    
+
     data = await read_stream_to_bytes(source.stream)
 
     if source.format in _PCM_FORMAT_NUMPY_DTYPE_MAP:

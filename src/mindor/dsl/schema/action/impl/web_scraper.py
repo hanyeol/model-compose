@@ -16,7 +16,8 @@ class WebScraperSubmitConfig(BaseModel):
         return self
 
 class WebScraperActionConfig(CommonActionConfig):
-    url: str = Field(..., description="URL to scrape")
+    url: Union[str, List[str]] = Field(..., description="URL(s) to scrape")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input URLs to process in a single batch.")
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers to include in the request")
     cookies: Dict[str, str] = Field(default_factory=dict, description="Cookies to include in the request")
     selector: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="CSS selector(s) to extract elements.")

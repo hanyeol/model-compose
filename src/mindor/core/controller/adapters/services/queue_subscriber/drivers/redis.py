@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
+from mindor.core.utils.iterators import StreamChunkIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
 from mindor.core.controller.queue.serialize import deserialize_input
@@ -116,7 +117,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
 
-        if state.status == TaskStatus.COMPLETED and isinstance(state.output, AsyncIterator):
+        if state.status == TaskStatus.COMPLETED and isinstance(state.output, (AsyncIterator, StreamChunkIterator)):
             await self._publish_stream_result(workflow_id, task_id, run_id, state)
         else:
             await self._publish_result(workflow_id, task_id, run_id, state)

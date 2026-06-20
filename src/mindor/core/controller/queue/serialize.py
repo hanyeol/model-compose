@@ -6,7 +6,7 @@ from io import BytesIO
 from starlette.datastructures import UploadFile, Headers
 from PIL.Image import Image as PILImage
 from mindor.core.logger import logging
-from mindor.core.utils.streaming import StreamResource
+from mindor.core.utils.streaming.stream import StreamResource
 from .errors import BlobNotFoundError, BlobCorruptedError, BlobTooLargeError
 import ulid
 

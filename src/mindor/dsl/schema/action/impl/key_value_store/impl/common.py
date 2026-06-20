@@ -1,6 +1,6 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Union, Optional, List, Any, Literal
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
 from ...common import CommonActionConfig
 
 class KeyValueStoreActionMethod(str, Enum):
@@ -14,7 +14,7 @@ class CommonKeyValueStoreActionConfig(CommonActionConfig):
 
 class CommonKeyValueGetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.GET]
-    key: str = Field(..., description="Key to retrieve.")
+    key: Union[str, List[str]] = Field(..., description="Key(s) to retrieve.")
 
 class CommonKeyValueSetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.SET]
@@ -24,8 +24,8 @@ class CommonKeyValueSetActionConfig(CommonKeyValueStoreActionConfig):
 
 class CommonKeyValueDeleteActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.DELETE]
-    key: str = Field(..., description="Key to delete.")
+    key: Union[str, List[str]] = Field(..., description="Key(s) to delete.")
 
 class CommonKeyValueExistsActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.EXISTS]
-    key: str = Field(..., description="Key to check existence.")
+    key: Union[str, List[str]] = Field(..., description="Key(s) to check existence.")

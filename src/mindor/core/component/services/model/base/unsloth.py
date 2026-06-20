@@ -21,10 +21,10 @@ class UnslothModelTaskService(ModelTaskService):
             "torch"
         ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.model, self.tokenizer = self._load_pretrained_model()
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
         self.tokenizer = None
 

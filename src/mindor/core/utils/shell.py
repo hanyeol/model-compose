@@ -1,5 +1,6 @@
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Optional
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, AsyncIterator
+from contextlib import asynccontextmanager
 from asyncio.subprocess import Process
 import asyncio, os, sys
 
@@ -88,6 +89,70 @@ async def run_subprocess(
             await feeder
 
     return process, stdout_result, stderr_result
+
+@asynccontextmanager
+async def stream_subprocess(
+    command: List[str],
+    source: Optional[AsyncIterable[bytes]] = None,
+    stdout_handler: Optional[Callable[[asyncio.StreamReader], AsyncIterator[Any]]] = None,
+    stderr_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[None]]] = None,
+    working_dir: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> AsyncIterator[Tuple[Process, AsyncIterator[Any], Optional[asyncio.Task]]]:
+    """Spawn a subprocess and expose its stdout as an async iterator while it runs.
+
+    The caller consumes `stdout_iter` directly. `stdout_handler` is a factory that takes
+    the process's stdout reader and returns an async iterator of items to be yielded.
+    `stderr_handler` runs as a background task — typically used to drain stderr and
+    side-band data (e.g. timestamps, error lines) via closure variables.
+
+    On context exit (including consumer break or exception): the process is killed,
+    stdin feeder is awaited, and `stderr_task` is awaited so the caller can inspect
+    the returncode and any drained stderr.
+    """
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=working_dir or os.getcwd(),
+        env={ **os.environ, **(env or {}) },
+        stdin=asyncio.subprocess.PIPE if source is not None else None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
+    )
+
+    async def _feed_stdin() -> None:
+        try:
+            async for chunk in source:
+                try:
+                    process.stdin.write(chunk)
+                    await process.stdin.drain()
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+        finally:
+            try:
+                process.stdin.close()
+            except Exception:
+                pass
+
+    feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
+    stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
+    stdout_iter = stdout_handler(process.stdout)
+
+    try:
+        yield process, stdout_iter, stderr_task
+    finally:
+        await kill_process(process)
+
+        if feeder is not None:
+            try:
+                await feeder
+            except Exception:
+                pass
+
+        if stderr_task is not None:
+            try:
+                await stderr_task
+            except Exception:
+                pass
 
 async def kill_process(process: Process) -> bool:
     if process.returncode is None:

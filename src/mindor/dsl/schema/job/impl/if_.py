@@ -6,13 +6,13 @@ from .common import JobType, CommonJobConfig
 
 class IfJobConditionConfig(BaseModel):
     operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Condition operator.")
-    input: Optional[Any] = Field(default=None, description="Input to evaluate.")
     value: Optional[Any] = Field(default=None, description="Value to compare against.")
     if_true: Optional[str] = Field(default=None, description="Job ID to run if condition is true.")
     if_false: Optional[str] = Field(default=None, description="Job ID to run if condition is false.")
 
 class IfJobConfig(CommonJobConfig):
     type: Literal[JobType.IF]
+    input: Optional[Any] = Field(default=None, description="Input to evaluate against the conditions.")
     conditions: List[IfJobConditionConfig] = Field(default_factory=list, description="List of conditions to evaluate.")
     otherwise: Optional[str] = Field(default=None, description="Job ID to run if no conditions matched or no result returned.")
 

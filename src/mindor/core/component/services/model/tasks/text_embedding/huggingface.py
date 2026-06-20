@@ -32,24 +32,21 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        params["tokenizer"] = self._build_tokenizer_params(params["max_input_length"])
-
-        return params
-
-    def _build_tokenizer_params(self, max_input_length: Optional[int]) -> Dict[str, Any]:
-        params: Dict[str, Any] = {
+        tokenizer_params: Dict[str, Any] = {
             "return_tensors": "pt",
             "padding": True,
             "truncation": False,
         }
 
-        if max_input_length is not None:
-            params["max_length"] = max_input_length
-            params["truncation"] = True
+        if params["max_input_length"] is not None:
+            tokenizer_params["max_length"] = params["max_input_length"]
+            tokenizer_params["truncation"] = True
+
+        params["tokenizer"] = tokenizer_params
 
         return params
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any]) -> List[List[float]]:
+    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
         import torch, torch.nn.functional as F
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Union, Optional, Dict, Tuple, Any
 from .http_request import build_request_body, parse_options_header
 from .http_stream import HttpStreamResource, HttpEventStreamResource
-from .streaming import StreamResource
+from .streaming.stream import StreamResource
 from .url import encode_url
 from requests.structures import CaseInsensitiveDict
 import aiohttp, asyncio, json
@@ -84,14 +84,6 @@ class HttpClient:
         if not cls._shared_instance:
             cls._shared_instance = HttpClient(shared=True)
         return cls._shared_instance
-
-    @classmethod
-    async def request_once(cls, *args, **kwargs):
-        instance = cls()
-        try:
-            return await instance.request(*args, **kwargs)
-        finally:
-            await instance.close()
 
     async def _get_session(self) -> aiohttp.ClientSession:
         key = id(asyncio.get_running_loop())

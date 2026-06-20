@@ -1,6 +1,7 @@
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import PlaywrightWebBrowserComponentConfig, WebBrowserDriver
-from ..base import WebBrowserService, WebBrowserSession, register_web_browser_service
+from ..base import WebBrowserService, register_web_browser_service
+from .common import WebBrowserSession
 
 class PlaywrightBrowserSession(WebBrowserSession):
     """Browser session backed by a Playwright page."""
@@ -8,13 +9,10 @@ class PlaywrightBrowserSession(WebBrowserSession):
     def __init__(self, page: Any):
         self._page = page
 
-    # ---- Navigation ----
-
     async def navigate(self, url: str, wait_until: str, timeout: float) -> Dict[str, Any]:
         response = await self._page.goto(url, wait_until=wait_until, timeout=timeout * 1000)
-        return { "url": url, "status": response.status if response else None }
 
-    # ---- Query ----
+        return { "url": url, "status": response.status if response else None }
 
     async def wait_for(
         self,
@@ -22,7 +20,7 @@ class PlaywrightBrowserSession(WebBrowserSession):
         xpath: Optional[str],
         condition: str,
         timeout: float
-    ) -> Dict[str, Any]:
+    ) -> None:
         locator = self._resolve_locator(selector, xpath)
         state_map = {
             "present": "attached",
@@ -31,7 +29,6 @@ class PlaywrightBrowserSession(WebBrowserSession):
         }
         state = state_map.get(condition, "visible")
         await locator.wait_for(state=state, timeout=timeout * 1000)
-        return {"found": True}
 
     async def screenshot(
         self,
@@ -71,8 +68,6 @@ class PlaywrightBrowserSession(WebBrowserSession):
             return None
 
         return await self._extract_from_element(locator.first, extract_mode, attribute)
-
-    # ---- Interaction ----
 
     async def click(
         self,
@@ -120,21 +115,14 @@ class PlaywrightBrowserSession(WebBrowserSession):
     async def evaluate(self, expression: str) -> Any:
         return await self._page.evaluate(expression)
 
-    # ---- State ----
-
     async def get_cookies(self, urls: Optional[List[str]]) -> List[Dict[str, Any]]:
         return await self._page.context.cookies(urls or [])
 
-    async def set_cookies(self, cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def set_cookies(self, cookies: List[Dict[str, Any]]) -> None:
         await self._page.context.add_cookies(cookies)
-        return { "set": len(cookies) }
-
-    # ---- Lifecycle ----
 
     async def close(self) -> None:
         await self._page.close()
-
-    # ---- Internal helpers ----
 
     def _resolve_locator(self, selector: Optional[str], xpath: Optional[str]) -> Any:
         if selector:

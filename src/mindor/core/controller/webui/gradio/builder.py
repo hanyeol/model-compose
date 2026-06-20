@@ -6,12 +6,15 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableG
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
-from mindor.core.utils.streaming import StreamResource, BytesStreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file
+from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.utils.streaming.base64 import Base64StreamResource
+from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.url import DataUriStreamResource
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
-from mindor.core.utils.image import load_image_from_stream
-from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
+from mindor.core.utils.streaming.image import load_image_from_stream
+from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 import gradio as gr
@@ -390,7 +393,19 @@ class GradioWebUIBuilder:
         info = variable.get_annotation_value("description") or ""
         default = variable.default
 
-        if variable.type == WorkflowVariableType.STRING or variable.format in [ WorkflowVariableFormat.BASE64, WorkflowVariableFormat.URL ]:
+        if variable.format == WorkflowVariableFormat.PATH:
+            return gr.Textbox(label=label, value="", info=info, placeholder="Enter a file path (e.g. /path/to/file)")
+
+        if variable.format == WorkflowVariableFormat.URL:
+            return gr.Textbox(label=label, value="", info=info, placeholder="Enter a URL (e.g. https://example.com/file)")
+
+        if variable.format == WorkflowVariableFormat.DATA_URI:
+            return gr.Textbox(label=label, value="", info=info, placeholder="Enter a data URI (e.g. data:image/png;base64,iVBORw0K...)")
+
+        if variable.format == WorkflowVariableFormat.BASE64:
+            return gr.Textbox(label=label, value="", info=info, placeholder="Enter a base64-encoded string")
+
+        if variable.type == WorkflowVariableType.STRING:
             return gr.Textbox(label=label, value="", info=info)
 
         if variable.type == WorkflowVariableType.TEXT:
@@ -436,7 +451,7 @@ class GradioWebUIBuilder:
         return input
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
-        if self._is_media_variable(variable) and (variable.format is None or variable.format in [ WorkflowVariableFormat.PATH ]):
+        if self._is_media_variable(variable) and variable.format is None:
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:
@@ -636,11 +651,14 @@ class GradioWebUIBuilder:
         return None
 
     async def _load_image_from_value(self, value: Any, format: Optional[WorkflowVariableFormat]) -> Optional[PILImage.Image]:
-        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
-            return await load_image_from_stream(Base64StreamResource(value))
-
         if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await load_image_from_stream(await create_stream_with_url(value))
+
+        if format == WorkflowVariableFormat.DATA_URI and isinstance(value, (str, StreamResource)):
+            return await load_image_from_stream(DataUriStreamResource(value))
+
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
+            return await load_image_from_stream(Base64StreamResource(value))
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value)
@@ -651,14 +669,17 @@ class GradioWebUIBuilder:
         return None
 
     async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
-        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
-            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
+        if format == WorkflowVariableFormat.PATH and isinstance(value, str):
+            return value
 
         if format == WorkflowVariableFormat.URL and isinstance(value, str):
             return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
 
-        if format == WorkflowVariableFormat.PATH and isinstance(value, str):
-            return value
+        if format == WorkflowVariableFormat.DATA_URI and isinstance(value, (str, StreamResource)):
+            return await save_stream_to_temporary_file(DataUriStreamResource(value), subtype)
+
+        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
+            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, subtype)

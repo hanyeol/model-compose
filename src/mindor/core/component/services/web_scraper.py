@@ -1,13 +1,17 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Union, Optional, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.rate_limit import RateLimiter
 from mindor.core.utils.time import parse_duration
+from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from bs4 import BeautifulSoup
 from lxml import etree
-import aiohttp
+import aiohttp, asyncio
+import sys, subprocess
 
 class WebScraperAction:
     def __init__(
@@ -22,8 +26,35 @@ class WebScraperAction:
         self.cookies = cookies
         self.timeout = timeout
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        url               = await context.render_variable(self.config.url)
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        url        = await context.render_text(self.config.url)
+        batch_size = await context.render_variable(self.config.batch_size)
+
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(url, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(url, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_urls, params, loop)
+                    for result in batch_results:
+                        yield result
+
+            return _stream_output_generator()
+        else:
+            results = []
+            async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_urls, params, loop)
+                results.extend(batch_results)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         headers           = await context.render_variable(self.config.headers)
         cookies           = await context.render_variable(self.config.cookies)
         selector          = await context.render_variable(self.config.selector) if self.config.selector else None
@@ -34,31 +65,75 @@ class WebScraperAction:
         enable_javascript = await context.render_variable(self.config.enable_javascript)
         wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
+        timeout           = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
 
         # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }
         merged_cookies = { **self.cookies, **cookies }
-        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
+
+        return {
+            "headers":           merged_headers,
+            "cookies":           merged_cookies,
+            "selector":          selector,
+            "xpath":             xpath,
+            "extract_mode":      extract_mode,
+            "attribute":         attribute,
+            "multiple":          multiple,
+            "enable_javascript": enable_javascript,
+            "wait_for":          wait_for,
+            "submit":            submit,
+            "timeout":           timeout,
+        }
+
+    async def _process_batch(
+        self,
+        urls: List[str],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+    ) -> List[Optional[Any]]:
+        needs_browser = params["submit"] or params["enable_javascript"]
+        if needs_browser and any(url is not None for url in urls):
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                try:
+                    return await asyncio.gather(*[
+                        self._process(url, params, loop, browser) for url in urls
+                    ])
+                finally:
+                    await browser.close()
+
+        return await asyncio.gather(*[
+            self._process(url, params, loop, None) for url in urls
+        ])
+
+    async def _process(self, url: str, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, browser: Optional[Any]) -> Optional[Any]:
+        if url is None:
+            logging.debug("Web scraper skipped because no URL was provided.")
+            return None
 
         # Fetch HTML content (with optional form submission)
-        if submit or enable_javascript:
-            html_content = await self._fetch_html_with_javascript(url, merged_headers, merged_cookies, timeout, wait_for, submit)
+        if params["submit"] or params["enable_javascript"]:
+            html_content = await self._fetch_html_with_javascript(
+                browser, url, params["headers"], params["cookies"], params["timeout"], params["wait_for"], params["submit"]
+            )
         else:
-            html_content = await self._fetch_html(url, merged_headers, merged_cookies, timeout)
+            html_content = await self._fetch_html(
+                url, params["headers"], params["cookies"], params["timeout"]
+            )
 
         # Parse and extract result
-        if selector:
-            result = self._extract_with_selector(html_content, selector, extract_mode, attribute, multiple)
-        elif xpath:
-            result = self._extract_with_xpath(html_content, xpath, extract_mode, attribute, multiple)
-        else:
-            result = self._extract_full_page(html_content, extract_mode)
-        context.register_source("result", result)
+        if params["selector"]:
+            return self._extract_with_selector(html_content, params["selector"], params["extract_mode"], params["attribute"], params["multiple"])
+        if params["xpath"]:
+            return self._extract_with_xpath(html_content, params["xpath"], params["extract_mode"], params["attribute"], params["multiple"])
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return self._extract_full_page(html_content, params["extract_mode"])
 
     async def _fetch_html_with_javascript(
         self,
+        browser: Any,
         url: str,
         headers: Dict[str, str],
         cookies: Dict[str, str],
@@ -66,87 +141,83 @@ class WebScraperAction:
         wait_for: Optional[str],
         submit: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Fetch HTML content with JavaScript rendering using playwright. Optionally submit form before extraction."""
-        from playwright.async_api import async_playwright
+        """Fetch HTML content with JavaScript rendering using a shared playwright browser. Optionally submit form before extraction."""
         from urllib.parse import urlparse
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+        # Convert cookies dict to playwright cookie format
+        parsed_url = urlparse(url)
+        cookie_list = [
+            {
+                "name": name,
+                "value": value,
+                "domain": parsed_url.hostname,
+                "path": "/"
+            }
+            for name, value in cookies.items()
+        ]
 
-            # Convert cookies dict to playwright cookie format
-            parsed_url = urlparse(url)
-            cookie_list = [
-                {
-                    "name": name,
-                    "value": value,
-                    "domain": parsed_url.hostname,
-                    "path": "/"
-                }
-                for name, value in cookies.items()
-            ]
+        web_context = await browser.new_context(extra_http_headers=headers)
 
-            web_context = await browser.new_context(extra_http_headers=headers)
+        # Add cookies to context
+        if cookie_list:
+            await web_context.add_cookies(cookie_list)
 
-            # Add cookies to context
-            if cookie_list:
-                await web_context.add_cookies(cookie_list)
+        page = await web_context.new_page()
 
-            page = await web_context.new_page()
+        try:
+            await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
 
-            try:
-                await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
+            # If submit config is provided, fill and submit form first
+            if submit:
+                selector = submit.get("selector")
+                xpath    = submit.get("xpath")
+                form     = submit.get("form")
+                wait_for = submit.get("wait_for")
 
-                # If submit config is provided, fill and submit form first
-                if submit:
-                    selector = submit.get("selector")
-                    xpath    = submit.get("xpath")
-                    form     = submit.get("form")
-                    wait_for = submit.get("wait_for")
+                # Fill form inputs if form data is provided
+                if form:
+                    for input_selector, value in form.items():
+                        await page.fill(input_selector, str(value))
 
-                    # Fill form inputs if form data is provided
-                    if form:
-                        for input_selector, value in form.items():
-                            await page.fill(input_selector, str(value))
-
-                    # Submit form
-                    if selector:
-                        element = await page.query_selector(selector)
-                        if element:
-                            tag_name = await element.evaluate("el => el.tagName")
-                            if tag_name.lower() == "form":
-                                await element.evaluate("form => form.submit()")
-                            else:
-                                await element.click()
-                    elif xpath:
-                        elements = await page.query_selector_all(f"xpath={xpath}")
-                        if elements:
-                            element = elements[0]
-                            tag_name = await element.evaluate("el => el.tagName")
-                            if tag_name.lower() == "form":
-                                await element.evaluate("form => form.submit()")
-                            else:
-                                await element.click()
-                    else:
-                        # No selector/xpath: find and submit the first form
-                        element = await page.query_selector("form")
-                        if element:
+                # Submit form
+                if selector:
+                    element = await page.query_selector(selector)
+                    if element:
+                        tag_name = await element.evaluate("el => el.tagName")
+                        if tag_name.lower() == "form":
                             await element.evaluate("form => form.submit()")
                         else:
-                            raise LookupError("No <form> element found on the page to submit")
-
-                    # Wait for navigation or specific element after submit
-                    if wait_for:
-                        await page.wait_for_selector(wait_for, timeout=timeout * 1000)
+                            await element.click()
+                elif xpath:
+                    elements = await page.query_selector_all(f"xpath={xpath}")
+                    if elements:
+                        element = elements[0]
+                        tag_name = await element.evaluate("el => el.tagName")
+                        if tag_name.lower() == "form":
+                            await element.evaluate("form => form.submit()")
+                        else:
+                            await element.click()
+                else:
+                    # No selector/xpath: find and submit the first form
+                    element = await page.query_selector("form")
+                    if element:
+                        await element.evaluate("form => form.submit()")
                     else:
-                        await page.wait_for_load_state("networkidle", timeout=timeout * 1000)
+                        raise LookupError("No <form> element found on the page to submit")
 
-                # Wait for additional selector if specified (for non-submit cases)
-                if wait_for and not submit:
+                # Wait for navigation or specific element after submit
+                if wait_for:
                     await page.wait_for_selector(wait_for, timeout=timeout * 1000)
+                else:
+                    await page.wait_for_load_state("networkidle", timeout=timeout * 1000)
 
-                return await page.content()
-            finally:
-                await browser.close()
+            # Wait for additional selector if specified (for non-submit cases)
+            if wait_for and not submit:
+                await page.wait_for_selector(wait_for, timeout=timeout * 1000)
+
+            return await page.content()
+        finally:
+            await web_context.close()
 
     async def _fetch_html(self, url: str, headers: Dict[str, str], cookies: Dict[str, str], timeout: float) -> str:
         """Fetch HTML content using aiohttp."""
@@ -261,11 +332,6 @@ class WebScraperComponent(ComponentService):
         return [ "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:
-        """Install playwright browsers after package installation."""
-        import subprocess
-        import sys
-
-        # Install playwright browsers (chromium, firefox, webkit)
         subprocess.run(
             [ sys.executable, "-m", "playwright", "install", "chromium" ],
             check=True,
@@ -283,4 +349,5 @@ class WebScraperComponent(ComponentService):
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         if self.rate_limiter:
             await self.rate_limiter.acquire()
-        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context)
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context, loop)

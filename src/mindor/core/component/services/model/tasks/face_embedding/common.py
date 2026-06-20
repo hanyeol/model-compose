@@ -1,12 +1,15 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
-from abc import ABC, abstractmethod
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
 from mindor.dsl.schema.action import FaceEmbeddingModelActionConfig
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
+import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -16,33 +19,47 @@ class FaceEmbeddingTaskAction:
         self.config: FaceEmbeddingModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        image = await self._prepare_input(context)
-        is_single_input = not isinstance(image, list)
-        images: List[PILImage.Image] = [ image ] if is_single_input else image
-        results = []
-
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)
-        params     = await self._resolve_embedding_params(context)
 
-        for index in range(0, len(images), batch_size):
-            batch_images = images[index:index + batch_size]
-            embeddings = await self._embed(batch_images, params)
-            results.extend(embeddings)
+        params = await self._resolve_params(context)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
+        is_single_input  = not isinstance(image, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        if isinstance(image, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                    batch_results = await self._embed(batch_images, params, loop)
+                    for result in batch_results:
+                        yield result
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[PILImage.Image, List[PILImage.Image]]:
-        return await context.render_image(self.config.image)
+            return _stream_output_generator()
+        else:
+            results: List[List[float]] = []
+            async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                batch_results = await self._embed(batch_images, params, loop)
+                results.extend(batch_results)
 
-    async def _resolve_embedding_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        face_detection       = await context.render_variable(self.config.face_detection)
+        alignment            = await context.render_variable(self.config.alignment)
+        normalize_embeddings = await context.render_variable(self.config.normalize_embeddings)
+
+        return {
+            "face_detection":       face_detection,
+            "alignment":            alignment,
+            "normalize_embeddings": normalize_embeddings,
+        }
 
     @abstractmethod
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
         pass
 
 class FaceEmbeddingTaskService(ModelTaskService):

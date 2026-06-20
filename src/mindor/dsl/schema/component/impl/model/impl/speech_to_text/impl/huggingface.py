@@ -6,8 +6,7 @@ from .common import CommonSpeechToTextModelComponentConfig
 from ...common import ModelDriver
 
 class SpeechToTextModelArchitecture(str, Enum):
-    WHISPER       = "whisper"
-    WHISPER_LARGE = "whisper-large"
+    WHISPER = "whisper"
 
 class HuggingfaceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)

@@ -21,19 +21,19 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
         self.model: Llama = model
 
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool) -> Union[Dict[str, Any], Iterator[Dict[str, Any]]]:
+    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         generation_params = await self._resolve_generation_params(context)
 
         if streaming:
-            stream = self.model(texts[0], stream=True, **generation_params)
-            return stream
-        else:
-            choices = []
-            for text in texts:
-                result = self.model(text, stream=False, **generation_params)
-                choices.append(result["choices"][0])
+            def _make_chunk_iter(prompt: str) -> Iterator[str]:
+                for chunk in self.model(prompt, stream=True, **generation_params):
+                    token = chunk["choices"][0].get("text", "")
+                    if token:
+                        yield token
 
-            return { "choices": choices }
+            return [ _make_chunk_iter(text) for text in texts ]
+
+        return [ self.model(text, stream=False, **generation_params)["choices"][0]["text"] for text in texts ]
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length = await context.render_variable(self.config.params.max_output_length)

@@ -9,8 +9,8 @@ class ModelTokenizerAction:
     def __init__(self, config: ModelTokenizerActionConfig):
         self.config: ModelTokenizerActionConfig = config
 
-    async def run(self, context: ComponentActionContext, task_service: ModelTokenizerTaskService) -> Any:
-        return await task_service.run(self.config, context)
+    async def run(self, context: ComponentActionContext, service: ModelTokenizerTaskService) -> Any:
+        return await service.run(self.config, context)
 
 @register_component(ComponentType.MODEL_TOKENIZER)
 class ModelTokenizerComponent(ComponentService):
@@ -23,9 +23,9 @@ class ModelTokenizerComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.task_service: ModelTokenizerTaskService = self._create_task_service(self.config.task, self.config.driver)
+        self.service: ModelTokenizerTaskService = self._create_service(self.config.task, self.config.driver)
 
-    def _create_task_service(self, task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> ModelTokenizerTaskService:
+    def _create_service(self, task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> ModelTokenizerTaskService:
         try:
             if not ModelTokenizerTaskServiceRegistry:
                 from . import tasks
@@ -34,8 +34,8 @@ class ModelTokenizerComponent(ComponentService):
             raise ValueError(f"Unsupported tokenizer task type: {task} on {driver}")
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.task_service.get_setup_requirements()
+        return self.service.get_setup_requirements()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        self.task_service.load()
-        return await ModelTokenizerAction(action).run(context, self.task_service)
+        self.service.load()
+        return await ModelTokenizerAction(action).run(context, self.service)

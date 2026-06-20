@@ -8,8 +8,9 @@ from pydantic import BaseModel, Field, ValidationError
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
-from mindor.core.utils.image import ImageStreamResource
-from mindor.core.utils.streaming import StreamResource, EventStreamIterator
+from mindor.core.utils.streaming.image import ImageStreamResource
+from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.iterators import EventStreamIterator, StreamChunkIterator
 from mindor.core.utils.http_stream import HttpEventStreamer
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
@@ -748,7 +749,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator, EventStreamIterator)):
+        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator, EventStreamIterator, StreamChunkIterator)):
             raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
 
         if output_only:
@@ -766,14 +767,17 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
-        if isinstance(state.output, PILImage.Image):
-            return self._render_stream_resource(ImageStreamResource(state.output))
-
         if isinstance(state.output, EventStreamIterator):
             return self._render_event_stream(state.output)
 
+        if isinstance(state.output, PILImage.Image):
+            return self._render_stream_resource(ImageStreamResource(state.output))
+
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
+
+        if isinstance(state.output, StreamChunkIterator):
+            return StreamingResponse(state.output, media_type=state.output.content_type)
 
         if isinstance(state.output, AsyncIterator):
             return StreamingResponse(state.output, media_type="application/octet-stream")

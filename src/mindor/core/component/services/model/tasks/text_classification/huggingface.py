@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Optional, Dict, List, Any
+from mindor.dsl.schema.component import HuggingfaceTextClassificationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
@@ -21,21 +22,36 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
         config: TextClassificationModelActionConfig,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
-        device: torch.device
+        device: torch.device,
+        labels: Optional[List[str]]
     ):
-        super().__init__(config)
+        super().__init__(config, labels)
 
         self.model: PreTrainedModel = model
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def _predict(self, texts: List[str], labels: Optional[List[str]], context: ComponentActionContext) -> List[Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        tokenizer_params: Dict[str, Any] = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": False,
+        }
+
+        if params["max_input_length"] is not None:
+            tokenizer_params["max_length"] = params["max_input_length"]
+            tokenizer_params["truncation"] = True
+
+        params["tokenizer"] = tokenizer_params
+
+        return params
+
+    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> List[Any]:
         import torch, torch.nn.functional as F
 
-        tokenizer_params     = await self._resolve_tokenizer_params(context)
-        return_probabilities = await context.render_variable(self.config.params.return_probabilities)
-
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **tokenizer_params)
+        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
         inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
         with torch.inference_mode():
@@ -44,13 +60,13 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
 
         predictions = []
 
-        if return_probabilities:
+        if params["return_probabilities"]:
             probs = F.softmax(logits, dim=-1).cpu()
             for prob in probs:
                 predicted_index = torch.argmax(prob).item()
                 predictions.append({
-                    "label": labels[predicted_index] if labels else predicted_index,
-                    "probabilities": prob.tolist()
+                    "label":         labels[predicted_index] if labels else predicted_index,
+                    "probabilities": prob.tolist(),
                 })
         else:
             predicted_indices = torch.argmax(logits, dim=-1).tolist()
@@ -59,30 +75,20 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
 
         return predictions
 
-    async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length)
-
-        params: Dict[str, Any] = {
-            "return_tensors": "pt",
-            "padding": True,
-            "truncation": False
-        }
-
-        if max_input_length is not None:
-            params["max_length"] = max_input_length
-            params["truncation"] = True
-
-        return params
-
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskService):
+    def __init__(self, id: str, config: HuggingfaceTextClassificationModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.labels: Optional[List[str]] = config.labels
+
     async def _run(
         self,
         action: ModelActionConfig,
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device).run(context, self.config.labels)
+        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification

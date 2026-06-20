@@ -10,8 +10,8 @@ class ModelAction:
     def __init__(self, config: ModelActionConfig):
         self.config: ModelActionConfig = config
 
-    async def run(self, context: ComponentActionContext, task_service: ModelTaskService) -> Any:
-        return await task_service.run(self.config, context)
+    async def run(self, context: ComponentActionContext, service: ModelTaskService) -> Any:
+        return await service.run(self.config, context)
 
 @register_component(ComponentType.MODEL)
 class ModelComponent(ComponentService):
@@ -24,9 +24,9 @@ class ModelComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.task_service: ModelTaskService = self._create_task_service(self.config.task, self.config.driver)
+        self.service: ModelTaskService = self._create_service(self.config.task, self.config.driver)
 
-    def _create_task_service(self, type: ModelTaskType, driver: ModelDriver) -> ModelTaskService:
+    def _create_service(self, type: ModelTaskType, driver: ModelDriver) -> ModelTaskService:
         try:
             if not ModelTaskServiceRegistry:
                 from . import tasks
@@ -35,15 +35,15 @@ class ModelComponent(ComponentService):
             raise ValueError(f"Unsupported model task type: {type} on {driver}")
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.task_service.get_setup_requirements()
+        return self.service.get_setup_requirements()
 
     async def _start(self) -> None:
-        await self.task_service.start()
+        await self.service.start()
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        await self.task_service.stop()
+        await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ModelAction(action).run(context, self.task_service)
+        return await ModelAction(action).run(context, self.service)

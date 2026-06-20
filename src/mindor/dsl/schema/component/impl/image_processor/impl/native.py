@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import ImageProcessorActionConfig
-from .common import ComponentType, CommonComponentConfig
+from .common import CommonImageProcessorComponentConfig, ImageProcessorDriver
 
-class ImageProcessorComponentConfig(CommonComponentConfig):
-    type: Literal[ComponentType.IMAGE_PROCESSOR]
+class NativeImageProcessorComponentConfig(CommonImageProcessorComponentConfig):
+    driver: Literal[ImageProcessorDriver.NATIVE] = Field(default=ImageProcessorDriver.NATIVE)
     actions: List[ImageProcessorActionConfig] = Field(default_factory=list)

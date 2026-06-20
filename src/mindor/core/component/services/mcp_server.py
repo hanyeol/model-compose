@@ -1,7 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import McpServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpServerActionConfig
-from mindor.core.utils.mcp_client import McpClient, ContentBlock, TextContent, ImageContent, AudioContent
+from mindor.core.utils.mcp_client import (
+    McpClient, ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource,
+    TextResourceContents, BlobResourceContents,
+)
 from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -21,11 +24,23 @@ class McpServerAction:
         return (await context.render_variable(self.config.output)) if self.config.output else response
 
     async def _convert_output_value(self, content: ContentBlock) -> Any:
-        if isinstance(content, TextContent):
-            return content.text
+        if isinstance(content, EmbeddedResource):
+            if isinstance(content.resource, TextResourceContents):
+                return content.resource.text
+
+            if isinstance(content.resource, BlobResourceContents):
+                return content.resource.blob
+
+            return None
 
         if isinstance(content, (ImageContent, AudioContent)):
             return content.data
+
+        if isinstance(content, TextContent):
+            return content.text
+
+        if isinstance(content, ResourceLink):
+            return content.uri
 
         return None
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ComponentConfig, ModelMemoryComponentConfig, ModelMemoryStorageDriver, ModelMemoryBufferDriver
+from typing import Union, Optional, List, Tuple, Any
+from mindor.dsl.schema.component import ComponentConfig, ModelMemoryComponentConfig
 from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
 from mindor.dsl.schema.action import ActionConfig, ModelMemoryActionConfig, ModelMemoryActionMethod
 from mindor.core.component import ComponentResolver, create_component
@@ -26,132 +26,106 @@ class ModelMemoryAction:
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> Any:
-        result = await self._dispatch(context, buffer, storage)
+        session_id = await context.render_variable(self.config.session_id)
+
+        if not session_id:
+            raise ValueError(f"'session_id' is required for '{self.config.method.value}' method")
+
+        result = await self._dispatch(context, self.config.method, session_id, buffer, storage)
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if self.config.output else result
 
-    async def _dispatch(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> Any:
-        if self.config.method == ModelMemoryActionMethod.LOAD:
-            return await self._load(context, buffer, storage)
+    async def _dispatch(
+        self,
+        context: ComponentActionContext,
+        method: ModelMemoryActionMethod,
+        session_id: str,
+        buffer: ModelMemoryBuffer,
+        storage: ModelMemoryStorage,
+    ) -> Any:
+        if method == ModelMemoryActionMethod.LOAD:
+            # Buffer is source of truth: check buffer first
+            turns = await buffer.get_turns(session_id)
+            if turns is not None:
+                summary = await buffer.get_summary(session_id) or ""
+            else:
+                # Not in buffer: load from storage and populate buffer
+                turns, summary = await storage.load(session_id)
+                await buffer.set_turns(session_id, turns)
+                await buffer.set_summary(session_id, summary)
+                await buffer.take_snapshot(session_id)
 
-        if self.config.method == ModelMemoryActionMethod.APPEND:
-            return await self._append(context, buffer)
+            if self.window_config:
+                turns, _ = self._split_turns_by_window(turns, self.window_config)
 
-        if self.config.method == ModelMemoryActionMethod.SAVE:
-            return await self._save(context, buffer, storage)
+            if self.summary_config and not self.window_config: # summary-only
+                turns = []
 
-        if self.config.method == ModelMemoryActionMethod.CLEAR:
-            return await self._clear(context, buffer)
+            return { "summary": summary, "messages": self._flatten_turns(turns) }
 
-        if self.config.method == ModelMemoryActionMethod.DELETE:
-            return await self._delete(context, buffer, storage)
+        if method == ModelMemoryActionMethod.APPEND:
+            messages = await context.render_variable(self.config.messages)
 
-        raise ValueError(f"Unsupported model memory action method: {self.config.method}")
+            if messages is None:
+                raise ValueError("'messages' is required for 'append' method")
 
-    async def _load(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> dict:
-        session_id = await context.render_variable(self.config.session_id)
+            if not isinstance(messages, list):
+                raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
 
-        if not session_id:
-            raise ValueError("'session_id' is required for load")
+            turns = await buffer.get_turns(session_id)
 
-        # Buffer is source of truth: check buffer first
-        turns = await buffer.get_turns(session_id)
-        if turns is not None:
-            summary = await buffer.get_summary(session_id) or ""
-        else:
-            # Not in buffer: load from storage and populate buffer
-            turns, summary = await storage.load(session_id)
-            await buffer.set_turns(session_id, turns)
-            await buffer.set_summary(session_id, summary)
-            await buffer.take_snapshot(session_id)
+            if turns is None:
+                raise LookupError(f"Session not loaded: {session_id}. Call load before append.")
 
-        if self.window_config:
-            turns, _ = self._split_turns_by_window(turns, self.window_config)
-
-        if self.summary_config and not self.window_config: # summary-only
-            turns = []
-
-        return { "summary": summary, "messages": self._flatten_turns(turns) }
-
-    async def _append(self, context: ComponentActionContext, buffer: ModelMemoryBuffer) -> None:
-        session_id = await context.render_variable(self.config.session_id)
-        messages   = await context.render_variable(self.config.messages)
-
-        if not session_id:
-            raise ValueError("'session_id' is required for append")
-
-        if messages is None:
-            raise ValueError("'messages' is required for append")
-
-        if not isinstance(messages, list):
-            raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
-
-        turns = await buffer.get_turns(session_id)
-
-        if turns is None:
-            raise LookupError(f"Session not loaded: {session_id}. Call load before append.")
-
-        await buffer.append_turn(session_id, messages)
-
-        if self.window_config or self.summary_config:
-            await self._prune_and_summarize(context, session_id, buffer)
-
-        return None
-
-    async def _save(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> None:
-        session_id = await context.render_variable(self.config.session_id)
-        messages   = (await context.render_variable(self.config.messages)) if self.config.messages is not None else None
-
-        if not session_id:
-            raise ValueError("'session_id' is required for save")
-
-        if messages is not None and not isinstance(messages, list):
-            raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
-
-        turns = await buffer.get_turns(session_id)
-
-        if turns is None:
-            raise LookupError(f"Session not loaded: {session_id}. Call load before save.")
-
-        if messages is not None:
             await buffer.append_turn(session_id, messages)
 
             if self.window_config or self.summary_config:
                 await self._prune_and_summarize(context, session_id, buffer)
 
-        turns = await buffer.get_turns(session_id)
-        summary = await buffer.get_summary(session_id) or ""
-        await storage.save(session_id, turns=turns, summary=summary)
+            return None
 
-        await buffer.merge_buffer(session_id)
-        await buffer.take_snapshot(session_id)
+        if method == ModelMemoryActionMethod.SAVE:
+            messages = (await context.render_variable(self.config.messages)) if self.config.messages is not None else None
 
-        return None
+            if messages is not None and not isinstance(messages, list):
+                raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")
 
-    async def _clear(self, context: ComponentActionContext, buffer: ModelMemoryBuffer) -> None:
-        session_id = await context.render_variable(self.config.session_id)
+            turns = await buffer.get_turns(session_id)
 
-        if not session_id:
-            raise ValueError("'session_id' is required for clear")
+            if turns is None:
+                raise LookupError(f"Session not loaded: {session_id}. Call load before save.")
 
-        turns = await buffer.get_turns(session_id)
+            if messages is not None:
+                await buffer.append_turn(session_id, messages)
 
-        if turns is not None:
-            await buffer.restore_snapshot(session_id)
+                if self.window_config or self.summary_config:
+                    await self._prune_and_summarize(context, session_id, buffer)
 
-        return None
+            turns = await buffer.get_turns(session_id)
+            summary = await buffer.get_summary(session_id) or ""
+            await storage.save(session_id, turns=turns, summary=summary)
 
-    async def _delete(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> None:
-        session_id = await context.render_variable(self.config.session_id)
+            await buffer.merge_buffer(session_id)
+            await buffer.take_snapshot(session_id)
 
-        if not session_id:
-            raise ValueError("'session_id' is required for delete")
+            return None
 
-        await storage.delete(session_id)
-        await buffer.remove(session_id)
+        if method == ModelMemoryActionMethod.CLEAR:
+            turns = await buffer.get_turns(session_id)
 
-        return None
+            if turns is not None:
+                await buffer.restore_snapshot(session_id)
+
+            return None
+
+        if method == ModelMemoryActionMethod.DELETE:
+            await storage.delete(session_id)
+            await buffer.remove(session_id)
+
+            return None
+
+        raise ValueError(f"Unsupported model memory action method: {method}")
 
     # ── Window / Summary helpers ──
 

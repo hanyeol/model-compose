@@ -1,21 +1,32 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming import StreamResource, UploadFileStreamResource, Base64StreamResource, EventStreamIterator, StreamChunkFormat
-from .streaming import encode_stream_to_base64, save_stream_to_temporary_file, BytesStreamResource
+from .streaming.stream import StreamResource, EventStreamFormat
+from .streaming.file import UploadFileStreamResource
+from .streaming.base64 import Base64StreamResource, encode_value_to_base64
+from .streaming.stream import save_stream_to_temporary_file
+from .streaming.bytes import BytesStreamResource
+from .iterators import EventStreamIterator, StreamChunkIterator
 from .http_client import create_stream_with_url
-from .url import UrlStreamResource, parse_data_uri
-from .image import load_image_from_stream, ImageStreamResource
-from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource, create_audio_source
-from .video import VideoStreamResource, create_video_source
-from .media import MediaSource, create_media_source
-from .streaming import FileStreamResource
+from .streaming.text import load_text_from_stream
+from .streaming.image import load_image_from_stream, ImageStreamResource
+from .streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource, create_audio_source
+from .streaming.video import VideoStreamResource, create_video_source
+from .streaming.media import MediaSource, create_media_source
+from .streaming.file import FileStreamResource
+from .streaming.url import UrlStreamResource, DataUriStreamResource
+from .streaming.resolver import resolve_stream_resource
+from .url import parse_data_uri
 from .resolvers import FieldResolver
 from .size import parse_size
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
 import re, json, base64, aiofiles
+
+class ArrayValue:
+    def __init__(self, values: List[Any]):
+        self.values: List[Any] = values
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]]):
@@ -130,6 +141,9 @@ class VariableRenderer:
                 raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
             return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, skip_decode) for v in value ]
 
+        # `path` is intentionally excluded: it refers to a local filesystem location and is not
+        # self-contained, so it cannot be passed through to consumers as-is. It must be loaded
+        # into a StreamResource below so adapters can stream the actual bytes.
         if skip_decode and format in [ "base64", "url", "data-uri" ]:
             if not isinstance(value, str):
                 raise TypeError(f"`{format}` format requires a string value, got {value.__class__.__name__}")
@@ -175,21 +189,13 @@ class VariableRenderer:
             return value
 
         if type == "base64":
-            if isinstance(value, PILImage.Image):
-                return await encode_stream_to_base64(ImageStreamResource(value))
-            if isinstance(value, UploadFile):
-                return await encode_stream_to_base64(UploadFileStreamResource(value))
-            if isinstance(value, StreamResource):
-                return await encode_stream_to_base64(value)
-            if isinstance(value, str):
-                return base64.b64encode(value.encode("utf-8")).decode("ascii")
-            return base64.b64encode(value).decode("ascii")
+            return await encode_value_to_base64(value)
 
         if type in [ "image", "audio", "video", "file" ]:
             if isinstance(value, AsyncIterator) and not isinstance(value, StreamResource):
                 return value
 
-            if format in [ "path", "url", "data-uri", "base64" ] and isinstance(value, str):
+            if format in [ "base64", "path", "url", "data-uri"] and isinstance(value, str):
                 value = await self._load_stream_from_format(value, format)
 
             if isinstance(value, UploadFile):
@@ -226,8 +232,8 @@ class VariableRenderer:
                 return value
 
         if type == "event-stream":
-            format = StreamChunkFormat(subtype) if subtype else StreamChunkFormat.TEXT
-            if isinstance(value, (StreamResource, AsyncIterator)):
+            format = EventStreamFormat(subtype) if subtype else EventStreamFormat.TEXT
+            if isinstance(value, (StreamResource, StreamChunkIterator, AsyncIterator)):
                 return EventStreamIterator(value, format)
             async def _stream_output_generator():
                 yield value
@@ -260,20 +266,17 @@ class VariableRenderer:
         raise ValueError(f"Unknown format: {format}")
 
     async def _load_stream_from_format(self, value: str, format: str) -> StreamResource:
+        if format == "base64":
+            return Base64StreamResource(value)
+
         if format == "url":
             return UrlStreamResource(value)
 
         if format == "path":
             return FileStreamResource(value)
 
-        if format == "base64":
-            return Base64StreamResource(value)
-
         if format == "data-uri":
-            _, meta, data = parse_data_uri(value)
-            if "base64" in meta.split(";"):
-                return Base64StreamResource(data)
-            return BytesStreamResource(unquote_to_bytes(data))
+            return DataUriStreamResource(value)
 
         raise ValueError(f"Unknown format: {format}")
 
@@ -329,15 +332,49 @@ class VariableRenderer:
         
         return False
 
-class ImageValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator, List[Union[PILImage.Image, AsyncIterator]]]]:
+class TextValueRenderer:
+    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> Optional[Union[PILImage.Image, AsyncIterator]]:
-        if isinstance(element, (PILImage.Image, AsyncIterator)):
+    async def _render_element(self, element: Any) -> Optional[str]:
+        if isinstance(element, str):
+            return element
+
+        if isinstance(element, StreamResource):
+            return await load_text_from_stream(element)
+
+        if isinstance(element, (bytes, bytearray)):
+            return bytes(element).decode("utf-8", errors="replace")
+
+        if isinstance(element, (dict, list)):
+            return json.dumps(element, ensure_ascii=False, default=str)
+
+        return str(element) if element is not None else None
+
+class ImageValueRenderer:
+    async def render(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator[PILImage.Image], List[Optional[PILImage.Image]]]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(element) for element in value ]
+
+        return await self._render_element(value)
+
+    async def _render_element(self, element: Any) -> Optional[PILImage.Image]:
+        if isinstance(element, PILImage.Image):
             return element
 
         if isinstance(element, ImageStreamResource):
@@ -349,7 +386,13 @@ class ImageValueRenderer:
         return None
 
 class AudioValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
@@ -359,7 +402,13 @@ class AudioValueRenderer:
         return create_audio_source(element)
 
 class VideoValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
@@ -369,7 +418,13 @@ class VideoValueRenderer:
         return create_video_source(element)
 
 class MediaValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
@@ -379,7 +434,13 @@ class MediaValueRenderer:
         return create_media_source(element)
 
 class FileValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]]]]:
+    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield await self._render_element(element)
+            return _iterate()
+
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
@@ -391,6 +452,28 @@ class FileValueRenderer:
 
         if isinstance(element, StreamResource):
             return await save_stream_to_temporary_file(element, None)
+
+        return None
+
+class ArrayValueRenderer:
+    async def render(self, value: Any) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
+        if isinstance(value, AsyncIterator):
+            async def _iterate():
+                async for element in value:
+                    yield self._render_element(element)
+            return _iterate()
+
+        if isinstance(value, list) and value and isinstance(value[0], list):
+            return [ self._render_element(element) for element in value ]
+
+        return self._render_element(value)
+
+    def _render_element(self, element: Any) -> Optional[ArrayValue]:
+        if isinstance(element, ArrayValue):
+            return element
+
+        if isinstance(element, (list, tuple)):
+            return ArrayValue(list(element))
 
         return None
 

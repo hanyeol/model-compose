@@ -1,6 +1,6 @@
 from typing import Optional, List, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from .streaming import StreamResource, StreamChunkFormat
+from .streaming.stream import StreamResource, EventStreamFormat
 import aiohttp, json
 
 class HttpReaderStreamResource(StreamResource):
@@ -85,9 +85,9 @@ class HttpEventStreamResource(StreamResource):
                     yield b"\n".join(parts)
 
 class HttpEventStreamer:
-    def __init__(self, iterator: AsyncIterable, format: Optional[StreamChunkFormat] = None):
+    def __init__(self, iterator: AsyncIterable, format: Optional[EventStreamFormat] = None):
         self.iterator: AsyncIterable = iterator
-        self.format: Optional[StreamChunkFormat] = format
+        self.format: Optional[EventStreamFormat] = format
 
     async def stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.iterator:
@@ -105,10 +105,10 @@ class HttpEventStreamer:
             yield b"\n"
 
     def _encode_chunk(self, chunk: Any) -> Optional[Any]:
-        if self.format == StreamChunkFormat.TEXT:
+        if self.format == EventStreamFormat.TEXT:
             return chunk if isinstance(chunk, str) else str(chunk)
 
-        if self.format == StreamChunkFormat.JSON:
+        if self.format == EventStreamFormat.JSON:
             return json.dumps(chunk, ensure_ascii=False, default=str)
 
         if not isinstance(chunk, (str, bytes, type(None))):

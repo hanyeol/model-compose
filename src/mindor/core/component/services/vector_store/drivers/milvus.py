@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig, MilvusVectorStoreActionConfig
-from mindor.dsl.schema.action import VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
+from mindor.dsl.schema.action import VectorStoreActionConfig
+from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.time import parse_duration
-from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
+from .common import VectorStoreAction
 
 if TYPE_CHECKING:
     from pymilvus import AsyncMilvusClient
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class MilvusFilterExpressionBuilder:
     def build(self, filter: Any) -> Optional[str]:
         clauses: List[str] = self._build_clauses(filter)
-        
+
         if not clauses:
             return None
 
@@ -28,7 +28,7 @@ class MilvusFilterExpressionBuilder:
         if isinstance(filter, (list, tuple, set)):
             for item in filter:
                 clauses.extend(self._build_clauses(item))
-            return clauses 
+            return clauses
 
         if isinstance(filter, dict):
             for field, value in filter.items():
@@ -54,25 +54,25 @@ class MilvusFilterExpressionBuilder:
     def _format_condition(self, condition: VectorStoreFilterCondition) -> Optional[str]:
         if condition.operator == VectorStoreFilterOperator.EQ:
             return f"{condition.field} == {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.NEQ:
             return f"{condition.field} != {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.GT:
             return f"{condition.field} > {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.GTE:
             return f"{condition.field} >= {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.LT:
             return f"{condition.field} < {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.LTE:
             return f"{condition.field} <= {self._format_scalar(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.IN:
             return f"{condition.field} in {self._format_list(condition.value)}"
-        
+
         if condition.operator == VectorStoreFilterOperator.NOT_IN:
             return f"{condition.field} not in {self._format_list(condition.value)}"
 
@@ -81,7 +81,7 @@ class MilvusFilterExpressionBuilder:
     def _format_field_clause(self, field: str, value: Any) -> Optional[str]:
         if isinstance(value, (list, tuple, set)):
             return f"{field} in {self._format_list(list(value))}" if value else None
-        
+
         if not isinstance(value, dict):
             return f"{field} == {self._format_scalar(value)}"
 
@@ -102,32 +102,8 @@ class MilvusFilterExpressionBuilder:
 
         return str(value)
 
-class MilvusVectorStoreAction:
-    def __init__(self, config: MilvusVectorStoreActionConfig):
-        self.config: MilvusVectorStoreActionConfig = config
-
-    async def run(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Any:
-        result = await self._dispatch(context, client)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
-    async def _dispatch(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
-        if self.config.method == VectorStoreActionMethod.INSERT:
-            return await self._insert(context, client)
-
-        if self.config.method == VectorStoreActionMethod.UPDATE:
-            return await self._update(context, client)
-
-        if self.config.method == VectorStoreActionMethod.SEARCH:
-            return await self._search(context, client)
-
-        if self.config.method == VectorStoreActionMethod.DELETE:
-            return await self._delete(context, client)
-
-        raise ValueError(f"Unsupported vector action method: {self.config.method}")
-
-    async def _insert(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
+class MilvusVectorStoreAction(VectorStoreAction):
+    async def _insert(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         partition_name  = await context.render_variable(self.config.partition)
         vector          = await context.render_variable(self.config.vector)
@@ -138,7 +114,7 @@ class MilvusVectorStoreAction:
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
         vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-        metadatas: Optional[List[Dict[str, Any]] ]= [ metadata ] if is_single_input and metadata else metadata
+        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
         batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
         inserted_ids, affected_rows = [], 0
 
@@ -153,11 +129,11 @@ class MilvusVectorStoreAction:
                 item.update(metadatas[index])
 
             data.append(item)
-        
+
         for index in range(0, len(data), batch_size):
             batch_data = data[index:index + batch_size]
 
-            result = await client.insert(
+            result = await self.client.insert(
                 collection_name=collection_name,
                 partition_name=partition_name,
                 data=batch_data
@@ -167,7 +143,7 @@ class MilvusVectorStoreAction:
 
         return { "ids": inserted_ids, "affected_rows": affected_rows }
 
-    async def _update(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
+    async def _update(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         partition_name  = await context.render_variable(self.config.partition)
         vector_id       = await context.render_variable(self.config.vector_id)
@@ -201,7 +177,7 @@ class MilvusVectorStoreAction:
             if not self.config.insert_if_not_exist:
                 filter_expr = MilvusFilterExpressionBuilder().build({ self.config.id_field: batch_vector_ids })
 
-                result = await client.query(
+                result = await self.client.query(
                     collection_name=collection_name,
                     partition_names=[ partition_name ] if partition_name else None,
                     expr=filter_expr,
@@ -214,7 +190,7 @@ class MilvusVectorStoreAction:
                     batch_data = [ item for item in batch_data if item[self.config.id_field] in found_ids ]
 
             if len(data) > 0:
-                result = await client.upsert(
+                result = await self.client.upsert(
                     collection_name=collection_name,
                     partition_name=partition_name,
                     data=batch_data
@@ -223,7 +199,7 @@ class MilvusVectorStoreAction:
 
         return { "affected_rows": affected_rows }
 
-    async def _search(self, context: ComponentActionContext, client: AsyncMilvusClient) -> List[List[Dict[str, Any]]] | List[Dict[str, Any]]:
+    async def _search(self, context: ComponentActionContext) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
         collection_name = await context.render_variable(self.config.collection)
         partition_names = await context.render_variable(self.config.partitions)
         query           = await context.render_variable(self.config.query)
@@ -241,8 +217,8 @@ class MilvusVectorStoreAction:
 
         for index in range(0, len(queries), batch_size):
             batch_queries = queries[index:index + batch_size]
-        
-            result = await client.search(
+
+            result = await self.client.search(
                 collection_name=collection_name,
                 partition_names=partition_names,
                 data=batch_queries,
@@ -264,7 +240,7 @@ class MilvusVectorStoreAction:
 
         return results[0] if is_single_input else results
 
-    async def _delete(self, context: ComponentActionContext, client: AsyncMilvusClient) -> Dict[str, Any]:
+    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         partition_name  = await context.render_variable(self.config.partition)
         vector_id       = await context.render_variable(self.config.vector_id)
@@ -280,7 +256,7 @@ class MilvusVectorStoreAction:
             batch_vector_ids = vector_ids[index:index + batch_size]
             filter_expr = MilvusFilterExpressionBuilder().build([ { self.config.id_field: batch_vector_ids }, filter ])
 
-            result = await client.delete(
+            result = await self.client.delete(
                 collection_name=collection_name,
                 partition_name=partition_name,
                 filter=filter_expr
@@ -328,7 +304,7 @@ class MilvusVectorStoreService(VectorStoreService):
             self.client = None
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await MilvusVectorStoreAction(action).run(context, self.client)
+        return await MilvusVectorStoreAction(action, self.client).run(context)
 
     def _resolve_connection_params(self) -> Dict[str, Any]:
         if self.config.endpoint:
@@ -336,5 +312,5 @@ class MilvusVectorStoreService(VectorStoreService):
 
         if self.config.protocol not in [ "grpc", "grpcs" ]:
             return { "uri": f"{self.config.protocol}://{self.config.host}:{self.config.port}" }
-        
+
         return { "host": self.config.host, "port": self.config.port, "secure": bool(self.config.protocol == "grpcs")  }

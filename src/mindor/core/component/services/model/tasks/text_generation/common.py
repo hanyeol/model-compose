@@ -2,9 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
-from mindor.core.utils.streamer import AsyncStreamer
+from mindor.core.utils.streamer import SyncGeneratorStreamer
+from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 
@@ -13,44 +15,56 @@ class TextGenerationTaskAction:
         self.config: TextGenerationModelActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        text = await self._prepare_input(context)
-        is_single_input: bool = bool(not isinstance(text, list))
-        texts: List[str] = [ text ] if is_single_input else text
-
+        text       = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
-        if streaming:
-            if batch_size != 1 or len(texts) != 1:
-                raise ValueError("Streaming mode only supports a single input text with batch size of 1")
+        is_single_input  = not isinstance(text, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-            streamer = await self._generate(texts, context, streaming=True)
-
+        if isinstance(text, AsyncIterator):
             async def _stream_output_generator():
-                async for chunk in AsyncStreamer(streamer, loop):
-                    token = chunk["choices"][0].get("text", "")
-                    if token:
-                        context.register_source("result[]", token)
-                        yield (await context.render_variable(self.config.output)) if self.config.output else token
+                async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                    batch_results = await self._generate(batch_texts, context, streaming, loop)
+                    for result in batch_results:
+                        if streaming:
+                            async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
+                                async for chunk in SyncGeneratorStreamer(streamer, loop):
+                                    if chunk:
+                                        context.register_source("result[]", chunk, scope=scope)
+                                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                            yield StreamChunkIterator(_stream_chunk_generator(), content_type="text/plain")
+                        else:
+                            yield result
 
             return _stream_output_generator()
         else:
-            results = []
-            for index in range(0, len(texts), batch_size):
-                batch_texts = texts[index:index + batch_size]
-                response = await self._generate(batch_texts, context, streaming=False)
-                results.extend([c["text"] for c in response["choices"]])
+            results: List[Any] = []
+            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                batch_results = await self._generate(batch_texts, context, streaming, loop)
+                for result in batch_results:
+                    if streaming:
+                        async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
+                            async for chunk in SyncGeneratorStreamer(streamer, loop):
+                                if chunk:
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), content_type="text/plain"))
+                    else:
+                        results.append(result)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if self.config.output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
+        return await context.render_text(self.config.text)
 
     @abstractmethod
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool) -> Union[Dict[str, Any], Iterator[Dict[str, Any]]]:
+    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         pass
 
 class TextGenerationTaskService(ModelTaskService):

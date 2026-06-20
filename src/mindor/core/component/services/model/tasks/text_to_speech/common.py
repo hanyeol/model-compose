@@ -1,11 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
-from abc import ABC, abstractmethod
+from typing import Union, Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
 from mindor.dsl.schema.action import TextToSpeechModelActionConfig
-from mindor.core.logger import logging
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.streaming.stream import StreamResource
 from ...base import ModelTaskService, ComponentActionContext
+import asyncio
 
 if TYPE_CHECKING:
     import numpy as np
@@ -16,26 +19,39 @@ class TextToSpeechTaskAction:
         self.config: TextToSpeechModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext) -> Any:
-        text = await self._prepare_input(context)
-        is_single_input = not isinstance(text, list)
-        texts: List[str] = [ text ] if is_single_input else text
-        results = []
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        text       = await context.render_variable(self.config.text)
+        batch_size = await context.render_variable(self.config.batch_size)
 
-        for text in texts:
-            audio_bytes = await self._generate(text, context)
-            results.append(audio_bytes)
+        params = await self._resolve_params(context)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
+        is_single_input  = not isinstance(text, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        if isinstance(text, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                    batch_results = await self._generate(batch_texts, params, loop)
+                    for result in batch_results:
+                        yield result
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_variable(self.config.text)
+            return _stream_output_generator()
+        else:
+            results: List[StreamResource] = []
+            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                batch_results = await self._generate(batch_texts, params, loop)
+                results.extend(batch_results)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
 
     @abstractmethod
-    async def _generate(self, text: str, context: ComponentActionContext) -> Any:
+    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
         pass
 
     def _encode_samples_to_pcm16(self, samples: Union[torch.Tensor, np.typing.ArrayLike]) -> Tuple[bytes, int]:

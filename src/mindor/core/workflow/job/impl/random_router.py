@@ -17,7 +17,7 @@ class RandomRouterJob(Job):
                 weight = await context.render_variable(None, routing.weight)
                 if weight is not None and weight > 0.0:
                     weights.append(weight)
-                    targets.append(routing.target)
+                    targets.append(routing.to)
 
             if not weights:
                 raise ValueError(f"No valid weights found in random-router job '{self.id}'")
@@ -26,7 +26,7 @@ class RandomRouterJob(Job):
             return RoutingTarget(target)
 
         if self.config.mode == RandomRoutingMode.UNIFORM:
-            targets = [ routing.target for routing in self.config.routings ]
+            targets = [ routing.to for routing in self.config.routings ]
 
             if not targets:
                 raise ValueError(f"No valid routing found in random-router job '{self.id}'")

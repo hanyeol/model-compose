@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig, ChromaVectorStoreActionConfig
-from mindor.dsl.schema.action import VectorStoreActionMethod, VectorStoreFilterCondition, VectorStoreFilterOperator
+from mindor.dsl.schema.action import VectorStoreActionConfig
+from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.utils.time import parse_duration
-from mindor.core.logger import logging
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
+from .common import VectorStoreAction
 import ulid
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class ChromaWhereSpecBuilder:
     def build(self, filter: Any) -> Optional[Dict[str, Any]]:
         spec: Dict[str, Any] = self._build_where_spec(filter)
-        
+
         if not spec:
             return None
 
@@ -56,38 +56,14 @@ class ChromaWhereSpecBuilder:
         }
 
         operator = operator_map.get(condition.operator)
-        
+
         if not operator:
             return None
-        
+
         return { condition.field: { operator: condition.value } }
 
-class ChromaVectorStoreAction:
-    def __init__(self, config: ChromaVectorStoreActionConfig):
-        self.config: ChromaVectorStoreActionConfig = config
-
-    async def run(self, context: ComponentActionContext, client: ChromaClient) -> Any:
-        result = await self._dispatch(context, client)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-
-    async def _dispatch(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
-        if self.config.method == VectorStoreActionMethod.INSERT:
-            return await self._insert(context, client)
-
-        if self.config.method == VectorStoreActionMethod.UPDATE:
-            return await self._update(context, client)
-
-        if self.config.method == VectorStoreActionMethod.SEARCH:
-            return await self._search(context, client)
-
-        if self.config.method == VectorStoreActionMethod.DELETE:
-            return await self._delete(context, client)
-
-        raise ValueError(f"Unsupported vector action method: {self.config.method}")
-
-    async def _insert(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+class ChromaVectorStoreAction(VectorStoreAction):
+    async def _insert(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         vector          = await context.render_variable(self.config.vector)
         vector_id       = await context.render_variable(self.config.vector_id)
@@ -106,7 +82,7 @@ class ChromaVectorStoreAction:
         if vector_ids is None:
             vector_ids = [ ulid.ulid() for _ in vectors ]
 
-        collection: Collection = client.get_or_create_collection(name=collection_name)
+        collection: Collection = self.client.get_or_create_collection(name=collection_name)
         for index in range(0, len(vectors), batch_size):
             batch_vectors = vectors[index:index + batch_size]
             batch_vector_ids = vector_ids[index:index + batch_size] if vector_ids else None
@@ -124,7 +100,7 @@ class ChromaVectorStoreAction:
 
         return { "ids": inserted_ids, "affected_rows": affected_rows }
 
-    async def _update(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+    async def _update(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         vector_id       = await context.render_variable(self.config.vector_id)
         vector          = await context.render_variable(self.config.vector)
@@ -140,7 +116,7 @@ class ChromaVectorStoreAction:
         batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
         affected_rows = 0
 
-        collection: Collection = client.get_or_create_collection(name=collection_name)
+        collection: Collection = self.client.get_or_create_collection(name=collection_name)
         for index in range(0, len(vector_ids), batch_size):
             batch_vector_ids = vector_ids[index:index + batch_size]
             batch_vectors = vectors[index:index + batch_size] if vectors else None
@@ -157,7 +133,7 @@ class ChromaVectorStoreAction:
 
         return { "affected_rows": affected_rows }
 
-    async def _search(self, context: ComponentActionContext, client: ChromaClient) -> List[List[Dict[str, Any]]] | List[Dict[str, Any]]:
+    async def _search(self, context: ComponentActionContext) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
         collection_name = await context.render_variable(self.config.collection)
         query           = await context.render_variable(self.config.query)
         top_k           = await context.render_variable(self.config.top_k)
@@ -170,7 +146,7 @@ class ChromaVectorStoreAction:
         batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
         results = []
 
-        collection: Collection = client.get_or_create_collection(name=collection_name)
+        collection: Collection = self.client.get_or_create_collection(name=collection_name)
         where_spec = ChromaWhereSpecBuilder().build(filter)
 
         for index in range(0, len(queries), batch_size):
@@ -202,7 +178,7 @@ class ChromaVectorStoreAction:
 
         return results[0] if is_single_input else results
 
-    async def _delete(self, context: ComponentActionContext, client: ChromaClient) -> Dict[str, Any]:
+    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
         collection_name = await context.render_variable(self.config.collection)
         vector_id       = await context.render_variable(self.config.vector_id)
         filter          = await context.render_variable(self.config.filter)
@@ -213,12 +189,12 @@ class ChromaVectorStoreAction:
         batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
         affected_rows = 0
 
-        collection: Collection = client.get_or_create_collection(name=collection_name)
+        collection: Collection = self.client.get_or_create_collection(name=collection_name)
         where_spec = ChromaWhereSpecBuilder().build(filter)
 
         for index in range(0, len(vector_ids), batch_size):
             batch_vector_ids = vector_ids[index:index + batch_size]
-        
+
             collection.delete(
                 ids=batch_vector_ids,
                 where=where_spec
@@ -248,7 +224,7 @@ class ChromaVectorStoreService(VectorStoreService):
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
         async def _run():
-            return await ChromaVectorStoreAction(action).run(context, self.client)
+            return await ChromaVectorStoreAction(action, self.client).run(context)
 
         return await self.run_in_thread(_run)
 

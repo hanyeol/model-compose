@@ -1,12 +1,15 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
+from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.renderers import ArrayValue
 from mindor.core.utils.shell import run_command_foreground, run_command
 from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-import os
+import asyncio, os
 
 class ShellAction:
     def __init__(
@@ -20,16 +23,82 @@ class ShellAction:
         self.env: Optional[Dict[str, str]] = env
 
     async def run(self, context: ComponentActionContext) -> Any:
+        command    = await context.render_array(self.config.command)
+        batch_size = await context.render_variable(self.config.batch_size)
+        streaming  = await context.render_variable(self.config.streaming)
+
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(command, (list, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(command, AsyncIterator):
+            async def _stream_output_generator():
+                async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_commands, params, streaming)
+                    for result in batch_results:
+                        if isinstance(result, AsyncIterable):
+                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                                async for chunk in result:
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                            yield StreamChunkIterator(_stream_chunk_generator())
+                        else:
+                            yield result
+
+            return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_commands, params, streaming)
+                for result in batch_results:
+                    if isinstance(result, AsyncIterable):
+                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async for chunk in result:
+                                context.register_source("result[]", chunk, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                        results.append(StreamChunkIterator(_stream_chunk_generator()))
+                    else:
+                        results.append(result)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         working_dir = await self._resolve_working_directory()
-        command = await context.render_variable(self.config.command)
-        env = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
+        env         = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
+        timeout     = parse_duration(await context.render_variable(self.config.timeout)) if self.config.timeout else None
 
-        timeout = parse_duration(self.config.timeout) if self.config.timeout else None
-        result = await self._run_command(command, working_dir, env, timeout)
-        context.register_source("result", result)
+        return {
+            "working_dir": working_dir,
+            "env":         env,
+            "timeout":     timeout,
+        }
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
-    
+    async def _process_batch(
+        self,
+        commands: List[Optional[ArrayValue]],
+        params: Dict[str, Any],
+        streaming: bool,
+    ) -> List[Any]:
+        return await asyncio.gather(*[
+            self._process(command, params, streaming) for command in commands
+        ])
+
+    async def _process(self, command: Optional[ArrayValue], params: Dict[str, Any], streaming: bool) -> Any:
+        if command is None:
+            logging.debug("Shell command skipped because no command was provided.")
+            return None
+
+        if streaming:
+            return self._stream_command(command.values, params["working_dir"], params["env"], params["timeout"])
+
+        return await self._run_command(command.values, params["working_dir"], params["env"], params["timeout"])
+
     async def _run_command(
         self,
         command: List[str],
@@ -46,6 +115,61 @@ class ShellAction:
             "stderr": stderr.decode().strip(),
             "exit_code": exit_code
         }
+
+    async def _stream_command(
+        self,
+        command: List[str],
+        working_dir: str,
+        env: Dict[str, str],
+        timeout: Optional[float]
+    ):
+        """Yield stdout lines as they are produced by the process."""
+        logging.debug("[shell] Streaming command: %s (cwd: %s)", " ".join(command), working_dir)
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=working_dir,
+            env={ **os.environ, **(env or {}) },
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        async def _readlines():
+            assert process.stdout is not None
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                yield line.decode(errors="replace").rstrip("\n")
+
+        try:
+            if timeout is not None:
+                async def _drain_with_timeout():
+                    async for line in _readlines():
+                        yield line
+                    await process.wait()
+
+                gen = _drain_with_timeout()
+                while True:
+                    try:
+                        line = await asyncio.wait_for(gen.__anext__(), timeout=timeout)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                        raise TimeoutError(f"Command timed out: {' '.join(command)}")
+                    yield line
+            else:
+                async for line in _readlines():
+                    yield line
+                await process.wait()
+
+            logging.debug("[shell] Streaming command exited with code %d", process.returncode)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
 
     async def _resolve_working_directory(self) -> str:
         working_dir = self.config.working_dir

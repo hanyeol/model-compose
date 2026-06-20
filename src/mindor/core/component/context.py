@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer, MediaValueRenderer, FileValueRenderer, SizeValueRenderer
-from mindor.core.utils.media import MediaSource
+from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer, MediaValueRenderer, FileValueRenderer, TextValueRenderer, SizeValueRenderer, ArrayValueRenderer, ArrayValue
+from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
 
@@ -59,15 +59,18 @@ class ComponentActionContext:
         self.component_type: Optional[str] = component_type
         self.job_id: Optional[str] = job_id
         self.context: Dict[str, Any] = { "run_id": run_id }
-        self.sources: Dict[str, Any] = {}
+        self.sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self.renderer: VariableRenderer = VariableRenderer(self.resolve_source)
         self.event_notifier: ComponentActionEventNotifier = self._build_event_notifier()
 
-    def register_source(self, key: str, source: Any) -> None:
-        self.sources[key] = source
+    def register_source(self, key: str, source: Any, scope: Optional[str] = None) -> None:
+        self.sources.setdefault(scope or "__global__", {})[key] = source
 
-    async def render_variable(self, value: Any, skip_decode: bool = False) -> Any:
-        return await self.renderer.render(value, skip_decode=skip_decode)
+    async def render_variable(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
+        return await self.renderer.render(value, scope, skip_decode=skip_decode)
+
+    async def render_text(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+        return await TextValueRenderer().render(await self.render_variable(value))
 
     async def render_image(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator, List[Union[PILImage.Image, AsyncIterator]]]]:
         return await ImageValueRenderer().render(await self.render_variable(value))
@@ -84,6 +87,9 @@ class ComponentActionContext:
     async def render_file(self, value: Any) -> Any:
         return await FileValueRenderer().render(await self.render_variable(value))
 
+    async def render_array(self, value: Any) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
+        return await ArrayValueRenderer().render(await self.render_variable(value))
+
     async def render_size(self, value: Any, default: Optional[int] = None) -> Optional[int]:
         return await SizeValueRenderer().render(await self.render_variable(value), default)
 
@@ -91,8 +97,10 @@ class ComponentActionContext:
         return self.renderer.contains_reference(key, value)
 
     async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
-        if key in self.sources:
-            return self.sources[key][index] if index is not None else self.sources[key]
+        sources = self.sources.get(scope or "__global__", {})
+
+        if key in sources:
+            return sources[key][index] if index is not None else sources[key]
 
         if key == "input":
             return self.input

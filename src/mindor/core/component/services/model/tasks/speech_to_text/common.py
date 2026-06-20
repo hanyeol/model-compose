@@ -5,10 +5,9 @@ from typing import Union, Optional, Dict, List, Any, Iterator
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
-from mindor.core.utils.iterators import AsyncSourceIterator, StreamChunkIterator
-from mindor.core.utils.media import MediaSource
-from mindor.core.utils.streamer import AsyncStreamer
-from mindor.core.logger import logging
+from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 
@@ -24,42 +23,49 @@ class SpeechToTextTaskAction:
         audio      = await context.render_audio(self.config.audio)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
-        params     = await self._resolve_params(context)
 
-        is_stream_input  = isinstance(audio, AsyncIterator)
-        is_stream_output = context.contains_variable_reference("result[]", self.config.output)
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(audio, (list, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
-        is_stream_mode   = is_stream_output or is_stream_input
 
-        if is_stream_mode:
+        if isinstance(audio, AsyncIterator):
             async def _stream_output_generator():
-                async for batch_audios in AsyncSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._transcribe(batch_audios, params, streaming=streaming)
+                async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                    batch_results = await self._transcribe(batch_audios, params, streaming, loop)
                     for result in batch_results:
                         if streaming:
-                            async for token in AsyncStreamer(result, loop):
-                                if token:
-                                    context.register_source("result[]", token)
-                                    yield (await context.render_variable(self.config.output)) if not is_direct_output else token
+                            async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
+                                async for chunk in SyncGeneratorStreamer(streamer, loop):
+                                    if chunk:
+                                        context.register_source("result[]", chunk, scope=scope)
+                                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                            yield StreamChunkIterator(_stream_chunk_generator(), content_type="text/plain")
                         else:
-                            context.register_source("result[]", result)
-                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+                            yield result
 
             return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                batch_results = await self._transcribe(batch_audios, params, streaming, loop)
+                for result in batch_results:
+                    if streaming:
+                        async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
+                            async for chunk in SyncGeneratorStreamer(streamer, loop):
+                                if chunk:
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-        is_single_input: bool = not isinstance(audio, (list, AsyncIterator))
-        results: List[Any] = []
-        async for batch_audios in AsyncSourceIterator(audio, batch_size=batch_size or 1):
-            batch_results = await self._transcribe(batch_audios, params, streaming=streaming)
-            if streaming:
-                results.extend([ StreamChunkIterator(AsyncStreamer(it, loop), content_type="text/plain") for it in batch_results ])
-            else:
-                results.extend(batch_results)
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), content_type="text/plain"))
+                    else:
+                        results.append(result)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         language     = await context.render_variable(self.config.language) if self.config.language else None
@@ -73,7 +79,7 @@ class SpeechToTextTaskAction:
         }
 
     @abstractmethod
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         pass
 
 class SpeechToTextTaskService(ModelTaskService):

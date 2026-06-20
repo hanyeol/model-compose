@@ -1,16 +1,9 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Optional, List, Any
 from mindor.dsl.schema.component import SearchEngineComponentConfig, SearchEngineDriver
-from mindor.dsl.schema.action import ActionConfig, SearchEngineActionConfig
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import SearchEngineService, SearchEngineServiceRegistry
-
-class SearchEngineAction:
-    def __init__(self, config: SearchEngineActionConfig):
-        self.config: SearchEngineActionConfig = config
-
-    async def run(self, context: ComponentActionContext, service: SearchEngineService) -> Any:
-        return await service.run(self.config, context)
 
 @register_component(ComponentType.SEARCH_ENGINE)
 class SearchEngineComponent(ComponentService):
@@ -45,4 +38,4 @@ class SearchEngineComponent(ComponentService):
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await SearchEngineAction(action).run(context, self.service)
+        return await self.service.run(action, context)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbeddingModelActionConfig
 from mindor.core.logger import logging
@@ -12,7 +12,6 @@ import asyncio, os, shutil
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
-    from torch import Tensor
 
 class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     def __init__(self, config: InsightfaceFaceEmbeddingModelActionConfig, model: FaceAnalysis):
@@ -21,11 +20,15 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
         self.config: InsightfaceFaceEmbeddingModelActionConfig = config
         self.model: FaceAnalysis = model
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[List[float]]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+        return await loop.run_in_executor(None, self._embed_batch, images)
+
+    def _embed_batch(self, images: List[PILImage.Image]) -> List[List[float]]:
         import numpy as np
         import cv2
 
-        embeddings = []
+        embeddings: List[List[float]] = []
+
         for image in images:
             image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             embeddings.append([ face.embedding.tolist() for face in self.model.get(image_cv) ])
@@ -41,10 +44,10 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "insightface", "opencv-python", "onnxruntime" ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.model = self._load_pretrained_model()
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
 
     def _load_pretrained_model(self) -> FaceAnalysis:
@@ -108,4 +111,4 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context)
+        return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context, loop)

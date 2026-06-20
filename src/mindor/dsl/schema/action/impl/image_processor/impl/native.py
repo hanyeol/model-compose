@@ -1,34 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from enum import Enum
 from pydantic import BaseModel, Field
-from pydantic import model_validator
-from .common import CommonActionConfig
-
-class ImageProcessorActionMethod(str, Enum):
-    RESIZE            = "resize"
-    CROP              = "crop"
-    ROTATE            = "rotate"
-    FLIP              = "flip"
-    GRAYSCALE         = "grayscale"
-    BLUR              = "blur"
-    SHARPEN           = "sharpen"
-    ADJUST_BRIGHTNESS = "adjust-brightness"
-    ADJUST_CONTRAST   = "adjust-contrast"
-    ADJUST_SATURATION = "adjust-saturation"
-
-class ImageScaleMode(str, Enum):
-    FIT     = "fit"
-    FILL    = "fill"
-    STRETCH = "stretch"
-
-class FlipDirection(str, Enum):
-    HORIZONTAL = "horizontal"
-    VERTICAL   = "vertical"
-
-class CommonImageProcessorActionConfig(CommonActionConfig):
-    method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
-    image: str = Field(..., description="Input image (file path, base64 string, or variable reference).")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images to process in a single batch.")
+from .common import (
+    CommonImageProcessorActionConfig,
+    ImageProcessorActionMethod,
+    ImageScaleMode,
+    FlipDirection,
+)
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.RESIZE]
@@ -75,7 +52,7 @@ class ImageProcessorAdjustSaturationActionConfig(CommonImageProcessorActionConfi
     method: Literal[ImageProcessorActionMethod.ADJUST_SATURATION]
     factor: Union[float, str] = Field(..., description="Saturation factor.")
 
-ImageProcessorActionConfig = Annotated[
+NativeImageProcessorActionConfig = Annotated[
     Union[
         ImageProcessorResizeActionConfig,
         ImageProcessorCropActionConfig,
@@ -86,7 +63,7 @@ ImageProcessorActionConfig = Annotated[
         ImageProcessorSharpenActionConfig,
         ImageProcessorAdjustBrightnessActionConfig,
         ImageProcessorAdjustContrastActionConfig,
-        ImageProcessorAdjustSaturationActionConfig
+        ImageProcessorAdjustSaturationActionConfig,
     ],
     Field(discriminator="method")
 ]

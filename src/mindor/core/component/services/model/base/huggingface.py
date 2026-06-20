@@ -185,12 +185,12 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
             "accelerate"
         ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.model = self._load_pretrained_model()
         self.tokenizer = self._load_pretrained_tokenizer()
         self.device = self._get_model_device(self.model)
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
         self.tokenizer = None
         self.device = None
@@ -253,12 +253,12 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
             "accelerate"
         ]
 
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         self.model = self._load_pretrained_model()
         self.processor = self._load_pretrained_processor()
         self.device = self._get_model_device(self.model)
 
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         self.model = None
         self.processor = None
         self.device = None

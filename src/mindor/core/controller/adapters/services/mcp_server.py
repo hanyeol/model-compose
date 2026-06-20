@@ -6,13 +6,10 @@ from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, Contr
 from mindor.dsl.schema.workflow import WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.tool import WorkflowToolGenerator, ResumeToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import WorkflowSchema
-from mindor.core.utils.streaming import StreamResource, Base64StreamResource
-from mindor.core.utils.streaming import save_stream_to_temporary_file
-from mindor.core.utils.http_client import create_stream_with_url
 from mindor.core.controller.base import TaskState, TaskStatus
 from ..base import ControllerAdapterService, register_controller_adapter
 from mcp.server.fastmcp.server import FastMCP
-from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent
+from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
 import uvicorn, json
 
 if TYPE_CHECKING:
@@ -33,9 +30,9 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             "streamable_http_path": self.config.base_path or "/"
         })
 
-        self._configure_tools()
+        self._configure_workflow_tools()
 
-    def _configure_tools(self) -> None:
+    def _configure_workflow_tools(self) -> None:
         for workflow_id, workflow in self.controller.workflow_schemas.items():
             tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow_as_tool)
             self.app.add_tool(
@@ -58,6 +55,14 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             annotations=None
         )
 
+    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
+        state = await self.controller.run_workflow(
+            workflow_id,
+            input,
+            wait_for_completion=True
+        )
+        return await self._build_state_response(state)
+
     async def _resume_workflow_as_tool(self, task_id: str, job_id: str, answer: str = "") -> List[ContentBlock]:
         parsed_answer = json.loads(answer) if answer else None
         try:
@@ -66,14 +71,6 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
 
         state = await self.controller.wait_for_terminal_state(task_id)
-        return await self._build_state_response(state)
-
-    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
-        state = await self.controller.run_workflow(
-            workflow_id,
-            input,
-            wait_for_completion=True
-        )
         return await self._build_state_response(state)
 
     async def _build_state_response(self, state: TaskState) -> List[ContentBlock]:
@@ -108,49 +105,51 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if state.output:
             if len(workflow.output) == 1 and not workflow.output[0].name:
                 variable = workflow.output[0]
-                output.append(await self._convert_output_value(state.output, variable.type, variable.subtype, variable.format))
+                output.append(self._convert_output_value(state.task_id, state.output, variable.name, variable.type, variable.subtype, variable.format))
             else:
                 for variable in workflow.output:
-                    output.append(await self._convert_output_value(state.output[variable.name], variable.type, variable.subtype, variable.format))
+                    output.append(self._convert_output_value(state.task_id, state.output[variable.name], variable.name, variable.type, variable.subtype, variable.format))
 
         return output
 
-    async def _convert_output_value(
+    def _convert_output_value(
         self,
+        task_id: str,
         value: Any,
+        name: Optional[str],
         type: WorkflowVariableType,
         subtype: Optional[str],
         format: Optional[WorkflowVariableFormat]
     ) -> ContentBlock:
         if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
-            if format == WorkflowVariableFormat.BASE64 and len(value) < 1024 * 1024: # at most 1MB
+            if format == WorkflowVariableFormat.BASE64:
                 if type == WorkflowVariableType.IMAGE:
-                    return ImageContent(type="image", data=value, mimeType=f"{type}/{subtype}")
-                if type == WorkflowVariableType.AUDIO:
-                    return AudioContent(type="audio", data=value, mimeType=f"{type}/{subtype}")
-            if not format or format not in [ WorkflowVariableFormat.PATH, WorkflowVariableFormat.URL ]:
-                value = await self._save_value_to_temporary_file(value, subtype, format)
-            return TextContent(type="text", text=value)
+                    return ImageContent(type="image", data=value, mimeType=f"image/{subtype or 'png'}")
 
-        if isinstance(value, (dict, list)):
-            return TextContent(type="text", text=json.dumps(value))
+                if type == WorkflowVariableType.AUDIO:
+                    return AudioContent(type="audio", data=value, mimeType=f"audio/{subtype or 'wav'}")
+
+                return EmbeddedResource(
+                    type="resource",
+                    resource=BlobResourceContents(
+                        uri=f"resource://{task_id}/{name or 'output'}",
+                        mimeType=f"video/{subtype or 'mp4'}" if type == WorkflowVariableType.VIDEO else "application/octet-stream",
+                        blob=value
+                    )
+                )
+
+            if format in [ WorkflowVariableFormat.URL, WorkflowVariableFormat.DATA_URI ]:
+                return TextContent(type="text", text=value)
+
+            raise ValueError(f"`{type.value}` output requires `format` to be exposed over MCP (got {format}).")
 
         if type == WorkflowVariableType.NONE:
             return TextContent(type="text", text="")
 
+        if isinstance(value, (dict, list)):
+            return TextContent(type="text", text=json.dumps(value))
+
         return TextContent(type="text", text=str(value))
-
-    async def _save_value_to_temporary_file(self, value: Any, subtype: Optional[str], format: Optional[WorkflowVariableFormat]) -> Optional[str]:
-        if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
-            return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
-
-        if format == WorkflowVariableFormat.URL and isinstance(value, str):
-            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
-
-        if isinstance(value, StreamResource):
-            return await save_stream_to_temporary_file(value, subtype)
-
-        return None
 
     def _build_tool_description(self, tool: WorkflowTool) -> str:
         lines = [tool.description or ""]

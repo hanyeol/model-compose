@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Protocol, Any, Iterator
+from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
 from mindor.dsl.schema.component import ImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext
+from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
 from .common import ImageToTextTaskAction
 from PIL import Image as PILImage
 from threading import Thread
@@ -34,45 +34,21 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         self.processor: Union[ProcessorMixin, WithTokenizer] = processor
         self.device: torch.device = device
 
-    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], context: ComponentActionContext, streaming: bool) -> Union[List[str], Iterator[str]]:
-        from transformers import StopStringCriteria, GenerationConfig
-        import torch
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        stop_sequences    = await context.render_variable(self.config.stop_sequences)
+        stop_sequences = await context.render_variable(self.config.stop_sequences)
+
         processor_params  = await self._resolve_processor_params(context)
         generation_params = await self._resolve_generation_params(context)
 
-        stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, stop_sequences) ] if stop_sequences else None
+        params.update({
+            "stop_sequences": stop_sequences,
+            "processor":      processor_params,
+            "generation":     generation_params,
+        })
 
-        inputs: Tensor = self.processor(images=images, text=texts, **processor_params)
-        inputs = inputs.to(self.device)
-
-        if streaming:
-            from transformers import TextIteratorStreamer
-
-            streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True)
-
-            def _run():
-                with torch.inference_mode():
-                    self.model.generate(
-                        **inputs,
-                        generation_config=GenerationConfig(**generation_params),
-                        stopping_criteria=stopping_criteria,
-                        streamer=streamer
-                    )
-
-            Thread(target=_run, daemon=True).start()
-
-            return streamer
-        else:
-            with torch.inference_mode():
-                outputs = self.model.generate(
-                    **inputs,
-                    generation_config=GenerationConfig(**generation_params),
-                    stopping_criteria=stopping_criteria,
-                )
-
-            return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return params
 
     async def _resolve_processor_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length = await context.render_variable(self.config.max_input_length)
@@ -128,6 +104,45 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return params
 
+    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+        from transformers import StopStringCriteria, GenerationConfig
+        import torch
+
+        stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
+
+        inputs: Tensor = self.processor(images=images, text=texts, **params["processor"])
+        inputs = inputs.to(self.device)
+
+        if streaming:
+            streamer = BatchTextIteratorStreamer(
+                self.processor.tokenizer,
+                batch_size=len(images),
+                skip_prompt=True,
+                skip_special_tokens=True,
+            )
+
+            def _run():
+                with torch.inference_mode():
+                    self.model.generate(
+                        **inputs,
+                        generation_config=GenerationConfig(**params["generation"]),
+                        stopping_criteria=stopping_criteria,
+                        streamer=streamer,
+                    )
+
+            Thread(target=_run, daemon=True).start()
+
+            return [ streamer[index] for index in range(len(images)) ]
+
+        with torch.inference_mode():
+            outputs = self.model.generate(
+                **inputs,
+                generation_config=GenerationConfig(**params["generation"]),
+                stopping_criteria=stopping_criteria,
+            )
+
+        return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
     async def _run(
@@ -162,7 +177,7 @@ class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
         if self.config.architecture == ImageToTextModelArchitecture.KOSMOS2:
             from transformers import Kosmos2ForConditionalGeneration
             return Kosmos2ForConditionalGeneration
-        
+
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:

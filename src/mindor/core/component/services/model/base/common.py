@@ -31,7 +31,7 @@ class ModelTaskService(AsyncService):
         if not self._model_loaded:
             async with self._model_load_lock:
                 if not self._model_loaded:
-                    self._load_model_on_demand()
+                    await self._load_model_on_demand()
 
         async def _run():
             return await self._run(action, context, loop)
@@ -40,7 +40,7 @@ class ModelTaskService(AsyncService):
 
     async def _start(self) -> None:
         if self.config.preload:
-            self._load_model()
+            await self._load_model()
             self._model_loaded = True
         else:
             logging.info(f"Component '{self.id}': model will be loaded on demand")
@@ -49,20 +49,20 @@ class ModelTaskService(AsyncService):
     async def _stop(self) -> None:
         await super()._stop()
         if self._model_loaded:
-            self._unload_model()
+            await self._unload_model()
             self._model_loaded = False
 
-    def _load_model_on_demand(self) -> None:
+    async def _load_model_on_demand(self) -> None:
         logging.info(f"Component '{self.id}': loading model on demand...")
-        self._load_model()
+        await self._load_model()
         self._model_loaded = True
 
     @abstractmethod
-    def _load_model(self) -> None:
+    async def _load_model(self) -> None:
         pass
 
     @abstractmethod
-    def _unload_model(self) -> None:
+    async def _unload_model(self) -> None:
         pass
 
     @abstractmethod

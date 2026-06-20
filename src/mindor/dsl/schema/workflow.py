@@ -6,34 +6,34 @@ from .job import JobConfig, JobType, DelayJobMode
 
 class WorkflowVariableType(str, Enum):
     # Primitive data types
-    STRING   = "string"
-    TEXT     = "text"
-    INTEGER  = "integer"
-    NUMBER   = "number"
-    BOOLEAN  = "boolean"
-    LIST     = "list"
-    OBJECT   = "object"
-    JSON     = "json"
+    STRING       = "string"
+    TEXT         = "text"
+    INTEGER      = "integer"
+    NUMBER       = "number"
+    BOOLEAN      = "boolean"
+    LIST         = "list"
+    OBJECT       = "object"
+    JSON         = "json"
     # Encoded data
-    BASE64   = "base64"
-    MARKDOWN = "markdown"
+    BASE64       = "base64"
+    MARKDOWN     = "markdown"
     # Media
-    IMAGE    = "image"
-    AUDIO    = "audio"
-    VIDEO    = "video"
-    FILE     = "file"
+    IMAGE        = "image"
+    AUDIO        = "audio"
+    VIDEO        = "video"
+    FILE         = "file"
     # Streaming
     EVENT_STREAM = "event-stream"
     # UI-related types
-    SELECT   = "select"
+    SELECT       = "select"
     # No output
-    NONE     = "none"
+    NONE         = "none"
 
 class WorkflowVariableFormat(str, Enum):
-    BASE64   = "base64"
-    URL      = "url"
     PATH     = "path"
-    STREAM   = "stream"
+    URL      = "url"
+    DATA_URI = "data-uri"
+    BASE64   = "base64"
 
 class WorkflowVariableAnnotationConfig(BaseModel):
     name: str = Field(..., description="Name of the annotation.")

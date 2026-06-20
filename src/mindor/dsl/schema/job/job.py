@@ -3,13 +3,14 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 JobConfig = Annotated[
-    Union[ 
+    Union[
         ComponentJobConfig,
         DelayJobConfig,
         IfJobConfig,
         SwitchJobConfig,
         RandomRouterJobConfig,
-        FilterJobConfig
+        FilterJobConfig,
+        ForEachJobConfig
     ],
     Field(discriminator="type")
 ]

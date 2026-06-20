@@ -6,7 +6,8 @@ from mindor.dsl.schema.component import HuggingfaceTextClassificationModelCompon
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from .common import TextClassificationTaskAction
 import asyncio
 

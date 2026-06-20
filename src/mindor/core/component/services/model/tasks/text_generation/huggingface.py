@@ -2,11 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
-from mindor.dsl.schema.component import TextGenerationModelArchitecture
+from mindor.dsl.schema.component import HuggingfaceTextGenerationModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
+from ...base import ComponentActionContext
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
+from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from .common import TextGenerationTaskAction
 from threading import Thread
 import asyncio
@@ -141,11 +143,11 @@ class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):
         return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture == TextGenerationModelArchitecture.CAUSAL:
+        if self.config.architecture == HuggingfaceTextGenerationModelArchitecture.CAUSAL:
             from transformers import AutoModelForCausalLM
             return AutoModelForCausalLM
 
-        if self.config.architecture == TextGenerationModelArchitecture.SEQ2SEQ:
+        if self.config.architecture == HuggingfaceTextGenerationModelArchitecture.SEQ2SEQ:
             from transformers import AutoModelForSeq2SeqLM
             return AutoModelForSeq2SeqLM
 

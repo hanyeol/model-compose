@@ -16,7 +16,7 @@ class LlamaCppModelTaskService(ModelTaskService):
         self.model: Optional[Llama] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "llama-cpp-python" ]
+        return [ "llama-cpp-python", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
         from llama_cpp import Llama

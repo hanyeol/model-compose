@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig, ToolFunction
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ..text_generation import HuggingfaceTextGenerationTaskAction
 import asyncio
 

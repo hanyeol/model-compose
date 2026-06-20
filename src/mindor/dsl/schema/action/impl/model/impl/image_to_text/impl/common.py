@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonModelActionConfig
+from ...common import CommonModelActionConfig
 
 class ImageToTextParamsConfig(BaseModel):
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens to generate. None lets the model use its own configured limit.")

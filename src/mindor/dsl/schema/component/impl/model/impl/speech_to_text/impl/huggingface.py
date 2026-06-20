@@ -5,10 +5,10 @@ from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 from .common import CommonSpeechToTextModelComponentConfig
 from ...common import ModelDriver
 
-class SpeechToTextModelArchitecture(str, Enum):
+class HuggingfaceSpeechToTextModelArchitecture(str, Enum):
     WHISPER = "whisper"
 
 class HuggingfaceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
-    architecture: SpeechToTextModelArchitecture = Field(..., description="Model architecture.")
+    architecture: HuggingfaceSpeechToTextModelArchitecture = Field(..., description="Model architecture.")
     actions: List[SpeechToTextModelActionConfig] = Field(default_factory=list)

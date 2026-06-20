@@ -5,7 +5,8 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceLanguageModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from .common import TextEmbeddingTaskAction
 import asyncio
 

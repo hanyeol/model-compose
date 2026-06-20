@@ -2,11 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
-from mindor.dsl.schema.component import ImageToTextModelArchitecture
+from mindor.dsl.schema.component import HuggingfaceImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
+from ...base import ComponentActionContext
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from .common import ImageToTextTaskAction
 from PIL import Image as PILImage
 from threading import Thread
@@ -154,54 +156,54 @@ class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return await HuggingfaceImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture == ImageToTextModelArchitecture.BLIP:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP:
             from transformers import BlipForConditionalGeneration
             return BlipForConditionalGeneration
 
-        if self.config.architecture == ImageToTextModelArchitecture.BLIP2:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP2:
             from transformers import Blip2ForConditionalGeneration
             return Blip2ForConditionalGeneration
 
-        if self.config.architecture == ImageToTextModelArchitecture.GIT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.GIT:
             from transformers import GitForCausalLM
             return GitForCausalLM
 
-        if self.config.architecture == ImageToTextModelArchitecture.PIX2STRUCT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.PIX2STRUCT:
             from transformers import Pix2StructForConditionalGeneration
             return Pix2StructForConditionalGeneration
 
-        if self.config.architecture == ImageToTextModelArchitecture.DONUT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.DONUT:
             from transformers import VisionEncoderDecoderModel # Donut uses this
             return VisionEncoderDecoderModel
 
-        if self.config.architecture == ImageToTextModelArchitecture.KOSMOS2:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.KOSMOS2:
             from transformers import Kosmos2ForConditionalGeneration
             return Kosmos2ForConditionalGeneration
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
-        if self.config.architecture == ImageToTextModelArchitecture.BLIP:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP:
             from transformers import BlipProcessor
             return BlipProcessor
 
-        if self.config.architecture == ImageToTextModelArchitecture.BLIP2:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP2:
             from transformers import Blip2Processor
             return Blip2Processor
 
-        if self.config.architecture == ImageToTextModelArchitecture.GIT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.GIT:
             from transformers import GitProcessor
             return GitProcessor
 
-        if self.config.architecture == ImageToTextModelArchitecture.PIX2STRUCT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.PIX2STRUCT:
             from transformers import Pix2StructProcessor
             return Pix2StructProcessor
 
-        if self.config.architecture == ImageToTextModelArchitecture.DONUT:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.DONUT:
             from transformers import DonutProcessor
             return DonutProcessor
 
-        if self.config.architecture == ImageToTextModelArchitecture.KOSMOS2:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.KOSMOS2:
             from transformers import Kosmos2Processor
             return Kosmos2Processor
 

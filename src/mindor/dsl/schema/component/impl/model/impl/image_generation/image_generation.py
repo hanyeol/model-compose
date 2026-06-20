@@ -4,6 +4,7 @@ from .impl import *
 
 ImageGenerationModelComponentConfig = Annotated[
     Union[
+        HuggingfaceImageGenerationModelComponentConfig,
         CustomImageGenerationModelComponentConfig,
     ],
     Field(discriminator="driver")

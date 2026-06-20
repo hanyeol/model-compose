@@ -5,11 +5,11 @@ from mindor.dsl.schema.action import TextGenerationModelActionConfig
 from .common import CommonTextGenerationModelComponentConfig
 from ...common import ModelDriver
 
-class TextGenerationModelArchitecture(str, Enum):
+class HuggingfaceTextGenerationModelArchitecture(str, Enum):
     CAUSAL  = "causal"
     SEQ2SEQ = "seq2seq"
 
 class HuggingfaceTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
-    architecture: TextGenerationModelArchitecture = Field(default=TextGenerationModelArchitecture.CAUSAL, description="Model architecture.")
+    architecture: HuggingfaceTextGenerationModelArchitecture = Field(default=HuggingfaceTextGenerationModelArchitecture.CAUSAL, description="Model architecture.")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)

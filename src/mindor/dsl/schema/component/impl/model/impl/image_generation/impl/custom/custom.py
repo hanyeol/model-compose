@@ -1,14 +1,11 @@
-from typing import Union, Annotated
+from typing import Literal, List
 from pydantic import Field
-from .impl.sdxl import SdxlImageGenerationModelComponentConfig
-from .impl.flux import FluxImageGenerationModelComponentConfig
-from .impl.hunyuan_image import HunyuanImageGenerationModelComponentConfig
+from mindor.dsl.schema.action import ImageGenerationModelActionConfig
+from ..common import CommonImageGenerationModelComponentConfig
+from .impl.common import ImageGenerationModelFamily
+from ....common import ModelDriver
 
-CustomImageGenerationModelComponentConfig = Annotated[
-    Union[
-        SdxlImageGenerationModelComponentConfig,
-        FluxImageGenerationModelComponentConfig,
-        HunyuanImageGenerationModelComponentConfig,
-    ],
-    Field(discriminator="family")
-]
+class CustomImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
+    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    family: ImageGenerationModelFamily = Field(..., description="Model family.")
+    actions: List[ImageGenerationModelActionConfig] = Field(default_factory=list)

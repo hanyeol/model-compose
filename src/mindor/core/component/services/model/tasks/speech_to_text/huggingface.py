@@ -2,13 +2,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Iterator, Any
-from mindor.dsl.schema.component import SpeechToTextModelArchitecture
+from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.utils.streaming.audio import load_audio_array
 from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import HuggingfaceMultimodalModelTaskService, ComponentActionContext, BatchTextIteratorStreamer
+from ...base import ComponentActionContext
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from .common import SpeechToTextTaskAction
 from threading import Thread
 import asyncio
@@ -146,14 +148,14 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture == SpeechToTextModelArchitecture.WHISPER:
+        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperForConditionalGeneration
             return WhisperForConditionalGeneration
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
-        if self.config.architecture == SpeechToTextModelArchitecture.WHISPER:
+        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperProcessor
             return WhisperProcessor
 

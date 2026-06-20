@@ -7,7 +7,7 @@ import wave
 import pytest
 
 from mindor.core.component.services.model.tasks.music_generation.common import MusicGenerationTaskAction
-from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
+from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ async def test_wav_stream_resource_passthrough_already_wav_bytes():
 @pytest.mark.anyio
 async def test_wav_stream_resource_passthrough_already_wav_stream():
     """A non-PCM StreamResource input is passed through unchanged."""
-    from mindor.core.utils.streaming import BytesStreamResource
+    from mindor.core.utils.streaming.bytes import BytesStreamResource
     fake_wav = b"RIFF\xff\xff\xff\xffWAVE" + b"Y" * 16
     inner = BytesStreamResource(fake_wav, "audio/wav")
     stream = WavStreamResource(inner)
@@ -130,20 +130,17 @@ async def test_wav_stream_resource_passthrough_already_wav_stream():
 
 
 @pytest.mark.anyio
-async def test_wav_stream_resource_attrs_preserved_in_passthrough():
-    """In passthrough mode, attrs supplied at construction time are kept on the instance."""
+async def test_wav_stream_resource_attrs_preserved_on_instance():
+    """attrs supplied at construction time are kept on the instance."""
     fake_wav = b"RIFF\xff\xff\xff\xffWAVE"
     stream = WavStreamResource(fake_wav, attrs={"sample_rate": 22050, "channels": 1})
     assert stream.attrs == {"sample_rate": 22050, "channels": 1}
-    data = await collect_stream(stream)
-    # attrs do not affect output in passthrough mode.
-    assert data == fake_wav
 
 
 @pytest.mark.anyio
 async def test_wav_stream_resource_streams_chunks_one_to_one():
     """Each PCM input chunk surfaces as a separate output chunk (no buffering)."""
-    from mindor.core.utils.streaming import StreamResource
+    from mindor.core.utils.streaming.stream import StreamResource
 
     class FakePcmSource(StreamResource):
         def __init__(self, chunks):

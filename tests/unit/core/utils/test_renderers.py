@@ -8,11 +8,9 @@ import pytest
 from starlette.datastructures import UploadFile
 
 from mindor.core.utils.renderers import VariableRenderer
-from mindor.core.utils.streaming import (
-    BytesStreamResource,
-    EventStreamResource,
-    StreamFormat,
-)
+from mindor.core.utils.streaming.stream import EventStreamFormat
+from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.utils.iterators import EventStreamIterator
 
 
 @pytest.fixture
@@ -339,11 +337,11 @@ class TestConvertFileTypes:
     @pytest.mark.anyio
     async def test_upload_file_audio_becomes_audio_stream(self):
         """UploadFile + audio → AudioStreamResource wrapping UploadFile."""
-        from mindor.core.utils.audio import AudioStreamResource
+        from mindor.core.utils.streaming.audio import AudioStreamResource
         file = UploadFile(file=io.BytesIO(b"data"), filename="test.wav")
         renderer = VariableRenderer(make_source_resolver({"v": file}))
         result = await renderer.render("${v as audio/wav}")
-        from mindor.core.utils.audio import WavStreamResource
+        from mindor.core.utils.streaming.audio import WavStreamResource
         assert isinstance(result, WavStreamResource)
 
     @pytest.mark.anyio
@@ -452,58 +450,56 @@ class TestAsyncIteratorPassThrough:
 
 
 # ============================
-# sse-text conversion
+# event-stream/text conversion
 # ============================
 
 class TestSseTextFromAsyncIterator:
-    """Test sse-text conversion from AsyncIterator input."""
+    """Test event-stream/text conversion from AsyncIterator input."""
 
     @pytest.mark.anyio
     async def test_async_iterator_wrapped_in_iterator_stream_resource(self):
-        """Test that AsyncIterator input produces EventStreamResource."""
+        """Test that AsyncIterator input produces EventStreamIterator."""
         aiter = make_async_iterator(["chunk1", "chunk2"])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.content_type == "text/event-stream"
-        assert result.format == StreamFormat.TEXT
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.TEXT
 
     @pytest.mark.anyio
     async def test_async_iterator_chunks_preserved(self):
-        """Test that chunks from the original iterator are passed through."""
+        """Test that chunks from the original iterator pass through unchanged."""
         aiter = make_async_iterator(["hello", "world"])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
         chunks = await collect_async(result)
 
         assert chunks == ["hello", "world"]
 
 
 class TestSseTextFromStreamResource:
-    """Test sse-text conversion from StreamResource input."""
+    """Test event-stream/text conversion from StreamResource input."""
 
     @pytest.mark.anyio
     async def test_stream_resource_wrapped_in_iterator_stream_resource(self):
-        """Test that StreamResource input is wrapped in EventStreamResource."""
+        """Test that StreamResource input is wrapped in EventStreamIterator."""
         resource = BytesStreamResource(b"hello", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.content_type == "text/event-stream"
-        assert result.format == StreamFormat.TEXT
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.TEXT
 
     @pytest.mark.anyio
     async def test_stream_resource_bytes_iterable(self):
-        """Test that bytes from StreamResource are yielded through EventStreamResource."""
+        """Test that bytes from StreamResource are yielded through EventStreamIterator."""
         resource = BytesStreamResource(b"data", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
         chunks = await collect_async(result)
 
         assert len(chunks) > 0
@@ -511,120 +507,119 @@ class TestSseTextFromStreamResource:
 
 
 class TestSseTextFromPlainValue:
-    """Test sse-text conversion from plain scalar values."""
+    """Test event-stream/text conversion from plain scalar values."""
 
     @pytest.mark.anyio
-    async def test_string_value_wrapped_as_single_event(self):
-        """Test that a plain string is wrapped as single-yield EventStreamResource."""
+    async def test_string_value_wrapped_as_single_chunk(self):
+        """Test that a plain string is wrapped as a single-chunk iterator."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.content_type == "text/event-stream"
-        assert result.format == StreamFormat.TEXT
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.TEXT
 
         chunks = await collect_async(result)
         assert chunks == ["hello"]
 
     @pytest.mark.anyio
-    async def test_dict_value_wrapped_as_single_event(self):
-        """Test that a dict is wrapped as single-yield EventStreamResource."""
+    async def test_dict_value_wrapped_as_single_chunk(self):
+        """Test that a dict passes through as a single chunk (no encoding here)."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
+        assert isinstance(result, EventStreamIterator)
         chunks = await collect_async(result)
         assert chunks == [{"key": "value"}]
 
     @pytest.mark.anyio
-    async def test_int_value_wrapped_as_single_event(self):
-        """Test that an integer is wrapped as single-yield EventStreamResource."""
+    async def test_int_value_wrapped_as_single_chunk(self):
+        """Test that an integer passes through as a single chunk."""
         renderer = VariableRenderer(make_source_resolver({"output": 42}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
         chunks = await collect_async(result)
         assert chunks == [42]
 
     @pytest.mark.anyio
-    async def test_list_value_wrapped_as_single_event(self):
-        """Test that a list is wrapped as single-yield EventStreamResource."""
+    async def test_list_value_wrapped_as_single_chunk(self):
+        """Test that a list passes through as a single chunk."""
         renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3]}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
         chunks = await collect_async(result)
         assert chunks == [[1, 2, 3]]
 
 
 # ============================
-# sse-json conversion
+# event-stream/json conversion
 # ============================
 
 class TestSseJsonFromAsyncIterator:
-    """Test sse-json conversion from AsyncIterator input."""
+    """Test event-stream/json conversion from AsyncIterator input."""
 
     @pytest.mark.anyio
     async def test_async_iterator_has_json_format(self):
-        """Test that AsyncIterator with sse-json gets StreamFormat.JSON."""
+        """Test that AsyncIterator with event-stream/json gets EventStreamFormat.JSON."""
         aiter = make_async_iterator([{"a": 1}])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as sse-json}")
+        result = await renderer.render("${output as event-stream/json}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.format == StreamFormat.JSON
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.JSON
 
     @pytest.mark.anyio
     async def test_async_iterator_chunks_preserved(self):
-        """Test that chunks are passed through with JSON format set."""
+        """Test that chunks pass through unchanged (no JSON encoding at this layer)."""
         aiter = make_async_iterator([{"a": 1}, {"b": 2}])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as sse-json}")
+        result = await renderer.render("${output as event-stream/json}")
         chunks = await collect_async(result)
 
         assert chunks == [{"a": 1}, {"b": 2}]
 
 
 class TestSseJsonFromStreamResource:
-    """Test sse-json conversion from StreamResource input."""
+    """Test event-stream/json conversion from StreamResource input."""
 
     @pytest.mark.anyio
     async def test_stream_resource_has_json_format(self):
-        """Test that StreamResource with sse-json gets StreamFormat.JSON."""
+        """Test that StreamResource with event-stream/json gets EventStreamFormat.JSON."""
         resource = BytesStreamResource(b"data", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as sse-json}")
+        result = await renderer.render("${output as event-stream/json}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.format == StreamFormat.JSON
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.JSON
 
 
 class TestSseJsonFromPlainValue:
-    """Test sse-json conversion from plain scalar values."""
+    """Test event-stream/json conversion from plain scalar values."""
 
     @pytest.mark.anyio
-    async def test_dict_wrapped_with_json_format(self):
-        """Test that a dict value is wrapped as single event with JSON format."""
+    async def test_dict_wrapped_as_single_chunk(self):
+        """Test that a dict value passes through as a single chunk."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
-        result = await renderer.render("${output as sse-json}")
+        result = await renderer.render("${output as event-stream/json}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.format == StreamFormat.JSON
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.JSON
         chunks = await collect_async(result)
         assert chunks == [{"key": "value"}]
 
     @pytest.mark.anyio
-    async def test_string_wrapped_with_json_format(self):
-        """Test that a string value is wrapped as single event with JSON format."""
+    async def test_string_wrapped_as_single_chunk(self):
+        """Test that a string value passes through as a single chunk."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as sse-json}")
+        result = await renderer.render("${output as event-stream/json}")
 
         chunks = await collect_async(result)
         assert chunks == ["hello"]
@@ -642,7 +637,7 @@ class TestSseEdgeCases:
         """Test that None value is not converted (type conversion requires non-None)."""
         renderer = VariableRenderer(make_source_resolver({"output": None}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
         # When value is None, _convert_value_to_type is not called
         assert result is None
@@ -653,20 +648,20 @@ class TestSseEdgeCases:
         aiter = make_async_iterator(["data"])
         renderer = VariableRenderer(make_source_resolver({"result": [aiter]}))
 
-        result = await renderer.render("${result[0] as sse-text}")
+        result = await renderer.render("${result[0] as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
-        assert result.format == StreamFormat.TEXT
+        assert isinstance(result, EventStreamIterator)
+        assert result.format == EventStreamFormat.TEXT
 
     @pytest.mark.anyio
     async def test_sse_type_returns_raw_object_not_string(self):
-        """Test that sse-text returns the raw object, not a stringified version."""
+        """Test that event-stream/text returns the raw object, not a stringified version."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        # Should be EventStreamResource, not a string
-        assert isinstance(result, EventStreamResource)
+        # Should be EventStreamIterator, not a string
+        assert isinstance(result, EventStreamIterator)
 
     @pytest.mark.anyio
     async def test_stream_resource_isinstance_before_async_iterator(self):
@@ -676,11 +671,11 @@ class TestSseEdgeCases:
         # StreamResource implements __aiter__, so isinstance(resource, AsyncIterator) may be True
         # But the code checks StreamResource first
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
-        result = await renderer.render("${output as sse-text}")
+        result = await renderer.render("${output as event-stream/text}")
 
-        assert isinstance(result, EventStreamResource)
+        assert isinstance(result, EventStreamIterator)
         # The inner iterator should be the original resource, not doubly-wrapped
-        assert result.iterator is resource
+        assert result.source is resource
 
 
 # ============================
@@ -841,9 +836,9 @@ def capture_attrs(renderer):
     captured = []
     original = renderer._convert_value_to_type
 
-    async def wrapper(value, type, is_list, subtype, attrs, format):
+    async def wrapper(value, type, is_list, subtype, attrs, format, skip_decode=False):
         captured.append(attrs)
-        return await original(value, type, is_list, subtype, attrs, format)
+        return await original(value, type, is_list, subtype, attrs, format, skip_decode)
 
     renderer._convert_value_to_type = wrapper
     return captured
@@ -1064,7 +1059,7 @@ class TestVariableRendererAttrsIntegration:
     @pytest.mark.anyio
     async def test_attrs_passed_to_pcm_stream_resource(self):
         """Bytes input with audio/pcm subtype wraps into PcmStreamResource carrying attrs."""
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"raw_pcm",
             "input": {"sr": 24000},
@@ -1127,7 +1122,7 @@ class TestVariableRendererAttrsIntegration:
     @pytest.mark.anyio
     async def test_literal_attrs_regression(self):
         """The pre-existing literal attrs form keeps working with the new pipeline."""
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"data"}))
         result = await r.render("${v as audio/pcm[sample_rate=44100,channels=2,bit_depth=16]}")
         assert isinstance(result, PcmStreamResource)
@@ -1419,7 +1414,7 @@ class TestAttrsWithDeeplyNested:
     @pytest.mark.anyio
     async def test_double_nested_attrs_preserve_inner_resource(self):
         """An inner `${raw as audio/pcm[...]}` produces a PcmStreamResource that lands in the outer attrs."""
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"outer",
             "input": {"raw": b"inner"},
@@ -1659,25 +1654,19 @@ class TestElementWiseObjectArray:
 
 
 class TestElementWiseSseRaises:
-    """`sse-text[]` / `sse-json[]` are not allowed."""
+    """`event-stream[]` is not allowed: stream is single by nature."""
 
     @pytest.mark.anyio
-    async def test_sse_text_list_raises(self):
+    async def test_event_stream_list_raises(self):
         r = VariableRenderer(make_source_resolver({"v": ["a", "b"]}))
-        with pytest.raises(ValueError, match="is not allowed: SSE"):
-            await r.render("${v as sse-text[]}")
+        with pytest.raises(ValueError, match="is not allowed: stream"):
+            await r.render("${v as event-stream[]}")
 
     @pytest.mark.anyio
-    async def test_sse_json_list_raises(self):
-        r = VariableRenderer(make_source_resolver({"v": [{"a": 1}]}))
-        with pytest.raises(ValueError, match="is not allowed: SSE"):
-            await r.render("${v as sse-json[]}")
-
-    @pytest.mark.anyio
-    async def test_sse_list_raises_even_for_non_list_input(self):
+    async def test_event_stream_list_raises_even_for_non_list_input(self):
         r = VariableRenderer(make_source_resolver({"v": "single"}))
-        with pytest.raises(ValueError, match="is not allowed: SSE"):
-            await r.render("${v as sse-text[]}")
+        with pytest.raises(ValueError, match="is not allowed: stream"):
+            await r.render("${v as event-stream[]}")
 
 
 class TestElementWiseMedia:
@@ -1685,7 +1674,7 @@ class TestElementWiseMedia:
 
     @pytest.mark.anyio
     async def test_audio_pcm_list_from_bytes(self):
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": [b"raw1", b"raw2"]}))
         result = await r.render("${v as audio[]/pcm[sample_rate=16000]}")
         assert len(result) == 2
@@ -1970,7 +1959,7 @@ class TestImageValueRenderer:
     @pytest.mark.anyio
     async def test_image_stream_resource_returns_pil_directly(self):
         from PIL import Image as PILImage
-        from mindor.core.utils.image import ImageStreamResource
+        from mindor.core.utils.streaming.image import ImageStreamResource
         from mindor.core.utils.renderers import ImageValueRenderer
         pil = PILImage.new("RGB", (4, 4))
         wrapped = ImageStreamResource(pil, "png")
@@ -1978,11 +1967,20 @@ class TestImageValueRenderer:
         assert result is pil
 
     @pytest.mark.anyio
-    async def test_async_iterator_passes_through(self):
+    async def test_async_iterator_lazy_maps_elements(self):
+        """AsyncIterator input: render returns a new async generator that lazily
+        maps each element via _render_element (single-pass)."""
+        from PIL import Image as PILImage
+        from mindor.core.utils.streaming.image import ImageStreamResource
         from mindor.core.utils.renderers import ImageValueRenderer
-        it = make_async_iterator([b"x"])
+        from collections.abc import AsyncIterator
+        pil = PILImage.new("RGB", (4, 4))
+        wrapped = ImageStreamResource(pil, "png")
+        it = make_async_iterator([wrapped])
         result = await ImageValueRenderer().render(it)
-        assert result is it
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert items == [pil]
 
     @pytest.mark.anyio
     async def test_list_recurses(self):
@@ -2072,33 +2070,56 @@ class TestSizeValueRenderer:
 
 class TestAudioValueRenderer:
     @pytest.mark.anyio
-    async def test_stream_resource_returned_as_is(self):
+    async def test_stream_resource_wrapped_in_media_source(self):
         from mindor.core.utils.renderers import AudioValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         stream = BytesStreamResource(b"data")
         result = await AudioValueRenderer().render(stream)
-        assert result is stream
+        assert isinstance(result, MediaSource)
+        assert result.stream is stream
 
     @pytest.mark.anyio
-    async def test_async_iterator_returned_as_is(self):
+    async def test_async_iterator_lazy_maps_elements(self):
+        """AsyncIterator input: render returns a new async generator that lazily
+        maps each element via create_audio_source. Unsupported element types
+        surface as TypeError on iteration."""
+        from collections.abc import AsyncIterator
         from mindor.core.utils.renderers import AudioValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         it = make_async_iterator([b"x"])
         result = await AudioValueRenderer().render(it)
-        assert result is it
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1 and isinstance(items[0], MediaSource)
+
+    @pytest.mark.anyio
+    async def test_async_iterator_unsupported_element_raises_on_iteration(self):
+        from collections.abc import AsyncIterator
+        from mindor.core.utils.renderers import AudioValueRenderer
+        it = make_async_iterator([42])
+        result = await AudioValueRenderer().render(it)
+        assert isinstance(result, AsyncIterator)
+        with pytest.raises(TypeError):
+            [item async for item in result]
 
     @pytest.mark.anyio
     async def test_list_recurses(self):
         from mindor.core.utils.renderers import AudioValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         s1 = BytesStreamResource(b"a")
         s2 = BytesStreamResource(b"b")
         result = await AudioValueRenderer().render([s1, s2])
-        assert result == [s1, s2]
+        assert isinstance(result, list) and len(result) == 2
+        assert all(isinstance(r, MediaSource) for r in result)
+        assert result[0].stream is s1 and result[1].stream is s2
 
     @pytest.mark.anyio
-    async def test_unsupported_returns_none(self):
+    async def test_unsupported_raises(self):
         from mindor.core.utils.renderers import AudioValueRenderer
-        assert await AudioValueRenderer().render(42) is None
-        assert await AudioValueRenderer().render("not-a-stream") is None
-        assert await AudioValueRenderer().render(b"raw") is None
+        with pytest.raises(TypeError):
+            await AudioValueRenderer().render(42)
+        with pytest.raises(TypeError):
+            await AudioValueRenderer().render("not-a-stream")
 
 
 class TestLoadStreamFromFormatHelper:
@@ -2106,7 +2127,7 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_url_returns_url_stream(self):
-        from mindor.core.utils.url import UrlStreamResource
+        from mindor.core.utils.streaming.url import UrlStreamResource
         r = VariableRenderer(make_source_resolver({}))
         result = await r._load_stream_from_format("https://example.com/x", "url")
         assert isinstance(result, UrlStreamResource)
@@ -2114,7 +2135,7 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_path_returns_file_stream(self, tmp_path):
-        from mindor.core.utils.streaming import FileStreamResource
+        from mindor.core.utils.streaming.file import FileStreamResource
         p = tmp_path / "f.txt"
         p.write_text("x")
         r = VariableRenderer(make_source_resolver({}))
@@ -2123,24 +2144,32 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_base64_returns_base64_stream(self):
-        from mindor.core.utils.streaming import Base64StreamResource
+        from mindor.core.utils.streaming.base64 import Base64StreamResource
         r = VariableRenderer(make_source_resolver({}))
         result = await r._load_stream_from_format(base64.b64encode(b"x").decode(), "base64")
         assert isinstance(result, Base64StreamResource)
 
     @pytest.mark.anyio
-    async def test_data_uri_base64_returns_base64_stream(self):
-        from mindor.core.utils.streaming import Base64StreamResource
+    async def test_data_uri_base64_returns_data_uri_stream(self):
+        from mindor.core.utils.streaming.url import DataUriStreamResource
         r = VariableRenderer(make_source_resolver({}))
         uri = "data:application/octet-stream;base64," + base64.b64encode(b"x").decode()
         result = await r._load_stream_from_format(uri, "data-uri")
-        assert isinstance(result, Base64StreamResource)
+        assert isinstance(result, DataUriStreamResource)
+        assert result.uri == uri
+        chunks = b"".join([c async for c in result])
+        assert chunks == b"x"
 
     @pytest.mark.anyio
-    async def test_data_uri_percent_returns_bytes_stream(self):
+    async def test_data_uri_percent_returns_data_uri_stream(self):
+        from mindor.core.utils.streaming.url import DataUriStreamResource
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._load_stream_from_format("data:text/plain,hi", "data-uri")
-        assert isinstance(result, BytesStreamResource)
+        uri = "data:text/plain,hi"
+        result = await r._load_stream_from_format(uri, "data-uri")
+        assert isinstance(result, DataUriStreamResource)
+        assert result.uri == uri
+        chunks = b"".join([c async for c in result])
+        assert chunks == b"hi"
 
 
 class TestMediaBranchAudioVideoSubtypes:
@@ -2148,7 +2177,7 @@ class TestMediaBranchAudioVideoSubtypes:
 
     @pytest.mark.anyio
     async def test_audio_mp3_from_bytes(self):
-        from mindor.core.utils.audio import AudioStreamResource
+        from mindor.core.utils.streaming.audio import AudioStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp3 bytes"}))
         result = await r.render("${v as audio/mp3}")
         assert isinstance(result, AudioStreamResource)
@@ -2162,7 +2191,7 @@ class TestMediaBranchAudioVideoSubtypes:
 
     @pytest.mark.anyio
     async def test_video_mp4_from_bytes(self):
-        from mindor.core.utils.video import VideoStreamResource
+        from mindor.core.utils.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp4 bytes"}))
         result = await r.render("${v as video/mp4}")
         assert isinstance(result, VideoStreamResource)
@@ -2182,7 +2211,7 @@ class TestMediaBranchImageWithFormat:
     async def test_image_path_with_subtype(self, tmp_path):
         import io
         from PIL import Image as PILImage
-        from mindor.core.utils.image import ImageStreamResource
+        from mindor.core.utils.streaming.image import ImageStreamResource
         buf = io.BytesIO()
         PILImage.new("RGB", (4, 4), color="blue").save(buf, "PNG")
         p = tmp_path / "img.png"
@@ -2206,33 +2235,56 @@ class TestMediaBranchImageWithFormat:
 
 class TestVideoValueRenderer:
     @pytest.mark.anyio
-    async def test_stream_resource_returned_as_is(self):
+    async def test_stream_resource_wrapped_in_media_source(self):
         from mindor.core.utils.renderers import VideoValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         stream = BytesStreamResource(b"data")
         result = await VideoValueRenderer().render(stream)
-        assert result is stream
+        assert isinstance(result, MediaSource)
+        assert result.stream is stream
 
     @pytest.mark.anyio
-    async def test_async_iterator_returned_as_is(self):
+    async def test_async_iterator_lazy_maps_elements(self):
+        """AsyncIterator input: render returns a new async generator that lazily
+        maps each element via create_video_source. Unsupported element types
+        surface as TypeError on iteration."""
+        from collections.abc import AsyncIterator
         from mindor.core.utils.renderers import VideoValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         it = make_async_iterator([b"x"])
         result = await VideoValueRenderer().render(it)
-        assert result is it
+        assert isinstance(result, AsyncIterator)
+        items = [item async for item in result]
+        assert len(items) == 1 and isinstance(items[0], MediaSource)
+
+    @pytest.mark.anyio
+    async def test_async_iterator_unsupported_element_raises_on_iteration(self):
+        from collections.abc import AsyncIterator
+        from mindor.core.utils.renderers import VideoValueRenderer
+        it = make_async_iterator([42])
+        result = await VideoValueRenderer().render(it)
+        assert isinstance(result, AsyncIterator)
+        with pytest.raises(TypeError):
+            [item async for item in result]
 
     @pytest.mark.anyio
     async def test_list_recurses(self):
         from mindor.core.utils.renderers import VideoValueRenderer
+        from mindor.core.utils.streaming.media import MediaSource
         s1 = BytesStreamResource(b"a")
         s2 = BytesStreamResource(b"b")
         result = await VideoValueRenderer().render([s1, s2])
-        assert result == [s1, s2]
+        assert isinstance(result, list) and len(result) == 2
+        assert all(isinstance(r, MediaSource) for r in result)
+        assert result[0].stream is s1 and result[1].stream is s2
 
     @pytest.mark.anyio
-    async def test_unsupported_returns_none(self):
+    async def test_unsupported_raises(self):
         from mindor.core.utils.renderers import VideoValueRenderer
-        assert await VideoValueRenderer().render(42) is None
-        assert await VideoValueRenderer().render("not-a-stream") is None
-        assert await VideoValueRenderer().render(b"raw") is None
+        with pytest.raises(TypeError):
+            await VideoValueRenderer().render(42)
+        with pytest.raises(TypeError):
+            await VideoValueRenderer().render("not-a-stream")
 
 
 # ============================
@@ -2536,7 +2588,7 @@ class TestDefaultFallback:
 class TestSubtypeDiversity:
     @pytest.mark.anyio
     async def test_audio_mp3(self):
-        from mindor.core.utils.audio import AudioStreamResource
+        from mindor.core.utils.streaming.audio import AudioStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"bytes"}))
         result = await r.render("${v as audio/mp3}")
         assert isinstance(result, AudioStreamResource)
@@ -2545,14 +2597,14 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_audio_wav_from_bytes(self):
-        from mindor.core.utils.audio import WavStreamResource
+        from mindor.core.utils.streaming.audio import WavStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"riff"}))
         result = await r.render("${v as audio/wav}")
         assert isinstance(result, WavStreamResource)
 
     @pytest.mark.anyio
     async def test_audio_pcm_to_wav_auto_conversion(self):
-        from mindor.core.utils.audio import PcmStreamResource, WavStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
         pcm = PcmStreamResource(b"raw samples", {"sample_rate": 16000, "channels": 1, "bit_depth": 16})
         r = VariableRenderer(make_source_resolver({"v": pcm}))
         result = await r.render("${v as audio/wav}")
@@ -2560,7 +2612,7 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_video_mp4(self):
-        from mindor.core.utils.video import VideoStreamResource
+        from mindor.core.utils.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp4"}))
         result = await r.render("${v as video/mp4}")
         assert result.format == "mp4"
@@ -2568,7 +2620,7 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_video_webm(self):
-        from mindor.core.utils.video import VideoStreamResource
+        from mindor.core.utils.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"webm"}))
         result = await r.render("${v as video/webm}")
         assert result.format == "webm"
@@ -2578,7 +2630,7 @@ class TestSubtypeDiversity:
 class TestPcmAttrsDiversity:
     @pytest.mark.anyio
     async def test_only_sample_rate(self):
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render("${v as audio/pcm[sample_rate=8000]}")
         assert isinstance(result, PcmStreamResource)
@@ -2586,14 +2638,14 @@ class TestPcmAttrsDiversity:
 
     @pytest.mark.anyio
     async def test_multiple_attrs(self):
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render("${v as audio/pcm[sample_rate=44100,channels=2,bit_depth=24]}")
         assert result.attrs == {"sample_rate": "44100", "channels": "2", "bit_depth": "24"}
 
     @pytest.mark.anyio
     async def test_attrs_with_variable_interpolation(self):
-        from mindor.core.utils.audio import PcmStreamResource
+        from mindor.core.utils.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"raw",
             "config": {"sr": 22050, "ch": 1},
@@ -2605,7 +2657,7 @@ class TestPcmAttrsDiversity:
 
     @pytest.mark.anyio
     async def test_attrs_preserved_through_pcm_to_wav(self):
-        from mindor.core.utils.audio import WavStreamResource
+        from mindor.core.utils.streaming.audio import WavStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render(
             "${v as audio/wav}"  # bytes + wav goes through general AudioStream not pcm

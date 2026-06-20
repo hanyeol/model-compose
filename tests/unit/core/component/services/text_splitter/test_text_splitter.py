@@ -40,7 +40,7 @@ def mock_context():
 def test_cases():
     """Load pre-generated test cases."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    results_file = os.path.join(current_dir, "test_text_splitter_cases.json")
+    results_file = os.path.join(current_dir, "cases.json")
 
     if not os.path.exists(results_file):
         pytest.skip(f"Test cases file not found: {results_file}")

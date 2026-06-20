@@ -700,3 +700,24 @@ class TestWebBrowserIntegration:
         assert config.timeout == "30s"
         assert config.actions[0].timeout == "120s"
         assert config.actions[1].timeout == "5s"
+
+
+from mindor.dsl.schema.component.impl.web_browser.impl.chrome import (
+    ChromeWebBrowserDebuggerConfig,
+)
+
+
+class TestChromeDebuggerConnection:
+    """``debugger`` sub-config on the Chrome web browser component."""
+
+    def test_host_only_ok(self):
+        cfg = ChromeWebBrowserDebuggerConfig(host="chrome.internal")
+        assert cfg.host == "chrome.internal"
+
+    def test_url_only_ok(self):
+        cfg = ChromeWebBrowserDebuggerConfig(url="http://chrome:9222")
+        assert cfg.url == "http://chrome:9222"
+
+    def test_url_and_host_together_rejected(self):
+        with pytest.raises(ValidationError, match="Either 'url' or 'host'"):
+            ChromeWebBrowserDebuggerConfig(url="http://x", host="y")

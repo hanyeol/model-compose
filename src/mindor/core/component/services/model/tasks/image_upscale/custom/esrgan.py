@@ -148,7 +148,7 @@ class EsrganImageUpscaleTaskService(ImageUpscaleTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "basicsr", "torch", "torchvision" ]
+        return [ "basicsr", "torch", "torchvision", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

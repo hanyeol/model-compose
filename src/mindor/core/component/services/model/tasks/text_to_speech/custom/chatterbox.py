@@ -89,7 +89,7 @@ class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "chatterbox-tts", "numpy", "soundfile" ]
+        return [ "chatterbox-tts", "torch", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

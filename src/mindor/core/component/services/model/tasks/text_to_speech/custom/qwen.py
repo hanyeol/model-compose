@@ -148,7 +148,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "transformers", "qwen_tts", "numpy", "soundfile" ]
+        return [ "transformers", "qwen_tts", "torch", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

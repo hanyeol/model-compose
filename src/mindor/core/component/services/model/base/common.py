@@ -23,7 +23,7 @@ class ModelTaskService(AsyncService):
         self._model_load_lock: asyncio.Lock = asyncio.Lock()
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "torch", "huggingface_hub" ]
+        return []
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()

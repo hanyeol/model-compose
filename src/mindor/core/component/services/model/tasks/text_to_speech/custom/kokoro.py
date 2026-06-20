@@ -64,7 +64,7 @@ class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return ["kokoro", "numpy", "soundfile"]
+        return [ "kokoro", "torch", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.pipeline, self.device = self._load_pretrained_model()

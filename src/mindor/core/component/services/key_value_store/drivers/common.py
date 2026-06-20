@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union, List
 from abc import abstractmethod
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, KeyValueStoreActionMethod
 from ..base import ComponentActionContext
@@ -17,31 +17,41 @@ class KeyValueStoreAction:
 
     async def _dispatch(self, method: KeyValueStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == KeyValueStoreActionMethod.GET:
-            return await self._get(context)
+            key = await context.render_variable(self.config.key)
+
+            return await self._get(key)
 
         if method == KeyValueStoreActionMethod.SET:
-            return await self._set(context)
+            key   = await context.render_variable(self.config.key)
+            value = await context.render_variable(self.config.value)
+            ttl   = await context.render_variable(self.config.ttl) if self.config.ttl is not None else None
+
+            return await self._set(key, value, ttl)
 
         if method == KeyValueStoreActionMethod.DELETE:
-            return await self._delete(context)
+            key = await context.render_variable(self.config.key)
+
+            return await self._delete(key)
 
         if method == KeyValueStoreActionMethod.EXISTS:
-            return await self._exists(context)
+            key = await context.render_variable(self.config.key)
+
+            return await self._exists(key)
 
         raise ValueError(f"Unsupported key-value store action method: {method}")
 
     @abstractmethod
-    async def _get(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _get(self, key: Union[str, List[str]]) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _set(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _set(self, key: str, value: Any, ttl: Optional[int]) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _delete(self, key: Union[str, List[str]]) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _exists(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _exists(self, key: Union[str, List[str]]) -> Dict[str, Any]:
         pass

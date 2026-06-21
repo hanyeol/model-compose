@@ -1,5 +1,6 @@
 from typing import Any, Optional
 from collections.abc import AsyncIterator, AsyncIterable
+from abc import ABC, abstractmethod
 from enum import Enum
 import json
 
@@ -7,25 +8,33 @@ class EventStreamFormat(str, Enum):
     TEXT = "text"
     JSON = "json"
 
-class StreamChunkIterator:
+class StreamIterator(ABC):
+    def __aiter__(self) -> AsyncIterator[Any]:
+        return self._iterate_stream()
+
+    @abstractmethod
+    async def _iterate_stream(self) -> AsyncIterator[Any]:
+        pass
+
+class StreamChunkIterator(StreamIterator):
     def __init__(self, source: AsyncIterable):
         self.source: AsyncIterable = source
 
-    async def __aiter__(self) -> AsyncIterator[Any]:
+    async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
             if chunk is not None:
                 yield chunk
 
-class EventStreamIterator:
+class EventStreamIterator(StreamIterator):
     def __init__(
         self,
         source: AsyncIterable,
         format: Optional[EventStreamFormat] = None
     ):
-        self.source: Optional[AsyncIterable] = source
+        self.source: AsyncIterable = source
         self.format: Optional[EventStreamFormat] = format
 
-    async def __aiter__(self) -> AsyncIterator[Any]:
+    async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
             if chunk is None:
                 continue

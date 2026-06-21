@@ -6,7 +6,7 @@ from .streaming.file import UploadFileStreamResource
 from .streaming.base64 import Base64StreamResource, encode_value_to_base64
 from .streaming.resources import save_stream_to_temporary_file
 from .streaming.bytes import BytesStreamResource
-from .streaming.iterators import EventStreamFormat, EventStreamIterator, StreamChunkIterator
+from .streaming.iterators import EventStreamFormat, EventStreamIterator, StreamIterator
 from .http_client import create_stream_with_url
 from .streaming.text import load_text_from_stream
 from .streaming.image import load_image_from_stream, ImageStreamResource
@@ -233,7 +233,9 @@ class VariableRenderer:
 
         if type == "event-stream":
             format = EventStreamFormat(subtype) if subtype else EventStreamFormat.TEXT
-            if isinstance(value, (StreamResource, StreamChunkIterator, AsyncIterator)):
+            if isinstance(value, (StreamResource, StreamIterator, AsyncIterator)):
+                if isinstance(value, EventStreamIterator) and value.format == format:
+                    return value
                 return EventStreamIterator(value, format)
             async def _stream_output_generator():
                 yield value

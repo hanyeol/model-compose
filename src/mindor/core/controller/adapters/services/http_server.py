@@ -10,7 +10,7 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableG
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.streaming.image import ImageStreamResource
 from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.iterators import EventStreamIterator, StreamChunkIterator
+from mindor.core.utils.streaming.iterators import StreamIterator, EventStreamIterator, StreamChunkIterator
 from mindor.core.utils.http_stream import HttpEventStreamer
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
@@ -749,7 +749,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, AsyncIterator, EventStreamIterator, StreamChunkIterator)):
+        if not output_only and isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
             raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
 
         if output_only:
@@ -776,7 +776,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, EventStreamIterator):
             return self._render_event_stream(state.output)
 
-        if isinstance(state.output, (AsyncIterator, StreamChunkIterator)):
+        if isinstance(state.output, (StreamIterator, AsyncIterator)):
             return StreamingResponse(state.output, media_type="application/octet-stream")
 
         if isinstance(state.output, bytes):

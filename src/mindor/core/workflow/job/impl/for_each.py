@@ -4,7 +4,7 @@ from mindor.dsl.schema.job import ForEachJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
+from mindor.core.utils.streaming.iterators import StreamIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
@@ -24,7 +24,7 @@ class ForEachJob(Job):
         input      = await context.render_variable(None, self.config.input)
         batch_size = await context.render_variable(None, self.config.batch_size)
 
-        if isinstance(input, StreamChunkIterator):
+        if isinstance(input, StreamIterator):
             async def _stream_input_generator(stream=input):
                 async for chunk in stream:
                     yield chunk

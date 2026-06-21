@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import ForEachJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
-from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
@@ -22,6 +22,12 @@ class ForEachJob(Job):
 
         input      = await context.render_variable(None, self.config.input)
         batch_size = await context.render_variable(None, self.config.batch_size)
+
+        if isinstance(input, StreamChunkIterator):
+            async def _stream_input_generator(stream=input):
+                async for chunk in stream:
+                    yield chunk
+            input = _stream_input_generator()
 
         is_single_input = not isinstance(input, (list, AsyncIterator))
 
@@ -55,8 +61,8 @@ class ForEachJob(Job):
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
 
         context.register_source(run_id, "item", item)
-
         input = (await context.render_variable(run_id, self.config.do.input)) if self.config.do.input is not None else item
+
         output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
         context.register_source(run_id, "output", output)
 

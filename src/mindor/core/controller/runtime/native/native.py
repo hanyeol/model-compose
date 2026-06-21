@@ -9,6 +9,21 @@ class NativeRuntimeLauncher:
 
         logging.debug(f"Detaching and spawning: %s", " ".join(command))
 
+        if sys.platform == "win32":
+            # Windows: detach from console and create a new process group so the
+            # child survives parent exit and Ctrl-C in the parent console.
+            platform_params = {
+                "creationflags": (
+                    subprocess.DETACHED_PROCESS
+                    | subprocess.CREATE_NEW_PROCESS_GROUP
+                    | subprocess.CREATE_NO_WINDOW
+                ),
+            }
+        else:
+            # POSIX: setsid() puts the child in a new session with no controlling
+            # terminal, so SIGHUP on terminal close does not reach it.
+            platform_params = { "start_new_session": True }
+
         subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
@@ -16,7 +31,7 @@ class NativeRuntimeLauncher:
             stdin=subprocess.DEVNULL,
             env=env,
             close_fds=True,
-            start_new_session=True,
+            **platform_params,
         )
 
     async def stop(self) -> None:

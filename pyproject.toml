@@ -47,3 +47,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "mindor.core.controller.runtime.docker" = ["context/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

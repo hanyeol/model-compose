@@ -1,13 +1,8 @@
 from typing import Optional, List, Protocol, Union, Awaitable, runtime_checkable
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
-from enum import Enum
 from ..files import create_temporary_file
 import aiofiles, io
-
-class EventStreamFormat(str, Enum):
-    TEXT = "text"
-    JSON = "json"
 
 @runtime_checkable
 class BytesReader(Protocol):

@@ -23,7 +23,7 @@ from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_frame_extractor.drivers.opencv import OpenCVVideoFrameExtractorAction
-from mindor.core.utils.iterators import StreamChunkIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig

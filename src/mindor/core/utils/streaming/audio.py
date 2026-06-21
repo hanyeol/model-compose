@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Tuple, Dict, Any
 from collections.abc import AsyncIterator
-from .stream import StreamResource, read_stream_to_bytes
+from .resources import StreamResource, read_stream_to_bytes
 from .bytes import BytesStreamResource
 from .file import UploadFileStreamResource
 from .media import MediaSource

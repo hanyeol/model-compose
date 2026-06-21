@@ -140,7 +140,7 @@ async def test_wav_stream_resource_attrs_preserved_on_instance():
 @pytest.mark.anyio
 async def test_wav_stream_resource_streams_chunks_one_to_one():
     """Each PCM input chunk surfaces as a separate output chunk (no buffering)."""
-    from mindor.core.utils.streaming.stream import StreamResource
+    from mindor.core.utils.streaming.resources import StreamResource
 
     class FakePcmSource(StreamResource):
         def __init__(self, chunks):

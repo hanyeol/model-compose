@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Any, Dict, List, Optional
-from ..streaming.stream import StreamResource, ChunkedStreamResource, read_stream_to_buffer
+from ..streaming.resources import StreamResource, ChunkedStreamResource, read_stream_to_buffer
 import asyncio, uuid, base64
 
 if TYPE_CHECKING:

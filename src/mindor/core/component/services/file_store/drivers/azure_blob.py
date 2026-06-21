@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AzureBlobFileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, AzureBlobFileStoreActionConfig
-from mindor.core.utils.streaming.stream import save_stream_to_file
+from mindor.core.utils.streaming.resources import save_stream_to_file
 from mindor.core.utils.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import is_glob_match, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
@@ -127,7 +127,7 @@ class AzureBlobFileStoreAction(FileStoreAction):
         }
 
     async def _get(self, context: ComponentActionContext) -> Dict[str, Any]:
-        from mindor.core.utils.streaming.stream import ReaderStreamResource
+        from mindor.core.utils.streaming.resources import ReaderStreamResource
 
         path       = await context.render_variable(self.config.path)
         save_to    = await context.render_variable(self.config.save_to)

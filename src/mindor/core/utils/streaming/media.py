@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-from .stream import StreamResource
+from .resources import StreamResource
 from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
 from starlette.datastructures import UploadFile

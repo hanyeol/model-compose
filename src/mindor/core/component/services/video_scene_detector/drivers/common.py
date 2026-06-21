@@ -4,7 +4,8 @@ from typing import Optional, Dict, List, Union, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging

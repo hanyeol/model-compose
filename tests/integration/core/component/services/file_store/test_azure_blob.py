@@ -15,7 +15,7 @@ from mindor.core.component.services.file_store.drivers.azure_blob import (
     AzureBlobFileStoreAction,
     AzureBlobLocation,
 )
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import AzureBlobFileStoreActionConfig
 

@@ -12,7 +12,7 @@ pytest.importorskip("moto")
 pytest.importorskip("aioboto3")
 
 from mindor.core.utils.providers.aws_s3 import upload, multipart_upload, _MIN_PART_SIZE
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 
 

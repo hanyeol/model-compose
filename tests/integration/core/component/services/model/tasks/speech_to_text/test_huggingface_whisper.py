@@ -24,7 +24,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.utils.iterators import StreamChunkIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 
 

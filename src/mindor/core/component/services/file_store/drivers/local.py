@@ -2,9 +2,9 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import LocalFileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, LocalFileStoreActionConfig
-from mindor.core.utils.streaming.stream import ChunkedStreamResource
+from mindor.core.utils.streaming.resources import ChunkedStreamResource
 from mindor.core.utils.streaming.file import FileStreamResource
-from mindor.core.utils.streaming.stream import save_stream_to_file
+from mindor.core.utils.streaming.resources import save_stream_to_file
 from mindor.core.utils.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import list_dir, walk_dir, is_glob_match, is_path_within, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string

@@ -2,7 +2,7 @@ from typing import Optional
 from collections.abc import AsyncIterator
 from pathlib import Path
 from urllib.parse import unquote_to_bytes
-from .stream import StreamResource, save_stream_to_file
+from .resources import StreamResource, save_stream_to_file
 from .base64 import Base64StreamResource
 from .bytes import BytesStreamResource
 from ..http_client import create_stream_with_url

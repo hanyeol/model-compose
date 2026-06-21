@@ -3,7 +3,8 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import ForEachJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
-from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job

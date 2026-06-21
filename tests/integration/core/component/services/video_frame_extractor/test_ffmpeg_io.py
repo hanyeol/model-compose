@@ -29,7 +29,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import FFmpegVideoFrameExtractorAction
-from mindor.core.utils.iterators import StreamChunkIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig

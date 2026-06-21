@@ -17,7 +17,7 @@ from mindor.core.component.services.file_store.drivers.gcp_storage import (
     GcpStorageFileStoreAction,
     GcsLocation,
 )
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import GcpStorageFileStoreActionConfig
 

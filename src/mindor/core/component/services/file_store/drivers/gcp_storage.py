@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import GcpStorageFileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, GcpStorageFileStoreActionConfig
-from mindor.core.utils.streaming.stream import save_stream_to_file
+from mindor.core.utils.streaming.resources import save_stream_to_file
 from mindor.core.utils.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.core.utils.files import is_glob_match, guess_content_type
@@ -87,7 +87,7 @@ class GcpStorageFileStoreAction(FileStoreAction):
         }
 
     async def _get(self, context: ComponentActionContext) -> Dict[str, Any]:
-        from mindor.core.utils.streaming.stream import ReaderStreamResource
+        from mindor.core.utils.streaming.resources import ReaderStreamResource
 
         path       = await context.render_variable(self.config.path)
         save_to    = await context.render_variable(self.config.save_to)

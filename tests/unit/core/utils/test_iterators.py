@@ -4,13 +4,9 @@ from typing import AsyncIterator, List
 
 import pytest
 
-from mindor.core.utils.iterators import (
-    BatchSourceIterator,
-    EventStreamIterator,
-    StreamChunkIterator,
-    TextDecodeIterator,
-)
-from mindor.core.utils.streaming.stream import EventStreamFormat
+from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
+from mindor.core.utils.streaming.iterators import EventStreamIterator, StreamChunkIterator
+from mindor.core.utils.streaming.iterators import EventStreamFormat
 
 
 @pytest.fixture

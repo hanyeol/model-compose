@@ -27,7 +27,7 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_to_speech.common import TextToSpeechTaskAction
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import QwenTextToSpeechGenerateModelActionConfig
 

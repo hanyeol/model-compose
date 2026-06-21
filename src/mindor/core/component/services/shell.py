@@ -2,7 +2,8 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
-from mindor.core.utils.iterators import BatchSourceIterator, StreamChunkIterator
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.streaming.iterators import StreamChunkIterator
 from mindor.core.utils.renderers import ArrayValue
 from mindor.core.utils.shell import run_command_foreground, run_command
 from mindor.core.utils.time import parse_duration

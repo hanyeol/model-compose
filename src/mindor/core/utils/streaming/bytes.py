@@ -1,6 +1,6 @@
 from typing import Optional
 from collections.abc import AsyncIterator
-from .stream import StreamResource
+from .resources import StreamResource
 import io
 
 class BytesStreamResource(StreamResource):

@@ -1,7 +1,6 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 from collections.abc import AsyncIterator, AsyncIterable
-from .streaming.stream import EventStreamFormat
-import codecs, json
+import codecs
 
 class BatchSourceIterator:
     """Yield items from a heterogeneous source as batches.
@@ -145,45 +144,3 @@ class TextDecodeIterator:
         text = decoder.decode(b"", final=True)
         if text:
             yield text
-
-class StreamChunkIterator:
-    def __init__(self, source: AsyncIterable):
-        self.source: AsyncIterable = source
-
-    async def __aiter__(self) -> AsyncIterator[Any]:
-        async for chunk in self.source:
-            if chunk is not None:
-                yield chunk
-
-class EventStreamIterator:
-    def __init__(
-        self,
-        source: AsyncIterable,
-        format: Optional[EventStreamFormat] = None
-    ):
-        self.source: Optional[AsyncIterable] = source
-        self.format: Optional[EventStreamFormat] = format
-
-    async def __aiter__(self) -> AsyncIterator[Any]:
-        async for chunk in self.source:
-            if chunk is None:
-                continue
-
-            encoded = self._encode_chunk(chunk)
-
-            if encoded is None:
-                continue
-
-            yield encoded
-
-    def _encode_chunk(self, chunk: Any) -> Optional[Any]:
-        if self.format == EventStreamFormat.TEXT:
-            return chunk if isinstance(chunk, str) else str(chunk)
-
-        if self.format == EventStreamFormat.JSON:
-            return json.dumps(chunk, ensure_ascii=False, default=str)
-
-        if not isinstance(chunk, (str, bytes, type(None))):
-            return json.dumps(chunk, ensure_ascii=False, default=str)
-
-        return chunk

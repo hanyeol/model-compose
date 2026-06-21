@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.utils.streaming.audio import AudioStreamResource
 from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.stream import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.utils.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess

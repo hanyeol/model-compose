@@ -1,6 +1,6 @@
 from typing import Optional, List, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from .streaming.stream import StreamResource
+from .streaming.resources import StreamResource
 import aiohttp
 
 class HttpReaderStreamResource(StreamResource):

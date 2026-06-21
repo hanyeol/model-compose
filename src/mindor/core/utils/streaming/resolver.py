@@ -1,6 +1,6 @@
 from typing import Any
 from collections.abc import AsyncIterable
-from .stream import StreamResource, BytesReader, ReaderStreamResource, AsyncIterableStreamResource
+from .resources import StreamResource, BytesReader, ReaderStreamResource, AsyncIterableStreamResource
 from .file import UploadFileStreamResource
 from .bytes import BytesStreamResource
 from .text import TextStreamResource

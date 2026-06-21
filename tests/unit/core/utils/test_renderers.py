@@ -8,9 +8,9 @@ import pytest
 from starlette.datastructures import UploadFile
 
 from mindor.core.utils.renderers import VariableRenderer
-from mindor.core.utils.streaming.stream import EventStreamFormat
+from mindor.core.utils.streaming.iterators import EventStreamFormat
 from mindor.core.utils.streaming.bytes import BytesStreamResource
-from mindor.core.utils.iterators import EventStreamIterator
+from mindor.core.utils.streaming.iterators import EventStreamIterator
 
 
 @pytest.fixture

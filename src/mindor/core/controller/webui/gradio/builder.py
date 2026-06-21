@@ -6,10 +6,10 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableG
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from mindor.core.utils.streaming.bytes import BytesStreamResource
 from mindor.core.utils.streaming.base64 import Base64StreamResource
-from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.streaming.url import DataUriStreamResource
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url

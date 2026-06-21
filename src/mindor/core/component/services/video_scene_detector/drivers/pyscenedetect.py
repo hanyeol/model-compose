@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
 from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.stream import save_stream_to_temporary_file
+from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.streaming.file import FileStreamResource
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service

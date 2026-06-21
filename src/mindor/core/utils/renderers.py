@@ -1,12 +1,12 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming.stream import StreamResource, EventStreamFormat
+from .streaming.resources import StreamResource
 from .streaming.file import UploadFileStreamResource
 from .streaming.base64 import Base64StreamResource, encode_value_to_base64
-from .streaming.stream import save_stream_to_temporary_file
+from .streaming.resources import save_stream_to_temporary_file
 from .streaming.bytes import BytesStreamResource
-from .iterators import EventStreamIterator, StreamChunkIterator
+from .streaming.iterators import EventStreamFormat, EventStreamIterator, StreamChunkIterator
 from .http_client import create_stream_with_url
 from .streaming.text import load_text_from_stream
 from .streaming.image import load_image_from_stream, ImageStreamResource

@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import KokoroTextToSpeechGenerateModelActionConfig
 from mindor.core.utils.streaming.audio import PcmStreamResource
-from mindor.core.utils.streaming.stream import StreamResource
+from mindor.core.utils.streaming.resources import StreamResource
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
 import asyncio

@@ -1,7 +1,7 @@
 from typing import Any, List, Optional, Tuple
 from collections.abc import AsyncIterator, AsyncIterable
 from .streaming.stream import EventStreamFormat
-import codecs
+import codecs, json
 
 class BatchSourceIterator:
     """Yield items from a heterogeneous source as batches.
@@ -147,13 +147,8 @@ class TextDecodeIterator:
             yield text
 
 class StreamChunkIterator:
-    def __init__(
-        self,
-        source: AsyncIterable,
-        content_type: Optional[str] = None
-    ):
+    def __init__(self, source: AsyncIterable):
         self.source: AsyncIterable = source
-        self.content_type: str = content_type or "application/octet-stream"
 
     async def __aiter__(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
@@ -171,5 +166,24 @@ class EventStreamIterator:
 
     async def __aiter__(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
-            if chunk is not None:
-                yield chunk
+            if chunk is None:
+                continue
+
+            encoded = self._encode_chunk(chunk)
+
+            if encoded is None:
+                continue
+
+            yield encoded
+
+    def _encode_chunk(self, chunk: Any) -> Optional[Any]:
+        if self.format == EventStreamFormat.TEXT:
+            return chunk if isinstance(chunk, str) else str(chunk)
+
+        if self.format == EventStreamFormat.JSON:
+            return json.dumps(chunk, ensure_ascii=False, default=str)
+
+        if not isinstance(chunk, (str, bytes, type(None))):
+            return json.dumps(chunk, ensure_ascii=False, default=str)
+
+        return chunk

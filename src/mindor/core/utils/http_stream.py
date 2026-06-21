@@ -1,7 +1,7 @@
 from typing import Optional, List, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from .streaming.stream import StreamResource, EventStreamFormat
-import aiohttp, json
+from .streaming.stream import StreamResource
+import aiohttp
 
 class HttpReaderStreamResource(StreamResource):
     def __init__(
@@ -85,36 +85,18 @@ class HttpEventStreamResource(StreamResource):
                     yield b"\n".join(parts)
 
 class HttpEventStreamer:
-    def __init__(self, iterator: AsyncIterable, format: Optional[EventStreamFormat] = None):
+    def __init__(self, iterator: AsyncIterable):
         self.iterator: AsyncIterable = iterator
-        self.format: Optional[EventStreamFormat] = format
 
     async def stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.iterator:
             if chunk is None:
                 continue
 
-            encoded = self._encode_chunk(chunk)
-
-            if encoded is None:
-                continue
-
-            for line in self._split_chunk(encoded):
+            for line in self._split_chunk(chunk):
                 yield b"data: " + line + b"\n"
 
             yield b"\n"
-
-    def _encode_chunk(self, chunk: Any) -> Optional[Any]:
-        if self.format == EventStreamFormat.TEXT:
-            return chunk if isinstance(chunk, str) else str(chunk)
-
-        if self.format == EventStreamFormat.JSON:
-            return json.dumps(chunk, ensure_ascii=False, default=str)
-
-        if not isinstance(chunk, (str, bytes, type(None))):
-            return json.dumps(chunk, ensure_ascii=False, default=str)
-
-        return chunk
 
     def _split_chunk(self, chunk: Any) -> List[bytes]:
         if isinstance(chunk, str):

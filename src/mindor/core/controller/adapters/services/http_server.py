@@ -767,19 +767,16 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
-        if isinstance(state.output, EventStreamIterator):
-            return self._render_event_stream(state.output)
-
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
-        if isinstance(state.output, StreamChunkIterator):
-            return StreamingResponse(state.output, media_type=state.output.content_type)
+        if isinstance(state.output, EventStreamIterator):
+            return self._render_event_stream(state.output)
 
-        if isinstance(state.output, AsyncIterator):
+        if isinstance(state.output, (AsyncIterator, StreamChunkIterator)):
             return StreamingResponse(state.output, media_type="application/octet-stream")
 
         if isinstance(state.output, bytes):
@@ -797,7 +794,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
     def _render_event_stream(self, iterator: EventStreamIterator) -> Response:
         return StreamingResponse(
-            HttpEventStreamer(iterator, iterator.format).stream(),
+            HttpEventStreamer(iterator).stream(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache"

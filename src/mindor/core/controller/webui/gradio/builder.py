@@ -202,7 +202,7 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
+                if self._is_single_variable(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
                     buffer = "" if workflow.output[0].subtype != "json" else []
                     async for chunk in output:
                         chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
@@ -335,7 +335,7 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable_output(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
+                if self._is_single_variable(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
                     variable = workflow.output[0]
                     buffer = "" if variable.subtype != "json" else []
                     async for chunk in output:
@@ -689,7 +689,7 @@ class GradioWebUIBuilder:
 
         return None
 
-    def _is_single_variable_output(
+    def _is_single_variable(
         self,
         variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
         allowed_types: Optional[List[WorkflowVariableType]] = None,

@@ -1,5 +1,5 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from types import GeneratorType
+from collections.abc import AsyncIterable
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
@@ -209,7 +209,7 @@ class WorkflowRunner:
             output = await self._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
 
             workflow_elapsed = workflow_time_tracker.elapsed()
-            if isinstance(output, GeneratorType):
+            if isinstance(output, AsyncIterable):
                 tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed, is_streaming=True)
                 logging.info("[task-%s] Workflow '%s' completed in %.2f seconds (streaming output pending consumption).", context.task_id, self.id, workflow_elapsed)
             else:

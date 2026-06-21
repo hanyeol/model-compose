@@ -823,21 +823,21 @@ class ControllerService(AsyncService):
     def _derive_task_event(self, state: TaskState, previous_status: Optional[TaskStatus]) -> Optional[TaskEvent]:
         if state.status == TaskStatus.PROCESSING:
             if previous_status == TaskStatus.INTERRUPTED:
-                event_name = "resumed"
+                event = "resumed"
             else:
-                event_name = "started"
+                event = "started"
         elif state.status == TaskStatus.INTERRUPTED:
-            event_name = "interrupted"
+            event = "interrupted"
         elif state.status == TaskStatus.COMPLETED:
-            event_name = "completed"
+            event = "completed"
         elif state.status == TaskStatus.FAILED:
-            event_name = "failed"
+            event = "failed"
         else:
             return None
 
         return TaskEvent(
             task_id=state.task_id,
-            event=event_name,
+            event=event,
             status=state.status,
             workflow_id=state.workflow_id,
             output=state.output,

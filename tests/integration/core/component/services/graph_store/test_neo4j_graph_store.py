@@ -45,10 +45,7 @@ def neo4j_is_available() -> bool:
         return False
 
 
-pytestmark = [
-    pytest.mark.live,
-    pytest.mark.skipif(not neo4j_is_available(), reason="Neo4j is not available at bolt://localhost:7687"),
-]
+pytestmark = pytest.mark.skipif(not neo4j_is_available(), reason="Neo4j is not available at bolt://localhost:7687")
 
 
 @pytest.fixture

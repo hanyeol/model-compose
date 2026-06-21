@@ -22,7 +22,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-pytestmark = pytest.mark.live
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
@@ -188,22 +187,6 @@ class TestListInput:
         sim_para = _cosine(result[0], result[1])
         sim_far  = _cosine(result[0], result[2])
         assert sim_para > sim_far + 0.05  # generous margin
-
-
-@transformers_required
-class TestStreamOutputTemplate:
-    @pytest.mark.anyio
-    async def test_stream_output_yields_each_vector(self, minilm_action_factory):
-        config = _make_config(output="${result[]}", batch_size=2)
-        ctx    = _make_context([ "alpha", "beta", "gamma" ])
-        action = minilm_action_factory(config)
-
-        result = await action.run(ctx, asyncio.get_event_loop())
-
-        assert isinstance(result, AsyncIterator)
-        items = [item async for item in result]
-        assert len(items) == 3
-        assert all(isinstance(v, list) and len(v) == 384 for v in items)
 
 
 @transformers_required

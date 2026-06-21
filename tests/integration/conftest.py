@@ -3,9 +3,6 @@
 Provides an in-process moto S3 server and the supporting `s3_*` fixtures.
 Subdirectory conftests can extend this (see file_store/conftest.py for the
 Azurite blob and fake-gcs emulators).
-
-`pytestmark = pytest.mark.integration` is applied per-file rather than here so
-unit-style fixtures can coexist if any get added later.
 """
 
 from __future__ import annotations

@@ -24,7 +24,6 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-pytestmark = pytest.mark.live
 from PIL import Image as PILImage
 from pydantic import TypeAdapter
 

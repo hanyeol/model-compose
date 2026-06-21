@@ -21,7 +21,6 @@ from typing import Any, List
 
 import pytest
 
-pytestmark = pytest.mark.live
 from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.context import ComponentActionContext
@@ -286,49 +285,45 @@ class TestPassthroughOutput:
 
 
 @transformers_required
-class TestStreamOutputTemplate:
-    """``output='${result[]}'`` (is_stream_output=True) → AsyncIterator regardless of streaming."""
+class TestListInputResultShape:
+    """List input shape: streaming=False → list[str]; streaming=True → list[StreamChunkIterator]."""
 
     @pytest.mark.anyio
-    async def test_stream_output_non_streaming_yields_strings(self, sample_wav_path, whisper_action_factory):
-        # streaming=False + ${result[]}: each transcribed string is yielded.
-        config = _make_config(output="${result[]}", batch_size=2)
+    async def test_non_streaming_list_input_returns_list_of_strings(self, sample_wav_path, whisper_action_factory):
+        config = _make_config(batch_size=2)
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
         result = await action.run(ctx, asyncio.get_event_loop())
 
-        assert isinstance(result, AsyncIterator)
-        items = [item async for item in result]
-        assert len(items) == 2
-        assert all(isinstance(item, str) for item in items)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(item, str) for item in result)
 
     @pytest.mark.anyio
-    async def test_stream_output_non_streaming_with_single_input(self, sample_wav_path, whisper_action_factory):
-        config = _make_config(sample_wav_path, output="${result[]}")
+    async def test_non_streaming_single_input_returns_string(self, sample_wav_path, whisper_action_factory):
+        config = _make_config(sample_wav_path)
         ctx    = _make_context(sample_wav_path)
         action = whisper_action_factory(config)
 
         result = await action.run(ctx, asyncio.get_event_loop())
 
-        assert isinstance(result, AsyncIterator)
-        items = [item async for item in result]
-        assert len(items) == 1
-        assert isinstance(items[0], str)
+        assert isinstance(result, str)
 
     @pytest.mark.anyio
-    async def test_stream_output_streaming_flattens_tokens(self, sample_wav_path, whisper_action_factory):
-        # streaming=True + ${result[]}: tokens from all inputs are flattened into
-        # a single AsyncIterator at the base run() level.
-        config = _make_config(output="${result[]}", streaming=True, batch_size=2)
+    async def test_streaming_list_input_returns_list_of_chunk_iterators(self, sample_wav_path, whisper_action_factory):
+        config = _make_config(streaming=True, batch_size=2)
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
         result = await action.run(ctx, asyncio.get_event_loop())
 
-        assert isinstance(result, AsyncIterator)
-        items = [item async for item in result]
-        assert all(isinstance(item, str) for item in items)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(row, StreamChunkIterator) for row in result)
+        for row in result:
+            tokens = [token async for token in row]
+            assert all(isinstance(token, str) for token in tokens)
 
 
 @transformers_required
@@ -355,14 +350,15 @@ class TestAsyncIteratorInput:
         assert all(isinstance(item, str) for item in items)
 
     @pytest.mark.anyio
-    async def test_stream_input_streaming_flattens_tokens(self, sample_wav_path, whisper_action_factory):
+    async def test_stream_input_streaming_yields_chunk_iterators(self, sample_wav_path, whisper_action_factory):
         def _make_iter():
             async def _gen():
                 yield sample_wav_path
                 yield sample_wav_path
             return _gen()
 
-        # AsyncIterator input → is_stream_mode=True; streaming=True → token-level yield.
+        # AsyncIterator input + streaming=True → AsyncIterator[StreamChunkIterator],
+        # each inner iterator yielding the row's tokens.
         config = _make_config(streaming=True)
         ctx    = _make_context(_make_iter)
         action = whisper_action_factory(config)
@@ -370,8 +366,11 @@ class TestAsyncIteratorInput:
         result = await action.run(ctx, asyncio.get_event_loop())
 
         assert isinstance(result, AsyncIterator)
-        items = [item async for item in result]
-        assert all(isinstance(item, str) for item in items)
+        rows = [row async for row in result]
+        assert all(isinstance(row, StreamChunkIterator) for row in rows)
+        for row in rows:
+            tokens = [token async for token in row]
+            assert all(isinstance(token, str) for token in tokens)
 
 
 @transformers_required

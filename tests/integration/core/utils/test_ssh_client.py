@@ -6,7 +6,6 @@ import socket
 
 import pytest
 
-pytestmark = pytest.mark.live
 
 from mindor.core.utils.ssh_client import (
     SshClient,
@@ -308,16 +307,3 @@ class TestSshClient:
             await client.close()
             server_socket.close()
 
-    def test_get_shared_instance(self, keyfile_connection_params):
-        """Test getting shared instance"""
-        # Clear any existing shared instance
-        SshClient.shared_instance = None
-
-        instance1 = SshClient.get_shared_instance(keyfile_connection_params)
-        instance2 = SshClient.get_shared_instance(keyfile_connection_params)
-
-        # Verify same instance is returned
-        assert instance1 is instance2
-
-        # Cleanup
-        SshClient.shared_instance = None

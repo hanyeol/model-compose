@@ -10,7 +10,6 @@ import tempfile
 
 import pytest
 
-pytestmark = pytest.mark.live
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

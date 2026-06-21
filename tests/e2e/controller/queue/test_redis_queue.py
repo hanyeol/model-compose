@@ -13,7 +13,6 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import pytest
 
-pytestmark = pytest.mark.live
 from starlette.datastructures import UploadFile
 
 from mindor.core.controller.base import InterruptState, TaskState, TaskStatus

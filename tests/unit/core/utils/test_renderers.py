@@ -495,7 +495,7 @@ class TestSseTextFromStreamResource:
 
     @pytest.mark.anyio
     async def test_stream_resource_bytes_iterable(self):
-        """Test that bytes from StreamResource are yielded through EventStreamIterator."""
+        """Test that bytes from StreamResource are encoded as text via EventStreamIterator."""
         resource = BytesStreamResource(b"data", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
@@ -503,7 +503,7 @@ class TestSseTextFromStreamResource:
         chunks = await collect_async(result)
 
         assert len(chunks) > 0
-        assert b"data" in b"".join(chunks)
+        assert "data" in "".join(chunks)
 
 
 class TestSseTextFromPlainValue:
@@ -523,35 +523,35 @@ class TestSseTextFromPlainValue:
         assert chunks == ["hello"]
 
     @pytest.mark.anyio
-    async def test_dict_value_wrapped_as_single_chunk(self):
-        """Test that a dict passes through as a single chunk (no encoding here)."""
+    async def test_dict_value_encoded_as_string(self):
+        """Test that a dict is stringified by the TEXT-format EventStreamIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
         result = await renderer.render("${output as event-stream/text}")
 
         assert isinstance(result, EventStreamIterator)
         chunks = await collect_async(result)
-        assert chunks == [{"key": "value"}]
+        assert chunks == [str({"key": "value"})]
 
     @pytest.mark.anyio
-    async def test_int_value_wrapped_as_single_chunk(self):
-        """Test that an integer passes through as a single chunk."""
+    async def test_int_value_encoded_as_string(self):
+        """Test that an integer is stringified by the TEXT-format EventStreamIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": 42}))
 
         result = await renderer.render("${output as event-stream/text}")
 
         chunks = await collect_async(result)
-        assert chunks == [42]
+        assert chunks == ["42"]
 
     @pytest.mark.anyio
-    async def test_list_value_wrapped_as_single_chunk(self):
-        """Test that a list passes through as a single chunk."""
+    async def test_list_value_encoded_as_string(self):
+        """Test that a list is stringified by the TEXT-format EventStreamIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3]}))
 
         result = await renderer.render("${output as event-stream/text}")
 
         chunks = await collect_async(result)
-        assert chunks == [[1, 2, 3]]
+        assert chunks == [str([1, 2, 3])]
 
 
 # ============================
@@ -573,15 +573,15 @@ class TestSseJsonFromAsyncIterator:
         assert result.format == EventStreamFormat.JSON
 
     @pytest.mark.anyio
-    async def test_async_iterator_chunks_preserved(self):
-        """Test that chunks pass through unchanged (no JSON encoding at this layer)."""
+    async def test_async_iterator_chunks_json_encoded(self):
+        """Test that chunks are JSON-encoded by the JSON-format EventStreamIterator."""
         aiter = make_async_iterator([{"a": 1}, {"b": 2}])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
         result = await renderer.render("${output as event-stream/json}")
         chunks = await collect_async(result)
 
-        assert chunks == [{"a": 1}, {"b": 2}]
+        assert chunks == ['{"a": 1}', '{"b": 2}']
 
 
 class TestSseJsonFromStreamResource:
@@ -603,8 +603,8 @@ class TestSseJsonFromPlainValue:
     """Test event-stream/json conversion from plain scalar values."""
 
     @pytest.mark.anyio
-    async def test_dict_wrapped_as_single_chunk(self):
-        """Test that a dict value passes through as a single chunk."""
+    async def test_dict_json_encoded(self):
+        """Test that a dict value is JSON-encoded by the JSON-format EventStreamIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
         result = await renderer.render("${output as event-stream/json}")
@@ -612,17 +612,17 @@ class TestSseJsonFromPlainValue:
         assert isinstance(result, EventStreamIterator)
         assert result.format == EventStreamFormat.JSON
         chunks = await collect_async(result)
-        assert chunks == [{"key": "value"}]
+        assert chunks == ['{"key": "value"}']
 
     @pytest.mark.anyio
-    async def test_string_wrapped_as_single_chunk(self):
-        """Test that a string value passes through as a single chunk."""
+    async def test_string_json_encoded(self):
+        """Test that a string value is JSON-encoded (quoted) by the JSON-format EventStreamIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
         result = await renderer.render("${output as event-stream/json}")
 
         chunks = await collect_async(result)
-        assert chunks == ["hello"]
+        assert chunks == ['"hello"']
 
 
 # ============================

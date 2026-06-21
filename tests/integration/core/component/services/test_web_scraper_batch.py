@@ -13,9 +13,16 @@ import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.web_scraper import WebScraperAction
 from mindor.dsl.schema.action import WebScraperActionConfig
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
 
 
 def _make_context(url_value: Any) -> ComponentActionContext:
@@ -53,6 +60,7 @@ def _make_action(**config_kwargs) -> WebScraperAction:
     return WebScraperAction(config, headers={}, cookies={}, timeout=None)
 
 
+@pytest.mark.anyio
 async def test_aiohttp_batch():
     print("\n=== aiohttp batch (no JS) ===")
     urls = [
@@ -81,6 +89,7 @@ async def test_aiohttp_batch():
         assert r and token in r, f"{url}: expected {token!r} in result, got {(r or '')[:120]!r}"
 
 
+@pytest.mark.anyio
 async def test_aiohttp_single():
     print("\n=== aiohttp single URL ===")
     action = _make_action(selector="h1")
@@ -92,6 +101,7 @@ async def test_aiohttp_single():
     assert result and "Moby-Dick" in result
 
 
+@pytest.mark.anyio
 async def test_playwright_batch_shared_browser():
     print("\n=== playwright batch (shared browser) ===")
     urls = [

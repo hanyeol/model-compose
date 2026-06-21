@@ -1,8 +1,12 @@
-"""Tests for HttpEventStreamer encoding and SSE framing."""
+"""Tests for HttpEventStreamer SSE framing.
+
+Chunk encoding (text/json serialization) is the responsibility of
+``EventStreamIterator`` and is tested separately. This module focuses on
+how already-encoded chunks are framed into SSE ``data:`` lines.
+"""
 
 import pytest
 from mindor.core.utils.http_stream import HttpEventStreamer
-from mindor.core.utils.streaming.stream import EventStreamFormat
 
 
 @pytest.fixture
@@ -22,59 +26,28 @@ async def collect_stream(streamer: HttpEventStreamer) -> bytes:
     return bytes(out)
 
 
-class TestHttpEventStreamerTextFormat:
+class TestHttpEventStreamerFraming:
     @pytest.mark.anyio
-    async def test_single_text_chunk(self):
-        streamer = HttpEventStreamer(make_iterator(["hello"]), EventStreamFormat.TEXT)
+    async def test_single_str_chunk(self):
+        streamer = HttpEventStreamer(make_iterator(["hello"]))
         assert await collect_stream(streamer) == b"data: hello\n\n"
 
     @pytest.mark.anyio
-    async def test_multiple_text_chunks(self):
-        streamer = HttpEventStreamer(make_iterator(["hello", "world"]), EventStreamFormat.TEXT)
+    async def test_multiple_chunks(self):
+        streamer = HttpEventStreamer(make_iterator(["hello", "world"]))
         assert await collect_stream(streamer) == b"data: hello\n\ndata: world\n\n"
 
     @pytest.mark.anyio
-    async def test_multiline_text_chunk_split_to_data_lines(self):
-        streamer = HttpEventStreamer(make_iterator(["line1\nline2"]), EventStreamFormat.TEXT)
+    async def test_multiline_chunk_split_to_data_lines(self):
+        streamer = HttpEventStreamer(make_iterator(["line1\nline2"]))
         assert await collect_stream(streamer) == b"data: line1\ndata: line2\n\n"
 
     @pytest.mark.anyio
-    async def test_non_string_chunk_stringified(self):
-        streamer = HttpEventStreamer(make_iterator([42]), EventStreamFormat.TEXT)
-        assert await collect_stream(streamer) == b"data: 42\n\n"
-
-
-class TestHttpEventStreamerJsonFormat:
-    @pytest.mark.anyio
-    async def test_dict_chunk_serialized_as_json(self):
-        streamer = HttpEventStreamer(make_iterator([{"key": "value"}]), EventStreamFormat.JSON)
-        assert await collect_stream(streamer) == b'data: {"key": "value"}\n\n'
-
-    @pytest.mark.anyio
-    async def test_scalar_chunk_serialized_as_json(self):
-        streamer = HttpEventStreamer(make_iterator([42]), EventStreamFormat.JSON)
-        assert await collect_stream(streamer) == b"data: 42\n\n"
-
-    @pytest.mark.anyio
-    async def test_multiple_json_chunks(self):
-        streamer = HttpEventStreamer(make_iterator([{"a": 1}, {"b": 2}]), EventStreamFormat.JSON)
-        assert await collect_stream(streamer) == b'data: {"a": 1}\n\ndata: {"b": 2}\n\n'
-
-
-class TestHttpEventStreamerNoneSkipping:
-    @pytest.mark.anyio
-    async def test_none_chunks_skipped(self):
-        streamer = HttpEventStreamer(make_iterator(["hello", None, "world"]), EventStreamFormat.TEXT)
-        assert await collect_stream(streamer) == b"data: hello\n\ndata: world\n\n"
-
-
-class TestHttpEventStreamerNoFormat:
-    @pytest.mark.anyio
-    async def test_str_chunk_passes_through(self):
-        streamer = HttpEventStreamer(make_iterator(["hello"]), None)
+    async def test_bytes_chunk(self):
+        streamer = HttpEventStreamer(make_iterator([b"hello"]))
         assert await collect_stream(streamer) == b"data: hello\n\n"
 
     @pytest.mark.anyio
-    async def test_dict_chunk_falls_back_to_json(self):
-        streamer = HttpEventStreamer(make_iterator([{"k": "v"}]), None)
-        assert await collect_stream(streamer) == b'data: {"k": "v"}\n\n'
+    async def test_none_chunks_skipped(self):
+        streamer = HttpEventStreamer(make_iterator(["hello", None, "world"]))
+        assert await collect_stream(streamer) == b"data: hello\n\ndata: world\n\n"

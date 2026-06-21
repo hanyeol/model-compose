@@ -103,9 +103,17 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             return
 
         async def _on_interrupt(interrupt):
-            state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, interrupt=interrupt)
-            await self._publish_result(workflow_id, task_id, run_id, state)
-            return await self._wait_for_resume(resume_key)
+            # Subscribe before publishing so the dispatcher's resume publish
+            # cannot race past us and be lost.
+            pubsub = self._client.pubsub()
+            await pubsub.subscribe(resume_key)
+            try:
+                state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, interrupt=interrupt)
+                await self._publish_result(workflow_id, task_id, run_id, state)
+                return await self._read_resume(pubsub)
+            finally:
+                await pubsub.unsubscribe(resume_key)
+                await pubsub.aclose()
 
         try:
             state = await self.controller.run_workflow(
@@ -122,18 +130,11 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         else:
             await self._publish_result(workflow_id, task_id, run_id, state)
 
-    async def _wait_for_resume(self, resume_key: str) -> Any:
-        pubsub = self._client.pubsub()
-        await pubsub.subscribe(resume_key)
-
-        try:
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    data = json.loads(message["data"])
-                    return data.get("answer")
-        finally:
-            await pubsub.unsubscribe(resume_key)
-            await pubsub.aclose()
+    async def _read_resume(self, pubsub) -> Any:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                data = json.loads(message["data"])
+                return data.get("answer")
 
     async def _publish_result(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"

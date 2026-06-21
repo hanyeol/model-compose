@@ -77,6 +77,7 @@ class WorkflowConfig(BaseModel):
     title: Optional[str] = Field(default=None, description="Title of workflow.")
     description: Optional[str] = Field(default=None, description="Description of workflow.")
     jobs: List[JobConfig] = Field(default_factory=list, description="List of jobs that define the execution steps.")
+    output: Optional[Any] = Field(default=None, description="The output data returned from this workflow. Accepts any type.")
     default: bool = Field(default=False, description="Whether this workflow should be used as the default.")
     private: bool = Field(default=False, description="Whether this workflow is private and should not be exposed externally.")
 

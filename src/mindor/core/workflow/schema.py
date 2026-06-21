@@ -278,6 +278,9 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
             else:
                 variables.extend(self._enumerate_input_variables(job, "input"))
 
+        if workflow.output is not None:
+            variables.extend(self._enumerate_input_variables(workflow.output, "input"))
+
         return variables
 
     def _resolve_component(
@@ -318,30 +321,33 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
     ) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
-        for job in workflow.jobs:
-            if not self._is_terminal_job(workflow, job.id):
-                continue
+        if workflow.output is None:
+            for job in workflow.jobs:
+                if not self._is_terminal_job(workflow, job.id):
+                    continue
 
-            job_variables: List[WorkflowVariable] = variables
-            repeat_count: int = job.repeat_count if isinstance(job, ComponentJobConfig) and isinstance(job.repeat_count, int) else 0
+                job_variables: List[WorkflowVariable] = variables
+                repeat_count: int = job.repeat_count if isinstance(job, ComponentJobConfig) and isinstance(job.repeat_count, int) else 0
 
-            if repeat_count > 1:
-                variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
+                if repeat_count > 1:
+                    variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
 
-            if isinstance(job, ComponentJobConfig) and (not job.output or job.output == "${output}"):
-                if isinstance(job.component, str):
-                    _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
-                    if component:
-                        _, action = ActionResolver(component.actions).resolve(job.action, raise_on_error=False)
+                if isinstance(job, ComponentJobConfig) and (not job.output or job.output == "${output}"):
+                    if isinstance(job.component, str):
+                        _, component = ComponentResolver(components).resolve(job.component, raise_on_error=False)
+                        if component:
+                            _, action = ActionResolver(component.actions).resolve(job.action, raise_on_error=False)
+                            if action:
+                                job_variables.extend(self._resolve_component(component, action, workflows, components))
+                    else:
+                        _, action = ActionResolver(job.component.actions).resolve(job.action, raise_on_error=False)
                         if action:
-                            job_variables.extend(self._resolve_component(component, action, workflows, components))
+                            job_variables.extend(self._resolve_component(job.component, action, workflows, components))
                 else:
-                    _, action = ActionResolver(job.component.actions).resolve(job.action, raise_on_error=False)
-                    if action:
-                        job_variables.extend(self._resolve_component(job.component, action, workflows, components))
-            else:
-                if isinstance(job, OutputJobConfig):
-                    job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))
+                    if isinstance(job, OutputJobConfig):
+                        job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))
+        else:
+            variables.extend(self._enumerate_output_variables(None, workflow.output, internal=internal))
 
         return variables
 

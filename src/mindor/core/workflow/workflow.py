@@ -189,10 +189,12 @@ class WorkflowRunner:
         self,
         id: str,
         jobs: List[JobConfig],
+        output: Optional[Any],
         global_configs: ComponentGlobalConfigs,
     ):
         self.id: str = id
         self.jobs: Dict[str, JobConfig] = { job.id: job for job in jobs }
+        self.output: Optional[Any] = output
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: WorkflowContext) -> Any:
@@ -207,6 +209,9 @@ class WorkflowRunner:
 
         try:
             output = await self._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
+
+            if self.output is not None:
+                output = await context.render_variable(self.output)
 
             workflow_elapsed = workflow_time_tracker.elapsed()
             if isinstance(output, AsyncIterable):
@@ -392,7 +397,7 @@ class Workflow:
         on_job_event: Optional[JobEventCallback] = None,
         on_component_event: Optional[ComponentEventCallback] = None,
     ) -> Any:
-        runner = WorkflowRunner(self.id, self.config.jobs, self.global_configs)
+        runner = WorkflowRunner(self.id, self.config.jobs, self.config.output, self.global_configs)
         context = WorkflowContext(
             task_id,
             self.id,

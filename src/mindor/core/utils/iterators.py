@@ -111,20 +111,6 @@ class BatchSourceIterator:
         
         yield source
 
-class StreamChunkIterator:
-    def __init__(
-        self,
-        source: AsyncIterable,
-        content_type: Optional[str] = None
-    ):
-        self.source: AsyncIterable = source
-        self.content_type: str = content_type or "application/octet-stream"
-
-    async def __aiter__(self) -> AsyncIterator[Any]:
-        async for chunk in self.source:
-            if chunk is not None:
-                yield chunk
-
 class TextDecodeIterator:
     """Decode a stream of bytes/str chunks into str chunks, multi-byte safe.
 
@@ -159,6 +145,20 @@ class TextDecodeIterator:
         text = decoder.decode(b"", final=True)
         if text:
             yield text
+
+class StreamChunkIterator:
+    def __init__(
+        self,
+        source: AsyncIterable,
+        content_type: Optional[str] = None
+    ):
+        self.source: AsyncIterable = source
+        self.content_type: str = content_type or "application/octet-stream"
+
+    async def __aiter__(self) -> AsyncIterator[Any]:
+        async for chunk in self.source:
+            if chunk is not None:
+                yield chunk
 
 class EventStreamIterator:
     def __init__(

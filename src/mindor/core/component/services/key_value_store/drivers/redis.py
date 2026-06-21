@@ -80,7 +80,7 @@ class RedisKeyValueStoreService(KeyValueStoreService):
     async def _stop(self) -> None:
         await super()._stop()
         if self.client:
-            await self.client.close()
+            await self.client.aclose()
             self.client = None
 
     async def _run(self, action: KeyValueStoreActionConfig, context: ComponentActionContext) -> Any:

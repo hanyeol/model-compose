@@ -43,24 +43,6 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         return await self._collect_frames(input_path, frame_interval, start_time, end_time, max_frame_count, _cleanup)
 
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        OpenCV's VideoCapture only accepts a file path (no stdin pipe).
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool to a temp file so VideoCapture can open it.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("opencv input is not a local file; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format or "mp4")
-
-        return spooled_path, True
-
     async def _collect_frames(
         self,
         input_path: str,
@@ -169,6 +151,24 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 current_frame += 1
         finally:
             capture.release()
+
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
+        """
+        OpenCV's VideoCapture only accepts a file path (no stdin pipe).
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Otherwise: spool to a temp file so VideoCapture can open it.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        logging.debug("opencv input is not a local file; spooling to a temp file before extraction")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format or "mp4")
+
+        return spooled_path, True
 
 @register_video_frame_extractor_service(VideoFrameExtractorDriver.OPENCV)
 class OpenCVVideoFrameExtractorService(VideoFrameExtractorService):

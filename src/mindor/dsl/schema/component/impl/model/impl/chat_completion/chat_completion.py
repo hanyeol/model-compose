@@ -6,6 +6,7 @@ ChatCompletionModelComponentConfig = Annotated[
     Union[
         HuggingfaceChatCompletionModelComponentConfig,
         LlamaCppChatCompletionModelComponentConfig,
+        VllmChatCompletionModelComponentConfig,
         CustomChatCompletionModelComponentConfig,
     ],
     Field(discriminator="driver")

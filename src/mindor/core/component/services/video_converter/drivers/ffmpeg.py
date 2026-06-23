@@ -86,28 +86,6 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         return await self._convert_to_file(command, source, input_path, format, _cleanup)
 
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
-
     async def _convert_to_file(
         self,
         command: list,
@@ -186,6 +164,28 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
+
+    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
 
 @register_video_converter_service(VideoConverterDriver.FFMPEG)
 class FFmpegVideoConverterService(VideoConverterService):

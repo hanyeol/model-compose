@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Union, Any
+from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
@@ -26,24 +26,115 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
     ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
-        threshold = threshold if threshold is not None else 0.5
         input_path, spooled = await self._resolve_input_path(video)
+        threshold = threshold if threshold is not None else 0.5
 
-        try:
-            predictions = await asyncio.to_thread(self._predict, input_path)
-            frame_rate  = await self._get_frame_rate(input_path)
-
-            start_frame = int(start_time * frame_rate) if start_time is not None else 0
-            end_frame   = int(end_time * frame_rate) if end_time is not None else len(predictions)
-            predictions = predictions[start_frame:end_frame]
-
-            return self._predictions_to_scenes(input_path, predictions, threshold, frame_rate)
-        finally:
+        def _cleanup() -> None:
             if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:
                     pass
+
+        if streaming:
+            return self._stream_scenes(input_path, threshold, start_time, end_time, _cleanup)
+
+        return await self._collect_scenes(input_path, threshold, start_time, end_time, _cleanup)
+
+    async def _collect_scenes(
+        self,
+        input_path: str,
+        threshold: float,
+        start_time: Optional[float],
+        end_time: Optional[float],
+        cleanup: Callable[[], None],
+    ) -> Dict[str, Any]:
+        try:
+            scene_frames, frame_rate = await self._detect_scenes(input_path, threshold, start_time, end_time)
+
+            scenes: List[Dict[str, Any]] = []
+
+            for i in range(len(scene_frames) - 1):
+                start_frame = scene_frames[i]
+                end_frame = scene_frames[i + 1]
+                start = start_frame / frame_rate
+                end = end_frame / frame_rate
+
+                scenes.append({
+                    "index": i,
+                    "start": format_timecode(start),
+                    "end": format_timecode(end),
+                    "start_frame": start_frame,
+                    "end_frame": end_frame,
+                    "duration": format_timecode(end - start)
+                })
+
+            logging.debug(f"TransNetV2 detected {len(scenes)} scenes")
+
+            return { "scenes": scenes, "total_scenes": len(scenes) }
+        finally:
+            cleanup()
+
+    async def _stream_scenes(
+        self,
+        input_path: str,
+        threshold: float,
+        start_time: Optional[float],
+        end_time: Optional[float],
+        cleanup: Callable[[], None],
+    ) -> AsyncIterator[Dict[str, Any]]:
+        try:
+            scene_frames, frame_rate = await self._detect_scenes(input_path, threshold, start_time, end_time)
+
+            for i in range(len(scene_frames) - 1):
+                start_frame = scene_frames[i]
+                end_frame = scene_frames[i + 1]
+                start = start_frame / frame_rate
+                end = end_frame / frame_rate
+
+                yield {
+                    "index": i,
+                    "start": format_timecode(start),
+                    "end": format_timecode(end),
+                    "start_frame": start_frame,
+                    "end_frame": end_frame,
+                    "duration": format_timecode(end - start),
+                }
+        finally:
+            cleanup()
+
+    async def _detect_scenes(
+        self,
+        input_path: str,
+        threshold: float,
+        start_time: Optional[float],
+        end_time: Optional[float],
+    ) -> Tuple[List[int], float]:
+        import numpy as np
+
+        predictions = await asyncio.to_thread(self._predict, input_path)
+        frame_rate  = await self._get_frame_rate(input_path)
+
+        start_frame = int(start_time * frame_rate) if start_time is not None else 0
+        end_frame   = int(end_time * frame_rate) if end_time is not None else len(predictions)
+        predictions = predictions[start_frame:end_frame]
+
+        total_frames = len(predictions)
+
+        if total_frames == 0:
+            return [], frame_rate
+
+        boundaries = np.where(predictions > threshold)[0]
+
+        return [0] + boundaries.tolist() + [ total_frames ], frame_rate
+
+    def _predict(self, video: str) -> Any:
+        from transnetv2 import TransNetV2
+
+        model = TransNetV2()
+        _, predictions, _ = model.predict_video(video)
+
+        return predictions
 
     async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
         """
@@ -63,50 +154,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
 
         return spooled_path, True
 
-    @staticmethod
-    def _predict(video: str) -> Any:
-        from transnetv2 import TransNetV2
-
-        model = TransNetV2()
-        _, predictions, _ = model.predict_video(video)
-
-        return predictions
-
-    @staticmethod
-    def _predictions_to_scenes(video: str, predictions: Any, threshold: float, frame_rate: float) -> Dict[str, Any]:
-        import numpy as np
-
-        total_frames = len(predictions)
-
-        if total_frames == 0:
-            return { "scenes": [], "total_scenes": 0 }
-
-        scene_boundaries = np.where(predictions > threshold)[0]
-
-        scenes: List[Dict[str, Any]] = []
-        boundaries = [0] + scene_boundaries.tolist() + [total_frames]
-
-        for i in range(len(boundaries) - 1):
-            start_frame = boundaries[i]
-            end_frame = boundaries[i + 1]
-            start_time = start_frame / frame_rate
-            end_time = end_frame / frame_rate
-
-            scenes.append({
-                "index": i,
-                "start": format_timecode(start_time),
-                "end": format_timecode(end_time),
-                "start_frame": start_frame,
-                "end_frame": end_frame,
-                "duration": format_timecode(end_time - start_time)
-            })
-
-        logging.debug(f"TransNetV2 detected {len(scenes)} scenes in '{video}'")
-
-        return { "scenes": scenes, "total_scenes": len(scenes) }
-
-    @staticmethod
-    async def _get_frame_rate(input_path: str) -> float:
+    async def _get_frame_rate(self, input_path: str) -> float:
         command = [
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-select_streams", "v:0", "-show_streams", input_path,

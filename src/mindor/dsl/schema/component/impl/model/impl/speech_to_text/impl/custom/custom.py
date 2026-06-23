@@ -1,11 +1,10 @@
-from typing import Literal, List
+from typing import Union, Annotated
 from pydantic import Field
-from mindor.dsl.schema.action import SpeechToTextModelActionConfig
-from ..common import CommonSpeechToTextModelComponentConfig
-from .impl.common import SpeechToTextModelFamily
-from ....common import ModelDriver
+from .impl.faster_whisper import FasterWhisperSpeechToTextModelComponentConfig
 
-class CustomSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
-    family: SpeechToTextModelFamily = Field(..., description="Model family.")
-    actions: List[SpeechToTextModelActionConfig] = Field(default_factory=list)
+CustomSpeechToTextModelComponentConfig = Annotated[
+    Union[
+        FasterWhisperSpeechToTextModelComponentConfig,
+    ],
+    Field(discriminator="family")
+]

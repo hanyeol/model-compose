@@ -32,17 +32,67 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         self.tokenizer: PreTrainedTokenizer = tokenizer
         self.device: torch.device = device
 
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        max_input_length     = await context.render_variable(self.config.max_input_length)
+        min_output_length    = await context.render_variable(self.config.params.min_output_length)
+        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
+        num_beams            = await context.render_variable(self.config.params.num_beams)
+        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+
+        tokenizer_params: Dict[str, Any] = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": False,
+        }
+
+        if max_input_length is not None:
+            tokenizer_params["max_length"] = max_input_length
+            tokenizer_params["truncation"] = True
+
+        generation_params: Dict[str, Any] = {
+            "min_length": min_output_length,
+            "num_return_sequences": num_return_sequences,
+            "do_sample": params["do_sample"],
+            "num_beams": num_beams,
+        }
+
+        if params["max_output_length"] is not None:
+            generation_params["max_new_tokens"] = params["max_output_length"]
+
+        for token in [ "pad_token_id", "eos_token_id", "bos_token_id" ]:
+            token_id = getattr(self.tokenizer, token, None)
+            if token_id is not None:
+                generation_params[token] = token_id
+
+        if params["do_sample"]:
+            if params["temperature"] is not None:
+                generation_params["temperature"] = params["temperature"]
+            if params["top_k"] is not None:
+                generation_params["top_k"] = params["top_k"]
+            if params["top_p"] is not None:
+                generation_params["top_p"] = params["top_p"]
+
+        if num_beams > 1:
+            if length_penalty is not None:
+                generation_params["length_penalty"] = length_penalty
+            generation_params["early_stopping"] = early_stopping
+
+        params["tokenizer"] = tokenizer_params
+        params["generation"] = generation_params
+
+        return params
+
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
-        stop_sequences    = await context.render_variable(self.config.stop_sequences)
-        tokenizer_params  = await self._resolve_tokenizer_params(context)
-        generation_params = await self._resolve_generation_params(context)
-
+        stop_sequences = params["stop_sequences"]
         stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **tokenizer_params)
+        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
         inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
         if streaming:
@@ -57,7 +107,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
                 with torch.inference_mode():
                     self.model.generate(
                         **inputs,
-                        generation_config=GenerationConfig(**generation_params),
+                        generation_config=GenerationConfig(**params["generation"]),
                         stopping_criteria=stopping_criteria,
                         streamer=streamer,
                     )
@@ -69,68 +119,11 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         with torch.inference_mode():
             outputs = self.model.generate(
                 **inputs,
-                generation_config=GenerationConfig(**generation_params),
+                generation_config=GenerationConfig(**params["generation"]),
                 stopping_criteria=stopping_criteria,
             )
 
         return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-    async def _resolve_tokenizer_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length)
-
-        params: Dict[str, Any] = {
-            "return_tensors": "pt",
-            "padding": True,
-            "truncation": False
-        }
-
-        if max_input_length is not None:
-            params["max_length"] = max_input_length
-            params["truncation"] = True
-
-        return params
-
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_output_length    = await context.render_variable(self.config.params.max_output_length)
-        min_output_length    = await context.render_variable(self.config.params.min_output_length)
-        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
-        do_sample            = await context.render_variable(self.config.params.do_sample)
-        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
-        num_beams            = await context.render_variable(self.config.params.num_beams)
-        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
-
-        params: Dict[str, Any] = {
-            "min_length": min_output_length,
-            "num_return_sequences": num_return_sequences,
-            "do_sample": do_sample,
-            "num_beams": num_beams,
-        }
-
-        if max_output_length is not None:
-            params["max_new_tokens"] = max_output_length
-
-        for token in [ "pad_token_id", "eos_token_id", "bos_token_id" ]:
-            token_id = getattr(self.tokenizer, token, None)
-            if token_id is not None:
-                params[token] = token_id
-
-        if do_sample:
-            if temperature is not None:
-                params["temperature"] = temperature
-            if top_k is not None:
-                params["top_k"] = top_k
-            if top_p is not None:
-                params["top_p"] = top_p
-
-        if num_beams > 1:
-            if length_penalty is not None:
-                params["length_penalty"] = length_penalty
-            params["early_stopping"] = early_stopping
-
-        return params
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):

@@ -20,13 +20,15 @@ class TextGenerationTaskAction:
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
+        params = await self._resolve_params(context)
+
         is_single_input  = not isinstance(text, (list, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(text, AsyncIterator):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_texts, context, streaming, loop)
+                    batch_results = await self._generate(batch_texts, params, streaming, loop)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
@@ -43,7 +45,7 @@ class TextGenerationTaskAction:
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_texts, context, streaming, loop)
+                batch_results = await self._generate(batch_texts, params, streaming, loop)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
@@ -64,8 +66,25 @@ class TextGenerationTaskAction:
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.text)
 
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        max_output_length = await context.render_variable(self.config.params.max_output_length)
+        do_sample         = await context.render_variable(self.config.params.do_sample)
+        temperature       = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k             = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p             = await context.render_variable(self.config.params.top_p) if do_sample else None
+        stop_sequences    = await context.render_variable(self.config.stop_sequences)
+
+        return {
+            "max_output_length": max_output_length,
+            "do_sample":         do_sample,
+            "temperature":       temperature,
+            "top_k":             top_k,
+            "top_p":             top_p,
+            "stop_sequences":    stop_sequences,
+        }
+
     @abstractmethod
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
         pass
 
 class TextGenerationTaskService(ModelTaskService):

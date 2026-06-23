@@ -62,27 +62,27 @@ class AgentAction:
                         yield tool_message
 
             return _stream_message_generator()
+        else:
+            for _ in range(max_iteration_count):
+                model_input = await self._render_model_input(context, self.action.model.input, messages, tools)
+                response = await model_component.run(self.action.model.action, ulid.ulid(), model_input)
 
-        for _ in range(max_iteration_count):
-            model_input = await self._render_model_input(context, self.action.model.input, messages, tools)
-            response = await model_component.run(self.action.model.action, ulid.ulid(), model_input)
+                assistant_message = await self._build_assistant_message(response)
+                messages.append(assistant_message)
+                await context.event_notifier.notify("internal", kind="message", output=assistant_message)
 
-            assistant_message = await self._build_assistant_message(response)
-            messages.append(assistant_message)
-            await context.event_notifier.notify("internal", kind="message", output=assistant_message)
+                tool_calls = self._extract_tool_calls(response)
+                if not tool_calls:
+                    break
 
-            tool_calls = self._extract_tool_calls(response)
-            if not tool_calls:
-                break
+                tool_messages = await asyncio.gather(*[self._execute_tool_call(tool_call, context) for tool_call in tool_calls])
+                for tool_message in tool_messages:
+                    messages.append(tool_message)
+                    await context.event_notifier.notify("internal", kind="tool", output=tool_message)
 
-            tool_messages = await asyncio.gather(*[self._execute_tool_call(tool_call, context) for tool_call in tool_calls])
-            for tool_message in tool_messages:
-                messages.append(tool_message)
-                await context.event_notifier.notify("internal", kind="tool", output=tool_message)
+            context.register_source("result", messages)
 
-        context.register_source("result", messages)
-
-        return (await context.render_variable(self.action.output)) if self.action.output else messages
+            return (await context.render_variable(self.action.output)) if self.action.output else messages
 
     async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
         tool_name = tool_call["function"]["name"]

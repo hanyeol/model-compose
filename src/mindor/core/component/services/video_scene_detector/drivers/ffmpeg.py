@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.utils.streaming.media import MediaSource
 from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.streaming.file import FileStreamResource
-from mindor.core.utils.shell import run_command, run_subprocess
+from mindor.core.utils.shell import run_command, run_subprocess, stream_subprocess
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
@@ -51,31 +51,19 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 except FileNotFoundError:
                     pass
 
-        return await self._collect_scenes(command, input_path, _cleanup)
+        duration   = await self._get_duration(input_path)
+        frame_rate = await self._get_frame_rate(input_path)
 
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        Scene detection needs ffprobe metadata (duration, frame_rate) and seekable input,
-        so we always end up with an on-disk path.
+        if streaming:
+            return self._stream_scenes(command, duration, frame_rate, _cleanup)
 
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool the stream to a temp file.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("Spooling video stream to a temp file before scene detection")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
+        return await self._collect_scenes(command, duration, frame_rate, _cleanup)
 
     async def _collect_scenes(
         self,
         command: List[str],
-        input_path: str,
+        duration: float,
+        frame_rate: float,
         cleanup: Callable[[], None],
     ) -> Dict[str, Any]:
         """Run ffmpeg to completion and assemble the per-video scene result."""
@@ -108,9 +96,6 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 error_text = b"".join(error).decode("utf-8", errors="replace")
                 raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_text}")
 
-            duration   = await self._get_duration(input_path)
-            frame_rate = await self._get_frame_rate(input_path)
-
             scenes: List[Dict[str, Any]] = []
             boundaries = [ 0.0 ] + timestamps + [ duration ]
 
@@ -129,6 +114,85 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
             return { "scenes": scenes, "total_scenes": len(scenes) }
         finally:
             cleanup()
+
+    async def _stream_scenes(
+        self,
+        command: List[str],
+        duration: float,
+        frame_rate: float,
+        cleanup: Callable[[], None],
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Run ffmpeg and yield scene dicts as boundaries are detected."""
+        timestamps: asyncio.Queue = asyncio.Queue()
+        error: List[bytes] = []
+
+        async def _handle_stderr(reader: asyncio.StreamReader) -> None:
+            while True:
+                line = await reader.readline()
+
+                if not line:
+                    break
+
+                match = _PTS_TIME_PATTERN.search(line)
+
+                if match:
+                    await timestamps.put(float(match.group(1)))
+                else:
+                    error.append(line)
+
+            await timestamps.put(None)  # sentinel: no more timestamps
+
+        try:
+            async with stream_subprocess(
+                command,
+                stderr_handler=_handle_stderr,
+            ) as (process, _, _):
+                index = 0
+                prev_boundary = 0.0
+
+                while True:
+                    timestamp = await timestamps.get()
+                    end = timestamp if timestamp is not None else duration
+
+                    yield {
+                        "index": index,
+                        "start": format_timecode(prev_boundary),
+                        "end": format_timecode(end),
+                        "start_frame": int(prev_boundary * frame_rate),
+                        "end_frame": int(end * frame_rate),
+                        "duration": format_timecode(end - prev_boundary),
+                    }
+
+                    if timestamp is None:
+                        break
+
+                    index += 1
+                    prev_boundary = timestamp
+
+            if process.returncode is not None and process.returncode != 0:
+                error_text = b"".join(error).decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_text}")
+        finally:
+            cleanup()
+
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
+        """
+        Scene detection needs ffprobe metadata (duration, frame_rate) and seekable input,
+        so we always end up with an on-disk path.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Otherwise: spool the stream to a temp file.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        logging.debug("Spooling video stream to a temp file before scene detection")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
 
     async def _get_frame_rate(self, video_path: str) -> float:
         command = [

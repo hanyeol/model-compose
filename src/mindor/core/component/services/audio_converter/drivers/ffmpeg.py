@@ -92,28 +92,6 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         return await self._convert_to_file(command, source, input_path, format, _cleanup)
 
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (m4a/mp4-wrapped/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
-
     async def _convert_to_file(
         self,
         command: list,
@@ -192,6 +170,28 @@ class FFmpegAudioConverterAction(AudioConverterAction):
                 cleanup()
 
         return AudioStreamResource(AsyncIterableStreamResource(_stream()), format=format)
+
+    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (m4a/mp4-wrapped/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
 
 @register_audio_converter_service(AudioConverterDriver.FFMPEG)
 class FFmpegAudioConverterService(AudioConverterService):

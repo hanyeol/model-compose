@@ -24,47 +24,24 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         self.config: ChatCompletionModelActionConfig = config  # For type only
         self.tokenizer: PreTrainedTokenizerBase = tokenizer
 
-    async def _prepare_input(self, context: ComponentActionContext) -> str:
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
         tools    = await context.render_variable(self.config.tools)
 
-        if not isinstance(messages, list):
-            messages = [ messages ]
+        tools = [ self._build_function_tool(tool) for tool in tools ] if tools else None
 
-        normalized_messages = [ self._normalize_message(m) for m in messages ]
-        normalized_tools = [ self._build_tool_definition(t) for t in tools ] if tools else None
+        return self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            **({ "tools": tools } if tools else {})
+        )
 
-        kwargs: Dict[str, Any] = {
-            "tokenize": False,
-            "add_generation_prompt": True,
+    def _build_function_tool(self, function: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "type": "function",
+            "function": { k: v for k, v in function.items() if v is not None }
         }
-        if normalized_tools:
-            kwargs["tools"] = normalized_tools
-
-        return self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
-
-    def _build_output(self, choice: Dict[str, Any], streaming: bool) -> Any:
-        text = choice.get("text", "")
-        if streaming:
-            return { "content": text } if text else None
-        return { "role": "assistant", "content": text }
-
-    def _normalize_message(self, message: Any) -> Dict[str, Any]:
-        if isinstance(message, dict):
-            return message
-        if hasattr(message, "model_dump"):
-            return { k: v for k, v in message.model_dump().items() if v is not None }
-        return dict(message)
-
-    def _build_tool_definition(self, tool: Any) -> Dict[str, Any]:
-        if isinstance(tool, dict):
-            func = tool
-        elif hasattr(tool, "model_dump"):
-            func = { k: v for k, v in tool.model_dump().items() if v is not None }
-        else:
-            func = dict(tool)
-
-        return { "type": "function", "function": func }
 
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)

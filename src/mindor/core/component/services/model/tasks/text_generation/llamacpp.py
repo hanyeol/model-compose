@@ -21,8 +21,32 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
         self.model: Llama = model
 
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
-        generation_params = await self._resolve_generation_params(context)
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        generation_params: Dict[str, Any] = {
+            "max_tokens": params["max_output_length"],
+        }
+
+        if params["do_sample"]:
+            if params["temperature"] is not None:
+                generation_params["temperature"] = params["temperature"]
+            if params["top_k"] is not None:
+                generation_params["top_k"] = params["top_k"]
+            if params["top_p"] is not None:
+                generation_params["top_p"] = params["top_p"]
+        else:
+            generation_params["temperature"] = 0.0
+
+        if params["stop_sequences"]:
+            generation_params["stop"] = params["stop_sequences"] if isinstance(params["stop_sequences"], list) else [params["stop_sequences"]]
+
+        params["generation"] = generation_params
+
+        return params
+
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+        generation_params = params["generation"]
 
         if streaming:
             def _make_chunk_iter(prompt: str) -> Iterator[str]:
@@ -34,34 +58,6 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
             return [ _make_chunk_iter(text) for text in texts ]
 
         return [ self.model(text, stream=False, **generation_params)["choices"][0]["text"] for text in texts ]
-
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_output_length = await context.render_variable(self.config.params.max_output_length)
-        do_sample         = await context.render_variable(self.config.params.do_sample)
-        temperature       = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k             = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p             = await context.render_variable(self.config.params.top_p) if do_sample else None
-        stop_sequences    = await context.render_variable(self.config.stop_sequences)
-
-        params: Dict[str, Any] = {
-            "max_tokens": max_output_length,
-        }
-
-        if do_sample:
-            if temperature is not None:
-                params["temperature"] = temperature
-            if top_k is not None:
-                params["top_k"] = top_k
-            if top_p is not None:
-                params["top_p"] = top_p
-        else:
-            params["temperature"] = 0.0
-
-        if stop_sequences:
-            params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [stop_sequences]
-
-        return params
-
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.LLAMACPP)
 class LlamaCppTextGenerationTaskService(LlamaCppModelTaskService):

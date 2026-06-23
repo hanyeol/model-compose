@@ -1,16 +1,15 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from collections.abc import AsyncIterator
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
-import asyncio, uuid
+import asyncio, queue, uuid
 
 if TYPE_CHECKING:
-    from vllm import AsyncLLMEngine
+    from vllm import AsyncLLMEngine, SamplingParams
 
 class VllmTextGenerationTaskAction(TextGenerationTaskAction):
     def __init__(
@@ -22,63 +21,75 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         self.engine: AsyncLLMEngine = engine
 
-    async def _generate(self, texts: List[str], context: ComponentActionContext, streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        from vllm import SamplingParams
+
+        params = await super()._resolve_params(context)
+
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
-        sampling = await self._build_sampling_params(context, n=num_return_sequences)
+
+        sampling_params: Dict[str, Any] = { "n": num_return_sequences }
+        if params["max_output_length"] is not None:
+            sampling_params["max_tokens"] = params["max_output_length"]
+
+        if params["do_sample"]:
+            if params["temperature"] is not None:
+                sampling_params["temperature"] = params["temperature"]
+            if params["top_k"] is not None:
+                sampling_params["top_k"] = params["top_k"]
+            if params["top_p"] is not None:
+                sampling_params["top_p"] = params["top_p"]
+        else:
+            sampling_params["temperature"] = 0.0
+
+        if params["stop_sequences"]:
+            sampling_params["stop"] = params["stop_sequences"] if isinstance(params["stop_sequences"], list) else [params["stop_sequences"]]
+
+        params["sampling"] = SamplingParams(**sampling_params)
+
+        return params
+
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+        sampling = params["sampling"]
 
         if streaming:
-            request_id = f"gen-{uuid.uuid4().hex}"
+            return [ self._stream_one(prompt, sampling, loop) for prompt in texts ]
 
-            async def _chunk_generator():
+        results: List[str] = []
+        for prompt in texts:
+            request_id = f"gen-{uuid.uuid4().hex}"
+            text = ""
+            async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+                if output.outputs:
+                    text = output.outputs[0].text
+            results.append(text)
+
+        return results
+
+    def _stream_one(self, prompt: str, sampling: SamplingParams, loop: asyncio.AbstractEventLoop) -> Iterator[str]:
+        chunk_queue: queue.Queue = queue.Queue()
+        sentinel = object()
+        request_id = f"gen-{uuid.uuid4().hex}"
+
+        async def _produce():
+            try:
                 previous = ""
-                async for output in self.engine.generate(texts[0], sampling, request_id=request_id):
+                async for output in self.engine.generate(prompt, sampling, request_id=request_id):
                     text = output.outputs[0].text if output.outputs else ""
                     delta = text[len(previous):]
                     previous = text
                     if delta:
-                        yield { "choices": [ { "text": delta } ] }
+                        chunk_queue.put(delta)
+            finally:
+                chunk_queue.put(sentinel)
 
-            return _chunk_generator()
+        asyncio.run_coroutine_threadsafe(_produce(), loop)
 
-        choices: List[List[Dict[str, Any]]] = []
-        for prompt in texts:
-            request_id = f"gen-{uuid.uuid4().hex}"
-            final_outputs: List[Any] = []
-            async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-                final_outputs = output.outputs or []
-            choices.append([ { "text": o.text } for o in final_outputs ])
-
-        return { "choices": choices }
-
-    async def _build_sampling_params(self, context: ComponentActionContext, n: int = 1) -> Any:
-        from vllm import SamplingParams
-
-        max_output_length = await context.render_variable(self.config.params.max_output_length)
-        do_sample         = await context.render_variable(self.config.params.do_sample)
-        temperature       = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k             = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p             = await context.render_variable(self.config.params.top_p) if do_sample else None
-        stop_sequences    = await context.render_variable(self.config.stop_sequences)
-
-        params: Dict[str, Any] = { "n": n }
-        if max_output_length is not None:
-            params["max_tokens"] = max_output_length
-
-        if do_sample:
-            if temperature is not None:
-                params["temperature"] = temperature
-            if top_k is not None:
-                params["top_k"] = top_k
-            if top_p is not None:
-                params["top_p"] = top_p
-        else:
-            params["temperature"] = 0.0
-
-        if stop_sequences:
-            params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [stop_sequences]
-
-        return SamplingParams(**params)
-
+        while True:
+            chunk = chunk_queue.get()
+            if chunk is sentinel:
+                return
+            yield chunk
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
 class VllmTextGenerationTaskService(VllmModelTaskService):

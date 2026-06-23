@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Union, Any
+from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
@@ -26,6 +26,27 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
 
+        def _cleanup() -> None:
+            if spooled:
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
+
+        if streaming:
+            return self._stream_scenes(input_path, detector, threshold, start_time, end_time, _cleanup)
+
+        return await self._collect_scenes(input_path, detector, threshold, start_time, end_time, _cleanup)
+
+    async def _collect_scenes(
+        self,
+        input_path: str,
+        detector: Optional[str],
+        threshold: Optional[float],
+        start_time: Optional[float],
+        end_time: Optional[float],
+        cleanup: Callable[[], None],
+    ) -> Dict[str, Any]:
         try:
             scenes = await asyncio.to_thread(self._detect_scenes, input_path, detector, threshold, start_time, end_time)
 
@@ -44,29 +65,31 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
                 "total_scenes": len(scenes)
             }
         finally:
-            if spooled:
-                try:
-                    os.remove(input_path)
-                except FileNotFoundError:
-                    pass
+            cleanup()
 
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        PySceneDetect requires an on-disk path.
+    async def _stream_scenes(
+        self,
+        input_path: str,
+        detector: Optional[str],
+        threshold: Optional[float],
+        start_time: Optional[float],
+        end_time: Optional[float],
+        cleanup: Callable[[], None],
+    ) -> AsyncIterator[Dict[str, Any]]:
+        try:
+            scenes = await asyncio.to_thread(self._detect_scenes, input_path, detector, threshold, start_time, end_time)
 
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool the stream to a temp file.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("Spooling video stream to a temp file before scene detection")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
+            for i, (start, end) in enumerate(scenes):
+                yield {
+                    "index": i,
+                    "start": start.get_timecode(),
+                    "end": end.get_timecode(),
+                    "start_frame": start.get_frames(),
+                    "end_frame": end.get_frames(),
+                    "duration": (end - start).get_timecode(),
+                }
+        finally:
+            cleanup()
 
     def _detect_scenes(
         self,
@@ -114,6 +137,24 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
             return HashDetector(threshold=threshold) if threshold is not None else HashDetector()
 
         raise ValueError(f"Unsupported detector type: {detector}")
+
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
+        """
+        PySceneDetect requires an on-disk path.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Otherwise: spool the stream to a temp file.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        logging.debug("Spooling video stream to a temp file before scene detection")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
 
 @register_video_scene_detector_service(VideoSceneDetectorDriver.PYSCENEDETECT)
 class PySceneVideoSceneDetectorService(VideoSceneDetectorService):

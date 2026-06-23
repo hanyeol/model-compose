@@ -115,6 +115,12 @@ class DockerRuntimeLauncher:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
         )
 
+        # Copy runtime base requirements (shared with virtualenv runtime)
+        shutil.copy(
+            source_files_root / "core" / "runtime" / "base" / "requirements.txt",
+            context_dir / "runtime-requirements.txt"
+        )
+
         # Copy or generate requirements.txt
         file_path = Path.cwd() / "requirements.txt"
         target_path = Path(context_dir) / file_path.name

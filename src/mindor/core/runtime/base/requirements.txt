@@ -1,0 +1,17 @@
+click
+pyyaml
+pydantic
+python-dotenv
+packaging
+docker
+aiohttp
+aiofiles
+brotlicffi
+requests
+fastapi
+websockets
+uvicorn
+mcp>=1.10.1
+ulid
+Pillow
+async_timeout>=4.0; python_version < '3.11'

@@ -13,23 +13,9 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
     ln -sf /usr/bin/python3.11 /usr/bin/python3
 
 RUN python -m pip install --upgrade pip
-RUN pip install --no-cache-dir \
-    click \
-    pyyaml \
-    pydantic \
-    python-dotenv \
-    packaging \
-    docker \
-    aiohttp \
-    aiofiles \
-    brotlicffi \
-    requests \
-    fastapi \
-    websockets \
-    uvicorn \
-    'mcp>=1.10.1' \
-    ulid \
-    Pillow
+
+COPY runtime-requirements.txt .
+RUN pip install --no-cache-dir -r runtime-requirements.txt
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

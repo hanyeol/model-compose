@@ -166,8 +166,9 @@ class HttpClientComponent(ComponentService):
 
     async def _stop(self) -> None:
         await super()._stop()
-        await self.client.close()
-        self.client = None
+        if self.client:
+            await self.client.close()
+            self.client = None
         self.rate_limiter = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:

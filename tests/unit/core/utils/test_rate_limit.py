@@ -6,7 +6,7 @@ import time
 import pytest
 
 from mindor.core.utils.rate_limit import RateLimiter
-from mindor.dsl.schema.component.impl.http_client import RateLimitConfig
+from mindor.dsl.schema.component.impl.rate_limit import RateLimitConfig
 
 
 @pytest.fixture

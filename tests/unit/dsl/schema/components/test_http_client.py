@@ -792,7 +792,7 @@ class TestHttpClientRateLimitConfig:
             HttpClientComponentConfig(
                 id="client",
                 type="http-client",
-                rate_limit={"burst": 10}
+                rate_limit={"burst": 10, "interval": "100ms"}
             )
         assert "burst is meaningless without requests" in str(exc_info.value)
 

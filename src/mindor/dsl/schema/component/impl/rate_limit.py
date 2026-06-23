@@ -10,7 +10,7 @@ _RATE_LIMIT_SHORTHAND_RE = re.compile(
 
 class RateLimitConfig(BaseModel):
     requests: Optional[int] = Field(default=None, description="Maximum number of requests allowed within 'period'.")
-    period: Union[str, float] = Field(default="1s", description="Length of the token-bucket window (e.g. '1s', '500ms', '1m').")
+    period: Optional[Union[str, float]] = Field(default=None, description="Length of the token-bucket window (e.g. '1s', '500ms', '1m'). Defaults to '1s' when 'requests' is set.")
     burst: Optional[int] = Field(default=None, description="Token bucket capacity. Defaults to 'requests' when omitted.")
     interval: Optional[Union[str, float]] = Field(default=None, description="Minimum gap between consecutive requests (e.g. '100ms').")
 
@@ -29,11 +29,15 @@ class RateLimitConfig(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_combination(self):
-        if self.burst is not None and self.requests is None:
-            raise ValueError("burst is meaningless without requests")
+    def validate_limit_gates(self):
         if self.requests is None and self.interval is None:
             raise ValueError("rate_limit requires at least one of 'requests' or 'interval'")
+        if self.period is not None and self.requests is None:
+            raise ValueError("period is meaningless without requests")
+        if self.burst is not None and self.requests is None:
+            raise ValueError("burst is meaningless without requests")
+        if self.requests is not None and self.period is None:
+            self.period = "1s"
         return self
 
 def inflate_rate_limit_shorthand(value: str) -> Dict[str, Any]:

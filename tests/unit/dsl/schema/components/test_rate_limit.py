@@ -72,7 +72,7 @@ class TestRateLimitConfigPositiveDurations:
         assert cfg.period == "500ms"
 
 
-class TestRateLimitConfigCombination:
+class TestRateLimitConfigGates:
     def test_burst_without_requests_rejected(self):
         with pytest.raises(ValidationError, match="burst is meaningless without requests"):
             RateLimitConfig(burst=5, interval="1s")
@@ -88,6 +88,14 @@ class TestRateLimitConfigCombination:
     def test_only_requests_ok(self):
         cfg = RateLimitConfig(requests=5)
         assert cfg.requests == 5
+
+    def test_requests_without_period_defaults_to_1s(self):
+        cfg = RateLimitConfig(requests=5)
+        assert cfg.period == "1s"
+
+    def test_period_without_requests_rejected(self):
+        with pytest.raises(ValidationError, match="period is meaningless without requests"):
+            RateLimitConfig(period="2s", interval="100ms")
 
     def test_full_combination_ok(self):
         cfg = RateLimitConfig(requests=10, period="1s", burst=20, interval="50ms")

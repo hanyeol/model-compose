@@ -7,7 +7,7 @@ from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextEmbeddingTaskAction
-import asyncio, math, uuid
+import asyncio, math, ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine
@@ -29,26 +29,26 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         embeddings: List[List[float]] = []
 
         for text in texts:
-            request_id = f"emb-{uuid.uuid4().hex}"
-            final_output = None
-            async for output in self.engine.encode(text, pooling_params, request_id=request_id):
-                final_output = output
+            request_id = f"request-{ulid.ulid()}"
+            final_pooled = None
+            async for pooled in self.engine.encode(text, pooling_params, request_id=request_id):
+                final_pooled = pooled
 
-            if final_output is None:
+            if final_pooled is None:
                 embeddings.append([])
                 continue
 
-            vec = final_output.outputs.embedding
-            embeddings.append(list(vec))
+            embedding = list(final_pooled.outputs.embedding)
+            embeddings.append(embedding)
 
         if params["normalize"]:
             normalized: List[List[float]] = []
-            for emb in embeddings:
-                norm = math.sqrt(sum(x * x for x in emb))
+            for embedding in embeddings:
+                norm = math.sqrt(sum(x * x for x in embedding))
                 if norm > 1e-12:
-                    normalized.append([ x / norm for x in emb ])
+                    normalized.append([ x / norm for x in embedding ])
                 else:
-                    normalized.append(emb)
+                    normalized.append(embedding)
             return normalized
 
         return embeddings

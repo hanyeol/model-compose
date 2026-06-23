@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Iterator, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.utils.streaming.audio import load_audio_array
@@ -79,7 +80,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         import torch
 
         waveforms = [ await self._preprocess_audio(audio) for audio in audios ]

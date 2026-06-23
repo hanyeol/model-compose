@@ -2,11 +2,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
-import asyncio, queue, uuid
+import asyncio, ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
@@ -49,47 +50,31 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         sampling = params["sampling"]
 
         if streaming:
-            return [ self._stream_one(prompt, sampling, loop) for prompt in texts ]
+            return [ self._stream_one(prompt, sampling) for prompt in texts ]
 
-        results: List[str] = []
-        for prompt in texts:
-            request_id = f"gen-{uuid.uuid4().hex}"
-            text = ""
-            async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-                if output.outputs:
-                    text = output.outputs[0].text
-            results.append(text)
+        return [ await self._generate_one(prompt, sampling) for prompt in texts ]
 
-        return results
+    async def _generate_one(self, prompt: str, sampling: SamplingParams) -> str:
+        request_id = f"request-{ulid.ulid()}"
+        text = ""
+        async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+            if output.outputs:
+                text = output.outputs[0].text
+        return text
 
-    def _stream_one(self, prompt: str, sampling: SamplingParams, loop: asyncio.AbstractEventLoop) -> Iterator[str]:
-        chunk_queue: queue.Queue = queue.Queue()
-        sentinel = object()
-        request_id = f"gen-{uuid.uuid4().hex}"
-
-        async def _produce():
-            try:
-                previous = ""
-                async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-                    text = output.outputs[0].text if output.outputs else ""
-                    delta = text[len(previous):]
-                    previous = text
-                    if delta:
-                        chunk_queue.put(delta)
-            finally:
-                chunk_queue.put(sentinel)
-
-        asyncio.run_coroutine_threadsafe(_produce(), loop)
-
-        while True:
-            chunk = chunk_queue.get()
-            if chunk is sentinel:
-                return
-            yield chunk
+    async def _stream_one(self, prompt: str, sampling: SamplingParams) -> AsyncIterator[str]:
+        request_id = f"request-{ulid.ulid()}"
+        previous = ""
+        async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+            text = output.outputs[0].text if output.outputs else ""
+            delta = text[len(previous):]
+            previous = text
+            if delta:
+                yield delta
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
 class VllmTextGenerationTaskService(VllmModelTaskService):

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
@@ -45,19 +46,22 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         generation_params = params["generation"]
 
         if streaming:
-            def _make_chunk_iter(prompt: str) -> Iterator[str]:
-                for chunk in self.model(prompt, stream=True, **generation_params):
-                    token = chunk["choices"][0].get("text", "")
-                    if token:
-                        yield token
+            return [ self._stream_one(prompt, generation_params) for prompt in texts ]
 
-            return [ _make_chunk_iter(text) for text in texts ]
+        return [ self._generate_one(prompt, generation_params) for prompt in texts ]
 
-        return [ self.model(text, stream=False, **generation_params)["choices"][0]["text"] for text in texts ]
+    def _generate_one(self, prompt: str, generation_params: Dict[str, Any]) -> str:
+        return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
+
+    def _stream_one(self, prompt: str, generation_params: Dict[str, Any]) -> Iterator[str]:
+        for chunk in self.model(prompt, stream=True, **generation_params):
+            token = chunk["choices"][0].get("text", "")
+            if token:
+                yield token
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.LLAMACPP)
 class LlamaCppTextGenerationTaskService(LlamaCppModelTaskService):

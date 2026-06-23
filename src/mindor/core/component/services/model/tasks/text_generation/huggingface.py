@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceTextGenerationModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.logger import logging
@@ -85,7 +86,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 

@@ -36,8 +36,9 @@ class SpeechToTextTaskAction:
                     batch_results = await self._transcribe(batch_audios, params, streaming, loop)
                     for result in batch_results:
                         if streaming:
-                            async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
-                                async for chunk in SyncGeneratorStreamer(streamer, loop):
+                            async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
+                                iterator = generator if isinstance(generator, AsyncIterator) else SyncGeneratorStreamer(generator, loop)
+                                async for chunk in iterator:
                                     if chunk:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -53,8 +54,9 @@ class SpeechToTextTaskAction:
                 batch_results = await self._transcribe(batch_audios, params, streaming, loop)
                 for result in batch_results:
                     if streaming:
-                        async def _stream_chunk_generator(streamer=result, scope=f"stream:{id(result)}"):
-                            async for chunk in SyncGeneratorStreamer(streamer, loop):
+                        async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
+                            iterator = generator if isinstance(generator, AsyncIterator) else SyncGeneratorStreamer(generator, loop)
+                            async for chunk in iterator:
                                 if chunk:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -80,7 +82,7 @@ class SpeechToTextTaskAction:
         }
 
     @abstractmethod
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         pass
 
 class SpeechToTextTaskService(ModelTaskService):

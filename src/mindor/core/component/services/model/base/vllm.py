@@ -96,122 +96,23 @@ class VllmModelTaskService(ModelTaskService):
             if self.config.model.token is not None:
                 params["hf_token"] = self.config.model.token
 
-        for field in [
-            # Model & tokenizer
-            "tokenizer", "tokenizer_mode", "skip_tokenizer_init",
-            "enable_prompt_embeds", "trust_remote_code",
-            "allowed_local_media_path", "allowed_media_domains",
-            "revision", "code_revision", "tokenizer_revision",
-            "hf_config_path", "hf_token", "hf_overrides",
-            "runner", "convert", "model_impl", "served_model_name",
-            # Loading
-            "download_dir", "load_format", "config_format",
-            "model_loader_extra_config", "ignore_patterns", "use_tqdm_on_load",
-            "safetensors_load_strategy", "safetensors_prefetch_num_threads",
-            "safetensors_prefetch_block_size", "pt_load_map_location",
-            # Numerical types & limits
-            "dtype", "seed", "max_model_len",
-            "max_logprobs", "logprobs_mode",
-            # Quantization
-            "quantization", "quantization_config", "allow_deprecated_quantization",
-            # RoPE / attention
-            "rope_scaling", "rope_theta",
-            "attention_backend", "attention_config",
-            "disable_sliding_window", "disable_cascade_attn",
-            "override_attention_dtype",
-            # Mamba / SSM
-            "mamba_backend", "mamba_cache_dtype", "mamba_ssm_cache_dtype",
-            "mamba_block_size", "mamba_cache_mode",
-            # Compilation & CUDA graphs
-            "enforce_eager",
-            "cudagraph_capture_sizes", "max_cudagraph_capture_size",
-            "compilation_config",
-            # Memory / KV cache
-            "gpu_memory_utilization", "kv_cache_memory_bytes",
-            "swap_space", "cpu_offload_gb", "cpu_offload_params",
-            "offload_backend", "offload_group_size",
-            "offload_num_in_group", "offload_prefetch_step", "offload_params",
-            "block_size", "enable_prefix_caching", "prefix_caching_hash_algo",
-            "num_gpu_blocks_override",
-            "kv_cache_dtype", "kv_cache_dtype_skip_layers",
-            "kv_sharing_fast_prefill",
-            "kv_offloading_size", "kv_offloading_backend",
-            "kv_transfer_config", "kv_events_config", "ec_transfer_config",
-            # Distributed execution
-            "distributed_executor_backend",
-            "pipeline_parallel_size", "tensor_parallel_size",
-            "data_parallel_size", "data_parallel_rank",
-            "data_parallel_size_local", "data_parallel_address",
-            "data_parallel_rpc_port", "data_parallel_backend",
-            "data_parallel_hybrid_lb", "data_parallel_external_lb",
-            "prefill_context_parallel_size", "decode_context_parallel_size",
-            "dcp_comm_backend",
-            "master_addr", "master_port", "nnodes", "node_rank",
-            "distributed_timeout_seconds", "cpu_distributed_timeout_seconds",
-            "device_ids", "numa_bind",
-            "max_parallel_loading_workers", "ray_workers_use_nsight",
-            "disable_custom_all_reduce",
-            "worker_cls", "worker_extension_cls",
-            # Expert / MoE
-            "enable_expert_parallel", "enable_ep_weight_filter",
-            "moe_backend", "linear_backend", "all2all_backend",
-            "enable_eplb", "eplb_config", "expert_placement_strategy",
-            "enable_dbo", "ubatch_size",
-            # Scheduling
-            "max_num_batched_tokens", "max_num_seqs",
-            "max_num_partial_prefills", "max_long_partial_prefills",
-            "long_prefill_token_threshold",
-            "enable_chunked_prefill", "disable_chunked_mm_input",
-            "scheduling_policy", "scheduler_cls",
-            "scheduler_reserve_full_isl", "watermark",
-            "prefill_schedule_interval", "disable_hybrid_kv_cache_manager",
-            "async_scheduling", "stream_interval",
-            # Multimodal
-            "language_model_only", "limit_mm_per_prompt",
-            "enable_mm_embeds", "media_io_kwargs", "mm_processor_kwargs",
-            "mm_processor_cache_gb", "mm_processor_cache_type",
-            "mm_shm_cache_max_object_size_mb",
-            "mm_encoder_only", "mm_encoder_tp_mode",
-            "mm_encoder_attn_backend", "mm_encoder_attn_dtype",
-            "interleave_mm_strings", "skip_mm_profiling", "video_pruning_rate",
-            # LoRA
-            "enable_lora", "max_loras", "max_lora_rank", "lora_dtype",
-            "max_cpu_loras", "fully_sharded_loras",
-            "lora_target_modules", "default_mm_loras",
-            # Speculative decoding
-            "speculative_config",
-            # Structured outputs / pooling / generation
-            "structured_outputs_config",
-            "pooler_config",
-            "generation_config", "override_generation_config",
-            "override_pooler_config", "override_neuron_config",
-            # Logits processors
-            "logits_processors", "io_processor_plugin",
-            # Runtime modes
-            "enable_sleep_mode", "enable_cumem_allocator", "enable_log_requests",
-            # Observability
-            "disable_log_stats", "show_hidden_metrics_for_version",
-            "otlp_traces_endpoint", "collect_detailed_traces",
-            "enable_layerwise_nvtx_tracing",
-            # Misc
-            "additional_config", "kernel_config", "reasoning_config",
-            "reasoning_parser",
-            "optimization_level", "performance_mode",
-        ]:
-            value = getattr(self.config, field, None)
-            if value is not None:
-                params[field] = value
-
         precision = getattr(self.config, "precision", None)
-        if precision is not None and "dtype" not in params:
+        if precision is not None:
             params["dtype"] = self._map_precision(precision)
 
         quantization = getattr(self.config, "quantization", None)
-        if quantization is not None and "quantization" not in params:
+        if quantization is not None:
             if hasattr(quantization, "type"):
-                params["quantization"] = self._map_quantization(quantization.type)
+                mapped = self._map_quantization(quantization.type)
+                if mapped is not None:
+                    params["quantization"] = mapped
             elif isinstance(quantization, str):
                 params["quantization"] = quantization
+
+        options = getattr(self.config, "options", None)
+        if options is not None:
+            for field, value in options.model_dump(exclude_none=True).items():
+                params[field] = value
 
         return params
 

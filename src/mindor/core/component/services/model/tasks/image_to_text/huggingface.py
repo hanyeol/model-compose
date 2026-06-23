@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.logger import logging
@@ -106,7 +107,7 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return params
 
-    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 

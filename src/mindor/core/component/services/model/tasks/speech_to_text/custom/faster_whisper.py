@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.utils.streaming.audio import load_audio_array
@@ -66,7 +67,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         waveforms = [ await self._preprocess_audio(audio) for audio in audios ]
 
         if streaming:

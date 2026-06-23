@@ -26,6 +26,7 @@ class WebScraperActionConfig(CommonActionConfig):
     attribute: Optional[str] = Field(default=None, description="Attribute name to extract when extract_mode='attribute'")
     multiple: Union[bool, str] = Field(default=False, description="Extract multiple elements (returns list) or single element")
     enable_javascript: Union[bool, str] = Field(default=False, description="Enable JavaScript rendering (requires playwright)")
+    wait_until: Union[Literal[ "load", "domcontentloaded", "networkidle", "commit" ], str] = Field(default="networkidle", description="Playwright navigation wait condition. Use 'domcontentloaded' for pages whose network never goes idle (e.g. video players, live streams).")
     wait_for: Optional[str] = Field(default=None, description="CSS selector to wait for when enable_javascript=true")
     timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for request completion")
     submit: Optional[WebScraperSubmitConfig] = Field(default=None, description="Form submission configuration. If specified, form is submitted before extraction")

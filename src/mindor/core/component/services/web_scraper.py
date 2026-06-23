@@ -63,6 +63,7 @@ class WebScraperAction:
         attribute         = await context.render_variable(self.config.attribute) if self.config.attribute else None
         multiple          = await context.render_variable(self.config.multiple)
         enable_javascript = await context.render_variable(self.config.enable_javascript)
+        wait_until        = await context.render_variable(self.config.wait_until)
         wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
         timeout           = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
@@ -80,6 +81,7 @@ class WebScraperAction:
             "attribute":         attribute,
             "multiple":          multiple,
             "enable_javascript": enable_javascript,
+            "wait_until":        wait_until,
             "wait_for":          wait_for,
             "submit":            submit,
             "timeout":           timeout,
@@ -116,7 +118,7 @@ class WebScraperAction:
         # Fetch HTML content (with optional form submission)
         if params["submit"] or params["enable_javascript"]:
             html_content = await self._fetch_html_with_javascript(
-                browser, url, params["headers"], params["cookies"], params["timeout"], params["wait_for"], params["submit"]
+                browser, url, params["headers"], params["cookies"], params["timeout"], params["wait_until"], params["wait_for"], params["submit"]
             )
         else:
             html_content = await self._fetch_html(
@@ -138,6 +140,7 @@ class WebScraperAction:
         headers: Dict[str, str],
         cookies: Dict[str, str],
         timeout: float,
+        wait_until: str,
         wait_for: Optional[str],
         submit: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -165,7 +168,7 @@ class WebScraperAction:
         page = await web_context.new_page()
 
         try:
-            await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
+            await page.goto(url, timeout=timeout * 1000, wait_until=wait_until)
 
             # If submit config is provided, fill and submit form first
             if submit:
@@ -209,7 +212,7 @@ class WebScraperAction:
                 if wait_for:
                     await page.wait_for_selector(wait_for, timeout=timeout * 1000)
                 else:
-                    await page.wait_for_load_state("networkidle", timeout=timeout * 1000)
+                    await page.wait_for_load_state(wait_until if wait_until != "commit" else "load", timeout=timeout * 1000)
 
             # Wait for additional selector if specified (for non-submit cases)
             if wait_for and not submit:

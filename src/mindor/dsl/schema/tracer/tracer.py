@@ -4,6 +4,7 @@ from .impl import *
 
 TracerConfig = Annotated[
     Union[
+        OtlpTracerConfig,
         LangfuseTracerConfig,
     ],
     Field(discriminator="driver")

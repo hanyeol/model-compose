@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Callable
 from .ipc_messages import IpcMessage, IpcMessageType
 from .process_worker import ProcessWorkerParams
 from multiprocessing import Process, Queue
-import asyncio, os, uuid, time
+import asyncio, os, ulid, time
 
 class ProcessRuntimeManager:
     """
@@ -28,23 +28,23 @@ class ProcessRuntimeManager:
         self.worker_factory = worker_factory
         self.worker_params = worker_params or ProcessWorkerParams()
 
-        self.subprocess: Optional[Process] = None
-        self.request_queue: Optional[Queue] = None
-        self.response_queue: Optional[Queue] = None
-        self.pending_requests: Dict[str, asyncio.Future] = {}
-        self.response_handler_task: Optional[asyncio.Task] = None
+        self._subprocess: Optional[Process] = None
+        self._request_queue: Optional[Queue] = None
+        self._response_queue: Optional[Queue] = None
+        self._pending_requests: Dict[str, asyncio.Future] = {}
+        self._response_handler_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Start the subprocess"""
-        self.request_queue  = Queue()
-        self.response_queue = Queue()
+        self._request_queue  = Queue()
+        self._response_queue = Queue()
 
-        self.subprocess = Process(
+        self._subprocess = Process(
             target=self._run_worker,
             args=(
                 self.worker_id,
-                self.request_queue,
-                self.response_queue
+                self._request_queue,
+                self._response_queue
             ),
             daemon=False
         )
@@ -53,36 +53,34 @@ class ProcessRuntimeManager:
             for key, value in self.worker_params.env.items():
                 os.environ[key] = value
 
-        self.subprocess.start()
+        self._subprocess.start()
 
         await self._wait_for_ready()
 
-        self.response_handler_task = asyncio.create_task(
-            self._handle_responses()
-        )
+        self._response_handler_task = asyncio.create_task(self._handle_responses())
 
     async def stop(self) -> None:
         """Stop the subprocess"""
         stop_message = IpcMessage(
             type=IpcMessageType.STOP,
-            request_id=str(uuid.uuid4())
+            request_id=ulid.ulid()
         )
-        self.request_queue.put(stop_message.to_params())
+        self._request_queue.put(stop_message.to_params())
 
         try:
-            self.subprocess.join(timeout=self.worker_params.stop_timeout)
+            self._subprocess.join(timeout=self.worker_params.stop_timeout)
         except TimeoutError:
-            self.subprocess.terminate()
-            self.subprocess.join(timeout=5)
-            if self.subprocess.is_alive():
-                self.subprocess.kill()
+            self._subprocess.terminate()
+            self._subprocess.join(timeout=5)
+            if self._subprocess.is_alive():
+                self._subprocess.kill()
 
-        if self.response_handler_task:
-            self.response_handler_task.cancel()
+        if self._response_handler_task:
+            self._response_handler_task.cancel()
 
     async def execute(self, payload: Dict[str, Any]) -> Any:
         """Execute a task in the subprocess"""
-        request_id = str(uuid.uuid4())
+        request_id = ulid.ulid()
 
         message = IpcMessage(
             type=IpcMessageType.RUN,
@@ -91,24 +89,24 @@ class ProcessRuntimeManager:
         )
 
         future = asyncio.get_event_loop().create_future()
-        self.pending_requests[request_id] = future
+        self._pending_requests[request_id] = future
 
-        self.request_queue.put(message.to_params())
+        self._request_queue.put(message.to_params())
 
         try:
             return await future
         finally:
-            self.pending_requests.pop(request_id, None)
+            self._pending_requests.pop(request_id, None)
 
     async def _handle_responses(self) -> None:
         """Handle responses from the subprocess"""
         while True:
             try:
-                if not self.response_queue.empty():
-                    message = IpcMessage(**self.response_queue.get_nowait())
+                if not self._response_queue.empty():
+                    message = IpcMessage(**self._response_queue.get_nowait())
 
-                    if message.request_id in self.pending_requests:
-                        future = self.pending_requests[message.request_id]
+                    if message.request_id in self._pending_requests:
+                        future = self._pending_requests[message.request_id]
 
                         if message.type == IpcMessageType.RESULT:
                             future.set_result(message.payload.get("output"))
@@ -128,15 +126,15 @@ class ProcessRuntimeManager:
         start_time = time.monotonic()
 
         while time.monotonic() - start_time < timeout:
-            if not self.response_queue.empty():
-                message = IpcMessage(**self.response_queue.get())
-
-                if message.type == IpcMessageType.STATUS and message.payload.get("status") == "ready":
-                    return
+            if not self._response_queue.empty():
+                message = IpcMessage(**self._response_queue.get())
 
                 if message.type == IpcMessageType.ERROR:
                     error = message.payload.get("error", "Unknown error") if message.payload else "Unknown error"
                     raise RuntimeError(f"Process {self.worker_id} failed to start: {error}")
+
+                if message.type == IpcMessageType.STATUS and message.payload.get("status") == "ready":
+                    return
 
             await asyncio.sleep(0.5)
 

@@ -24,7 +24,7 @@ from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from PIL import Image as PILImage
 from datetime import datetime, timezone
-import uvicorn, json, uuid, asyncio, inspect, functools
+import uvicorn, json, ulid, asyncio, inspect, functools
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
@@ -532,7 +532,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 await websocket.close(code=4429, reason="Too many connections")
                 return
 
-            client_id = session if session else str(uuid.uuid4())
+            client_id = session if session else ulid.ulid()
             accepted = await self.websocket_manager.accept(client_id, websocket)
             if not accepted:
                 return

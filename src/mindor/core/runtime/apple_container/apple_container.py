@@ -194,11 +194,11 @@ class AppleContainerRuntimeManager:
         )
 
         if check:
-            stdout, stderr = await process.communicate()
+            _, error = await process.communicate()
             if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
+                error_message = error.decode() if error else "Unknown error"
                 raise RuntimeError(
-                    f"Command '{' '.join(command)}' failed (exit {process.returncode}): {error_msg}"
+                    f"Command '{' '.join(command)}' failed (exit {process.returncode}): {error_message}"
                 )
 
         return process

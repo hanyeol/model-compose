@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Any, Dict, List, Optional
 from ..streaming.resources import StreamResource, ChunkedStreamResource, read_stream_to_buffer
-import asyncio, uuid, base64
+import asyncio, ulid
 
 if TYPE_CHECKING:
     from azure.storage.blob.aio import BlobClient
@@ -69,8 +69,8 @@ async def multipart_upload(
     try:
         async with ChunkedStreamResource(stream, chunk_size) as chunked:
             async for chunk in chunked:
-                # Azure requires block IDs to be the same length when base64-encoded
-                block_id = base64.b64encode(uuid.uuid4().bytes).decode("ascii")
+                # Azure requires block IDs to be the same length within a blob
+                block_id = ulid.ulid()
                 block_ids.append(block_id)
                 # block until a concurrency slot is free, so unread chunks
                 # don't pile up in memory beyond the configured ceiling

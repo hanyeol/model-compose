@@ -8,6 +8,7 @@ RuntimeConfig = Annotated[
         NativeRuntimeConfig,
         EmbeddedRuntimeConfig,
         ProcessRuntimeConfig,
+        VirtualEnvRuntimeConfig,
         DockerRuntimeConfig,
         AppleContainerRuntimeConfig
     ],

@@ -173,8 +173,8 @@ class TestComponentIntegration:
         # Should have process manager created
         assert component._process_manager is not None
         assert isinstance(component._process_manager, ComponentProcessRuntimeManager)
-        assert component._process_manager.subprocess is not None
-        assert component._process_manager.subprocess.is_alive()
+        assert component._process_manager._subprocess is not None
+        assert component._process_manager._subprocess.is_alive()
 
         # Execute action through process runtime
         result = await component.run(
@@ -184,11 +184,13 @@ class TestComponentIntegration:
         )
 
         assert result is not None
+        assert result["stdout"] == "Hello from process"
+        assert result["exit_code"] == 0
 
         await component.stop()
 
         # Process should be stopped
-        assert not component._process_manager.subprocess.is_alive()
+        assert not component._process_manager._subprocess.is_alive()
 
         await component.teardown()
 
@@ -373,18 +375,18 @@ class TestComponentProcessRuntimeScenarios:
         assert hasattr(manager, "worker_id")
         assert hasattr(manager, "config")
         assert hasattr(manager, "global_configs")
-        assert hasattr(manager, "worker_params")  # Changed from runtime_config
-        assert hasattr(manager, "subprocess")
-        assert hasattr(manager, "request_queue")
-        assert hasattr(manager, "response_queue")
-        assert hasattr(manager, "pending_requests")
-        assert hasattr(manager, "response_handler_task")
+        assert hasattr(manager, "worker_params")
+        assert hasattr(manager, "_subprocess")
+        assert hasattr(manager, "_request_queue")
+        assert hasattr(manager, "_response_queue")
+        assert hasattr(manager, "_pending_requests")
+        assert hasattr(manager, "_response_handler_task")
 
-        assert manager.subprocess is None
-        assert manager.request_queue is None
-        assert manager.response_queue is None
-        assert manager.pending_requests == {}
-        assert manager.response_handler_task is None
+        assert manager._subprocess is None
+        assert manager._request_queue is None
+        assert manager._response_queue is None
+        assert manager._pending_requests == {}
+        assert manager._response_handler_task is None
 
 
 class TestComponentProcessRuntimeValidation:

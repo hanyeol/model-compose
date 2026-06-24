@@ -14,11 +14,8 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
     """Process runtime configuration for running components in separate processes"""
     type: Literal[RuntimeType.PROCESS]
 
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
     working_dir: Optional[str] = Field(None, description="Working directory")
-
-    start_timeout: Union[str, int, float] = Field(default="60s", description="Process start timeout")
-    stop_timeout: Union[str, int, float] = Field(default="30s", description="Process stop timeout")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables")
 
     ipc_method: IpcMethod = Field(default=IpcMethod.QUEUE, description="IPC method")
     socket_path: Optional[str] = Field(None, description="Unix socket path (for unix-socket)")
@@ -27,3 +24,6 @@ class ProcessRuntimeConfig(CommonRuntimeConfig):
 
     max_memory: Optional[str] = Field(None, description="Maximum memory limit")
     cpu_limit: Optional[float] = Field(None, description="CPU limit in cores")
+
+    start_timeout: Union[str, int, float] = Field(default="60s", description="Process start timeout")
+    stop_timeout: Union[str, int, float] = Field(default="30s", description="Process stop timeout")

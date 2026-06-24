@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple, Union, Callable, Any
+from typing import List, Optional, Set, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
@@ -106,15 +106,15 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         command = command + [ "-y", output_path ]
 
         try:
-            process, _, stderr = await run_subprocess(
+            process, _, error = await run_subprocess(
                 command,
                 source.stream if input_path is None else None,
                 stderr_handler=lambda r: r.read(),
             )
 
             if process.returncode != 0:
-                error = stderr.decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error}")
+                error_message = error.decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error_message}")
         finally:
             cleanup()
 
@@ -132,7 +132,6 @@ class FFmpegAudioConverterAction(AudioConverterAction):
     ) -> AudioStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as an AudioStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:
@@ -143,14 +142,18 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
                 yield chunk
 
-        async def _handle_stderr(reader: asyncio.StreamReader) -> None:
+        async def _handle_stderr(reader: asyncio.StreamReader) -> bytes:
+            error_lines: List[bytes] = []
+
             while True:
                 line = await reader.readline()
 
                 if not line:
                     break
 
-                error.append(line)
+                error_lines.append(line)
+
+            return b"".join(error_lines)
 
         async def _stream() -> AsyncIterator[bytes]:
             try:
@@ -159,13 +162,13 @@ class FFmpegAudioConverterAction(AudioConverterAction):
                     source=source.stream if input_path is None else None,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
-                ) as (process, chunks, _):
+                ) as (process, chunks, error):
                     async for chunk in chunks:
                         yield chunk
 
                 if process.returncode is not None and process.returncode != 0:
-                    error_text = b"".join(error).decode("utf-8", errors="replace")
-                    raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error_text}")
+                    error_message = error.result().decode("utf-8", errors="replace") if error else ""
+                    raise RuntimeError(f"ffmpeg audio conversion failed (exit code {process.returncode}): {error_message}")
             finally:
                 cleanup()
 

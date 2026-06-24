@@ -8,8 +8,6 @@ from mindor.core.utils.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-from bs4 import BeautifulSoup
-from lxml import etree
 import aiohttp, asyncio
 import sys, subprocess
 
@@ -238,6 +236,8 @@ class WebScraperAction:
         multiple: bool
     ) -> Any:
         """Extract content using CSS selector. Parses HTML once and reuses the parsed soup."""
+        from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(html, 'lxml')
 
         def _extract(expr: str) -> Union[str, List[str], None]:
@@ -267,6 +267,8 @@ class WebScraperAction:
         multiple: bool
     ) -> Any:
         """Extract content using XPath. Parses HTML once and reuses the parsed tree."""
+        from lxml import etree
+
         tree = etree.HTML(html)
 
         def _extract(expr: str) -> Union[str, List[str], None]:
@@ -302,6 +304,8 @@ class WebScraperAction:
             return element.text_content().strip() if hasattr(element, "text_content") else str(element).strip()
         
         if extract_mode == "html":
+            from lxml import etree
+
             return etree.tostring(element, encoding="unicode", method="html") if hasattr(element, "tag") else str(element)
         
         if extract_mode == "attribute":
@@ -311,6 +315,8 @@ class WebScraperAction:
 
     def _extract_full_page(self, html: str, extract_mode: str) -> str:
         """Extract full page content without selector or xpath."""
+        from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(html, "lxml")
 
         if extract_mode == "text":

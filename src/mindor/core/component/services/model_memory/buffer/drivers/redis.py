@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import RedisModelMemoryBufferConfig, ModelMemor
 from ..base import ModelMemoryBuffer, register_model_memory_buffer
 import asyncio
 import json
-import uuid
+import ulid
 
 if TYPE_CHECKING:
     import redis.asyncio as aioredis
@@ -20,7 +20,7 @@ class RedisModelMemoryBuffer(ModelMemoryBuffer):
         self.config: RedisModelMemoryBufferConfig = config
         self.client: Optional[aioredis.Redis] = None
 
-        self._node_id: str = uuid.uuid4().hex
+        self._node_id: str = ulid.ulid()
         self._pubsub: Optional[aioredis.client.PubSub] = None
         self._listener_task: Optional[asyncio.Task] = None
 

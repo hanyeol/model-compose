@@ -77,7 +77,7 @@ async def run_subprocess(
     stdout_task = asyncio.create_task(stdout_handler(process.stdout)) if stdout_handler is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
     
-    feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
+    stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
 
     try:
         stdout_result = await stdout_task if stdout_task is not None else None
@@ -85,8 +85,8 @@ async def run_subprocess(
         await process.wait()
     finally:
         await kill_process(process)
-        if feeder is not None:
-            await feeder
+        if stdin_feeder is not None:
+            await stdin_feeder
 
     return process, stdout_result, stderr_result
 
@@ -101,13 +101,13 @@ async def stream_subprocess(
 ) -> AsyncIterator[Tuple[Process, AsyncIterator[Any], Optional[asyncio.Task]]]:
     """Spawn a subprocess and expose its stdout as an async iterator while it runs.
 
-    The caller consumes `stdout_iter` directly. `stdout_handler` is a factory that takes
+    The caller consumes `stdout_iterator` directly. `stdout_handler` is a factory that takes
     the process's stdout reader and returns an async iterator of items to be yielded.
     `stderr_handler` runs as a background task — typically used to drain stderr and
     side-band data (e.g. timestamps, error lines) via closure variables.
 
     On context exit (including consumer break or exception): the process is killed,
-    stdin feeder is awaited, and `stderr_task` is awaited so the caller can inspect
+    stdin stdin_feeder is awaited, and `stderr_task` is awaited so the caller can inspect
     the returncode and any drained stderr.
     """
     process = await asyncio.create_subprocess_exec(
@@ -133,18 +133,18 @@ async def stream_subprocess(
             except Exception:
                 pass
 
-    feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
+    stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
-    stdout_iter = stdout_handler(process.stdout)
+    stdout_iterator = stdout_handler(process.stdout)
 
     try:
-        yield process, stdout_iter, stderr_task
+        yield process, stdout_iterator, stderr_task
     finally:
         await kill_process(process)
 
-        if feeder is not None:
+        if stdin_feeder is not None:
             try:
-                await feeder
+                await stdin_feeder
             except Exception:
                 pass
 

@@ -100,15 +100,15 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         command = command + [ "-movflags", "+faststart", "-y", output_path ]
 
         try:
-            process, _, stderr = await run_subprocess(
+            process, _, error = await run_subprocess(
                 command,
                 source.stream if input_path is None else None,
                 stderr_handler=lambda r: r.read(),
             )
 
             if process.returncode != 0:
-                error = stderr.decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error}")
+                error_message = error.decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
         finally:
             cleanup()
 
@@ -158,8 +158,8 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                         yield chunk
 
                 if process.returncode is not None and process.returncode != 0:
-                    error_text = b"".join(error).decode("utf-8", errors="replace")
-                    raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_text}")
+                    error_message = b"".join(error).decode("utf-8", errors="replace")
+                    raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
             finally:
                 cleanup()
 

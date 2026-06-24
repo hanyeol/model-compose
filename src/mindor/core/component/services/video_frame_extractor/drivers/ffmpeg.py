@@ -141,9 +141,9 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
             return images
 
-        async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], List[bytes]]:
+        async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], bytes]:
             timestamps: List[float] = []
-            error: List[bytes] = []
+            error_lines: List[bytes] = []
 
             while True:
                 line = await reader.readline()
@@ -156,9 +156,9 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 if match:
                     timestamps.append(float(match.group(1)))
                 else:
-                    error.append(line)
+                    error_lines.append(line)
 
-            return timestamps, error
+            return timestamps, b"".join(error_lines)
 
         try:
             process, images, (timestamps, error) = await run_subprocess(
@@ -169,8 +169,8 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             )
 
             if process.returncode != 0:
-                error_text = b"".join(error).decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_text}")
+                error_message = error.decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_message}")
 
             frames = []
 
@@ -194,7 +194,6 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         """Run ffmpeg and yield {image, timestamp} dicts as frames are decoded."""
         timestamps: asyncio.Queue = asyncio.Queue()
-        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[PILImage.Image]:
             buffer = b""
@@ -215,7 +214,9 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
                     yield image
 
-        async def _handle_stderr(reader: asyncio.StreamReader) -> None:
+        async def _handle_stderr(reader: asyncio.StreamReader) -> bytes:
+            error_lines: List[bytes] = []
+
             while True:
                 line = await reader.readline()
 
@@ -227,9 +228,11 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 if match:
                     await timestamps.put(float(match.group(1)))
                 else:
-                    error.append(line)
+                    error_lines.append(line)
 
             await timestamps.put(None)  # sentinel: no more timestamps
+
+            return b"".join(error_lines)
 
         frame_count = 0
 
@@ -239,7 +242,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 source=video.stream if input_path is None else None,
                 stdout_handler=_handle_stdout,
                 stderr_handler=_handle_stderr,
-            ) as (process, images, _):
+            ) as (process, images, error):
                 async for image in images:
                     timestamp = await timestamps.get()
                     yield {
@@ -252,8 +255,8 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                         return
 
             if process.returncode is not None and process.returncode != 0 and frame_count == 0:
-                error_text = b"".join(error).decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_text}")
+                error_message = error.result().decode("utf-8", errors="replace") if error else ""
+                raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_message}")
         finally:
             cleanup()
 

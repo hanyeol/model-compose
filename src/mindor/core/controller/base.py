@@ -36,7 +36,7 @@ from .runtime.docker import DockerRuntimeLauncher
 from .runtime.apple_container import AppleContainerRuntimeLauncher
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, os, threading
+import asyncio, ulid, os, threading, traceback
 
 if TYPE_CHECKING:
     from mindor.core.controller.adapters.base import ControllerAdapterService
@@ -612,7 +612,7 @@ class ControllerService(AsyncService):
         return ControllerRuntimeSpecs(self.config, self.components, self.listeners, self.gateways, self.workflows, self.tracers, self.loggers)
 
     def _get_component_global_configs(self) -> ComponentGlobalConfigs:
-        return ComponentGlobalConfigs(self.components, self.listeners, self.gateways, self.workflows)
+        return ComponentGlobalConfigs.create(self.components, self.listeners, self.gateways, self.workflows)
 
     def _get_default_logger_config(self) -> LoggerConfig:
         return ConsoleLoggerConfig(type=LoggerType.CONSOLE)
@@ -691,13 +691,12 @@ class ControllerService(AsyncService):
                 metadata=metadata
             )
         except Exception as e:
-            import traceback
-            error_message = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
+            error = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
             state = TaskState(
                 task_id=task_id,
                 status=TaskStatus.FAILED,
                 workflow_id=workflow_id,
-                error=error_message,
+                error=error,
                 session_id=session_id,
                 metadata=metadata
             )

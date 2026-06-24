@@ -16,7 +16,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
-import uuid
+import ulid
 
 import pytest
 
@@ -67,7 +67,7 @@ def azurite_endpoint():
     _require_docker()
 
     port = _free_port()
-    container_name = f"model-compose-test-azurite-{uuid.uuid4().hex[:8]}"
+    container_name = f"model-compose-test-azurite-{ulid.ulid()[:8].lower()}"
 
     try:
         subprocess.run(
@@ -113,7 +113,7 @@ def fake_gcs_endpoint():
     _require_docker()
 
     port = _free_port()
-    container_name = f"model-compose-test-fakegcs-{uuid.uuid4().hex[:8]}"
+    container_name = f"model-compose-test-fakegcs-{ulid.ulid()[:8].lower()}"
     public_host = f"127.0.0.1:{port}"
 
     try:

@@ -1,5 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing_extensions import Self
 from abc import ABC, abstractmethod
+from pydantic import BaseModel, Field
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.dsl.schema.listener import ListenerConfig
@@ -31,18 +33,25 @@ class ActionResolver:
 
         return action.id, action
 
-class ComponentGlobalConfigs:
-    def __init__(
-        self, 
+class ComponentGlobalConfigs(BaseModel):
+    components: List[ComponentConfig] = Field(default_factory=list)
+    listeners:  List[ListenerConfig]  = Field(default_factory=list)
+    gateways:   List[GatewayConfig]   = Field(default_factory=list)
+    workflows:  List[WorkflowConfig]  = Field(default_factory=list)
+
+    @classmethod
+    def create(cls,
         components: List[ComponentConfig],
-        listeners: List[ListenerConfig],
-        gateways: List[GatewayConfig],
-        workflows: List[WorkflowConfig]
-    ):
-        self.components: List[ComponentConfig] = components
-        self.listeners: List[ListenerConfig] = listeners
-        self.gateways: List[GatewayConfig] = gateways
-        self.workflows: List[WorkflowConfig] = workflows
+        listeners:  List[ListenerConfig],
+        gateways:   List[GatewayConfig],
+        workflows:  List[WorkflowConfig],
+    ) -> Self:
+        return cls(
+            components=components,
+            listeners=listeners,
+            gateways=gateways,
+            workflows=workflows,
+        )
 
 class ComponentService(AsyncService):
     def __init__(
@@ -59,15 +68,33 @@ class ComponentService(AsyncService):
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
         self._process_manager = None
+        self._virtualenv_manager = None
         self._docker_manager = None
         self._active_counter: ActiveCounter = ActiveCounter()
 
         if self.config.max_concurrent_count > 0:
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
+    async def setup(self) -> None:
+        # Components running in an isolated runtime install their dependencies inside that
+        # isolated environment (worker venv / container build). Skip the host-side install
+        # here so we do not leak component dependencies into the parent interpreter.
+        if self.config.runtime.type in (
+            RuntimeType.PROCESS,
+            RuntimeType.VIRTUALENV,
+            RuntimeType.DOCKER,
+            RuntimeType.APPLE_CONTAINER,
+        ):
+            return
+        await super().setup()
+
     async def start(self, background: bool = False) -> None:
         if self.config.runtime.type == RuntimeType.PROCESS:
             await self._start_process_runtime()
+            return
+
+        if self.config.runtime.type == RuntimeType.VIRTUALENV:
+            await self._start_virtualenv_runtime()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -81,6 +108,10 @@ class ComponentService(AsyncService):
             await self._stop_process_runtime()
             return
 
+        if self._virtualenv_manager:
+            await self._stop_virtualenv_runtime()
+            return
+
         await super().stop()
 
         if self._docker_manager:
@@ -89,6 +120,9 @@ class ComponentService(AsyncService):
     async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None, job_id: Optional[str] = None) -> Dict[str, Any]:
         if self._process_manager:
             return await self._process_manager.run(action_id, run_id, input)
+
+        if self._virtualenv_manager:
+            return await self._virtualenv_manager.run(action_id, run_id, input)
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(
@@ -152,6 +186,16 @@ class ComponentService(AsyncService):
     async def _stop_process_runtime(self) -> None:
         await self._process_manager.stop()
         logging.info(f"Component '{self.id}' process runtime stopped")
+
+    async def _start_virtualenv_runtime(self) -> None:
+        from mindor.core.component.runtime import ComponentVirtualEnvRuntimeManager
+        self._virtualenv_manager = ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
+        await self._virtualenv_manager.start()
+        logging.info(f"Component '{self.id}' started with virtualenv runtime")
+
+    async def _stop_virtualenv_runtime(self) -> None:
+        await self._virtualenv_manager.stop()
+        logging.info(f"Component '{self.id}' virtualenv runtime stopped")
 
     async def _start_docker_runtime(self) -> None:
         from mindor.core.runtime.docker import DockerRuntimeManager

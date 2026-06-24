@@ -67,9 +67,9 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         cleanup: Callable[[], None],
     ) -> Dict[str, Any]:
         """Run ffmpeg to completion and assemble the per-video scene result."""
-        async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], List[bytes]]:
+        async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], bytes]:
             timestamps: List[float] = []
-            error: List[bytes] = []
+            error_lines: List[bytes] = []
 
             while True:
                 line = await reader.readline()
@@ -82,9 +82,9 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 if match:
                     timestamps.append(float(match.group(1)))
                 else:
-                    error.append(line)
+                    error_lines.append(line)
 
-            return timestamps, error
+            return timestamps, b"".join(error_lines)
 
         try:
             process, _, (timestamps, error) = await run_subprocess(
@@ -93,8 +93,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
             )
 
             if process.returncode != 0:
-                error_text = b"".join(error).decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_text}")
+                error_message = error.decode("utf-8", errors="replace")
+                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_message}")
 
             scenes: List[Dict[str, Any]] = []
             boundaries = [ 0.0 ] + timestamps + [ duration ]
@@ -124,9 +124,10 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         """Run ffmpeg and yield scene dicts as boundaries are detected."""
         timestamps: asyncio.Queue = asyncio.Queue()
-        error: List[bytes] = []
 
-        async def _handle_stderr(reader: asyncio.StreamReader) -> None:
+        async def _handle_stderr(reader: asyncio.StreamReader) -> bytes:
+            error_lines: List[bytes] = []
+
             while True:
                 line = await reader.readline()
 
@@ -138,15 +139,17 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 if match:
                     await timestamps.put(float(match.group(1)))
                 else:
-                    error.append(line)
+                    error_lines.append(line)
 
             await timestamps.put(None)  # sentinel: no more timestamps
+
+            return b"".join(error_lines)
 
         try:
             async with stream_subprocess(
                 command,
                 stderr_handler=_handle_stderr,
-            ) as (process, _, _):
+            ) as (process, _, error):
                 index = 0
                 prev_boundary = 0.0
 
@@ -170,8 +173,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                     prev_boundary = timestamp
 
             if process.returncode is not None and process.returncode != 0:
-                error_text = b"".join(error).decode("utf-8", errors="replace")
-                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_text}")
+                error_message = error.result().decode("utf-8", errors="replace") if error else ""
+                raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_message}")
         finally:
             cleanup()
 

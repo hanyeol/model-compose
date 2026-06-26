@@ -8,10 +8,13 @@ import pytest
 from unittest.mock import MagicMock
 
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
+from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
 from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
-from mindor.core.foundation.runtime.process_manager import ProcessRuntimeManager, ProcessRuntimeManagerParams
-from mindor.core.foundation.runtime.process_worker import ProcessRuntimeWorker
+from mindor.core.runtime.process import (
+    ProcessRuntimeManager,
+    ProcessRuntimeManagerParams,
+    ProcessRuntimeWorker,
+)
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 from mindor.dsl.schema.runtime.impl.process import IpcMethod

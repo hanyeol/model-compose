@@ -178,7 +178,8 @@ class ComponentService(AsyncService):
         await super()._install_package(package_spec, repository)
 
     async def _start_process_runtime(self) -> None:
-        from mindor.core.component.runtime import ComponentProcessRuntimeManager
+        from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
+
         self._process_manager = ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
         await self._process_manager.start()
         logging.info(f"Component '{self.id}' started with process runtime")
@@ -188,7 +189,8 @@ class ComponentService(AsyncService):
         logging.info(f"Component '{self.id}' process runtime stopped")
 
     async def _start_virtualenv_runtime(self) -> None:
-        from mindor.core.component.runtime import ComponentVirtualEnvRuntimeManager
+        from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeManager
+
         self._virtualenv_manager = ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
         await self._virtualenv_manager.start()
         logging.info(f"Component '{self.id}' started with virtualenv runtime")
@@ -199,6 +201,7 @@ class ComponentService(AsyncService):
 
     async def _start_docker_runtime(self) -> None:
         from mindor.core.runtime.docker import DockerRuntimeManager
+
         self._docker_manager = DockerRuntimeManager(self.config.runtime, verbose=False)
         if not await self._docker_manager.exists_image():
             if self.config.runtime.build:

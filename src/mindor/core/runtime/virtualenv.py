@@ -8,12 +8,38 @@ from mindor.core.utils.locks import FileLock
 from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
 from mindor.core.runtime.base.ipc_manager import IpcRuntimeManager
 from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.runtime.base.ipc_worker import IpcRuntimeWorker
 from importlib.resources import files
 from pathlib import Path
 import mindor, mindor.version
 import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
+
+
+class VirtualEnvRuntimeWorker(IpcRuntimeWorker):
+    """
+    Base class for workers launched in a separate Python interpreter (virtualenv).
+
+    Communicates with the parent process through a line-framed bytes channel
+    (`SubprocessPipeChannel`). Serialized IPC messages travel as bytes.
+    """
+
+    def __init__(self, worker_id: str, channel: SubprocessPipeChannel):
+        super().__init__(worker_id)
+        self.channel = channel
+
+    async def _send_message(self, message: bytes) -> None:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self.channel.send, message)
+
+    async def _recv_message(self) -> Optional[bytes]:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.channel.recv)
+
+    def _close_transport(self) -> None:
+        self.channel.close()
+
 
 @dataclass
 class VirtualEnvRuntimeManagerParams:
@@ -27,6 +53,7 @@ class VirtualEnvRuntimeManagerParams:
     env: Dict[str, str] = field(default_factory=dict)
     start_timeout: float = 60.0  # seconds
     stop_timeout: float = 30.0   # seconds
+
 
 class VirtualEnvRuntimeManager(IpcRuntimeManager):
     """Generic manager that creates a venv, injects mindor, and runs a worker subprocess."""
@@ -225,7 +252,7 @@ class VirtualEnvRuntimeManager(IpcRuntimeManager):
         version_path = target_mindor / ".version"
 
         host_mindor_root = Path(mindor.__file__).resolve().parent
-        runtime_requirements_path = Path(str(files("mindor.core.runtime.base") / "requirements.txt"))
+        runtime_requirements_path = Path(str(files("mindor.core.runtime.bootstrap") / "requirements.txt"))
         user_requirements_path = (Path.cwd() / "requirements.txt").resolve()
 
         current_version = mindor.version.__version__

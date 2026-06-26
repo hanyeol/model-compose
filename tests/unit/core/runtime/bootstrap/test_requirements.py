@@ -1,5 +1,5 @@
 """Parity test between ``pyproject.toml`` ``[project] dependencies`` and
-``src/mindor/core/runtime/base/requirements.txt``.
+``src/mindor/core/runtime/bootstrap/requirements.txt``.
 
 The requirements file is the single source consumed by both the Docker
 runtime (copied into the build context as ``runtime-requirements.txt``)
@@ -29,8 +29,8 @@ from packaging.utils import canonicalize_name
 
 
 def _project_root() -> Path:
-    # tests/unit/core/runtime/test_requirements.py → repo root is 4 parents up.
-    return Path(__file__).resolve().parents[4]
+    # tests/unit/core/runtime/bootstrap/test_requirements.py → repo root is 5 parents up.
+    return Path(__file__).resolve().parents[5]
 
 
 def _load_pyproject_dependencies() -> list[Requirement]:
@@ -42,7 +42,7 @@ def _load_pyproject_dependencies() -> list[Requirement]:
 def _load_runtime_requirements() -> list[Requirement]:
     # Access via importlib.resources so the test exercises the same lookup
     # path the runtime code will use at install time.
-    path = files("mindor.core.runtime.base").joinpath("requirements.txt")
+    path = files("mindor.core.runtime.bootstrap").joinpath("requirements.txt")
     reqs: list[Requirement] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -77,7 +77,7 @@ class TestRuntimeRequirementsParity:
         extra_in_runtime = runtime_keys - pyproject_keys
 
         assert not missing_from_runtime and not extra_in_runtime, (
-            "core/runtime/base/requirements.txt is out of sync with "
+            "core/runtime/bootstrap/requirements.txt is out of sync with "
             "pyproject.toml [project] dependencies.\n"
             f"  Missing from requirements.txt: {sorted(missing_from_runtime)}\n"
             f"  Extra in requirements.txt:     {sorted(extra_in_runtime)}\n"

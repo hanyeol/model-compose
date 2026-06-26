@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from typing import Any, Dict
-from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
+from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig, VirtualEnvRuntimeConfig
+from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
-from mindor.core.foundation.runtime.virtualenv_worker import VirtualEnvRuntimeWorker
+from mindor.core.runtime.virtualenv import (
+    VirtualEnvRuntimeManager,
+    VirtualEnvRuntimeManagerParams,
+    VirtualEnvRuntimeWorker,
+)
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
 from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
+from mindor.dsl.schema.component import ComponentConfig
 import asyncio, os, sys
+
 
 class ComponentVirtualEnvRuntimeWorker(VirtualEnvRuntimeWorker):
     """Component-specific worker that hosts an embedded-runtime component instance."""
@@ -52,8 +60,57 @@ class ComponentVirtualEnvRuntimeWorker(VirtualEnvRuntimeWorker):
         )
 
 
+class ComponentVirtualEnvRuntimeManager(VirtualEnvRuntimeManager):
+    """Runtime manager for components running inside an isolated virtualenv worker."""
+
+    def __init__(
+        self,
+        component_id: str,
+        config: ComponentConfig,
+        global_configs: ComponentGlobalConfigs,
+    ):
+        self.component_id = component_id
+        self.config = config
+        self.global_configs = global_configs
+
+        # Convert VirtualEnvRuntimeConfig to VirtualEnvRuntimeManagerParams
+        worker_params = self._convert_runtime_config(config.runtime)
+
+        super().__init__(
+            worker_id=component_id,
+            worker_module="mindor.core.component.runtime.virtualenv",
+            worker_params=worker_params,
+        )
+
+    @staticmethod
+    def _convert_runtime_config(config: VirtualEnvRuntimeConfig) -> VirtualEnvRuntimeManagerParams:
+        """Convert DSL VirtualEnvRuntimeConfig to foundation VirtualEnvRuntimeManagerParams"""
+        return VirtualEnvRuntimeManagerParams(
+            driver=config.driver,
+            python=config.python,
+            path=config.path,
+            env=config.env or {},
+            start_timeout=parse_duration(config.start_timeout),
+            stop_timeout=parse_duration(config.stop_timeout)
+        )
+
+    async def run(self, action_id: str, run_id: str, input_data: Dict[str, Any]) -> Any:
+        return await self.execute({
+            "action_id": action_id,
+            "run_id": run_id,
+            "input": input_data,
+        })
+
+    def _build_init_payload(self) -> Dict[str, Any]:
+        return {
+            "component_id": self.component_id,
+            "component_config": self.config.model_dump(mode="json"),
+            "global_configs": self.global_configs.model_dump(mode="json"),
+        }
+
+
 def main() -> None:
-    """Entrypoint when launched as `python -m mindor.core.component.runtime.virtualenv_worker`."""
+    """Entrypoint when launched as `python -m mindor.core.component.runtime.virtualenv`."""
     # Ensure stdout/stderr stay attached to the parent as log channels only;
     # the IPC protocol runs on the dedicated fd pair, not on stdout.
     try:
@@ -63,8 +120,6 @@ def main() -> None:
         pass
 
     from pydantic import BaseModel
-    from mindor.core.component.base import ComponentGlobalConfigs
-    from mindor.dsl.schema.component import ComponentConfig
 
     # Wrap the INIT payload in a tiny BaseModel so Pydantic handles the discriminator
     # Union (ComponentConfig) and ComponentGlobalConfigs validation in one shot.

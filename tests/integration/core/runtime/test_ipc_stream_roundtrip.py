@@ -16,11 +16,11 @@ from multiprocessing import Queue
 
 import pytest
 
-from mindor.core.foundation.runtime.process_manager import (
+from mindor.core.runtime.process import (
     ProcessRuntimeManager,
     ProcessRuntimeManagerParams,
+    ProcessRuntimeWorker,
 )
-from mindor.core.foundation.runtime.process_worker import ProcessRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 

@@ -21,7 +21,7 @@ import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
-from mindor.core.component.runtime.virtualenv_manager import (
+from mindor.core.component.runtime.virtualenv import (
     ComponentVirtualEnvRuntimeManager,
 )
 from mindor.dsl.schema.action import ShellActionConfig
@@ -189,7 +189,7 @@ def test_runtime_requirements_file_is_resolvable():
     """Sanity check that runtime requirements file lookup succeeds in both editable and
     installed layouts. Critical for venv injection to work."""
     from importlib.resources import files
-    path = Path(str(files("mindor.core.runtime.base") / "requirements.txt"))
+    path = Path(str(files("mindor.core.runtime.bootstrap") / "requirements.txt"))
     assert path.exists(), f"Runtime requirements file not found at {path}"
     contents = path.read_text(encoding="utf-8")
     assert "click" in contents

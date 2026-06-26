@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from docker.errors import NotFound, DockerException
 from docker.types import Mount
-from mindor.core.runtime.docker.docker import (
+from mindor.core.runtime.docker import (
     DockerRuntimeManager,
     DockerPortsResolver,
     DockerMountsResolver,
@@ -256,7 +256,7 @@ class TestDockerRuntimeManager:
     @pytest.fixture
     def mock_docker_client(self):
         """Create a mock Docker client"""
-        with patch('mindor.core.runtime.docker.docker.docker.from_env') as mock:
+        with patch('mindor.core.runtime.docker.docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client

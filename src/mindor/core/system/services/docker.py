@@ -3,7 +3,7 @@ from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
 from mindor.dsl.schema.runtime.impl.types import RuntimeType
 from mindor.core.system.base import SystemService, register_system
-from mindor.core.runtime.docker.docker import DockerRuntimeManager
+from mindor.core.runtime.docker import DockerRuntimeManager
 from mindor.core.logger import logging
 import shutil
 

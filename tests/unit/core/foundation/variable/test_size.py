@@ -2,7 +2,7 @@
 
 import pytest
 
-from mindor.core.utils.size import parse_size
+from mindor.core.foundation.variable.size import parse_size
 
 
 class TestParseSize:

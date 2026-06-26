@@ -7,10 +7,10 @@ from collections.abc import AsyncIterator
 import pytest
 from starlette.datastructures import UploadFile
 
-from mindor.core.utils.renderers import VariableRenderer
-from mindor.core.utils.streaming.iterators import EventStreamFormat
-from mindor.core.utils.streaming.bytes import BytesStreamResource
-from mindor.core.utils.streaming.iterators import EventStreamIterator
+from mindor.core.foundation.variable.renderer import VariableRenderer, FieldResolver
+from mindor.core.foundation.streaming.iterators import EventStreamFormat
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.iterators import EventStreamIterator
 
 
 @pytest.fixture
@@ -337,11 +337,11 @@ class TestConvertFileTypes:
     @pytest.mark.anyio
     async def test_upload_file_audio_becomes_audio_stream(self):
         """UploadFile + audio → AudioStreamResource wrapping UploadFile."""
-        from mindor.core.utils.streaming.audio import AudioStreamResource
+        from mindor.core.foundation.streaming.audio import AudioStreamResource
         file = UploadFile(file=io.BytesIO(b"data"), filename="test.wav")
         renderer = VariableRenderer(make_source_resolver({"v": file}))
         result = await renderer.render("${v as audio/wav}")
-        from mindor.core.utils.streaming.audio import WavStreamResource
+        from mindor.core.foundation.streaming.audio import WavStreamResource
         assert isinstance(result, WavStreamResource)
 
     @pytest.mark.anyio
@@ -1059,7 +1059,7 @@ class TestVariableRendererAttrsIntegration:
     @pytest.mark.anyio
     async def test_attrs_passed_to_pcm_stream_resource(self):
         """Bytes input with audio/pcm subtype wraps into PcmStreamResource carrying attrs."""
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"raw_pcm",
             "input": {"sr": 24000},
@@ -1122,7 +1122,7 @@ class TestVariableRendererAttrsIntegration:
     @pytest.mark.anyio
     async def test_literal_attrs_regression(self):
         """The pre-existing literal attrs form keeps working with the new pipeline."""
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"data"}))
         result = await r.render("${v as audio/pcm[sample_rate=44100,channels=2,bit_depth=16]}")
         assert isinstance(result, PcmStreamResource)
@@ -1414,7 +1414,7 @@ class TestAttrsWithDeeplyNested:
     @pytest.mark.anyio
     async def test_double_nested_attrs_preserve_inner_resource(self):
         """An inner `${raw as audio/pcm[...]}` produces a PcmStreamResource that lands in the outer attrs."""
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"outer",
             "input": {"raw": b"inner"},
@@ -1674,7 +1674,7 @@ class TestElementWiseMedia:
 
     @pytest.mark.anyio
     async def test_audio_pcm_list_from_bytes(self):
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": [b"raw1", b"raw2"]}))
         result = await r.render("${v as audio[]/pcm[sample_rate=16000]}")
         assert len(result) == 2
@@ -1940,7 +1940,7 @@ class TestImageValueRenderer:
     @pytest.mark.anyio
     async def test_pil_image_returns_as_is(self):
         from PIL import Image as PILImage
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         img = PILImage.new("RGB", (4, 4))
         result = await ImageValueRenderer().render(img)
         assert result is img
@@ -1949,7 +1949,7 @@ class TestImageValueRenderer:
     async def test_stream_resource_loaded_into_pil(self):
         import io
         from PIL import Image as PILImage
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         buf = io.BytesIO()
         PILImage.new("RGB", (4, 4), color="red").save(buf, "PNG")
         stream = BytesStreamResource(buf.getvalue())
@@ -1959,8 +1959,8 @@ class TestImageValueRenderer:
     @pytest.mark.anyio
     async def test_image_stream_resource_returns_pil_directly(self):
         from PIL import Image as PILImage
-        from mindor.core.utils.streaming.image import ImageStreamResource
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.streaming.image import ImageStreamResource
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         pil = PILImage.new("RGB", (4, 4))
         wrapped = ImageStreamResource(pil, "png")
         result = await ImageValueRenderer().render(wrapped)
@@ -1971,8 +1971,8 @@ class TestImageValueRenderer:
         """AsyncIterator input: render returns a new async generator that lazily
         maps each element via _render_element (single-pass)."""
         from PIL import Image as PILImage
-        from mindor.core.utils.streaming.image import ImageStreamResource
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.streaming.image import ImageStreamResource
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         from collections.abc import AsyncIterator
         pil = PILImage.new("RGB", (4, 4))
         wrapped = ImageStreamResource(pil, "png")
@@ -1985,7 +1985,7 @@ class TestImageValueRenderer:
     @pytest.mark.anyio
     async def test_list_recurses(self):
         from PIL import Image as PILImage
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         img = PILImage.new("RGB", (2, 2))
         result = await ImageValueRenderer().render([img, img])
         assert len(result) == 2
@@ -1993,7 +1993,7 @@ class TestImageValueRenderer:
 
     @pytest.mark.anyio
     async def test_unsupported_returns_none(self):
-        from mindor.core.utils.renderers import ImageValueRenderer
+        from mindor.core.foundation.variable.image import ImageValueRenderer
         result = await ImageValueRenderer().render(42)
         assert result is None
 
@@ -2006,7 +2006,7 @@ class TestFileValueRenderer:
     @pytest.mark.anyio
     async def test_stream_resource_saved_to_temp(self):
         import os
-        from mindor.core.utils.renderers import FileValueRenderer
+        from mindor.core.foundation.variable.file import FileValueRenderer
         stream = BytesStreamResource(b"streamed")
         path = await FileValueRenderer().render(stream)
         assert isinstance(path, str) and os.path.isfile(path)
@@ -2017,7 +2017,7 @@ class TestFileValueRenderer:
     @pytest.mark.anyio
     async def test_list_recurses(self):
         import os
-        from mindor.core.utils.renderers import FileValueRenderer
+        from mindor.core.foundation.variable.file import FileValueRenderer
         s1 = BytesStreamResource(b"a")
         s2 = BytesStreamResource(b"b")
         result = await FileValueRenderer().render([s1, s2])
@@ -2028,13 +2028,13 @@ class TestFileValueRenderer:
 
     @pytest.mark.anyio
     async def test_unsupported_returns_none(self):
-        from mindor.core.utils.renderers import FileValueRenderer
+        from mindor.core.foundation.variable.file import FileValueRenderer
         result = await FileValueRenderer().render(42)
         assert result is None
 
     @pytest.mark.anyio
     async def test_str_returns_none(self):
-        from mindor.core.utils.renderers import FileValueRenderer
+        from mindor.core.foundation.variable.file import FileValueRenderer
         # str is not StreamResource — falls through to None.
         result = await FileValueRenderer().render("some text")
         assert result is None
@@ -2047,19 +2047,19 @@ class TestFileValueRenderer:
 class TestSizeValueRenderer:
     @pytest.mark.anyio
     async def test_int_passes_through(self):
-        from mindor.core.utils.renderers import SizeValueRenderer
+        from mindor.core.foundation.variable.size import SizeValueRenderer
         result = await SizeValueRenderer().render(1024)
         assert result == 1024
 
     @pytest.mark.anyio
     async def test_string_size_parsed(self):
-        from mindor.core.utils.renderers import SizeValueRenderer
+        from mindor.core.foundation.variable.size import SizeValueRenderer
         result = await SizeValueRenderer().render("1KB")
         assert result == 1024
 
     @pytest.mark.anyio
     async def test_none_returns_default(self):
-        from mindor.core.utils.renderers import SizeValueRenderer
+        from mindor.core.foundation.variable.size import SizeValueRenderer
         result = await SizeValueRenderer().render(None, default=512)
         assert result == 512
 
@@ -2071,8 +2071,8 @@ class TestSizeValueRenderer:
 class TestAudioValueRenderer:
     @pytest.mark.anyio
     async def test_stream_resource_wrapped_in_media_source(self):
-        from mindor.core.utils.renderers import AudioValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.audio import AudioValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         stream = BytesStreamResource(b"data")
         result = await AudioValueRenderer().render(stream)
         assert isinstance(result, MediaSource)
@@ -2084,8 +2084,8 @@ class TestAudioValueRenderer:
         maps each element via create_audio_source. Unsupported element types
         surface as TypeError on iteration."""
         from collections.abc import AsyncIterator
-        from mindor.core.utils.renderers import AudioValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.audio import AudioValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         it = make_async_iterator([b"x"])
         result = await AudioValueRenderer().render(it)
         assert isinstance(result, AsyncIterator)
@@ -2095,7 +2095,7 @@ class TestAudioValueRenderer:
     @pytest.mark.anyio
     async def test_async_iterator_unsupported_element_raises_on_iteration(self):
         from collections.abc import AsyncIterator
-        from mindor.core.utils.renderers import AudioValueRenderer
+        from mindor.core.foundation.variable.audio import AudioValueRenderer
         it = make_async_iterator([42])
         result = await AudioValueRenderer().render(it)
         assert isinstance(result, AsyncIterator)
@@ -2104,8 +2104,8 @@ class TestAudioValueRenderer:
 
     @pytest.mark.anyio
     async def test_list_recurses(self):
-        from mindor.core.utils.renderers import AudioValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.audio import AudioValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         s1 = BytesStreamResource(b"a")
         s2 = BytesStreamResource(b"b")
         result = await AudioValueRenderer().render([s1, s2])
@@ -2115,7 +2115,7 @@ class TestAudioValueRenderer:
 
     @pytest.mark.anyio
     async def test_unsupported_raises(self):
-        from mindor.core.utils.renderers import AudioValueRenderer
+        from mindor.core.foundation.variable.audio import AudioValueRenderer
         with pytest.raises(TypeError):
             await AudioValueRenderer().render(42)
         with pytest.raises(TypeError):
@@ -2127,7 +2127,7 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_url_returns_url_stream(self):
-        from mindor.core.utils.streaming.url import UrlStreamResource
+        from mindor.core.foundation.streaming.url import UrlStreamResource
         r = VariableRenderer(make_source_resolver({}))
         result = await r._load_stream_from_format("https://example.com/x", "url")
         assert isinstance(result, UrlStreamResource)
@@ -2135,7 +2135,7 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_path_returns_file_stream(self, tmp_path):
-        from mindor.core.utils.streaming.file import FileStreamResource
+        from mindor.core.foundation.streaming.file import FileStreamResource
         p = tmp_path / "f.txt"
         p.write_text("x")
         r = VariableRenderer(make_source_resolver({}))
@@ -2144,14 +2144,14 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_base64_returns_base64_stream(self):
-        from mindor.core.utils.streaming.base64 import Base64StreamResource
+        from mindor.core.foundation.streaming.base64 import Base64StreamResource
         r = VariableRenderer(make_source_resolver({}))
         result = await r._load_stream_from_format(base64.b64encode(b"x").decode(), "base64")
         assert isinstance(result, Base64StreamResource)
 
     @pytest.mark.anyio
     async def test_data_uri_base64_returns_data_uri_stream(self):
-        from mindor.core.utils.streaming.url import DataUriStreamResource
+        from mindor.core.foundation.streaming.url import DataUriStreamResource
         r = VariableRenderer(make_source_resolver({}))
         uri = "data:application/octet-stream;base64," + base64.b64encode(b"x").decode()
         result = await r._load_stream_from_format(uri, "data-uri")
@@ -2162,7 +2162,7 @@ class TestLoadStreamFromFormatHelper:
 
     @pytest.mark.anyio
     async def test_data_uri_percent_returns_data_uri_stream(self):
-        from mindor.core.utils.streaming.url import DataUriStreamResource
+        from mindor.core.foundation.streaming.url import DataUriStreamResource
         r = VariableRenderer(make_source_resolver({}))
         uri = "data:text/plain,hi"
         result = await r._load_stream_from_format(uri, "data-uri")
@@ -2177,7 +2177,7 @@ class TestMediaBranchAudioVideoSubtypes:
 
     @pytest.mark.anyio
     async def test_audio_mp3_from_bytes(self):
-        from mindor.core.utils.streaming.audio import AudioStreamResource
+        from mindor.core.foundation.streaming.audio import AudioStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp3 bytes"}))
         result = await r.render("${v as audio/mp3}")
         assert isinstance(result, AudioStreamResource)
@@ -2191,7 +2191,7 @@ class TestMediaBranchAudioVideoSubtypes:
 
     @pytest.mark.anyio
     async def test_video_mp4_from_bytes(self):
-        from mindor.core.utils.streaming.video import VideoStreamResource
+        from mindor.core.foundation.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp4 bytes"}))
         result = await r.render("${v as video/mp4}")
         assert isinstance(result, VideoStreamResource)
@@ -2211,7 +2211,7 @@ class TestMediaBranchImageWithFormat:
     async def test_image_path_with_subtype(self, tmp_path):
         import io
         from PIL import Image as PILImage
-        from mindor.core.utils.streaming.image import ImageStreamResource
+        from mindor.core.foundation.streaming.image import ImageStreamResource
         buf = io.BytesIO()
         PILImage.new("RGB", (4, 4), color="blue").save(buf, "PNG")
         p = tmp_path / "img.png"
@@ -2236,8 +2236,8 @@ class TestMediaBranchImageWithFormat:
 class TestVideoValueRenderer:
     @pytest.mark.anyio
     async def test_stream_resource_wrapped_in_media_source(self):
-        from mindor.core.utils.renderers import VideoValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.video import VideoValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         stream = BytesStreamResource(b"data")
         result = await VideoValueRenderer().render(stream)
         assert isinstance(result, MediaSource)
@@ -2249,8 +2249,8 @@ class TestVideoValueRenderer:
         maps each element via create_video_source. Unsupported element types
         surface as TypeError on iteration."""
         from collections.abc import AsyncIterator
-        from mindor.core.utils.renderers import VideoValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.video import VideoValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         it = make_async_iterator([b"x"])
         result = await VideoValueRenderer().render(it)
         assert isinstance(result, AsyncIterator)
@@ -2260,7 +2260,7 @@ class TestVideoValueRenderer:
     @pytest.mark.anyio
     async def test_async_iterator_unsupported_element_raises_on_iteration(self):
         from collections.abc import AsyncIterator
-        from mindor.core.utils.renderers import VideoValueRenderer
+        from mindor.core.foundation.variable.video import VideoValueRenderer
         it = make_async_iterator([42])
         result = await VideoValueRenderer().render(it)
         assert isinstance(result, AsyncIterator)
@@ -2269,8 +2269,8 @@ class TestVideoValueRenderer:
 
     @pytest.mark.anyio
     async def test_list_recurses(self):
-        from mindor.core.utils.renderers import VideoValueRenderer
-        from mindor.core.utils.streaming.media import MediaSource
+        from mindor.core.foundation.variable.video import VideoValueRenderer
+        from mindor.core.foundation.streaming.media import MediaSource
         s1 = BytesStreamResource(b"a")
         s2 = BytesStreamResource(b"b")
         result = await VideoValueRenderer().render([s1, s2])
@@ -2280,7 +2280,7 @@ class TestVideoValueRenderer:
 
     @pytest.mark.anyio
     async def test_unsupported_raises(self):
-        from mindor.core.utils.renderers import VideoValueRenderer
+        from mindor.core.foundation.variable.video import VideoValueRenderer
         with pytest.raises(TypeError):
             await VideoValueRenderer().render(42)
         with pytest.raises(TypeError):
@@ -2588,7 +2588,7 @@ class TestDefaultFallback:
 class TestSubtypeDiversity:
     @pytest.mark.anyio
     async def test_audio_mp3(self):
-        from mindor.core.utils.streaming.audio import AudioStreamResource
+        from mindor.core.foundation.streaming.audio import AudioStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"bytes"}))
         result = await r.render("${v as audio/mp3}")
         assert isinstance(result, AudioStreamResource)
@@ -2597,14 +2597,14 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_audio_wav_from_bytes(self):
-        from mindor.core.utils.streaming.audio import WavStreamResource
+        from mindor.core.foundation.streaming.audio import WavStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"riff"}))
         result = await r.render("${v as audio/wav}")
         assert isinstance(result, WavStreamResource)
 
     @pytest.mark.anyio
     async def test_audio_pcm_to_wav_auto_conversion(self):
-        from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
         pcm = PcmStreamResource(b"raw samples", {"sample_rate": 16000, "channels": 1, "bit_depth": 16})
         r = VariableRenderer(make_source_resolver({"v": pcm}))
         result = await r.render("${v as audio/wav}")
@@ -2612,7 +2612,7 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_video_mp4(self):
-        from mindor.core.utils.streaming.video import VideoStreamResource
+        from mindor.core.foundation.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"mp4"}))
         result = await r.render("${v as video/mp4}")
         assert result.format == "mp4"
@@ -2620,7 +2620,7 @@ class TestSubtypeDiversity:
 
     @pytest.mark.anyio
     async def test_video_webm(self):
-        from mindor.core.utils.streaming.video import VideoStreamResource
+        from mindor.core.foundation.streaming.video import VideoStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"webm"}))
         result = await r.render("${v as video/webm}")
         assert result.format == "webm"
@@ -2630,7 +2630,7 @@ class TestSubtypeDiversity:
 class TestPcmAttrsDiversity:
     @pytest.mark.anyio
     async def test_only_sample_rate(self):
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render("${v as audio/pcm[sample_rate=8000]}")
         assert isinstance(result, PcmStreamResource)
@@ -2638,14 +2638,14 @@ class TestPcmAttrsDiversity:
 
     @pytest.mark.anyio
     async def test_multiple_attrs(self):
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render("${v as audio/pcm[sample_rate=44100,channels=2,bit_depth=24]}")
         assert result.attrs == {"sample_rate": "44100", "channels": "2", "bit_depth": "24"}
 
     @pytest.mark.anyio
     async def test_attrs_with_variable_interpolation(self):
-        from mindor.core.utils.streaming.audio import PcmStreamResource
+        from mindor.core.foundation.streaming.audio import PcmStreamResource
         r = VariableRenderer(make_source_resolver({
             "v": b"raw",
             "config": {"sr": 22050, "ch": 1},
@@ -2657,9 +2657,198 @@ class TestPcmAttrsDiversity:
 
     @pytest.mark.anyio
     async def test_attrs_preserved_through_pcm_to_wav(self):
-        from mindor.core.utils.streaming.audio import WavStreamResource
+        from mindor.core.foundation.streaming.audio import WavStreamResource
         r = VariableRenderer(make_source_resolver({"v": b"raw"}))
         result = await r.render(
             "${v as audio/wav}"  # bytes + wav goes through general AudioStream not pcm
         )
         assert isinstance(result, WavStreamResource)
+
+
+# ---- FieldResolver tests ----
+
+
+@pytest.fixture
+def resolver():
+    return FieldResolver()
+
+
+@pytest.fixture
+def data():
+    return {
+        "user": {
+            "name": "Hanyeol",
+            "age": 30,
+            "tags": ["admin", "dev", "owner"],
+            "addresses": [
+                {"city": "Seoul", "zip": "12345"},
+                {"city": "Busan", "zip": "67890"},
+            ],
+            "matrix": [[1, 2], [3, 4]],
+            "profile": {
+                "social": {
+                    "github": "hanyeol",
+                },
+            },
+        },
+        "items-list": [10, 20, 30],
+        "with_underscore": "u",
+        "empty_list": [],
+        "empty_dict": {},
+        "none_value": None,
+        "false_value": False,
+        "zero": 0,
+    }
+
+
+class TestFieldResolverDictAccess:
+
+    def test_top_level_key(self, resolver, data):
+        assert resolver.resolve(data, "user") == data["user"]
+
+    def test_nested_key(self, resolver, data):
+        assert resolver.resolve(data, "user.name") == "Hanyeol"
+
+    def test_deeply_nested_key(self, resolver, data):
+        assert resolver.resolve(data, "user.profile.social.github") == "hanyeol"
+
+    def test_hyphen_in_key(self, resolver, data):
+        assert resolver.resolve(data, "items-list") == [10, 20, 30]
+
+    def test_underscore_in_key(self, resolver, data):
+        assert resolver.resolve(data, "with_underscore") == "u"
+
+    def test_integer_value(self, resolver, data):
+        assert resolver.resolve(data, "user.age") == 30
+
+    def test_falsy_values_returned_as_is(self, resolver, data):
+        assert resolver.resolve(data, "false_value") is False
+        assert resolver.resolve(data, "zero") == 0
+        assert resolver.resolve(data, "none_value") is None
+        assert resolver.resolve(data, "empty_list") == []
+        assert resolver.resolve(data, "empty_dict") == {}
+
+
+class TestFieldResolverListAccess:
+
+    def test_positive_index(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[0]") == "admin"
+        assert resolver.resolve(data, "user.tags[1]") == "dev"
+
+    def test_negative_index(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[-1]") == "owner"
+        assert resolver.resolve(data, "user.tags[-3]") == "admin"
+
+    def test_dict_inside_list(self, resolver, data):
+        assert resolver.resolve(data, "user.addresses[0].city") == "Seoul"
+        assert resolver.resolve(data, "user.addresses[1].zip") == "67890"
+
+    def test_index_on_top_level_list(self, resolver, data):
+        assert resolver.resolve(data, "items-list[2]") == 30
+
+
+class TestFieldResolverWildcard:
+
+    def test_wildcard_collects_field(self, resolver, data):
+        assert resolver.resolve(data, "user.addresses[*].city") == ["Seoul", "Busan"]
+
+    def test_wildcard_collects_other_field(self, resolver, data):
+        assert resolver.resolve(data, "user.addresses[*].zip") == ["12345", "67890"]
+
+    def test_wildcard_at_end(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[*]") == ["admin", "dev", "owner"]
+
+    def test_wildcard_on_empty_list(self, resolver, data):
+        assert resolver.resolve(data, "empty_list[*]") == []
+
+    def test_nested_wildcards(self, resolver, data):
+        assert resolver.resolve(data, "user.matrix[*][*]") == [[1, 2], [3, 4]]
+
+    def test_wildcard_with_missing_field_uses_default(self, resolver, data):
+        assert resolver.resolve(data, "user.addresses[*].missing", default="X") == ["X", "X"]
+
+
+class TestFieldResolverDefault:
+
+    def test_missing_top_level_key(self, resolver, data):
+        assert resolver.resolve(data, "missing", default="D") == "D"
+
+    def test_missing_nested_key(self, resolver, data):
+        assert resolver.resolve(data, "user.missing", default="D") == "D"
+
+    def test_missing_deep_key(self, resolver, data):
+        assert resolver.resolve(data, "user.missing.deep", default="D") == "D"
+
+    def test_index_out_of_range(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[99]", default="D") == "D"
+
+    def test_negative_index_out_of_range(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[-99]", default="D") == "D"
+
+    def test_default_is_none_by_default(self, resolver, data):
+        assert resolver.resolve(data, "missing") is None
+
+    def test_default_can_be_any_type(self, resolver, data):
+        assert resolver.resolve(data, "missing", default=42) == 42
+        assert resolver.resolve(data, "missing", default=[]) == []
+        assert resolver.resolve(data, "missing", default={"k": "v"}) == {"k": "v"}
+
+
+class TestFieldResolverTypeMismatch:
+
+    def test_index_on_dict_returns_default(self, resolver, data):
+        assert resolver.resolve(data, "user[0]", default="D") == "D"
+
+    def test_key_on_list_returns_default(self, resolver, data):
+        assert resolver.resolve(data, "user.tags.foo", default="D") == "D"
+
+    def test_descend_into_scalar_returns_default(self, resolver, data):
+        assert resolver.resolve(data, "user.name.foo", default="D") == "D"
+
+    def test_wildcard_on_dict_returns_default(self, resolver, data):
+        assert resolver.resolve(data, "user[*]", default="D") == "D"
+
+    def test_wildcard_on_scalar_returns_default(self, resolver, data):
+        assert resolver.resolve(data, "user.name[*]", default="D") == "D"
+
+
+class TestFieldResolverEmptyPath:
+
+    def test_empty_string_returns_object(self, resolver, data):
+        assert resolver.resolve(data, "") == data
+
+    def test_empty_path_with_scalar_object(self, resolver):
+        assert resolver.resolve("hello", "") == "hello"
+
+    def test_empty_path_with_none_object(self, resolver):
+        assert resolver.resolve(None, "") is None
+
+
+class TestFieldResolverSeparators:
+
+    def test_dot_separator(self, resolver, data):
+        assert resolver.resolve(data, "user.name") == "Hanyeol"
+
+    def test_brackets_need_no_separator(self, resolver, data):
+        assert resolver.resolve(data, "user.tags[0]") == "admin"
+
+    def test_unknown_chars_are_ignored(self, resolver, data):
+        # Current parser is lenient and ignores any non-token characters.
+        assert resolver.resolve(data, "user>name") == "Hanyeol"
+        assert resolver.resolve(data, "user@@name") == "Hanyeol"
+        assert resolver.resolve(data, "user/name") == "Hanyeol"
+
+
+class TestFieldResolverRootTypes:
+
+    def test_resolve_from_list_root(self, resolver):
+        assert resolver.resolve([10, 20, 30], "[1]") == 20
+
+    def test_resolve_from_list_root_wildcard(self, resolver):
+        assert resolver.resolve([{"k": 1}, {"k": 2}], "[*].k") == [1, 2]
+
+    def test_resolve_from_scalar_root_returns_default(self, resolver):
+        assert resolver.resolve("hello", "foo", default="D") == "D"
+
+    def test_resolve_from_none_root_returns_default(self, resolver):
+        assert resolver.resolve(None, "foo", default="D") == "D"

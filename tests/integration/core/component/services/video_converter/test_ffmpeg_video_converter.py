@@ -20,8 +20,8 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_converter.drivers.ffmpeg import (
     FFmpegVideoConverterAction,
 )
-from mindor.core.utils.streaming.file import FileStreamResource
-from mindor.core.utils.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.dsl.schema.action.impl.media import VideoAudioCodecConfig
 
@@ -45,7 +45,7 @@ def _make_context(video_value: Any = None) -> ComponentActionContext:
       - a zero-arg callable returning an AsyncIterator → AsyncIterator[MediaSource]
       - None → behaves like the old make_context: render_video echoes its input
     """
-    from mindor.core.utils.streaming.video import create_video_source
+    from mindor.core.foundation.streaming.video import create_video_source
 
     ctx = MagicMock(spec=ComponentActionContext)
     sources: dict = {}

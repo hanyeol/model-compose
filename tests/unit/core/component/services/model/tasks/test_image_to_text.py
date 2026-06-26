@@ -19,7 +19,7 @@ from PIL import Image as PILImage
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_to_text.common import ImageToTextTaskAction
 from mindor.dsl.schema.action import ImageToTextModelActionConfig
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
 
 @pytest.fixture

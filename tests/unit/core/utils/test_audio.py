@@ -7,7 +7,7 @@ import wave
 import pytest
 
 from mindor.core.component.services.model.tasks.music_generation.common import MusicGenerationTaskAction
-from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
+from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ async def test_wav_stream_resource_passthrough_already_wav_bytes():
 @pytest.mark.anyio
 async def test_wav_stream_resource_passthrough_already_wav_stream():
     """A non-PCM StreamResource input is passed through unchanged."""
-    from mindor.core.utils.streaming.bytes import BytesStreamResource
+    from mindor.core.foundation.streaming.bytes import BytesStreamResource
     fake_wav = b"RIFF\xff\xff\xff\xffWAVE" + b"Y" * 16
     inner = BytesStreamResource(fake_wav, "audio/wav")
     stream = WavStreamResource(inner)
@@ -140,7 +140,7 @@ async def test_wav_stream_resource_attrs_preserved_on_instance():
 @pytest.mark.anyio
 async def test_wav_stream_resource_streams_chunks_one_to_one():
     """Each PCM input chunk surfaces as a separate output chunk (no buffering)."""
-    from mindor.core.utils.streaming.resources import StreamResource
+    from mindor.core.foundation.streaming.resources import StreamResource
 
     class FakePcmSource(StreamResource):
         def __init__(self, chunks):

@@ -22,9 +22,9 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_scene_detector.drivers.ffmpeg import (
     FFmpegVideoSceneDetectorAction,
 )
-from mindor.core.utils.streaming.media import MediaSource, create_media_source
-from mindor.core.utils.streaming.file import FileStreamResource
-from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.media import MediaSource, create_media_source
+from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 
 

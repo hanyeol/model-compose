@@ -7,8 +7,8 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
-from mindor.core.component.runtime.process_worker import ComponentProcessWorker
-from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
+from mindor.core.component.runtime.process_worker import ComponentProcessRuntimeWorker
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
@@ -31,11 +31,11 @@ def global_configs():
     )
 
 
-class TestComponentProcessWorker:
-    """Test ComponentProcessWorker class."""
+class TestComponentProcessRuntimeWorker:
+    """Test ComponentProcessRuntimeWorker class."""
 
     def test_worker_initialization(self, global_configs):
-        """Test ComponentProcessWorker initialization."""
+        """Test ComponentProcessRuntimeWorker initialization."""
         config = ShellComponentConfig(
             id="test-shell",
             type="shell",
@@ -46,7 +46,7 @@ class TestComponentProcessWorker:
         request_queue = Queue()
         response_queue = Queue()
 
-        worker = ComponentProcessWorker(
+        worker = ComponentProcessRuntimeWorker(
             "test-shell",
             config,
             global_configs,
@@ -380,13 +380,13 @@ class TestComponentProcessRuntimeScenarios:
         assert hasattr(manager, "_request_queue")
         assert hasattr(manager, "_response_queue")
         assert hasattr(manager, "_pending_requests")
-        assert hasattr(manager, "_response_handler_task")
+        assert hasattr(manager, "_response_task")
 
         assert manager._subprocess is None
         assert manager._request_queue is None
         assert manager._response_queue is None
         assert manager._pending_requests == {}
-        assert manager._response_handler_task is None
+        assert manager._response_task is None
 
 
 class TestComponentProcessRuntimeValidation:

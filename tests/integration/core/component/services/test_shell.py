@@ -41,7 +41,7 @@ def _make_context() -> ComponentActionContext:
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
 
-    from mindor.core.utils.renderers import ArrayValue
+    from mindor.core.foundation.variable.array import ArrayValue
 
     async def render_array(value, **kwargs):
         if isinstance(value, list):

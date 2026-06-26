@@ -24,7 +24,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 
 
@@ -111,7 +111,7 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
       - list of file path strs → List[MediaSource]
       - zero-arg callable returning an AsyncIterator of strs → AsyncIterator[MediaSource]
     """
-    from mindor.core.utils.streaming.audio import create_audio_source
+    from mindor.core.foundation.streaming.audio import create_audio_source
 
     ctx = MagicMock(spec=ComponentActionContext)
     sources: dict = {}

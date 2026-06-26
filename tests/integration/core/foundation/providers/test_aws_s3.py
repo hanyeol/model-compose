@@ -1,4 +1,4 @@
-"""Tests for `core/utils/providers/aws_s3.py` against an in-process moto server."""
+"""Tests for `core/foundation/providers/aws_s3.py` against an in-process moto server."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ import pytest
 pytest.importorskip("moto")
 pytest.importorskip("aioboto3")
 
-from mindor.core.utils.providers.aws_s3 import upload, multipart_upload, _MIN_PART_SIZE
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.providers.aws_s3 import upload, multipart_upload, _MIN_PART_SIZE
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 
 
 BUCKET = "test-bucket"

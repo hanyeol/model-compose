@@ -19,8 +19,8 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.speech_to_text.common import SpeechToTextTaskAction
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 
 

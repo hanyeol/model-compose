@@ -26,8 +26,8 @@ from mindor.core.component.services.image_processor.drivers.native import Native
 from mindor.core.component.services.video_frame_extractor.drivers.common import VideoFrameExtractorAction
 from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import FFmpegVideoFrameExtractorAction
 from mindor.core.component.services.video_frame_extractor.drivers.opencv import OpenCVVideoFrameExtractorAction
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.dsl.schema.action import ImageProcessorActionConfig, VideoFrameExtractorActionConfig
 
 

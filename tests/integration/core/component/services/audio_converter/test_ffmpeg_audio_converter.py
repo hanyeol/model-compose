@@ -23,8 +23,8 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.audio_converter.drivers.ffmpeg import (
     FFmpegAudioConverterAction,
 )
-from mindor.core.utils.streaming.audio import AudioStreamResource
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.dsl.schema.action import AudioConverterActionConfig
 
 
@@ -74,7 +74,7 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
     Tracks registered sources so that output templates resolve correctly. Supports
     `${result}`, `${result[]}`, and simple `${result[].<attr>}` path expressions.
     """
-    from mindor.core.utils.streaming.audio import create_audio_source
+    from mindor.core.foundation.streaming.audio import create_audio_source
 
     ctx = MagicMock(spec=ComponentActionContext)
     sources: dict = {}

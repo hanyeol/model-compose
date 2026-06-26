@@ -436,23 +436,28 @@ class TestDockerRuntimeManager:
     
     async def test_start_container_creates_new(self, config, mock_docker_client):
         """Test starting container creates new one if it doesn't exist"""
-        mock_docker_client.containers.get.side_effect = NotFound("Container not found")
-        mock_container = MagicMock()
-        mock_docker_client.containers.create.return_value = mock_container
+        created_container = MagicMock()
+        mock_docker_client.containers.get.side_effect = [
+            NotFound("Container not found"),
+            created_container,
+        ]
+        mock_docker_client.containers.create.return_value = created_container
 
         manager = DockerRuntimeManager(config, verbose=False)
+        await manager.create_container()
         await manager.start_container(detach=True)
 
         mock_docker_client.containers.create.assert_called_once()
-        mock_container.start.assert_called_once()
+        created_container.start.assert_called_once()
 
-    
+
     async def test_start_container_uses_existing(self, config, mock_docker_client):
         """Test starting container uses existing one"""
         mock_container = MagicMock()
         mock_docker_client.containers.get.return_value = mock_container
 
         manager = DockerRuntimeManager(config, verbose=False)
+        await manager.create_container()
         await manager.start_container(detach=True)
 
         mock_docker_client.containers.create.assert_not_called()
@@ -468,11 +473,15 @@ class TestDockerRuntimeManager:
             ports=[ 8080, "443:8443" ]
         )
 
-        mock_docker_client.containers.get.side_effect = NotFound("Container not found")
-        mock_container = MagicMock()
-        mock_docker_client.containers.create.return_value = mock_container
+        created_container = MagicMock()
+        mock_docker_client.containers.get.side_effect = [
+            NotFound("Container not found"),
+            created_container,
+        ]
+        mock_docker_client.containers.create.return_value = created_container
 
         manager = DockerRuntimeManager(config, verbose=False)
+        await manager.create_container()
         await manager.start_container(detach=True)
 
         call_args = mock_docker_client.containers.create.call_args
@@ -488,11 +497,15 @@ class TestDockerRuntimeManager:
             environment={ "ENV": "production", "DEBUG": False }
         )
 
-        mock_docker_client.containers.get.side_effect = NotFound("Container not found")
-        mock_container = MagicMock()
-        mock_docker_client.containers.create.return_value = mock_container
+        created_container = MagicMock()
+        mock_docker_client.containers.get.side_effect = [
+            NotFound("Container not found"),
+            created_container,
+        ]
+        mock_docker_client.containers.create.return_value = created_container
 
         manager = DockerRuntimeManager(config, verbose=False)
+        await manager.create_container()
         await manager.start_container(detach=True)
 
         call_args = mock_docker_client.containers.create.call_args

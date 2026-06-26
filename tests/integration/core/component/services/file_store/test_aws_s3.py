@@ -19,8 +19,8 @@ from mindor.core.component.services.file_store.drivers.aws_s3 import (
     AwsS3FileStoreService,
     S3Location,
 )
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import AwsS3FileStoreActionConfig
 
 

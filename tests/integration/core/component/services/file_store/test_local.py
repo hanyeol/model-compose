@@ -15,8 +15,8 @@ from mindor.core.component.services.file_store.drivers.local import (
     LocalFileStoreAction,
     LocalFileStoreService,
 )
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import LocalFileStoreActionConfig
 from mindor.dsl.schema.component import LocalFileStoreComponentConfig
 

@@ -26,7 +26,7 @@ from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import ComponentInstances
 from mindor.core.workflow.interrupt import InterruptHandler
 from mindor.core.workflow.workflow import Workflow
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.dsl.schema.compose import ComposeConfig
 
 

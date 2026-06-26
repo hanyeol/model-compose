@@ -18,7 +18,7 @@ import pytest
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_generation.common import TextGenerationTaskAction
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
 
 @pytest.fixture

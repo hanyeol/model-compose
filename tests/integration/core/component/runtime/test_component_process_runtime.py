@@ -8,7 +8,7 @@ from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.process_manager import ComponentProcessRuntimeManager
 from mindor.core.component.runtime.process_worker import ComponentProcessRuntimeWorker
-from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig

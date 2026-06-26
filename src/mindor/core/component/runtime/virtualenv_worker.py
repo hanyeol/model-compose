@@ -4,7 +4,7 @@ from typing import Any, Dict
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.component.component import create_component
 from mindor.core.foundation.runtime.virtualenv_worker import VirtualEnvRuntimeWorker
-from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
 from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
 import asyncio, os, sys
 

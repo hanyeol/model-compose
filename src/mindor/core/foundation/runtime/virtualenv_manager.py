@@ -6,8 +6,8 @@ from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.logger import logging
 from mindor.core.utils.locks import FileLock
 from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
-from .ipc_manager import IpcRuntimeManager
-from .ipc_message import IpcMessage, IpcMessageType
+from mindor.core.runtime.base.ipc_manager import IpcRuntimeManager
+from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
 from importlib.resources import files
 from pathlib import Path
 import mindor, mindor.version

@@ -20,14 +20,14 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict, Optional, Type
 from dataclasses import dataclass, field
 from collections.abc import AsyncIterator, AsyncIterable
-from ..streaming.resources import StreamResource, AsyncIterableStreamResource
-from ..streaming.bytes import BytesStreamResource
-from ..streaming.text import TextStreamResource
-from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
-from ..streaming.video import VideoStreamResource
-from ..streaming.image import ImageStreamResource
-from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from ..variable.codec import StreamKind
+from mindor.core.foundation.streaming.resources import StreamResource, AsyncIterableStreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.text import TextStreamResource
+from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
+from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.image import ImageStreamResource
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.variable.codec import StreamKind
 import asyncio, base64
 
 @dataclass

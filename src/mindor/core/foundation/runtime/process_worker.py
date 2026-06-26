@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional
-from .ipc_worker import IpcRuntimeWorker
+from mindor.core.runtime.base.ipc_worker import IpcRuntimeWorker
 from multiprocessing import Queue
 import asyncio
 

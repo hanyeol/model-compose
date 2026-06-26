@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Callable
 from dataclasses import dataclass, field
-from .ipc_manager import IpcRuntimeManager
+from mindor.core.runtime.base.ipc_manager import IpcRuntimeManager
 from multiprocessing import Process, Queue
 import asyncio, os
 

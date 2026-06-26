@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from abc import ABC, abstractmethod
-from ..variable.codec import StreamKind, VariableCodec
+from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from .ipc_message import IpcMessage, IpcMessageType
 from .ipc_stream import (
     InboundStreamProxy,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
-from .ipc_worker import IpcRuntimeWorker
+from mindor.core.runtime.base.ipc_worker import IpcRuntimeWorker
 import asyncio
 
 class VirtualEnvRuntimeWorker(IpcRuntimeWorker):

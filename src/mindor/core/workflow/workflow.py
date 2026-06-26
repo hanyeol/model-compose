@@ -255,8 +255,7 @@ class WorkflowRunner:
                         "started",
                         job.id,
                         self.jobs[job.id].type.value,
-                        context=context,
-                        input=context.input
+                        context=context
                     )
                     tracing.on_job_start(context.task_id, job.id, self.id, context.input)
                     logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job.id, self.id)
@@ -310,8 +309,7 @@ class WorkflowRunner:
                             "started",
                             next_job_id,
                             self.jobs[next_job_id].type.value,
-                            context=context,
-                            input=context.input
+                            context=context
                         )
                         tracing.on_job_start(context.task_id, next_job_id, self.id, context.input)
                     else:

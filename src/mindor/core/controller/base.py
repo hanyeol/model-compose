@@ -29,7 +29,7 @@ from mindor.core.controller.errors import TaskNotFoundError, TaskNotInterruptedE
 from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from .runtime.specs import ControllerRuntimeSpecs
 from .runtime.native import NativeRuntimeLauncher
 from .runtime.docker import DockerRuntimeLauncher
@@ -61,6 +61,7 @@ class TaskState:
     task_id: str
     status: TaskStatus
     workflow_id: Optional[str] = None
+    input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[InterruptState] = None
@@ -73,6 +74,7 @@ class TaskEvent:
     event: Literal[ "started", "interrupted", "resumed", "completed", "failed" ]
     status: TaskStatus
     workflow_id: Optional[str] = None
+    input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[InterruptState] = None
@@ -360,6 +362,7 @@ class ControllerService(AsyncService):
             task_id=task_id,
             status=TaskStatus.PROCESSING,
             workflow_id=state.workflow_id,
+            input=state.input,
             session_id=state.session_id,
             metadata=state.metadata
         )
@@ -626,7 +629,14 @@ class ControllerService(AsyncService):
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None
     ) -> TaskState:
-        state = TaskState(task_id=task_id, status=TaskStatus.PROCESSING, workflow_id=workflow_id, session_id=session_id, metadata=metadata)
+        state = TaskState(
+            task_id=task_id,
+            status=TaskStatus.PROCESSING,
+            workflow_id=workflow_id,
+            input=input,
+            session_id=session_id,
+            metadata=metadata
+        )
         with self.task_states_lock:
             self.task_states.set(task_id, state)
         self._signal_task_state_change(task_id)
@@ -839,6 +849,7 @@ class ControllerService(AsyncService):
             event=event,
             status=state.status,
             workflow_id=state.workflow_id,
+            input=state.input if event in ("started", "resumed") else None,
             output=state.output,
             error=state.error,
             interrupt=state.interrupt,

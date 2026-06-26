@@ -5,9 +5,9 @@ from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriver
 from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
 from ..serialize import serialize_input
-from mindor.core.foundation.compat.asyncio import async_timeout
-from mindor.core.utils.time import parse_duration
-from mindor.core.utils.size import parse_size
+from mindor.core.utils.compat.asyncio import async_timeout
+from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.size import parse_size
 from mindor.core.logger import logging
 import asyncio, json, ulid
 

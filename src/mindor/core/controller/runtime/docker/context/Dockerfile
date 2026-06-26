@@ -1,27 +1,17 @@
-FROM ubuntu:22.04
+FROM python:3.11-slim
 
-WORKDIR /app
-
-RUN apt update && apt install -y \
-    python3.11 \
-    python3.11-venv \
-    python3-pip \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python3
-
 RUN python -m pip install --upgrade pip
 
-COPY runtime-requirements.txt .
-RUN pip install --no-cache-dir -r runtime-requirements.txt
+COPY runtime-requirements.txt /tmp/runtime-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/runtime-requirements.txt \
+    && rm /tmp/runtime-requirements.txt
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY src/mindor /usr/local/lib/python3.11/site-packages/mindor
 
-COPY src .
-COPY webui ./webui
-COPY model-compose.yml .
+WORKDIR /workspace
 
 CMD [ "python", "-m", "mindor.cli.compose", "up" ]

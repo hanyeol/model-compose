@@ -3,9 +3,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import TextSplitterComponentConfig
 from mindor.dsl.schema.action import ActionConfig, TextSplitterActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.text import TextStreamResource
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.text import TextStreamResource
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext

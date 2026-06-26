@@ -5,8 +5,8 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
-from mindor.core.utils.streaming.audio import load_audio_array
-from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
 from ..common import SpeechToTextTaskService, SpeechToTextTaskAction
 import asyncio

@@ -6,8 +6,8 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio

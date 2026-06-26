@@ -6,8 +6,6 @@ from .adapter import ControllerAdapterConfig
 from .queue import ControllerQueueConfig, ControllerQueueDriver, RedisControllerQueueConfig
 from .webui import ControllerWebUIConfig, ControllerWebUIDriver
 
-COMPONENT_ONLY_RUNTIMES = { RuntimeType.VIRTUALENV }
-
 class ControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
@@ -42,7 +40,7 @@ class ControllerConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_runtime(self):
-        if self.runtime.type in COMPONENT_ONLY_RUNTIMES:
+        if self.runtime.type == RuntimeType.VIRTUALENV:
             raise ValueError(
                 f"runtime type '{self.runtime.type.value}' is not allowed for controller; "
                 f"it is component-only."

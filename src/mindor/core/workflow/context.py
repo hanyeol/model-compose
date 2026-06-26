@@ -2,7 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from mindor.core.utils.renderers import VariableRenderer, ImageValueRenderer, AudioValueRenderer, VideoValueRenderer
+from mindor.core.foundation.variable.renderer import VariableRenderer
+from mindor.core.foundation.variable.image import ImageValueRenderer
+from mindor.core.foundation.variable.audio import AudioValueRenderer
+from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.workflow.interrupt import InterruptHandler
 
 if TYPE_CHECKING:

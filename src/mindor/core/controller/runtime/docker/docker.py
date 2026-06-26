@@ -1,31 +1,56 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from enum import Enum
 from mindor.dsl.schema.controller import ControllerConfig, ControllerWebUIDriver
 from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
 from mindor.dsl.schema.runtime import DockerRuntimeConfig, DockerBuildConfig, DockerPortConfig, DockerVolumeConfig, DockerHealthCheck
 from mindor.core.runtime.docker import DockerRuntimeManager
 from mindor.core.logger import logging
+from mindor.version import __version__
 from ..specs import ControllerRuntimeSpecs
 from pathlib import Path
-import mindor, shutil, yaml, os
+import re, yaml, hashlib
+
+_REQUIREMENTS_HASH_LABEL = "mindor.requirements-sha256"
+
+class DockerImageKind(str, Enum):
+    BASE    = "base"
+    DERIVED = "derived"
+    USER    = "user"
 
 class DockerRuntimeLauncher:
     def __init__(self, config: ControllerConfig, verbose: bool):
         self.config: ControllerConfig = config
         self.verbose: bool = verbose
+        self._image_kind: DockerImageKind = DockerImageKind.BASE
+        self._base_image_tag: Optional[str] = None
+        self._derived_image_tag: Optional[str] = None
+        self._requirements_path: Path = Path.cwd() / "requirements.txt"
 
         self._configure_runtime_config()
 
     def _configure_runtime_config(self) -> None:
         adapter_ports = self._resolve_adapter_ports()
-        first_port = adapter_ports[0] if adapter_ports else 8080
 
-        if not self.config.runtime.image:
-            if not self.config.runtime.build:
-                self.config.runtime.build = DockerBuildConfig(context=".docker", dockerfile="Dockerfile")
-            self.config.runtime.image = f"mindor/controller-{first_port}:latest"
+        self._base_image_tag = f"mindor/controller:{__version__}"
+
+        if self.config.runtime.image:
+            self._image_kind = DockerImageKind.USER
+        elif self.config.runtime.build:
+            self._image_kind = DockerImageKind.USER
+            self.config.runtime.image = f"mindor/controller-{self._project_name()}:latest"
+        elif self._has_user_requirements():
+            self._image_kind = DockerImageKind.DERIVED
+            self._derived_image_tag = f"mindor/controller-{self._project_name()}:{__version__}"
+            self.config.runtime.image = self._derived_image_tag
+        else:
+            self._image_kind = DockerImageKind.BASE
+            self.config.runtime.image = self._base_image_tag
 
         if not self.config.runtime.container_name:
-            self.config.runtime.container_name = self.config.name or f"mindor-controller-{first_port}"
+            self.config.runtime.container_name = self.config.name or f"mindor-controller-{self._project_name()}"
+
+        if not self.config.runtime.working_dir:
+            self.config.runtime.working_dir = "/workspace"
 
         if self.config.runtime.ports is None:
             webui_port = getattr(self.config.webui, "port", None)
@@ -46,34 +71,45 @@ class DockerRuntimeLauncher:
                 ports.append(adapter.port)
         return ports
 
+    def _project_name(self) -> str:
+        # Follows docker-compose: compose `name:` wins, else sanitized cwd basename.
+        # Sanitization rule: lowercased, only [a-z0-9_-], must start with [a-z0-9].
+        raw = self.config.name or Path.cwd().resolve().name
+        sanitized = re.sub(r"[^a-z0-9_-]", "", raw.lower()).lstrip("_-")
+        return sanitized or "default"
+
+    def _has_user_requirements(self) -> bool:
+        if not self._requirements_path.exists():
+            return False
+        for line in self._requirements_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return True
+        return False
+
+    def _requirements_hash(self) -> str:
+        return hashlib.sha256(self._requirements_path.read_bytes()).hexdigest()
+
     async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
         docker = DockerRuntimeManager(self.config.runtime, self.verbose)
 
-        await self._prepare_docker_context(specs)
+        if self._image_kind != DockerImageKind.USER:
+            await self._ensure_base_image(docker)
 
-        if not await docker.exists_image():
-            logging.debug("Checking if Docker image can be pulled...")
-            try:
-                await docker.pull_image()
-            except Exception as e:
-                logging.debug("Docker image pull failed: %s — will try building instead.", e)
-            else:
-                if not await docker.exists_image():
-                    raise RuntimeError("Docker image pull completed, but image is still missing.")
-                logging.info("Docker image pulled successfully.")
-
-        if not await docker.exists_image():
-            logging.debug("Building Docker image locally. This may take a few minutes...")
-            try:
-                await docker.build_image()
-                logging.info("Docker image build completed successfully.")
-            except Exception as e:
-                logging.error("Docker image build failed: %s", e)
-                raise
+        if self._image_kind == DockerImageKind.DERIVED:
+            await self._ensure_derived_image(docker)
 
         if await docker.is_container_running():
             logging.info("Stopping running Docker container before restarting...")
             await docker.stop_container()
+
+        if await docker.exists_container():
+            await docker.remove_container(force=True)
+
+        logging.info("Creating Docker container...")
+        await docker.create_container()
+
+        await self._inject_workspace(docker, specs)
 
         logging.info("Starting Docker container (%s mode)...", "detached" if detach else "foreground")
         await docker.start_container(detach)
@@ -84,8 +120,9 @@ class DockerRuntimeLauncher:
         if await docker.exists_container():
             await docker.remove_container(force=True)
 
-        if await docker.exists_image():
-            await docker.remove_image()
+        if self._image_kind == DockerImageKind.DERIVED and self._derived_image_tag:
+            if await docker.exists_image_by_tag(self._derived_image_tag):
+                await docker.remove_image_by_tag(self._derived_image_tag)
 
     async def start(self) -> None:
         pass
@@ -93,61 +130,68 @@ class DockerRuntimeLauncher:
     async def stop(self) -> None:
         pass
 
-    async def _prepare_docker_context(self, specs: ControllerRuntimeSpecs) -> None:
-        # Prepare context directory
-        context_dir = Path.cwd() / ".docker"
-        if context_dir.exists():
-            shutil.rmtree(context_dir)
+    async def _ensure_base_image(self, docker: DockerRuntimeManager) -> None:
+        if await docker.exists_image_by_tag(self._base_image_tag):
+            return
 
-        # Copy context files
-        context_files_root = Path(__file__).resolve().parent / "context"
-        shutil.copytree(
-            src=context_files_root,
-            dst=context_dir
+        if self._version_tag() != "latest":
+            logging.debug("Pulling base image %s...", self._base_image_tag)
+            try:
+                await docker.pull_image_by_tag(self._base_image_tag)
+                if await docker.exists_image_by_tag(self._base_image_tag):
+                    logging.info("Base image pulled successfully.")
+                    return
+            except Exception as e:
+                logging.debug("Base image pull failed: %s — falling back to local build.", e)
+
+        logging.info("Building base image %s locally...", self._base_image_tag)
+        dockerfile_path = Path(__file__).resolve().parent / "context" / "Dockerfile"
+        runtime_requirements_path = Path(mindor.__file__).resolve().parent / "core" / "runtime" / "base" / "requirements.txt"
+        package_source_root = Path(mindor.__file__).resolve().parent
+
+        await docker.build_base_image(
+            tag=self._base_image_tag,
+            dockerfile_bytes=dockerfile_path.read_bytes(),
+            runtime_requirements_bytes=runtime_requirements_path.read_bytes(),
+            package_source_root=package_source_root,
         )
+        logging.info("Base image built successfully.")
 
-        # Copy source files
-        source_files_root = Path(mindor.__file__).resolve().parent
-        target_dir = context_dir / "src" / source_files_root.name
-        shutil.copytree(
-            src=source_files_root,
-            dst=target_dir,
-            ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+    async def _ensure_derived_image(self, docker: DockerRuntimeManager) -> None:
+        assert self._derived_image_tag is not None
+        current_hash = self._requirements_hash()
+
+        if await docker.exists_image_by_tag(self._derived_image_tag):
+            stored_hash = await docker.get_image_label(self._derived_image_tag, _REQUIREMENTS_HASH_LABEL)
+            if stored_hash == current_hash:
+                return
+            logging.info("requirements.txt changed — rebuilding derived image.")
+            await docker.remove_image_by_tag(self._derived_image_tag, force=True)
+
+        logging.info("Building derived image %s...", self._derived_image_tag)
+        await docker.build_derived_image(
+            base_image=self._base_image_tag,
+            requirements_path=self._requirements_path,
+            tag=self._derived_image_tag,
+            labels={ _REQUIREMENTS_HASH_LABEL: current_hash },
         )
+        logging.info("Derived image built successfully.")
 
-        # Copy runtime base requirements (shared with virtualenv runtime)
-        shutil.copy(
-            source_files_root / "core" / "runtime" / "base" / "requirements.txt",
-            context_dir / "runtime-requirements.txt"
-        )
+    async def _inject_workspace(self, docker: DockerRuntimeManager, specs: ControllerRuntimeSpecs) -> None:
+        compose_yaml = yaml.dump(specs.generate_native_runtime_specs(), sort_keys=False).encode("utf-8")
+        files: Dict[str, bytes] = { "model-compose.yml": compose_yaml }
+        dirs: Dict[str, Path] = {}
 
-        # Copy or generate requirements.txt
-        file_path = Path.cwd() / "requirements.txt"
-        target_path = Path(context_dir) / file_path.name
-        if file_path.exists():
-            shutil.copy(file_path, target_path)
-        else:
-            target_path.touch()
+        server_dir = getattr(self.config.webui, "server_dir", None)
+        if server_dir:
+            resolved = (Path.cwd() / server_dir).resolve()
+            if resolved.exists():
+                dirs["webui/server"] = resolved
 
-        # Copy or generate webui directory
-        Path(context_dir / "webui").mkdir(parents=True, exist_ok=True)
+        static_dir = getattr(self.config.webui, "static_dir", None)
+        if static_dir:
+            resolved = (Path.cwd() / static_dir).resolve()
+            if resolved.exists():
+                dirs["webui/static"] = resolved
 
-        if getattr(self.config.webui, "server_dir", None):
-            server_dir = Path.cwd() / self.config.webui.server_dir
-            target_dir = context_dir / "webui" / "server"
-            shutil.copytree(
-                src=server_dir,
-                dst=target_dir
-            )
-
-        if getattr(self.config.webui, "static_dir", None):
-            static_dir = Path.cwd() / self.config.webui.static_dir
-            target_dir = context_dir / "webui" / "static"
-            shutil.copytree(
-                src=static_dir,
-                dst=target_dir
-            )
-
-        # Generate model-compose.yml
-        with open(context_dir / "model-compose.yml", "w") as f:
-            yaml.dump(specs.generate_native_runtime_specs(), f, sort_keys=False)
+        await docker.inject_workspace(files, dirs)

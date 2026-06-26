@@ -1,5 +1,5 @@
 from typing import Any, Dict
-from mindor.core.foundation import ProcessWorker
+from mindor.core.foundation.runtime import ProcessRuntimeWorker
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.dsl.schema.component import ComponentConfig
@@ -7,7 +7,7 @@ from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.logger import logging
 from multiprocessing import Queue
 
-class ComponentProcessWorker(ProcessWorker):
+class ComponentProcessRuntimeWorker(ProcessRuntimeWorker):
     def __init__(
         self,
         component_id: str,

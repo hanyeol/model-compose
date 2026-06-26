@@ -1,7 +1,7 @@
 from typing import Optional, List, Protocol, Union, Awaitable, runtime_checkable
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
-from ..files import create_temporary_file
+from mindor.core.utils.files import create_temporary_file
 import aiofiles, io
 
 @runtime_checkable

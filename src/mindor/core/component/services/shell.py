@@ -3,10 +3,10 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.renderers import ArrayValue
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.shell import run_command_foreground, run_command
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext

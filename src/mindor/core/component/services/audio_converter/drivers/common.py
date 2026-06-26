@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.audio import AudioStreamResource
-from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 import asyncio

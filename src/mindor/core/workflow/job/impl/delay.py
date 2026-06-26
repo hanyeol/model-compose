@@ -1,7 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.job import DelayJobConfig, DelayJobMode
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.utils.time import parse_duration, parse_datetime, TimeTracker
+from mindor.core.foundation.variable.time import parse_duration, parse_datetime
+from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 from datetime import datetime

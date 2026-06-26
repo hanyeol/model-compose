@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig, SshConnectionConfig, SshAuthConfig
 from mindor.core.utils.ssh_client import SshClient, SshConnectionParams, SshAuthParams, SshKeyfileAuthParams, SshPasswordAuthParams
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..base import GatewayService, GatewayType, register_gateway
 import asyncio

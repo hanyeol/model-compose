@@ -5,9 +5,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.time import parse_timecode
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 import asyncio
@@ -64,8 +64,8 @@ class VideoFrameExtractorAction:
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_interval  = int(await context.render_variable(self.config.frame_interval))
-        start_time      = parse_timecode(await context.render_variable(self.config.start_time)) if self.config.start_time else None
-        end_time        = parse_timecode(await context.render_variable(self.config.end_time)) if self.config.end_time else None
+        start_time      = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
+        end_time        = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
         max_frame_count = int(await context.render_variable(self.config.max_frame_count)) if self.config.max_frame_count is not None else None
 
         if frame_interval < 1:

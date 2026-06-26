@@ -2,23 +2,24 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from dataclasses import dataclass, field
-from importlib.resources import files
-from pathlib import Path
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
-from mindor.core.foundation.ipc_messages import IpcMessage, IpcMessageType
 from mindor.core.logger import logging
 from mindor.core.utils.locks import FileLock
-from mindor.core.utils.subprocess import SubprocessPipeChannel
+from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
+from .ipc_manager import IpcRuntimeManager
+from .ipc_message import IpcMessage, IpcMessageType
+from importlib.resources import files
+from pathlib import Path
 import mindor, mindor.version
-import asyncio, os, shutil, subprocess, time, ulid, venv
+import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
 
 @dataclass
-class VirtualEnvWorkerParams:
+class VirtualEnvRuntimeManagerParams:
     """
-    Parameters for virtualenv worker runtime configuration.
-    Used by foundation layer to configure worker execution environment.
+    Parameters for the virtualenv runtime manager.
+    Used to configure venv creation and how the worker subprocess is spawned and managed.
     """
     driver: VirtualEnvDriver = VirtualEnvDriver.PYTHON
     python: Optional[str] = None
@@ -27,22 +28,26 @@ class VirtualEnvWorkerParams:
     start_timeout: float = 60.0  # seconds
     stop_timeout: float = 30.0   # seconds
 
-class VirtualEnvRuntimeManager:
+class VirtualEnvRuntimeManager(IpcRuntimeManager):
     """Generic manager that creates a venv, injects mindor, and runs a worker subprocess."""
 
-    # Subclasses must set this to the module that should be launched with `python -m`.
-    _worker_module: str = ""
+    def __init__(
+        self,
+        worker_id: str,
+        worker_module: str,
+        worker_params: VirtualEnvRuntimeManagerParams = None
+    ):
+        super().__init__(worker_id)
 
-    def __init__(self, worker_id: str, worker_params: VirtualEnvWorkerParams = None):
-        self.worker_id = worker_id
-        self.worker_params = worker_params or VirtualEnvWorkerParams()
+        self.worker_module = worker_module
+        self.worker_params = worker_params or VirtualEnvRuntimeManagerParams()
 
         self._venv_path: Path = self._resolve_venv_path()
         self._subprocess: Optional[subprocess.Popen] = None
         self._channel: Optional[SubprocessPipeChannel] = None
-        self._pending_requests: Dict[str, asyncio.Future] = {}
-        self._response_task: Optional[asyncio.Task] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+        self._start_timeout = self.worker_params.start_timeout
+        self._stop_timeout = self.worker_params.stop_timeout
 
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
@@ -55,7 +60,7 @@ class VirtualEnvRuntimeManager:
 
         try:
             self._subprocess = subprocess.Popen(
-                [str(self._venv_python()), "-m", self._worker_module],
+                [ str(self._venv_python()), "-m", self.worker_module ],
                 pass_fds=(request_r, response_w),
                 env=self._build_environment(request_r, response_w),
                 stdin=subprocess.DEVNULL,
@@ -72,7 +77,10 @@ class VirtualEnvRuntimeManager:
         # Parent uses: read responses on response_r, write requests on request_w.
         self._channel = SubprocessPipeChannel(request_fd=response_r, response_fd=request_w)
 
-        self._channel.send({ "type": "init", "payload": self._build_init_payload() })
+        await self._send_message(IpcMessage(
+            type=IpcMessageType.START,
+            payload=self._build_init_payload(),
+        ).serialize())
 
         await self._wait_for_ready()
 
@@ -80,17 +88,13 @@ class VirtualEnvRuntimeManager:
 
     async def stop(self) -> None:
         if self._channel is not None:
-            try:
-                stop_message = IpcMessage(type=IpcMessageType.STOP, request_id=ulid.ulid())
-                self._channel.send(stop_message.to_params())
-            except Exception:
-                pass
+            await self._send_stop_message()
 
         if self._subprocess is not None:
             try:
                 await self._loop.run_in_executor(
                     None,
-                    lambda: self._subprocess.wait(timeout=self.worker_params.stop_timeout),
+                    lambda: self._subprocess.wait(timeout=self._stop_timeout),
                 )
             except subprocess.TimeoutExpired:
                 self._subprocess.terminate()
@@ -99,86 +103,28 @@ class VirtualEnvRuntimeManager:
                 except subprocess.TimeoutExpired:
                     self._subprocess.kill()
 
+        # Child exit closes its write-end of the pipe, so the executor thread
+        # parked in self._channel.recv() (readline) wakes with EOF → None.
+        # Await the task so it finishes naturally before closing the channel,
+        # otherwise loop.shutdown_default_executor() hangs on the parked thread.
         if self._response_task is not None:
-            self._response_task.cancel()
+            try:
+                await self._response_task
+            except asyncio.CancelledError:
+                pass
 
         if self._channel is not None:
             self._channel.close()
 
-    async def execute(self, payload: Dict[str, Any]) -> Any:
-        if self._channel is None:
-            raise RuntimeError("Virtualenv worker is not started")
+    async def _send_message(self, message: bytes) -> None:
+        await self._loop.run_in_executor(None, self._channel.send, message)
 
-        request_id = ulid.ulid()
-        message = IpcMessage(
-            type=IpcMessageType.RUN,
-            request_id=request_id,
-            payload=payload
-        )
-
-        future: asyncio.Future = self._loop.create_future()
-        self._pending_requests[request_id] = future
-        self._channel.send(message.to_params())
-
-        try:
-            return await future
-        finally:
-            self._pending_requests.pop(request_id, None)
+    async def _recv_message(self) -> Optional[bytes]:
+        return await self._loop.run_in_executor(None, self._channel.recv)
 
     def _build_init_payload(self) -> Dict[str, Any]:
         """Return the payload sent as the first IPC message after worker spawn."""
         return {}
-
-    async def _handle_responses(self) -> None:
-        try:
-            while True:
-                raw = await self._loop.run_in_executor(None, self._channel.recv)
-                if raw is None:
-                    break
-
-                message = IpcMessage(
-                    type=raw.get("type"),
-                    request_id=raw.get("request_id"),
-                    payload=raw.get("payload"),
-                )
-
-                if not message.request_id:
-                    continue
-
-                future = self._pending_requests.get(message.request_id)
-                if future is None or future.done():
-                    continue
-
-                if message.type == IpcMessageType.RESULT or message.type == IpcMessageType.RESULT.value:
-                    future.set_result((message.payload or {}).get("output"))
-                elif message.type == IpcMessageType.ERROR or message.type == IpcMessageType.ERROR.value:
-                    error = (message.payload or {}).get("error", "Unknown error")
-                    future.set_exception(Exception(error))
-        except asyncio.CancelledError:
-            pass
-
-    async def _wait_for_ready(self) -> None:
-        """Wait for subprocess to be ready"""
-        timeout = self.worker_params.start_timeout
-        start_time = time.monotonic()
-
-        while time.monotonic() - start_time < timeout:
-            raw = await self._loop.run_in_executor(None, self._channel.recv)
-            if raw is None:
-                rc = self._subprocess.poll() if self._subprocess else None
-                raise RuntimeError(f"Virtualenv worker '{self.worker_id}' exited before becoming ready (rc={rc})")
-
-            message_type = raw.get("type")
-            payload = raw.get("payload") or {}
-
-            if message_type in (IpcMessageType.ERROR, IpcMessageType.ERROR.value):
-                error = payload.get("error", "Unknown error") if payload else "Unknown error"
-                raise RuntimeError(f"Virtualenv worker '{self.worker_id}' failed to start: {error}")
-
-            if message_type in (IpcMessageType.STATUS, IpcMessageType.STATUS.value) and payload.get("status") == "ready":
-                return
-
-        raise TimeoutError(f"Virtualenv worker '{self.worker_id}' did not start within {timeout}s")
 
     def _build_environment(self, request_fd: int, response_fd: int) -> Dict[str, str]:
         env = dict(os.environ)
@@ -232,7 +178,7 @@ class VirtualEnvRuntimeManager:
             version = self.worker_params.python
             if not version:
                 raise ValueError(
-                    "VirtualEnvWorkerParams.python must be set when driver is 'pyenv'."
+                    "VirtualEnvRuntimeManagerParams.python must be set when driver is 'pyenv'."
                 )
 
             python_path = self._resolve_pyenv_python(version)

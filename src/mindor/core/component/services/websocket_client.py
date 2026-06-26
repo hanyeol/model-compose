@@ -3,8 +3,8 @@ from mindor.dsl.schema.component import WebSocketClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketClientActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
 from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
-from mindor.core.utils.streaming.bytes import BytesStreamResource
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import json

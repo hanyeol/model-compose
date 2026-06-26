@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from typing import Any, Dict
-from mindor.core.foundation.virtualenv_manager import VirtualEnvRuntimeManager, VirtualEnvWorkerParams
+from mindor.core.foundation.runtime.virtualenv_manager import VirtualEnvRuntimeManager, VirtualEnvRuntimeManagerParams
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 
 class ComponentVirtualEnvRuntimeManager(VirtualEnvRuntimeManager):
     """Runtime manager for components running inside an isolated virtualenv worker."""
-
-    _worker_module = "mindor.core.component.runtime.virtualenv_worker"
 
     def __init__(
         self,
@@ -22,15 +20,19 @@ class ComponentVirtualEnvRuntimeManager(VirtualEnvRuntimeManager):
         self.config = config
         self.global_configs = global_configs
 
-        # Convert VirtualEnvRuntimeConfig to VirtualEnvWorkerParams
+        # Convert VirtualEnvRuntimeConfig to VirtualEnvRuntimeManagerParams
         worker_params = self._convert_runtime_config(config.runtime)
 
-        super().__init__(worker_id=component_id, worker_params=worker_params)
+        super().__init__(
+            worker_id=component_id,
+            worker_module="mindor.core.component.runtime.virtualenv_worker",
+            worker_params=worker_params,
+        )
 
     @staticmethod
-    def _convert_runtime_config(config: VirtualEnvRuntimeConfig) -> VirtualEnvWorkerParams:
-        """Convert DSL VirtualEnvRuntimeConfig to foundation VirtualEnvWorkerParams"""
-        return VirtualEnvWorkerParams(
+    def _convert_runtime_config(config: VirtualEnvRuntimeConfig) -> VirtualEnvRuntimeManagerParams:
+        """Convert DSL VirtualEnvRuntimeConfig to foundation VirtualEnvRuntimeManagerParams"""
+        return VirtualEnvRuntimeManagerParams(
             driver=config.driver,
             python=config.python,
             path=config.path,

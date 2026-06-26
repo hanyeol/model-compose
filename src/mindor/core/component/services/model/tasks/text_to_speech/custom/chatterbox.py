@@ -7,8 +7,8 @@ from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import ChatterboxTextToSpeechGenerateModelActionConfig
 from mindor.dsl.schema.action import ChatterboxTextToSpeechCloneModelActionConfig
-from mindor.core.utils.streaming.audio import PcmStreamResource
-from mindor.core.utils.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
 import asyncio

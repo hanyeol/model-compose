@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazeFaceFaceDetectionModelActionConfig
 from mindor.core.logger import logging
-from mindor.core.utils.streaming.url import download_to_file
+from mindor.core.foundation.streaming.url import download_to_file
 from ..common import FaceDetectionTaskService, FaceDetectionTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage

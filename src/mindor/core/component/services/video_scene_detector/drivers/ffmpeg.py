@@ -4,9 +4,9 @@ from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.shell import run_command, run_subprocess, stream_subprocess
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging

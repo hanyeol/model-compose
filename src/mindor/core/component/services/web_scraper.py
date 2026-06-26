@@ -3,8 +3,8 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.rate_limit import RateLimiter
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.rate_limit import RateLimiter
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext

@@ -5,7 +5,7 @@ import re
 from typing import Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
 from ..base import ComponentActionContext
 from .common import GraphStoreAction

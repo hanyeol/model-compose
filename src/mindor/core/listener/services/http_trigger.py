@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from pydantic import BaseModel
 from mindor.dsl.schema.listener import HttpTriggerListenerConfig, HttpTriggerConfig
 from mindor.core.utils.http_request import parse_request_body, parse_options_header
-from mindor.core.utils.renderers import VariableRenderer
+from mindor.core.foundation.variable.renderer import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
 from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
 from fastapi.responses import Response, JSONResponse

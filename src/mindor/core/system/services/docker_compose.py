@@ -4,7 +4,7 @@ from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
 from mindor.core.logger import logging
 from mindor.core.utils.shell import run_command_foreground
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 import asyncio
 import shutil
 

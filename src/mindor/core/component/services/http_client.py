@@ -6,9 +6,9 @@ from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.http_client import HttpClient
 from mindor.core.utils.http_status import is_status_code_matched
-from mindor.core.utils.rate_limit import RateLimiter
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.rate_limit import RateLimiter
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone

@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.component.component import create_component
-from mindor.core.foundation.virtualenv_worker import VirtualEnvWorker
-from mindor.core.utils.subprocess import SubprocessPipeChannel
+from mindor.core.foundation.runtime.virtualenv_worker import VirtualEnvRuntimeWorker
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
 import asyncio, os, sys
 
-class ComponentVirtualEnvWorker(VirtualEnvWorker):
+class ComponentVirtualEnvRuntimeWorker(VirtualEnvRuntimeWorker):
     """Component-specific worker that hosts an embedded-runtime component instance."""
 
     def __init__(
@@ -86,18 +87,21 @@ def main() -> None:
         response_fd=response_fd,
     )
 
-    init = channel.recv()
-    if init is None or init.get("type") != "init":
+    init_data = channel.recv()
+    if init_data is None:
+        raise RuntimeError("Expected first IPC message of type 'start', got EOF")
+    init = IpcMessage.deserialize(init_data)
+    if init.type != IpcMessageType.START:
         raise RuntimeError(
-            f"Expected first IPC message of type 'init', got: {init!r}"
+            f"Expected first IPC message of type 'start', got: {init.type!r}"
         )
 
-    payload = _InitPayload.model_validate(init.get("payload") or {})
+    payload = _InitPayload.model_validate(init.payload or {})
     component_id = payload.component_id
     component_config = payload.component_config
     global_configs = payload.global_configs
 
-    worker = ComponentVirtualEnvWorker(
+    worker = ComponentVirtualEnvRuntimeWorker(
         component_id,
         component_config,
         global_configs,

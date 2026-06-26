@@ -40,8 +40,6 @@ class AppleContainerRuntimeManager:
         self.verbose: bool = verbose
         self._shutdown_event: asyncio.Event = asyncio.Event()
 
-    # ===== Container Lifecycle =====
-
     async def start_container(self, detach: bool) -> None:
         args = ["run"]
 
@@ -146,8 +144,6 @@ class AppleContainerRuntimeManager:
         except Exception:
             return False
 
-    # ===== DNS Management =====
-
     async def setup_dns(self) -> None:
         if not self.config.dns:
             return
@@ -165,8 +161,6 @@ class AppleContainerRuntimeManager:
         except RuntimeError as e:
             logging.warning("Failed to setup DNS: %s", e)
 
-    # ===== Volume Management =====
-
     async def create_volumes(self) -> None:
         for volume in self.config.volumes or []:
             if isinstance(volume, AppleContainerVolumeConfig):
@@ -174,8 +168,6 @@ class AppleContainerRuntimeManager:
                     await self._run_command(["volume", "create", volume.name])
                 except RuntimeError:
                     pass  # may already exist
-
-    # ===== Private Helpers =====
 
     async def _run_command(
         self,

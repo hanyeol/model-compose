@@ -5,7 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
 from mindor.core.logger import logging
-from mindor.core.utils.streaming.audio import PcmStreamResource
+from mindor.core.foundation.streaming.audio import PcmStreamResource
 from ....base import ComponentActionContext
 from ..common import MusicGenerationTaskService, MusicGenerationTaskAction
 import asyncio

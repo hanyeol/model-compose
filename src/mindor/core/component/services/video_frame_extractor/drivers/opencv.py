@@ -4,9 +4,9 @@ from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator, Iterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext

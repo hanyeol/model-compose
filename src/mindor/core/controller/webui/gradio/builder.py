@@ -6,15 +6,15 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableG
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
 
-from mindor.core.utils.streaming.resources import StreamResource
-from mindor.core.utils.streaming.bytes import BytesStreamResource
-from mindor.core.utils.streaming.base64 import Base64StreamResource
-from mindor.core.utils.streaming.resources import save_stream_to_temporary_file
-from mindor.core.utils.streaming.url import DataUriStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
+from mindor.core.foundation.streaming.base64 import Base64StreamResource
+from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.foundation.streaming.url import DataUriStreamResource
 from mindor.core.utils.http_request import create_upload_file
 from mindor.core.utils.http_client import create_stream_with_url
-from mindor.core.utils.streaming.image import load_image_from_stream
-from mindor.core.utils.streaming.audio import PcmStreamResource, WavStreamResource
+from mindor.core.foundation.streaming.image import load_image_from_stream
+from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 import gradio as gr
@@ -719,6 +719,8 @@ class GradioWebUIBuilder:
         if title is None:
             return []
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {event.task_id}`") ]
+        if event.event == "started" and event.input is not None:
+            messages.append(self._log_payload_message(event.input, title="Input"))
         if event.event == "failed" and event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
         return messages
@@ -726,8 +728,6 @@ class GradioWebUIBuilder:
     def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
         title = self._log_format_job_title(event)
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`job_type: {event.job_type}`") ]
-        if event.event == "started" and event.input is not None:
-            messages.append(self._log_payload_message(event.input, title="Input"))
         if event.event == "completed" and event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
         if event.event == "failed" and event.error:

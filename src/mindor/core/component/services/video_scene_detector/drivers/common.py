@@ -5,9 +5,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.time import parse_timecode
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 import asyncio
@@ -65,8 +65,8 @@ class VideoSceneDetectorAction:
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         detector   = await context.render_variable(self.config.detector) if self.config.detector else None
         threshold  = float(await context.render_variable(self.config.threshold)) if self.config.threshold is not None else None
-        start_time = parse_timecode(await context.render_variable(self.config.start_time)) if self.config.start_time else None
-        end_time   = parse_timecode(await context.render_variable(self.config.end_time)) if self.config.end_time else None
+        start_time = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
+        end_time   = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
 
         return {
             "detector":   detector,

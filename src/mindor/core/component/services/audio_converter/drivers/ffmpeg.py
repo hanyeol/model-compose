@@ -4,10 +4,10 @@ from typing import List, Optional, Set, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
-from mindor.core.utils.streaming.audio import AudioStreamResource
-from mindor.core.utils.streaming.media import MediaSource
-from mindor.core.utils.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
-from mindor.core.utils.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging

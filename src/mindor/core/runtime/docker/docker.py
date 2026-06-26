@@ -5,7 +5,7 @@ from docker.models.containers import Container
 from docker.types import Mount, DeviceRequest
 from docker.errors import DockerException, NotFound
 from pathlib import Path
-import docker, sys, asyncio, signal, time
+import docker, sys, asyncio, signal, time, io, tarfile
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -93,12 +93,12 @@ class DockerRuntimeManager:
         self.client = docker.from_env()
         self._shutdown_event: asyncio.Event = asyncio.Event()
 
-    async def start_container(self, detach: bool) -> None:
+    async def create_container(self) -> None:
         try:
             try:
-                container = self.client.containers.get(self.config.container_name)
+                self.client.containers.get(self.config.container_name)
             except NotFound:
-                container = self.client.containers.create(
+                self.client.containers.create(
                     image=self.config.image,
                     name=self.config.container_name,
                     hostname=self.config.hostname,
@@ -122,12 +122,46 @@ class DockerRuntimeManager:
                     device_requests=DockerDeviceRequestsResolver(self.config.gpus).resolve(),
                     tty=True, stdin_open=True, detach=True
                 )
+        except DockerException as e:
+            raise RuntimeError(f"Failed to create container: {e}")
+
+    async def start_container(self, detach: bool) -> None:
+        try:
+            container = self.client.containers.get(self.config.container_name)
             container.start()
 
             if not detach:
                 await self._run_foreground_container(container)
         except DockerException as e:
             raise RuntimeError(f"Failed to start container: {e}")
+
+    async def inject_workspace(self, files: Dict[str, bytes], dirs: Dict[str, Path]) -> None:
+        try:
+            container = self.client.containers.get(self.config.container_name)
+            tar_bytes = self._build_workspace_tar(files, dirs)
+            target = self.config.working_dir or "/workspace"
+            container.put_archive(target, tar_bytes)
+        except DockerException as e:
+            raise RuntimeError(f"Failed to inject workspace: {e}")
+
+    def _build_workspace_tar(self, files: Dict[str, bytes], dirs: Dict[str, Path]) -> bytes:
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for arcname, data in files.items():
+                info = tarfile.TarInfo(name=arcname)
+                info.size = len(data)
+                info.mode = 0o644
+                tar.addfile(info, io.BytesIO(data))
+            for arcname, src in dirs.items():
+                tar.add(str(src), arcname=arcname, recursive=True, filter=self._tar_filter)
+        return buf.getvalue()
+
+    @staticmethod
+    def _tar_filter(info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
+        basename = Path(info.name).name
+        if basename == "__pycache__" or basename.endswith(".pyc"):
+            return None
+        return info
 
     async def stop_container(self) -> None:
         try:
@@ -178,15 +212,74 @@ class DockerRuntimeManager:
                 pull=self.config.build.pull,
                 rm=True, forcerm=True, decode=True
             )
-
-            for chunk in response:
-                if "stream" in chunk:
-                    sys.stdout.write(chunk["stream"])
-                    sys.stdout.flush()
-                elif "errorDetail" in chunk:
-                    raise RuntimeError(chunk["errorDetail"]["message"])
+            self._stream_build_output(response)
         except DockerException as e:
             raise RuntimeError(f"Failed to build image: {e}")
+
+    async def build_base_image(self, tag: str, dockerfile_bytes: bytes, runtime_requirements_bytes: bytes, package_source_root: Path) -> None:
+        try:
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w") as tar:
+                self._add_bytes_to_tar(tar, "Dockerfile", dockerfile_bytes)
+                self._add_bytes_to_tar(tar, "runtime-requirements.txt", runtime_requirements_bytes)
+                tar.add(
+                    str(package_source_root),
+                    arcname=f"src/{package_source_root.name}",
+                    recursive=True,
+                    filter=self._tar_filter,
+                )
+            buf.seek(0)
+
+            response = self.client.api.build(
+                fileobj=buf,
+                custom_context=True,
+                tag=tag,
+                rm=True, forcerm=True, decode=True,
+            )
+            self._stream_build_output(response)
+        except DockerException as e:
+            raise RuntimeError(f"Failed to build base image: {e}")
+
+    async def build_derived_image(self, base_image: str, requirements_path: Path, tag: str, labels: Optional[Dict[str, str]] = None) -> None:
+        try:
+            dockerfile = (
+                f"FROM {base_image}\n"
+                "COPY requirements.txt /tmp/requirements.txt\n"
+                "RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt\n"
+            ).encode("utf-8")
+            requirements_bytes = requirements_path.read_bytes()
+
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w") as tar:
+                self._add_bytes_to_tar(tar, "Dockerfile", dockerfile)
+                self._add_bytes_to_tar(tar, "requirements.txt", requirements_bytes)
+            buf.seek(0)
+
+            response = self.client.api.build(
+                fileobj=buf,
+                custom_context=True,
+                tag=tag,
+                labels=labels or {},
+                rm=True, forcerm=True, decode=True,
+            )
+            self._stream_build_output(response)
+        except DockerException as e:
+            raise RuntimeError(f"Failed to build derived image: {e}")
+
+    def _stream_build_output(self, response) -> None:
+        for chunk in response:
+            if "stream" in chunk:
+                sys.stdout.write(chunk["stream"])
+                sys.stdout.flush()
+            elif "errorDetail" in chunk:
+                raise RuntimeError(chunk["errorDetail"]["message"])
+
+    @staticmethod
+    def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
+        info = tarfile.TarInfo(name=name)
+        info.size = len(data)
+        info.mode = 0o644
+        tar.addfile(info, io.BytesIO(data))
 
     async def pull_image(self) -> None:
         try:
@@ -194,9 +287,23 @@ class DockerRuntimeManager:
         except DockerException as e:
             raise RuntimeError(f"Failed to pull image: {e}")
 
+    async def pull_image_by_tag(self, tag: str) -> None:
+        try:
+            self.client.images.pull(tag)
+        except DockerException as e:
+            raise RuntimeError(f"Failed to pull image: {e}")
+
     async def remove_image(self, force: bool = False) -> None:
         try:
             self.client.images.remove(image=self.config.image, force=force)
+        except NotFound:
+            pass
+        except DockerException as e:
+            raise RuntimeError(f"Failed to remove image: {e}")
+
+    async def remove_image_by_tag(self, tag: str, force: bool = False) -> None:
+        try:
+            self.client.images.remove(image=tag, force=force)
         except NotFound:
             pass
         except DockerException as e:
@@ -209,6 +316,23 @@ class DockerRuntimeManager:
             return False
         except DockerException as e:
             raise RuntimeError(f"Failed to check image: {e}")
+
+    async def exists_image_by_tag(self, tag: str) -> bool:
+        try:
+            return True if self.client.images.get(tag) else False
+        except NotFound:
+            return False
+        except DockerException as e:
+            raise RuntimeError(f"Failed to check image: {e}")
+
+    async def get_image_label(self, tag: str, label: str) -> Optional[str]:
+        try:
+            image = self.client.images.get(tag)
+            return (image.labels or {}).get(label)
+        except NotFound:
+            return None
+        except DockerException as e:
+            raise RuntimeError(f"Failed to read image label: {e}")
 
     async def _run_foreground_container(self, container: Container) -> None:
         self._register_shutdown_signals()

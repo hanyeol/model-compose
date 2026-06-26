@@ -3,12 +3,12 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.core.utils.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
 from mindor.core.controller.base import TaskState, TaskStatus
 from mindor.core.controller.queue.serialize import deserialize_input
 from mindor.core.controller.queue.errors import BlobNotFoundError, BlobCorruptedError, BlobUnauthorizedError
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
 import asyncio, json, ulid

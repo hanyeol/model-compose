@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import AwsS3FileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, AwsS3FileStoreActionConfig
-from mindor.core.utils.streaming.resources import ReaderStreamResource, save_stream_to_file
-from mindor.core.utils.streaming.resolver import resolve_stream_resource
+from mindor.core.foundation.streaming.resources import ReaderStreamResource, save_stream_to_file
+from mindor.core.foundation.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import is_glob_match, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
-from mindor.core.utils.providers.aws_s3 import upload, multipart_upload
+from mindor.core.foundation.providers.aws_s3 import upload, multipart_upload
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
 from ..base import ComponentActionContext
 from .common import FileStoreAction

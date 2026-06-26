@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMethod
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentActionContext
 
 class WebBrowserSession(ABC):

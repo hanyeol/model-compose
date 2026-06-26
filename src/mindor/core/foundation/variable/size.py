@@ -1,4 +1,11 @@
-from typing import Union
+from typing import Optional, Union, Any
+
+class SizeValueRenderer:
+    async def render(self, value: Any, default: Optional[int] = None) -> Optional[int]:
+        if isinstance(value, (str, int, float)):
+            return parse_size(value)
+
+        return default
 
 def parse_size(value: Union[str, int, float]) -> int:
     if isinstance(value, (float, int)):

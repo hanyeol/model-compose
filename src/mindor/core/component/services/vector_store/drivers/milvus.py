@@ -5,7 +5,7 @@ from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
-from mindor.core.utils.time import parse_duration
+from mindor.core.foundation.variable.time import parse_duration
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction

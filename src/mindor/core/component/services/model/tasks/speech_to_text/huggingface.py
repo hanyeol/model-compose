@@ -5,8 +5,8 @@ from typing import Type, Union, Optional, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
-from mindor.core.utils.streaming.audio import load_audio_array
-from mindor.core.utils.streaming.media import MediaSource
+from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext

@@ -1,32 +1,57 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
-from .streaming.resources import StreamResource
-from .streaming.file import UploadFileStreamResource
-from .streaming.base64 import Base64StreamResource, encode_value_to_base64
-from .streaming.resources import save_stream_to_temporary_file
-from .streaming.bytes import BytesStreamResource
-from .streaming.iterators import EventStreamFormat, EventStreamIterator, StreamIterator
-from .http_client import create_stream_with_url
-from .streaming.text import load_text_from_stream
-from .streaming.image import load_image_from_stream, ImageStreamResource
-from .streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource, create_audio_source
-from .streaming.video import VideoStreamResource, create_video_source
-from .streaming.media import MediaSource, create_media_source
-from .streaming.file import FileStreamResource
-from .streaming.url import UrlStreamResource, DataUriStreamResource
-from .streaming.resolver import resolve_stream_resource
-from .url import parse_data_uri
-from .resolvers import FieldResolver
-from .size import parse_size
+from ..streaming.resources import StreamResource
+from ..streaming.file import UploadFileStreamResource, FileStreamResource
+from ..streaming.base64 import Base64StreamResource, encode_value_to_base64
+from ..streaming.bytes import BytesStreamResource
+from ..streaming.iterators import EventStreamFormat, EventStreamIterator, StreamIterator
+from ..streaming.image import load_image_from_stream, ImageStreamResource
+from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
+from ..streaming.video import VideoStreamResource
+from ..streaming.url import UrlStreamResource, DataUriStreamResource
+from mindor.core.utils.http_client import create_stream_with_url
+from mindor.core.utils.url import parse_data_uri
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
 import re, json, base64, aiofiles
 
-class ArrayValue:
-    def __init__(self, values: List[Any]):
-        self.values: List[Any] = values
+class FieldResolver:
+    def __init__(self):
+        self.patterns: Dict[str, re.Pattern] = {
+            "keypath": re.compile(r"[-_\w]+|\[-?\d+\]|\[\*\]"),
+        }
+
+    def resolve(self, object: Any, path: Optional[str], default: Any = None) -> Any:
+        if path is not None:
+            return self._resolve_value(object, self.patterns["keypath"].findall(path), default)
+
+        return object
+
+    def _resolve_value(self, object: Any, segments: List[str], default: Any) -> Any:
+        value = object
+        for index, segment in enumerate(segments):
+            if segment == "[*]":
+                if not isinstance(value, list):
+                    return default
+                return [ self._resolve_value(item, segments[index + 1:], default) for item in value ]
+
+            if segment.startswith("["):
+                if not isinstance(value, list):
+                    return default
+                i = int(segment[1:-1])
+                if not -len(value) <= i < len(value):
+                    return default
+                value = value[i]
+            else:
+                if not isinstance(value, dict):
+                    return default
+                if segment not in value:
+                    return default
+                value = value[segment]
+
+        return value
 
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]]):
@@ -325,163 +350,11 @@ class VariableRenderer:
     def _contains_reference(self, key: str, element: Any) -> bool:
         if isinstance(element, str):
             return any(key == m.group(1) for m in self.patterns["variable"].finditer(element))
-        
+
         if isinstance(element, dict):
             return any([ self._contains_reference(key, value) for value in element.values() ])
-        
+
         if isinstance(element, (list, tuple)):
             return any([ self._contains_reference(key, item) for item in element ])
-        
+
         return False
-
-class TextValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> Optional[str]:
-        if isinstance(element, str):
-            return element
-
-        if isinstance(element, StreamResource):
-            return await load_text_from_stream(element)
-
-        if isinstance(element, (bytes, bytearray)):
-            return bytes(element).decode("utf-8", errors="replace")
-
-        if isinstance(element, (dict, list)):
-            return json.dumps(element, ensure_ascii=False, default=str)
-
-        return str(element) if element is not None else None
-
-class ImageValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator[PILImage.Image], List[Optional[PILImage.Image]]]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> Optional[PILImage.Image]:
-        if isinstance(element, PILImage.Image):
-            return element
-
-        if isinstance(element, ImageStreamResource):
-            return element.image
-
-        if isinstance(element, StreamResource):
-            return await load_image_from_stream(element)
-
-        return None
-
-class AudioValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> MediaSource:
-        return create_audio_source(element)
-
-class VideoValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> MediaSource:
-        return create_video_source(element)
-
-class MediaValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> MediaSource:
-        return create_media_source(element)
-
-class FileValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
-
-        return await self._render_element(value)
-
-    async def _render_element(self, element: Any) -> Optional[str]:
-        if isinstance(element, FileStreamResource):
-            return element.path
-
-        if isinstance(element, StreamResource):
-            return await save_stream_to_temporary_file(element, None)
-
-        return None
-
-class ArrayValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
-        if isinstance(value, AsyncIterator):
-            async def _iterate():
-                async for element in value:
-                    yield self._render_element(element)
-            return _iterate()
-
-        if isinstance(value, list) and value and isinstance(value[0], list):
-            return [ self._render_element(element) for element in value ]
-
-        return self._render_element(value)
-
-    def _render_element(self, element: Any) -> Optional[ArrayValue]:
-        if isinstance(element, ArrayValue):
-            return element
-
-        if isinstance(element, (list, tuple)):
-            return ArrayValue(list(element))
-
-        return None
-
-class SizeValueRenderer:
-    async def render(self, value: Any, default: Optional[int] = None) -> Optional[int]:
-        if isinstance(value, (str, int, float)):
-            return parse_size(value)
-
-        return default

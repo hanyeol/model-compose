@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.gateway import CloudflareHttpTunnelGatewayConfig
 from ..base import CommonHttpTunnelGateway
 from mindor.core.logger import logging
-from mindor.core.foundation.compat.asyncio import async_timeout
+from mindor.core.utils.compat.asyncio import async_timeout
 import asyncio
 import re
 import tempfile

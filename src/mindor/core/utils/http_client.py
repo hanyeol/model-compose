@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Union, Optional, Dict, Tuple, Any
 from .http_request import build_request_body, parse_options_header
-from .http_stream import HttpStreamResource, HttpEventStreamResource
-from .streaming.resources import StreamResource
+from mindor.core.foundation.streaming.http import HttpStreamResource, HttpEventStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
 from .url import encode_url
 from requests.structures import CaseInsensitiveDict
 import aiohttp, asyncio, json

@@ -1,9 +1,9 @@
 from typing import Any, Dict
-from mindor.core.foundation import ProcessRuntimeManager
-from mindor.core.foundation.process_worker import ProcessWorkerParams
+from mindor.core.foundation.runtime import ProcessRuntimeManager
+from mindor.core.foundation.runtime.process_manager import ProcessRuntimeManagerParams
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.process_worker import ComponentProcessWorker
-from mindor.core.utils.time import parse_duration
+from mindor.core.component.runtime.process_worker import ComponentProcessRuntimeWorker
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from multiprocessing import Queue
@@ -29,33 +29,29 @@ class ComponentProcessRuntimeManager(ProcessRuntimeManager):
             global_configs=global_configs
         )
 
-        # Convert ProcessRuntimeConfig to ProcessWorkerParams
+        # Convert ProcessRuntimeConfig to ProcessRuntimeManagerParams
         worker_params = self._convert_runtime_config(config.runtime)
 
         super().__init__(component_id, worker_factory, worker_params)
 
     @staticmethod
-    def _convert_runtime_config(config: ProcessRuntimeConfig) -> ProcessWorkerParams:
-        """Convert DSL ProcessRuntimeConfig to foundation ProcessWorkerParams"""
-        return ProcessWorkerParams(
+    def _convert_runtime_config(config: ProcessRuntimeConfig) -> ProcessRuntimeManagerParams:
+        """Convert DSL ProcessRuntimeConfig to foundation ProcessRuntimeManagerParams"""
+        return ProcessRuntimeManagerParams(
             env=config.env,
             start_timeout=parse_duration(config.start_timeout),
             stop_timeout=parse_duration(config.stop_timeout)
         )
 
+    @staticmethod
     def _component_worker_factory(
-        self,
         worker_id: str,
         request_queue: Queue,
         response_queue: Queue,
         config: ComponentConfig,
         global_configs: ComponentGlobalConfigs
-    ) -> ComponentProcessWorker:
-        """Instance factory method for ComponentProcessWorker
-
-        This function is picklable and receives config directly as parameters.
-        """
-        return ComponentProcessWorker(
+    ) -> ComponentProcessRuntimeWorker:
+        return ComponentProcessRuntimeWorker(
             worker_id,
             config,
             global_configs,

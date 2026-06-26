@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 

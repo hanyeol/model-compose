@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextToSpeechModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 

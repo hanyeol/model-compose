@@ -175,7 +175,7 @@ class ImageProcessorAction:
         ])
 
     def _process(self, image: Union[PILImage.Image, List[PILImage.Image]], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
-        if image is None:
+        if image is None or (isinstance(image, list) and not image):
             logging.debug("Image processor (%s) skipped because no image was provided.", method)
             return None
 

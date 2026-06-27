@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 import asyncio, os
 
 _DEFAULT_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "face_detection" / "mediapipe"
+_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "mediapipe"
 
 class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
     def __init__(self, config: BlazeFaceFaceDetectionModelActionConfig, model_path: str):

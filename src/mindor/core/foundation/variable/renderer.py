@@ -77,24 +77,24 @@ class VariableRenderer:
     def contains_reference(self, key: str, value: Any) -> bool:
         return self._contains_reference(key, value)
 
-    async def _render_element(self, element: Any, scope: Optional[str], skip_decode: bool) -> Any:
-        if isinstance(element, str):
-            return await self._render_text(element, scope, skip_decode)
+    async def _render_element(self, value: Any, scope: Optional[str], skip_decode: bool) -> Any:
+        if isinstance(value, str):
+            return await self._render_text(value, scope, skip_decode)
 
-        if isinstance(element, BaseModel):
-            return await self._render_element(element.model_dump(by_alias=True), scope, skip_decode)
+        if isinstance(value, BaseModel):
+            return await self._render_element(value.model_dump(by_alias=True), scope, skip_decode)
 
-        if isinstance(element, dict):
-            return await self._render_dict(element, scope, skip_decode)
+        if isinstance(value, dict):
+            return await self._render_dict(value, scope, skip_decode)
 
-        if isinstance(element, (list, tuple)):
-            return await self._render_list(element, scope, skip_decode)
+        if isinstance(value, (list, tuple)):
+            return await self._render_list(value, scope, skip_decode)
 
-        return element
+        return value
 
-    async def _render_dict(self, element: dict, scope: Optional[str], skip_decode: bool) -> dict:
+    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> dict:
         values = {}
-        for key, value in element.items():
+        for key, value in entries.items():
             if key == "...":
                 value = await self._render_element(value, scope, skip_decode)
                 if isinstance(value, dict) or value is None:
@@ -105,9 +105,9 @@ class VariableRenderer:
                 values[key] = await self._render_element(value, scope, skip_decode)
         return values
 
-    async def _render_list(self, element: list, scope: Optional[str], skip_decode: bool) -> list:
+    async def _render_list(self, entries: list, scope: Optional[str], skip_decode: bool) -> list:
         values = []
-        for item in element:
+        for item in entries:
             if isinstance(item, str) and self._is_spread_expression(item):
                 value = await self._render_text(item[3:], scope, skip_decode)
                 if isinstance(value, (list, tuple)) or value is None:

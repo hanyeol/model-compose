@@ -1,4 +1,4 @@
-from typing import Optional, List, Union, Any
+from typing import List, Union, Any
 from collections.abc import AsyncIterator
 
 class ArrayValue:
@@ -6,23 +6,23 @@ class ArrayValue:
         self.values: List[Any] = values
 
 class ArrayValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
+    async def render(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         if isinstance(value, AsyncIterator):
             async def _iterate():
                 async for element in value:
                     yield self._render_element(element)
             return _iterate()
 
-        if isinstance(value, list) and value and isinstance(value[0], list):
+        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
             return [ self._render_element(element) for element in value ]
 
         return self._render_element(value)
 
-    def _render_element(self, element: Any) -> Optional[ArrayValue]:
-        if isinstance(element, ArrayValue):
-            return element
+    def _render_element(self, value: Any) -> ArrayValue:
+        if isinstance(value, ArrayValue):
+            return value
 
-        if isinstance(element, (list, tuple)):
-            return ArrayValue(list(element))
+        if isinstance(value, (list, tuple)):
+            return ArrayValue(list(value))
 
-        return None
+        raise TypeError(f"Cannot render element of type {type(value).__name__} as array")

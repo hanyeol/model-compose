@@ -17,17 +17,17 @@ class TextValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> Optional[str]:
-        if isinstance(element, str):
-            return element
+    async def _render_element(self, value: Any) -> Optional[str]:
+        if isinstance(value, str):
+            return value
 
-        if isinstance(element, StreamResource):
-            return await load_text_from_stream(element)
+        if isinstance(value, StreamResource):
+            return await load_text_from_stream(value)
 
-        if isinstance(element, (bytes, bytearray)):
-            return bytes(element).decode("utf-8", errors="replace")
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value).decode("utf-8", errors="replace")
 
-        if isinstance(element, (dict, list)):
-            return json.dumps(element, ensure_ascii=False, default=str)
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, default=str)
 
-        return str(element) if element is not None else None
+        return str(value) if value is not None else None

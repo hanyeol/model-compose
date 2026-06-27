@@ -16,5 +16,5 @@ class AudioValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element(self, element: Any) -> MediaSource:
-        return create_audio_source(element)
+    async def _render_element(self, value: Any) -> MediaSource:
+        return create_audio_source(value)

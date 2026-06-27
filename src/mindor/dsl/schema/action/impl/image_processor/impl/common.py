@@ -14,6 +14,7 @@ class ImageProcessorActionMethod(str, Enum):
     ADJUST_BRIGHTNESS = "adjust-brightness"
     ADJUST_CONTRAST   = "adjust-contrast"
     ADJUST_SATURATION = "adjust-saturation"
+    MERGE             = "merge"
 
 class ImageScaleMode(str, Enum):
     FIT     = "fit"
@@ -23,6 +24,12 @@ class ImageScaleMode(str, Enum):
 class FlipDirection(str, Enum):
     HORIZONTAL = "horizontal"
     VERTICAL   = "vertical"
+
+class ImageMergeMode(str, Enum):
+    HORIZONTAL = "horizontal"
+    VERTICAL   = "vertical"
+    GRID       = "grid"
+    OVERLAY    = "overlay"
 
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")

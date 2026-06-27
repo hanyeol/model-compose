@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Union, Dict, List, Any
+import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageMergeMode
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
@@ -15,11 +16,10 @@ class ImageProcessorAction:
         self.config: ImageProcessorActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        image      = await context.render_image(self.config.image)
+        image      = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
-        method     = self.config.method
 
-        params = await self._resolve_params(method, context)
+        params = await self._resolve_params(self.config.method, context)
 
         is_single_input  = not isinstance(image, (list, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -27,7 +27,7 @@ class ImageProcessorAction:
         if isinstance(image, AsyncIterator):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_images, method, params, loop)
+                    batch_results = await self._process_batch(batch_images, self.config.method, params, loop)
                     for result in batch_results:
                         yield result
 
@@ -35,13 +35,19 @@ class ImageProcessorAction:
         else:
             results = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_images, method, params, loop)
+                batch_results = await self._process_batch(batch_images, self.config.method, params, loop)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _prepare_input(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Any:
+        if method in [ ImageProcessorActionMethod.MERGE ]:
+            return await context.render_image_array(self.config.image)
+
+        return await context.render_image(self.config.image)
 
     async def _resolve_params(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == ImageProcessorActionMethod.RESIZE:
@@ -135,11 +141,31 @@ class ImageProcessorAction:
 
             return { "factor": factor }
 
+        if method == ImageProcessorActionMethod.MERGE:
+            mode       = await context.render_variable(self.config.mode)
+            columns    = await context.render_variable(self.config.columns)
+            rows       = await context.render_variable(self.config.rows)
+            spacing    = await context.render_variable(self.config.spacing)
+            background = await context.render_color(self.config.background)
+
+            try:
+                mode = ImageMergeMode(mode)
+            except ValueError:
+                raise ValueError(f"Invalid merge mode: {mode}")
+
+            return {
+                "mode": mode,
+                "columns": columns,
+                "rows": rows,
+                "spacing": spacing or 0,
+                "background": background,
+            }
+
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
     async def _process_batch(
         self,
-        images: List[PILImage.Image],
+        images: Union[List[PILImage.Image], List[List[PILImage.Image]]],
         method: ImageProcessorActionMethod,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
@@ -148,7 +174,7 @@ class ImageProcessorAction:
             asyncio.to_thread(self._process, image, method, params) for image in images
         ])
 
-    def _process(self, image: PILImage.Image, method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
+    def _process(self, image: Union[PILImage.Image, List[PILImage.Image]], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
         if image is None:
             logging.debug("Image processor (%s) skipped because no image was provided.", method)
             return None
@@ -182,6 +208,9 @@ class ImageProcessorAction:
 
         if method == ImageProcessorActionMethod.ADJUST_SATURATION:
             return self._adjust_saturation(image, params)
+
+        if method == ImageProcessorActionMethod.MERGE:
+            return self._merge(image, params)
 
         raise ValueError(f"Unsupported image processing action method: {method}")
 
@@ -223,4 +252,8 @@ class ImageProcessorAction:
 
     @abstractmethod
     def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         pass

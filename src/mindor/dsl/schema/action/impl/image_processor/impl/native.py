@@ -5,6 +5,7 @@ from .common import (
     ImageProcessorActionMethod,
     ImageScaleMode,
     FlipDirection,
+    ImageMergeMode,
 )
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
@@ -52,6 +53,14 @@ class ImageProcessorAdjustSaturationActionConfig(CommonImageProcessorActionConfi
     method: Literal[ImageProcessorActionMethod.ADJUST_SATURATION]
     factor: Union[float, str] = Field(..., description="Saturation factor.")
 
+class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.MERGE]
+    mode: Union[ImageMergeMode, str] = Field(ImageMergeMode.HORIZONTAL, description="Merge layout mode.")
+    columns: Optional[Union[int, str]] = Field(default=None, description="Number of columns for grid mode.")
+    rows: Optional[Union[int, str]] = Field(default=None, description="Number of rows for grid mode.")
+    spacing: Union[int, str] = Field(default=0, description="Pixel spacing between images for horizontal, vertical, and grid modes.")
+    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
+
 NativeImageProcessorActionConfig = Annotated[
     Union[
         ImageProcessorResizeActionConfig,
@@ -64,6 +73,7 @@ NativeImageProcessorActionConfig = Annotated[
         ImageProcessorAdjustBrightnessActionConfig,
         ImageProcessorAdjustContrastActionConfig,
         ImageProcessorAdjustSaturationActionConfig,
+        ImageProcessorMergeActionConfig,
     ],
     Field(discriminator="method")
 ]

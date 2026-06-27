@@ -10,6 +10,7 @@ ModelActionConfig = Union[
     ImageGenerationModelActionConfig,
     ImageUpscaleModelActionConfig,
     FaceDetectionModelActionConfig,
+    PoseDetectionModelActionConfig,
     FaceEmbeddingModelActionConfig,
     TextToSpeechModelActionConfig,
     SpeechToTextModelActionConfig,

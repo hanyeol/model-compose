@@ -7,6 +7,7 @@ from .image_to_text import *
 from .image_generation import *
 from .image_upscale import *
 from .face_detection import *
+from .pose_detection import *
 from .face_embedding import *
 from .text_to_speech import *
 from .speech_to_text import *

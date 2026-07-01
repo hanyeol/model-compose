@@ -31,7 +31,6 @@ class AzureBlobLocation:
 class AzureBlobDownloadReader:
     """Adapts an Azure StorageStreamDownloader to the .read(size) -> bytes interface
     expected by ReaderStreamResource."""
-
     def __init__(self, downloader: StorageStreamDownloader, chunk_size: int):
         self._chunks: Optional[AsyncIterator[bytes]] = downloader.chunks()
         self._buffer = bytearray()

@@ -3,11 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.runtime.impl.apple_container import (
+from mindor.dsl.schema.runtime.impl.apple_container import AppleContainerRuntimeConfig
+from mindor.dsl.schema.containers.apple_container import (
     AppleContainerBuildConfig,
-    AppleContainerDnsConfig,
     AppleContainerHealthCheck,
-    AppleContainerRuntimeConfig,
     AppleContainerVolumeConfig,
 )
 
@@ -41,28 +40,18 @@ class TestAppleContainerVolumeConfig:
         cfg = AppleContainerVolumeConfig(name="cfg-vol", target="/etc/cfg", read_only=True)
         assert cfg.read_only is True
 
-    def test_missing_name_rejected(self):
-        with pytest.raises(ValidationError):
-            AppleContainerVolumeConfig(target="/data")
+    def test_bind_source(self):
+        cfg = AppleContainerVolumeConfig(source="/host/data", target="/data")
+        assert cfg.source == "/host/data"
+        assert cfg.name is None
+
+    def test_explicit_type(self):
+        cfg = AppleContainerVolumeConfig(type="bind", source="/host/data", target="/data")
+        assert cfg.type == "bind"
 
     def test_missing_target_rejected(self):
         with pytest.raises(ValidationError):
             AppleContainerVolumeConfig(name="vol")
-
-
-class TestAppleContainerDnsConfig:
-    def test_domain_only(self):
-        cfg = AppleContainerDnsConfig(domain="test")
-        assert cfg.domain == "test"
-        assert cfg.hostname is None
-
-    def test_with_hostname(self):
-        cfg = AppleContainerDnsConfig(domain="dev", hostname="api")
-        assert cfg.hostname == "api"
-
-    def test_missing_domain_rejected(self):
-        with pytest.raises(ValidationError):
-            AppleContainerDnsConfig()
 
 
 class TestAppleContainerHealthCheck:
@@ -96,7 +85,7 @@ class TestAppleContainerRuntimeConfig:
         cfg = AppleContainerRuntimeConfig(type="apple-container", image="nginx:1.25")
         assert cfg.image == "nginx:1.25"
 
-    def test_with_build_config(self):
+    def test_with_config(self):
         cfg = AppleContainerRuntimeConfig(
             type="apple-container",
             build={"context": "./app", "dockerfile": "Dockerfile"},
@@ -107,12 +96,6 @@ class TestAppleContainerRuntimeConfig:
     def test_with_ports_mixed_int_and_string(self):
         cfg = AppleContainerRuntimeConfig(type="apple-container", ports=["8080:80", 9000])
         assert cfg.ports == ["8080:80", 9000]
-
-    def test_with_dns(self):
-        cfg = AppleContainerRuntimeConfig(
-            type="apple-container", dns={"domain": "test", "hostname": "api"},
-        )
-        assert cfg.dns.domain == "test"
 
     def test_volumes_accepts_strings_and_objects(self):
         cfg = AppleContainerRuntimeConfig(

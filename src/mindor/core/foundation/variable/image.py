@@ -1,11 +1,11 @@
-from typing import List, Union, Any
+from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from PIL import Image as PILImage
 
 class ImageValueRenderer:
-    async def render_array(self, value: Any) -> Union[List[PILImage.Image], List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]:
+    async def render_array(self, value: Any) -> Optional[Union[List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]]:
         if isinstance(value, AsyncIterator):
             async def _iterate():
                 async for array in value:
@@ -15,9 +15,9 @@ class ImageValueRenderer:
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
             return [ await self._render_element_array(array) for array in value ]
 
-        return await self._render_element_array(value)
+        return [ await self._render_element_array(value) ]
 
-    async def render(self, value: Any) -> Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]:
+    async def render(self, value: Any) -> Optional[Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]]:
         if isinstance(value, AsyncIterator):
             async def _iterate():
                 async for element in value:
@@ -29,13 +29,13 @@ class ImageValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element_array(self, value: Any) -> List[PILImage.Image]:
+    async def _render_element_array(self, value: Any) -> Optional[List[PILImage.Image]]:
         if isinstance(value, (list, tuple)):
             return [ await self._render_element(element) for element in value ]
 
-        raise TypeError(f"Cannot render element of type {type(value).__name__} as list of images")
+        return None
 
-    async def _render_element(self, value: Any) -> PILImage.Image:
+    async def _render_element(self, value: Any) -> Optional[PILImage.Image]:
         if isinstance(value, PILImage.Image):
             return value
 
@@ -45,4 +45,4 @@ class ImageValueRenderer:
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value)
 
-        raise TypeError(f"Cannot render element of type {type(value).__name__} as image")
+        return None

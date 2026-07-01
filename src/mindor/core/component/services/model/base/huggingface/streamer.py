@@ -20,7 +20,6 @@ class BatchTextIteratorStreamer:
     which makes it incompatible with batched ``generate()``. Use this instead
     when you need per-row streaming from a single batched generation call.
     """
-
     def __init__(
         self,
         tokenizer: PreTrainedTokenizer,

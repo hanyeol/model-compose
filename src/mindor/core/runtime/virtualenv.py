@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.logger import logging
 from mindor.core.utils.locks import FileLock
-from mindor.core.utils.transport.subprocess_pipe import SubprocessPipeChannel
-from mindor.core.runtime.base.ipc_manager import IpcRuntimeManager
-from mindor.core.runtime.base.ipc_message import IpcMessage, IpcMessageType
-from mindor.core.runtime.base.ipc_worker import IpcRuntimeWorker
 from importlib.resources import files
 from pathlib import Path
 import mindor, mindor.version
@@ -16,155 +12,105 @@ import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
 
-
-class VirtualEnvRuntimeWorker(IpcRuntimeWorker):
-    """
-    Base class for workers launched in a separate Python interpreter (virtualenv).
-
-    Communicates with the parent process through a line-framed bytes channel
-    (`SubprocessPipeChannel`). Serialized IPC messages travel as bytes.
-    """
-
-    def __init__(self, worker_id: str, channel: SubprocessPipeChannel):
-        super().__init__(worker_id)
-        self.channel = channel
-
-    async def _send_message(self, message: bytes) -> None:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self.channel.send, message)
-
-    async def _recv_message(self) -> Optional[bytes]:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.channel.recv)
-
-    def _close_transport(self) -> None:
-        self.channel.close()
-
-
 @dataclass
-class VirtualEnvRuntimeManagerParams:
-    """
-    Parameters for the virtualenv runtime manager.
-    Used to configure venv creation and how the worker subprocess is spawned and managed.
-    """
+class VirtualEnvRuntimeParams:
+    """Parameters for bootstrapping a venv and spawning a Python worker process."""
     driver: VirtualEnvDriver = VirtualEnvDriver.PYTHON
     python: Optional[str] = None
     path: Optional[str] = None
     env: Dict[str, str] = field(default_factory=dict)
-    start_timeout: float = 60.0  # seconds
+    start_timeout: float = 60.0  # seconds (reserved for future ready-wait hooks)
     stop_timeout: float = 30.0   # seconds
 
+class VirtualEnvRuntime:
+    """Lifecycle wrapper around a venv-isolated Python worker subprocess.
 
-class VirtualEnvRuntimeManager(IpcRuntimeManager):
-    """Generic manager that creates a venv, injects mindor, and runs a worker subprocess."""
+    Pure lifecycle:
+    - Bootstraps a venv (driver: python | pyenv), copies the host `mindor` package
+      into it, installs runtime + user requirements.
+    - Spawns the interpreter on `python -m <worker_module>` with caller-supplied
+      `pass_fds` and `env` overrides — the caller is responsible for creating IPC
+      pipes (or any other transport) and threading their fds through.
+    - On stop, attempts graceful exit then escalates to terminate / kill.
 
+    Knows nothing about IPC protocols, codecs, or channels.
+    """
     def __init__(
         self,
         worker_id: str,
         worker_module: str,
-        worker_params: VirtualEnvRuntimeManagerParams = None
+        params: VirtualEnvRuntimeParams,
+        verbose: bool = False,
     ):
-        super().__init__(worker_id)
-
+        self.worker_id = worker_id
         self.worker_module = worker_module
-        self.worker_params = worker_params or VirtualEnvRuntimeManagerParams()
+        self.params = params
+        self.verbose = verbose
 
         self._venv_path: Path = self._resolve_venv_path()
         self._subprocess: Optional[subprocess.Popen] = None
-        self._channel: Optional[SubprocessPipeChannel] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-        self._start_timeout = self.worker_params.start_timeout
-        self._stop_timeout = self.worker_params.stop_timeout
+    async def start(
+        self,
+        *,
+        pass_fds: Tuple[int, ...] = (),
+        env_overrides: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Bootstrap the venv (idempotent) and spawn the worker subprocess.
 
-    async def start(self) -> None:
+        `pass_fds` and `env_overrides` let the caller propagate transport handles
+        (e.g., pipe read/write fds) without this lifecycle class knowing about them.
+        """
         self._loop = asyncio.get_event_loop()
 
         await self._loop.run_in_executor(None, self._ensure_venv)
         await self._loop.run_in_executor(None, self._install_dependencies)
 
-        request_r,  request_w  = os.pipe()
-        response_r, response_w = os.pipe()
-
-        try:
-            self._subprocess = subprocess.Popen(
-                [ str(self._venv_python()), "-m", self.worker_module ],
-                pass_fds=(request_r, response_w),
-                env=self._build_environment(request_r, response_w),
-                stdin=subprocess.DEVNULL,
-                stdout=None,
-                stderr=None,
-                close_fds=True,
-            )
-        finally:
-            # The child has duplicated the read end of the request pipe and the write end
-            # of the response pipe; close the parent-side copies so only the child holds them.
-            os.close(request_r)
-            os.close(response_w)
-
-        # Parent uses: read responses on response_r, write requests on request_w.
-        self._channel = SubprocessPipeChannel(request_fd=response_r, response_fd=request_w)
-
-        await self._send_message(IpcMessage(
-            type=IpcMessageType.START,
-            payload=self._build_init_payload(),
-        ).serialize())
-
-        await self._wait_for_ready()
-
-        self._response_task = asyncio.create_task(self._handle_responses())
+        self._subprocess = subprocess.Popen(
+            [ str(self._venv_python()), "-m", self.worker_module ],
+            pass_fds=pass_fds,
+            env=self._build_environment(env_overrides),
+            stdin=subprocess.DEVNULL,
+            stdout=None,
+            stderr=None,
+            close_fds=True,
+        )
 
     async def stop(self) -> None:
-        if self._channel is not None:
-            await self._send_stop_message()
+        if self._subprocess is None:
+            return
 
-        if self._subprocess is not None:
+        try:
+            await self._loop.run_in_executor(
+                None,
+                lambda: self._subprocess.wait(timeout=self.params.stop_timeout),
+            )
+        except subprocess.TimeoutExpired:
+            self._subprocess.terminate()
             try:
-                await self._loop.run_in_executor(
-                    None,
-                    lambda: self._subprocess.wait(timeout=self._stop_timeout),
-                )
+                self._subprocess.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self._subprocess.terminate()
-                try:
-                    self._subprocess.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    self._subprocess.kill()
+                self._subprocess.kill()
 
-        # Child exit closes its write-end of the pipe, so the executor thread
-        # parked in self._channel.recv() (readline) wakes with EOF → None.
-        # Await the task so it finishes naturally before closing the channel,
-        # otherwise loop.shutdown_default_executor() hangs on the parked thread.
-        if self._response_task is not None:
-            try:
-                await self._response_task
-            except asyncio.CancelledError:
-                pass
+    @property
+    def is_alive(self) -> bool:
+        return self._subprocess is not None and self._subprocess.poll() is None
 
-        if self._channel is not None:
-            self._channel.close()
+    @property
+    def subprocess(self) -> Optional[subprocess.Popen]:
+        return self._subprocess
 
-    async def _send_message(self, message: bytes) -> None:
-        await self._loop.run_in_executor(None, self._channel.send, message)
-
-    async def _recv_message(self) -> Optional[bytes]:
-        return await self._loop.run_in_executor(None, self._channel.recv)
-
-    def _build_init_payload(self) -> Dict[str, Any]:
-        """Return the payload sent as the first IPC message after worker spawn."""
-        return {}
-
-    def _build_environment(self, request_fd: int, response_fd: int) -> Dict[str, str]:
+    def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = dict(os.environ)
-        env.update(self.worker_params.env or {})
-        env.update({
-            "PYTHONUNBUFFERED":        "1",
-            "MINDOR_VENV_REQUEST_FD":  str(request_fd),
-            "MINDOR_VENV_RESPONSE_FD": str(response_fd),
-        })
+        env.update(self.params.env or {})
+        env["PYTHONUNBUFFERED"] = "1"
+        if overrides:
+            env.update(overrides)
         return env
 
     def _resolve_venv_path(self) -> Path:
-        path = self.worker_params.path
+        path = self.params.path
         if path:
             return (Path.cwd() / path).resolve()
         return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
@@ -195,17 +141,17 @@ class VirtualEnvRuntimeManager(IpcRuntimeManager):
 
         self._venv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if self.worker_params.driver == VirtualEnvDriver.PYTHON:
+        if self.params.driver == VirtualEnvDriver.PYTHON:
             logging.info(f"Creating virtualenv at {self._venv_path} (python driver)")
             builder = venv.EnvBuilder(with_pip=True, clear=False, upgrade_deps=False)
             builder.create(str(self._venv_path))
             return
 
-        if self.worker_params.driver == VirtualEnvDriver.PYENV:
-            version = self.worker_params.python
+        if self.params.driver == VirtualEnvDriver.PYENV:
+            version = self.params.python
             if not version:
                 raise ValueError(
-                    "VirtualEnvRuntimeManagerParams.python must be set when driver is 'pyenv'."
+                    "VirtualEnvRuntimeParams.python must be set when driver is 'pyenv'."
                 )
 
             python_path = self._resolve_pyenv_python(version)
@@ -215,7 +161,7 @@ class VirtualEnvRuntimeManager(IpcRuntimeManager):
             subprocess.run([str(python_path), "-m", "venv", str(self._venv_path)], check=True)
             return
 
-        raise ValueError(f"Unknown virtualenv driver: {self.worker_params.driver}")
+        raise ValueError(f"Unknown virtualenv driver: {self.params.driver}")
 
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:
@@ -275,11 +221,11 @@ class VirtualEnvRuntimeManager(IpcRuntimeManager):
             # pip skips already-satisfied requirements, so always run cheaply
             pip = str(self._venv_pip())
             subprocess.run(
-                [pip, "install", "--disable-pip-version-check", "-r", str(runtime_requirements_path)],
+                [ pip, "install", "--disable-pip-version-check", "-r", str(runtime_requirements_path) ],
                 check=True,
             )
             if user_requirements_path.exists():
                 subprocess.run(
-                    [pip, "install", "--disable-pip-version-check", "-r", str(user_requirements_path)],
+                    [ pip, "install", "--disable-pip-version-check", "-r", str(user_requirements_path) ],
                     check=True,
                 )

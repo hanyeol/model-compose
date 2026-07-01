@@ -2,7 +2,7 @@
 ``src/mindor/core/runtime/bootstrap/requirements.txt``.
 
 The requirements file is the single source consumed by both the Docker
-runtime (copied into the build context as ``runtime-requirements.txt``)
+runtime (copied into the build context as ``base-requirements.txt``)
 and the upcoming virtualenv runtime. It must stay in lock-step with the
 PyPI distribution metadata in ``pyproject.toml`` — otherwise a Docker /
 virtualenv install will diverge from a ``pip install model-compose``.

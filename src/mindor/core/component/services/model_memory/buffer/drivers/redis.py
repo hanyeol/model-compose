@@ -63,8 +63,6 @@ class RedisModelMemoryBuffer(ModelMemoryBuffer):
             self.client = None
         self._sessions.clear()
 
-    # --- Pub/Sub ---
-
     async def _listen_updates(self) -> None:
         try:
             async for message in self._pubsub.listen():
@@ -87,8 +85,6 @@ class RedisModelMemoryBuffer(ModelMemoryBuffer):
         message = json.dumps({"node": self._node_id, "session": session_id})
         await self.client.publish(self._updates_channel(), message)
 
-    # --- Raw data operations ---
-
     async def _read_turns(self, session_id: str) -> List[List[Any]]:
         raw = await self.client.get(self._session_key(session_id, "turns"))
         if raw is None:
@@ -103,8 +99,6 @@ class RedisModelMemoryBuffer(ModelMemoryBuffer):
 
     async def _remove_all(self, session_id: str) -> None:
         await self.client.delete(self._session_key(session_id, "turns"))
-
-    # --- Key naming ---
 
     def _session_key(self, session_id: str, suffix: str) -> str:
         return f"{self.config.prefix}{session_id}:{suffix}"

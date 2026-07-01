@@ -18,8 +18,6 @@ class MemoryModelMemoryBuffer(ModelMemoryBuffer):
         self._turns.clear()
         self._sessions.clear()
 
-    # --- Raw data operations ---
-
     async def _read_turns(self, session_id: str) -> List[List[Any]]:
         return list(self._turns.get(session_id, []))
 

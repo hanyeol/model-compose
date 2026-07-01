@@ -7,7 +7,7 @@ import sys
 
 def _load_compose_config(config_files: List[Path], env_files: List[Path], env_data: List[str]):
     from mindor.dsl.loader import load_compose_config
-    from mindor.core.runtime.env import load_env_files, merge_env_data
+    from mindor.core.utils.env import load_env_files, merge_env_data
 
     env = load_env_files(".", env_files or [])
     env = merge_env_data(env, env_data)

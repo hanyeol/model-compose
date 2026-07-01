@@ -7,11 +7,11 @@ from typing_extensions import Self
 from pydantic import BaseModel, Field, ValidationError
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.core.utils.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, EventStreamIterator, StreamChunkIterator
-from mindor.core.utils.http_stream import HttpEventStreamer
+from mindor.core.utils.transport.http_stream import HttpEventStreamer
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver

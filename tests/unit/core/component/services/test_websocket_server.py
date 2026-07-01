@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from mindor.core.component.services.websocket_server import WebSocketServerAction
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
-from mindor.core.utils.websocket_client import WebSocketClient, WebSocketConnection
+from mindor.core.utils.transport.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.dsl.schema.action.impl.websocket_server import (
     WebSocketReceiveConfig,
     WebSocketReceiveFormat,

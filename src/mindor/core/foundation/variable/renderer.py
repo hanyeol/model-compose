@@ -10,7 +10,7 @@ from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from ..streaming.video import VideoStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
-from mindor.core.utils.http_client import create_stream_with_url
+from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage

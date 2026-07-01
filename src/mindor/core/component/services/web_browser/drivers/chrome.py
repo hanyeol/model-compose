@@ -1,13 +1,12 @@
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriver
-from mindor.core.utils.cdp_client import CdpClient
+from mindor.core.utils.transport.cdp_client import CdpClient
 from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
 import asyncio
 
 class ChromeBrowserSession(WebBrowserSession):
     """Browser session backed by a persistent CDP connection."""
-
     def __init__(self, client: CdpClient):
         self.client = client
         self._lifecycle_enabled = False

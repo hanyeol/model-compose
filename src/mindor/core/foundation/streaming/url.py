@@ -5,7 +5,7 @@ from urllib.parse import unquote_to_bytes
 from .resources import StreamResource, save_stream_to_file
 from .base64 import Base64StreamResource
 from .bytes import BytesStreamResource
-from mindor.core.utils.http_client import create_stream_with_url
+from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
 import os, tempfile
 

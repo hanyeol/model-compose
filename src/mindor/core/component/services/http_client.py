@@ -4,8 +4,8 @@ from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionType, HttpClientCompletionConfig
 from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from mindor.core.listener import HttpCallbackListener
-from mindor.core.utils.http_client import HttpClient
-from mindor.core.utils.http_status import is_status_code_matched
+from mindor.core.utils.transport.http_client import HttpClient
+from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_duration

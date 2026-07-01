@@ -1,108 +1,66 @@
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 from dataclasses import dataclass, field
-from mindor.core.runtime.base.ipc_manager import IpcRuntimeManager
-from mindor.core.runtime.base.ipc_worker import IpcRuntimeWorker
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 import asyncio, os
 
-
-class ProcessRuntimeWorker(IpcRuntimeWorker):
-    """
-    Base class for workers running in separate processes via `multiprocessing.Process`.
-
-    Communicates with the parent process through a pair of `multiprocessing.Queue`s.
-    """
-
-    def __init__(self, worker_id: str, request_queue: Queue, response_queue: Queue):
-        super().__init__(worker_id)
-
-        self.request_queue = request_queue
-        self.response_queue = response_queue
-
-    async def _send_message(self, message: bytes) -> None:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self.response_queue.put, message)
-
-    async def _recv_message(self) -> Optional[bytes]:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.request_queue.get)
-
-    def _close_transport(self) -> None:
-        # Queue objects do not need explicit close from the worker side; the
-        # parent owns the queue lifecycle.
-        pass
-
-
 @dataclass
-class ProcessRuntimeManagerParams:
-    """
-    Parameters for the process runtime manager.
-    Used to configure how the worker subprocess is spawned and managed.
-    """
+class ProcessRuntimeParams:
+    """Parameters for spawning and stopping a child Python process."""
     env: Dict[str, str] = field(default_factory=dict)
-    start_timeout: float = 60.0  # seconds
-    stop_timeout: float = 30.0   # seconds
+    start_timeout: float = 60.0
+    stop_timeout: float = 30.0
 
+class ProcessRuntime:
+    """Generic lifecycle wrapper around a `multiprocessing.Process`.
 
-class ProcessRuntimeManager(IpcRuntimeManager):
+    Pure lifecycle — knows nothing about IPC protocols, codecs, or channels.
+    Callers provide `target` and `args` (commonly used to pass `Queue` handles
+    captured at construction time on the parent side) and decide how to
+    communicate with the child.
+
+    Typical flow:
+        runtime = ProcessRuntime(target=_child_main, args=(queue_in, queue_out), params=ProcessRuntimeParams())
+        await runtime.start()
+        ...
+        await runtime.stop()
     """
-    Generic process runtime manager for running workers in separate processes.
-
-    Can be used for use cases requiring process isolation.
-    """
-
     def __init__(
         self,
-        worker_id: str,
-        worker_factory: Callable[[str, Queue, Queue], Any],
-        worker_params: ProcessRuntimeManagerParams = None
+        target: Callable[..., Any],
+        args: tuple,
+        params: ProcessRuntimeParams,
+        verbose: bool = False,
     ):
-        super().__init__(worker_id)
-
-        self.worker_factory = worker_factory
-        self.worker_params = worker_params or ProcessRuntimeManagerParams()
+        self.target = target
+        self.args = args
+        self.params = params
+        self.verbose = verbose
 
         self._subprocess: Optional[Process] = None
-        self._request_queue: Optional[Queue] = None
-        self._response_queue: Optional[Queue] = None
-
-        self._start_timeout = self.worker_params.start_timeout
-        self._stop_timeout = self.worker_params.stop_timeout
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
 
-        self._request_queue  = Queue()
-        self._response_queue = Queue()
-
-        self._subprocess = Process(
-            target=self._run_worker,
-            args=(
-                self.worker_factory,
-                self.worker_id,
-                self._request_queue,
-                self._response_queue
-            ),
-            daemon=False
-        )
-
-        if self.worker_params.env:
-            for key, value in self.worker_params.env.items():
+        if self.params.env:
+            for key, value in self.params.env.items():
                 os.environ[key] = value
 
+        self._subprocess = Process(
+            target=self.target,
+            args=self.args,
+            daemon=False,
+        )
         self._subprocess.start()
 
-        await self._wait_for_ready()
-
-        self._response_task = asyncio.create_task(self._handle_responses())
-
     async def stop(self) -> None:
-        await self._send_stop_message()
+        if self._subprocess is None:
+            return
 
         try:
             await self._loop.run_in_executor(
                 None,
-                lambda: self._subprocess.join(timeout=self._stop_timeout),
+                lambda: self._subprocess.join(timeout=self.params.stop_timeout),
             )
         except Exception:
             pass
@@ -113,38 +71,10 @@ class ProcessRuntimeManager(IpcRuntimeManager):
             if self._subprocess.is_alive():
                 self._subprocess.kill()
 
-        # Unblock the executor thread parked in _recv_message (Queue.get is blocking).
-        # Without this, loop.shutdown_default_executor() hangs forever on interpreter exit.
-        if self._response_queue is not None:
-            self._response_queue.put(None)
+    @property
+    def is_alive(self) -> bool:
+        return self._subprocess is not None and self._subprocess.is_alive()
 
-        if self._response_task is not None:
-            try:
-                await self._response_task
-            except asyncio.CancelledError:
-                pass
-
-    async def _send_message(self, message: bytes) -> None:
-        await self._loop.run_in_executor(None, self._request_queue.put, message)
-
-    async def _recv_message(self) -> Optional[bytes]:
-        return await self._loop.run_in_executor(None, self._response_queue.get)
-
-    @staticmethod
-    def _run_worker(
-        worker_factory: Callable[[str, Queue, Queue], Any],
-        worker_id: str,
-        request_queue: Queue,
-        response_queue: Queue,
-    ) -> None:
-        worker = worker_factory(worker_id, request_queue, response_queue)
-        loop = asyncio.new_event_loop()
-
-        asyncio.set_event_loop(loop)
-
-        try:
-            loop.run_until_complete(worker.run())
-        except KeyboardInterrupt:
-            pass
-        finally:
-            loop.close()
+    @property
+    def subprocess(self) -> Optional[Process]:
+        return self._subprocess

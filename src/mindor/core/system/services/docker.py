@@ -1,22 +1,36 @@
 from mindor.dsl.schema.system.impl.docker import DockerSystemConfig
 from mindor.dsl.schema.system.impl.types import SystemType
-from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
-from mindor.dsl.schema.runtime.impl.types import RuntimeType
 from mindor.core.system.base import SystemService, register_system
-from mindor.core.runtime.docker import DockerRuntimeManager
+from mindor.core.foundation.containers.docker import (
+    DockerBuildParams,
+    DockerContainerParams,
+    DockerContainerRunner,
+    DockerImageBuilder,
+)
 from mindor.core.logger import logging
 import shutil
 
+
 @register_system(SystemType.DOCKER)
 class DockerSystem(SystemService):
+    """Docker-compose-style system service: builds/pulls an image, creates
+    a container from the user-supplied `DockerSystemConfig`, and manages
+    its lifecycle.
+
+    Delegates SDK calls to the foundation helpers `DockerImageBuilder` and
+    `DockerContainerRunner` — this class itself only encodes the
+    docker-compose-up flow (image first, then container)."""
+
     def __init__(self, id: str, config: DockerSystemConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
         self.config: DockerSystemConfig = config
         self._configure_system_config()
 
-        self._runtime: DockerRuntimeManager = DockerRuntimeManager(
-            config=self._build_runtime_config(self.config),
+        self._builder: DockerImageBuilder = DockerImageBuilder(verbose=True)
+        self._container: DockerContainerRunner = DockerContainerRunner(
+            DockerContainerParams.from_config(self.config),
+            client=self._builder._client,
             verbose=True,
         )
 
@@ -24,34 +38,39 @@ class DockerSystem(SystemService):
         if not self.config.container_name:
             self.config.container_name = f"mindor-system-{self.id}"
 
-    def _build_runtime_config(self, config: DockerSystemConfig) -> DockerRuntimeConfig:
-        shared_fields = set(DockerRuntimeConfig.model_fields) & set(DockerSystemConfig.model_fields)
-        return DockerRuntimeConfig(**{
-            **{ k: getattr(config, k) for k in shared_fields },
-            "type": RuntimeType.DOCKER,
-        })
-
     async def _setup(self) -> None:
         if not shutil.which("docker"):
             raise FileNotFoundError("'docker' command not found. Please install Docker to use docker systems.")
 
         if self.config.build:
-            await self._runtime.build_image()
+            build = DockerBuildParams.from_config(self.config.build)
+            await self._builder.build(
+                tag=self.config.image,
+                path=build.context,
+                dockerfile=build.dockerfile,
+                build_args=build.args,
+                cache_from=build.cache_from,
+                labels=build.labels,
+                network_mode=build.network,
+                pull=build.pull,
+                target=build.target,
+            )
         elif self.config.image:
-            if not await self._runtime.exists_image():
-                await self._runtime.pull_image()
+            if not await self._builder.exists(self.config.image):
+                await self._builder.pull(self.config.image)
 
     async def _serve(self) -> None:
-        await self._runtime.start_container(detach=True)
+        await self._container.create()
+        await self._container.start(detach=True)
         logging.info(f"Docker container started: {self.config.container_name or self.config.image}")
 
     async def _shutdown(self) -> None:
         try:
-            await self._runtime.stop_container()
-            await self._runtime.remove_container()
+            await self._container.stop()
+            await self._container.remove()
             logging.info(f"Docker container stopped: {self.config.container_name or self.config.image}")
         except Exception as e:
             logging.warning(f"Docker container cleanup failed: {e}")
 
     async def _is_ready(self) -> bool:
-        return await self._runtime.is_container_running()
+        return await self._container.is_running()

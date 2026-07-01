@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 import base64, ulid
 
 class StreamKind(str, Enum):
-    """Wire representation of stream chunk data (see component-ipc.md §3.2)."""
+    """Wire representation of stream chunk data."""
     BYTES  = "bytes"
     TEXT   = "text"
     OBJECT = "object"

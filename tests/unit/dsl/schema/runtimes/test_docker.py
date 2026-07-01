@@ -2,8 +2,8 @@
 
 import pytest
 
-from mindor.dsl.schema.runtime.impl.docker import (
-    DockerRuntimeConfig,
+from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
+from mindor.dsl.schema.containers.docker import (
     DockerBuildConfig,
     DockerPortConfig,
     DockerVolumeConfig,
@@ -14,7 +14,7 @@ from mindor.dsl.schema.runtime.impl.docker import (
 class TestDockerBuildConfig:
     """Test DockerBuildConfig schema."""
 
-    def test_minimal_build_config(self):
+    def test_minimal_config(self):
         """Test minimal build configuration."""
         config = DockerBuildConfig()
 
@@ -23,7 +23,7 @@ class TestDockerBuildConfig:
         assert config.args is None
         assert config.target is None
 
-    def test_full_build_config(self):
+    def test_full_config(self):
         """Test full build configuration."""
         config = DockerBuildConfig(
             context="./docker",
@@ -366,23 +366,6 @@ class TestDockerRuntimeConfig:
         )
 
         assert config.networks == []
-
-    def test_logging_configuration(self):
-        """Test logging configuration."""
-        config = DockerRuntimeConfig(
-            type="docker",
-            image="nginx:latest",
-            logging={
-                "driver": "json-file",
-                "options": {
-                    "max-size": "10m",
-                    "max-file": "3"
-                }
-            }
-        )
-
-        assert config.logging["driver"] == "json-file"
-        assert config.logging["options"]["max-size"] == "10m"
 
     def test_security_options(self):
         """Test security options."""

@@ -82,7 +82,7 @@ class ShellAction:
 
     async def _process_batch(
         self,
-        commands: List[Optional[ArrayValue]],
+        commands: List[ArrayValue],
         params: Dict[str, Any],
         streaming: bool,
     ) -> List[Any]:
@@ -90,11 +90,7 @@ class ShellAction:
             self._process(command, params, streaming) for command in commands
         ])
 
-    async def _process(self, command: Optional[ArrayValue], params: Dict[str, Any], streaming: bool) -> Any:
-        if command is None:
-            logging.debug("Shell command skipped because no command was provided.")
-            return None
-
+    async def _process(self, command: ArrayValue, params: Dict[str, Any], streaming: bool) -> Any:
         if streaming:
             return self._stream_command(command.values, params["working_dir"], params["env"], params["timeout"])
 

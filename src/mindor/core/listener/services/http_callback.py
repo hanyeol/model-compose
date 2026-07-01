@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.listener import HttpCallbackListenerConfig, HttpCallbackConfig
-from mindor.core.utils.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
 from fastapi import FastAPI, APIRouter, Body, HTTPException, Request

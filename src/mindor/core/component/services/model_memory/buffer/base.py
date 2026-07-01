@@ -4,7 +4,6 @@ from mindor.dsl.schema.component import ModelMemoryBufferDriver
 
 class SessionBuffer:
     """Per-session in-memory data: turns, summary, snapshot."""
-
     def __init__(self):
         self.settled_turns: List[List[Any]] = []
         self.pending_turns: List[List[Any]] = []
@@ -42,7 +41,6 @@ class ModelMemoryBuffer(ABC):
     Each session's in-memory state is held in a SessionBuffer object.
     Drivers only handle persistence of settled turns.
     """
-
     def __init__(self):
         self._sessions: Dict[str, SessionBuffer] = {}
 
@@ -118,8 +116,6 @@ class ModelMemoryBuffer(ABC):
     def has_session(self, session_id: str) -> bool:
         return session_id in self._sessions
 
-    # --- Raw data operations (abstract, implemented by each driver) ---
-
     @abstractmethod
     async def _read_turns(self, session_id: str) -> List[List[Any]]:
         pass
@@ -132,8 +128,6 @@ class ModelMemoryBuffer(ABC):
     async def _remove_all(self, session_id: str) -> None:
         pass
 
-    # --- Hooks (overridable by drivers) ---
-
     async def _on_update_turns(self, session_id: str) -> None:
         """Called when settled turns are written (locally or remotely).
         Clears local pending. Drivers can override to broadcast changes
@@ -141,8 +135,6 @@ class ModelMemoryBuffer(ABC):
         session = self._sessions.get(session_id)
         if session is not None:
             session.clear_pending()
-
-    # --- Internal helpers ---
 
     async def _acquire_session(self, session_id: str) -> SessionBuffer:
         session = self._sessions.get(session_id)

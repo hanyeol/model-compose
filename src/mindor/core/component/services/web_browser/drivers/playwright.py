@@ -5,7 +5,6 @@ from .common import WebBrowserSession
 
 class PlaywrightBrowserSession(WebBrowserSession):
     """Browser session backed by a Playwright page."""
-
     def __init__(self, page: Any):
         self._page = page
 

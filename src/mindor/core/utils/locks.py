@@ -5,7 +5,6 @@ import time
 
 class FileLock:
     """Lightweight cross-platform exclusive file lock context manager."""
-
     def __init__(self, path: Path):
         self.path = path
         self._fp = None

@@ -22,7 +22,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.virtualenv import (
-    ComponentVirtualEnvRuntimeManager,
+    ComponentVirtualEnvRuntimeLauncher,
 )
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
@@ -88,10 +88,10 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     await component.setup()  # should skip — virtualenv runtime
     await component.start()
 
-    assert component._virtualenv_manager is not None
-    assert isinstance(component._virtualenv_manager, ComponentVirtualEnvRuntimeManager)
-    assert component._virtualenv_manager._subprocess is not None
-    assert component._virtualenv_manager._subprocess.poll() is None
+    assert component._virtualenv_launcher is not None
+    assert isinstance(component._virtualenv_launcher, ComponentVirtualEnvRuntimeProxy)
+    assert component._virtualenv_launcher._runtime.subprocess is not None
+    assert component._virtualenv_launcher._runtime.subprocess.poll() is None
 
     # venv should be at .runtime/components/venv-shell/venv under the cwd.
     expected_venv = (venv_dir / ".runtime" / "components" / "venv-shell" / "venv").resolve()
@@ -101,11 +101,11 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     ).exists()
 
     # Worker subprocess must use the venv python, not the parent interpreter.
-    worker_exe = component._virtualenv_manager._subprocess.args[0]
+    worker_exe = component._virtualenv_launcher._runtime.subprocess.args[0]
     assert str(expected_venv) in worker_exe
 
     # mindor should have been copied into the venv's site-packages, not pip-installed.
-    site_packages = component._virtualenv_manager._venv_site_packages()
+    site_packages = component._virtualenv_launcher._runtime._venv_site_packages()
     assert (site_packages / "mindor" / "__init__.py").exists()
 
     import mindor.version
@@ -124,7 +124,7 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     assert result["exit_code"] == 0
 
     await component.stop()
-    assert component._virtualenv_manager._subprocess.poll() is not None
+    assert component._virtualenv_launcher._runtime.subprocess.poll() is not None
 
     await component.teardown()
 
@@ -161,7 +161,7 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
 
     # Touch a sentinel file inside mindor/ so we can verify it is not blown away on the
     # second start (which should skip reinjection because the version hasn't changed).
-    site_packages = component._virtualenv_manager._venv_site_packages()
+    site_packages = component._virtualenv_launcher._runtime._venv_site_packages()
     sentinel = site_packages / "mindor" / "_test_sentinel.txt"
     sentinel.write_text("preserved")
 

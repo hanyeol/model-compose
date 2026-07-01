@@ -1,0 +1,221 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List
+from abc import ABC, abstractmethod
+from enum import Enum
+from pathlib import Path
+from mindor.core.utils.archive import archive_to_dir, skip_python_artifacts
+from mindor.core.logger import logging
+import mindor, hashlib
+
+_REQUIREMENTS_SHA256_LABEL = "mindor.requirements-sha256"
+
+class ContainerImageKind(str, Enum):
+    """How a launcher should source its container image."""
+    STANDARD = "standard"  # mindor's standard image (mindor/<role>:VERSION).
+    DERIVED  = "derived"   # Standard image + user `requirements.txt` layer.
+    CUSTOM   = "custom"    # Caller supplied an explicit image or build context.
+
+class ContainerRuntimeBackend(ABC):
+    """Shared image lifecycle for container-backed runtime launchers."""
+    def __init__(self, image_kind: ContainerImageKind, verbose: bool = False):
+        self.verbose: bool = verbose
+
+        self._builder = self._create_builder()
+        self._requirements_path: Path = Path.cwd() / "requirements.txt"
+        self._build_root: Path = Path.cwd() / ".build"
+        self._image_kind: ContainerImageKind = image_kind
+
+    async def provision_runtime(self, config: Any) -> Any:
+        """Build the runtime from `config`, ensure its image, and recreate the container fresh."""
+        runtime = self.resolve_runtime(config)
+
+        if await runtime.is_running():
+            await runtime.stop()
+
+        if await runtime.exists():
+            await runtime.remove(force=True)
+
+        await self._ensure_runtime_image(runtime.params)
+        await runtime.create(**self._container_create_options())
+
+        return runtime
+
+    async def terminate_runtime(self, config: Any) -> None:
+        """Tear down the container and drop any DERIVED image this launcher produced."""
+        runtime = self.resolve_runtime(config)
+
+        if await runtime.exists():
+            await runtime.remove(force=True)
+
+        if self._image_kind == ContainerImageKind.DERIVED:
+            derived_tag = self._derived_image_tag()
+            if await self._builder.exists(derived_tag):
+                await self._builder.remove(derived_tag)
+
+    def resolve_runtime(self, config: Any) -> Any:
+        """Build a backend runtime from `config`. User-supplied `image` / `container_name`
+        win; otherwise the backend's default is used."""
+        params = self._resolve_runtime_params(config)
+        if params.image is None:
+            params.image = self._default_image_tag()
+        if params.container_name is None:
+            params.container_name = self._default_container_name()
+        return self._create_runtime(params)
+
+    def _container_create_options(self) -> Dict[str, Any]:
+        """Extra kwargs forwarded to the backend's `runtime.create()`."""
+        return {}
+
+    async def _ensure_runtime_image(self, params: Any) -> None:
+        """Ensure the image this run will launch from exists, building/pulling as required by the image kind."""
+        if self._image_kind == ContainerImageKind.CUSTOM:
+            await self._ensure_custom_image(params)
+            return
+
+        await self._ensure_standard_image(self._standard_image_tag())
+
+        if self._image_kind == ContainerImageKind.DERIVED:
+            await self._ensure_derived_image(self._derived_image_tag())
+
+    async def _ensure_standard_image(self, image_tag: str) -> None:
+        if await self._builder.exists(image_tag):
+            logging.debug("Standard image %s already exists — skipping.", image_tag)
+            return
+
+        if self._version_tag(image_tag) != "latest":
+            logging.debug("Pulling standard image %s...", image_tag)
+            try:
+                await self._builder.pull(image_tag)
+                if await self._builder.exists(image_tag):
+                    logging.info("Standard image %s pulled successfully.", image_tag)
+                    return
+            except Exception as e:
+                logging.debug("Standard image pull failed: %s — falling back to local build.", e)
+
+        logging.info("Building standard image %s locally...", image_tag)
+        package_source_root = Path(mindor.__file__).resolve().parent
+        assets_dir = self._image_assets_dir()
+        dockerfile_path = assets_dir / "Dockerfile.standard"
+        requirements_path = package_source_root / "core" / "runtime" / "bootstrap" / "requirements.txt"
+
+        command_json = "[" + ", ".join(f'"{part}"' for part in self._standard_image_command()) + "]"
+        dockerfile_bytes = dockerfile_path.read_bytes() + f"CMD {command_json}\n".encode("utf-8")
+
+        files: Dict[str, Any] = {
+            "Dockerfile": dockerfile_bytes,
+            "standard-requirements.txt": requirements_path,
+        }
+        bootstrap_path = assets_dir / "bootstrap.sh"
+        if bootstrap_path.is_file():
+            files["bootstrap.sh"] = bootstrap_path
+
+        with archive_to_dir(
+            files=files,
+            dirs={f"src/{package_source_root.name}": package_source_root},
+            filter=skip_python_artifacts,
+            root=self._build_root,
+        ) as context_dir:
+            await self._builder.build(
+                tag=image_tag,
+                path=str(context_dir),
+            )
+        logging.info("Standard image %s built successfully.", image_tag)
+
+    async def _ensure_derived_image(self, image_tag: str) -> None:
+        current_hash = self._requirements_hash()
+
+        if await self._builder.exists(image_tag):
+            stored_hash = await self._builder.get_label(image_tag, _REQUIREMENTS_SHA256_LABEL)
+            if stored_hash == current_hash:
+                logging.debug("Derived image %s already up to date — skipping.", image_tag)
+                return
+            logging.info("requirements.txt changed — rebuilding derived image %s.", image_tag)
+            await self._builder.remove(image_tag, force=True)
+
+        logging.info("Building derived image %s...", image_tag)
+        dockerfile_path = self._image_assets_dir() / "Dockerfile.derived"
+
+        with archive_to_dir(
+            files={
+                "Dockerfile": dockerfile_path,
+                "user-requirements.txt": self._requirements_path,
+            },
+            root=self._build_root,
+        ) as context_dir:
+            await self._builder.build(
+                tag=image_tag,
+                path=str(context_dir),
+                build_args={"BASE_IMAGE": self._standard_image_tag()},
+                labels={_REQUIREMENTS_SHA256_LABEL: current_hash},
+            )
+        logging.info("Derived image %s built successfully.", image_tag)
+
+    async def _ensure_custom_image(self, params: Any) -> None:
+        """Build from `build:` context, or pull `image:` if not already present locally."""
+        image_tag = params.image
+        if not image_tag:
+            raise RuntimeError("CUSTOM image kind requires either `build:` or `image:`.")
+
+        if params.build:
+            logging.info("Building custom image %s...", image_tag)
+            await self._builder.build(tag=image_tag, **self._resolve_build_params(params.build))
+            logging.info("Custom image %s built successfully.", image_tag)
+            return
+
+        if await self._builder.exists(image_tag):
+            logging.debug("Custom image %s already exists — skipping pull.", image_tag)
+            return
+
+        logging.info("Pulling custom image %s...", image_tag)
+        await self._builder.pull(image_tag)
+        logging.info("Custom image %s pulled successfully.", image_tag)
+
+    @abstractmethod
+    def _image_assets_dir(self) -> Path:
+        """Directory holding role-specific container build assets."""
+
+    @abstractmethod
+    def _standard_image_tag(self) -> str:
+        """Tag for this launcher's standard image."""
+
+    @abstractmethod
+    def _standard_image_command(self) -> List[str]:
+        """CMD baked into this launcher's standard image."""
+
+    @abstractmethod
+    def _derived_image_tag(self) -> str:
+        """Tag for this launcher's derived image (standard + user `requirements.txt` layer)."""
+
+    @abstractmethod
+    def _create_runtime(self, params: Any) -> Any:
+        """Instantiate the backend-specific runtime from a fully-resolved `*RuntimeParams`."""
+
+    @abstractmethod
+    def _resolve_runtime_params(self, config: Any) -> Any:
+        """Translate the user's runtime `config` into a backend-specific `*RuntimeParams` dataclass."""
+
+    @abstractmethod
+    def _default_image_tag(self) -> str:
+        """Default image tag when the user did not supply `runtime.image`.
+        (STANDARD/DERIVED default images; CUSTOM path with `build:` computes its own tag.)"""
+
+    @abstractmethod
+    def _default_container_name(self) -> str:
+        """Default container name when the user did not supply `runtime.container_name`."""
+
+    @abstractmethod
+    def _create_builder(self) -> Any:
+        """Construct the backend-specific image builder."""
+
+    @abstractmethod
+    def _resolve_build_params(self, config: Any) -> Dict[str, Any]:
+        """Translate the user's `build:` config into `**kwargs` for the backend builder's `build()`."""
+
+    def _requirements_hash(self) -> str:
+        return hashlib.sha256(self._requirements_path.read_bytes()).hexdigest()
+
+    @staticmethod
+    def _version_tag(tag: str) -> str:
+        """Extract the version portion of `repo:tag`, defaulting to `'latest'`."""
+        return tag.rsplit(":", 1)[-1] if ":" in tag else "latest"

@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+COPY user-requirements.txt /tmp/user-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/user-requirements.txt \
+    && rm /tmp/user-requirements.txt

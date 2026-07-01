@@ -11,6 +11,7 @@ from mindor.core.foundation.variable.media import MediaValueRenderer
 from mindor.core.foundation.variable.file import FileValueRenderer
 from mindor.core.foundation.variable.text import TextValueRenderer
 from mindor.core.foundation.variable.size import SizeValueRenderer
+from mindor.core.foundation.variable.color import ColorValueRenderer, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.gateway import find_gateway_by_port
@@ -80,8 +81,11 @@ class ComponentActionContext:
     async def render_text(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await TextValueRenderer().render(await self.render_variable(value))
 
-    async def render_image(self, value: Any) -> Optional[Union[PILImage.Image, AsyncIterator, List[Union[PILImage.Image, AsyncIterator]]]]:
+    async def render_image(self, value: Any) -> Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]:
         return await ImageValueRenderer().render(await self.render_variable(value))
+
+    async def render_image_array(self, value: Any) -> Union[List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]:
+        return await ImageValueRenderer().render_array(await self.render_variable(value))
 
     async def render_audio(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
         return await AudioValueRenderer().render(await self.render_variable(value))
@@ -95,11 +99,14 @@ class ComponentActionContext:
     async def render_file(self, value: Any) -> Any:
         return await FileValueRenderer().render(await self.render_variable(value))
 
-    async def render_array(self, value: Any) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
+    async def render_array(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         return await ArrayValueRenderer().render(await self.render_variable(value))
 
     async def render_size(self, value: Any, default: Optional[int] = None) -> Optional[int]:
         return await SizeValueRenderer().render(await self.render_variable(value), default)
+
+    async def render_color(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
+        return await ColorValueRenderer().render(await self.render_variable(value), default)
 
     def contains_variable_reference(self, key: str, value: Any) -> bool:
         return self.renderer.contains_reference(key, value)

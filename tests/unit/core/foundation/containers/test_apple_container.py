@@ -27,6 +27,17 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _stub_container_cli_present():
+    """Pretend the `container` CLI is installed so AppleContainerClient's
+    __init__ preflight check passes on any host running the test suite."""
+    with patch(
+        "mindor.core.utils.containers.apple_container_client.shutil.which",
+        return_value="/usr/local/bin/container",
+    ):
+        yield
+
+
 def _mock_process(returncode: int = 0, stdout: bytes = b"") -> MagicMock:
     process = MagicMock()
     process.returncode = returncode
@@ -40,31 +51,31 @@ def _mock_process(returncode: int = 0, stdout: bytes = b"") -> MagicMock:
 
 class TestAppleContainerPortsResolver:
     def test_resolve_none(self):
-        assert AppleContainerPortsResolver(None).resolve() == {}
+        assert AppleContainerPortsResolver(None).resolve() == []
 
     def test_resolve_empty_list(self):
-        assert AppleContainerPortsResolver([]).resolve() == {}
+        assert AppleContainerPortsResolver([]).resolve() == []
 
     def test_resolve_int_port(self):
-        assert AppleContainerPortsResolver([8080]).resolve() == {"8080": "8080"}
+        assert AppleContainerPortsResolver([8080]).resolve() == ["8080:8080"]
 
     def test_resolve_string_port(self):
-        assert AppleContainerPortsResolver(["80:8080"]).resolve() == {"8080": "80"}
+        assert AppleContainerPortsResolver(["80:8080"]).resolve() == ["80:8080"]
 
     def test_resolve_string_port_with_protocol(self):
-        assert AppleContainerPortsResolver(["53:53/udp"]).resolve() == {"53/udp": "53"}
+        assert AppleContainerPortsResolver(["53:53/udp"]).resolve() == ["53:53/udp"]
 
     def test_resolve_port_config(self):
-        config = AppleContainerPortConfig(target=8080, published=80)
-        assert AppleContainerPortsResolver([config]).resolve() == {"8080/tcp": "80"}
+        config = AppleContainerPortConfig(container_port=8080, host_port=80)
+        assert AppleContainerPortsResolver([config]).resolve() == ["80:8080/tcp"]
+
+    def test_resolve_port_config_with_host_ip(self):
+        config = AppleContainerPortConfig(container_port=8080, host_port=80, host_ip="127.0.0.1")
+        assert AppleContainerPortsResolver([config]).resolve() == ["127.0.0.1:80:8080/tcp"]
 
     def test_resolve_multiple_mixed(self):
         result = AppleContainerPortsResolver([8080, "443:8443", 3000]).resolve()
-        assert result == {
-            "8080": "8080",
-            "8443": "443",
-            "3000": "3000",
-        }
+        assert result == ["8080:8080", "443:8443", "3000:3000"]
 
 
 class TestAppleContainerMountsResolver:

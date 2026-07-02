@@ -23,32 +23,29 @@ class AppleContainerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, AppleContainerPortConfig]]]):
         self.ports: Optional[List[Union[str, int, AppleContainerPortConfig]]] = ports
 
-    def resolve(self) -> Dict[str, str]:
-        """Normalize the user's `ports` config into a `{container: host}`
-        mapping. Container ports include their `/protocol` suffix when
-        specified (e.g. `"53/udp"`), matching docker SDK convention."""
-        ports: Dict[str, str] = {}
+    def resolve(self) -> List[str]:
+        """Normalize `ports` into fully-formed `-p` values for the `container` CLI:
+        `[host_ip:]host_port:container_port[/protocol]`."""
+        specs: List[str] = []
 
         for port in self.ports or []:
             if isinstance(port, int):
-                ports[str(port)] = str(port)
+                specs.append(f"{port}:{port}")
                 continue
 
             if isinstance(port, str):
-                spec, _, protocol = port.partition("/")
-                published, _, target = spec.rpartition(":")
-                container = f"{target}/{protocol}" if protocol else target
-                ports[container] = published or target
+                specs.append(port)
                 continue
 
             if isinstance(port, AppleContainerPortConfig):
-                if port.published is None:
+                if port.host_port is None:
                     continue
-                container = f"{port.target}/{port.protocol}" if port.protocol else str(port.target)
-                ports[container] = str(port.published)
+                container_part = f"{port.container_port}/{port.protocol}" if port.protocol else str(port.container_port)
+                host_part = f"{port.host_ip}:{port.host_port}" if port.host_ip else str(port.host_port)
+                specs.append(f"{host_part}:{container_part}")
                 continue
 
-        return ports
+        return specs
 
 class AppleContainerMountsResolver:
     def __init__(self, volumes: Optional[List[Union[str, AppleContainerVolumeConfig]]]):
@@ -305,8 +302,8 @@ class AppleContainerRunner:
         if stdin_open:
             args.append("-i")
 
-        for container, host in AppleContainerPortsResolver(self.params.ports).resolve().items():
-            args.extend([ "-p", f"{host}:{container}" ])
+        for spec in AppleContainerPortsResolver(self.params.ports).resolve():
+            args.extend([ "-p", spec ])
 
         for mount in AppleContainerMountsResolver(self.params.volumes).resolve():
             if mount.type == "volume":

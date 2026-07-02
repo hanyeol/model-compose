@@ -6,7 +6,7 @@ from mindor.dsl.schema.runtime import AppleContainerRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
     ComponentContainerRuntimeLauncher,
-    ComponentImageSpec,
+    ComponentContainerSpec,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
 )
@@ -22,34 +22,31 @@ from mindor.core.utils.channels.apple_container_attach import AppleContainerAtta
 from pathlib import Path
 import asyncio
 
-
 class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     """Image + container preparer for a component runtime on Apple Container."""
-
     def __init__(
         self,
         worker_id: str,
-        config: ComponentConfig,
+        runtime_config: AppleContainerRuntimeConfig,
         image_kind: ContainerImageKind,
         verbose: bool = False,
     ):
-        self.worker_id: str = worker_id
-        self.config: ComponentConfig = config
+        super().__init__(runtime_config=runtime_config, image_kind=image_kind, verbose=verbose)
 
-        super().__init__(image_kind=image_kind, verbose=verbose)
+        self.worker_id: str = worker_id
 
     def _default_image_tag(self) -> str:
-        if self.config.runtime.build:
-            return f"mindor/component-{ComponentImageSpec.project_name(self.worker_id)}:latest"
+        if self._image_kind == ContainerImageKind.CUSTOM:
+            return self._custom_image_tag()
         if self._image_kind == ContainerImageKind.DERIVED:
             return self._derived_image_tag()
         return self._standard_image_tag()
 
     def _default_container_name(self) -> str:
-        return f"mindor-component-{self.worker_id}"
+        return ComponentContainerSpec.default_container_name(self.worker_id)
 
-    def _resolve_runtime_params(self, config: AppleContainerRuntimeConfig) -> AppleContainerRuntimeParams:
-        params = super()._resolve_runtime_params(config)
+    def _resolve_runtime_params(self) -> AppleContainerRuntimeParams:
+        params = super()._resolve_runtime_params()
 
         if params.command is None and params.entrypoint is None:
             params.entrypoint = [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
@@ -57,13 +54,16 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
         return params
 
     def _image_assets_dir(self) -> Path:
-        return ComponentImageSpec.assets_dir()
+        return ComponentContainerSpec.image_assets_dir()
 
     def _standard_image_tag(self) -> str:
-        return ComponentImageSpec.standard_tag()
+        return ComponentContainerSpec.standard_image_tag()
 
     def _derived_image_tag(self) -> str:
-        return ComponentImageSpec.derived_tag(self.worker_id)
+        return ComponentContainerSpec.derived_image_tag(self.worker_id)
+
+    def _custom_image_tag(self) -> str:
+        return ComponentContainerSpec.custom_image_tag(self.worker_id)
 
     def _standard_image_command(self) -> List[str]:
         return [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
@@ -148,18 +148,26 @@ class ComponentAppleContainerRuntimeLauncher(ComponentContainerRuntimeLauncher):
         global_configs: ComponentGlobalConfigs,
         verbose: bool = False,
     ):
-        backend = ComponentAppleContainerRuntimeBackend(
-            worker_id=component_id,
-            config=component_config,
-            image_kind=ComponentImageSpec.resolve_image_kind(component_config),
-            verbose=verbose,
-        )
-        super().__init__(component_id, component_config, global_configs, backend)
+        super().__init__(component_id, component_config, global_configs, verbose)
 
         self._start_timeout = parse_duration(component_config.runtime.start_timeout)
         self._stop_timeout = parse_duration(component_config.runtime.stop_timeout)
 
         self._runtime: Optional[AppleContainerRuntime] = None
+
+    def _create_backend(
+        self,
+        component_id: str,
+        runtime_config: AppleContainerRuntimeConfig,
+        image_kind: ContainerImageKind,
+        verbose: bool,
+    ) -> ComponentAppleContainerRuntimeBackend:
+        return ComponentAppleContainerRuntimeBackend(
+            worker_id=component_id,
+            runtime_config=runtime_config,
+            image_kind=image_kind,
+            verbose=verbose,
+        )
 
     async def _attach_channel(self, loop: asyncio.AbstractEventLoop) -> AppleContainerAttachChannel:
         """Spawn `container start -a -i <name>` and wrap its stdin/stdout as

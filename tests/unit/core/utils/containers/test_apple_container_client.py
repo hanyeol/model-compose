@@ -15,6 +15,17 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _stub_container_cli_present():
+    """Pretend the `container` CLI is installed so the client's __init__
+    preflight check passes on any host running the test suite."""
+    with patch(
+        "mindor.core.utils.containers.apple_container_client.shutil.which",
+        return_value="/usr/local/bin/container",
+    ):
+        yield
+
+
 def _mock_process(returncode: int = 0, stderr: bytes = b"") -> MagicMock:
     process = MagicMock()
     process.returncode = returncode
@@ -151,3 +162,23 @@ class TestAppleContainerClientCaptureOutput:
             kwargs = mock_exec.call_args.kwargs
             assert kwargs["stdout"] is _sys.stdout
             assert kwargs["stderr"] is _sys.stderr
+
+
+class TestAppleContainerClientPreflight:
+    """`__init__` verifies the `container` CLI is on PATH before doing anything."""
+
+    def test_missing_cli_raises(self):
+        with patch(
+            "mindor.core.utils.containers.apple_container_client.shutil.which",
+            return_value=None,
+        ):
+            with pytest.raises(RuntimeError, match="Apple Container CLI"):
+                AppleContainerClient()
+
+    def test_present_cli_succeeds(self):
+        with patch(
+            "mindor.core.utils.containers.apple_container_client.shutil.which",
+            return_value="/opt/homebrew/bin/container",
+        ):
+            client = AppleContainerClient()
+            assert client.verbose is False

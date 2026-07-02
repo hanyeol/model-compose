@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Optional, Dict, List, Any
+from typing import Union, Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass, field
 from mindor.dsl.schema.containers.docker import (
     DockerContainerConfig,
@@ -20,8 +20,11 @@ class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
         self.ports: Optional[List[Union[str, int, DockerPortConfig]]] = ports
 
-    def resolve(self) -> Dict[str, str]:
-        ports: Dict[str, str] = {}
+    def resolve(self) -> Dict[str, Union[str, Tuple[str, int]]]:
+        """Normalize `ports` into docker-py's `containers.create(ports=...)` form:
+        `{container_port/protocol: host_port}` for all-interface bind, or
+        `{container_port/protocol: (host_ip, host_port)}` when a host IP is set."""
+        ports: Dict[str, Union[str, Tuple[str, int]]] = {}
 
         for port in self.ports or []:
             if isinstance(port, int):
@@ -29,13 +32,22 @@ class DockerPortsResolver:
                 continue
 
             if isinstance(port, str):
-                published, target = port.split(":")
-                ports[str(target)] = str(published)
+                host_side, _, container_side = port.rpartition(":")
+                host_ip, _, host_port = host_side.rpartition(":")
+                if host_ip:
+                    ports[container_side] = (host_ip, int(host_port))
+                else:
+                    ports[container_side] = host_port or container_side
                 continue
 
             if isinstance(port, DockerPortConfig):
-                if port.published is not None:
-                    ports[str(port.target)] = str(port.published)
+                if port.host_port is None:
+                    continue
+                key = f"{port.container_port}/{port.protocol}" if port.protocol else str(port.container_port)
+                if port.host_ip:
+                    ports[key] = (port.host_ip, port.host_port)
+                else:
+                    ports[key] = str(port.host_port)
                 continue
 
         return ports
@@ -432,4 +444,3 @@ class DockerContainerRunner:
 
     def _handle_shutdown_signal(self, signum, frame) -> None:
         self._shutdown_event.set()
-

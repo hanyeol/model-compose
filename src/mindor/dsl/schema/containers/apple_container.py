@@ -10,8 +10,9 @@ class AppleContainerBuildConfig(BaseModel):
     pull: Optional[bool] = Field(default=None, description="Always pull newer versions of base images.")
 
 class AppleContainerPortConfig(BaseModel):
-    target: int = Field(..., description="Port exposed by the container.")
-    published: Optional[int] = Field(default=None, description="Host port to publish.")
+    container_port: int = Field(..., description="Port exposed by the container.")
+    host_port: Optional[int] = Field(default=None, description="Host port to publish.")
+    host_ip: Optional[str] = Field(default=None, description="Host IP to bind the published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
     protocol: Optional[Literal["tcp", "udp"]] = Field(default="tcp", description="Protocol.")
 
 class AppleContainerVolumeConfig(BaseModel):

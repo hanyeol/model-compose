@@ -92,10 +92,12 @@ class ComponentService(AsyncService):
     async def start(self, background: bool = False) -> None:
         if self.config.runtime.type == RuntimeType.PROCESS:
             await self._start_process_runtime()
+            self.started = True
             return
 
         if self.config.runtime.type == RuntimeType.VIRTUALENV:
             await self._start_virtualenv_runtime()
+            self.started = True
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -110,10 +112,12 @@ class ComponentService(AsyncService):
     async def stop(self) -> None:
         if self._process_launcher:
             await self._stop_process_runtime()
+            self.started = False
             return
 
         if self._virtualenv_launcher:
             await self._stop_virtualenv_runtime()
+            self.started = False
             return
 
         await super().stop()

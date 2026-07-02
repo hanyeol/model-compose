@@ -1,10 +1,17 @@
 from typing import Union, List, Optional
 from mindor.core.logger import logging
-import sys, asyncio
+import sys, shutil, asyncio
 
 class AppleContainerClient:
     """Thin async wrapper around the Apple Container `container` CLI."""
     def __init__(self, verbose: bool = False):
+        if shutil.which("container") is None:
+            raise RuntimeError(
+                "Apple Container CLI ('container') not found on PATH. "
+                "Install it from https://github.com/apple/container to use runtime.type=apple-container. "
+                "On non-macOS hosts, use runtime.type=docker instead."
+            )
+
         self.verbose: bool = verbose
 
     async def run(

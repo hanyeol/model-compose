@@ -37,11 +37,13 @@ class AppleContainerRuntime(AppleContainerRunner):
 
 class AppleContainerRuntimeBackend(ContainerRuntimeBackend):
     """Apple Container-backed `ContainerRuntimeBackend`."""
+    _runtime_config: AppleContainerRuntimeConfig
+
     def _create_runtime(self, params: AppleContainerRuntimeParams) -> AppleContainerRuntime:
         return AppleContainerRuntime(params, verbose=self.verbose)
 
-    def _resolve_runtime_params(self, config: AppleContainerRuntimeConfig) -> AppleContainerRuntimeParams:
-        return AppleContainerRuntimeParams.from_config(config)
+    def _resolve_runtime_params(self) -> AppleContainerRuntimeParams:
+        return AppleContainerRuntimeParams.from_config(self._runtime_config)
 
     def _create_builder(self) -> AppleContainerImageBuilder:
         return AppleContainerImageBuilder(verbose=self.verbose)

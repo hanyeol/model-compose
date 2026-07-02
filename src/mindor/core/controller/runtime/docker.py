@@ -1,38 +1,39 @@
 from typing import List
 from pathlib import Path
+from mindor.dsl.schema.containers.docker import DockerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.runtime.docker import DockerRuntimeBackend, DockerRuntimeParams
-from .common import ControllerContainerRuntimeLauncher, ControllerImageSpec
+from .common import ControllerContainerRuntimeLauncher, ControllerContainerSpec
 
-class ControllerDockerBackend(DockerRuntimeBackend):
+class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     """Docker backend for a controller runtime."""
-
     def __init__(self, config: ControllerConfig, image_kind: ContainerImageKind, verbose: bool):
+        super().__init__(runtime_config=config.runtime, image_kind=image_kind, verbose=verbose)
+
         self.config: ControllerConfig = config
 
-        super().__init__(image_kind=image_kind, verbose=verbose)
-
     def _default_image_tag(self) -> str:
-        if self.config.runtime.build:
-            return f"mindor/controller-{ControllerImageSpec.project_name(self.config)}:latest"
+        if self._image_kind == ContainerImageKind.CUSTOM:
+            return self._custom_image_tag()
         if self._image_kind == ContainerImageKind.DERIVED:
             return self._derived_image_tag()
         return self._standard_image_tag()
 
     def _default_container_name(self) -> str:
-        return self.config.name or f"mindor-controller-{ControllerImageSpec.project_name(self.config)}"
+        return ControllerContainerSpec.default_container_name(self.config.name)
 
-    def _resolve_runtime_params(self, config: DockerRuntimeConfig) -> DockerRuntimeParams:
-        params = super()._resolve_runtime_params(config)
+    def _resolve_runtime_params(self) -> DockerRuntimeParams:
+        params = super()._resolve_runtime_params()
 
         if not params.working_dir:
             params.working_dir = "/workspace"
 
         if params.ports is None:
-            webui_port = getattr(self.config.webui, "port", None)
-            params.ports = list(set(ControllerImageSpec.resolve_adapter_ports(self.config) + ([ webui_port ] if webui_port else [])))
+            params.ports = [
+                DockerPortConfig(container_port=port, host_port=port, host_ip=host_ip)
+                for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config)
+            ]
 
         if not params.extra_hosts:
             params.extra_hosts = {}
@@ -42,20 +43,26 @@ class ControllerDockerBackend(DockerRuntimeBackend):
         return params
 
     def _image_assets_dir(self) -> Path:
-        return ControllerImageSpec.assets_dir()
+        return ControllerContainerSpec.image_assets_dir()
 
     def _standard_image_tag(self) -> str:
-        return ControllerImageSpec.standard_tag()
+        return ControllerContainerSpec.standard_image_tag()
 
     def _derived_image_tag(self) -> str:
-        return ControllerImageSpec.derived_tag(self.config)
+        return ControllerContainerSpec.derived_image_tag(self.config.name)
+
+    def _custom_image_tag(self) -> str:
+        return ControllerContainerSpec.custom_image_tag(self.config.name)
 
     def _standard_image_command(self) -> List[str]:
-        return ControllerImageSpec.standard_command()
+        return ControllerContainerSpec.standard_image_command()
 
 class ControllerDockerRuntimeLauncher(ControllerContainerRuntimeLauncher):
     """Facade — composes the Docker backend with the controller lifecycle."""
-    def __init__(self, config: ControllerConfig, verbose: bool):
-        image_kind = ControllerImageSpec.resolve_image_kind(config)
-        backend = ControllerDockerBackend(config, image_kind, verbose)
-        super().__init__(config=config, backend=backend, image_kind=image_kind)
+    def _create_backend(
+        self,
+        config: ControllerConfig,
+        image_kind: ContainerImageKind,
+        verbose: bool,
+    ) -> ControllerDockerRuntimeBackend:
+        return ControllerDockerRuntimeBackend(config, image_kind, verbose)

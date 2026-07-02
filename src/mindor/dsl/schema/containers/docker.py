@@ -13,10 +13,10 @@ class DockerBuildConfig(BaseModel):
     shm_size: Optional[str] = Field(default=None, description="Shared memory size.")
 
 class DockerPortConfig(BaseModel):
-    target: int = Field(..., description="Port exposed by the container.")
-    published: Optional[int] = Field(default=None, description="Host port to publish.")
+    container_port: int = Field(..., description="Port exposed by the container.")
+    host_port: Optional[int] = Field(default=None, description="Host port to publish.")
+    host_ip: Optional[str] = Field(default=None, description="Host IP to bind the published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
     protocol: Optional[Literal["tcp", "udp"]] = Field(default="tcp", description="Protocol.")
-    mode: Optional[Literal["host", "ingress"]] = Field(default=None, description="Publishing mode.")
 
 class DockerVolumeOptionsConfig(BaseModel):
     nocopy: bool = Field(default=False, description="Disable copying data from container path when volume is created.")

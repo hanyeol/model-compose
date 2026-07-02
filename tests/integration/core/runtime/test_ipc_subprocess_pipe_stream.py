@@ -47,12 +47,12 @@ class _ChannelManager(IpcRuntimeProxy):
         self._stop_timeout = 5.0
         self._channel = channel
 
-    async def start(self) -> None:
+    async def _start(self) -> None:
         self._loop = asyncio.get_event_loop()
         await self._wait_for_ready()
         self._response_task = asyncio.create_task(self._handle_responses())
 
-    async def stop(self) -> None:
+    async def _stop(self) -> None:
         await self._send_stop_message()
         if self._response_task is not None:
             try:

@@ -71,13 +71,13 @@ class QueueIpcManager(IpcRuntimeProxy):
             params=params,
         )
 
-    async def start(self) -> None:
+    async def _start(self) -> None:
         self._loop = asyncio.get_event_loop()
         await self._runtime.start()
         await self._wait_for_ready()
         self._response_task = asyncio.create_task(self._handle_responses())
 
-    async def stop(self) -> None:
+    async def _stop(self) -> None:
         await self._send_stop_message()
         await self._runtime.stop()
         if self._response_queue is not None:

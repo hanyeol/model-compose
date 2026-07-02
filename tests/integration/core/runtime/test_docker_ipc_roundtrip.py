@@ -257,8 +257,8 @@ class _AttachEchoManager:
         import asyncio, ulid
 
         class _Manager(IpcRuntimeProxy):
-            async def start(self_inner): ...
-            async def stop(self_inner): ...
+            async def _start(self_inner): ...
+            async def _stop(self_inner): ...
             async def _send_message(self_inner, message):
                 await self_inner._loop.run_in_executor(None, self_inner._channel.send, message)
             async def _recv_message(self_inner):
@@ -306,8 +306,23 @@ class _AttachEchoManager:
             type=IpcMessageType.START,
             payload={"component_id": m.worker_id},
         ).serialize())
-        await m._wait_for_ready()
+        try:
+            await m._wait_for_ready()
+        except Exception as e:
+            container_logs = await self._collect_container_logs()
+            raise RuntimeError(
+                f"{e}\n---- container logs ----\n{container_logs}\n----"
+            ) from e
         m._response_task = asyncio.create_task(m._handle_responses())
+
+    async def _collect_container_logs(self) -> str:
+        import docker
+        try:
+            client = docker.from_env()
+            container = client.containers.get(self.manager.worker_id)
+            return container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
+        except Exception as e:
+            return f"<failed to fetch logs: {e}>"
 
     def _attach_to_container(self):
         import docker

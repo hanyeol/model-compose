@@ -93,38 +93,47 @@ class TestDockerPortsResolver:
             "3306": "3306"
         }
 
-    def test_resolve_port_config_with_published(self):
-        """Test resolving DockerPortConfig with published port"""
+    def test_resolve_port_config_with_host_port(self):
+        """Test resolving DockerPortConfig with host_port"""
         resolver = DockerPortsResolver([
-            DockerPortConfig(target=8080, published=80)
+            DockerPortConfig(container_port=8080, host_port=80)
         ])
         result = resolver.resolve()
 
-        assert result == { "8080": "80" }
+        assert result == { "8080/tcp": "80" }
 
-    def test_resolve_port_config_without_published(self):
-        """Test resolving DockerPortConfig without published port"""
+    def test_resolve_port_config_without_host_port(self):
+        """Test resolving DockerPortConfig without host_port"""
         resolver = DockerPortsResolver([
-            DockerPortConfig(target=8080)
+            DockerPortConfig(container_port=8080)
         ])
         result = resolver.resolve()
 
         assert result == {}
+
+    def test_resolve_port_config_with_host_ip(self):
+        """Test resolving DockerPortConfig with host_ip binds to a specific interface"""
+        resolver = DockerPortsResolver([
+            DockerPortConfig(container_port=8080, host_port=80, host_ip="127.0.0.1")
+        ])
+        result = resolver.resolve()
+
+        assert result == { "8080/tcp": ("127.0.0.1", 80) }
 
     def test_resolve_mixed_port_formats(self):
         """Test resolving mixed port formats"""
         resolver = DockerPortsResolver([
             8080,  # int
             "443:8443",  # string
-            DockerPortConfig(target=3000, published=3001),  # object with published
-            DockerPortConfig(target=5000),  # object without published
+            DockerPortConfig(container_port=3000, host_port=3001),  # object with host_port
+            DockerPortConfig(container_port=5000),  # object without host_port
         ])
         result = resolver.resolve()
 
         assert result == {
             "8080": "8080",
             "8443": "443",
-            "3000": "3001"
+            "3000/tcp": "3001"
         }
 
 

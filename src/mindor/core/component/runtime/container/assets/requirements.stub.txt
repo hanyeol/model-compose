@@ -1,0 +1,2 @@
+# Injected in place of the user's requirements.txt when the project has none.
+# Provides an empty file so the derived Dockerfile can COPY unconditionally.

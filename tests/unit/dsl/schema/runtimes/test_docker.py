@@ -52,33 +52,33 @@ class TestDockerPortConfig:
     """Test DockerPortConfig schema."""
 
     def test_minimal_port_config(self):
-        """Test minimal port configuration with only target port."""
-        config = DockerPortConfig(target=8080)
+        """Test minimal port configuration with only container_port."""
+        config = DockerPortConfig(container_port=8080)
 
-        assert config.target == 8080
-        assert config.published is None
+        assert config.container_port == 8080
+        assert config.host_port is None
+        assert config.host_ip is None
         assert config.protocol == "tcp"
-        assert config.mode is None
 
     def test_full_port_config(self):
         """Test full port configuration."""
         config = DockerPortConfig(
-            target=8080,
-            published=80,
+            container_port=8080,
+            host_port=80,
+            host_ip="127.0.0.1",
             protocol="tcp",
-            mode="ingress"
         )
 
-        assert config.target == 8080
-        assert config.published == 80
+        assert config.container_port == 8080
+        assert config.host_port == 80
+        assert config.host_ip == "127.0.0.1"
         assert config.protocol == "tcp"
-        assert config.mode == "ingress"
 
     def test_udp_protocol(self):
         """Test UDP protocol configuration."""
-        config = DockerPortConfig(target=53, protocol="udp")
+        config = DockerPortConfig(container_port=53, protocol="udp")
 
-        assert config.target == 53
+        assert config.container_port == 53
         assert config.protocol == "udp"
 
 
@@ -202,7 +202,7 @@ class TestDockerRuntimeConfig:
             ports=[
                 8080,  # Simple int
                 "9090:8080",  # String format
-                DockerPortConfig(target=3000, published=80)  # Object format
+                DockerPortConfig(container_port=3000, host_port=80)  # Object format
             ]
         )
 

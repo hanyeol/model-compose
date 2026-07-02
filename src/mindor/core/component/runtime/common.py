@@ -9,53 +9,38 @@ from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
 from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
-from mindor.core.runtime.common import ContainerImageKind, ContainerRuntimeBackend
+from mindor.core.runtime.common import ContainerImageKind, ContainerRuntimeBackend, ContainerRuntimeConfig
 from mindor.core.logger import logging
 from mindor.version import __version__
 import asyncio, re
 
-class ComponentImageSpec:
+class ComponentContainerSpec:
     """Component-image conventions shared by component backends."""
 
     @staticmethod
-    def standard_tag() -> str:
+    def standard_image_tag() -> str:
         return f"mindor/component:{__version__}"
 
     @staticmethod
-    def derived_tag(worker_id: str) -> str:
-        return f"mindor/component-{ComponentImageSpec.project_name(worker_id)}:{__version__}"
+    def derived_image_tag(worker_id: str) -> str:
+        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:{__version__}"
 
     @staticmethod
-    def assets_dir() -> Path:
+    def custom_image_tag(worker_id: str) -> str:
+        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:latest"
+
+    @staticmethod
+    def default_container_name(worker_id: str) -> str:
+        return f"mindor-component-{worker_id}"
+
+    @staticmethod
+    def image_assets_dir() -> Path:
         return Path(__file__).resolve().parent / "container" / "assets"
 
     @staticmethod
     def project_name(worker_id: str) -> str:
-        sanitized = re.sub(r"[^a-z0-9_-]", "", worker_id.lower()).lstrip("_-")
+        sanitized = re.sub(r"[^a-z0-9_-]", "", worker_id.lower()).strip("_-")
         return sanitized or "default"
-
-    @staticmethod
-    def resolve_image_kind(config: ComponentConfig) -> ContainerImageKind:
-        """Classify the component runtime as STANDARD / DERIVED / CUSTOM."""
-
-        if config.runtime.image or config.runtime.build:
-            return ContainerImageKind.CUSTOM
-
-        if ComponentImageSpec._has_user_requirements():
-            return ContainerImageKind.DERIVED
-
-        return ContainerImageKind.STANDARD
-
-    @staticmethod
-    def _has_user_requirements() -> bool:
-        path = Path.cwd() / "requirements.txt"
-        if not path.exists():
-            return False
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                return True
-        return False
 
 class ComponentRuntimeWorker(IpcRuntimeWorker):
     """Component-side IPC worker base.
@@ -260,17 +245,56 @@ class ComponentContainerRuntimeLauncher(ComponentRuntimeLauncher):
         component_id: str,
         component_config: ComponentConfig,
         global_configs: ComponentGlobalConfigs,
-        backend: ContainerRuntimeBackend,
+        verbose: bool = False,
     ):
         super().__init__(component_id, component_config, global_configs)
 
-        self._backend: ContainerRuntimeBackend = backend
+        self._image_kind: ContainerImageKind = self._resolve_image_kind(component_config)
+        self._backend: ContainerRuntimeBackend = self._create_backend(
+            component_id, component_config.runtime, self._image_kind, verbose,
+        )
         self._runtime: Optional[Any] = None
+
+    def _resolve_image_kind(self, config: ComponentConfig) -> ContainerImageKind:
+        """Classify the component runtime as STANDARD / DERIVED / CUSTOM."""
+        if config.runtime.image or config.runtime.build:
+            return ContainerImageKind.CUSTOM
+
+        if self._has_derived_context():
+            return ContainerImageKind.DERIVED
+
+        return ContainerImageKind.STANDARD
+
+    def _has_derived_context(self) -> bool:
+        return (
+            self._has_meaningful_lines(Path.cwd() / "requirements.txt")
+            or (Path.cwd() / "setup.sh").is_file()
+        )
+
+    @staticmethod
+    def _has_meaningful_lines(path: Path) -> bool:
+        if not path.is_file():
+            return False
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return True
+        return False
+
+    @abstractmethod
+    def _create_backend(
+        self,
+        component_id: str,
+        runtime_config: ContainerRuntimeConfig,
+        image_kind: ContainerImageKind,
+        verbose: bool,
+    ) -> ContainerRuntimeBackend:
+        """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
 
     async def _prepare_channel(self) -> Any:
         # 1) Backend resolves the image, builds/pulls if needed, and *creates*
         #    (not starts) the container.
-        self._runtime = await self._backend.provision_runtime(self.component_config.runtime)
+        self._runtime = await self._backend.provision_runtime()
 
         # 2) Backend-specific: attach the IPC channel and ensure the container
         #    is running. Docker attaches first then calls `runtime.start`;

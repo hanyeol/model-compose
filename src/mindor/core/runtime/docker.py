@@ -37,11 +37,13 @@ class DockerRuntime(DockerContainerRunner):
 
 class DockerRuntimeBackend(ContainerRuntimeBackend):
     """Docker-backed `ContainerRuntimeBackend`."""
+    _runtime_config: DockerRuntimeConfig
+
     def _create_runtime(self, params: DockerRuntimeParams) -> DockerRuntime:
         return DockerRuntime(params, verbose=self.verbose)
 
-    def _resolve_runtime_params(self, config: DockerRuntimeConfig) -> DockerRuntimeParams:
-        return DockerRuntimeParams.from_config(config)
+    def _resolve_runtime_params(self) -> DockerRuntimeParams:
+        return DockerRuntimeParams.from_config(self._runtime_config)
 
     def _create_builder(self) -> DockerImageBuilder:
         return DockerImageBuilder(verbose=self.verbose)

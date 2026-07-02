@@ -89,7 +89,7 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     await component.start()
 
     assert component._virtualenv_launcher is not None
-    assert isinstance(component._virtualenv_launcher, ComponentVirtualEnvRuntimeProxy)
+    assert isinstance(component._virtualenv_launcher, ComponentVirtualEnvRuntimeLauncher)
     assert component._virtualenv_launcher._runtime.subprocess is not None
     assert component._virtualenv_launcher._runtime.subprocess.poll() is None
 
@@ -123,8 +123,10 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     assert result["stdout"] == "hello from venv"
     assert result["exit_code"] == 0
 
+    # Snapshot before stop — the launcher clears its `_runtime` handle on teardown.
+    worker_subprocess = component._virtualenv_launcher._runtime.subprocess
     await component.stop()
-    assert component._virtualenv_launcher._runtime.subprocess.poll() is not None
+    assert worker_subprocess.poll() is not None
 
     await component.teardown()
 
@@ -156,12 +158,13 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
 
     await component.setup()
     await component.start()
+    # Snapshot the venv path before stop — the launcher clears its `_runtime` handle on teardown.
+    site_packages = component._virtualenv_launcher._runtime._venv_site_packages()
     await component.stop()
     await component.teardown()
 
     # Touch a sentinel file inside mindor/ so we can verify it is not blown away on the
     # second start (which should skip reinjection because the version hasn't changed).
-    site_packages = component._virtualenv_launcher._runtime._venv_site_packages()
     sentinel = site_packages / "mindor" / "_test_sentinel.txt"
     sentinel.write_text("preserved")
 

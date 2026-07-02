@@ -25,7 +25,6 @@ from mindor.core.component.runtime.process import (
 from mindor.core.runtime.process import ProcessRuntimeParams
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
-from mindor.dsl.schema.runtime.impl.process import IpcMethod
 
 
 @pytest.fixture
@@ -50,10 +49,6 @@ class TestProcessRuntimeConfig:
         assert config.working_dir is None
         assert config.start_timeout == "60s"
         assert config.stop_timeout == "30s"
-        assert config.ipc_method == IpcMethod.QUEUE
-        assert config.socket_path is None
-        assert config.pipe_name is None
-        assert config.tcp_port is None
         assert config.max_memory is None
         assert config.cpu_limit is None
 
@@ -69,21 +64,6 @@ class TestProcessRuntimeConfig:
     def test_working_directory(self):
         config = ProcessRuntimeConfig(type="process", working_dir="/app/workspace")
         assert config.working_dir == "/app/workspace"
-
-    @pytest.mark.parametrize(
-        "method, extra",
-        [
-            (IpcMethod.QUEUE, {}),
-            (IpcMethod.UNIX_SOCKET, {"socket_path": "/tmp/m.sock"}),
-            (IpcMethod.NAMED_PIPE, {"pipe_name": r"\\.\pipe\m"}),
-            (IpcMethod.TCP_SOCKET, {"tcp_port": 9000}),
-        ],
-    )
-    def test_ipc_methods(self, method, extra):
-        config = ProcessRuntimeConfig(type="process", ipc_method=method, **extra)
-        assert config.ipc_method == method
-        for key, value in extra.items():
-            assert getattr(config, key) == value
 
     def test_resource_limits(self):
         config = ProcessRuntimeConfig(type="process", max_memory="2g", cpu_limit=2.5)

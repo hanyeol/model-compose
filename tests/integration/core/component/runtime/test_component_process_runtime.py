@@ -98,8 +98,7 @@ class TestComponentProcessRuntimeLauncher:
                 type="process",
                 env={"TEST_VAR": "test_value"},
                 start_timeout="2m",
-                stop_timeout="30s",
-                ipc_method="queue"
+                stop_timeout="30s"
             ),
             command=["echo", "Custom"]
         )
@@ -321,39 +320,6 @@ class TestComponentProcessRuntimeScenarios:
 
         # Resource limits are in ProcessRuntimeConfig but not in ProcessRuntimeParams
         # These are DSL-level configs not used by foundation layer
-
-    def test_process_runtime_ipc_methods(self, global_configs):
-        """Test different IPC methods for process runtime."""
-        configs = [
-            ("queue-test", "queue", None),
-            ("unix-test", "unix-socket", "/tmp/test.sock"),
-            ("tcp-test", "tcp-socket", None),
-        ]
-
-        for comp_id, ipc_method, socket_path in configs:
-            runtime_config = ProcessRuntimeConfig(
-                type="process",
-                ipc_method=ipc_method
-            )
-
-            if socket_path:
-                runtime_config.socket_path = socket_path
-
-            config = ShellComponentConfig(
-                id=comp_id,
-                type="shell",
-                runtime=runtime_config,
-                command=[ "echo", "test" ]
-            )
-
-            launcher = ComponentProcessRuntimeLauncher(
-                comp_id,
-                config,
-                global_configs
-            )
-
-            # IPC method is in ProcessRuntimeConfig but not used by foundation layer yet
-            # Foundation layer currently only uses Queue-based IPC
 
     def test_component_launcher_attributes(self, global_configs):
         """Test ComponentProcessRuntimeLauncher has correct attributes."""

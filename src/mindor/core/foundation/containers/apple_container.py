@@ -82,28 +82,6 @@ class AppleContainerMountsResolver:
             )
 
 @dataclass
-class AppleContainerBuildParams:
-    """Inputs for `AppleContainerImageBuilder.build`. Mirrors
-    `AppleContainerBuildConfig`."""
-    context: Optional[str] = None
-    dockerfile: Optional[str] = None
-    args: Optional[Dict[str, Union[str, int, float, bool]]] = None
-    target: Optional[str] = None
-    labels: Optional[Dict[str, str]] = None
-    pull: Optional[bool] = None
-
-    @classmethod
-    def from_config(cls, config: AppleContainerBuildConfig) -> AppleContainerBuildParams:
-        return cls(
-            context=config.context,
-            dockerfile=config.dockerfile,
-            args=config.args,
-            target=config.target,
-            labels=config.labels,
-            pull=config.pull,
-        )
-
-@dataclass
 class AppleContainerParams:
     """Inputs for `AppleContainerRunner`. Mirrors `AppleContainerConfig`."""
     image: Optional[str] = None
@@ -244,6 +222,7 @@ class AppleContainerImageBuilder:
             annotations = entry.get("annotations")
             if isinstance(annotations, dict) and label in annotations:
                 return annotations[label]
+
         return None
 
 class AppleContainerRunner:

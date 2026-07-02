@@ -43,10 +43,6 @@ class DockerHealthCheck(BaseModel):
     start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks start.")
 
 class DockerContainerConfig(BaseModel):
-    """Shared container-creation options for any Docker-backed config
-    (runtime, system, ...). Mixin — does not stand alone (no `type`
-    discriminator). Carries the fields docker SDK's `containers.create`
-    accepts."""
     # Image or build
     image: Optional[str] = Field(default=None, description="Docker image name with optional tag.")
     build: Optional[DockerBuildConfig] = Field(default=None, description="Build configuration for building image locally.")

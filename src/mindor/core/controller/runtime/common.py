@@ -89,7 +89,7 @@ class ControllerContainerRuntimeLauncher:
         await runtime.start(detach)
 
     async def terminate(self) -> None:
-        await self._backend.terminate_runtime()
+        await self._backend.teardown_runtime()
 
     async def start(self) -> None:
         """Start an existing (already-prepared) controller container in detached mode."""

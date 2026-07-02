@@ -16,10 +16,6 @@ class AppleContainerPortConfig(BaseModel):
     protocol: Optional[Literal["tcp", "udp"]] = Field(default="tcp", description="Protocol.")
 
 class AppleContainerVolumeConfig(BaseModel):
-    """Volume mount spec for `container run`. Supports both `bind` mounts
-    (host directory ↔ container path) and named `volume` mounts. `type` is
-    inferred from `source` shape when omitted: a path-like value (contains
-    `/`) is treated as a bind mount, otherwise as a named volume."""
     type: Optional[Literal["bind", "volume"]] = Field(default=None, description="Mount type.")
     target: str = Field(..., description="Mount path inside the container.")
     source: Optional[str] = Field(default=None, description="Host path (bind) or volume name (volume).")
@@ -34,9 +30,6 @@ class AppleContainerHealthCheck(BaseModel):
     start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks start.")
 
 class AppleContainerConfig(BaseModel):
-    """Shared container-creation options for any Apple-Container-backed
-    config. Mixin — does not stand alone (no `type` discriminator).
-    Carries the fields `container run` accepts."""
     # Image or build
     image: Optional[str] = Field(default=None, description="Container image name with optional tag.")
     build: Optional[AppleContainerBuildConfig] = Field(default=None, description="Build configuration for building image locally.")

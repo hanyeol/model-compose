@@ -109,33 +109,6 @@ class DockerDeviceRequestsResolver:
         return [ DeviceRequest(count=count, capabilities=[["gpu"]]) ]
 
 @dataclass
-class DockerBuildParams:
-    """Inputs for `DockerImageBuilder.build_custom`. Mirrors `DockerBuildConfig`."""
-    context: Optional[str] = None
-    dockerfile: Optional[str] = None
-    args: Optional[Dict[str, Union[str, int, float, bool]]] = None
-    target: Optional[str] = None
-    cache_from: Optional[List[str]] = None
-    labels: Optional[Dict[str, str]] = None
-    network: Optional[str] = None
-    pull: Optional[bool] = None
-    shm_size: Optional[str] = None
-
-    @classmethod
-    def from_config(cls, config: DockerBuildConfig) -> DockerBuildParams:
-        return cls(
-            context=config.context,
-            dockerfile=config.dockerfile,
-            args=config.args,
-            target=config.target,
-            cache_from=config.cache_from,
-            labels=config.labels,
-            network=config.network,
-            pull=config.pull,
-            shm_size=config.shm_size,
-        )
-
-@dataclass
 class DockerContainerParams:
     """Inputs for `DockerContainerRunner`. Mirrors `DockerContainerConfig`."""
     image: Optional[str] = None

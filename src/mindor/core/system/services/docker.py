@@ -2,7 +2,6 @@ from mindor.dsl.schema.system.impl.docker import DockerSystemConfig
 from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
 from mindor.core.foundation.containers.docker import (
-    DockerBuildParams,
     DockerContainerParams,
     DockerContainerRunner,
     DockerImageBuilder,
@@ -43,7 +42,7 @@ class DockerSystem(SystemService):
             raise FileNotFoundError("'docker' command not found. Please install Docker to use docker systems.")
 
         if self.config.build:
-            build = DockerBuildParams.from_config(self.config.build)
+            build = self.config.build
             await self._builder.build(
                 tag=self.config.image,
                 path=build.context,

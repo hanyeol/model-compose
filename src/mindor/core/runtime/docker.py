@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from mindor.dsl.schema.containers.docker import DockerBuildConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.foundation.containers.docker import (
-    DockerBuildParams,
     DockerContainerParams,
     DockerContainerRunner,
     DockerImageBuilder,
@@ -49,14 +48,13 @@ class DockerRuntimeBackend(ContainerRuntimeBackend):
         return DockerImageBuilder(verbose=self.verbose)
 
     def _resolve_build_params(self, config: DockerBuildConfig) -> Dict[str, Any]:
-        params = DockerBuildParams.from_config(config)
         return {
-            "path": params.context,
-            "dockerfile": params.dockerfile,
-            "build_args": params.args,
-            "labels": params.labels,
-            "target": params.target,
-            "pull": params.pull,
-            "cache_from": params.cache_from,
-            "network_mode": params.network,
+            "path": config.context,
+            "dockerfile": config.dockerfile,
+            "build_args": config.args,
+            "labels": config.labels,
+            "target": config.target,
+            "pull": config.pull,
+            "cache_from": config.cache_from,
+            "network_mode": config.network,
         }

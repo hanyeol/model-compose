@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from mindor.dsl.schema.containers.apple_container import AppleContainerBuildConfig
 from mindor.dsl.schema.runtime import AppleContainerRuntimeConfig
 from mindor.core.foundation.containers.apple_container import (
-    AppleContainerBuildParams,
     AppleContainerParams,
     AppleContainerRunner,
     AppleContainerImageBuilder,
@@ -49,12 +48,11 @@ class AppleContainerRuntimeBackend(ContainerRuntimeBackend):
         return AppleContainerImageBuilder(verbose=self.verbose)
 
     def _resolve_build_params(self, config: AppleContainerBuildConfig) -> Dict[str, Any]:
-        params = AppleContainerBuildParams.from_config(config)
         return {
-            "path": params.context,
-            "dockerfile": params.dockerfile,
-            "build_args": params.args,
-            "target": params.target,
-            "labels": params.labels,
-            "pull": params.pull,
+            "path": config.context,
+            "dockerfile": config.dockerfile,
+            "build_args": config.args,
+            "target": config.target,
+            "labels": config.labels,
+            "pull": config.pull,
         }

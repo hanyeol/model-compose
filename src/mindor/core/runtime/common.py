@@ -46,7 +46,7 @@ class ContainerRuntimeBackend(ABC):
 
         return runtime
 
-    async def terminate_runtime(self) -> None:
+    async def teardown_runtime(self) -> None:
         """Tear down the container and drop any DERIVED image this launcher produced."""
         runtime = self.resolve_runtime()
 

@@ -1,7 +1,7 @@
 """Unit tests for `core/workflow/workflow.py` WorkflowRunner.
 
 Scope:
-- `_get_dependent_jobs` graph traversal
+- `_get_dependent_job_ids` graph traversal
 - `_schedule_job` max_run_count enforcement
 - `_run_jobs` completed-target rewind loop (integration-ish, no real Jobs)
 """
@@ -116,7 +116,7 @@ class TestGetDependentJobs:
             "C": make_job_config("C", depends_on=["B"]),
         }
         runner = self._make_runner(jobs)
-        result = runner._get_dependent_jobs("A", {"A", "B", "C"})
+        result = runner._get_dependent_job_ids("A", {"A", "B", "C"})
         assert result == {"A", "B", "C"}
 
     def test_diamond_returns_all_reachable(self):
@@ -128,7 +128,7 @@ class TestGetDependentJobs:
             "D": make_job_config("D", depends_on=["B", "C"]),
         }
         runner = self._make_runner(jobs)
-        result = runner._get_dependent_jobs("A", {"A", "B", "C", "D"})
+        result = runner._get_dependent_job_ids("A", {"A", "B", "C", "D"})
         assert result == {"A", "B", "C", "D"}
 
     def test_returns_only_from_root_subtree(self):
@@ -140,7 +140,7 @@ class TestGetDependentJobs:
             "D": make_job_config("D", depends_on=["C"]),
         }
         runner = self._make_runner(jobs)
-        result = runner._get_dependent_jobs("A", {"A", "B", "C", "D"})
+        result = runner._get_dependent_job_ids("A", {"A", "B", "C", "D"})
         assert result == {"A", "B"}
 
     def test_filters_out_jobs_not_in_candidate_set(self):
@@ -151,7 +151,7 @@ class TestGetDependentJobs:
             "C": make_job_config("C", depends_on=["B"]),
         }
         runner = self._make_runner(jobs)
-        result = runner._get_dependent_jobs("A", {"A", "B"})
+        result = runner._get_dependent_job_ids("A", {"A", "B"})
         assert result == {"A", "B"}
 
     def test_root_not_in_candidate_returns_empty(self):
@@ -160,7 +160,7 @@ class TestGetDependentJobs:
             "B": make_job_config("B", depends_on=["A"]),
         }
         runner = self._make_runner(jobs)
-        result = runner._get_dependent_jobs("A", {"B"})
+        result = runner._get_dependent_job_ids("A", {"B"})
         assert result == set()
 
 
@@ -326,7 +326,7 @@ class TestGetDependentJobsExtras:
             "B": make_job_config("B", depends_on=["A"]),
         }
         runner = self._make(jobs)
-        assert runner._get_dependent_jobs("B", {"A", "B"}) == {"B"}
+        assert runner._get_dependent_job_ids("B", {"A", "B"}) == {"B"}
 
     def test_wide_fanout(self):
         # A -> B, A -> C, A -> D, A -> E
@@ -338,13 +338,13 @@ class TestGetDependentJobsExtras:
             "E": make_job_config("E", depends_on=["A"]),
         }
         runner = self._make(jobs)
-        assert runner._get_dependent_jobs("A", {"A", "B", "C", "D", "E"}) == {"A", "B", "C", "D", "E"}
+        assert runner._get_dependent_job_ids("A", {"A", "B", "C", "D", "E"}) == {"A", "B", "C", "D", "E"}
 
     def test_deep_chain(self):
         jobs = {f"J{i}": make_job_config(f"J{i}", depends_on=[f"J{i-1}"] if i > 0 else []) for i in range(10)}
         runner = self._make(jobs)
         candidates = {f"J{i}" for i in range(10)}
-        assert runner._get_dependent_jobs("J3", candidates) == {f"J{i}" for i in range(3, 10)}
+        assert runner._get_dependent_job_ids("J3", candidates) == {f"J{i}" for i in range(3, 10)}
 
     def test_multi_parent_downstream(self):
         # A -> C, B -> C, C -> D
@@ -356,7 +356,7 @@ class TestGetDependentJobsExtras:
         }
         runner = self._make(jobs)
         # Rewinding "A" should pull in C and D as well.
-        assert runner._get_dependent_jobs("A", {"A", "B", "C", "D"}) == {"A", "C", "D"}
+        assert runner._get_dependent_job_ids("A", {"A", "B", "C", "D"}) == {"A", "C", "D"}
 
     def test_partial_candidate_stops_traversal(self):
         # A -> B -> C -> D, but C not in candidates so D also excluded (blocked)
@@ -367,7 +367,7 @@ class TestGetDependentJobsExtras:
             "D": make_job_config("D", depends_on=["C"]),
         }
         runner = self._make(jobs)
-        assert runner._get_dependent_jobs("A", {"A", "B", "D"}) == {"A", "B"}
+        assert runner._get_dependent_job_ids("A", {"A", "B", "D"}) == {"A", "B"}
 
 
 class TestRunJobsBasicFlow:

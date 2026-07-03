@@ -300,7 +300,7 @@ class WorkflowRunner:
                     job_elapsed = job_time_trackers[completed_job_id].elapsed()
 
                     if next_job_id in completed_job_ids:
-                        rewind_job_ids = self._get_dependent_jobs(next_job_id, completed_job_ids | { completed_job_id })
+                        rewind_job_ids = self._get_dependent_job_ids(next_job_id, completed_job_ids | { completed_job_id })
                         for rewind_job_id in rewind_job_ids:
                             completed_job_ids.discard(rewind_job_id)
                             context.sources["jobs"].pop(rewind_job_id, None)
@@ -386,8 +386,10 @@ class WorkflowRunner:
 
     def _schedule_job(self, job: Job, context: WorkflowContext, job_run_counts: Dict[str, int]) -> asyncio.Task:
         job_run_counts[job.id] = job_run_counts.get(job.id, 0) + 1
+
         if job_run_counts[job.id] > job.config.max_run_count:
             raise RuntimeError(f"Job '{job.id}' has reached its max_run_count ({job.config.max_run_count}).")
+
         return asyncio.create_task(job.run(JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id))))
 
     def _is_runnable_job(
@@ -414,7 +416,7 @@ class WorkflowRunner:
     def _is_routable_job(self, job_id: str, routing_job_ids: Set[str]) -> bool:
         return job_id in routing_job_ids or any(self._is_routable_job(depend_job_id, routing_job_ids) for depend_job_id in self.jobs[job_id].depends_on)
 
-    def _get_dependent_jobs(self, root_job_id: str, candidate_job_ids: Set[str]) -> Set[str]:
+    def _get_dependent_job_ids(self, root_job_id: str, candidate_job_ids: Set[str]) -> Set[str]:
         dependents: Set[str] = set()
 
         def _visit(job_id: str) -> None:
@@ -426,6 +428,7 @@ class WorkflowRunner:
                     _visit(other_id)
 
         _visit(root_job_id)
+
         return dependents
 
 class Workflow:

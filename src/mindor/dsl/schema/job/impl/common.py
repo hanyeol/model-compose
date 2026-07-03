@@ -7,6 +7,7 @@ from .types import JobType
 class CommonJobConfig(BaseModel):
     id: str = Field(default="__job__", description="ID of job.")
     type: JobType = Field(..., description="Type of job.")
+    max_run_count: int = Field(default=5, gt=0, description="Maximum number of times this job may be executed within a single workflow run (including re-runs triggered by routing).")
     depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
 
     def get_routing_jobs(self) -> List[str]:

@@ -8,4 +8,8 @@ class CustomPoseDetectionTaskService:
             from .mediapipe import BlazePosePoseDetectionTaskService
             return BlazePosePoseDetectionTaskService(id, config, daemon)
 
+        if config.family == PoseDetectionModelFamily.YOLO:
+            from .yolo import YoloPoseDetectionTaskService
+            return YoloPoseDetectionTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -43,16 +43,16 @@ class PoseDetectionTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_poses                 = int(await context.render_variable(self.config.num_poses))
+        max_pose_count            = int(await context.render_variable(self.config.max_pose_count))
         min_confidence            = float(await context.render_variable(self.config.min_confidence))
         min_presence_confidence   = float(await context.render_variable(self.config.min_presence_confidence))
         min_tracking_confidence   = float(await context.render_variable(self.config.min_tracking_confidence))
-        include_keypoints         = bool(await context.render_variable(self.config.include_keypoints))
-        include_keypoints_3d      = bool(await context.render_variable(self.config.include_keypoints_3d))
-        include_segmentation_mask = bool(await context.render_variable(self.config.include_segmentation_mask))
+        return_keypoints         = bool(await context.render_variable(self.config.return_keypoints))
+        return_keypoints_3d      = bool(await context.render_variable(self.config.return_keypoints_3d))
+        return_segmentation_mask = bool(await context.render_variable(self.config.return_segmentation_mask))
 
-        if num_poses < 1:
-            raise ValueError(f"'num_poses' must be >= 1, got {num_poses}")
+        if max_pose_count < 1:
+            raise ValueError(f"'max_pose_count' must be >= 1, got {max_pose_count}")
 
         for name, value in [
             ("min_confidence",          min_confidence),
@@ -63,13 +63,13 @@ class PoseDetectionTaskAction:
                 raise ValueError(f"'{name}' must be between 0.0 and 1.0, got {value}")
 
         return {
-            "num_poses":                 num_poses,
+            "max_pose_count":            max_pose_count,
             "min_confidence":            min_confidence,
             "min_presence_confidence":   min_presence_confidence,
             "min_tracking_confidence":   min_tracking_confidence,
-            "include_keypoints":         include_keypoints,
-            "include_keypoints_3d":      include_keypoints_3d,
-            "include_segmentation_mask": include_segmentation_mask,
+            "return_keypoints":         return_keypoints,
+            "return_keypoints_3d":      return_keypoints_3d,
+            "return_segmentation_mask": return_segmentation_mask,
         }
 
     @abstractmethod

@@ -3,4 +3,5 @@ from .impl import *
 
 PoseDetectionModelActionConfig = Union[
     BlazePosePoseDetectionModelActionConfig,
+    YoloPoseDetectionModelActionConfig,
 ]

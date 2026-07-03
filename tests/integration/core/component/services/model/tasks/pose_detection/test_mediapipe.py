@@ -230,11 +230,11 @@ class TestDetectionOptions:
             await action.run(context, asyncio.get_running_loop())
 
     @pytest.mark.anyio
-    async def test_invalid_num_poses_raises(self, make_action):
-        action = make_action(num_poses=0)
+    async def test_invalid_max_pose_count_raises(self, make_action):
+        action = make_action(max_pose_count=0)
         context = ComponentActionContext("run-bad-num", { "image": _blank_image() })
 
-        with pytest.raises(ValueError, match="num_poses"):
+        with pytest.raises(ValueError, match="max_pose_count"):
             await action.run(context, asyncio.get_running_loop())
 
 
@@ -328,7 +328,7 @@ class TestRealHumanPose:
 
     @pytest.mark.anyio
     async def test_keypoints_3d_included_when_requested(self, make_action, sample_pose_image):
-        action = make_action(include_keypoints_3d=True)
+        action = make_action(return_keypoints_3d=True)
         context = ComponentActionContext("run-real-3d", { "image": sample_pose_image })
 
         result = await action.run(context, asyncio.get_running_loop())
@@ -347,7 +347,8 @@ class TestRealHumanPose:
 
     @pytest.mark.anyio
     async def test_segmentation_mask_included_when_requested(self, make_action, sample_pose_image):
-        action = make_action(include_segmentation_mask=True)
+        width, height = sample_pose_image.size
+        action = make_action(return_segmentation_mask=True)
         context = ComponentActionContext("run-real-mask", { "image": sample_pose_image })
 
         result = await action.run(context, asyncio.get_running_loop())
@@ -355,13 +356,16 @@ class TestRealHumanPose:
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
             assert "segmentation_mask" in pose
-            mask_bytes = pose["segmentation_mask"]
-            assert isinstance(mask_bytes, bytes)
-            assert mask_bytes.startswith(b"\x89PNG\r\n\x1a\n"), "Mask should be PNG-encoded"
+            mask = pose["segmentation_mask"]
+            assert isinstance(mask, PILImage.Image)
+            assert mask.mode == "L"
+            assert mask.size == (width, height)
 
     @pytest.mark.anyio
     async def test_keypoints_excluded_when_disabled(self, make_action, sample_pose_image):
-        action = make_action(include_keypoints=False)
+        # At least one return_* flag must remain true (schema-enforced); pair
+        # return_keypoints=False with return_keypoints_3d=True so the request is valid.
+        action = make_action(return_keypoints=False, return_keypoints_3d=True)
         context = ComponentActionContext("run-real-nokp", { "image": sample_pose_image })
 
         result = await action.run(context, asyncio.get_running_loop())
@@ -369,6 +373,7 @@ class TestRealHumanPose:
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
             assert "keypoints" not in pose
+            assert "keypoints_3d" in pose
 
     @pytest.mark.anyio
     async def test_high_confidence_threshold_filters_results(self, make_action, sample_pose_image):

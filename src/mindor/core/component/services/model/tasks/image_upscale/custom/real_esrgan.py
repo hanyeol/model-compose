@@ -49,10 +49,10 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
     def _upscale_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         import numpy as np
 
-        upscaled_images: List[PILImage.Image] = []
+        results: List[PILImage.Image] = []
 
         for image in images:
-            upscaled_images.append(self.model.predict(
+            results.append(self.model.predict(
                 np.array(image),
                 batch_size=params["batch_size"],
                 patches_size=params["patches_size"],
@@ -60,7 +60,7 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
                 pad_size=params["pad_size"],
             ))
 
-        return upscaled_images
+        return results
 
 class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

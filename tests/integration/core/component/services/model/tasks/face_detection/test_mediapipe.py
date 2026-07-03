@@ -310,7 +310,7 @@ class TestRealHumanFace:
 
     @pytest.mark.anyio
     async def test_landmarks_included_when_requested(self, make_action, sample_face_image):
-        action = make_action(include_landmarks=True)
+        action = make_action(return_landmarks=True)
         context = ComponentActionContext("run-real-landmarks", { "image": sample_face_image })
 
         result = await action.run(context, asyncio.get_running_loop())

@@ -157,6 +157,10 @@ class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return await HuggingfaceImageToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.AUTO:
+            from transformers import AutoModelForVision2Seq
+            return AutoModelForVision2Seq
+
         if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP:
             from transformers import BlipForConditionalGeneration
             return BlipForConditionalGeneration
@@ -184,6 +188,10 @@ class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
+        if self.config.architecture == HuggingfaceImageToTextModelArchitecture.AUTO:
+            from transformers import AutoProcessor
+            return AutoProcessor
+
         if self.config.architecture == HuggingfaceImageToTextModelArchitecture.BLIP:
             from transformers import BlipProcessor
             return BlipProcessor

@@ -38,7 +38,6 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         max_input_length     = await context.render_variable(self.config.max_input_length)
         min_output_length    = await context.render_variable(self.config.params.min_output_length)
-        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
         num_beams            = await context.render_variable(self.config.params.num_beams)
         length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
         early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
@@ -55,7 +54,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         generation_params: Dict[str, Any] = {
             "min_length": min_output_length,
-            "num_return_sequences": num_return_sequences,
+            "num_return_sequences": params["num_return_sequences"],
             "do_sample": params["do_sample"],
             "num_beams": num_beams,
         }

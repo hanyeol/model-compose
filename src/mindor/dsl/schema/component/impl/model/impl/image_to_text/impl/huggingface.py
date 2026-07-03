@@ -6,6 +6,7 @@ from .common import CommonImageToTextModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceImageToTextModelArchitecture(str, Enum):
+    AUTO       = "auto"
     BLIP       = "blip"
     BLIP2      = "blip2"
     GIT        = "git"
@@ -15,5 +16,5 @@ class HuggingfaceImageToTextModelArchitecture(str, Enum):
 
 class HuggingfaceImageToTextModelComponentConfig(CommonImageToTextModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
-    architecture: HuggingfaceImageToTextModelArchitecture = Field(..., description="Model architecture.")
+    architecture: HuggingfaceImageToTextModelArchitecture = Field(default=HuggingfaceImageToTextModelArchitecture.AUTO, description="Model architecture.")
     actions: List[ImageToTextModelActionConfig] = Field(default_factory=list)

@@ -149,6 +149,10 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:
+            from transformers import AutoModelForSpeechSeq2Seq
+            return AutoModelForSpeechSeq2Seq
+
         if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperForConditionalGeneration
             return WhisperForConditionalGeneration
@@ -156,6 +160,10 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
+        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:
+            from transformers import AutoProcessor
+            return AutoProcessor
+
         if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
             from transformers import WhisperProcessor
             return WhisperProcessor

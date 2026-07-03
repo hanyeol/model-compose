@@ -27,9 +27,8 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         params = await super()._resolve_params(context)
 
-        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
+        sampling_params: Dict[str, Any] = { "n": params["num_return_sequences"] }
 
-        sampling_params: Dict[str, Any] = { "n": num_return_sequences }
         if params["max_output_length"] is not None:
             sampling_params["max_tokens"] = params["max_output_length"]
 

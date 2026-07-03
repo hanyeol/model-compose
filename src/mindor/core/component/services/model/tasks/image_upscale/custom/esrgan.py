@@ -52,7 +52,7 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
         import torch
         import numpy as np
 
-        upscaled_images: List[PILImage.Image] = []
+        results: List[PILImage.Image] = []
 
         for image in images:
             image_pixels = np.array(image).astype(np.float32) / 255.0
@@ -82,9 +82,9 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
             upscaled_tensor = upscaled_tensor.squeeze(0).clamp(0, 1).permute(1, 2, 0).cpu().float()
             upscaled_pixels = (upscaled_tensor.numpy() * 255.0).round().astype(np.uint8)
 
-            upscaled_images.append(PILImage.fromarray(upscaled_pixels))
+            results.append(PILImage.fromarray(upscaled_pixels))
 
-        return upscaled_images
+        return results
 
     def _tile_process(self, image: Tensor, tile_size: int, tile_pad_size: int, scale: int) -> Tensor:
         """Process image in tiles with reflect-padded borders to avoid seam artifacts."""

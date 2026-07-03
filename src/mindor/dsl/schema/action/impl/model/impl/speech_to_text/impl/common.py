@@ -13,8 +13,8 @@ class SpeechToTextParamsConfig(BaseModel):
 
 class SpeechToTextModelActionConfig(CommonModelActionConfig):
     audio: Union[Union[str, List[str]], str] = Field(..., description="Input audio file path, URL, or list of audio inputs.")
-    language: Optional[Union[str, str]] = Field(default=None, description="Language code for transcription (e.g. 'en', 'ko'). None for auto-detection.")
-    task: Optional[Union[str, str]] = Field(default="transcribe", description="Task to perform: 'transcribe' or 'translate'.")
+    language: Optional[str] = Field(default=None, description="Language code for transcription (e.g. 'en', 'ko'). None for auto-detection.")
+    task: Optional[str] = Field(default="transcribe", description="Task to perform: 'transcribe' or 'translate'.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs to process in a single batch.")
     chunk_length: Optional[Union[float, str]] = Field(default=30.0, description="Length of audio chunks in seconds for long-form transcription.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream transcribed tokens as they are produced.")

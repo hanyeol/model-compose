@@ -57,7 +57,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
         if params["seed"] is not None:
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
-        upscaled_images: List[PILImage.Image] = []
+        results: List[PILImage.Image] = []
 
         for image in images:
             result = self.pipeline(
@@ -66,9 +66,9 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
                 eta=params["eta"],
                 generator=generator,
             )
-            upscaled_images.append(result.images[0])
+            results.append(result.images[0])
 
-        return upscaled_images
+        return results
 
 class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

@@ -30,7 +30,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         from mediapipe.tasks.python.core.base_options import BaseOptions
         import numpy as np
 
-        include_landmarks: bool = params["include_landmarks"]
+        return_landmarks: bool = params["return_landmarks"]
 
         options = vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=self.model_path),
@@ -61,7 +61,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
                         "score": float(detection.categories[0].score) if detection.categories else 0.0,
                     }
 
-                    if include_landmarks and detection.keypoints:
+                    if return_landmarks and detection.keypoints:
                         entry["landmarks"] = [
                             { "x": int(kp.x * width), "y": int(kp.y * height) }
                             for kp in detection.keypoints

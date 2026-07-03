@@ -220,7 +220,7 @@ class VariableRenderer:
             if isinstance(value, AsyncIterator) and not isinstance(value, StreamResource):
                 return value
 
-            if format in [ "base64", "path", "url", "data-uri"] and isinstance(value, str):
+            if format in [ "base64", "path", "url", "data-uri" ] and isinstance(value, str):
                 value = await self._load_stream_from_format(value, format)
 
             if isinstance(value, UploadFile):

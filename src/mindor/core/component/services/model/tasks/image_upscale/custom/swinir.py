@@ -55,7 +55,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
         import torch
         import numpy as np
 
-        upscaled_images: List[PILImage.Image] = []
+        results: List[PILImage.Image] = []
 
         for image in images:
             image_pixels = np.array(image).astype(np.float32) / 255.0
@@ -82,9 +82,9 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
             upscaled_tensor = upscaled_tensor.squeeze(0).permute(1, 2, 0).cpu()
             upscaled_pixels = (upscaled_tensor.numpy() * 255.0).clip(0, 255).astype(np.uint8)
 
-            upscaled_images.append(PILImage.fromarray(upscaled_pixels))
+            results.append(PILImage.fromarray(upscaled_pixels))
 
-        return upscaled_images
+        return results
 
     def _tile_process(self, image: Tensor, tile_size: int, tile_overlap: int, scale: int) -> Tensor:
         """Process image in tiles with overlap for SwinIR."""

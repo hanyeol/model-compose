@@ -26,15 +26,13 @@ class ModelTaskService(AsyncService):
         return []
 
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-
         if not self._model_loaded:
             async with self._model_load_lock:
                 if not self._model_loaded:
                     await self._load_model_on_demand()
 
         async def _run():
-            return await self._run(action, context, loop)
+            return await self._run(action, context, asyncio.get_running_loop())
 
         return await self.run_in_thread(_run)
 

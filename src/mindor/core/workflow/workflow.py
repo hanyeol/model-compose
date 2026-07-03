@@ -279,6 +279,7 @@ class WorkflowRunner:
 
             for completed_job_task in completed_job_tasks:
                 completed_job_id = next(job_id for job_id, job_task in scheduled_job_tasks.items() if job_task == completed_job_task)
+                is_job_completed = True
 
                 try:
                     completed_job_output = await completed_job_task
@@ -297,6 +298,15 @@ class WorkflowRunner:
                 if isinstance(completed_job_output, RoutingTarget):
                     next_job_id = completed_job_output.job_id
                     job_elapsed = job_time_trackers[completed_job_id].elapsed()
+
+                    if next_job_id in completed_job_ids:
+                        rewind_job_ids = self._get_dependent_jobs(next_job_id, completed_job_ids | { completed_job_id })
+                        for rewind_job_id in rewind_job_ids:
+                            completed_job_ids.discard(rewind_job_id)
+                            context.sources["jobs"].pop(rewind_job_id, None)
+                            pending_jobs[rewind_job_id] = create_job(rewind_job_id, self.jobs[rewind_job_id], self.global_configs)
+                        if completed_job_id in rewind_job_ids:
+                            is_job_completed = False
 
                     if next_job_id in routing_jobs:
                         await context.job_event_notifier.notify(
@@ -366,9 +376,11 @@ class WorkflowRunner:
                             output = completed_job_output
 
                 running_job_ids.remove(completed_job_id)
-                completed_job_ids.add(completed_job_id)
-                del pending_jobs[completed_job_id]
                 del scheduled_job_tasks[completed_job_id]
+                
+                if is_job_completed:
+                    completed_job_ids.add(completed_job_id)
+                    del pending_jobs[completed_job_id]
 
         return output
 
@@ -401,6 +413,20 @@ class WorkflowRunner:
     
     def _is_routable_job(self, job_id: str, routing_job_ids: Set[str]) -> bool:
         return job_id in routing_job_ids or any(self._is_routable_job(depend_job_id, routing_job_ids) for depend_job_id in self.jobs[job_id].depends_on)
+
+    def _get_dependent_jobs(self, root_job_id: str, candidate_job_ids: Set[str]) -> Set[str]:
+        dependents: Set[str] = set()
+
+        def _visit(job_id: str) -> None:
+            if job_id in dependents or job_id not in candidate_job_ids:
+                return
+            dependents.add(job_id)
+            for other_id, other_job in self.jobs.items():
+                if job_id in other_job.depends_on:
+                    _visit(other_id)
+
+        _visit(root_job_id)
+        return dependents
 
 class Workflow:
     def __init__(self, id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs):

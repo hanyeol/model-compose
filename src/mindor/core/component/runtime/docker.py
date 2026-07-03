@@ -129,7 +129,7 @@ class ComponentDockerRuntimeProxy(ComponentRuntimeProxy):
         return await self._loop.run_in_executor(None, self._channel.recv)
 
 class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
-    """Component-side launcher: composes a `ComponentDockerRuntimeBackend`
+    """Component-side manager: composes a `ComponentDockerRuntimeBackend`
     (image + container lifecycle) with a `ComponentDockerRuntimeProxy` over a
     `DockerAttachChannel` to the container's stdin/stdout.
 

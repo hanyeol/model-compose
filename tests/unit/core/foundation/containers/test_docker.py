@@ -26,7 +26,7 @@ from mindor.dsl.schema.containers.docker import (
 
 def _runtime(config, verbose: bool = False) -> DockerContainerRunner:
     """Test helper — builds a `DockerContainerRunner` from a DSL config the
-    same way a launcher would: translate to `DockerContainerParams` first."""
+    same way a manager would: translate to `DockerContainerParams` first."""
     return DockerContainerRunner(DockerContainerParams.from_config(config), verbose=verbose)
 
 
@@ -843,7 +843,7 @@ class TestRuntimeInitToleratesNone:
 
     def test_init_accepts_none_image(self, mock_docker_client):
         """`DockerContainerRunner` does not validate params — that responsibility
-        is delegated to the launcher / DSL config layer."""
+        is delegated to the manager / DSL config layer."""
         params = DockerContainerParams(container_name="x")
         # Must not raise.
         DockerContainerRunner(params, verbose=False)

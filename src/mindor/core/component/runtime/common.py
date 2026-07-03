@@ -164,7 +164,7 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
         })
 
 class ComponentRuntimeManager:
-    """Component-side lifecycle launcher base.
+    """Component-side lifecycle manager base.
 
     Spawns the child runtime (container / subprocess / venv), prepares the IPC
     channel, wraps it in a `ComponentRuntimeProxy`, and orchestrates the
@@ -205,7 +205,7 @@ class ComponentRuntimeManager:
 
     async def run(self, action_id: str, run_id: str, input_data: Dict[str, Any]) -> Any:
         if self._proxy is None:
-            raise RuntimeError(f"Launcher '{self.worker_id}' is not started")
+            raise RuntimeError(f"Manager '{self.worker_id}' is not started")
 
         return await self._proxy.run(action_id, run_id, input_data)
 
@@ -240,7 +240,7 @@ class ComponentRuntimeManager:
 
 
 class ComponentContainerRuntimeManager(ComponentRuntimeManager):
-    """Launcher for container-backed component runtimes (Docker / Apple)."""
+    """Manager for container-backed component runtimes (Docker / Apple)."""
     def __init__(
         self,
         component_id: str,

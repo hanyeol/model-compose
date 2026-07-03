@@ -1,4 +1,4 @@
-"""Tests for component process runtime, including worker, launcher, and integration scenarios."""
+"""Tests for component process runtime, including worker, manager, and integration scenarios."""
 
 from multiprocessing import Queue
 
@@ -65,7 +65,7 @@ class TestComponentProcessRuntimeManager:
     """Test ComponentProcessRuntimeManager class."""
 
     def test_launcher_initialization_with_process_runtime(self, global_configs):
-        """Test launcher initialization with process runtime config."""
+        """Test manager initialization with process runtime config."""
         config = ShellComponentConfig(
             id="test-shell",
             type="shell",
@@ -77,20 +77,20 @@ class TestComponentProcessRuntimeManager:
             command=[ "echo", "Hello" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "test-shell",
             config,
             global_configs
         )
 
-        assert launcher.worker_id == "test-shell"
-        assert launcher.component_config == config
-        assert launcher.global_configs == global_configs
-        assert launcher.params.start_timeout == 30.0
-        assert launcher.params.stop_timeout == 10.0
+        assert manager.worker_id == "test-shell"
+        assert manager.component_config == config
+        assert manager.global_configs == global_configs
+        assert manager.params.start_timeout == 30.0
+        assert manager.params.stop_timeout == 10.0
 
     def test_launcher_initialization_with_custom_config(self, global_configs):
-        """Test launcher with custom process runtime configuration."""
+        """Test manager with custom process runtime configuration."""
         config = ShellComponentConfig(
             id="custom-shell",
             type="shell",
@@ -103,14 +103,14 @@ class TestComponentProcessRuntimeManager:
             command=["echo", "Custom"]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "custom-shell",
             config,
             global_configs
         )
 
-        assert launcher.params.env["TEST_VAR"] == "test_value"
-        assert launcher.params.start_timeout == 120.0  # 2m = 120s
+        assert manager.params.env["TEST_VAR"] == "test_value"
+        assert manager.params.start_timeout == 120.0  # 2m = 120s
 
 
 class TestComponentIntegration:
@@ -135,7 +135,7 @@ class TestComponentIntegration:
         assert component is not None
         assert component.id == "test-component"
         assert isinstance(component.config.runtime, ProcessRuntimeConfig)
-        assert component._process_launcher is None
+        assert component._process_manager is None
 
     @pytest.mark.anyio
     async def test_component_lifecycle(self, global_configs):
@@ -167,11 +167,11 @@ class TestComponentIntegration:
         await component.setup()
         await component.start()
 
-        # Should have process launcher created
-        assert component._process_launcher is not None
-        assert isinstance(component._process_launcher, ComponentProcessRuntimeManager)
-        assert component._process_launcher._runtime.subprocess is not None
-        assert component._process_launcher._runtime.subprocess.is_alive()
+        # Should have process manager created
+        assert component._process_manager is not None
+        assert isinstance(component._process_manager, ComponentProcessRuntimeManager)
+        assert component._process_manager._runtime.subprocess is not None
+        assert component._process_manager._runtime.subprocess.is_alive()
 
         # Execute action through process runtime
         result = await component.run(
@@ -187,7 +187,7 @@ class TestComponentIntegration:
         await component.stop()
 
         # Process should be stopped
-        assert component._process_launcher._runtime is None
+        assert component._process_manager._runtime is None
 
         await component.teardown()
 
@@ -267,15 +267,15 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "$MODEL_PATH" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "env-test",
             config,
             global_configs
         )
 
-        assert launcher.params.env["CUDA_VISIBLE_DEVICES"] == "0"
-        assert launcher.params.env["MODEL_PATH"] == "/models"
-        assert launcher.params.env["BATCH_SIZE"] == "32"
+        assert manager.params.env["CUDA_VISIBLE_DEVICES"] == "0"
+        assert manager.params.env["MODEL_PATH"] == "/models"
+        assert manager.params.env["BATCH_SIZE"] == "32"
 
     def test_process_runtime_with_timeouts(self, global_configs):
         """Test process runtime with custom timeouts."""
@@ -290,14 +290,14 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "sleep", "1" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "timeout-test",
             config,
             global_configs
         )
 
-        assert launcher.params.start_timeout == 300.0  # 5m = 300s
-        assert launcher.params.stop_timeout == 60.0    # 1m = 60s
+        assert manager.params.start_timeout == 300.0  # 5m = 300s
+        assert manager.params.stop_timeout == 60.0    # 1m = 60s
 
     def test_process_runtime_with_resource_limits(self, global_configs):
         """Test process runtime with resource limits."""
@@ -312,7 +312,7 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "resource test" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "resource-test",
             config,
             global_configs
@@ -330,27 +330,27 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "attr-test",
             config,
             global_configs
         )
 
-        assert hasattr(launcher, "worker_id")
-        assert hasattr(launcher, "component_config")
-        assert hasattr(launcher, "global_configs")
-        assert hasattr(launcher, "params")
-        assert hasattr(launcher, "_runtime")
-        assert hasattr(launcher, "_request_queue")
-        assert hasattr(launcher, "_response_queue")
-        assert hasattr(launcher, "_proxy")
-        assert hasattr(launcher, "_channel")
+        assert hasattr(manager, "worker_id")
+        assert hasattr(manager, "component_config")
+        assert hasattr(manager, "global_configs")
+        assert hasattr(manager, "params")
+        assert hasattr(manager, "_runtime")
+        assert hasattr(manager, "_request_queue")
+        assert hasattr(manager, "_response_queue")
+        assert hasattr(manager, "_proxy")
+        assert hasattr(manager, "_channel")
 
-        assert launcher._runtime is None
-        assert launcher._request_queue is None
-        assert launcher._response_queue is None
-        assert launcher._proxy is None
-        assert launcher._channel is None
+        assert manager._runtime is None
+        assert manager._request_queue is None
+        assert manager._response_queue is None
+        assert manager._proxy is None
+        assert manager._channel is None
 
 
 class TestComponentProcessRuntimeValidation:
@@ -365,14 +365,14 @@ class TestComponentProcessRuntimeValidation:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "different-id",
             config,
             global_configs
         )
 
-        assert launcher.worker_id == "different-id"
-        assert launcher.component_config.id == "original-id"
+        assert manager.worker_id == "different-id"
+        assert manager.component_config.id == "original-id"
 
     def test_launcher_run_method_signature(self, global_configs):
         """Test ComponentProcessRuntimeManager.run method signature."""
@@ -383,11 +383,11 @@ class TestComponentProcessRuntimeValidation:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeManager(
+        manager = ComponentProcessRuntimeManager(
             "run-test",
             config,
             global_configs
         )
 
-        assert hasattr(launcher, "run")
-        assert callable(launcher.run)
+        assert hasattr(manager, "run")
+        assert callable(manager.run)

@@ -72,7 +72,7 @@ class ComponentProcessRuntimeProxy(ComponentRuntimeProxy):
         return await self._loop.run_in_executor(None, response_queue.get)
 
 class ComponentProcessRuntimeManager(ComponentRuntimeManager):
-    """Launcher: spawns a `ProcessRuntime` child and wraps its queue pair in
+    """Manager: spawns a `ProcessRuntime` child and wraps its queue pair in
     a `ComponentProcessRuntimeProxy`.
     """
     def __init__(

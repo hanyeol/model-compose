@@ -192,7 +192,7 @@ class AppleContainerImageBuilder:
     async def get_label(self, tag: str, label: str) -> Optional[str]:
         """Read a single label off an image via `container image inspect`.
 
-        Mirrors `DockerImageBuilder.get_label` so launcher-side derived-image
+        Mirrors `DockerImageBuilder.get_label` so manager-side derived-image
         caching (sha256 of `requirements.txt`) works identically. Returns
         `None` when the image is missing or the label is absent. The Apple
         Container CLI emits OCI inspect JSON; we read the conventional
@@ -245,7 +245,7 @@ class AppleContainerRunner:
 
     async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
         """Create a stopped container from `self.params`. Mirrors
-        `DockerContainerRunner.create` so launcher-side lifecycle
+        `DockerContainerRunner.create` so manager-side lifecycle
         (`provision_runtime` → `create` → `start`) is identical across
         backends. The Apple Container CLI's `container create` accepts the
         same `-t`/`-i` flags as docker, so the kwargs map 1:1."""

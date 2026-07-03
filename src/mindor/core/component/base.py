@@ -67,10 +67,10 @@ class ComponentService(AsyncService):
         self.config: ComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
-        self._process_launcher = None
-        self._virtualenv_launcher = None
-        self._docker_launcher = None
-        self._apple_container_launcher = None
+        self._process_manager = None
+        self._virtualenv_manager = None
+        self._docker_manager = None
+        self._apple_container_manager = None
         self._active_counter: ActiveCounter = ActiveCounter()
 
         if self.config.max_concurrent_count > 0:
@@ -110,36 +110,36 @@ class ComponentService(AsyncService):
         await self.wait_until_ready()
 
     async def stop(self) -> None:
-        if self._process_launcher:
+        if self._process_manager:
             await self._stop_process_runtime()
             self.started = False
             return
 
-        if self._virtualenv_launcher:
+        if self._virtualenv_manager:
             await self._stop_virtualenv_runtime()
             self.started = False
             return
 
         await super().stop()
 
-        if self._docker_launcher:
+        if self._docker_manager:
             await self._stop_docker_runtime()
 
-        if self._apple_container_launcher:
+        if self._apple_container_manager:
             await self._stop_apple_container_runtime()
 
     async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None, job_id: Optional[str] = None) -> Dict[str, Any]:
-        if self._process_launcher:
-            return await self._process_launcher.run(action_id, run_id, input)
+        if self._process_manager:
+            return await self._process_manager.run(action_id, run_id, input)
 
-        if self._virtualenv_launcher:
-            return await self._virtualenv_launcher.run(action_id, run_id, input)
+        if self._virtualenv_manager:
+            return await self._virtualenv_manager.run(action_id, run_id, input)
 
-        if self._docker_launcher:
-            return await self._docker_launcher.run(action_id, run_id, input)
+        if self._docker_manager:
+            return await self._docker_manager.run(action_id, run_id, input)
 
-        if self._apple_container_launcher:
-            return await self._apple_container_launcher.run(action_id, run_id, input)
+        if self._apple_container_manager:
+            return await self._apple_container_manager.run(action_id, run_id, input)
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(
@@ -197,45 +197,45 @@ class ComponentService(AsyncService):
     async def _start_process_runtime(self) -> None:
         from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
 
-        self._process_launcher = ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
-        await self._process_launcher.start()
+        self._process_manager = ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
+        await self._process_manager.start()
         logging.info(f"Component '{self.id}' started with process runtime")
 
     async def _stop_process_runtime(self) -> None:
-        await self._process_launcher.stop()
+        await self._process_manager.stop()
         logging.info(f"Component '{self.id}' process runtime stopped")
 
     async def _start_virtualenv_runtime(self) -> None:
         from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeManager
 
-        self._virtualenv_launcher = ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
-        await self._virtualenv_launcher.start()
+        self._virtualenv_manager = ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
+        await self._virtualenv_manager.start()
         logging.info(f"Component '{self.id}' started with virtualenv runtime")
 
     async def _stop_virtualenv_runtime(self) -> None:
-        await self._virtualenv_launcher.stop()
+        await self._virtualenv_manager.stop()
         logging.info(f"Component '{self.id}' virtualenv runtime stopped")
 
     async def _start_docker_runtime(self) -> None:
         from mindor.core.component.runtime.docker import ComponentDockerRuntimeManager
 
-        self._docker_launcher = ComponentDockerRuntimeManager(self.id, self.config, self.global_configs)
-        await self._docker_launcher.start()
+        self._docker_manager = ComponentDockerRuntimeManager(self.id, self.config, self.global_configs)
+        await self._docker_manager.start()
         logging.info(f"Component '{self.id}' started with Docker runtime")
 
     async def _stop_docker_runtime(self) -> None:
-        await self._docker_launcher.stop()
+        await self._docker_manager.stop()
         logging.info(f"Component '{self.id}' Docker runtime stopped")
 
     async def _start_apple_container_runtime(self) -> None:
         from mindor.core.component.runtime.apple_container import ComponentAppleContainerRuntimeManager
 
-        self._apple_container_launcher = ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
-        await self._apple_container_launcher.start()
+        self._apple_container_manager = ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
+        await self._apple_container_manager.start()
         logging.info(f"Component '{self.id}' started with Apple Container runtime")
 
     async def _stop_apple_container_runtime(self) -> None:
-        await self._apple_container_launcher.stop()
+        await self._apple_container_manager.stop()
         logging.info(f"Component '{self.id}' Apple Container runtime stopped")
 
 def register_component(type: ComponentType):

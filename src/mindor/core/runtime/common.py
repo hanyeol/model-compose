@@ -14,13 +14,13 @@ ContainerRuntimeConfig = Union[DockerRuntimeConfig, AppleContainerRuntimeConfig]
 _REQUIREMENTS_SHA256_LABEL = "mindor.requirements-sha256"
 
 class ContainerImageKind(str, Enum):
-    """How a launcher should source its container image."""
+    """How a manager should source its container image."""
     STANDARD = "standard"  # mindor's standard image (mindor/<role>:VERSION).
     DERIVED  = "derived"   # Standard image + user `requirements.txt` layer.
     CUSTOM   = "custom"    # Caller supplied an explicit image or build context.
 
 class ContainerRuntimeBackend(ABC):
-    """Shared image lifecycle for container-backed runtime launchers."""
+    """Shared image lifecycle for container-backed runtime managers."""
     def __init__(self, runtime_config: ContainerRuntimeConfig, image_kind: ContainerImageKind, verbose: bool = False):
         self.verbose: bool = verbose
 
@@ -47,7 +47,7 @@ class ContainerRuntimeBackend(ABC):
         return runtime
 
     async def teardown_runtime(self) -> None:
-        """Tear down the container and drop any DERIVED image this launcher produced."""
+        """Tear down the container and drop any DERIVED image this manager produced."""
         runtime = self.resolve_runtime()
 
         if await runtime.exists():
@@ -201,15 +201,15 @@ class ContainerRuntimeBackend(ABC):
 
     @abstractmethod
     def _standard_image_tag(self) -> str:
-        """Tag for this launcher's standard image."""
+        """Tag for this manager's standard image."""
 
     @abstractmethod
     def _standard_image_command(self) -> List[str]:
-        """CMD baked into this launcher's standard image."""
+        """CMD baked into this manager's standard image."""
 
     @abstractmethod
     def _derived_image_tag(self) -> str:
-        """Tag for this launcher's derived image (standard + user `requirements.txt` layer)."""
+        """Tag for this manager's derived image (standard + user `requirements.txt` layer)."""
 
     @abstractmethod
     def _custom_image_tag(self) -> str:

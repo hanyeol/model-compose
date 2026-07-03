@@ -2,7 +2,7 @@
 
 This is the pure-data transform used to materialize a ``model-compose.yml`` for
 a native runtime image (currently consumed by the Docker and Apple Container
-launchers when building a context). Behavior under test:
+managers when building a context). Behavior under test:
 
 * injects ``runtime: "native"`` into controller and every component (overriding
   whatever was on the source config)

@@ -162,7 +162,7 @@ class ControllerContainerRuntimeManager:
 
     def _attach_workspace_volume(self, bundle_path: Path) -> None:
         """Idempotently add the `<bundle>:/mnt/bootstrap:ro` mount to runtime
-        volumes. Safe to call multiple times — repeat launchers built from
+        volumes. Safe to call multiple times — repeat managers built from
         the same config see the same mount and re-adding is a no-op."""
         mount_spec = f"{bundle_path}:/mnt/bootstrap:ro"
 

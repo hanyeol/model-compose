@@ -138,7 +138,7 @@ class DockerContainerParams:
     def from_config(cls, config: DockerContainerConfig) -> DockerContainerParams:
         """Build params from a DSL config. `image` / `container_name` are
         copied verbatim — if the config did not pin them, the caller is
-        expected to assign launcher-side decisions on the returned dataclass
+        expected to assign manager-side decisions on the returned dataclass
         before constructing a `DockerContainerRunner`."""
         return cls(
             image=config.image,

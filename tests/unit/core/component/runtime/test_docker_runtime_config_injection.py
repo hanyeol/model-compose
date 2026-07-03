@@ -31,7 +31,7 @@ from mindor.dsl.schema.runtime.impl.common import RuntimeType
 
 def _classify_image_kind(runtime: DockerRuntimeConfig) -> ContainerImageKind:
     """Mirror of `ComponentContainerRuntimeManager._resolve_image_kind`
-    without spinning up the launcher (which would spawn a real backend)."""
+    without spinning up the manager (which would spawn a real backend)."""
     if runtime.image or runtime.build:
         return ContainerImageKind.CUSTOM
 
@@ -50,7 +50,7 @@ def _runtime(**overrides) -> DockerRuntimeConfig:
     return DockerRuntimeConfig(type=RuntimeType.DOCKER, **overrides)
 
 
-def _launcher(runtime: DockerRuntimeConfig) -> ComponentDockerRuntimeBackend:
+def _manager(runtime: DockerRuntimeConfig) -> ComponentDockerRuntimeBackend:
     return ComponentDockerRuntimeBackend(
         worker_id="test-worker",
         runtime_config=runtime,
@@ -61,8 +61,8 @@ def _launcher(runtime: DockerRuntimeConfig) -> ComponentDockerRuntimeBackend:
 class TestEntrypointInjection:
     def test_sets_entrypoint_when_none(self):
         runtime = _runtime(image="test:latest")
-        launcher = _launcher(runtime)
-        params = launcher._resolve_runtime_params()
+        manager = _manager(runtime)
+        params = manager._resolve_runtime_params()
         assert params.entrypoint == [
             "python", "-m", "mindor.core.component.runtime.docker",
         ]
@@ -72,136 +72,136 @@ class TestEntrypointInjection:
     def test_preserves_user_provided_entrypoint(self):
         """If the user overrides entrypoint, they own booting the worker."""
         runtime = _runtime(image="test:latest", entrypoint=["/custom/bin"])
-        launcher = _launcher(runtime)
-        params = launcher._resolve_runtime_params()
+        manager = _manager(runtime)
+        params = manager._resolve_runtime_params()
         assert params.entrypoint == ["/custom/bin"]
 
     def test_preserves_user_provided_command(self):
         """Same opt-out signal — if `command` is set, we don't inject our entrypoint."""
         runtime = _runtime(image="test:latest", command=["something"])
-        launcher = _launcher(runtime)
-        params = launcher._resolve_runtime_params()
+        manager = _manager(runtime)
+        params = manager._resolve_runtime_params()
         assert params.entrypoint is None
         assert params.command == ["something"]
 
 
 class TestNoIpcMutation:
-    """Sanity: the attach-transport launcher must NOT introduce socket
+    """Sanity: the attach-transport manager must NOT introduce socket
     bind-mounts, `MINDOR_IPC_*` env vars, or uid overrides."""
 
     def test_does_not_add_volumes_for_ipc(self):
-        launcher = _launcher(_runtime(image="test:latest"))
+        manager = _manager(_runtime(image="test:latest"))
         # Either None or unchanged from the original — never grows for IPC.
-        assert not launcher._runtime_config.volumes
+        assert not manager._runtime_config.volumes
 
     def test_does_not_set_ipc_env_var(self):
-        launcher = _launcher(_runtime(image="test:latest"))
-        env = launcher._runtime_config.environment or {}
+        manager = _manager(_runtime(image="test:latest"))
+        env = manager._runtime_config.environment or {}
         assert not any(k.startswith("MINDOR_IPC") for k in env)
 
     def test_does_not_force_user_mapping(self):
-        launcher = _launcher(_runtime(image="test:latest"))
+        manager = _manager(_runtime(image="test:latest"))
         # No uid override — let the image / user's runtime config decide.
-        assert launcher._runtime_config.user is None
+        assert manager._runtime_config.user is None
 
     def test_preserves_existing_volumes(self):
         from mindor.dsl.schema.containers.docker import DockerVolumeConfig
         existing = DockerVolumeConfig(type="bind", source="/host/data", target="/data")
-        launcher = _launcher(_runtime(image="test:latest", volumes=[existing]))
+        manager = _manager(_runtime(image="test:latest", volumes=[existing]))
         # The user's volumes still come through untouched.
-        assert len(launcher._runtime_config.volumes) == 1
-        assert launcher._runtime_config.volumes[0].target == "/data"
+        assert len(manager._runtime_config.volumes) == 1
+        assert manager._runtime_config.volumes[0].target == "/data"
 
     def test_preserves_existing_environment(self):
-        launcher = _launcher(_runtime(image="test:latest", environment={"FOO": "bar"}))
-        assert launcher._runtime_config.environment == {"FOO": "bar"}
+        manager = _manager(_runtime(image="test:latest", environment={"FOO": "bar"}))
+        assert manager._runtime_config.environment == {"FOO": "bar"}
 
 
 class TestImageKindResolution:
     def test_explicit_image_is_custom_kind(self):
-        launcher = _launcher(_runtime(image="my-registry/foo:1.2.3"))
-        assert launcher._image_kind == ContainerImageKind.CUSTOM
+        manager = _manager(_runtime(image="my-registry/foo:1.2.3"))
+        assert manager._image_kind == ContainerImageKind.CUSTOM
         # The user's image survives untouched on the DSL config.
-        assert launcher._runtime_config.image == "my-registry/foo:1.2.3"
+        assert manager._runtime_config.image == "my-registry/foo:1.2.3"
 
     def test_build_block_is_custom_kind(self):
         from mindor.dsl.schema.containers.docker import DockerBuildConfig
-        launcher = _launcher(_runtime(build=DockerBuildConfig(context=".", dockerfile="Dockerfile")))
-        assert launcher._image_kind == ContainerImageKind.CUSTOM
+        manager = _manager(_runtime(build=DockerBuildConfig(context=".", dockerfile="Dockerfile")))
+        assert manager._image_kind == ContainerImageKind.CUSTOM
         # `build:` case falls back to a `mindor/component-...:latest` default.
-        assert launcher._default_image_tag().startswith("mindor/component-")
+        assert manager._default_image_tag().startswith("mindor/component-")
         # Original `runtime.image` was never set by the user — backend must
         # not have written its derived tag back into the config.
-        assert launcher._runtime_config.image is None
+        assert manager._runtime_config.image is None
 
     def test_no_image_or_build_falls_through_to_standard_or_derived(self):
-        launcher = _launcher(_runtime())
-        assert launcher._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
-        assert launcher._default_image_tag().startswith("mindor/component")
+        manager = _manager(_runtime())
+        assert manager._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
+        assert manager._default_image_tag().startswith("mindor/component")
         # Crucially the backend does NOT mutate `runtime.image` — that's
         # what lets a second backend built from the same config classify
         # the same image kind instead of seeing the resolved tag and
         # mis-flagging it as CUSTOM.
-        assert launcher._runtime_config.image is None
+        assert manager._runtime_config.image is None
 
 
 class TestContainerName:
     def test_default_is_derived_from_worker_id(self):
-        launcher = _launcher(_runtime(image="test:latest"))
-        assert launcher._default_container_name() == "mindor-component-test-worker"
+        manager = _manager(_runtime(image="test:latest"))
+        assert manager._default_container_name() == "mindor-component-test-worker"
         # User-facing config keeps the original (None) value.
-        assert launcher._runtime_config.container_name is None
+        assert manager._runtime_config.container_name is None
 
     def test_user_provided_is_preserved(self):
-        launcher = _launcher(_runtime(image="test:latest", container_name="mine"))
+        manager = _manager(_runtime(image="test:latest", container_name="mine"))
         # User's value stays on the DSL config; the default hook is not consulted.
-        assert launcher._runtime_config.container_name == "mine"
+        assert manager._runtime_config.container_name == "mine"
 
 
 class TestConfigImageAndContainerNameUntouched:
     """The user-facing DSL config must keep its original `image` /
     `container_name` so the same config can be reused to build another
-    launcher (or be serialized to the worker side) without the launcher's
+    manager (or be serialized to the worker side) without the manager's
     decisions leaking out."""
 
     def test_runtime_image_not_mutated_when_user_did_not_supply(self):
         original = _runtime()
-        _ = _launcher(original)
+        _ = _manager(original)
         assert original.image is None
 
     def test_runtime_image_kept_as_supplied_when_user_did(self):
         original = _runtime(image="my-registry/foo:1.2.3")
-        _ = _launcher(original)
+        _ = _manager(original)
         assert original.image == "my-registry/foo:1.2.3"
 
     def test_runtime_container_name_not_mutated_when_user_did_not_supply(self):
         original = _runtime()
-        _ = _launcher(original)
+        _ = _manager(original)
         assert original.container_name is None
 
 
 class TestImageKindStableAcrossRebuilds:
-    """A launcher does not write its resolved tag back into `runtime.image`,
-    so reconstructing a launcher from the same config still classifies the
+    """A manager does not write its resolved tag back into `runtime.image`,
+    so reconstructing a manager from the same config still classifies the
     original STANDARD / DERIVED / CUSTOM case correctly — it would otherwise see
-    the tag the first launcher wrote and misclassify STANDARD/DERIVED as CUSTOM."""
+    the tag the first manager wrote and misclassify STANDARD/DERIVED as CUSTOM."""
 
     def test_standard_kind_survives_second_launcher_on_same_config(self):
         runtime = _runtime()
-        first = _launcher(runtime)
+        first = _manager(runtime)
         # The standard/derived split depends on whether a real `requirements.txt`
         # exists in cwd at test time — assert the kind is whichever one the
-        # first launcher chose, and require the second to match it.
-        second = _launcher(runtime)
+        # first manager chose, and require the second to match it.
+        second = _manager(runtime)
         assert second._image_kind == first._image_kind
         assert second._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
         assert second._default_image_tag() == first._default_image_tag()
 
     def test_custom_kind_survives_second_launcher_on_same_config(self):
         runtime = _runtime(image="my-registry/foo:1.2.3")
-        first = _launcher(runtime)
+        first = _manager(runtime)
         assert first._image_kind == ContainerImageKind.CUSTOM
-        second = _launcher(runtime)
+        second = _manager(runtime)
         assert second._image_kind == ContainerImageKind.CUSTOM
         # User's image survives; the default hook is not consulted.
         assert second._runtime_config.image == "my-registry/foo:1.2.3"

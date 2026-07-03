@@ -51,7 +51,7 @@ class ComponentVirtualEnvRuntimeProxy(ComponentRuntimeProxy):
         return await self._loop.run_in_executor(None, self._channel.recv)
 
 class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
-    """Launcher: spawns a `VirtualEnvRuntime` child over a pipe pair and
+    """Manager: spawns a `VirtualEnvRuntime` child over a pipe pair and
     wraps the parent's ends in a `ComponentVirtualEnvRuntimeProxy`.
     """
     def __init__(

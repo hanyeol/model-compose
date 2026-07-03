@@ -3,7 +3,7 @@
 `native` and `apple_container` were collapsed from sub-packages into single
 modules; `docker` keeps its sub-package because of the build context directory.
 These tests just assert that each entry point still imports under both the
-package path and the launcher symbol callers actually use.
+package path and the manager symbol callers actually use.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def test_docker_launcher_imports():
 
 
 def test_launchers_importable_from_controller_base():
-    """`controller/base.py` pulls all three launchers; verify that path still works
+    """`controller/base.py` pulls all three managers; verify that path still works
     after flattening (regression guard for the relative import in apple_container)."""
     from mindor.core.controller.base import (
         ControllerNativeRuntimeManager,

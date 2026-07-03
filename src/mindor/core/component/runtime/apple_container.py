@@ -137,7 +137,7 @@ class ComponentAppleContainerRuntimeProxy(ComponentRuntimeProxy):
 
 
 class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
-    """Component-side launcher: composes a `ComponentAppleContainerRuntimeBackend`
+    """Component-side manager: composes a `ComponentAppleContainerRuntimeBackend`
     with a `ComponentAppleContainerRuntimeProxy` over an
     `AppleContainerAttachChannel` (subprocess stdin/stdout).
     """

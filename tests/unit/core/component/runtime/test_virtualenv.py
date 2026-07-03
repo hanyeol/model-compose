@@ -98,12 +98,12 @@ class TestComponentVirtualEnvRuntimeManager:
 
     def test_basic_initialization(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
+        manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
-        assert launcher.worker_id == "venv-shell"
-        assert launcher.component_config is config
-        assert launcher.global_configs is global_configs
-        assert isinstance(launcher.params, VirtualEnvRuntimeParams)
+        assert manager.worker_id == "venv-shell"
+        assert manager.component_config is config
+        assert manager.global_configs is global_configs
+        assert isinstance(manager.params, VirtualEnvRuntimeParams)
 
     def test_params_converted_from_config(self, global_configs):
         config = self._make_config(
@@ -114,29 +114,29 @@ class TestComponentVirtualEnvRuntimeManager:
             start_timeout="3m",
             stop_timeout="15s",
         )
-        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
+        manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
-        assert launcher.params.driver == VirtualEnvDriver.PYENV
-        assert launcher.params.python == "3.11.4"
-        assert launcher.params.path == ".venv/custom"
-        assert launcher.params.env == {"FOO": "bar"}
-        assert launcher.params.start_timeout == 180.0  # 3m → 180s
-        assert launcher.params.stop_timeout == 15.0
+        assert manager.params.driver == VirtualEnvDriver.PYENV
+        assert manager.params.python == "3.11.4"
+        assert manager.params.path == ".venv/custom"
+        assert manager.params.env == {"FOO": "bar"}
+        assert manager.params.start_timeout == 180.0  # 3m → 180s
+        assert manager.params.stop_timeout == 15.0
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
+        manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
         # Composition: nothing materialized until start()
-        assert launcher._proxy is None
-        assert launcher._channel is None
-        assert launcher._runtime is None
+        assert manager._proxy is None
+        assert manager._channel is None
+        assert manager._runtime is None
 
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
-        assert launcher.params.start_timeout == 60.0
-        assert launcher.params.stop_timeout == 30.0
+        manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
+        assert manager.params.start_timeout == 60.0
+        assert manager.params.stop_timeout == 30.0
 
 # ---------------------------------------------------------------------------
 # ComponentVirtualEnvRuntimeWorker

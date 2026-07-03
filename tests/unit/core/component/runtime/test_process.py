@@ -92,12 +92,12 @@ class TestComponentProcessRuntimeManager:
 
     def test_basic_initialization(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
+        manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
-        assert launcher.worker_id == "test-shell"
-        assert launcher.component_config is config
-        assert launcher.global_configs is global_configs
-        assert isinstance(launcher.params, ProcessRuntimeParams)
+        assert manager.worker_id == "test-shell"
+        assert manager.component_config is config
+        assert manager.global_configs is global_configs
+        assert isinstance(manager.params, ProcessRuntimeParams)
 
     def test_params_converted_from_config(self, global_configs):
         config = self._make_config(
@@ -105,28 +105,28 @@ class TestComponentProcessRuntimeManager:
             start_timeout="2m",
             stop_timeout="10s",
         )
-        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
+        manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
-        assert launcher.params.env == {"TEST_VAR": "value"}
-        assert launcher.params.start_timeout == 120.0   # 2m → 120s
-        assert launcher.params.stop_timeout == 10.0
+        assert manager.params.env == {"TEST_VAR": "value"}
+        assert manager.params.start_timeout == 120.0   # 2m → 120s
+        assert manager.params.stop_timeout == 10.0
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
+        manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
         # Composition: no proxy / runtime / queues until start()
-        assert launcher._proxy is None
-        assert launcher._channel is None
-        assert launcher._runtime is None
-        assert launcher._request_queue is None
-        assert launcher._response_queue is None
+        assert manager._proxy is None
+        assert manager._channel is None
+        assert manager._runtime is None
+        assert manager._request_queue is None
+        assert manager._response_queue is None
 
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
-        assert launcher.params.start_timeout == 60.0
-        assert launcher.params.stop_timeout == 30.0
+        manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
+        assert manager.params.start_timeout == 60.0
+        assert manager.params.stop_timeout == 30.0
 
 
 # ---------------------------------------------------------------------------

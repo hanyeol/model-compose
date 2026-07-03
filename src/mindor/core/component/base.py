@@ -67,6 +67,7 @@ class ComponentService(AsyncService):
         self.config: ComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
+
         self._runtime_manager = None
         self._active_counter: ActiveCounter = ActiveCounter()
 
@@ -74,17 +75,12 @@ class ComponentService(AsyncService):
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     async def setup(self) -> None:
-        # Components running in an isolated runtime install their dependencies inside that
-        # isolated environment (worker venv / container build). Skip the host-side install
-        # here so we do not leak component dependencies into the parent interpreter.
-        if self.config.runtime.type in (
-            RuntimeType.PROCESS,
-            RuntimeType.VIRTUALENV,
-            RuntimeType.DOCKER,
-            RuntimeType.APPLE_CONTAINER,
-        ):
-            return
-        await super().setup()
+        # Only in-process runtimes install dependencies on the host. Isolated runtimes
+        # (process / virtualenv / docker / apple-container) install their dependencies
+        # inside their own environment (worker venv / container build), so we skip
+        # the host-side install to avoid leaking them into the parent interpreter.
+        if self.config.runtime.type in [ RuntimeType.NATIVE, RuntimeType.EMBEDDED ]:
+            await super().setup()
 
     async def start(self, background: bool = False) -> None:
         self._runtime_manager = self._create_runtime_manager(self.config.runtime.type)

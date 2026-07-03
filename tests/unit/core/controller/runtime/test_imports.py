@@ -15,13 +15,13 @@ def test_specs_module_imports():
     assert ControllerRuntimeSpecs is not None
 
 
-def test_native_launcher_imports():
+def test_native_manager_imports():
     from mindor.core.controller.runtime.native import ControllerNativeRuntimeManager
 
     assert ControllerNativeRuntimeManager is not None
 
 
-def test_apple_container_launcher_imports():
+def test_apple_container_manager_imports():
     from mindor.core.controller.runtime.apple_container import (
         ControllerAppleContainerRuntimeManager,
     )
@@ -29,13 +29,13 @@ def test_apple_container_launcher_imports():
     assert ControllerAppleContainerRuntimeManager is not None
 
 
-def test_docker_launcher_imports():
+def test_docker_manager_imports():
     from mindor.core.controller.runtime.docker import ControllerDockerRuntimeManager
 
     assert ControllerDockerRuntimeManager is not None
 
 
-def test_launchers_importable_from_controller_base():
+def test_managers_importable_from_controller_base():
     """`controller/base.py` pulls all three managers; verify that path still works
     after flattening (regression guard for the relative import in apple_container)."""
     from mindor.core.controller.base import (

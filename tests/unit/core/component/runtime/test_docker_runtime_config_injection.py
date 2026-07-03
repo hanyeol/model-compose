@@ -186,7 +186,7 @@ class TestImageKindStableAcrossRebuilds:
     original STANDARD / DERIVED / CUSTOM case correctly — it would otherwise see
     the tag the first manager wrote and misclassify STANDARD/DERIVED as CUSTOM."""
 
-    def test_standard_kind_survives_second_launcher_on_same_config(self):
+    def test_standard_kind_survives_second_manager_on_same_config(self):
         runtime = _runtime()
         first = _manager(runtime)
         # The standard/derived split depends on whether a real `requirements.txt`
@@ -197,7 +197,7 @@ class TestImageKindStableAcrossRebuilds:
         assert second._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
         assert second._default_image_tag() == first._default_image_tag()
 
-    def test_custom_kind_survives_second_launcher_on_same_config(self):
+    def test_custom_kind_survives_second_manager_on_same_config(self):
         runtime = _runtime(image="my-registry/foo:1.2.3")
         first = _manager(runtime)
         assert first._image_kind == ContainerImageKind.CUSTOM

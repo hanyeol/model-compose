@@ -64,7 +64,7 @@ class TestComponentProcessRuntimeWorker:
 class TestComponentProcessRuntimeManager:
     """Test ComponentProcessRuntimeManager class."""
 
-    def test_launcher_initialization_with_process_runtime(self, global_configs):
+    def test_manager_initialization_with_process_runtime(self, global_configs):
         """Test manager initialization with process runtime config."""
         config = ShellComponentConfig(
             id="test-shell",
@@ -89,7 +89,7 @@ class TestComponentProcessRuntimeManager:
         assert manager.params.start_timeout == 30.0
         assert manager.params.stop_timeout == 10.0
 
-    def test_launcher_initialization_with_custom_config(self, global_configs):
+    def test_manager_initialization_with_custom_config(self, global_configs):
         """Test manager with custom process runtime configuration."""
         config = ShellComponentConfig(
             id="custom-shell",
@@ -321,7 +321,7 @@ class TestComponentProcessRuntimeScenarios:
         # Resource limits are in ProcessRuntimeConfig but not in ProcessRuntimeParams
         # These are DSL-level configs not used by foundation layer
 
-    def test_component_launcher_attributes(self, global_configs):
+    def test_component_manager_attributes(self, global_configs):
         """Test ComponentProcessRuntimeManager has correct attributes."""
         config = ShellComponentConfig(
             id="attr-test",
@@ -374,7 +374,7 @@ class TestComponentProcessRuntimeValidation:
         assert manager.worker_id == "different-id"
         assert manager.component_config.id == "original-id"
 
-    def test_launcher_run_method_signature(self, global_configs):
+    def test_manager_run_method_signature(self, global_configs):
         """Test ComponentProcessRuntimeManager.run method signature."""
         config = ShellComponentConfig(
             id="run-test",

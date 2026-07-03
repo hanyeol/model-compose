@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import AppleContainerRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentContainerRuntimeLauncher,
+    ComponentContainerRuntimeManager,
     ComponentContainerSpec,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
@@ -136,7 +136,7 @@ class ComponentAppleContainerRuntimeProxy(ComponentRuntimeProxy):
         return await self._channel.recv()
 
 
-class ComponentAppleContainerRuntimeLauncher(ComponentContainerRuntimeLauncher):
+class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
     """Component-side launcher: composes a `ComponentAppleContainerRuntimeBackend`
     with a `ComponentAppleContainerRuntimeProxy` over an
     `AppleContainerAttachChannel` (subprocess stdin/stdout).

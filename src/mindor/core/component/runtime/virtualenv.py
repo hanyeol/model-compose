@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentRuntimeLauncher,
+    ComponentRuntimeManager,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
 )
@@ -14,7 +14,6 @@ from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.runtime.virtualenv import VirtualEnvRuntime, VirtualEnvRuntimeParams
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
 import asyncio, os, sys
-
 
 class ComponentVirtualEnvRuntimeWorker(ComponentRuntimeWorker):
     """Component-side worker that runs inside the venv interpreter.
@@ -51,8 +50,7 @@ class ComponentVirtualEnvRuntimeProxy(ComponentRuntimeProxy):
     async def _recv_message(self) -> Optional[bytes]:
         return await self._loop.run_in_executor(None, self._channel.recv)
 
-
-class ComponentVirtualEnvRuntimeLauncher(ComponentRuntimeLauncher):
+class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
     """Launcher: spawns a `VirtualEnvRuntime` child over a pipe pair and
     wraps the parent's ends in a `ComponentVirtualEnvRuntimeProxy`.
     """
@@ -138,7 +136,7 @@ def main() -> None:
     except KeyError as e:
         raise RuntimeError(
             f"Missing IPC file descriptor environment variable: {e}. "
-            f"This module must be launched by ComponentVirtualEnvRuntimeLauncher."
+            f"This module must be launched by ComponentVirtualEnvRuntimeManager."
         ) from e
 
     channel = SubprocessPipeChannel(

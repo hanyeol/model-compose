@@ -195,9 +195,9 @@ class ComponentService(AsyncService):
         await super()._install_package(package_spec, repository)
 
     async def _start_process_runtime(self) -> None:
-        from mindor.core.component.runtime.process import ComponentProcessRuntimeLauncher
+        from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
 
-        self._process_launcher = ComponentProcessRuntimeLauncher(self.id, self.config, self.global_configs)
+        self._process_launcher = ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
         await self._process_launcher.start()
         logging.info(f"Component '{self.id}' started with process runtime")
 
@@ -206,9 +206,9 @@ class ComponentService(AsyncService):
         logging.info(f"Component '{self.id}' process runtime stopped")
 
     async def _start_virtualenv_runtime(self) -> None:
-        from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeLauncher
+        from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeManager
 
-        self._virtualenv_launcher = ComponentVirtualEnvRuntimeLauncher(self.id, self.config, self.global_configs)
+        self._virtualenv_launcher = ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
         await self._virtualenv_launcher.start()
         logging.info(f"Component '{self.id}' started with virtualenv runtime")
 
@@ -217,9 +217,9 @@ class ComponentService(AsyncService):
         logging.info(f"Component '{self.id}' virtualenv runtime stopped")
 
     async def _start_docker_runtime(self) -> None:
-        from mindor.core.component.runtime.docker import ComponentDockerRuntimeLauncher
+        from mindor.core.component.runtime.docker import ComponentDockerRuntimeManager
 
-        self._docker_launcher = ComponentDockerRuntimeLauncher(self.id, self.config, self.global_configs)
+        self._docker_launcher = ComponentDockerRuntimeManager(self.id, self.config, self.global_configs)
         await self._docker_launcher.start()
         logging.info(f"Component '{self.id}' started with Docker runtime")
 
@@ -228,9 +228,9 @@ class ComponentService(AsyncService):
         logging.info(f"Component '{self.id}' Docker runtime stopped")
 
     async def _start_apple_container_runtime(self) -> None:
-        from mindor.core.component.runtime.apple_container import ComponentAppleContainerRuntimeLauncher
+        from mindor.core.component.runtime.apple_container import ComponentAppleContainerRuntimeManager
 
-        self._apple_container_launcher = ComponentAppleContainerRuntimeLauncher(self.id, self.config, self.global_configs)
+        self._apple_container_launcher = ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
         await self._apple_container_launcher.start()
         logging.info(f"Component '{self.id}' started with Apple Container runtime")
 

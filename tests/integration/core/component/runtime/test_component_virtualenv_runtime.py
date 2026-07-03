@@ -22,7 +22,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.virtualenv import (
-    ComponentVirtualEnvRuntimeLauncher,
+    ComponentVirtualEnvRuntimeManager,
 )
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
@@ -89,7 +89,7 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     await component.start()
 
     assert component._virtualenv_launcher is not None
-    assert isinstance(component._virtualenv_launcher, ComponentVirtualEnvRuntimeLauncher)
+    assert isinstance(component._virtualenv_launcher, ComponentVirtualEnvRuntimeManager)
     assert component._virtualenv_launcher._runtime.subprocess is not None
     assert component._virtualenv_launcher._runtime.subprocess.poll() is None
 

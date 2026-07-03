@@ -30,7 +30,7 @@ from mindor.dsl.schema.runtime.impl.common import RuntimeType
 
 
 def _classify_image_kind(runtime: DockerRuntimeConfig) -> ContainerImageKind:
-    """Mirror of `ComponentContainerRuntimeLauncher._resolve_image_kind`
+    """Mirror of `ComponentContainerRuntimeManager._resolve_image_kind`
     without spinning up the launcher (which would spawn a real backend)."""
     if runtime.image or runtime.build:
         return ContainerImageKind.CUSTOM

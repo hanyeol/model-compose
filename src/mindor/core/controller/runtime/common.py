@@ -65,7 +65,7 @@ class ControllerContainerSpec:
 
         return ports
 
-class ControllerContainerRuntimeLauncher:
+class ControllerContainerRuntimeManager:
     """Controller lifecycle. Composes a backend ContainerRuntimeBackend."""
     def __init__(self, config: ControllerConfig, verbose: bool = False):
         self.config: ControllerConfig = config

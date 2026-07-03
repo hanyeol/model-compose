@@ -2,7 +2,7 @@ from mindor.core.logger import logging
 from pathlib import Path
 import sys, os, subprocess
 
-class ControllerNativeRuntimeLauncher:
+class ControllerNativeRuntimeManager:
     async def launch_detached(self) -> None:
         command = [ sys.executable ] + [ arg for arg in sys.argv if arg not in ( "--detach", "-d" ) ]
         env = os.environ.copy()

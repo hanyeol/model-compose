@@ -4,7 +4,7 @@ from mindor.dsl.schema.containers.apple_container import AppleContainerPortConfi
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.runtime.apple_container import AppleContainerRuntimeBackend, AppleContainerRuntimeParams
-from .common import ControllerContainerRuntimeLauncher, ControllerContainerSpec
+from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     """Apple Container backend for a controller runtime."""
@@ -50,7 +50,7 @@ class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     def _standard_image_command(self) -> List[str]:
         return ControllerContainerSpec.standard_image_command()
 
-class ControllerAppleContainerRuntimeLauncher(ControllerContainerRuntimeLauncher):
+class ControllerAppleContainerRuntimeManager(ControllerContainerRuntimeManager):
     """Facade — composes the Apple Container backend with the controller lifecycle."""
     def _create_backend(
         self,

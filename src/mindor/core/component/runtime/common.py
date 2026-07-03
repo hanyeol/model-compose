@@ -163,7 +163,7 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
             "global_configs": self.global_configs.model_dump(mode="json"),
         })
 
-class ComponentRuntimeLauncher:
+class ComponentRuntimeManager:
     """Component-side lifecycle launcher base.
 
     Spawns the child runtime (container / subprocess / venv), prepares the IPC
@@ -206,6 +206,7 @@ class ComponentRuntimeLauncher:
     async def run(self, action_id: str, run_id: str, input_data: Dict[str, Any]) -> Any:
         if self._proxy is None:
             raise RuntimeError(f"Launcher '{self.worker_id}' is not started")
+
         return await self._proxy.run(action_id, run_id, input_data)
 
     async def _teardown(self) -> None:
@@ -238,7 +239,7 @@ class ComponentRuntimeLauncher:
             close()
 
 
-class ComponentContainerRuntimeLauncher(ComponentRuntimeLauncher):
+class ComponentContainerRuntimeManager(ComponentRuntimeManager):
     """Launcher for container-backed component runtimes (Docker / Apple)."""
     def __init__(
         self,

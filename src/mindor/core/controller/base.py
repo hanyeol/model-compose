@@ -31,9 +31,9 @@ from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.foundation.variable.time import parse_duration
 from .runtime.base.specs import ControllerRuntimeSpecs
-from .runtime.native import ControllerNativeRuntimeLauncher
-from .runtime.docker import ControllerDockerRuntimeLauncher
-from .runtime.apple_container import ControllerAppleContainerRuntimeLauncher
+from .runtime.native import ControllerNativeRuntimeManager
+from .runtime.docker import ControllerDockerRuntimeManager
+from .runtime.apple_container import ControllerAppleContainerRuntimeManager
 from threading import Lock
 from pathlib import Path
 import asyncio, ulid, os, threading, traceback
@@ -180,7 +180,7 @@ class ControllerService(AsyncService):
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
                 await self._start_loggers(verbose)
-                await ControllerNativeRuntimeLauncher().launch_detached()
+                await ControllerNativeRuntimeManager().launch_detached()
                 await self._stop_loggers()
                 return
 
@@ -200,20 +200,20 @@ class ControllerService(AsyncService):
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
-            await ControllerDockerRuntimeLauncher(self.config, verbose).launch(self._get_runtime_specs(), detach)
+            await ControllerDockerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
-            await ControllerAppleContainerRuntimeLauncher(self.config, verbose).launch(self._get_runtime_specs(), detach)
+            await ControllerAppleContainerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
             return
 
     async def terminate_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)
-            await ControllerNativeRuntimeLauncher().stop()
+            await ControllerNativeRuntimeManager().stop()
             await self._teardown_components()
             await self._teardown_gateways()
             await self._teardown_listeners()
@@ -223,13 +223,13 @@ class ControllerService(AsyncService):
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
-            await ControllerDockerRuntimeLauncher(self.config, verbose).terminate()
+            await ControllerDockerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
-            await ControllerAppleContainerRuntimeLauncher(self.config, verbose).terminate()
+            await ControllerAppleContainerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
             return
 
@@ -247,32 +247,32 @@ class ControllerService(AsyncService):
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
-            await ControllerDockerRuntimeLauncher(self.config, verbose).start()
+            await ControllerDockerRuntimeManager(self.config, verbose).start()
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
-            await ControllerAppleContainerRuntimeLauncher(self.config, verbose).start()
+            await ControllerAppleContainerRuntimeManager(self.config, verbose).start()
             await self._stop_loggers()
             return
 
     async def stop_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)
-            await ControllerNativeRuntimeLauncher().stop()
+            await ControllerNativeRuntimeManager().stop()
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
-            await ControllerDockerRuntimeLauncher(self.config, verbose).stop()
+            await ControllerDockerRuntimeManager(self.config, verbose).stop()
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
-            await ControllerAppleContainerRuntimeLauncher(self.config, verbose).stop()
+            await ControllerAppleContainerRuntimeManager(self.config, verbose).stop()
             await self._stop_loggers()
             return
 

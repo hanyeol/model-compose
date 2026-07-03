@@ -4,7 +4,7 @@ from mindor.dsl.schema.containers.docker import DockerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.runtime.docker import DockerRuntimeBackend, DockerRuntimeParams
-from .common import ControllerContainerRuntimeLauncher, ControllerContainerSpec
+from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     """Docker backend for a controller runtime."""
@@ -57,7 +57,7 @@ class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     def _standard_image_command(self) -> List[str]:
         return ControllerContainerSpec.standard_image_command()
 
-class ControllerDockerRuntimeLauncher(ControllerContainerRuntimeLauncher):
+class ControllerDockerRuntimeManager(ControllerContainerRuntimeManager):
     """Facade — composes the Docker backend with the controller lifecycle."""
     def _create_backend(
         self,

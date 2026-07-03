@@ -6,7 +6,7 @@ import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
-from mindor.core.component.runtime.process import ComponentProcessRuntimeLauncher
+from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
 from mindor.core.component.runtime.process import ComponentProcessRuntimeWorker
 from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import ShellActionConfig
@@ -61,8 +61,8 @@ class TestComponentProcessRuntimeWorker:
         assert worker.running is True
 
 
-class TestComponentProcessRuntimeLauncher:
-    """Test ComponentProcessRuntimeLauncher class."""
+class TestComponentProcessRuntimeManager:
+    """Test ComponentProcessRuntimeManager class."""
 
     def test_launcher_initialization_with_process_runtime(self, global_configs):
         """Test launcher initialization with process runtime config."""
@@ -77,7 +77,7 @@ class TestComponentProcessRuntimeLauncher:
             command=[ "echo", "Hello" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "test-shell",
             config,
             global_configs
@@ -103,7 +103,7 @@ class TestComponentProcessRuntimeLauncher:
             command=["echo", "Custom"]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "custom-shell",
             config,
             global_configs
@@ -169,7 +169,7 @@ class TestComponentIntegration:
 
         # Should have process launcher created
         assert component._process_launcher is not None
-        assert isinstance(component._process_launcher, ComponentProcessRuntimeLauncher)
+        assert isinstance(component._process_launcher, ComponentProcessRuntimeManager)
         assert component._process_launcher._runtime.subprocess is not None
         assert component._process_launcher._runtime.subprocess.is_alive()
 
@@ -267,7 +267,7 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "$MODEL_PATH" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "env-test",
             config,
             global_configs
@@ -290,7 +290,7 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "sleep", "1" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "timeout-test",
             config,
             global_configs
@@ -312,7 +312,7 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "resource test" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "resource-test",
             config,
             global_configs
@@ -322,7 +322,7 @@ class TestComponentProcessRuntimeScenarios:
         # These are DSL-level configs not used by foundation layer
 
     def test_component_launcher_attributes(self, global_configs):
-        """Test ComponentProcessRuntimeLauncher has correct attributes."""
+        """Test ComponentProcessRuntimeManager has correct attributes."""
         config = ShellComponentConfig(
             id="attr-test",
             type="shell",
@@ -330,7 +330,7 @@ class TestComponentProcessRuntimeScenarios:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "attr-test",
             config,
             global_configs
@@ -365,7 +365,7 @@ class TestComponentProcessRuntimeValidation:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "different-id",
             config,
             global_configs
@@ -375,7 +375,7 @@ class TestComponentProcessRuntimeValidation:
         assert launcher.component_config.id == "original-id"
 
     def test_launcher_run_method_signature(self, global_configs):
-        """Test ComponentProcessRuntimeLauncher.run method signature."""
+        """Test ComponentProcessRuntimeManager.run method signature."""
         config = ShellComponentConfig(
             id="run-test",
             type="shell",
@@ -383,7 +383,7 @@ class TestComponentProcessRuntimeValidation:
             command=[ "echo", "test" ]
         )
 
-        launcher = ComponentProcessRuntimeLauncher(
+        launcher = ComponentProcessRuntimeManager(
             "run-test",
             config,
             global_configs

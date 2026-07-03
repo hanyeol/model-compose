@@ -16,34 +16,34 @@ def test_specs_module_imports():
 
 
 def test_native_launcher_imports():
-    from mindor.core.controller.runtime.native import ControllerNativeRuntimeLauncher
+    from mindor.core.controller.runtime.native import ControllerNativeRuntimeManager
 
-    assert ControllerNativeRuntimeLauncher is not None
+    assert ControllerNativeRuntimeManager is not None
 
 
 def test_apple_container_launcher_imports():
     from mindor.core.controller.runtime.apple_container import (
-        ControllerAppleContainerRuntimeLauncher,
+        ControllerAppleContainerRuntimeManager,
     )
 
-    assert ControllerAppleContainerRuntimeLauncher is not None
+    assert ControllerAppleContainerRuntimeManager is not None
 
 
 def test_docker_launcher_imports():
-    from mindor.core.controller.runtime.docker import ControllerDockerRuntimeLauncher
+    from mindor.core.controller.runtime.docker import ControllerDockerRuntimeManager
 
-    assert ControllerDockerRuntimeLauncher is not None
+    assert ControllerDockerRuntimeManager is not None
 
 
 def test_launchers_importable_from_controller_base():
     """`controller/base.py` pulls all three launchers; verify that path still works
     after flattening (regression guard for the relative import in apple_container)."""
     from mindor.core.controller.base import (
-        ControllerNativeRuntimeLauncher,
-        ControllerDockerRuntimeLauncher,
-        ControllerAppleContainerRuntimeLauncher,
+        ControllerNativeRuntimeManager,
+        ControllerDockerRuntimeManager,
+        ControllerAppleContainerRuntimeManager,
     )
 
-    assert ControllerNativeRuntimeLauncher is not None
-    assert ControllerDockerRuntimeLauncher is not None
-    assert ControllerAppleContainerRuntimeLauncher is not None
+    assert ControllerNativeRuntimeManager is not None
+    assert ControllerDockerRuntimeManager is not None
+    assert ControllerAppleContainerRuntimeManager is not None

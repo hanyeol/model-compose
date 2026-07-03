@@ -5,7 +5,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentContainerRuntimeLauncher,
+    ComponentContainerRuntimeManager,
     ComponentContainerSpec,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
@@ -128,7 +128,7 @@ class ComponentDockerRuntimeProxy(ComponentRuntimeProxy):
     async def _recv_message(self) -> Optional[bytes]:
         return await self._loop.run_in_executor(None, self._channel.recv)
 
-class ComponentDockerRuntimeLauncher(ComponentContainerRuntimeLauncher):
+class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
     """Component-side launcher: composes a `ComponentDockerRuntimeBackend`
     (image + container lifecycle) with a `ComponentDockerRuntimeProxy` over a
     `DockerAttachChannel` to the container's stdin/stdout.

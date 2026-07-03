@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentRuntimeLauncher,
+    ComponentRuntimeManager,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
 )
@@ -12,7 +12,6 @@ from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from mindor.core.runtime.process import ProcessRuntime, ProcessRuntimeParams
 import asyncio
-
 
 class ComponentProcessRuntimeWorker(ComponentRuntimeWorker):
     """Worker that runs inside the child process and hosts an embedded component."""
@@ -72,8 +71,7 @@ class ComponentProcessRuntimeProxy(ComponentRuntimeProxy):
         _, response_queue = self._channel
         return await self._loop.run_in_executor(None, response_queue.get)
 
-
-class ComponentProcessRuntimeLauncher(ComponentRuntimeLauncher):
+class ComponentProcessRuntimeManager(ComponentRuntimeManager):
     """Launcher: spawns a `ProcessRuntime` child and wraps its queue pair in
     a `ComponentProcessRuntimeProxy`.
     """

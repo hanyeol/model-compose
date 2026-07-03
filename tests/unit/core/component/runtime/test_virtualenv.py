@@ -2,7 +2,7 @@
 
 Scope:
 - `VirtualEnvRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
-- `ComponentVirtualEnvRuntimeLauncher` converts the DSL config into
+- `ComponentVirtualEnvRuntimeManager` converts the DSL config into
   `VirtualEnvRuntimeParams` and exposes pre-start state.
 - `ComponentVirtualEnvRuntimeWorker` initializes correctly.
 
@@ -18,7 +18,7 @@ import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.virtualenv import (
-    ComponentVirtualEnvRuntimeLauncher,
+    ComponentVirtualEnvRuntimeManager,
     ComponentVirtualEnvRuntimeWorker,
 )
 from mindor.core.runtime.virtualenv import VirtualEnvRuntimeParams
@@ -82,10 +82,10 @@ class TestVirtualEnvRuntimeConfig:
 
 
 # ---------------------------------------------------------------------------
-# ComponentVirtualEnvRuntimeLauncher (pre-start state only)
+# ComponentVirtualEnvRuntimeManager (pre-start state only)
 # ---------------------------------------------------------------------------
 
-class TestComponentVirtualEnvRuntimeLauncher:
+class TestComponentVirtualEnvRuntimeManager:
     def _make_config(self, **runtime_overrides):
         return ShellComponentConfig(
             id="venv-shell",
@@ -98,7 +98,7 @@ class TestComponentVirtualEnvRuntimeLauncher:
 
     def test_basic_initialization(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeLauncher("venv-shell", config, global_configs)
+        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
         assert launcher.worker_id == "venv-shell"
         assert launcher.component_config is config
@@ -114,7 +114,7 @@ class TestComponentVirtualEnvRuntimeLauncher:
             start_timeout="3m",
             stop_timeout="15s",
         )
-        launcher = ComponentVirtualEnvRuntimeLauncher("venv-shell", config, global_configs)
+        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
         assert launcher.params.driver == VirtualEnvDriver.PYENV
         assert launcher.params.python == "3.11.4"
@@ -125,7 +125,7 @@ class TestComponentVirtualEnvRuntimeLauncher:
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeLauncher("venv-shell", config, global_configs)
+        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
         # Composition: nothing materialized until start()
         assert launcher._proxy is None
@@ -134,7 +134,7 @@ class TestComponentVirtualEnvRuntimeLauncher:
 
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
-        launcher = ComponentVirtualEnvRuntimeLauncher("venv-shell", config, global_configs)
+        launcher = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
         assert launcher.params.start_timeout == 60.0
         assert launcher.params.stop_timeout == 30.0
 

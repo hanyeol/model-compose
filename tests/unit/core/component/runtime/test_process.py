@@ -2,7 +2,7 @@
 
 Scope:
 - `ProcessRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
-- `ComponentProcessRuntimeLauncher` converts the DSL config into `ProcessRuntimeParams`
+- `ComponentProcessRuntimeManager` converts the DSL config into `ProcessRuntimeParams`
   and exposes its pre-start state.
 - `ComponentProcessRuntimeWorker` initializes correctly.
 
@@ -19,7 +19,7 @@ import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.process import (
-    ComponentProcessRuntimeLauncher,
+    ComponentProcessRuntimeManager,
     ComponentProcessRuntimeWorker,
 )
 from mindor.core.runtime.process import ProcessRuntimeParams
@@ -78,10 +78,10 @@ class TestEmbeddedRuntimeConfig:
 
 
 # ---------------------------------------------------------------------------
-# ComponentProcessRuntimeLauncher (pre-start state only)
+# ComponentProcessRuntimeManager (pre-start state only)
 # ---------------------------------------------------------------------------
 
-class TestComponentProcessRuntimeLauncher:
+class TestComponentProcessRuntimeManager:
     def _make_config(self, **runtime_overrides):
         return ShellComponentConfig(
             id="test-shell",
@@ -92,7 +92,7 @@ class TestComponentProcessRuntimeLauncher:
 
     def test_basic_initialization(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeLauncher("test-shell", config, global_configs)
+        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
         assert launcher.worker_id == "test-shell"
         assert launcher.component_config is config
@@ -105,7 +105,7 @@ class TestComponentProcessRuntimeLauncher:
             start_timeout="2m",
             stop_timeout="10s",
         )
-        launcher = ComponentProcessRuntimeLauncher("test-shell", config, global_configs)
+        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
         assert launcher.params.env == {"TEST_VAR": "value"}
         assert launcher.params.start_timeout == 120.0   # 2m → 120s
@@ -113,7 +113,7 @@ class TestComponentProcessRuntimeLauncher:
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeLauncher("test-shell", config, global_configs)
+        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
         # Composition: no proxy / runtime / queues until start()
         assert launcher._proxy is None
@@ -124,7 +124,7 @@ class TestComponentProcessRuntimeLauncher:
 
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
-        launcher = ComponentProcessRuntimeLauncher("test-shell", config, global_configs)
+        launcher = ComponentProcessRuntimeManager("test-shell", config, global_configs)
         assert launcher.params.start_timeout == 60.0
         assert launcher.params.stop_timeout == 30.0
 

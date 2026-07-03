@@ -1,4 +1,4 @@
-"""End-to-end integration test: ComponentDockerRuntimeLauncher driving a
+"""End-to-end integration test: ComponentDockerRuntimeManager driving a
 real docker container that hosts an `IpcRuntimeWorker` over the daemon's
 attach stdin/stdout stream.
 
@@ -239,12 +239,12 @@ def echo_worker_dir():
 
 
 # ---------------------------------------------------------------------------
-# Minimal manager that mirrors ComponentDockerRuntimeLauncher but is wired
+# Minimal manager that mirrors ComponentDockerRuntimeManager but is wired
 # directly to the echo worker (no embedded component bootstrapping).
 # ---------------------------------------------------------------------------
 
 class _AttachEchoManager:
-    """Test scaffold equivalent to ComponentDockerRuntimeLauncher but minimal."""
+    """Test scaffold equivalent to ComponentDockerRuntimeManager but minimal."""
 
     def __init__(self, image: str, worker_src_dir: str):
         from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy

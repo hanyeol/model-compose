@@ -88,10 +88,10 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     await component.setup()  # should skip — virtualenv runtime
     await component.start()
 
-    assert component._virtualenv_manager is not None
-    assert isinstance(component._virtualenv_manager, ComponentVirtualEnvRuntimeManager)
-    assert component._virtualenv_manager._runtime.subprocess is not None
-    assert component._virtualenv_manager._runtime.subprocess.poll() is None
+    assert component._runtime_manager is not None
+    assert isinstance(component._runtime_manager, ComponentVirtualEnvRuntimeManager)
+    assert component._runtime_manager._runtime.subprocess is not None
+    assert component._runtime_manager._runtime.subprocess.poll() is None
 
     # venv should be at .runtime/components/venv-shell/venv under the cwd.
     expected_venv = (venv_dir / ".runtime" / "components" / "venv-shell" / "venv").resolve()
@@ -101,11 +101,11 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     ).exists()
 
     # Worker subprocess must use the venv python, not the parent interpreter.
-    worker_exe = component._virtualenv_manager._runtime.subprocess.args[0]
+    worker_exe = component._runtime_manager._runtime.subprocess.args[0]
     assert str(expected_venv) in worker_exe
 
     # mindor should have been copied into the venv's site-packages, not pip-installed.
-    site_packages = component._virtualenv_manager._runtime._venv_site_packages()
+    site_packages = component._runtime_manager._runtime._venv_site_packages()
     assert (site_packages / "mindor" / "__init__.py").exists()
 
     import mindor.version
@@ -124,7 +124,7 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     assert result["exit_code"] == 0
 
     # Snapshot before stop — the manager clears its `_runtime` handle on teardown.
-    worker_subprocess = component._virtualenv_manager._runtime.subprocess
+    worker_subprocess = component._runtime_manager._runtime.subprocess
     await component.stop()
     assert worker_subprocess.poll() is not None
 
@@ -159,7 +159,7 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
     await component.setup()
     await component.start()
     # Snapshot the venv path before stop — the manager clears its `_runtime` handle on teardown.
-    site_packages = component._virtualenv_manager._runtime._venv_site_packages()
+    site_packages = component._runtime_manager._runtime._venv_site_packages()
     await component.stop()
     await component.teardown()
 

@@ -135,7 +135,7 @@ class TestComponentIntegration:
         assert component is not None
         assert component.id == "test-component"
         assert isinstance(component.config.runtime, ProcessRuntimeConfig)
-        assert component._process_manager is None
+        assert component._runtime_manager is None
 
     @pytest.mark.anyio
     async def test_component_lifecycle(self, global_configs):
@@ -168,10 +168,10 @@ class TestComponentIntegration:
         await component.start()
 
         # Should have process manager created
-        assert component._process_manager is not None
-        assert isinstance(component._process_manager, ComponentProcessRuntimeManager)
-        assert component._process_manager._runtime.subprocess is not None
-        assert component._process_manager._runtime.subprocess.is_alive()
+        assert component._runtime_manager is not None
+        assert isinstance(component._runtime_manager, ComponentProcessRuntimeManager)
+        assert component._runtime_manager._runtime.subprocess is not None
+        assert component._runtime_manager._runtime.subprocess.is_alive()
 
         # Execute action through process runtime
         result = await component.run(
@@ -187,7 +187,7 @@ class TestComponentIntegration:
         await component.stop()
 
         # Process should be stopped
-        assert component._process_manager._runtime is None
+        assert component._runtime_manager._runtime is None
 
         await component.teardown()
 

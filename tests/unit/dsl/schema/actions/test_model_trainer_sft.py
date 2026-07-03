@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.action.impl.model_trainer.impl.sft import SftModelTrainerActionConfig
+from mindor.dsl.schema.action.impl.model_trainer.tasks.sft import SftModelTrainerActionConfig
 
 
 class TestValidateDataColumns:

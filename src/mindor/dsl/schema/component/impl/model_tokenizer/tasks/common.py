@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.utils.path import is_local_path
 from ...common import CommonComponentConfig, ComponentType
-from ...model.impl.common import ModelConfig, ModelProvider
+from ...model.tasks.common import ModelConfig, ModelProvider
 
 class ModelTokenizerTaskType(str, Enum):
     TEXT = "text"

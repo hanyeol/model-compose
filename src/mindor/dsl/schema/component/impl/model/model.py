@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl import *
+from .tasks import *
 
 ModelComponentConfig = Annotated[
     Union[

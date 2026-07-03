@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriver
-from mindor.dsl.schema.component.impl.model.impl.common import HuggingfaceModelConfig, LocalModelConfig
+from mindor.dsl.schema.component.impl.model.tasks.common import HuggingfaceModelConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.core.logger import logging
 from ....context import ComponentActionContext

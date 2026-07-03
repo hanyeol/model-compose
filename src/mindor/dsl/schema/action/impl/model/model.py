@@ -1,5 +1,5 @@
 from typing import Union
-from .impl import *
+from .tasks import *
 
 ModelActionConfig = Union[
     TextGenerationModelActionConfig,

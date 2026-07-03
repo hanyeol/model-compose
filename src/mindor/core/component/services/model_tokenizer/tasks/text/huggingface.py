@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
-from mindor.dsl.schema.action.impl.model_tokenizer.impl.common import ModelTokenizerMethod
+from mindor.dsl.schema.action.impl.model_tokenizer.tasks.common import ModelTokenizerMethod
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service

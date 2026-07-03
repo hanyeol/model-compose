@@ -12,7 +12,7 @@ class ModelTaskType(str, Enum):
     TEXT_EMBEDDING      = "text-embedding"
     IMAGE_TO_TEXT       = "image-to-text"
     IMAGE_TEXT_TO_TEXT  = "image-text-to-text"
-    TEXT_TO_IMAGE       = "text-to-image"
+    IMAGE_GENERATION    = "image-generation"
     IMAGE_UPSCALE       = "image-upscale"
     FACE_DETECTION      = "face-detection"
     POSE_DETECTION      = "pose-detection"

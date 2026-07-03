@@ -248,7 +248,7 @@ model-compose supports the following task types:
 | `text-classification` | Text classification | Sentiment analysis, topic classification |
 | `text-embedding` | Text embedding | Semantic search, RAG |
 | `image-to-text` | Image captioning | Image description, VQA |
-| `image-generation` | Image generation | Text-to-image conversion |
+| `text-to-image` | Image generation | Text-to-image conversion |
 | `image-upscale` | Image upscaling | Resolution enhancement |
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `face-embedding` | Face embedding | Face recognition, comparison |
@@ -372,14 +372,14 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.6 image-generation
+### 10.3.6 text-to-image
 
 Generates images from text prompts.
 
 ```yaml
 component:
   type: model
-  task: image-generation
+  task: text-to-image
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:

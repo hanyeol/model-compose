@@ -248,7 +248,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `text-classification` | 텍스트 분류 | 감정 분석, 주제 분류 |
 | `text-embedding` | 텍스트 임베딩 | 시맨틱 검색, RAG |
 | `image-to-text` | 이미지 캡셔닝 | 이미지 설명 생성, VQA |
-| `image-generation` | 이미지 생성 | 텍스트→이미지 변환 |
+| `text-to-image` | 이미지 생성 | 텍스트→이미지 변환 |
 | `image-upscale` | 이미지 업스케일 | 해상도 향상 |
 | `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
@@ -372,14 +372,14 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.6 image-generation
+### 10.3.6 text-to-image
 
 텍스트 프롬프트에서 이미지를 생성합니다.
 
 ```yaml
 component:
   type: model
-  task: image-generation
+  task: text-to-image
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:

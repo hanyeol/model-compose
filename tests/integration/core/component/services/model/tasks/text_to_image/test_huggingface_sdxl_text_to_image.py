@@ -1,10 +1,13 @@
-"""Manual / live test for HuggingfaceImageGenerationTaskService (SDXL).
+"""Manual / live test for HuggingfaceTextToImageTaskService (SDXL).
 
 Loads `stabilityai/stable-diffusion-xl-base-1.0` from the local HF cache and
 generates a single image with minimal inference steps to keep the run short.
 
-Run directly: `python tests/_manual/test_image_generation_sdxl_live.py`
-Not collected by pytest (lives under tests/_manual/).
+Run directly:
+    python tests/integration/core/component/services/model/tasks/text_to_image/test_huggingface_sdxl_text_to_image.py
+
+Not auto-collected: the module defines no top-level ``test_*`` functions, so
+pytest walks past it. Actual inference happens only under ``__main__``.
 """
 
 from __future__ import annotations
@@ -17,10 +20,10 @@ from PIL import Image as PILImage
 from pydantic import TypeAdapter
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.model.tasks.image_generation.huggingface import (
-    HuggingfaceImageGenerationTaskService,
+from mindor.core.component.services.model.tasks.text_to_image.huggingface import (
+    HuggingfaceTextToImageTaskService,
 )
-from mindor.dsl.schema.component import ImageGenerationModelComponentConfig
+from mindor.dsl.schema.component import TextToImageModelComponentConfig
 
 
 COMPONENT_ID = "test-sdxl"
@@ -28,10 +31,10 @@ MODEL_REPO = "stabilityai/stable-diffusion-xl-base-1.0"
 
 
 def _build_component_config() -> Any:
-    adapter = TypeAdapter(ImageGenerationModelComponentConfig)
+    adapter = TypeAdapter(TextToImageModelComponentConfig)
     return adapter.validate_python({
         "type": "model",
-        "task": "image-generation",
+        "task": "text-to-image",
         "driver": "huggingface",
         "architecture": "sdxl",
         "model": MODEL_REPO,
@@ -39,7 +42,7 @@ def _build_component_config() -> Any:
         "preload": False,
         "actions": [
             {
-                "text": "a serene mountain lake at sunrise, photorealistic",
+                "prompt": "a serene mountain lake at sunrise, photorealistic",
                 "batch_size": 1,
                 "params": {
                     "num_inference_steps": 2,
@@ -60,7 +63,7 @@ async def _run() -> None:
     action_config = component_config.actions[0]
 
     print(f"[setup] instantiating service")
-    service = HuggingfaceImageGenerationTaskService(COMPONENT_ID, component_config, daemon=False)
+    service = HuggingfaceTextToImageTaskService(COMPONENT_ID, component_config, daemon=False)
 
     print(f"[load] loading pipeline (this may take a while on first run)")
     t0 = time.perf_counter()
@@ -91,7 +94,7 @@ async def _run() -> None:
     assert service.device is None
     print(f"[unload] done")
 
-    print(f"\n[OK] HuggingfaceImageGenerationTaskService (SDXL) end-to-end run succeeded")
+    print(f"\n[OK] HuggingfaceTextToImageTaskService (SDXL) end-to-end run succeeded")
 
 
 if __name__ == "__main__":

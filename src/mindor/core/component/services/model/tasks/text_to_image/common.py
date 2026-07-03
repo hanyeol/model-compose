@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageGenerationModelActionConfig
+from mindor.dsl.schema.action import TextToImageModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
@@ -13,32 +13,32 @@ import asyncio
 if TYPE_CHECKING:
     import torch
 
-class ImageGenerationTaskAction:
-    def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageGenerationModelActionConfig = config
+class TextToImageTaskAction:
+    def __init__(self, config: TextToImageModelActionConfig, device: Optional[torch.device]):
+        self.config: TextToImageModelActionConfig = config
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        text       = await context.render_variable(self.config.text)
+        prompt     = await context.render_variable(self.config.prompt)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(text, (list, AsyncIterator))
+        is_single_input  = not isinstance(prompt, (list, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(text, AsyncIterator):
+        if isinstance(prompt, AsyncIterator):
             async def _stream_output_generator():
-                async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_texts, params, loop)
+                async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
+                    batch_results = await self._generate(batch_prompts, params, loop)
                     for result in batch_results:
                         yield result
 
             return _stream_output_generator()
         else:
             results: List[PILImage.Image] = []
-            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_texts, params, loop)
+            async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
+                batch_results = await self._generate(batch_prompts, params, loop)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -50,8 +50,8 @@ class ImageGenerationTaskAction:
         return {}
 
     @abstractmethod
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
+    async def _generate(self, prompts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
         pass
 
-class ImageGenerationTaskService(ModelTaskService):
+class TextToImageTaskService(ModelTaskService):
     pass

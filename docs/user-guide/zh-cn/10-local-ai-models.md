@@ -248,7 +248,7 @@ model-compose 支持以下任务类型：
 | `text-classification` | 文本分类 | 情感分析、主题分类 |
 | `text-embedding` | 文本嵌入 | 语义搜索、RAG |
 | `image-to-text` | 图像描述 | 图像描述、VQA |
-| `image-generation` | 图像生成 | 文本到图像转换 |
+| `text-to-image` | 图像生成 | 文本到图像转换 |
 | `image-upscale` | 图像放大 | 分辨率增强 |
 | `text-to-speech` | 文本转语音 | 语音生成、克隆、设计 |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
@@ -372,14 +372,14 @@ component:
 - `git`：生成式图像到文本
 - `vit-gpt2`：视觉转换器 + GPT-2
 
-### 10.3.6 image-generation
+### 10.3.6 text-to-image
 
 从文本提示生成图像。
 
 ```yaml
 component:
   type: model
-  task: image-generation
+  task: text-to-image
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:

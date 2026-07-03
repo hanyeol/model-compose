@@ -9,7 +9,7 @@ ModelComponentConfig = Annotated[
         TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
         ImageToTextModelComponentConfig,
-        ImageGenerationModelComponentConfig,
+        TextToImageModelComponentConfig,
         ImageUpscaleModelComponentConfig,
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,

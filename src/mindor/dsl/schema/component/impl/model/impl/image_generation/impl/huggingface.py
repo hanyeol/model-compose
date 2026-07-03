@@ -1,13 +1,18 @@
 from typing import Literal, List, Union, Annotated
+from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import (
-    HuggingfaceImageGenerationModelArchitecture,
     SdxlHuggingfaceImageGenerationModelActionConfig,
     FluxHuggingfaceImageGenerationModelActionConfig,
     HunyuanImageHuggingfaceImageGenerationModelActionConfig,
 )
 from .common import CommonImageGenerationModelComponentConfig
 from ...common import ModelDriver
+
+class HuggingfaceImageGenerationModelArchitecture(str, Enum):
+    SDXL          = "sdxl"
+    FLUX          = "flux"
+    HUNYUAN_IMAGE = "hunyuan-image"
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)

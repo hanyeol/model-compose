@@ -1,5 +1,6 @@
-from typing import Union
+from typing import Union, Literal, Annotated
 from pydantic import Field
+from ...common import ImageGenerationActionMethod
 from .common import CommonHuggingfaceImageGenerationModelActionConfig, CommonHuggingfaceImageGenerationParamsConfig
 
 class FluxHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
@@ -7,5 +8,13 @@ class FluxHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGeneratio
     guidance_scale: Union[float, str] = Field(default=3.5, description="Guidance scale. Use 3.5 for FLUX.1-dev, 0.0 for FLUX.1-schnell.")
     max_sequence_length: Union[int, str] = Field(default=512, description="Maximum sequence length for the T5 text encoder.")
 
-class FluxHuggingfaceImageGenerationModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
+class FluxHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
+    method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
     params: FluxHuggingfaceImageGenerationParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+
+FluxHuggingfaceImageGenerationModelActionConfig = Annotated[
+    Union[
+        FluxHuggingfaceImageGenerationGenerateModelActionConfig,
+    ],
+    Field(discriminator="method")
+]

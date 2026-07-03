@@ -1,12 +1,6 @@
 from typing import Union, Optional
-from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonImageGenerationModelActionConfig
-
-class HuggingfaceImageGenerationModelArchitecture(str, Enum):
-    SDXL          = "sdxl"
-    FLUX          = "flux"
-    HUNYUAN_IMAGE = "hunyuan-image"
 
 class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     num_inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps.")

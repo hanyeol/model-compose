@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
-from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -115,7 +115,10 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await HuggingfaceImageGenerationTaskAction(action, self.config.architecture, self.pipeline, self.device).run(context, loop)
+        if action.method == ImageGenerationActionMethod.GENERATE:
+            return await HuggingfaceImageGenerationTaskAction(action, self.config.architecture, self.pipeline, self.device).run(context, loop)
+
+        raise ValueError(f"Unknown method: {action.method}")
 
     def _get_pipeline_class(self) -> Type[DiffusionPipeline]:
         if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:

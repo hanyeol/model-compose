@@ -4,6 +4,10 @@ The component discriminates on ``architecture`` (``sdxl`` / ``flux`` /
 ``hunyuan-image``); each variant carries a driver-specific action config with
 its own per-architecture default parameters. The action config itself has no
 ``architecture`` field — the discriminator lives entirely on the component.
+
+Each action is further discriminated on ``method`` (currently only
+``generate``); the field defaults to ``generate`` so single-method use cases
+don't need to spell it out.
 """
 
 from pydantic import TypeAdapter, ValidationError
@@ -14,12 +18,13 @@ from mindor.dsl.schema.component import (
     SdxlHuggingfaceImageGenerationModelComponentConfig,
     FluxHuggingfaceImageGenerationModelComponentConfig,
     HunyuanImageHuggingfaceImageGenerationModelComponentConfig,
+    HuggingfaceImageGenerationModelArchitecture,
 )
 from mindor.dsl.schema.action import (
-    SdxlHuggingfaceImageGenerationModelActionConfig,
-    FluxHuggingfaceImageGenerationModelActionConfig,
-    HunyuanImageHuggingfaceImageGenerationModelActionConfig,
-    HuggingfaceImageGenerationModelArchitecture,
+    SdxlHuggingfaceImageGenerationGenerateModelActionConfig,
+    FluxHuggingfaceImageGenerationGenerateModelActionConfig,
+    HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig,
+    ImageGenerationActionMethod,
 )
 
 
@@ -40,29 +45,29 @@ def _base(architecture: str, extra: dict | None = None) -> dict:
 
 
 class TestArchitectureDiscriminator:
-    def test_sdxl_component_resolves_to_sdxl_action(self):
+    def test_sdxl_component_resolves_to_sdxl_generate_action(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {
             "actions": [{"prompt": "a cat"}],
         }))
         assert isinstance(cfg, SdxlHuggingfaceImageGenerationModelComponentConfig)
         assert len(cfg.actions) == 1
-        assert isinstance(cfg.actions[0], SdxlHuggingfaceImageGenerationModelActionConfig)
+        assert isinstance(cfg.actions[0], SdxlHuggingfaceImageGenerationGenerateModelActionConfig)
 
-    def test_flux_component_resolves_to_flux_action(self):
+    def test_flux_component_resolves_to_flux_generate_action(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("flux", {
             "model": "black-forest-labs/FLUX.1-dev",
             "actions": [{"prompt": "a cat"}],
         }))
         assert isinstance(cfg, FluxHuggingfaceImageGenerationModelComponentConfig)
-        assert isinstance(cfg.actions[0], FluxHuggingfaceImageGenerationModelActionConfig)
+        assert isinstance(cfg.actions[0], FluxHuggingfaceImageGenerationGenerateModelActionConfig)
 
-    def test_hunyuan_image_component_resolves_to_hunyuan_action(self):
+    def test_hunyuan_image_component_resolves_to_hunyuan_generate_action(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("hunyuan-image", {
             "model": "tencent/HunyuanImage",
             "actions": [{"prompt": "a cat"}],
         }))
         assert isinstance(cfg, HunyuanImageHuggingfaceImageGenerationModelComponentConfig)
-        assert isinstance(cfg.actions[0], HunyuanImageHuggingfaceImageGenerationModelActionConfig)
+        assert isinstance(cfg.actions[0], HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig)
 
     def test_unknown_architecture_rejected(self):
         with pytest.raises(ValidationError):
@@ -155,6 +160,26 @@ class TestActionSchema:
             }))
 
 
+class TestActionMethod:
+    def test_omitted_method_defaults_to_generate(self):
+        cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {
+            "actions": [{"prompt": "a cat"}],
+        }))
+        assert cfg.actions[0].method == ImageGenerationActionMethod.GENERATE
+
+    def test_explicit_generate_accepted(self):
+        cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {
+            "actions": [{"method": "generate", "prompt": "a cat"}],
+        }))
+        assert cfg.actions[0].method == ImageGenerationActionMethod.GENERATE
+
+    def test_unknown_method_rejected(self):
+        with pytest.raises(ValidationError):
+            COMPONENT_ADAPTER.validate_python(_base("sdxl", {
+                "actions": [{"method": "transform", "prompt": "a cat"}],
+            }))
+
+
 class TestTaskDiscriminator:
     def test_legacy_task_text_to_image_rejected(self):
         with pytest.raises(ValidationError):
@@ -169,3 +194,8 @@ class TestArchitectureEnum:
         assert HuggingfaceImageGenerationModelArchitecture.SDXL == "sdxl"
         assert HuggingfaceImageGenerationModelArchitecture.FLUX == "flux"
         assert HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE == "hunyuan-image"
+
+
+class TestMethodEnum:
+    def test_enum_values(self):
+        assert ImageGenerationActionMethod.GENERATE == "generate"

@@ -6,6 +6,7 @@ ModelComponentConfig = Annotated[
     Union[
         TextGenerationModelComponentConfig,
         ChatCompletionModelComponentConfig,
+        TextToTextModelComponentConfig,
         TextClassificationModelComponentConfig,
         TextEmbeddingModelComponentConfig,
         ImageToTextModelComponentConfig,

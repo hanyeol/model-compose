@@ -66,7 +66,7 @@ class TextGenerationTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
-        return await context.render_text(self.config.text)
+        return await context.render_text(self.config.prompt)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_output_length    = await context.render_variable(self.config.params.max_output_length)

@@ -8,6 +8,7 @@ from ...common import CommonComponentConfig, ComponentType
 class ModelTaskType(str, Enum):
     TEXT_GENERATION     = "text-generation"
     CHAT_COMPLETION     = "chat-completion"
+    TEXT_TO_TEXT        = "text-to-text"
     TEXT_CLASSIFICATION = "text-classification" 
     TEXT_EMBEDDING      = "text-embedding"
     IMAGE_TO_TEXT       = "image-to-text"

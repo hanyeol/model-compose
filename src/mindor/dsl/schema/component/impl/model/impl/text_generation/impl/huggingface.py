@@ -6,10 +6,9 @@ from .common import CommonTextGenerationModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceTextGenerationModelArchitecture(str, Enum):
-    CAUSAL  = "causal"
-    SEQ2SEQ = "seq2seq"
+    AUTO = "auto"
 
 class HuggingfaceTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
-    architecture: HuggingfaceTextGenerationModelArchitecture = Field(default=HuggingfaceTextGenerationModelArchitecture.CAUSAL, description="Model architecture.")
+    architecture: HuggingfaceTextGenerationModelArchitecture = Field(default=HuggingfaceTextGenerationModelArchitecture.AUTO, description="Model architecture.")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)

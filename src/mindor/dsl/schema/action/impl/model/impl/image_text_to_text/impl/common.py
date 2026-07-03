@@ -21,6 +21,6 @@ class ImageTextToTextModelActionConfig(CommonModelActionConfig):
     system_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Optional system prompt applied before the user prompt.")
     batch_size: Union[int, str] = Field(default=1, description="Number of image/prompt pairs to process in a single batch.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input prompt.")
-    stop_sequences: Union[Union[str, List[str]], str] = Field(default=None, description="Stop sequence(s) that terminate generation.")
+    stop_sequences: Optional[Union[str, List[str]]] = Field(default=None, description="Stop sequence(s) that terminate generation.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream generated tokens as they are produced.")
     params: ImageTextToTextParamsConfig = Field(default_factory=ImageTextToTextParamsConfig, description="Image-text-to-text configuration parameters.")

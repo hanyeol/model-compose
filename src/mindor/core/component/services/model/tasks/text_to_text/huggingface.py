@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, TextToTextModelActionConfig
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
-from .common import TextGenerationTaskAction
+from .common import TextToTextTaskAction
 from threading import Thread
 import asyncio
 
@@ -18,10 +18,10 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
+class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
     def __init__(
         self,
-        config: TextGenerationModelActionConfig,
+        config: TextToTextModelActionConfig,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
         device: torch.device,
@@ -124,19 +124,19 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-@register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
-class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):
+@register_model_task_service(ModelTaskType.TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
+class HuggingfaceTextToTextTaskService(HuggingfaceLanguageModelTaskService):
     async def _run(
         self,
         action: ModelActionConfig,
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+        return await HuggingfaceTextToTextTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        from transformers import AutoModelForCausalLM
-        return AutoModelForCausalLM
+        from transformers import AutoModelForSeq2SeqLM
+        return AutoModelForSeq2SeqLM
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer

@@ -103,7 +103,7 @@ def _make_model_config(model: str = "org/base-model"):
         "driver": "huggingface",
         "model": model,
         "actions": [
-            {"text": "${input.text}"},
+            {"prompt": "${input.text}"},
         ],
     })
 

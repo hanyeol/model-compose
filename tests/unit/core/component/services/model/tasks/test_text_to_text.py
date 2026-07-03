@@ -1,10 +1,8 @@
-"""Tests for the TextGenerationTaskAction's I/O matrix.
+"""Tests for the TextToTextTaskAction's I/O matrix.
 
-Two stream dimensions:
-- ``streaming`` config (token-level model output) — each generated result is a sync
-  iterator yielding tokens, wrapped per-row into a ``StreamChunkIterator``.
-- input shape — AsyncIterator input yields per-row results; list/single input goes
-  through the collect path.
+Same structure as ``test_text_generation.py``: exercises the collect vs stream
+paths and the ``streaming`` token dimension. The action input field is ``text``
+(source text to transform), whereas text-generation uses ``prompt``.
 """
 
 from __future__ import annotations
@@ -16,8 +14,8 @@ from typing import Any, Dict, Iterator, List, Union
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.model.tasks.text_generation.common import TextGenerationTaskAction
-from mindor.dsl.schema.action import TextGenerationModelActionConfig
+from mindor.core.component.services.model.tasks.text_to_text.common import TextToTextTaskAction
+from mindor.dsl.schema.action import TextToTextModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
 
@@ -26,7 +24,7 @@ def anyio_backend():
     return "asyncio"
 
 
-class _FakeGenerationAction(TextGenerationTaskAction):
+class _FakeTextToTextAction(TextToTextTaskAction):
     """Deterministic ``_generate`` for testing.
 
     Matches the current source contract:
@@ -36,7 +34,7 @@ class _FakeGenerationAction(TextGenerationTaskAction):
     - streaming     → ``[ <sync iterator yielding tok-0, tok-1, ...> for each text ]``
     """
 
-    def __init__(self, config: TextGenerationModelActionConfig, stream_chunks: int = 3):
+    def __init__(self, config: TextToTextModelActionConfig, stream_chunks: int = 3):
         super().__init__(config)
         self.stream_chunks = stream_chunks
         self.batches_seen: List[List[str]] = []
@@ -62,19 +60,19 @@ class _FakeGenerationAction(TextGenerationTaskAction):
 
 
 def _make_config(
-    prompt_expr: Any,
+    text_expr: Any,
     output: Any = None,
     batch_size: int = 2,
     streaming: Any = False,
-) -> TextGenerationModelActionConfig:
+) -> TextToTextModelActionConfig:
     raw: dict = {
-        "prompt": prompt_expr,
+        "text": text_expr,
         "batch_size": batch_size,
         "streaming": streaming,
     }
     if output is not None:
         raw["output"] = output
-    return TextGenerationModelActionConfig.model_validate(raw)
+    return TextToTextModelActionConfig.model_validate(raw)
 
 
 async def _make_async_iter(items: List[str]) -> AsyncIterator[str]:
@@ -89,7 +87,7 @@ async def _collect(stream) -> list:
 class TestSingleInput:
     @pytest.mark.anyio
     async def test_no_output_returns_single(self):
-        action = _FakeGenerationAction(_make_config("${input.text}"))
+        action = _FakeTextToTextAction(_make_config("${input.text}"))
         ctx = ComponentActionContext("r-1", { "text": "hello" })
         loop = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
@@ -101,7 +99,7 @@ class TestSingleInput:
 class TestListInput:
     @pytest.mark.anyio
     async def test_no_output_returns_list(self):
-        action = _FakeGenerationAction(_make_config("${input.texts}"))
+        action = _FakeTextToTextAction(_make_config("${input.texts}"))
         ctx = ComponentActionContext("r-3", { "texts": [ "a", "bb", "ccc", "dddd" ] })
         loop = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
@@ -113,7 +111,7 @@ class TestListInput:
 class TestStreamInput:
     @pytest.mark.anyio
     async def test_no_output_returns_async_iterator(self):
-        action = _FakeGenerationAction(_make_config("${input.texts}"))
+        action = _FakeTextToTextAction(_make_config("${input.texts}"))
         stream = _make_async_iter([ "a", "bb", "ccc" ])
         ctx = ComponentActionContext("r-5", { "texts": stream })
         loop = asyncio.get_running_loop()
@@ -127,7 +125,7 @@ class TestStreamInput:
 
     @pytest.mark.anyio
     async def test_direct_output_returns_async_iterator(self):
-        action = _FakeGenerationAction(_make_config("${input.texts}", output="${result}"))
+        action = _FakeTextToTextAction(_make_config("${input.texts}", output="${result}"))
         stream = _make_async_iter([ "a", "bb" ])
         ctx = ComponentActionContext("r-6", { "texts": stream })
         loop = asyncio.get_running_loop()
@@ -143,7 +141,7 @@ class TestTokenStreaming:
 
     @pytest.mark.anyio
     async def test_token_stream_returns_chunk_iterator_for_single_input(self):
-        action = _FakeGenerationAction(
+        action = _FakeTextToTextAction(
             _make_config("${input.text}", streaming=True, batch_size=1),
             stream_chunks=3,
         )
@@ -157,7 +155,7 @@ class TestTokenStreaming:
 
     @pytest.mark.anyio
     async def test_token_stream_list_input_returns_list_of_chunk_iterators(self):
-        action = _FakeGenerationAction(
+        action = _FakeTextToTextAction(
             _make_config("${input.texts}", streaming=True, batch_size=1),
             stream_chunks=2,
         )
@@ -173,7 +171,7 @@ class TestTokenStreaming:
 
     @pytest.mark.anyio
     async def test_token_stream_async_iterator_input_yields_stream_of_chunk_iterators(self):
-        action = _FakeGenerationAction(
+        action = _FakeTextToTextAction(
             _make_config("${input.texts}", streaming=True, batch_size=1),
             stream_chunks=2,
         )

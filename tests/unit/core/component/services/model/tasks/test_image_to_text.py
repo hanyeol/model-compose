@@ -91,7 +91,7 @@ def _make_config(
         "streaming": streaming,
     }
     if text_expr is not None:
-        raw["text"] = text_expr
+        raw["prompt"] = text_expr
     if output is not None:
         raw["output"] = output
     return ImageToTextModelActionConfig.model_validate(raw)

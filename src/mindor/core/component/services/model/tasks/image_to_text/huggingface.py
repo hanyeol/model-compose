@@ -107,13 +107,13 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return params
 
-    async def _generate(self, images: List[PILImage.Image], texts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _generate(self, images: List[PILImage.Image], prompts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
         stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
 
-        inputs: Tensor = self.processor(images=images, text=texts, **params["processor"])
+        inputs: Tensor = self.processor(images=images, text=prompts, **params["processor"])
         inputs = inputs.to(self.device)
 
         if streaming:

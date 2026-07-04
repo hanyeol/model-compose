@@ -44,7 +44,7 @@ class ImageProcessorAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Any:
-        if method in [ ImageProcessorActionMethod.MERGE ]:
+        if method in (ImageProcessorActionMethod.MERGE, ):
             return await context.render_image_array(self.config.image)
 
         return await context.render_image(self.config.image)

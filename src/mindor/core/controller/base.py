@@ -692,6 +692,7 @@ class ControllerService(AsyncService):
 
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
             output = await _run_workflow(workflow_id, input, interrupt_handler)
+            output = await self._render_task_output(output)
             state = TaskState(
                 task_id=task_id,
                 status=TaskStatus.COMPLETED,
@@ -736,6 +737,9 @@ class ControllerService(AsyncService):
                 self.task_events.pop(task_id, None)
                 return state
             await event.wait()
+
+    async def _render_task_output(self, output: Any) -> Any:
+        return output
 
     def _attach_interrupt_handler(
         self,
@@ -809,7 +813,7 @@ class ControllerService(AsyncService):
             return
 
         previous_status = self._task_previous_status.get(task_id)
-        if state.status in [ TaskStatus.COMPLETED, TaskStatus.FAILED ]:
+        if state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
             self._task_previous_status.pop(task_id, None)
         else:
             self._task_previous_status[task_id] = state.status

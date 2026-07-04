@@ -761,7 +761,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return JSONResponse(content=TaskStateResult.to_dict(state))
 
     def _render_task_output(self, state: TaskState) -> Response:
-        if state.status in [ TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED ]:
+        if state.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED):
             return JSONResponse(status_code=202, content=TaskStateResult.to_dict(state))
 
         if state.status == TaskStatus.FAILED:

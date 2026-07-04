@@ -121,7 +121,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         subtype: Optional[str],
         format: Optional[WorkflowVariableFormat]
     ) -> ContentBlock:
-        if type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
+        if type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE):
             if format == WorkflowVariableFormat.BASE64:
                 if type == WorkflowVariableType.IMAGE:
                     return ImageContent(type="image", data=value, mimeType=f"image/{subtype or 'png'}")
@@ -138,7 +138,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                     )
                 )
 
-            if format in [ WorkflowVariableFormat.URL, WorkflowVariableFormat.DATA_URI ]:
+            if format in (WorkflowVariableFormat.URL, WorkflowVariableFormat.DATA_URI):
                 return TextContent(type="text", text=value)
 
             raise ValueError(f"`{type.value}` output requires `format` to be exposed over MCP (got {format}).")

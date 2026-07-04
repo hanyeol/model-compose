@@ -54,7 +54,7 @@ class ControllerContainerSpec:
         ports: List[Tuple[Optional[str], int]] = []
 
         for adapter in config.adapters:
-            if adapter.type in [ ControllerAdapterType.QUEUE_SUBSCRIBER ]:
+            if adapter.type in (ControllerAdapterType.QUEUE_SUBSCRIBER, ):
                 continue
             if hasattr(adapter, "port"):
                 ports.append((getattr(adapter, "host", None), adapter.port))

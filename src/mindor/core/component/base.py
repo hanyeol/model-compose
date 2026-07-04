@@ -79,7 +79,7 @@ class ComponentService(AsyncService):
         # (process / virtualenv / docker / apple-container) install their dependencies
         # inside their own environment (worker venv / container build), so we skip
         # the host-side install to avoid leaking them into the parent interpreter.
-        if self.config.runtime.type in [ RuntimeType.NATIVE, RuntimeType.EMBEDDED ]:
+        if self.config.runtime.type in (RuntimeType.NATIVE, RuntimeType.EMBEDDED):
             await super().setup()
 
     async def start(self, background: bool = False) -> None:

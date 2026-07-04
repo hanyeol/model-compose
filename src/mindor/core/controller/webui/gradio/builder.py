@@ -505,10 +505,10 @@ class GradioWebUIBuilder:
         label = variable.name or ""
         info = variable.get_annotation_value("description") or ""
 
-        if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.BASE64 ]:
+        if variable.type in (WorkflowVariableType.STRING, WorkflowVariableType.BASE64):
             return gr.Textbox(label=label, interactive=False, info=info, buttons=["copy"])
 
-        if variable.type in [ WorkflowVariableType.NUMBER, WorkflowVariableType.INTEGER ]:
+        if variable.type in (WorkflowVariableType.NUMBER, WorkflowVariableType.INTEGER):
             return gr.Textbox(label=label, interactive=False, info=info, buttons=["copy"])
 
         if variable.type == WorkflowVariableType.TEXT:
@@ -614,7 +614,7 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.NONE:
             return f"✅ {variable.name}" if variable.name else "✅ Completed"
 
-        if variable.type in [ WorkflowVariableType.STRING, WorkflowVariableType.TEXT ]:
+        if variable.type in (WorkflowVariableType.STRING, WorkflowVariableType.TEXT):
             return self._convert_value_to_string(value, variable.subtype, variable.format)
 
         if variable.type == WorkflowVariableType.IMAGE:
@@ -624,7 +624,7 @@ class GradioWebUIBuilder:
                 return None
             return await self._load_image_from_value(value, variable.format)
 
-        if variable.type in [ WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]:
+        if variable.type in (WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE):
             if variable.is_list:
                 if isinstance(value, list):
                     return [ await self._save_value_to_temporary_file(v, variable.subtype, variable.format) for v in value ]
@@ -700,7 +700,7 @@ class GradioWebUIBuilder:
         return False
 
     def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
-        return variable.type in [ WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE ]
+        return variable.type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE)
 
     def _is_media_component(self, component: gr.Component) -> bool:
         return isinstance(component, (gr.Image, gr.Gallery, gr.Audio, gr.Video, gr.File))

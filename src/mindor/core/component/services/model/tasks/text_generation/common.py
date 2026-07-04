@@ -38,7 +38,7 @@ class TextGenerationTaskAction:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                            yield StreamChunkIterator(_stream_chunk_generator())
+                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
                             yield result
 
@@ -56,7 +56,7 @@ class TextGenerationTaskAction:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                        results.append(StreamChunkIterator(_stream_chunk_generator()))
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
                         results.append(result)
 

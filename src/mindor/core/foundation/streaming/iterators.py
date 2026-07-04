@@ -17,8 +17,9 @@ class StreamIterator(ABC):
         pass
 
 class StreamChunkIterator(StreamIterator):
-    def __init__(self, source: AsyncIterable):
+    def __init__(self, source: AsyncIterable, is_fragmented: bool = False):
         self.source: AsyncIterable = source
+        self.is_fragmented: bool = is_fragmented
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:

@@ -96,6 +96,7 @@ class IpcInboundStream:
         cls = self._resolve_resource_class(content_type, self.kind)
 
         if cls is StreamChunkIterator:
+            # TODO: propagate `is_fragmented` from the origin worker via the IPC wire protocol.
             return StreamChunkIterator(reader)
 
         source = AsyncIterableStreamResource(

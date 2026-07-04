@@ -1,0 +1,29 @@
+# model-compose docs site — the ONLY config. The kurajs/pages action reads this and renders the
+# repo's docs/ into a trilingual (en / 简体中文 / 한국어), searchable, agent-native static site.
+# The workflow shapes a build copy (.docs-site) so the repo's docs/ is never modified.
+
+markdown  = "commonmark"
+base_path = ""
+
+[site]
+name        = "model-compose"
+description = "Portable AI runtime inspired by docker-compose: compose agents, RAG pipelines, and MCP servers in one YAML file."
+
+[deploy]
+target = "github-pages"
+
+[content]
+sources = []
+
+[i18n]
+default_locale = "en"
+[i18n.locales.en]
+[i18n.locales.zh-cn]
+path = "/zh-cn"
+[i18n.locales.ko]
+path = "/ko"
+
+[locale_names]
+en = "English"
+zh-cn = "简体中文"
+ko = "한국어"

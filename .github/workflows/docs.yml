@@ -1,0 +1,48 @@
+name: docs
+
+# Docs-as-code: kura.toml + this workflow. The kurajs/pages action renders the docs into a
+# TRILINGUAL static site (en / zh-cn / ko — the repo already maintains the translations) with
+# client-side search per language, images, and agent surfaces (.md + llms.txt + MCP). The repo's
+# docs/ is never modified: this workflow shapes a BUILD COPY (.docs-site) because Kura's i18n
+# convention wants top-level locale mirrors (docs here nest them per-folder as user-guide/zh-cn).
+
+on:
+  push:
+    branches: [main, docs/kura-site]
+    paths:
+      - "docs/**"
+      - "kura.toml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Shape the build copy (top-level locale mirrors; repo untouched)
+        run: |
+          mkdir -p .docs-site/zh-cn .docs-site/ko
+          cp -R docs/user-guide .docs-site/user-guide
+          cp -R docs/reference  .docs-site/reference
+          # the per-folder mirrors become Kura's top-level <locale>/ mirrors
+          mv .docs-site/user-guide/zh-cn .docs-site/zh-cn/user-guide
+          mv .docs-site/user-guide/ko    .docs-site/ko/user-guide
+          rm -f .docs-site/user-guide/TODO.ko.md
+          # the mirrors' image geometry followed the OLD layout (../images); after the move the
+          # shared images live one level differently — same-src as the default file resolves them
+          grep -rl '](../images/' .docs-site/zh-cn .docs-site/ko 2>/dev/null | while read -r f; do
+            sed -i 's#](\.\./images/#](./images/#g' "$f"
+          done
+
+      - uses: kurajs/pages@v1
+        with:
+          docs: .docs-site

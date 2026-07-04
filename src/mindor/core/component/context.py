@@ -19,7 +19,7 @@ from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     from mindor.core.workflow.context import WorkflowContext
-    from mindor.core.workflow.workflow import ComponentEventNotifier
+    from mindor.core.workflow.notifiers import ComponentEventNotifier
 
 class ComponentActionEventNotifier:
     def __init__(self, notifier: Optional[ComponentEventNotifier], component_id: Optional[str], component_type: Optional[str], job_id: Optional[str], run_id: Optional[str]):

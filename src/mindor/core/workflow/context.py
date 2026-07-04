@@ -6,10 +6,10 @@ from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer
 from mindor.core.foundation.variable.audio import AudioValueRenderer
 from mindor.core.foundation.variable.video import VideoValueRenderer
-from mindor.core.workflow.interrupt import InterruptHandler
+from .interrupt import InterruptHandler
 
 if TYPE_CHECKING:
-    from mindor.core.workflow.workflow import JobEventNotifier, ComponentEventNotifier
+    from .notifiers import JobEventNotifier, ComponentEventNotifier
 
 WorkflowDelegate = Callable[[str, Dict[str, Any], InterruptHandler], Awaitable[Any]]
 

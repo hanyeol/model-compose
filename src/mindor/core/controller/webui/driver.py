@@ -25,6 +25,7 @@ class WebUIDriver(ABC):
 
         if self.requires_runner:
             self.runner = ControllerRunner()
+
         try:
             await self._start()
         finally:

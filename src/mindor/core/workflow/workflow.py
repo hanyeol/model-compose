@@ -1,7 +1,7 @@
 from typing import Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.core.component import ComponentGlobalConfigs
-from .context import WorkflowDelegate
+from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .notifiers import JobEventCallback, ComponentEventCallback, JobEventNotifier, ComponentEventNotifier
 from .runner import WorkflowRunner

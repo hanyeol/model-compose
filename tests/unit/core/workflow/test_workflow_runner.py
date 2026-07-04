@@ -14,9 +14,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mindor.core.workflow import workflow as workflow_module
+from mindor.core.workflow import runner as workflow_module
 from mindor.core.workflow.job.base import Job, RoutingTarget
-from mindor.core.workflow.workflow import WorkflowRunner
+from mindor.core.workflow.runner import WorkflowRunner
 
 
 @pytest.fixture

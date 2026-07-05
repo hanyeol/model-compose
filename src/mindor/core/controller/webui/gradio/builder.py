@@ -644,12 +644,12 @@ class GradioWebUIBuilder:
     def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
         flattened = []
 
-        for item in components:
-            if isinstance(item, list):
-                for group in item:
+        for component in components:
+            if isinstance(component, list):
+                for group in component:
                     flattened.extend(group.components)
             else:
-                flattened.append(item)
+                flattened.append(component)
 
         return flattened
 

@@ -23,4 +23,3 @@ components:
     action:
       command: [ "bash", "-c", "for i in 1 2 3 4 5; do printf 'tick %d\\n' $i; sleep 0.5; done" ]
       streaming: true
-      output: ${result as text}

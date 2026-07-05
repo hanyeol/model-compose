@@ -137,7 +137,7 @@ class ShellAction:
                 line = await process.stdout.readline()
                 if not line:
                     break
-                yield line.decode(errors="replace").rstrip("\n")
+                yield line.decode(errors="replace")
 
         try:
             if timeout is not None:

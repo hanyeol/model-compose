@@ -1,0 +1,26 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Stream Single Variable
+  description: |
+    A shell command emits stdout line-by-line with `streaming: true`.
+    Each line is a completed item (`is_fragmented=False`), so the web UI
+    appends the lines to a list rather than concatenating them.
+  job:
+    component: ticker
+    output: ${output as stream/text}
+
+components:
+  - id: ticker
+    type: shell
+    action:
+      command: [ "bash", "-c", "for i in 1 2 3 4 5; do printf 'tick %d\\n' $i; sleep 0.5; done" ]
+      streaming: true
+      output: ${result as text}

@@ -1,0 +1,29 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Repeat Then Aggregate
+  description: |
+    A component job with `repeat_count: 3` rolls three dice; `workflow.output`
+    exposes the full list along with the first and last rolls.
+  jobs:
+    - id: roll-dice
+      component: dice
+      repeat_count: 3
+  output:
+    rolls: ${jobs.roll-dice.output as list}
+    first: ${jobs.roll-dice.output[0]}
+    last: ${jobs.roll-dice.output[-1]}
+
+components:
+  - id: dice
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf '{\"face\": %s}\\n' $((RANDOM % 6 + 1))" ]
+      output: ${result.stdout as json}

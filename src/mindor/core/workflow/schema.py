@@ -343,7 +343,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                 repeat_count: int = job.repeat_count if isinstance(job, ComponentJobConfig) and isinstance(job.repeat_count, int) else 0
 
                 if repeat_count > 1:
-                    variables.append(WorkflowVariableGroup(variables=(job_variables := []), repeat_count=repeat_count))
+                    variables.append(WorkflowVariableGroup(name=job.name or job.id, variables=(job_variables := []), repeat_count=repeat_count))
 
                 if isinstance(job, ComponentJobConfig) and (not job.output or job.output == "${output}"):
                     job_variables.extend(self._resolve_job_component(job.component, job.action, workflows, components))
@@ -354,7 +354,7 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                         do_variables = self._enumerate_output_variables(None, job.do.output, internal=internal)
                     if not do_variables:
                         do_variables = [ self._any_variable(internal=internal) ]
-                    job_variables.append(WorkflowVariableGroup(name=None, variables=do_variables, repeat_count=0))
+                    job_variables.append(WorkflowVariableGroup(name=job.name or job.id, variables=do_variables, repeat_count=0))
                 else:
                     if isinstance(job, OutputJobConfig):
                         job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))

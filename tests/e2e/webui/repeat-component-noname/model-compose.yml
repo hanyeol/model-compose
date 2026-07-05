@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Repeat Component (No Group Name)
+  description: |
+    A terminal component job with `repeat_count: 3`.
+    The web UI renders the output as a variable group with three slots,
+    but the group has no name — accordion labels are empty.
+  jobs:
+    - id: roll-dice
+      component: dice
+      repeat_count: 3
+      input:
+        seed: ${input.seed as integer | 0}
+
+components:
+  - id: dice
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf '{\"face\": %s}\\n' $((RANDOM % 6 + 1))" ]
+      output: ${result.stdout as json}

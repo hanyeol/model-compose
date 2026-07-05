@@ -1,0 +1,31 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: For-Each (Named Group)
+  description: |
+    A terminal `for-each` job with a job-level `name`.
+    Each iteration produces a `message` field and the whole group
+    is rendered under an accordion labelled with the job name.
+  jobs:
+    - id: greet-each
+      name: Greetings
+      type: for-each
+      input: ${input.names as list | ["alice","bob","carol"]}
+      do:
+        component: greeter
+        input:
+          name: ${item}
+
+components:
+  - id: greeter
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf '{\"message\": \"Hello, %s!\"}\\n' '${input.name}'" ]
+      output: ${result.stdout as json}

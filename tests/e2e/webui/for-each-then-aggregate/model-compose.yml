@@ -1,0 +1,34 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: For-Each Then Aggregate
+  description: |
+    A `for-each` job produces per-item greetings, and `workflow.output`
+    exposes both the full list and the first/last entries as separate
+    top-level fields — no follow-up job needed.
+  jobs:
+    - id: greet-each
+      type: for-each
+      input: ${input.names as list | ["alice","bob","carol"]}
+      do:
+        component: greeter
+        input:
+          name: ${item}
+  output:
+    all: ${jobs.greet-each.output as list}
+    first: ${jobs.greet-each.output[0] as text}
+    last: ${jobs.greet-each.output[-1] as text}
+
+components:
+  - id: greeter
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf 'Hello, %s!' '${input.name}'" ]
+      output: ${result.stdout as text}

@@ -1,0 +1,48 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: For-Each Chained
+  description: |
+    Two `for-each` jobs run in sequence: the first creates greetings,
+    the second uppercases each greeting. `workflow.output` exposes both
+    lists side-by-side.
+  jobs:
+    - id: greet-each
+      type: for-each
+      input: ${input.names as list | ["alice","bob","carol"]}
+      do:
+        component: greeter
+        input:
+          name: ${item}
+
+    - id: shout-each
+      type: for-each
+      input: ${jobs.greet-each.output as list}
+      do:
+        component: shouter
+        input:
+          text: ${item}
+      depends_on: [ greet-each ]
+  output:
+    greetings: ${jobs.greet-each.output as list}
+    shouts: ${jobs.shout-each.output as list}
+
+components:
+  - id: greeter
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf 'Hello, %s!' '${input.name}'" ]
+      output: ${result.stdout as text}
+
+  - id: shouter
+    type: shell
+    action:
+      command: [ "bash", "-c", "printf '%s' '${input.text}' | tr '[:lower:]' '[:upper:]'" ]
+      output: ${result.stdout as text}

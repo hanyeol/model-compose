@@ -46,8 +46,8 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-"mindor.core.controller.runtime.docker" = ["context/*"]
-"mindor.core.runtime.bootstrap" = ["requirements.txt"]
+"mindor.core.runtime.base.bootstrap" = ["requirements.txt"]
+"mindor.core.runtime.base.container" = ["Dockerfile"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

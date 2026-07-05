@@ -28,8 +28,8 @@ if TYPE_CHECKING:
 _VARIABLE_NAME_REGEX = re.compile(r"^([^[]+)(?:\[(\w+)\])?$")
 
 class ComponentGroup:
-    def __init__(self, group: gr.Component, components: List[gr.Component]):
-        self.group: gr.Component = group
+    def __init__(self, column: gr.Column, components: List[gr.Component]):
+        self.column: gr.Column = column
         self.components: List[gr.Component] = components
 
 class WorkflowLogPanel:
@@ -589,9 +589,9 @@ class GradioWebUIBuilder:
         if isinstance(variable, WorkflowVariableGroupConfig):
             groups: List[ComponentGroup] = []
             for _ in range(variable.repeat_count if variable.repeat_count != 0 else 1):
-                with gr.Column() as group:
+                with gr.Column() as column:
                     components = [ self._build_output_component(variable) for variable in variable.variables ]
-                groups.append(ComponentGroup(group, components))
+                groups.append(ComponentGroup(column, components))
             return groups
 
         label = variable.name or ""

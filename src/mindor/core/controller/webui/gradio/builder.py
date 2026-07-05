@@ -645,7 +645,7 @@ class GradioWebUIBuilder:
         flattened = []
 
         for component in components:
-            if isinstance(component, list):
+            if isinstance(component, list): # List[ComponentGroup]]
                 for group in component:
                     flattened.extend(group.components)
             else:

@@ -5,8 +5,8 @@ This file targets the streaming-error / non-bytes-kind paths the existing
 integration suite missed:
 
 - TEXT-kind streams (manager → worker, worker → manager) via
-  `EventStreamIterator(format=TEXT)`.
-- OBJECT-kind streams via `EventStreamIterator(format=JSON)` carrying
+  `StreamEncodingIterator(format=TEXT)`.
+- OBJECT-kind streams via `StreamEncodingIterator(format=JSON)` carrying
   JSON-serializable dicts.
 - Producer-side abort: the worker yields a stream that raises mid-iteration;
   the manager must see the abort propagated as an `IOError` from the proxy.
@@ -33,8 +33,8 @@ from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
 from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.iterators import (
-    EventStreamFormat,
-    EventStreamIterator,
+    StreamEncodingFormat,
+    StreamEncodingIterator,
     StreamChunkIterator,
 )
 from mindor.core.runtime.process import ProcessRuntime, ProcessRuntimeParams
@@ -139,7 +139,7 @@ class TextStreamInputWorker(QueueIpcWorker):
 
 
 class TextStreamOutputWorker(QueueIpcWorker):
-    """Return a TEXT-kind stream via EventStreamIterator(format=TEXT)."""
+    """Return a TEXT-kind stream via StreamEncodingIterator(format=TEXT)."""
     async def _start(self): pass
     async def _stop(self): pass
 
@@ -150,7 +150,7 @@ class TextStreamOutputWorker(QueueIpcWorker):
             for piece in pieces:
                 yield piece
 
-        return {"stream": EventStreamIterator(gen(), format=EventStreamFormat.TEXT)}
+        return {"stream": StreamEncodingIterator(gen(), format=StreamEncodingFormat.TEXT)}
 
 
 class ObjectStreamOutputWorker(QueueIpcWorker):
@@ -165,7 +165,7 @@ class ObjectStreamOutputWorker(QueueIpcWorker):
             for item in items:
                 yield item
 
-        return {"stream": EventStreamIterator(gen(), format=EventStreamFormat.JSON)}
+        return {"stream": StreamEncodingIterator(gen(), format=StreamEncodingFormat.JSON)}
 
 
 class AbortingOutputWorker(QueueIpcWorker):
@@ -182,7 +182,7 @@ class AbortingOutputWorker(QueueIpcWorker):
                 yield f"chunk-{i}"
             raise RuntimeError(message)
 
-        return {"stream": EventStreamIterator(gen(), format=EventStreamFormat.TEXT)}
+        return {"stream": StreamEncodingIterator(gen(), format=StreamEncodingFormat.TEXT)}
 
 
 class LargeBytesOutputWorker(QueueIpcWorker):
@@ -213,7 +213,7 @@ class StreamOutputForCloseWorker(QueueIpcWorker):
                 await asyncio.sleep(0.005)
                 yield f"piece-{i}"
 
-        return {"stream": EventStreamIterator(gen(), format=EventStreamFormat.TEXT)}
+        return {"stream": StreamEncodingIterator(gen(), format=StreamEncodingFormat.TEXT)}
 
 
 def _create_text_input(worker_id, req_q, res_q):
@@ -249,7 +249,7 @@ PARAMS = ProcessRuntimeParams(start_timeout=15.0, stop_timeout=5.0)
 
 @pytest.mark.anyio
 async def test_text_stream_input_roundtrip():
-    """TEXT-kind input: manager sends an EventStreamIterator(format=TEXT);
+    """TEXT-kind input: manager sends an StreamEncodingIterator(format=TEXT);
     chunks travel as raw str on the wire and worker concatenates them."""
     manager = QueueIpcManager("text-input", _create_text_input, PARAMS)
     await manager.start()
@@ -260,7 +260,7 @@ async def test_text_stream_input_roundtrip():
             for piece in pieces:
                 yield piece
 
-        stream = EventStreamIterator(gen(), format=EventStreamFormat.TEXT)
+        stream = StreamEncodingIterator(gen(), format=StreamEncodingFormat.TEXT)
 
         result = await manager.request({
             "action_id": "noop",
@@ -275,7 +275,7 @@ async def test_text_stream_input_roundtrip():
 
 @pytest.mark.anyio
 async def test_text_stream_output_roundtrip():
-    """TEXT-kind output: worker returns EventStreamIterator(format=TEXT);
+    """TEXT-kind output: worker returns StreamEncodingIterator(format=TEXT);
     manager receives a StreamChunkIterator yielding str values."""
     manager = QueueIpcManager("text-output", _create_text_output, PARAMS)
     await manager.start()
@@ -302,7 +302,7 @@ async def test_text_stream_output_roundtrip():
 async def test_object_stream_output_roundtrip():
     """OBJECT-kind output: each chunk is a JSON-serializable dict.
 
-    `EventStreamIterator(format=JSON)` serializes via json.dumps so the wire
+    `StreamEncodingIterator(format=JSON)` serializes via json.dumps so the wire
     payload arrives as a string; the consumer sees those raw strings (the
     OBJECT kind passes wire data through unchanged when there's no codec
     transformation registered)."""
@@ -324,7 +324,7 @@ async def test_object_stream_output_roundtrip():
         assert isinstance(stream, StreamChunkIterator)
 
         received = [chunk async for chunk in stream]
-        # EventStreamIterator(format=JSON) emits JSON strings; the OBJECT
+        # StreamEncodingIterator(format=JSON) emits JSON strings; the OBJECT
         # kind preserves them verbatim through the IPC wire.
         import json
         assert [json.loads(s) for s in received] == items

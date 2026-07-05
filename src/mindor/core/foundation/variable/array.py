@@ -9,12 +9,12 @@ class ArrayValueRenderer:
     async def render(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         if isinstance(value, AsyncIterator):
             async def _iterate():
-                async for element in value:
-                    yield self._render_element(element)
+                async for chunk in value:
+                    yield self._render_element(chunk)
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
-            return [ self._render_element(element) for element in value ]
+            return [ self._render_element(item) for item in value ]
 
         return self._render_element(value)
 

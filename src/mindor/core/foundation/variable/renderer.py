@@ -5,7 +5,7 @@ from ..streaming.resources import StreamResource
 from ..streaming.file import UploadFileStreamResource, FileStreamResource
 from ..streaming.base64 import Base64StreamResource, encode_value_to_base64
 from ..streaming.bytes import BytesStreamResource
-from ..streaming.iterators import EventStreamFormat, EventStreamIterator, StreamIterator
+from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, StreamIterator
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from ..streaming.video import VideoStreamResource
@@ -160,7 +160,7 @@ class VariableRenderer:
         skip_decode: bool = False,
     ) -> Any:
         if is_list:
-            if type == "event-stream":
+            if type == "stream":
                 raise ValueError(f"`{type}[]` is not allowed: stream is single by nature")
             if not isinstance(value, (list, tuple)):
                 raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
@@ -256,15 +256,15 @@ class VariableRenderer:
                     value = BytesStreamResource(value)
                 return value
 
-        if type == "event-stream":
-            format = EventStreamFormat(subtype) if subtype else EventStreamFormat.TEXT
+        if type == "stream":
+            format = StreamEncodingFormat(subtype) if subtype else StreamEncodingFormat.TEXT
             if isinstance(value, (StreamResource, StreamIterator, AsyncIterator)):
-                if isinstance(value, EventStreamIterator) and value.format == format:
+                if isinstance(value, StreamEncodingIterator) and value.format == format:
                     return value
-                return EventStreamIterator(value, format)
+                return StreamEncodingIterator(value, format)
             async def _stream_output_generator():
                 yield value
-            return EventStreamIterator(_stream_output_generator(), format)
+            return StreamEncodingIterator(_stream_output_generator(), format)
 
         return value
 

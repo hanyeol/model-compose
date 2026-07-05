@@ -1,7 +1,7 @@
 """Tests for HttpEventStreamer SSE framing.
 
 Chunk encoding (text/json serialization) is the responsibility of
-``EventStreamIterator`` and is tested separately. This module focuses on
+``StreamEncodingIterator`` and is tested separately. This module focuses on
 how already-encoded chunks are framed into SSE ``data:`` lines.
 """
 

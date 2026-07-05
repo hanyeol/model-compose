@@ -23,9 +23,11 @@ class WorkflowVariableType(str, Enum):
     VIDEO        = "video"
     FILE         = "file"
     # Streaming
-    EVENT_STREAM = "event-stream"
+    STREAM       = "stream"
     # UI-related types
     SELECT       = "select"
+    # Fallback for unresolved schemas
+    ANY          = "any"
     # No output
     NONE         = "none"
 

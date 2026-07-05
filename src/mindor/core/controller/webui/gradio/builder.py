@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Callable, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
@@ -15,6 +16,7 @@ from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.foundation.streaming.image import load_image_from_stream
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 import gradio as gr
@@ -202,12 +204,38 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
-                    buffer = "" if workflow.output[0].subtype != "json" else []
-                    async for chunk in output:
-                        chunk = await self._flatten_output_value(chunk, [ workflow.output[0] ])
-                        if chunk[0] is not None:
-                            if workflow.output[0].subtype != "json":
+                if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
+                    if isinstance(workflow.output[0], WorkflowVariableGroupConfig):
+                        variables, repeat_count = workflow.output[0].variables, workflow.output[0].repeat_count
+                        update_count = repeat_count if repeat_count != 0 else 1
+                        chunks: List[List[Any]] = []
+                        async for chunk in output:
+                            chunks.append(await self._flatten_output_value(chunk, variables))
+                            updates: List[Any] = []
+                            for index in range(update_count - 1):
+                                updates.extend(chunks[index] if len(chunks) > index else [ gr.update() ] * len(variables))
+                            updates.extend(chunks[-1] if len(chunks) > 0 else [ gr.update() ] * len(variables))
+                            yield [
+                                _run_button_running(),
+                                *clear_interrupt,
+                                *updates,
+                                *log_done,
+                            ]
+
+                        yield [
+                            _run_button_ready(),
+                            *clear_interrupt,
+                            *(gr.update() for _ in range(update_count * len(variables))),
+                            *log_done,
+                        ]
+                    else:
+                        variable = workflow.output[0]
+                        buffer: Union[str, list] = "" if self._is_string_variable(variable) and not variable.is_list else []
+                        async for chunk in output:
+                            chunk = await self._flatten_output_value(chunk, [ variable ])
+                            if chunk[0] is None:
+                                continue
+                            if isinstance(buffer, str):
                                 buffer += chunk[0]
                             else:
                                 buffer.append(chunk[0])
@@ -217,20 +245,39 @@ class GradioWebUIBuilder:
                                 buffer,
                                 *log_done,
                             ]
-                    yield [
-                        _run_button_ready(),
-                        *clear_interrupt,
-                        buffer,
-                        *log_done,
-                    ]
+
+                        yield [
+                            _run_button_ready(),
+                            *clear_interrupt,
+                            buffer,
+                            *log_done,
+                        ]
                 else:
-                    output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
-                    result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
+                    if workflow.output:
+                        values = await self._flatten_output_value(output, workflow.output)
+                        updates: List[Any] = []
+                        for variable in workflow.output:
+                            if isinstance(variable, WorkflowVariableGroupConfig):
+                                values = []
+                                for value in self._resolve_variable_output(output, variable) or ():
+                                    values.append(await self._flatten_output_value(value, variable.variables))
+                                update_count = variable.repeat_count if variable.repeat_count != 0 else 1
+                                for index in range(update_count - 1):
+                                    updates.extend(values[index] if len(values) > index else [ gr.update() ] * len(variable.variables))
+                                updates.extend(values[-1] if len(values) > 0 else [ gr.update() ] * len(variable.variables))
+                            else:
+                                value = self._resolve_variable_output(output, variable)
+                                updates.append(await self._convert_output_value(value, variable))
+                    else:
+                        updates = [ output ]
+
+                    if len(output_components) == 1:
+                        updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
                         _run_button_running() if media_components else _run_button_ready(),
                         *clear_interrupt,
-                        *result,
+                        *updates,
                         *log_done,
                     ]
 
@@ -335,13 +382,40 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if self._is_single_variable(workflow.output, [ WorkflowVariableType.EVENT_STREAM ]):
-                    variable = workflow.output[0]
-                    buffer = "" if variable.subtype != "json" else []
-                    async for chunk in output:
-                        chunk = await self._flatten_output_value(chunk, [ variable ])
-                        if chunk[0] is not None:
-                            if variable.subtype != "json":
+                if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
+                    if isinstance(workflow.output[0], WorkflowVariableGroupConfig):
+                        variables, repeat_count = workflow.output[0].variables, workflow.output[0].repeat_count
+                        update_count = repeat_count if repeat_count != 0 else 1
+                        chunks: List[List[Any]] = []
+                        async for chunk in output:
+                            chunks.append(await self._flatten_output_value(chunk, variables))
+                            updates: List[Any] = []
+                            for index in range(update_count - 1):
+                                updates.extend(chunks[index] if len(chunks) > index else [ gr.update() ] * len(variables))
+                            updates.extend(chunks[-1] if len(chunks) > 0 else [ gr.update() ] * len(variables))
+                            yield [
+                                _run_button_running(),
+                                _resume_button_ready(),
+                                *clear_interrupt,
+                                *updates,
+                                *log_done,
+                            ]
+
+                        yield [
+                            _run_button_ready(),
+                            _resume_button_ready(),
+                            *clear_interrupt,
+                            *(gr.update() for _ in range(update_count * len(variables))),
+                            *log_done,
+                        ]
+                    else:
+                        variable = workflow.output[0]
+                        buffer: Union[str, List[Any]] = "" if self._is_string_variable(variable) and not variable.is_list else []
+                        async for chunk in output:
+                            chunk = await self._flatten_output_value(chunk, [ variable ])
+                            if chunk[0] is None:
+                                continue
+                            if isinstance(buffer, str):
                                 buffer += chunk[0]
                             else:
                                 buffer.append(chunk[0])
@@ -352,22 +426,41 @@ class GradioWebUIBuilder:
                                 buffer,
                                 *log_done,
                             ]
-                    yield [
-                        _run_button_ready(),
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        buffer,
-                        *log_done,
-                    ]
+
+                        yield [
+                            _run_button_ready(),
+                            _resume_button_ready(),
+                            *clear_interrupt,
+                            buffer,
+                            *log_done,
+                        ]
                 else:
-                    output = await self._flatten_output_value(output, workflow.output) if workflow.output else [ output ]
-                    result = [ output[0] if len(output) == 1 else output ] if len(output_components) == 1 else output
+                    if workflow.output:
+                        values = await self._flatten_output_value(output, workflow.output)
+                        updates: List[Any] = []
+                        for variable in workflow.output:
+                            if isinstance(variable, WorkflowVariableGroupConfig):
+                                values = []
+                                for value in self._resolve_variable_output(output, variable) or ():
+                                    values.append(await self._flatten_output_value(value, variable.variables))
+                                update_count = variable.repeat_count if variable.repeat_count != 0 else 1
+                                for index in range(update_count - 1):
+                                    updates.extend(values[index] if len(values) > index else [ gr.update() ] * len(variable.variables))
+                                updates.extend(values[-1] if len(values) > 0 else [ gr.update() ] * len(variable.variables))
+                            else:
+                                value = self._resolve_variable_output(output, variable)
+                                updates.append(await self._convert_output_value(value, variable))
+                    else:
+                        updates = [ output ]
+
+                    if len(output_components) == 1:
+                        updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
                         _run_button_running() if media_components else _run_button_ready(),
                         _resume_button_ready(),
                         *clear_interrupt,
-                        *result,
+                        *updates,
                         *log_done,
                     ]
 
@@ -495,10 +588,9 @@ class GradioWebUIBuilder:
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):
             groups: List[ComponentGroup] = []
-            for index in range(variable.repeat_count if variable.repeat_count != 0 else 100):
-                visible = True if variable.repeat_count != 0 or index == 0 else False
-                with gr.Column(visible=visible) as group:
-                    components = [ self._build_output_component(v) for v in variable.variables ]
+            for _ in range(variable.repeat_count if variable.repeat_count != 0 else 1):
+                with gr.Column() as group:
+                    components = [ self._build_output_component(variable) for variable in variable.variables ]
                 groups.append(ComponentGroup(group, components))
             return groups
 
@@ -536,10 +628,13 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label, interactive=False)
 
-        if variable.type == WorkflowVariableType.EVENT_STREAM:
+        if variable.type == WorkflowVariableType.STREAM:
             if variable.subtype == "json":
                 return gr.JSON(label=label)
             return gr.Textbox(label=label, lines=5, max_lines=30, interactive=False, info=info, buttons=["copy"])
+
+        if variable.type == WorkflowVariableType.ANY:
+            return gr.JSON(label=label)
 
         if variable.type == WorkflowVariableType.NONE:
             return gr.Markdown(value="")
@@ -578,8 +673,7 @@ class GradioWebUIBuilder:
 
         for variable in variables:
             if isinstance(variable, WorkflowVariableGroupConfig):
-                group = self._resolve_variable_output(output, variable)
-                for value in group or ():
+                for value in self._resolve_variable_output(output, variable) or ():
                     flattened.extend(await self._flatten_output_value(value, variable.variables))
             else:
                 value = self._resolve_variable_output(output, variable)
@@ -631,7 +725,7 @@ class GradioWebUIBuilder:
                 return None
             return await self._save_value_to_temporary_file(value, variable.subtype, variable.format)
 
-        if variable.type == WorkflowVariableType.EVENT_STREAM:
+        if variable.type == WorkflowVariableType.STREAM:
             if variable.subtype == "json":
                 return value
             return self._convert_value_to_string(value, variable.subtype, variable.format)
@@ -689,18 +783,27 @@ class GradioWebUIBuilder:
 
         return None
 
-    def _is_single_variable(
-        self,
-        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
-        allowed_types: Optional[List[WorkflowVariableType]] = None,
-    ) -> bool:
-        if len(variables) == 1 and isinstance(variables[0], WorkflowVariableConfig):
-            if not allowed_types or variables[0].type in allowed_types:
-                return True
+    def _is_string_variable(self, variable: WorkflowVariableConfig) -> bool:
+        if variable.type in (
+            WorkflowVariableType.STRING,
+            WorkflowVariableType.TEXT,
+            WorkflowVariableType.MARKDOWN,
+            WorkflowVariableType.BASE64,
+        ):
+            return True
+
+        if variable.type == WorkflowVariableType.STREAM and variable.subtype == "text":
+            return True
+
         return False
 
     def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
-        return variable.type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE)
+        return variable.type in (
+            WorkflowVariableType.IMAGE,
+            WorkflowVariableType.AUDIO,
+            WorkflowVariableType.VIDEO,
+            WorkflowVariableType.FILE
+        )
 
     def _is_media_component(self, component: gr.Component) -> bool:
         return isinstance(component, (gr.Image, gr.Gallery, gr.Audio, gr.Video, gr.File))

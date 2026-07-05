@@ -5,8 +5,8 @@ from typing import AsyncIterator, List
 import pytest
 
 from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
-from mindor.core.foundation.streaming.iterators import EventStreamIterator, StreamChunkIterator
-from mindor.core.foundation.streaming.iterators import EventStreamFormat
+from mindor.core.foundation.streaming.iterators import StreamEncodingIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamEncodingFormat
 
 
 @pytest.fixture
@@ -94,46 +94,46 @@ class TestStreamChunkIterator:
         assert chunks == ["a", "b", "c"]
 
 
-class TestEventStreamIteratorTextFormat:
+class TestStreamEncodingIteratorTextFormat:
     @pytest.mark.anyio
     async def test_single_str_chunk(self):
-        chunks = await _collect(EventStreamIterator(_async_iter(["hello"]), EventStreamFormat.TEXT))
+        chunks = await _collect(StreamEncodingIterator(_async_iter(["hello"]), StreamEncodingFormat.TEXT))
         assert chunks == ["hello"]
 
     @pytest.mark.anyio
     async def test_non_str_chunk_stringified(self):
-        chunks = await _collect(EventStreamIterator(_async_iter([42]), EventStreamFormat.TEXT))
+        chunks = await _collect(StreamEncodingIterator(_async_iter([42]), StreamEncodingFormat.TEXT))
         assert chunks == ["42"]
 
 
-class TestEventStreamIteratorJsonFormat:
+class TestStreamEncodingIteratorJsonFormat:
     @pytest.mark.anyio
     async def test_dict_chunk_serialized(self):
-        chunks = await _collect(EventStreamIterator(_async_iter([{"key": "value"}]), EventStreamFormat.JSON))
+        chunks = await _collect(StreamEncodingIterator(_async_iter([{"key": "value"}]), StreamEncodingFormat.JSON))
         assert chunks == ['{"key": "value"}']
 
     @pytest.mark.anyio
     async def test_scalar_chunk_serialized(self):
-        chunks = await _collect(EventStreamIterator(_async_iter([42]), EventStreamFormat.JSON))
+        chunks = await _collect(StreamEncodingIterator(_async_iter([42]), StreamEncodingFormat.JSON))
         assert chunks == ["42"]
 
 
-class TestEventStreamIteratorNoneSkipping:
+class TestStreamEncodingIteratorNoneSkipping:
     @pytest.mark.anyio
     async def test_none_chunks_skipped(self):
-        chunks = await _collect(EventStreamIterator(_async_iter(["hello", None, "world"]), EventStreamFormat.TEXT))
+        chunks = await _collect(StreamEncodingIterator(_async_iter(["hello", None, "world"]), StreamEncodingFormat.TEXT))
         assert chunks == ["hello", "world"]
 
 
-class TestEventStreamIteratorNoFormat:
+class TestStreamEncodingIteratorNoFormat:
     @pytest.mark.anyio
     async def test_str_chunk_passes_through(self):
-        chunks = await _collect(EventStreamIterator(_async_iter(["hello"]), None))
+        chunks = await _collect(StreamEncodingIterator(_async_iter(["hello"]), None))
         assert chunks == ["hello"]
 
     @pytest.mark.anyio
     async def test_dict_chunk_falls_back_to_json(self):
-        chunks = await _collect(EventStreamIterator(_async_iter([{"k": "v"}]), None))
+        chunks = await _collect(StreamEncodingIterator(_async_iter([{"k": "v"}]), None))
         assert chunks == ['{"k": "v"}']
 
 

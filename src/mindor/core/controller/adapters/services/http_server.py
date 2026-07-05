@@ -10,7 +10,7 @@ from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableG
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.streaming.iterators import StreamIterator, EventStreamIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, StreamChunkIterator
 from mindor.core.utils.transport.http_stream import HttpEventStreamer
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
@@ -773,7 +773,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, StreamResource):
             return self._render_stream_resource(state.output)
 
-        if isinstance(state.output, EventStreamIterator):
+        if isinstance(state.output, StreamEncodingIterator):
             return self._render_event_stream(state.output)
 
         if isinstance(state.output, (StreamIterator, AsyncIterator)):
@@ -792,7 +792,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             background=BackgroundTask(resource.close)
         )
 
-    def _render_event_stream(self, iterator: EventStreamIterator) -> Response:
+    def _render_event_stream(self, iterator: StreamEncodingIterator) -> Response:
         return StreamingResponse(
             HttpEventStreamer(iterator).stream(),
             media_type="text/event-stream",

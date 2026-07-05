@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import json
 
-class EventStreamFormat(str, Enum):
+class StreamEncodingFormat(str, Enum):
     TEXT = "text"
     JSON = "json"
 
@@ -26,14 +26,14 @@ class StreamChunkIterator(StreamIterator):
             if chunk is not None:
                 yield chunk
 
-class EventStreamIterator(StreamIterator):
+class StreamEncodingIterator(StreamIterator):
     def __init__(
         self,
         source: AsyncIterable,
-        format: Optional[EventStreamFormat] = None
+        format: Optional[StreamEncodingFormat] = None
     ):
         self.source: AsyncIterable = source
-        self.format: Optional[EventStreamFormat] = format
+        self.format: Optional[StreamEncodingFormat] = format
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
@@ -48,10 +48,10 @@ class EventStreamIterator(StreamIterator):
             yield encoded
 
     def _encode_chunk(self, chunk: Any) -> Optional[Any]:
-        if self.format == EventStreamFormat.TEXT:
+        if self.format == StreamEncodingFormat.TEXT:
             return chunk if isinstance(chunk, str) else str(chunk)
 
-        if self.format == EventStreamFormat.JSON:
+        if self.format == StreamEncodingFormat.JSON:
             return json.dumps(chunk, ensure_ascii=False, default=str)
 
         if not isinstance(chunk, (str, bytes, type(None))):

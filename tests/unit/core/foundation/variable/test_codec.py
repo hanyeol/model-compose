@@ -23,8 +23,8 @@ from pydantic import BaseModel
 
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.iterators import (
-    EventStreamFormat,
-    EventStreamIterator,
+    StreamEncodingFormat,
+    StreamEncodingIterator,
     StreamChunkIterator,
 )
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -252,15 +252,15 @@ class TestStreamVariable:
         assert variable["content_type"].startswith("text/plain")
 
     def test_event_stream_text_kind(self, codec):
-        it = EventStreamIterator(_aiter_bytes([b"a"]), format=EventStreamFormat.TEXT)
+        it = StreamEncodingIterator(_aiter_bytes([b"a"]), format=StreamEncodingFormat.TEXT)
         assert codec.encode(it)["__variable__"]["kind"] == "text"
 
     def test_event_stream_json_kind(self, codec):
-        it = EventStreamIterator(_aiter_bytes([b"a"]), format=EventStreamFormat.JSON)
+        it = StreamEncodingIterator(_aiter_bytes([b"a"]), format=StreamEncodingFormat.JSON)
         assert codec.encode(it)["__variable__"]["kind"] == "object"
 
     def test_event_stream_format_none_kind_is_object(self, codec):
-        it = EventStreamIterator(_aiter_bytes([b"a"]), format=None)
+        it = StreamEncodingIterator(_aiter_bytes([b"a"]), format=None)
         assert codec.encode(it)["__variable__"]["kind"] == "object"
 
     def test_stream_chunk_iterator_kind_is_object(self, codec):

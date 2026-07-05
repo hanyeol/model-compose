@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from enum import Enum
 from pydantic import BaseModel
 from ..streaming.resources import StreamResource
-from ..streaming.iterators import StreamIterator, EventStreamIterator, EventStreamFormat
+from ..streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingFormat
 from ..streaming.image import ImageStreamResource
 from PIL import Image as PILImage
 import base64, ulid
@@ -122,10 +122,10 @@ class VariableCodec:
         return { "__variable__": variable }
 
     def _classify_stream_kind(self, source: Any) -> StreamKind:
-        if isinstance(source, EventStreamIterator):
-            if source.format == EventStreamFormat.TEXT:
+        if isinstance(source, StreamEncodingIterator):
+            if source.format == StreamEncodingFormat.TEXT:
                 return StreamKind.TEXT
-            if source.format == EventStreamFormat.JSON:
+            if source.format == StreamEncodingFormat.JSON:
                 return StreamKind.OBJECT
             return StreamKind.OBJECT
 

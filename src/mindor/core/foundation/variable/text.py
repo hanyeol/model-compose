@@ -8,12 +8,12 @@ class TextValueRenderer:
     async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         if isinstance(value, AsyncIterator):
             async def _iterate():
-                async for element in value:
-                    yield await self._render_element(element)
+                async for chunk in value:
+                    yield await self._render_element(chunk)
             return _iterate()
 
         if isinstance(value, (list, tuple)):
-            return [ await self._render_element(element) for element in value ]
+            return [ await self._render_element(item) for item in value ]
 
         return await self._render_element(value)
 

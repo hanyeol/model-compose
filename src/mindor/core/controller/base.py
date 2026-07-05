@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Callable, Awaitable
+from collections.abc import AsyncIterator
 from enum import Enum
 from dataclasses import dataclass
 from mindor.dsl.schema.controller import ControllerConfig
@@ -30,6 +31,8 @@ from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from .runtime.base.specs import ControllerRuntimeSpecs
 from .runtime.native import ControllerNativeRuntimeManager
 from .runtime.docker import ControllerDockerRuntimeManager
@@ -167,7 +170,8 @@ class ControllerService(AsyncService):
         self._component_event_listeners: List[ComponentEventListener] = []
         self._task_event_callbacks: Dict[str, TaskEventCallback] = {}
         self._task_previous_status: Dict[str, TaskStatus] = {}
-        self._listener_tasks: Set[asyncio.Task] = set()
+        self._event_dispatch_tasks: Set[asyncio.Task] = set()
+        self._output_renderer: TaskOutputRenderer = TaskOutputRenderer()
 
         if self.config.max_concurrent_count > 0:
             self.task_queue = WorkQueue(self.config.max_concurrent_count, self._run_workflow)
@@ -456,7 +460,7 @@ class ControllerService(AsyncService):
 
         if self._inflight_tasks:
             logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))
-            done, pending = await asyncio.wait(self._inflight_tasks, timeout=timeout)
+            _, pending = await asyncio.wait(self._inflight_tasks, timeout=timeout)
             if pending:
                 logging.warning("Cancelling %d task(s) that did not complete within timeout", len(pending))
                 for task in pending:
@@ -473,7 +477,7 @@ class ControllerService(AsyncService):
 
         if self.daemon:
             await self._stop_adapters()
-            await self._cancel_pending_listener_tasks()
+            await self._cancel_pending_event_dispatch_tasks()
             await self._stop_components()
             await self._stop_gateways()
             await self._stop_listeners()
@@ -739,7 +743,7 @@ class ControllerService(AsyncService):
             await event.wait()
 
     async def _render_task_output(self, output: Any) -> Any:
-        return output
+        return await self._output_renderer.render(output)
 
     def _attach_interrupt_handler(
         self,
@@ -821,13 +825,13 @@ class ControllerService(AsyncService):
         callback = self._task_event_callbacks.get(task_id)
         if callback:
             task = asyncio.create_task(self._invoke_event_callback(callback, state))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
         for listener in self._task_state_listeners:
             task = asyncio.create_task(self._invoke_task_state_listener(listener, task_id, state))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
         event = self._derive_task_event(state, previous_status)
         if event is not None:
@@ -865,13 +869,13 @@ class ControllerService(AsyncService):
         callback = self._task_event_callbacks.get(event.task_id)
         if callback:
             task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
         for listener in self._task_event_listeners:
             task = asyncio.create_task(self._invoke_task_event_listener(listener, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
     async def _invoke_task_state_listener(self, listener: TaskStateListener, task_id: str, state: TaskState) -> None:
         try:
@@ -889,13 +893,13 @@ class ControllerService(AsyncService):
         callback = self._task_event_callbacks.get(event.task_id)
         if callback:
             task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
         for listener in self._job_event_listeners:
             task = asyncio.create_task(self._invoke_job_event_listener(listener, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
     async def _invoke_job_event_listener(self, listener: JobEventListener, event: JobEvent) -> None:
         try:
@@ -907,13 +911,13 @@ class ControllerService(AsyncService):
         callback = self._task_event_callbacks.get(event.task_id)
         if callback:
             task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
         for listener in self._component_event_listeners:
             task = asyncio.create_task(self._invoke_component_event_listener(listener, event))
-            self._listener_tasks.add(task)
-            task.add_done_callback(self._listener_tasks.discard)
+            self._event_dispatch_tasks.add(task)
+            task.add_done_callback(self._event_dispatch_tasks.discard)
 
     async def _invoke_component_event_listener(self, listener: ComponentEventListener, event: ComponentEvent) -> None:
         try:
@@ -927,9 +931,58 @@ class ControllerService(AsyncService):
         except Exception:
             logging.warning("Event callback error for task %s", event.task_id, exc_info=True)
 
-    async def _cancel_pending_listener_tasks(self) -> None:
-        for task in list(self._listener_tasks):
+    async def _cancel_pending_event_dispatch_tasks(self) -> None:
+        for task in list(self._event_dispatch_tasks):
             task.cancel()
-        if self._listener_tasks:
-            await asyncio.gather(*self._listener_tasks, return_exceptions=True)
-        self._listener_tasks.clear()
+
+        if self._event_dispatch_tasks:
+            await asyncio.gather(*self._event_dispatch_tasks, return_exceptions=True)
+
+        self._event_dispatch_tasks.clear()
+
+class TaskOutputRenderer:
+    async def render(self, value: Any) -> Any:
+        """Normalize a workflow's final output for exposure as `TaskState.output`.
+
+        - Top-level stream (`StreamResource`, `StreamIterator`, `AsyncIterator`) is
+          passed through untouched so streaming consumers (HTTP SSE, WebUI, ...) can
+          iterate chunks in real time.
+        - Top-level `dict` / `list` / `tuple` is traversed recursively; any stream
+          leaf is consumed and replaced with a concrete value via `_render_element`.
+          `tuple` is normalized to `list`.
+        - Any other value is returned as-is.
+        """
+        if isinstance(value, dict):
+            return { key: await self._render_element(value) for key, value in value.items() }
+
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(item) for item in value ]
+
+        return value
+
+    async def _render_element(self, value: Any) -> Any:
+        if value is None or isinstance(value, (str, bytes, bytearray, StreamResource)):
+            return value
+
+        if isinstance(value, (StreamIterator, AsyncIterator)):
+            chunks = [ chunk async for chunk in value ]
+            if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+                return self._join_chunks(chunks)
+            return chunks
+
+        if isinstance(value, dict):
+            return { key: await self._render_element(value) for key, value in value.items() }
+
+        if isinstance(value, (list, tuple)):
+            return [ await self._render_element(item) for item in value ]
+
+        return value
+
+    def _join_chunks(self, chunks: List[Any]) -> Any:
+        if all(isinstance(chunk, str) for chunk in chunks):
+            return "".join(chunks)
+
+        if all(isinstance(chunk, (bytes, bytearray)) for chunk in chunks):
+            return b"".join(chunks)
+
+        return chunks

@@ -8,9 +8,9 @@ import pytest
 from starlette.datastructures import UploadFile
 
 from mindor.core.foundation.variable.renderer import VariableRenderer, FieldResolver
-from mindor.core.foundation.streaming.iterators import EventStreamFormat
+from mindor.core.foundation.streaming.iterators import StreamEncodingFormat
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
-from mindor.core.foundation.streaming.iterators import EventStreamIterator
+from mindor.core.foundation.streaming.iterators import StreamEncodingIterator
 
 
 @pytest.fixture
@@ -450,22 +450,22 @@ class TestAsyncIteratorPassThrough:
 
 
 # ============================
-# event-stream/text conversion
+# stream/text conversion
 # ============================
 
 class TestSseTextFromAsyncIterator:
-    """Test event-stream/text conversion from AsyncIterator input."""
+    """Test stream/text conversion from AsyncIterator input."""
 
     @pytest.mark.anyio
     async def test_async_iterator_wrapped_in_iterator_stream_resource(self):
-        """Test that AsyncIterator input produces EventStreamIterator."""
+        """Test that AsyncIterator input produces StreamEncodingIterator."""
         aiter = make_async_iterator(["chunk1", "chunk2"])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.TEXT
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.TEXT
 
     @pytest.mark.anyio
     async def test_async_iterator_chunks_preserved(self):
@@ -473,33 +473,33 @@ class TestSseTextFromAsyncIterator:
         aiter = make_async_iterator(["hello", "world"])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
         chunks = await collect_async(result)
 
         assert chunks == ["hello", "world"]
 
 
 class TestSseTextFromStreamResource:
-    """Test event-stream/text conversion from StreamResource input."""
+    """Test stream/text conversion from StreamResource input."""
 
     @pytest.mark.anyio
     async def test_stream_resource_wrapped_in_iterator_stream_resource(self):
-        """Test that StreamResource input is wrapped in EventStreamIterator."""
+        """Test that StreamResource input is wrapped in StreamEncodingIterator."""
         resource = BytesStreamResource(b"hello", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.TEXT
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.TEXT
 
     @pytest.mark.anyio
     async def test_stream_resource_bytes_iterable(self):
-        """Test that bytes from StreamResource are encoded as text via EventStreamIterator."""
+        """Test that bytes from StreamResource are encoded as text via StreamEncodingIterator."""
         resource = BytesStreamResource(b"data", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
         chunks = await collect_async(result)
 
         assert len(chunks) > 0
@@ -507,119 +507,119 @@ class TestSseTextFromStreamResource:
 
 
 class TestSseTextFromPlainValue:
-    """Test event-stream/text conversion from plain scalar values."""
+    """Test stream/text conversion from plain scalar values."""
 
     @pytest.mark.anyio
     async def test_string_value_wrapped_as_single_chunk(self):
         """Test that a plain string is wrapped as a single-chunk iterator."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.TEXT
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.TEXT
 
         chunks = await collect_async(result)
         assert chunks == ["hello"]
 
     @pytest.mark.anyio
     async def test_dict_value_encoded_as_string(self):
-        """Test that a dict is stringified by the TEXT-format EventStreamIterator."""
+        """Test that a dict is stringified by the TEXT-format StreamEncodingIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
+        assert isinstance(result, StreamEncodingIterator)
         chunks = await collect_async(result)
         assert chunks == [str({"key": "value"})]
 
     @pytest.mark.anyio
     async def test_int_value_encoded_as_string(self):
-        """Test that an integer is stringified by the TEXT-format EventStreamIterator."""
+        """Test that an integer is stringified by the TEXT-format StreamEncodingIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": 42}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
         chunks = await collect_async(result)
         assert chunks == ["42"]
 
     @pytest.mark.anyio
     async def test_list_value_encoded_as_string(self):
-        """Test that a list is stringified by the TEXT-format EventStreamIterator."""
+        """Test that a list is stringified by the TEXT-format StreamEncodingIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3]}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
         chunks = await collect_async(result)
         assert chunks == [str([1, 2, 3])]
 
 
 # ============================
-# event-stream/json conversion
+# stream/json conversion
 # ============================
 
 class TestSseJsonFromAsyncIterator:
-    """Test event-stream/json conversion from AsyncIterator input."""
+    """Test stream/json conversion from AsyncIterator input."""
 
     @pytest.mark.anyio
     async def test_async_iterator_has_json_format(self):
-        """Test that AsyncIterator with event-stream/json gets EventStreamFormat.JSON."""
+        """Test that AsyncIterator with stream/json gets StreamEncodingFormat.JSON."""
         aiter = make_async_iterator([{"a": 1}])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as event-stream/json}")
+        result = await renderer.render("${output as stream/json}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.JSON
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.JSON
 
     @pytest.mark.anyio
     async def test_async_iterator_chunks_json_encoded(self):
-        """Test that chunks are JSON-encoded by the JSON-format EventStreamIterator."""
+        """Test that chunks are JSON-encoded by the JSON-format StreamEncodingIterator."""
         aiter = make_async_iterator([{"a": 1}, {"b": 2}])
         renderer = VariableRenderer(make_source_resolver({"output": aiter}))
 
-        result = await renderer.render("${output as event-stream/json}")
+        result = await renderer.render("${output as stream/json}")
         chunks = await collect_async(result)
 
         assert chunks == ['{"a": 1}', '{"b": 2}']
 
 
 class TestSseJsonFromStreamResource:
-    """Test event-stream/json conversion from StreamResource input."""
+    """Test stream/json conversion from StreamResource input."""
 
     @pytest.mark.anyio
     async def test_stream_resource_has_json_format(self):
-        """Test that StreamResource with event-stream/json gets EventStreamFormat.JSON."""
+        """Test that StreamResource with stream/json gets StreamEncodingFormat.JSON."""
         resource = BytesStreamResource(b"data", "application/octet-stream")
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
 
-        result = await renderer.render("${output as event-stream/json}")
+        result = await renderer.render("${output as stream/json}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.JSON
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.JSON
 
 
 class TestSseJsonFromPlainValue:
-    """Test event-stream/json conversion from plain scalar values."""
+    """Test stream/json conversion from plain scalar values."""
 
     @pytest.mark.anyio
     async def test_dict_json_encoded(self):
-        """Test that a dict value is JSON-encoded by the JSON-format EventStreamIterator."""
+        """Test that a dict value is JSON-encoded by the JSON-format StreamEncodingIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": {"key": "value"}}))
 
-        result = await renderer.render("${output as event-stream/json}")
+        result = await renderer.render("${output as stream/json}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.JSON
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.JSON
         chunks = await collect_async(result)
         assert chunks == ['{"key": "value"}']
 
     @pytest.mark.anyio
     async def test_string_json_encoded(self):
-        """Test that a string value is JSON-encoded (quoted) by the JSON-format EventStreamIterator."""
+        """Test that a string value is JSON-encoded (quoted) by the JSON-format StreamEncodingIterator."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as event-stream/json}")
+        result = await renderer.render("${output as stream/json}")
 
         chunks = await collect_async(result)
         assert chunks == ['"hello"']
@@ -637,7 +637,7 @@ class TestSseEdgeCases:
         """Test that None value is not converted (type conversion requires non-None)."""
         renderer = VariableRenderer(make_source_resolver({"output": None}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
         # When value is None, _convert_value_to_type is not called
         assert result is None
@@ -648,20 +648,20 @@ class TestSseEdgeCases:
         aiter = make_async_iterator(["data"])
         renderer = VariableRenderer(make_source_resolver({"result": [aiter]}))
 
-        result = await renderer.render("${result[0] as event-stream/text}")
+        result = await renderer.render("${result[0] as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
-        assert result.format == EventStreamFormat.TEXT
+        assert isinstance(result, StreamEncodingIterator)
+        assert result.format == StreamEncodingFormat.TEXT
 
     @pytest.mark.anyio
     async def test_sse_type_returns_raw_object_not_string(self):
-        """Test that event-stream/text returns the raw object, not a stringified version."""
+        """Test that stream/text returns the raw object, not a stringified version."""
         renderer = VariableRenderer(make_source_resolver({"output": "hello"}))
 
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        # Should be EventStreamIterator, not a string
-        assert isinstance(result, EventStreamIterator)
+        # Should be StreamEncodingIterator, not a string
+        assert isinstance(result, StreamEncodingIterator)
 
     @pytest.mark.anyio
     async def test_stream_resource_isinstance_before_async_iterator(self):
@@ -671,9 +671,9 @@ class TestSseEdgeCases:
         # StreamResource implements __aiter__, so isinstance(resource, AsyncIterator) may be True
         # But the code checks StreamResource first
         renderer = VariableRenderer(make_source_resolver({"output": resource}))
-        result = await renderer.render("${output as event-stream/text}")
+        result = await renderer.render("${output as stream/text}")
 
-        assert isinstance(result, EventStreamIterator)
+        assert isinstance(result, StreamEncodingIterator)
         # The inner iterator should be the original resource, not doubly-wrapped
         assert result.source is resource
 
@@ -1654,19 +1654,19 @@ class TestElementWiseObjectArray:
 
 
 class TestElementWiseSseRaises:
-    """`event-stream[]` is not allowed: stream is single by nature."""
+    """`stream[]` is not allowed: stream is single by nature."""
 
     @pytest.mark.anyio
     async def test_event_stream_list_raises(self):
         r = VariableRenderer(make_source_resolver({"v": ["a", "b"]}))
         with pytest.raises(ValueError, match="is not allowed: stream"):
-            await r.render("${v as event-stream[]}")
+            await r.render("${v as stream[]}")
 
     @pytest.mark.anyio
     async def test_event_stream_list_raises_even_for_non_list_input(self):
         r = VariableRenderer(make_source_resolver({"v": "single"}))
         with pytest.raises(ValueError, match="is not allowed: stream"):
-            await r.render("${v as event-stream[]}")
+            await r.render("${v as stream[]}")
 
 
 class TestElementWiseMedia:

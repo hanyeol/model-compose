@@ -100,12 +100,12 @@ class GradioWebUIBuilder:
                     interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
 
                     gr.Markdown("#### Output Values")
-                    output_components = [ self._build_output_component(variable) for variable in workflow.output ]
+                    output_tree: List[Union[gr.Component, List[ComponentGroup]]] = [ self._build_output_component(variable) for variable in workflow.output ]
 
-                    if not output_components:
-                        output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
+                    if not output_tree:
+                        output_tree = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
-                    output_components = self._flatten_output_components(output_components)
+                    output_components = self._flatten_output_components(output_tree)
                     media_components = [ component for component in output_components if self._is_media_component(component) ]
 
                 with gr.Column(scale=1):
@@ -254,20 +254,7 @@ class GradioWebUIBuilder:
                         ]
                 else:
                     if workflow.output:
-                        values = await self._flatten_output_value(output, workflow.output)
-                        updates: List[Any] = []
-                        for variable in workflow.output:
-                            if isinstance(variable, WorkflowVariableGroupConfig):
-                                values = []
-                                for value in self._resolve_variable_output(output, variable) or ():
-                                    values.append(await self._flatten_output_value(value, variable.variables))
-                                update_count = variable.repeat_count if variable.repeat_count != 0 else 1
-                                for index in range(update_count - 1):
-                                    updates.extend(values[index] if len(values) > index else [ gr.update() ] * len(variable.variables))
-                                updates.extend(values[-1] if len(values) > 0 else [ gr.update() ] * len(variable.variables))
-                            else:
-                                value = self._resolve_variable_output(output, variable)
-                                updates.append(await self._convert_output_value(value, variable))
+                        updates = await self._resolve_output_updates(output, workflow.output, output_tree)
                     else:
                         updates = [ output ]
 
@@ -436,20 +423,7 @@ class GradioWebUIBuilder:
                         ]
                 else:
                     if workflow.output:
-                        values = await self._flatten_output_value(output, workflow.output)
-                        updates: List[Any] = []
-                        for variable in workflow.output:
-                            if isinstance(variable, WorkflowVariableGroupConfig):
-                                values = []
-                                for value in self._resolve_variable_output(output, variable) or ():
-                                    values.append(await self._flatten_output_value(value, variable.variables))
-                                update_count = variable.repeat_count if variable.repeat_count != 0 else 1
-                                for index in range(update_count - 1):
-                                    updates.extend(values[index] if len(values) > index else [ gr.update() ] * len(variable.variables))
-                                updates.extend(values[-1] if len(values) > 0 else [ gr.update() ] * len(variable.variables))
-                            else:
-                                value = self._resolve_variable_output(output, variable)
-                                updates.append(await self._convert_output_value(value, variable))
+                        updates = await self._resolve_output_updates(output, workflow.output, output_tree)
                     else:
                         updates = [ output ]
 
@@ -514,7 +488,7 @@ class GradioWebUIBuilder:
             return gr.Checkbox(label=label, value=default or False, info=info)
 
         if variable.type == WorkflowVariableType.LIST:
-            return gr.Textbox(label=label, value=default or "", info=info)
+            return gr.Textbox(label=label, value=json.dumps(default, ensure_ascii=False) if default else "", info=info)
 
         if variable.type == WorkflowVariableType.IMAGE:
             return gr.Image(label=label, type="filepath")
@@ -549,9 +523,6 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
-
-        if variable.type == WorkflowVariableType.LIST:
-            return [ item.strip() for item in str(value).split(",") ] if value != "" else None
 
         return value if value != "" else None
 
@@ -588,8 +559,9 @@ class GradioWebUIBuilder:
     def _build_output_component(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Union[gr.Component, List[ComponentGroup]]:
         if isinstance(variable, WorkflowVariableGroupConfig):
             groups: List[ComponentGroup] = []
-            for _ in range(variable.repeat_count if variable.repeat_count != 0 else 1):
-                with gr.Accordion(label=variable.name or "", open=True) as group:
+            for index in range(variable.repeat_count if variable.repeat_count != 0 else 1):
+                label = variable.name + (f" #{index + 1}" if variable.repeat_count != 0 else "")
+                with gr.Accordion(label=label, open=True) as group:
                     components = [ self._build_output_component(v) for v in variable.variables ]
                 groups.append(ComponentGroup(group, components))
             return groups
@@ -680,6 +652,32 @@ class GradioWebUIBuilder:
                 flattened.append(await self._convert_output_value(value, variable))
 
         return flattened
+
+    async def _resolve_output_updates(
+        self,
+        output: Any,
+        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
+        components: List[Union[gr.Component, List[ComponentGroup]]]
+    ) -> List[Any]:
+        updates: List[Any] = []
+
+        for variable, component in zip(variables, components):
+            if isinstance(variable, WorkflowVariableGroupConfig):
+                values = (self._resolve_variable_output(output, variable) if isinstance(output, dict) and variable.name else output) or ()
+                for index, group in enumerate(component):
+                    if index == len(component) - 1:
+                        value = values[-1] if values else None
+                    else:
+                        value = values[index] if index < len(values) else None
+                    if value is None:
+                        updates.extend(gr.update() for _ in group.components)
+                    else:
+                        updates.extend(await self._resolve_output_updates(value, variable.variables, group.components))
+            else:
+                value = self._resolve_variable_output(output, variable)
+                updates.append(await self._convert_output_value(value, variable))
+
+        return updates
 
     def _resolve_variable_output(
         self,

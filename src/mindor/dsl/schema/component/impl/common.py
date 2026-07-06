@@ -1,10 +1,23 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Callable, Annotated, Any
 from enum import Enum
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.action import CommonActionConfig
 from mindor.dsl.schema.runtime import RuntimeConfig, RuntimeType
 from .types import ComponentType
+
+ComponentValidatorRegistry: Dict[Tuple[ComponentType, str], List[Callable[[Any], Any]]] = {}
+
+def component_validator(type: ComponentType, mode: Literal["before", "after"] = "before"):
+    def decorator(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        ComponentValidatorRegistry.setdefault((type, mode), []).append(func)
+        return func
+    return decorator
+
+def apply_component_validators(component: Any, mode: Literal["before", "after"]) -> None:
+    type = component.get("type") if mode == "before" else component.type
+    for func in ComponentValidatorRegistry.get((type, mode), []):
+        func(component)
 
 class CommonComponentConfig(BaseModel):
     id: str = Field(default="__component__", description="ID of component.")

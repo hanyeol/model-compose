@@ -14,6 +14,6 @@ class HuggingfaceTextToTextModelArchitecture(str, Enum):
     MBART   = "mbart"
 
 class HuggingfaceTextToTextModelComponentConfig(CommonTextToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     architecture: HuggingfaceTextToTextModelArchitecture = Field(default=HuggingfaceTextToTextModelArchitecture.AUTO, description="Model architecture.")
     actions: List[TextToTextModelActionConfig] = Field(default_factory=list)

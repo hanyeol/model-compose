@@ -15,6 +15,6 @@ class HuggingfaceImageToTextModelArchitecture(str, Enum):
     KOSMOS2    = "kosmos2"
 
 class HuggingfaceImageToTextModelComponentConfig(CommonImageToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     architecture: HuggingfaceImageToTextModelArchitecture = Field(default=HuggingfaceImageToTextModelArchitecture.AUTO, description="Model architecture.")
     actions: List[ImageToTextModelActionConfig] = Field(default_factory=list)

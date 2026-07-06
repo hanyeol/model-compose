@@ -10,6 +10,6 @@ class HuggingfaceSpeechToTextModelArchitecture(str, Enum):
     WHISPER = "whisper"
 
 class HuggingfaceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     architecture: HuggingfaceSpeechToTextModelArchitecture = Field(default=HuggingfaceSpeechToTextModelArchitecture.AUTO, description="Model architecture.")
     actions: List[SpeechToTextModelActionConfig] = Field(default_factory=list)

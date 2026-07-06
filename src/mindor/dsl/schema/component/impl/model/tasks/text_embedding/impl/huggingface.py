@@ -5,5 +5,5 @@ from .common import CommonTextEmbeddingModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list)

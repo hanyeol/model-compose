@@ -5,5 +5,5 @@ from .common import CommonTextClassificationModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceTextClassificationModelComponentConfig(CommonTextClassificationModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     actions: List[TextClassificationModelActionConfig] = Field(default_factory=list)

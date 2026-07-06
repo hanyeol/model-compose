@@ -138,7 +138,7 @@ class OnDemandConfig(BaseModel):
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    driver: ModelDriver = Field(default=ModelDriver.HUGGINGFACE, description="Model inference framework driver to use.")
+    driver: ModelDriver = Field(..., description="Model inference framework driver to use.")
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="cpu", description="Computation device to use.")

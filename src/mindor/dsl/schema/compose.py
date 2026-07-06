@@ -4,6 +4,7 @@ from pydantic import model_validator
 
 from .controller import ControllerConfig
 from .component import ComponentConfig
+from .component.impl.common import apply_component_validators
 from .listener import ListenerConfig
 from .gateway import GatewayConfig
 from .system import SystemConfig
@@ -76,3 +77,15 @@ class ComposeConfig(BaseModel):
             if loggers_values:
                 values["loggers"] = [ loggers_values ]
         return values
+
+    @model_validator(mode="before")
+    def apply_component_before_validators(cls, values: Dict[str, Any]):
+        for component in values.get("components", []) or []:
+            apply_component_validators(component, mode="before")
+        return values
+
+    @model_validator(mode="after")
+    def apply_component_after_validators(self):
+        for component in self.components:
+            apply_component_validators(component, mode="after")
+        return self

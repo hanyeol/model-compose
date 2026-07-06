@@ -15,7 +15,7 @@ class HuggingfaceImageGenerationModelArchitecture(str, Enum):
     HUNYUAN_IMAGE = "hunyuan-image"
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
 
 class SdxlHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.SDXL]

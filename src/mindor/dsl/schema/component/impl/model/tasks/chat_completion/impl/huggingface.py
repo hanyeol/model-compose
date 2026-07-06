@@ -5,5 +5,5 @@ from .common import CommonChatCompletionModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceChatCompletionModelComponentConfig(CommonChatCompletionModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE] = Field(default=ModelDriver.HUGGINGFACE)
+    driver: Literal[ModelDriver.HUGGINGFACE]
     actions: List[ChatCompletionModelActionConfig] = Field(default_factory=list)

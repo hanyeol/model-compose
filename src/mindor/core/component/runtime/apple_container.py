@@ -69,7 +69,7 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     def _standard_image_command(self) -> List[str]:
         return [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
 
-    def _container_create_options(self) -> Dict[str, Any]:
+    def _container_create_params(self) -> Dict[str, Any]:
         # tty=False so the container's stdout/stderr arrive as separate streams
         # under the CLI's attach. stdin_open=True keeps stdin attached for IPC
         # writes from the parent.
@@ -167,7 +167,7 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
             verbose=verbose,
         )
 
-    async def _attachchannel(self) -> AppleContainerAttachChannel:
+    async def _attach_channel(self) -> AppleContainerAttachChannel:
         """Spawn `container start -a -i <name>` and wrap its stdin/stdout as
         the IPC channel. The subprocess is what actually starts the container
         (no separate `runtime.start()` call needed). The subprocess inherits
@@ -181,7 +181,7 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         )
         return AppleContainerAttachChannel(process)
 
-    def _detachchannel(self, channel: AppleContainerAttachChannel) -> None:
+    def _detach_channel(self, channel: AppleContainerAttachChannel) -> None:
         channel.close()
 
     def _create_proxy(self, channel: AppleContainerAttachChannel) -> ComponentAppleContainerRuntimeProxy:

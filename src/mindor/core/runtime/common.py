@@ -46,7 +46,7 @@ class ContainerRuntimeBackend(ABC):
             await runtime.remove(force=True)
 
         await self._ensure_runtime_image()
-        await runtime.create(**self._container_create_options())
+        await runtime.create(**self._container_create_params())
 
         return runtime
 
@@ -106,7 +106,7 @@ class ContainerRuntimeBackend(ABC):
 
         return self._create_runtime(options)
 
-    def _container_create_options(self) -> Dict[str, Any]:
+    def _container_create_params(self) -> Dict[str, Any]:
         """Extra kwargs forwarded to the backend's `runtime.create()`."""
         return {}
 

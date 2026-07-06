@@ -66,7 +66,7 @@ class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
     def _standard_image_command(self) -> List[str]:
         return [ "python", "-m", "mindor.core.component.runtime.docker" ]
 
-    def _container_create_options(self) -> Dict[str, Any]:
+    def _container_create_params(self) -> Dict[str, Any]:
         # tty=False so the daemon emits stdout/stderr as separate multiplex
         # frames. stdin_open=True keeps the container's stdin attached for
         # IPC writes from the manager.
@@ -165,15 +165,15 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
             verbose=verbose,
         )
 
-    async def _attachchannel(self) -> DockerAttachChannel:
+    async def _attach_channel(self) -> DockerAttachChannel:
         loop = asyncio.get_event_loop()
 
-        channel = await loop.run_in_executor(None, self._open_attachchannel)
+        channel = await loop.run_in_executor(None, self._open_attach_channel)
         await self._runtime.start(detach=True)
 
         return channel
 
-    def _detachchannel(self, channel: DockerAttachChannel) -> None:
+    def _detach_channel(self, channel: DockerAttachChannel) -> None:
         channel.close()
 
     def _create_proxy(self, channel: DockerAttachChannel) -> ComponentDockerRuntimeProxy:
@@ -189,7 +189,7 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
 
         return proxy
 
-    def _open_attachchannel(self) -> DockerAttachChannel:
+    def _open_attach_channel(self) -> DockerAttachChannel:
         """Open a bidirectional attach channel to the container's
         stdin/stdout/stderr stream via the daemon's attach socket."""
         container = self._runtime.get_container()

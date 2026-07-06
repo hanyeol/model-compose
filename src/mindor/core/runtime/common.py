@@ -106,10 +106,6 @@ class ContainerRuntimeBackend(ABC):
 
         return self._create_runtime(options)
 
-    def _container_create_params(self) -> Dict[str, Any]:
-        """Extra kwargs forwarded to the backend's `runtime.create()`."""
-        return {}
-
     async def _ensure_runtime_image(self) -> None:
         """Ensure the image this run will launch from exists, building/pulling as required by the image kind."""
         if self._image_kind == ContainerImageKind.CUSTOM:
@@ -232,19 +228,27 @@ class ContainerRuntimeBackend(ABC):
 
         return ContainerImageKind.STANDARD
 
+    def _derived_context_hash(self) -> str:
+        """Hash of the derived image's build context so we rebuild when either
+        the pip requirements or the system setup script changes. Both files
+        are optional; a missing one simply contributes no bytes."""
+        h = hashlib.sha256()
+        if self._requirements_path.is_file():
+            h.update(b"\x00requirements.txt\x00")
+            h.update(self._requirements_path.read_bytes())
+        if self._setup_script_path.is_file():
+            h.update(b"\x00setup.sh\x00")
+            h.update(self._setup_script_path.read_bytes())
+        return h.hexdigest()
+
     def _has_derived_context(self) -> bool:
         if self._setup_script_path.is_file() or self._is_meaningful_requirements(self._requirements_path):
             return True
         return False
 
-    @staticmethod
-    def _is_meaningful_requirements(path: Path) -> bool:
-        if path.is_file():
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    return True
-        return False
+    def _container_create_params(self) -> Dict[str, Any]:
+        """Extra kwargs forwarded to the backend's `runtime.create()`."""
+        return {}
 
     @abstractmethod
     def _image_assets_dir(self) -> Path:
@@ -291,20 +295,16 @@ class ContainerRuntimeBackend(ABC):
     def _resolve_build_params(self, config: Any) -> Dict[str, Any]:
         """Translate the user's `build:` config into `**kwargs` for the backend builder's `build()`."""
 
-    def _derived_context_hash(self) -> str:
-        """Hash of the derived image's build context so we rebuild when either
-        the pip requirements or the system setup script changes. Both files
-        are optional; a missing one simply contributes no bytes."""
-        h = hashlib.sha256()
-        if self._requirements_path.is_file():
-            h.update(b"\x00requirements.txt\x00")
-            h.update(self._requirements_path.read_bytes())
-        if self._setup_script_path.is_file():
-            h.update(b"\x00setup.sh\x00")
-            h.update(self._setup_script_path.read_bytes())
-        return h.hexdigest()
-
     @staticmethod
     def _version_tag(tag: str) -> str:
         """Extract the version portion of `repo:tag`, defaulting to `'latest'`."""
         return tag.rsplit(":", 1)[-1] if ":" in tag else "latest"
+
+    @staticmethod
+    def _is_meaningful_requirements(path: Path) -> bool:
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    return True
+        return False

@@ -29,10 +29,9 @@ class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
         options = super()._resolve_container_options()
 
         if self.config.runtime.ports is None:
-            options.ports = [
-                AppleContainerPortConfig(container_port=port, host_port=port, host_ip=host_ip)
-                for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config)
-            ]
+            options.ports = []
+            for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config):
+                options.ports.append(AppleContainerPortConfig(container_port=port, host_port=port, host_ip=host_ip))
 
         return options
 

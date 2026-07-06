@@ -202,18 +202,17 @@ class ContainerRuntimeBackend(ABC):
         return ContainerImageKind.STANDARD
 
     def _has_derived_context(self) -> bool:
-        if self._setup_script_path.is_file() or self._has_meaningful_lines(self._requirements_path):
+        if self._setup_script_path.is_file() or self._is_meaningful_requirements(self._requirements_path):
             return True
         return False
 
     @staticmethod
-    def _has_meaningful_lines(path: Path) -> bool:
-        if not path.is_file():
-            return False
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                return True
+    def _is_meaningful_requirements(path: Path) -> bool:
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    return True
         return False
 
     @abstractmethod

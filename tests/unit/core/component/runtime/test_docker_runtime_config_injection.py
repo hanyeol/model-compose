@@ -11,7 +11,7 @@ mounts a unix socket, injects env vars, or maps uids. It still owns:
 The backend never mutates the user-facing DSL config: image kind is
 computed on construction from the config + cwd; the default image tag /
 container name come from `_default_image_tag()` / `_default_container_name()`,
-and the base's `resolve_runtime()` only fills those in when the user's
+and the base's `_resolve_runtime()` only fills those in when the user's
 config left them unset.
 """
 

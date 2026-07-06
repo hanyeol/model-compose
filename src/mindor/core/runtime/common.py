@@ -37,7 +37,7 @@ class ContainerRuntimeBackend(ABC):
 
     async def provision_runtime(self) -> Any:
         """Ensure the image exists, then recreate the container fresh."""
-        runtime = self.resolve_runtime()
+        runtime = self._resolve_runtime()
 
         if await runtime.is_running():
             await runtime.stop()
@@ -52,7 +52,7 @@ class ContainerRuntimeBackend(ABC):
 
     async def teardown_runtime(self) -> None:
         """Tear down the container and drop any DERIVED image this manager produced."""
-        runtime = self.resolve_runtime()
+        runtime = self._resolve_runtime()
 
         if await runtime.exists():
             await runtime.remove(force=True)
@@ -62,7 +62,38 @@ class ContainerRuntimeBackend(ABC):
             if await self._builder.exists(derived_tag):
                 await self._builder.remove(derived_tag)
 
-    def resolve_runtime(self) -> Any:
+    async def start_runtime(self) -> None:
+        """Start the pre-provisioned container in detached mode. Idempotent —
+        logs and returns when the container does not exist or is already running."""
+        runtime = self._resolve_runtime()
+
+        if not await runtime.exists():
+            logging.info("Container '%s' does not exist.", runtime.container_name)
+            return
+
+        if await runtime.is_running():
+            logging.info("Container '%s' is already running.", runtime.container_name)
+            return
+
+        logging.info("Starting container '%s'...", runtime.container_name)
+        await runtime.start(detach=True)
+
+    async def stop_runtime(self) -> None:
+        """Stop the container if it exists and is running. Idempotent."""
+        runtime = self._resolve_runtime()
+
+        if not await runtime.exists():
+            logging.info("Container '%s' does not exist.", runtime.container_name)
+            return
+
+        if not await runtime.is_running():
+            logging.info("Container '%s' is already stopped.", runtime.container_name)
+            return
+
+        logging.info("Stopping container '%s'...", runtime.container_name)
+        await runtime.stop()
+
+    def _resolve_runtime(self) -> Any:
         """Build a backend runtime from the injected runtime config. User-supplied
         `image` / `container_name` win; otherwise the backend's default is used."""
         options = self._resolve_container_options()

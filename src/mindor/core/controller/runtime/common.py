@@ -92,35 +92,11 @@ class ControllerContainerRuntimeManager:
 
     async def start(self) -> None:
         """Start an existing (already-prepared) controller container in detached mode."""
-        runtime = self._backend.resolve_runtime()
-
-        if not await runtime.exists():
-            raise RuntimeError(
-                f"Container '{runtime.container_name}' does not exist. "
-                "Use `model-compose up` (launch) to create it first."
-            )
-
-        if await runtime.is_running():
-            logging.info("Container '%s' is already running.", runtime.container_name)
-            return
-
-        logging.info("Starting controller container '%s'...", runtime.container_name)
-        await runtime.start(detach=True)
+        await self._backend.start_runtime()
 
     async def stop(self) -> None:
         """Stop a running controller container without removing it."""
-        runtime = self._backend.resolve_runtime()
-
-        if not await runtime.exists():
-            logging.info("Container '%s' does not exist.", runtime.container_name)
-            return
-
-        if not await runtime.is_running():
-            logging.info("Container '%s' is already stopped.", runtime.container_name)
-            return
-
-        logging.info("Stopping controller container '%s'...", runtime.container_name)
-        await runtime.stop()
+        await self._backend.stop_runtime()
 
     @abstractmethod
     def _create_backend(

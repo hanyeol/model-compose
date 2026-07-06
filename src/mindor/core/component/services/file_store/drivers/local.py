@@ -19,6 +19,7 @@ _DEFAULT_STREAMING_CHUNK_SIZE = 8 * 1024  # 8KB — for streaming output, matchi
 class LocalFileStoreAction(FileStoreAction):
     def __init__(self, config: LocalFileStoreActionConfig, base_path: str):
         super().__init__(config)
+
         self.base_path: str = base_path  # absolute, normalized
 
     async def _put(self, context: ComponentActionContext) -> Dict[str, Any]:

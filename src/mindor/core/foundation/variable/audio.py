@@ -2,10 +2,11 @@ from typing import List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.audio import create_audio_source
 from ..streaming.media import MediaSource
+from ..streaming.iterators import StreamIterator
 
 class AudioValueRenderer:
     async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)

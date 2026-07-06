@@ -38,6 +38,7 @@ class AwsS3FileStoreAction(FileStoreAction):
         base_path: Optional[str] = None,
     ):
         super().__init__(config)
+
         self.client: S3Client = client
         self.location: S3Location = location
         self.base_path: Optional[str] = base_path

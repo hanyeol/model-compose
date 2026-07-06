@@ -75,7 +75,7 @@ class VariableCodec:
             return self._build_stream_variable(ImageStreamResource(value), on_stream_encode)
 
         # Streams (StreamResource, StreamIterator subclasses, generic AsyncIterator)
-        if isinstance(value, (AsyncIterator, StreamIterator, StreamResource)):
+        if isinstance(value, (StreamIterator, AsyncIterator, StreamResource)):
             return self._build_stream_variable(value, on_stream_encode)
 
         # Containers (after stream checks so that stream classes don't fall through here)

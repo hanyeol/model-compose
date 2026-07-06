@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
@@ -30,10 +31,10 @@ class WebScraperAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(url, (list, AsyncIterator))
+        is_single_input  = not isinstance(url, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(url, AsyncIterator):
+        if isinstance(url, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_urls, params, loop)

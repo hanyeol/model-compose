@@ -2,11 +2,12 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
 from ..streaming.image import load_image_from_stream, ImageStreamResource
+from ..streaming.iterators import StreamIterator
 from PIL import Image as PILImage
 
 class ImageValueRenderer:
     async def render_array(self, value: Any) -> Optional[Union[List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]]:
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element_array(chunk)
@@ -18,7 +19,7 @@ class ImageValueRenderer:
         return [ await self._render_element_array(value) ]
 
     async def render(self, value: Any) -> Optional[Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]]:
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)

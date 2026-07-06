@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
@@ -21,10 +22,10 @@ class AudioConverterAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(audio, (list, AsyncIterator))
+        is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(audio, AsyncIterator):
+        if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_audios, params, loop)

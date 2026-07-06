@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskService, ComponentActionContext
@@ -27,10 +27,10 @@ class SpeechToTextTaskAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(audio, (list, AsyncIterator))
+        is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(audio, AsyncIterator):
+        if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._transcribe(batch_audios, params, streaming, loop)

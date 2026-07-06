@@ -3,7 +3,7 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.shell import run_command_foreground, run_command
 from mindor.core.foundation.variable.time import parse_duration
@@ -30,10 +30,10 @@ class ShellAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(command, (list, AsyncIterator))
+        is_single_input  = not isinstance(command, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(command, AsyncIterator):
+        if isinstance(command, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_commands, params, streaming)

@@ -13,4 +13,5 @@ class ForEachJobConfig(OutputJobConfig):
     type: Literal[JobType.FOR_EACH]
     input: Any = Field(..., description="Source of items to iterate over. Accepts a list, an async stream, or any iterable value.")
     batch_size: Optional[int] = Field(default=None, description="Number of items processed concurrently per batch. Defaults to 1 (one item at a time).")
+    streaming: bool = Field(default=False, description="If true, yield results as they complete instead of accumulating into a list. Prevents memory blow-up when per-item outputs are large.")
     do: ForEachDoConfig = Field(..., description="Component invocation to execute for each item.")

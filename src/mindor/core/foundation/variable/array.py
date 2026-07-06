@@ -1,5 +1,6 @@
 from typing import List, Union, Any
 from collections.abc import AsyncIterator
+from ..streaming.iterators import StreamIterator
 
 class ArrayValue:
     def __init__(self, values: List[Any]):
@@ -7,7 +8,7 @@ class ArrayValue:
 
 class ArrayValueRenderer:
     async def render(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield self._render_element(chunk)

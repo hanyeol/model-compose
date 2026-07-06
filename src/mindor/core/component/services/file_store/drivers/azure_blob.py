@@ -79,6 +79,7 @@ class AzureBlobFileStoreAction(FileStoreAction):
         base_path: Optional[str] = None,
     ):
         super().__init__(config)
+
         self.container_client: ContainerClient = container_client
         self.location: AzureBlobLocation = location
         self.base_path: Optional[str] = base_path

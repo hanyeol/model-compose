@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.dsl.schema.action.impl.model_tokenizer.tasks.common import ModelTokenizerMethod
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
 from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext
@@ -22,10 +23,10 @@ class HuggingfaceTextModelTokenizerTaskAction:
 
         params = await self._resolve_params(self.config.method, context)
 
-        is_single_input  = not isinstance(value, (list, AsyncIterator))
+        is_single_input  = not isinstance(value, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
                     batch_results = await self._process(self.config.method, batch_inputs, params)

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextClassificationModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 
@@ -20,10 +21,10 @@ class TextClassificationTaskAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(text, (list, AsyncIterator))
+        is_single_input  = not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(text, AsyncIterator):
+        if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._predict(batch_texts, params, self.labels, loop)

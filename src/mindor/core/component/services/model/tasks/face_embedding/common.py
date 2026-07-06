@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceEmbeddingModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
@@ -25,10 +26,10 @@ class FaceEmbeddingTaskAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(image, (list, AsyncIterator))
+        is_single_input  = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(image, AsyncIterator):
+        if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_results = await self._embed(batch_images, params, loop)

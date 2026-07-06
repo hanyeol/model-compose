@@ -2,11 +2,12 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
 from ..streaming.text import load_text_from_stream
+from ..streaming.iterators import StreamIterator
 import json
 
 class TextValueRenderer:
     async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        if isinstance(value, AsyncIterator):
+        if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)

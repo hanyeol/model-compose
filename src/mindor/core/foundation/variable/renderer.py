@@ -217,7 +217,7 @@ class VariableRenderer:
             return await encode_value_to_base64(value)
 
         if type in [ "image", "audio", "video", "file" ]:
-            if isinstance(value, AsyncIterator) and not isinstance(value, StreamResource):
+            if isinstance(value, (StreamIterator, AsyncIterator)) and not isinstance(value, StreamResource):
                 return value
 
             if format in [ "base64", "path", "url", "data-uri" ] and isinstance(value, str):

@@ -1,5 +1,6 @@
 from typing import Any, List, Tuple
 from collections.abc import AsyncIterator, AsyncIterable
+from mindor.core.foundation.streaming.iterators import StreamIterator
 import codecs
 
 class BatchSourceIterator:
@@ -98,16 +99,16 @@ class BatchSourceIterator:
             yield tuple(items)
 
     async def _iterate_single(self, source: Any) -> AsyncIterator[Any]:
-        if isinstance(source, AsyncIterator):
+        if isinstance(source, (StreamIterator, AsyncIterator)):
             async for item in source:
                 yield item
             return
-        
+
         if isinstance(source, (list, tuple)):
             for item in source:
                 yield item
             return
-        
+
         yield source
 
 class TextDecodeIterator:

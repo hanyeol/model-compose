@@ -23,18 +23,13 @@ class ForEachJob(Job):
 
         input      = await context.render_variable(None, self.config.input)
         batch_size = await context.render_variable(None, self.config.batch_size)
+        streaming  = await context.render_variable(None, self.config.streaming)
 
-        if isinstance(input, StreamIterator):
-            async def _stream_input_generator(stream=input):
-                async for chunk in stream:
-                    yield chunk
-            input = _stream_input_generator()
+        is_single_input = not isinstance(input, (list, StreamIterator, AsyncIterator))
 
-        is_single_input = not isinstance(input, (list, AsyncIterator))
-
-        if isinstance(input, AsyncIterator):
-            async def _stream_output_generator():
-                async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
+        if isinstance(input, (StreamIterator, AsyncIterator)) or (streaming and not is_single_input):
+            async def _stream_output_generator(source=input):
+                async for batch_items in BatchSourceIterator(source, batch_size=batch_size or 1):
                     batch_results = await self._run_batch(batch_items, component, context)
                     for result in batch_results:
                         yield result

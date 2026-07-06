@@ -110,7 +110,7 @@ class TestStreamingMode:
         from collections.abc import AsyncIterable
         assert isinstance(result, AsyncIterable)
         items = [item async for item in result]
-        assert items == ["a", "b", "c"]
+        assert items == ["a\n", "b\n", "c\n"]
 
     @pytest.mark.anyio
     async def test_streaming_empty_output(self):

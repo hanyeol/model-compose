@@ -10,24 +10,24 @@ from docker.errors import NotFound, DockerException
 from docker.types import Mount
 from mindor.core.foundation.containers.docker import (
     DockerContainerRunner,
-    DockerContainerParams,
+    DockerContainerOptions,
     DockerImageBuilder,
     DockerPortsResolver,
     DockerMountsResolver,
 )
-from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
 from mindor.dsl.schema.containers.docker import (
+    DockerContainerConfig,
     DockerPortConfig,
     DockerVolumeConfig,
     DockerVolumeOptionsConfig,
     DockerTmpfsOptionsConfig,
 )
+from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
 
 
 def _runtime(config, verbose: bool = False) -> DockerContainerRunner:
-    """Test helper — builds a `DockerContainerRunner` from a DSL config the
-    same way a manager would: translate to `DockerContainerParams` first."""
-    return DockerContainerRunner(DockerContainerParams.from_config(config), verbose=verbose)
+    """Test helper — pass the DSL config straight to `DockerContainerRunner`."""
+    return DockerContainerRunner(config, verbose=verbose)
 
 
 def _builder() -> DockerImageBuilder:
@@ -288,8 +288,8 @@ class TestDockerContainerRunner:
         """Test DockerContainerRunner initialization"""
         manager = _runtime(config, verbose=True)
 
-        assert manager.params.image == config.image
-        assert manager.params.container_name == config.container_name
+        assert manager.image == config.image
+        assert manager.container_name == config.container_name
         assert manager.verbose is True
         assert manager._client is not None
 
@@ -842,16 +842,14 @@ class TestRuntimeInitToleratesNone:
             yield client
 
     def test_init_accepts_none_image(self, mock_docker_client):
-        """`DockerContainerRunner` does not validate params — that responsibility
+        """`DockerContainerRunner` does not validate config — that responsibility
         is delegated to the manager / DSL config layer."""
-        params = DockerContainerParams(container_name="x")
         # Must not raise.
-        DockerContainerRunner(params, verbose=False)
+        DockerContainerRunner(DockerContainerConfig(container_name="x"), verbose=False)
 
     def test_init_accepts_none_container_name(self, mock_docker_client):
-        params = DockerContainerParams(image="test-image:latest")
         # Must not raise.
-        DockerContainerRunner(params, verbose=False)
+        DockerContainerRunner(DockerContainerConfig(image="test-image:latest"), verbose=False)
 
 
 # ---------------------------------------------------------------------------

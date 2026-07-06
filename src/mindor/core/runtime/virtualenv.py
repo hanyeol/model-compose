@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, Optional, Tuple
+from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from mindor.core.utils.locks import FileLock
 from importlib.resources import files
@@ -11,16 +12,6 @@ import mindor, mindor.version
 import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
-
-@dataclass
-class VirtualEnvRuntimeParams:
-    """Parameters for bootstrapping a venv and spawning a Python worker process."""
-    driver: VirtualEnvDriver = VirtualEnvDriver.PYTHON
-    python: Optional[str] = None
-    path: Optional[str] = None
-    env: Dict[str, str] = field(default_factory=dict)
-    start_timeout: float = 60.0  # seconds (reserved for future ready-wait hooks)
-    stop_timeout: float = 30.0   # seconds
 
 class VirtualEnvRuntime:
     """Lifecycle wrapper around a venv-isolated Python worker subprocess.
@@ -39,12 +30,12 @@ class VirtualEnvRuntime:
         self,
         worker_id: str,
         worker_module: str,
-        params: VirtualEnvRuntimeParams,
+        config: VirtualEnvRuntimeConfig,
         verbose: bool = False,
     ):
         self.worker_id = worker_id
         self.worker_module = worker_module
-        self.params = params
+        self.config = config
         self.verbose = verbose
 
         self._venv_path: Path = self._resolve_venv_path()
@@ -55,11 +46,11 @@ class VirtualEnvRuntime:
         self,
         *,
         pass_fds: Tuple[int, ...] = (),
-        env_overrides: Optional[Dict[str, str]] = None,
+        env: Optional[Dict[str, str]] = None,
     ) -> None:
         """Bootstrap the venv (idempotent) and spawn the worker subprocess.
 
-        `pass_fds` and `env_overrides` let the caller propagate transport handles
+        `pass_fds` and `env` let the caller propagate transport handles
         (e.g., pipe read/write fds) without this lifecycle class knowing about them.
         """
         self._loop = asyncio.get_event_loop()
@@ -70,7 +61,7 @@ class VirtualEnvRuntime:
         self._subprocess = subprocess.Popen(
             [ str(self._venv_python()), "-m", self.worker_module ],
             pass_fds=pass_fds,
-            env=self._build_environment(env_overrides),
+            env=self._build_environment(env),
             stdin=subprocess.DEVNULL,
             stdout=None,
             stderr=None,
@@ -78,20 +69,20 @@ class VirtualEnvRuntime:
         )
 
     async def stop(self) -> None:
-        if self._subprocess is None:
-            return
-
-        try:
-            await self._loop.run_in_executor(
-                None,
-                lambda: self._subprocess.wait(timeout=self.params.stop_timeout),
-            )
-        except subprocess.TimeoutExpired:
-            self._subprocess.terminate()
+        if self._subprocess:
+            stop_timeout = parse_duration(self.config.stop_timeout)
             try:
-                self._subprocess.wait(timeout=5)
+                await self._loop.run_in_executor(
+                    None,
+                    lambda: self._subprocess.wait(timeout=stop_timeout),
+                )
             except subprocess.TimeoutExpired:
-                self._subprocess.kill()
+                self._subprocess.terminate()
+                try:
+                    self._subprocess.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._subprocess.kill()
+            self._subprocess = None
 
     @property
     def is_alive(self) -> bool:
@@ -103,14 +94,14 @@ class VirtualEnvRuntime:
 
     def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = dict(os.environ)
-        env.update(self.params.env or {})
+        env.update(self.config.env or {})
         env["PYTHONUNBUFFERED"] = "1"
         if overrides:
             env.update(overrides)
         return env
 
     def _resolve_venv_path(self) -> Path:
-        path = self.params.path
+        path = self.config.path
         if path:
             return (Path.cwd() / path).resolve()
         return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
@@ -141,17 +132,17 @@ class VirtualEnvRuntime:
 
         self._venv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if self.params.driver == VirtualEnvDriver.PYTHON:
+        if self.config.driver == VirtualEnvDriver.PYTHON:
             logging.info(f"Creating virtualenv at {self._venv_path} (python driver)")
             builder = venv.EnvBuilder(with_pip=True, clear=False, upgrade_deps=False)
             builder.create(str(self._venv_path))
             return
 
-        if self.params.driver == VirtualEnvDriver.PYENV:
-            version = self.params.python
+        if self.config.driver == VirtualEnvDriver.PYENV:
+            version = self.config.python
             if not version:
                 raise ValueError(
-                    "VirtualEnvRuntimeParams.python must be set when driver is 'pyenv'."
+                    "VirtualEnvRuntimeConfig.python must be set when driver is 'pyenv'."
                 )
 
             python_path = self._resolve_pyenv_python(version)
@@ -161,7 +152,7 @@ class VirtualEnvRuntime:
             subprocess.run([str(python_path), "-m", "venv", str(self._venv_path)], check=True)
             return
 
-        raise ValueError(f"Unknown virtualenv driver: {self.params.driver}")
+        raise ValueError(f"Unknown virtualenv driver: {self.config.driver}")
 
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:

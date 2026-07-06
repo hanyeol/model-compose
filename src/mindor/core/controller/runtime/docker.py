@@ -3,7 +3,8 @@ from pathlib import Path
 from mindor.dsl.schema.containers.docker import DockerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.core.runtime.common import ContainerImageKind
-from mindor.core.runtime.docker import DockerRuntimeBackend, DockerRuntimeParams
+from mindor.core.foundation.containers.docker import DockerContainerOptions
+from mindor.core.runtime.docker import DockerRuntimeBackend
 from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
@@ -23,19 +24,19 @@ class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     def _default_container_name(self) -> str:
         return ControllerContainerSpec.default_container_name(self.config.name)
 
-    def _resolve_runtime_params(self) -> DockerRuntimeParams:
-        params = super()._resolve_runtime_params()
+    def _resolve_container_options(self) -> DockerContainerOptions:
+        options = super()._resolve_container_options()
 
-        if not params.working_dir:
-            params.working_dir = "/workspace"
+        if not self.config.runtime.working_dir:
+            options.working_dir = "/workspace"
 
-        if params.ports is None:
-            params.ports = [
+        if self.config.runtime.ports is None:
+            options.ports = [
                 DockerPortConfig(container_port=port, host_port=port, host_ip=host_ip)
                 for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config)
             ]
 
-        return params
+        return options
 
     def _image_assets_dir(self) -> Path:
         return ControllerContainerSpec.image_assets_dir()

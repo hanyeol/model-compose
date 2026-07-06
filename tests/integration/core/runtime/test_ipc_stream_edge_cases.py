@@ -37,7 +37,10 @@ from mindor.core.foundation.streaming.iterators import (
     StreamEncodingIterator,
     StreamChunkIterator,
 )
-from mindor.core.runtime.process import ProcessRuntime, ProcessRuntimeParams
+from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.runtime.process import ProcessRuntime
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
+from mindor.dsl.schema.runtime.impl.types import RuntimeType
 
 
 @pytest.fixture
@@ -68,17 +71,17 @@ class QueueIpcWorker(IpcRuntimeWorker):
 
 
 class QueueIpcManager(IpcRuntimeProxy):
-    def __init__(self, worker_id: str, worker_factory, params: ProcessRuntimeParams):
+    def __init__(self, worker_id: str, worker_factory, config: ProcessRuntimeConfig):
         super().__init__(worker_id)
-        self._start_timeout = params.start_timeout
-        self._stop_timeout = params.stop_timeout
+        self._start_timeout = parse_duration(config.start_timeout)
+        self._stop_timeout = parse_duration(config.stop_timeout)
 
         self._request_queue: Queue = Queue()
         self._response_queue: Queue = Queue()
         self._runtime = ProcessRuntime(
             target=_run_worker,
             args=(worker_factory, worker_id, self._request_queue, self._response_queue),
-            params=params,
+            config=config,
         )
 
     async def _start(self) -> None:
@@ -244,14 +247,14 @@ def _create_close_output(worker_id, req_q, res_q):
 # Tests
 # ---------------------------------------------------------------------------
 
-PARAMS = ProcessRuntimeParams(start_timeout=15.0, stop_timeout=5.0)
+CONFIG = ProcessRuntimeConfig(type=RuntimeType.PROCESS, start_timeout="15s", stop_timeout="5s")
 
 
 @pytest.mark.anyio
 async def test_text_stream_input_roundtrip():
     """TEXT-kind input: manager sends an StreamEncodingIterator(format=TEXT);
     chunks travel as raw str on the wire and worker concatenates them."""
-    manager = QueueIpcManager("text-input", _create_text_input, PARAMS)
+    manager = QueueIpcManager("text-input", _create_text_input, CONFIG)
     await manager.start()
     try:
         pieces = ["alpha-", "beta-", "gamma-", "δέλτα"]
@@ -277,7 +280,7 @@ async def test_text_stream_input_roundtrip():
 async def test_text_stream_output_roundtrip():
     """TEXT-kind output: worker returns StreamEncodingIterator(format=TEXT);
     manager receives a StreamChunkIterator yielding str values."""
-    manager = QueueIpcManager("text-output", _create_text_output, PARAMS)
+    manager = QueueIpcManager("text-output", _create_text_output, CONFIG)
     await manager.start()
     try:
         pieces = ["one", "two", "three"]
@@ -306,7 +309,7 @@ async def test_object_stream_output_roundtrip():
     payload arrives as a string; the consumer sees those raw strings (the
     OBJECT kind passes wire data through unchanged when there's no codec
     transformation registered)."""
-    manager = QueueIpcManager("object-output", _create_object_output, PARAMS)
+    manager = QueueIpcManager("object-output", _create_object_output, CONFIG)
     await manager.start()
     try:
         items = [
@@ -336,7 +339,7 @@ async def test_object_stream_output_roundtrip():
 async def test_output_stream_abort_propagates_as_ioerror():
     """Producer raises mid-stream → worker emits STREAM_ABORT →
     consumer proxy raises IOError on the next __anext__."""
-    manager = QueueIpcManager("abort-output", _create_aborting_output, PARAMS)
+    manager = QueueIpcManager("abort-output", _create_aborting_output, CONFIG)
     await manager.start()
     try:
         result = await manager.request({
@@ -363,7 +366,7 @@ async def test_output_stream_abort_propagates_as_ioerror():
 async def test_large_bytes_stream_preserves_order_across_many_chunks():
     """Credit=1 ordering: 1 KiB split into 32-byte chunks (32 chunks)
     must arrive in seq order with full data integrity."""
-    manager = QueueIpcManager("large-bytes", _create_large_bytes_output, PARAMS)
+    manager = QueueIpcManager("large-bytes", _create_large_bytes_output, CONFIG)
     await manager.start()
     try:
         size = 1024
@@ -397,7 +400,7 @@ async def test_consumer_close_releases_worker_outbound_stream():
     we *can* verify that closing early does not hang the manager and that
     a follow-up RUN on the same manager still completes normally — which
     would deadlock if the previous stream's pump never released."""
-    manager = QueueIpcManager("close-output", _create_close_output, PARAMS)
+    manager = QueueIpcManager("close-output", _create_close_output, CONFIG)
     await manager.start()
     try:
         result = await manager.request({

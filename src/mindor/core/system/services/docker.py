@@ -2,7 +2,6 @@ from mindor.dsl.schema.system.impl.docker import DockerSystemConfig
 from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
 from mindor.core.foundation.containers.docker import (
-    DockerContainerParams,
     DockerContainerRunner,
     DockerImageBuilder,
 )
@@ -28,8 +27,7 @@ class DockerSystem(SystemService):
 
         self._builder: DockerImageBuilder = DockerImageBuilder(verbose=True)
         self._container: DockerContainerRunner = DockerContainerRunner(
-            DockerContainerParams.from_config(self.config),
-            client=self._builder._client,
+            config=self.config,
             verbose=True,
         )
 

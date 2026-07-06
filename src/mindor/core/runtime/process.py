@@ -1,14 +1,8 @@
-from typing import Any, Callable, Dict, Optional
-from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
 from multiprocessing import Process
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
+from mindor.core.foundation.variable.time import parse_duration
 import asyncio, os
-
-@dataclass
-class ProcessRuntimeParams:
-    """Parameters for spawning and stopping a child Python process."""
-    env: Dict[str, str] = field(default_factory=dict)
-    start_timeout: float = 60.0
-    stop_timeout: float = 30.0
 
 class ProcessRuntime:
     """Generic lifecycle wrapper around a `multiprocessing.Process`.
@@ -19,7 +13,7 @@ class ProcessRuntime:
     communicate with the child.
 
     Typical flow:
-        runtime = ProcessRuntime(target=_child_main, args=(queue_in, queue_out), params=ProcessRuntimeParams())
+        runtime = ProcessRuntime(target=_child_main, args=(queue_in, queue_out), config=config)
         await runtime.start()
         ...
         await runtime.stop()
@@ -28,12 +22,12 @@ class ProcessRuntime:
         self,
         target: Callable[..., Any],
         args: tuple,
-        params: ProcessRuntimeParams,
+        config: ProcessRuntimeConfig,
         verbose: bool = False,
     ):
         self.target = target
         self.args = args
-        self.params = params
+        self.config = config
         self.verbose = verbose
 
         self._subprocess: Optional[Process] = None
@@ -42,8 +36,8 @@ class ProcessRuntime:
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
 
-        if self.params.env:
-            for key, value in self.params.env.items():
+        if self.config.env:
+            for key, value in self.config.env.items():
                 os.environ[key] = value
 
         self._subprocess = Process(
@@ -57,10 +51,11 @@ class ProcessRuntime:
         if self._subprocess is None:
             return
 
+        stop_timeout = parse_duration(self.config.stop_timeout)
         try:
             await self._loop.run_in_executor(
                 None,
-                lambda: self._subprocess.join(timeout=self.params.stop_timeout),
+                lambda: self._subprocess.join(timeout=stop_timeout),
             )
         except Exception:
             pass

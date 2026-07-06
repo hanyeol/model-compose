@@ -2,8 +2,8 @@
 
 Scope:
 - `ProcessRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
-- `ComponentProcessRuntimeManager` converts the DSL config into `ProcessRuntimeParams`
-  and exposes its pre-start state.
+- `ComponentProcessRuntimeManager` holds the DSL config, pre-parses the
+  timeouts, and exposes its pre-start state.
 - `ComponentProcessRuntimeWorker` initializes correctly.
 
 End-to-end lifecycle / round-trip behavior (RUN, RESULT, STREAM_*) lives in the
@@ -22,7 +22,6 @@ from mindor.core.component.runtime.process import (
     ComponentProcessRuntimeManager,
     ComponentProcessRuntimeWorker,
 )
-from mindor.core.runtime.process import ProcessRuntimeParams
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 
@@ -97,9 +96,9 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_id == "test-shell"
         assert manager.component_config is config
         assert manager.global_configs is global_configs
-        assert isinstance(manager.params, ProcessRuntimeParams)
+        assert manager._runtime_config is config.runtime
 
-    def test_params_converted_from_config(self, global_configs):
+    def test_timeouts_parsed_from_config(self, global_configs):
         config = self._make_config(
             env={"TEST_VAR": "value"},
             start_timeout="2m",
@@ -107,9 +106,9 @@ class TestComponentProcessRuntimeManager:
         )
         manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
-        assert manager.params.env == {"TEST_VAR": "value"}
-        assert manager.params.start_timeout == 120.0   # 2m → 120s
-        assert manager.params.stop_timeout == 10.0
+        assert manager._runtime_config.env == {"TEST_VAR": "value"}
+        assert manager._start_timeout == 120.0   # 2m → 120s
+        assert manager._stop_timeout == 10.0
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
@@ -125,8 +124,8 @@ class TestComponentProcessRuntimeManager:
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
         manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
-        assert manager.params.start_timeout == 60.0
-        assert manager.params.stop_timeout == 30.0
+        assert manager._start_timeout == 60.0
+        assert manager._stop_timeout == 30.0
 
 
 # ---------------------------------------------------------------------------

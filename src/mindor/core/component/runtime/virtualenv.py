@@ -11,7 +11,7 @@ from mindor.core.component.runtime.common import (
 )
 from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType, IpcStartPayload
 from mindor.core.foundation.variable.time import parse_duration
-from mindor.core.runtime.virtualenv import VirtualEnvRuntime, VirtualEnvRuntimeParams
+from mindor.core.runtime.virtualenv import VirtualEnvRuntime
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
 import asyncio, os, sys
 
@@ -62,7 +62,9 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs)
 
-        self.params = self._resolve_runtime_params(component_config.runtime)
+        self._runtime_config: VirtualEnvRuntimeConfig = component_config.runtime
+        self._start_timeout = parse_duration(self._runtime_config.start_timeout)
+        self._stop_timeout = parse_duration(self._runtime_config.stop_timeout)
 
         self._runtime: Optional[VirtualEnvRuntime] = None
 
@@ -74,13 +76,13 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         self._runtime = VirtualEnvRuntime(
             worker_id=self.worker_id,
             worker_module="mindor.core.component.runtime.virtualenv",
-            params=self.params,
+            config=self._runtime_config,
         )
 
         try:
             await self._runtime.start(
                 pass_fds=(request_r, response_w),
-                env_overrides={
+                env={
                     "MINDOR_VENV_REQUEST_FD":  str(request_r),
                     "MINDOR_VENV_RESPONSE_FD": str(response_w),
                 },
@@ -100,24 +102,14 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             self.global_configs,
             channel,
         )
-        proxy._start_timeout = self.params.start_timeout
-        proxy._stop_timeout = self.params.stop_timeout
+        proxy._start_timeout = self._start_timeout
+        proxy._stop_timeout = self._stop_timeout
         return proxy
 
     async def _teardown_runtime(self) -> None:
         if self._runtime is not None:
             await self._runtime.stop()
             self._runtime = None
-
-    def _resolve_runtime_params(self, config: VirtualEnvRuntimeConfig) -> VirtualEnvRuntimeParams:
-        return VirtualEnvRuntimeParams(
-            driver=config.driver,
-            python=config.python,
-            path=config.path,
-            env=config.env or {},
-            start_timeout=parse_duration(config.start_timeout),
-            stop_timeout=parse_duration(config.stop_timeout),
-        )
 
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.virtualenv`."""

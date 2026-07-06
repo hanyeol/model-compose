@@ -13,10 +13,10 @@ from mindor.core.component.runtime.common import (
 from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.foundation.containers.apple_container import AppleContainerOptions
 from mindor.core.runtime.apple_container import (
     AppleContainerRuntime,
     AppleContainerRuntimeBackend,
-    AppleContainerRuntimeParams,
 )
 from mindor.core.utils.channels.apple_container_attach import AppleContainerAttachChannel
 from pathlib import Path
@@ -45,13 +45,13 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     def _default_container_name(self) -> str:
         return ComponentContainerSpec.default_container_name(self.worker_id)
 
-    def _resolve_runtime_params(self) -> AppleContainerRuntimeParams:
-        params = super()._resolve_runtime_params()
+    def _resolve_container_options(self) -> AppleContainerOptions:
+        options = super()._resolve_container_options()
 
-        if params.command is None and params.entrypoint is None:
-            params.entrypoint = [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
+        if self.runtime_config.command is None and self.runtime_config.entrypoint is None:
+            options.entrypoint = [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
 
-        return params
+        return options
 
     def _image_assets_dir(self) -> Path:
         return ComponentContainerSpec.image_assets_dir()
@@ -176,7 +176,7 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         stderr as a pipe so the container's logs are captured off the IPC
         stream."""
         process = await asyncio.create_subprocess_exec(
-            "container", "start", "-a", "-i", self._runtime.params.container_name,
+            "container", "start", "-a", "-i", self._runtime.container_name,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

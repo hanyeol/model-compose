@@ -13,7 +13,8 @@ from mindor.core.component.runtime.common import (
 from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.runtime.common import ContainerImageKind
-from mindor.core.runtime.docker import DockerRuntime, DockerRuntimeBackend, DockerRuntimeParams
+from mindor.core.foundation.containers.docker import DockerContainerOptions
+from mindor.core.runtime.docker import DockerRuntime, DockerRuntimeBackend
 from mindor.core.utils.channels.docker_attach import DockerAttachChannel
 from pathlib import Path
 import asyncio
@@ -41,13 +42,13 @@ class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
     def _default_container_name(self) -> str:
         return ComponentContainerSpec.default_container_name(self.worker_id)
 
-    def _resolve_runtime_params(self) -> DockerRuntimeParams:
-        params = super()._resolve_runtime_params()
+    def _resolve_container_options(self) -> DockerContainerOptions:
+        options = super()._resolve_container_options()
 
-        if params.command is None and params.entrypoint is None:
-            params.entrypoint = [ "python", "-m", "mindor.core.component.runtime.docker" ]
+        if self.runtime_config.command is None and self.runtime_config.entrypoint is None:
+            options.entrypoint = [ "python", "-m", "mindor.core.component.runtime.docker" ]
 
-        return params
+        return options
 
     def _image_assets_dir(self) -> Path:
         return ComponentContainerSpec.image_assets_dir()

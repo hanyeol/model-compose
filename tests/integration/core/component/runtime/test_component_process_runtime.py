@@ -86,8 +86,8 @@ class TestComponentProcessRuntimeManager:
         assert manager.worker_id == "test-shell"
         assert manager.component_config == config
         assert manager.global_configs == global_configs
-        assert manager.params.start_timeout == 30.0
-        assert manager.params.stop_timeout == 10.0
+        assert manager._start_timeout == 30.0
+        assert manager._stop_timeout == 10.0
 
     def test_manager_initialization_with_custom_config(self, global_configs):
         """Test manager with custom process runtime configuration."""
@@ -109,8 +109,8 @@ class TestComponentProcessRuntimeManager:
             global_configs
         )
 
-        assert manager.params.env["TEST_VAR"] == "test_value"
-        assert manager.params.start_timeout == 120.0  # 2m = 120s
+        assert manager._runtime_config.env["TEST_VAR"] == "test_value"
+        assert manager._start_timeout == 120.0  # 2m = 120s
 
 
 class TestComponentIntegration:
@@ -170,8 +170,9 @@ class TestComponentIntegration:
         # Should have process manager created
         assert component._runtime_manager is not None
         assert isinstance(component._runtime_manager, ComponentProcessRuntimeManager)
-        assert component._runtime_manager._runtime.subprocess is not None
-        assert component._runtime_manager._runtime.subprocess.is_alive()
+        runtime_manager = component._runtime_manager
+        assert runtime_manager._runtime.subprocess is not None
+        assert runtime_manager._runtime.subprocess.is_alive()
 
         # Execute action through process runtime
         result = await component.run(
@@ -187,7 +188,7 @@ class TestComponentIntegration:
         await component.stop()
 
         # Process should be stopped
-        assert component._runtime_manager._runtime is None
+        assert runtime_manager._runtime is None
 
         await component.teardown()
 
@@ -273,9 +274,9 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        assert manager.params.env["CUDA_VISIBLE_DEVICES"] == "0"
-        assert manager.params.env["MODEL_PATH"] == "/models"
-        assert manager.params.env["BATCH_SIZE"] == "32"
+        assert manager._runtime_config.env["CUDA_VISIBLE_DEVICES"] == "0"
+        assert manager._runtime_config.env["MODEL_PATH"] == "/models"
+        assert manager._runtime_config.env["BATCH_SIZE"] == "32"
 
     def test_process_runtime_with_timeouts(self, global_configs):
         """Test process runtime with custom timeouts."""
@@ -296,8 +297,8 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        assert manager.params.start_timeout == 300.0  # 5m = 300s
-        assert manager.params.stop_timeout == 60.0    # 1m = 60s
+        assert manager._start_timeout == 300.0  # 5m = 300s
+        assert manager._stop_timeout == 60.0    # 1m = 60s
 
     def test_process_runtime_with_resource_limits(self, global_configs):
         """Test process runtime with resource limits."""
@@ -318,7 +319,7 @@ class TestComponentProcessRuntimeScenarios:
             global_configs
         )
 
-        # Resource limits are in ProcessRuntimeConfig but not in ProcessRuntimeParams
+        # Resource limits live on ProcessRuntimeConfig; ProcessRuntime reads env/timeouts only.
         # These are DSL-level configs not used by foundation layer
 
     def test_component_manager_attributes(self, global_configs):
@@ -339,7 +340,9 @@ class TestComponentProcessRuntimeScenarios:
         assert hasattr(manager, "worker_id")
         assert hasattr(manager, "component_config")
         assert hasattr(manager, "global_configs")
-        assert hasattr(manager, "params")
+        assert hasattr(manager, "_runtime_config")
+        assert hasattr(manager, "_start_timeout")
+        assert hasattr(manager, "_stop_timeout")
         assert hasattr(manager, "_runtime")
         assert hasattr(manager, "_request_queue")
         assert hasattr(manager, "_response_queue")

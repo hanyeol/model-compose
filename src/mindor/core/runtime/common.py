@@ -22,9 +22,9 @@ class ContainerImageKind(str, Enum):
 class ContainerRuntimeBackend(ABC):
     """Shared image lifecycle for container-backed runtime managers."""
     def __init__(self, runtime_config: ContainerRuntimeConfig, image_kind: ContainerImageKind, verbose: bool = False):
+        self.runtime_config: ContainerRuntimeConfig = runtime_config
         self.verbose: bool = verbose
 
-        self._runtime_config: ContainerRuntimeConfig = runtime_config
         self._builder = self._create_builder()
         self._requirements_path: Path = Path.cwd() / "requirements.txt"
         self._setup_script_path: Path = Path.cwd() / "setup.sh"
@@ -61,7 +61,7 @@ class ContainerRuntimeBackend(ABC):
     def resolve_runtime(self) -> Any:
         """Build a backend runtime from the injected runtime config. User-supplied
         `image` / `container_name` win; otherwise the backend's default is used."""
-        params = self._resolve_runtime_params()
+        params = self._resolve_container_options()
 
         if params.image is None:
             params.image = self._default_image_tag()
@@ -79,7 +79,7 @@ class ContainerRuntimeBackend(ABC):
         """Ensure the image this run will launch from exists, building/pulling as required by the image kind."""
         if self._image_kind == ContainerImageKind.CUSTOM:
             # User-supplied `image:` wins; otherwise fall back to our locally-built CUSTOM tag.
-            await self._ensure_custom_image(self._runtime_config.image or self._custom_image_tag())
+            await self._ensure_custom_image(self.runtime_config.image or self._custom_image_tag())
             return
 
         await self._ensure_standard_image(self._standard_image_tag())
@@ -170,7 +170,7 @@ class ContainerRuntimeBackend(ABC):
 
     async def _ensure_custom_image(self, image_tag: str) -> None:
         """Build from `build:` context, or pull `image:` if not already present locally."""
-        build = self._runtime_config.build
+        build = self.runtime_config.build
 
         if build:
             logging.info("Building custom image %s...", image_tag)
@@ -220,12 +220,12 @@ class ContainerRuntimeBackend(ABC):
         """Instantiate the backend-specific runtime from a fully-resolved `*RuntimeParams`."""
 
     @abstractmethod
-    def _resolve_runtime_params(self) -> Any:
-        """Translate the injected runtime config into a backend-specific `*RuntimeParams` dataclass."""
-
-    @abstractmethod
     def _create_builder(self) -> Any:
         """Construct the backend-specific image builder."""
+
+    @abstractmethod
+    def _resolve_container_options(self) -> Any:
+        """Translate the injected runtime config into a backend-specific `*ContainerOptions` dataclass."""
 
     @abstractmethod
     def _resolve_build_params(self, config: Any) -> Dict[str, Any]:

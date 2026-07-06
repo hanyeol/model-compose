@@ -2,8 +2,8 @@
 
 Scope:
 - `VirtualEnvRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
-- `ComponentVirtualEnvRuntimeManager` converts the DSL config into
-  `VirtualEnvRuntimeParams` and exposes pre-start state.
+- `ComponentVirtualEnvRuntimeManager` holds the DSL config, pre-parses the
+  timeouts, and exposes pre-start state.
 - `ComponentVirtualEnvRuntimeWorker` initializes correctly.
 
 End-to-end venv creation + worker spawn lives in
@@ -21,7 +21,6 @@ from mindor.core.component.runtime.virtualenv import (
     ComponentVirtualEnvRuntimeManager,
     ComponentVirtualEnvRuntimeWorker,
 )
-from mindor.core.runtime.virtualenv import VirtualEnvRuntimeParams
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
@@ -103,9 +102,9 @@ class TestComponentVirtualEnvRuntimeManager:
         assert manager.worker_id == "venv-shell"
         assert manager.component_config is config
         assert manager.global_configs is global_configs
-        assert isinstance(manager.params, VirtualEnvRuntimeParams)
+        assert manager._runtime_config is config.runtime
 
-    def test_params_converted_from_config(self, global_configs):
+    def test_timeouts_parsed_from_config(self, global_configs):
         config = self._make_config(
             driver=VirtualEnvDriver.PYENV,
             python="3.11.4",
@@ -116,12 +115,12 @@ class TestComponentVirtualEnvRuntimeManager:
         )
         manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
 
-        assert manager.params.driver == VirtualEnvDriver.PYENV
-        assert manager.params.python == "3.11.4"
-        assert manager.params.path == ".venv/custom"
-        assert manager.params.env == {"FOO": "bar"}
-        assert manager.params.start_timeout == 180.0  # 3m → 180s
-        assert manager.params.stop_timeout == 15.0
+        assert manager._runtime_config.driver == VirtualEnvDriver.PYENV
+        assert manager._runtime_config.python == "3.11.4"
+        assert manager._runtime_config.path == ".venv/custom"
+        assert manager._runtime_config.env == {"FOO": "bar"}
+        assert manager._start_timeout == 180.0  # 3m → 180s
+        assert manager._stop_timeout == 15.0
 
     def test_pre_start_state(self, global_configs):
         config = self._make_config()
@@ -135,8 +134,8 @@ class TestComponentVirtualEnvRuntimeManager:
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
         manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
-        assert manager.params.start_timeout == 60.0
-        assert manager.params.stop_timeout == 30.0
+        assert manager._start_timeout == 60.0
+        assert manager._stop_timeout == 30.0
 
 # ---------------------------------------------------------------------------
 # ComponentVirtualEnvRuntimeWorker

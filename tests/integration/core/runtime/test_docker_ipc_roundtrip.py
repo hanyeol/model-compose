@@ -248,7 +248,7 @@ class _AttachEchoManager:
 
     def __init__(self, image: str, worker_src_dir: str):
         from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
-        from mindor.core.runtime.docker import DockerRuntime, DockerRuntimeParams
+        from mindor.core.runtime.docker import DockerRuntime
         from mindor.core.utils.channels.docker_attach import DockerAttachChannel
         from mindor.dsl.schema.runtime import DockerRuntimeConfig
         from mindor.dsl.schema.containers.docker import DockerVolumeConfig
@@ -281,9 +281,7 @@ class _AttachEchoManager:
         self.manager = _Manager(worker_id)
         self.manager._start_timeout = 30.0
         self.manager._stop_timeout = 10.0
-        self.manager._runtime = DockerRuntime(
-            DockerRuntimeParams.from_config(runtime_config), verbose=False,
-        )
+        self.manager._runtime = DockerRuntime(runtime_config, verbose=False)
         self._DockerAttachChannel = DockerAttachChannel
 
     async def start(self):

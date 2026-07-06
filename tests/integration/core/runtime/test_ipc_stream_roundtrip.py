@@ -21,7 +21,10 @@ from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
 from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.runtime.process import ProcessRuntime, ProcessRuntimeParams
+from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.runtime.process import ProcessRuntime
+from mindor.dsl.schema.runtime import ProcessRuntimeConfig
+from mindor.dsl.schema.runtime.impl.types import RuntimeType
 
 
 @pytest.fixture
@@ -58,17 +61,17 @@ class QueueIpcManager(IpcRuntimeProxy):
     `ProcessRuntime` lifecycle.
     """
 
-    def __init__(self, worker_id: str, worker_factory, params: ProcessRuntimeParams):
+    def __init__(self, worker_id: str, worker_factory, config: ProcessRuntimeConfig):
         super().__init__(worker_id)
-        self._start_timeout = params.start_timeout
-        self._stop_timeout = params.stop_timeout
+        self._start_timeout = parse_duration(config.start_timeout)
+        self._stop_timeout = parse_duration(config.stop_timeout)
 
         self._request_queue: Queue = Queue()
         self._response_queue: Queue = Queue()
         self._runtime = ProcessRuntime(
             target=_run_worker,
             args=(worker_factory, worker_id, self._request_queue, self._response_queue),
-            params=params,
+            config=config,
         )
 
     async def _start(self) -> None:
@@ -171,8 +174,8 @@ def create_stream_output_worker(worker_id, req_queue, res_queue):
 @pytest.mark.anyio
 async def test_inline_bytes_roundtrip():
     """Tier B: bytes payload survives base64 marker round-trip."""
-    params = ProcessRuntimeParams(start_timeout=10.0, stop_timeout=5.0)
-    manager = QueueIpcManager("echo-bytes", create_echo_bytes_worker, params)
+    config = ProcessRuntimeConfig(type=RuntimeType.PROCESS, start_timeout="10s", stop_timeout="5s")
+    manager = QueueIpcManager("echo-bytes", create_echo_bytes_worker, config)
 
     await manager.start()
     try:
@@ -192,8 +195,8 @@ async def test_stream_input_roundtrip():
     """Tier C input: BytesStreamResource is encoded as a stream marker,
     chunks flow manager -> worker via STREAM_PULL/CHUNK/END, worker
     consumes the proxy and reports the totals."""
-    params = ProcessRuntimeParams(start_timeout=10.0, stop_timeout=5.0)
-    manager = QueueIpcManager("stream-input", create_stream_input_worker, params)
+    config = ProcessRuntimeConfig(type=RuntimeType.PROCESS, start_timeout="10s", stop_timeout="5s")
+    manager = QueueIpcManager("stream-input", create_stream_input_worker, config)
 
     await manager.start()
     try:
@@ -216,8 +219,8 @@ async def test_stream_input_roundtrip():
 async def test_stream_output_roundtrip():
     """Tier C output: worker returns a BytesStreamResource, manager receives
     an async-iterable proxy and consumes chunks via STREAM_PULL/CHUNK/END."""
-    params = ProcessRuntimeParams(start_timeout=10.0, stop_timeout=5.0)
-    manager = QueueIpcManager("stream-output", create_stream_output_worker, params)
+    config = ProcessRuntimeConfig(type=RuntimeType.PROCESS, start_timeout="10s", stop_timeout="5s")
+    manager = QueueIpcManager("stream-output", create_stream_output_worker, config)
 
     await manager.start()
     try:

@@ -3,7 +3,8 @@ from pathlib import Path
 from mindor.dsl.schema.containers.apple_container import AppleContainerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
 from mindor.core.runtime.common import ContainerImageKind
-from mindor.core.runtime.apple_container import AppleContainerRuntimeBackend, AppleContainerRuntimeParams
+from mindor.core.foundation.containers.apple_container import AppleContainerOptions
+from mindor.core.runtime.apple_container import AppleContainerRuntimeBackend
 from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
@@ -24,16 +25,16 @@ class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     def _default_container_name(self) -> str:
         return ControllerContainerSpec.default_container_name(self.config.name)
 
-    def _resolve_runtime_params(self) -> AppleContainerRuntimeParams:
-        params = super()._resolve_runtime_params()
+    def _resolve_container_options(self) -> AppleContainerOptions:
+        options = super()._resolve_container_options()
 
-        if params.ports is None:
-            params.ports = [
+        if self.config.runtime.ports is None:
+            options.ports = [
                 AppleContainerPortConfig(container_port=port, host_port=port, host_ip=host_ip)
                 for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config)
             ]
 
-        return params
+        return options
 
     def _image_assets_dir(self) -> Path:
         return ControllerContainerSpec.image_assets_dir()

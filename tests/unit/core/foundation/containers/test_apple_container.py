@@ -12,11 +12,11 @@ from mindor.core.foundation.containers.apple_container import (
     AppleContainerImageBuilder,
     AppleContainerMount,
     AppleContainerMountsResolver,
-    AppleContainerParams,
     AppleContainerPortsResolver,
     AppleContainerRunner,
 )
 from mindor.dsl.schema.containers.apple_container import (
+    AppleContainerConfig,
     AppleContainerPortConfig,
     AppleContainerVolumeConfig,
 )
@@ -229,14 +229,14 @@ class TestAppleContainerImageBuilder:
 
 @pytest.mark.anyio
 class TestAppleContainerRunner:
-    def _runner(self, params: AppleContainerParams) -> AppleContainerRunner:
+    def _runner(self, params: AppleContainerConfig) -> AppleContainerRunner:
         runner = AppleContainerRunner(params)
         runner._client = MagicMock()
         runner._client.run = AsyncMock(return_value=_mock_process())
         return runner
 
     async def test_create_detached_minimal(self):
-        params = AppleContainerParams(image="myapp:latest", container_name="c1")
+        params = AppleContainerConfig(image="myapp:latest", container_name="c1")
         runner = self._runner(params)
 
         await runner.create()
@@ -248,7 +248,7 @@ class TestAppleContainerRunner:
         assert passed[-1] == "myapp:latest"
 
     async def test_start_detached(self):
-        params = AppleContainerParams(image="myapp:latest", container_name="c1")
+        params = AppleContainerConfig(image="myapp:latest", container_name="c1")
         runner = self._runner(params)
 
         await runner.start(detach=True)
@@ -259,7 +259,7 @@ class TestAppleContainerRunner:
         assert call_args.kwargs["args"] == ["c1"]
 
     async def test_start_foreground_runs_foreground_loop(self):
-        params = AppleContainerParams(image="myapp:latest", container_name="c1")
+        params = AppleContainerConfig(image="myapp:latest", container_name="c1")
         runner = self._runner(params)
         runner._run_foreground_container = AsyncMock()
 
@@ -271,7 +271,7 @@ class TestAppleContainerRunner:
         assert "-a" in passed and "-i" in passed
 
     async def test_create_includes_environment(self):
-        params = AppleContainerParams(
+        params = AppleContainerConfig(
             image="myapp:latest",
             container_name="c1",
             environment={"FOO": "bar"},
@@ -285,7 +285,7 @@ class TestAppleContainerRunner:
         assert "FOO=bar" in passed
 
     async def test_create_includes_cpus_and_mem(self):
-        params = AppleContainerParams(
+        params = AppleContainerConfig(
             image="myapp:latest",
             container_name="c1",
             cpus=2,
@@ -296,11 +296,11 @@ class TestAppleContainerRunner:
         await runner.create()
 
         passed = runner._client.run.call_args.kwargs["args"]
-        assert "--cpus" in passed and "2" in passed
+        assert "--cpus" in passed and "2.0" in passed
         assert "--memory" in passed and "1G" in passed
 
     async def test_create_appends_user_command_string(self):
-        params = AppleContainerParams(
+        params = AppleContainerConfig(
             image="myapp:latest",
             container_name="c1",
             command="echo hi",
@@ -313,7 +313,7 @@ class TestAppleContainerRunner:
         assert passed[-1] == "echo hi"
 
     async def test_create_appends_user_command_list(self):
-        params = AppleContainerParams(
+        params = AppleContainerConfig(
             image="myapp:latest",
             container_name="c1",
             command=["sh", "-c", "echo hi"],
@@ -327,7 +327,7 @@ class TestAppleContainerRunner:
         assert passed[-3:] == ["sh", "-c", "echo hi"]
 
     async def test_stop(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
 
         await runner.stop()
 
@@ -336,13 +336,13 @@ class TestAppleContainerRunner:
         assert call_args.kwargs["args"] == ["c1"]
 
     async def test_stop_logs_on_runtime_error(self, caplog):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
         runner._client.run = AsyncMock(side_effect=RuntimeError("not running"))
 
         await runner.stop()  # must not raise
 
     async def test_remove_with_force(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
 
         await runner.remove(force=True)
 
@@ -351,7 +351,7 @@ class TestAppleContainerRunner:
         assert call_args.kwargs["args"] == ["-f", "c1"]
 
     async def test_remove_without_force(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
 
         await runner.remove()
 
@@ -359,31 +359,31 @@ class TestAppleContainerRunner:
         assert call_args.kwargs["args"] == ["c1"]
 
     async def test_is_running_true(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
         runner._client.run = AsyncMock(return_value=_mock_process(stdout=b"c1\nc2\n"))
 
         assert await runner.is_running() is True
 
     async def test_is_running_false(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
         runner._client.run = AsyncMock(return_value=_mock_process(stdout=b"c2\n"))
 
         assert await runner.is_running() is False
 
     async def test_exists_true(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
         runner._client.run = AsyncMock(return_value=_mock_process(stdout=b"c1\n"))
 
         assert await runner.exists() is True
 
     async def test_exists_false(self):
-        runner = self._runner(AppleContainerParams(image="x", container_name="c1"))
+        runner = self._runner(AppleContainerConfig(image="x", container_name="c1"))
         runner._client.run = AsyncMock(return_value=_mock_process(stdout=b""))
 
         assert await runner.exists() is False
 
     async def test_create_pre_creates_named_volumes(self):
-        runner = self._runner(AppleContainerParams(
+        runner = self._runner(AppleContainerConfig(
             image="x",
             container_name="c1",
             volumes=[
@@ -403,7 +403,7 @@ class TestAppleContainerRunner:
         assert (["volume", "create"], ["v2"]) in invocations
 
     async def test_create_swallows_existing_named_volume(self):
-        runner = self._runner(AppleContainerParams(
+        runner = self._runner(AppleContainerConfig(
             image="x",
             container_name="c1",
             volumes=[AppleContainerVolumeConfig(name="v1", target="/d")],

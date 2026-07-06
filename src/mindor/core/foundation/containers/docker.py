@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from typing import Union, Optional, Dict, List, Tuple, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from mindor.dsl.schema.containers.docker import (
     DockerContainerConfig,
-    DockerBuildConfig,
     DockerPortConfig,
     DockerVolumeConfig,
 )
@@ -108,63 +107,6 @@ class DockerDeviceRequestsResolver:
         count = -1 if self.gpus == "all" else int(self.gpus)
         return [ DeviceRequest(count=count, capabilities=[["gpu"]]) ]
 
-@dataclass
-class DockerContainerParams:
-    """Inputs for `DockerContainerRunner`. Mirrors `DockerContainerConfig`."""
-    image: Optional[str] = None
-    container_name: Optional[str] = None
-    hostname: Optional[str] = None
-    ports: Optional[List[Union[str, int, DockerPortConfig]]] = None
-    networks: Optional[List[str]] = None
-    extra_hosts: Optional[Dict[str, str]] = None
-    volumes: Optional[List[Union[str, DockerVolumeConfig]]] = None
-    environment: Optional[Dict[str, Union[str, int, float, bool]]] = None
-    command: Optional[Union[str, List[str]]] = None
-    entrypoint: Optional[Union[str, List[str]]] = None
-    working_dir: Optional[str] = None
-    user: Optional[str] = None
-    gpus: Optional[Union[str, int]] = None
-    shm_size: Optional[str] = None
-    mem_limit: Optional[str] = None
-    memswap_limit: Optional[str] = None
-    cpu_shares: Optional[int] = None
-    restart: str = "no"
-    labels: Optional[Dict[str, str]] = None
-    privileged: Optional[bool] = None
-    security_opt: Optional[List[str]] = None
-    build: Optional[DockerBuildConfig] = None
-
-    @classmethod
-    def from_config(cls, config: DockerContainerConfig) -> DockerContainerParams:
-        """Build params from a DSL config. `image` / `container_name` are
-        copied verbatim — if the config did not pin them, the caller is
-        expected to assign manager-side decisions on the returned dataclass
-        before constructing a `DockerContainerRunner`."""
-        return cls(
-            image=config.image,
-            container_name=config.container_name,
-            hostname=config.hostname,
-            ports=config.ports,
-            networks=config.networks,
-            extra_hosts=config.extra_hosts,
-            volumes=config.volumes,
-            environment=config.environment,
-            command=config.command,
-            entrypoint=config.entrypoint,
-            working_dir=config.working_dir,
-            user=config.user,
-            gpus=config.gpus,
-            shm_size=config.shm_size,
-            mem_limit=config.mem_limit,
-            memswap_limit=config.memswap_limit,
-            cpu_shares=config.cpu_shares,
-            restart=config.restart,
-            labels=config.labels,
-            privileged=config.privileged,
-            security_opt=config.security_opt,
-            build=config.build,
-        )
-
 class DockerImageBuilder:
     """Builds, pulls, inspects, and removes Docker images. Stateless: each
     method takes a tag (and other inputs) explicitly."""
@@ -245,12 +187,24 @@ class DockerImageBuilder:
             elif "errorDetail" in chunk:
                 raise RuntimeError(chunk["errorDetail"]["message"])
 
+@dataclass
+class DockerContainerOptions:
+    """Backend-supplied values used by `DockerContainerRunner` when the user's
+    `DockerContainerConfig` leaves the corresponding field unset. A field on
+    `DockerContainerConfig` always wins over the same field here."""
+    image: Optional[str] = None
+    container_name: Optional[str] = None
+    working_dir: Optional[str] = None
+    entrypoint: Optional[Union[str, List[str]]] = None
+    ports: Optional[List[Union[str, int, DockerPortConfig]]] = None
+
 class DockerContainerRunner:
     """Lifecycle wrapper around a single Docker container.
 
     Pure lifecycle:
-    - Creates the container from `DockerContainerParams` and starts it in
-      detached or foreground mode.
+    - Creates the container from a `DockerContainerConfig` (plus optional
+      backend-supplied `DockerContainerOptions`) and starts it in detached
+      or foreground mode.
     - On stop, requests a graceful stop via the daemon and tears the
       container down.
 
@@ -259,40 +213,54 @@ class DockerContainerRunner:
     codecs, or channels — callers that talk to a worker inside the container
     open their own transport (typically a docker attach socket).
     """
-    def __init__(self, params: DockerContainerParams, verbose: bool = False):
-        self.params: DockerContainerParams = params
+    def __init__(
+        self,
+        config: DockerContainerConfig,
+        options: Optional[DockerContainerOptions] = None,
+        verbose: bool = False,
+    ):
+        self.config: DockerContainerConfig = config
+        self.options: DockerContainerOptions = options or DockerContainerOptions()
         self.verbose: bool = verbose
 
         self._client = docker.from_env()
         self._shutdown_event: asyncio.Event = asyncio.Event()
 
+    @property
+    def container_name(self) -> Optional[str]:
+        return self.options.container_name or self.config.container_name
+
+    @property
+    def image(self) -> Optional[str]:
+        return self.options.image or self.config.image
+
     async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
         try:
             try:
-                self._client.containers.get(self.params.container_name)
+                self._client.containers.get(self.container_name)
             except NotFound:
                 self._client.containers.create(
-                    image=self.params.image,
-                    name=self.params.container_name,
-                    hostname=self.params.hostname,
-                    environment=self.params.environment,
-                    ports=DockerPortsResolver(self.params.ports).resolve(),
-                    mounts=DockerMountsResolver(self.params.volumes).resolve(),
-                    command=self.params.command,
-                    entrypoint=self.params.entrypoint,
-                    working_dir=self.params.working_dir,
-                    user=self.params.user,
-                    shm_size=self.params.shm_size,
-                    mem_limit=self.params.mem_limit,
-                    memswap_limit=self.params.memswap_limit,
-                    cpu_shares=self.params.cpu_shares,
-                    labels=self.params.labels,
-                    network=self.params.networks[0] if self.params.networks else None,
-                    privileged=self.params.privileged,
-                    security_opt=self.params.security_opt,
-                    restart_policy={ "Name": self.params.restart },
-                    extra_hosts={ "host.docker.internal": "host-gateway", **(self.params.extra_hosts or {}) },
-                    device_requests=DockerDeviceRequestsResolver(self.params.gpus).resolve(),
+                    image=self.image,
+                    name=self.container_name,
+                    hostname=self.config.hostname,
+                    environment=self.config.environment,
+                    ports=DockerPortsResolver(self.options.ports or self.config.ports).resolve(),
+                    mounts=DockerMountsResolver(self.config.volumes).resolve(),
+                    command=self.config.command,
+                    entrypoint=self.options.entrypoint or self.config.entrypoint,
+                    working_dir=self.options.working_dir or self.config.working_dir,
+                    user=self.config.user,
+                    shm_size=self.config.shm_size,
+                    mem_limit=self.config.mem_limit,
+                    memswap_limit=self.config.memswap_limit,
+                    cpu_shares=self.config.cpu_shares,
+                    labels=self.config.labels,
+                    network=self.config.networks[0] if self.config.networks else None,
+                    privileged=self.config.privileged,
+                    security_opt=self.config.security_opt,
+                    restart_policy={ "Name": self.config.restart },
+                    extra_hosts={ "host.docker.internal": "host-gateway", **(self.config.extra_hosts or {}) },
+                    device_requests=DockerDeviceRequestsResolver(self.config.gpus).resolve(),
                     tty=tty, stdin_open=stdin_open, detach=True,
                 )
         except DockerException as e:
@@ -300,7 +268,7 @@ class DockerContainerRunner:
 
     async def start(self, detach: bool) -> None:
         try:
-            container = self._client.containers.get(self.params.container_name)
+            container = self._client.containers.get(self.container_name)
             container.start()
 
             if not detach:
@@ -310,7 +278,7 @@ class DockerContainerRunner:
 
     async def stop(self, timeout: Optional[float] = None) -> None:
         try:
-            container = self._client.containers.get(self.params.container_name)
+            container = self._client.containers.get(self.container_name)
             if timeout is not None:
                 container.stop(timeout=int(timeout))
             else:
@@ -322,7 +290,7 @@ class DockerContainerRunner:
 
     async def remove(self, force: bool = False) -> None:
         try:
-            container = self._client.containers.get(self.params.container_name)
+            container = self._client.containers.get(self.container_name)
             container.remove(force=force)
         except NotFound:
             pass
@@ -331,7 +299,7 @@ class DockerContainerRunner:
 
     async def is_running(self) -> bool:
         try:
-            container = self._client.containers.get(self.params.container_name)
+            container = self._client.containers.get(self.container_name)
             return container.status == "running"
         except NotFound:
             return False
@@ -340,7 +308,7 @@ class DockerContainerRunner:
 
     async def exists(self) -> bool:
         try:
-            container = self._client.containers.get(self.params.container_name)
+            container = self._client.containers.get(self.container_name)
             return container is not None
         except NotFound:
             return False
@@ -349,9 +317,9 @@ class DockerContainerRunner:
 
     def get_container(self) -> Container:
         try:
-            return self._client.containers.get(self.params.container_name)
+            return self._client.containers.get(self.container_name)
         except NotFound:
-            raise RuntimeError(f"Container '{self.params.container_name}' does not exist.")
+            raise RuntimeError(f"Container '{self.container_name}' does not exist.")
         except DockerException as e:
             raise RuntimeError(f"Failed to get container: {e}")
 

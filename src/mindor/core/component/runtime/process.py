@@ -10,7 +10,7 @@ from mindor.core.component.runtime.common import (
 )
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
-from mindor.core.runtime.process import ProcessRuntime, ProcessRuntimeParams
+from mindor.core.runtime.process import ProcessRuntime
 import asyncio
 
 class ComponentProcessRuntimeWorker(ComponentRuntimeWorker):
@@ -83,7 +83,9 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs)
 
-        self.params = self._resolve_runtime_params(component_config.runtime)
+        self._runtime_config: ProcessRuntimeConfig = component_config.runtime
+        self._start_timeout = parse_duration(self._runtime_config.start_timeout)
+        self._stop_timeout = parse_duration(self._runtime_config.stop_timeout)
 
         self._request_queue: Optional[Queue] = None
         self._response_queue: Optional[Queue] = None
@@ -102,7 +104,7 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
                 self._request_queue,
                 self._response_queue,
             ),
-            params=self.params,
+            config=self._runtime_config,
         )
         await self._runtime.start()
 
@@ -116,8 +118,8 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
             channel,
         )
 
-        proxy._start_timeout = self.params.start_timeout
-        proxy._stop_timeout  = self.params.stop_timeout
+        proxy._start_timeout = self._start_timeout
+        proxy._stop_timeout  = self._stop_timeout
 
         return proxy
 
@@ -130,13 +132,6 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         # Queue objects have no `close()` we need; runtime teardown handles
         # child exit. Nothing to do here.
         pass
-
-    def _resolve_runtime_params(self, config: ProcessRuntimeConfig) -> ProcessRuntimeParams:
-        return ProcessRuntimeParams(
-            env=config.env,
-            start_timeout=parse_duration(config.start_timeout),
-            stop_timeout=parse_duration(config.stop_timeout),
-        )
 
     @staticmethod
     def _run_worker(

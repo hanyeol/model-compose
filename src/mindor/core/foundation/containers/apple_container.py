@@ -4,7 +4,6 @@ from typing import Union, Optional, Dict, List
 from dataclasses import dataclass
 from mindor.dsl.schema.containers.apple_container import (
     AppleContainerConfig,
-    AppleContainerBuildConfig,
     AppleContainerPortConfig,
     AppleContainerVolumeConfig,
 )
@@ -82,43 +81,14 @@ class AppleContainerMountsResolver:
             )
 
 @dataclass
-class AppleContainerParams:
-    """Inputs for `AppleContainerRunner`. Mirrors `AppleContainerConfig`."""
+class AppleContainerOptions:
+    """Backend-supplied values used by `AppleContainerRunner` when the user's
+    `AppleContainerConfig` leaves the corresponding field unset. `options`
+    wins over `config` — see `AppleContainerRunner` for the merge order."""
     image: Optional[str] = None
     container_name: Optional[str] = None
-    ports: Optional[List[Union[str, int, AppleContainerPortConfig]]] = None
-    networks: Optional[List[str]] = None
-    volumes: Optional[List[Union[str, AppleContainerVolumeConfig]]] = None
-    environment: Optional[Dict[str, Union[str, int, float, bool]]] = None
-    env_file: Optional[Union[str, List[str]]] = None
-    command: Optional[Union[str, List[str]]] = None
     entrypoint: Optional[Union[str, List[str]]] = None
-    working_dir: Optional[str] = None
-    user: Optional[str] = None
-    cpus: Optional[Union[str, float]] = None
-    mem_limit: Optional[str] = None
-    labels: Optional[Dict[str, str]] = None
-    build: Optional[AppleContainerBuildConfig] = None
-
-    @classmethod
-    def from_config(cls, config: AppleContainerConfig) -> AppleContainerParams:
-        return cls(
-            image=config.image,
-            container_name=config.container_name,
-            ports=config.ports,
-            networks=config.networks,
-            volumes=config.volumes,
-            environment=config.environment,
-            env_file=config.env_file,
-            command=config.command,
-            entrypoint=config.entrypoint,
-            working_dir=config.working_dir,
-            user=config.user,
-            cpus=config.cpus,
-            mem_limit=config.mem_limit,
-            labels=config.labels,
-            build=config.build,
-        )
+    ports: Optional[List[Union[str, int, AppleContainerPortConfig]]] = None
 
 class AppleContainerImageBuilder:
     """Builds, pulls, inspects, and removes Apple Container images via the
@@ -229,22 +199,37 @@ class AppleContainerRunner:
     """Lifecycle wrapper around a single Apple Container.
 
     Pure lifecycle:
-    - Runs the container from `AppleContainerParams` in detached
-      or foreground mode.
+    - Runs the container from an `AppleContainerConfig` (plus optional
+      backend-supplied `AppleContainerOptions`) in detached or foreground
+      mode.
     - On stop, asks the CLI for a graceful stop and tears the container
       down.
 
     Image build / pull / inspect lives in `AppleContainerImageBuilder`.
     """
-    def __init__(self, params: AppleContainerParams, verbose: bool = False):
-        self.params: AppleContainerParams = params
+    def __init__(
+        self,
+        config: AppleContainerConfig,
+        options: Optional[AppleContainerOptions] = None,
+        verbose: bool = False,
+    ):
+        self.config: AppleContainerConfig = config
+        self.options: AppleContainerOptions = options or AppleContainerOptions()
         self.verbose: bool = verbose
 
         self._client = AppleContainerClient(verbose=verbose)
         self._shutdown_event: asyncio.Event = asyncio.Event()
 
+    @property
+    def container_name(self) -> Optional[str]:
+        return self.options.container_name or self.config.container_name
+
+    @property
+    def image(self) -> Optional[str]:
+        return self.options.image or self.config.image
+
     async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
-        """Create a stopped container from `self.params`. Mirrors
+        """Create a stopped container from the config/options pair. Mirrors
         `DockerContainerRunner.create` so manager-side lifecycle
         (`provision_runtime` → `create` → `start`) is identical across
         backends. The Apple Container CLI's `container create` accepts the
@@ -259,7 +244,7 @@ class AppleContainerRunner:
         args: List[str] = []
         if not detach:
             args.extend([ "-a", "-i" ])
-        args.append(self.params.container_name)
+        args.append(self.container_name)
 
         await self._client.run("start", args=args, capture_output=detach)
 
@@ -273,18 +258,18 @@ class AppleContainerRunner:
         them like the docker SDK does."""
         args: List[str] = []
 
-        if self.params.container_name:
-            args.extend([ "--name", self.params.container_name ])
+        if self.container_name:
+            args.extend([ "--name", self.container_name ])
 
         if tty:
             args.append("-t")
         if stdin_open:
             args.append("-i")
 
-        for spec in AppleContainerPortsResolver(self.params.ports).resolve():
+        for spec in AppleContainerPortsResolver(self.options.ports or self.config.ports).resolve():
             args.extend([ "-p", spec ])
 
-        for mount in AppleContainerMountsResolver(self.params.volumes).resolve():
+        for mount in AppleContainerMountsResolver(self.config.volumes).resolve():
             if mount.type == "volume":
                 try:
                     await self._client.run([ "volume", "create" ], args=[ mount.source ])
@@ -295,45 +280,45 @@ class AppleContainerRunner:
                 mount_spec += ",readonly"
             args.extend([ "--mount", mount_spec ])
 
-        for network in self.params.networks or []:
+        for network in self.config.networks or []:
             args.extend([ "--network", network ])
 
-        for key, value in (self.params.environment or {}).items():
+        for key, value in (self.config.environment or {}).items():
             args.extend([ "-e", f"{key}={value}" ])
 
-        if self.params.env_file:
-            env_files = [ self.params.env_file ] if isinstance(self.params.env_file, str) else self.params.env_file
+        if self.config.env_file:
+            env_files = [ self.config.env_file ] if isinstance(self.config.env_file, str) else self.config.env_file
             for env_file in env_files:
                 args.extend([ "--env-file", env_file ])
 
-        if self.params.entrypoint is not None:
-            entrypoint = self.params.entrypoint
+        entrypoint = self.options.entrypoint or self.config.entrypoint
+        if entrypoint is not None:
             if isinstance(entrypoint, list):
                 entrypoint = " ".join(entrypoint)
             args.extend([ "--entrypoint", entrypoint ])
 
-        if self.params.working_dir is not None:
-            args.extend([ "-w", self.params.working_dir ])
+        if self.config.working_dir is not None:
+            args.extend([ "-w", self.config.working_dir ])
 
-        if self.params.user is not None:
-            args.extend([ "-u", self.params.user ])
+        if self.config.user is not None:
+            args.extend([ "-u", self.config.user ])
 
-        if self.params.cpus is not None:
-            args.extend([ "--cpus", str(self.params.cpus) ])
+        if self.config.cpus is not None:
+            args.extend([ "--cpus", str(self.config.cpus) ])
 
-        if self.params.mem_limit is not None:
-            args.extend([ "--memory", self.params.mem_limit ])
+        if self.config.mem_limit is not None:
+            args.extend([ "--memory", self.config.mem_limit ])
 
-        for key, value in (self.params.labels or {}).items():
+        for key, value in (self.config.labels or {}).items():
             args.extend([ "-l", f"{key}={value}" ])
 
-        args.append(self.params.image)
+        args.append(self.image)
 
-        if self.params.command:
-            if isinstance(self.params.command, str):
-                args.append(self.params.command)
+        if self.config.command:
+            if isinstance(self.config.command, str):
+                args.append(self.config.command)
             else:
-                args.extend(self.params.command)
+                args.extend(self.config.command)
 
         return args
 
@@ -341,11 +326,11 @@ class AppleContainerRunner:
         args: List[str] = []
         if timeout is not None:
             args.extend([ "-t", str(int(timeout)) ])
-        args.append(self.params.container_name)
+        args.append(self.container_name)
         try:
             await self._client.run("stop", args=args)
         except RuntimeError as e:
-            logging.warning("Failed to stop container '%s': %s", self.params.container_name, e)
+            logging.warning("Failed to stop container '%s': %s", self.container_name, e)
 
     async def remove(self, force: bool = False) -> None:
         args: List[str] = []
@@ -353,7 +338,7 @@ class AppleContainerRunner:
         if force:
             args.append("-f")
 
-        args.append(self.params.container_name)
+        args.append(self.container_name)
         try:
             await self._client.run("rm", args=args)
         except RuntimeError:
@@ -363,7 +348,7 @@ class AppleContainerRunner:
         try:
             process = await self._client.run("ls", raise_on_error=False)
             stdout, _ = await process.communicate()
-            return self.params.container_name in stdout.decode()
+            return self.container_name in stdout.decode()
         except Exception:
             return False
 
@@ -371,7 +356,7 @@ class AppleContainerRunner:
         try:
             process = await self._client.run("ls", raise_on_error=False)
             stdout, _ = await process.communicate()
-            return self.params.container_name in stdout.decode()
+            return self.container_name in stdout.decode()
         except Exception:
             return False
 
@@ -380,7 +365,7 @@ class AppleContainerRunner:
         await self._shutdown_event.wait()
         logging.info(
             "Stopping container '%s' gracefully...",
-            self.params.container_name,
+            self.container_name,
         )
         await self.stop()
 

@@ -35,11 +35,6 @@ class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
                 for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config)
             ]
 
-        if not params.extra_hosts:
-            params.extra_hosts = {}
-
-        params.extra_hosts.setdefault("host.docker.internal", "host-gateway")
-
         return params
 
     def _image_assets_dir(self) -> Path:

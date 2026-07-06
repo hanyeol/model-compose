@@ -119,7 +119,6 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             stop_timeout=parse_duration(config.stop_timeout),
         )
 
-
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.virtualenv`."""
     # Ensure stdout/stderr stay attached to the parent as log channels only;

@@ -291,7 +291,7 @@ class DockerContainerRunner:
                     privileged=self.params.privileged,
                     security_opt=self.params.security_opt,
                     restart_policy={ "Name": self.params.restart },
-                    extra_hosts=self.params.extra_hosts,
+                    extra_hosts={ "host.docker.internal": "host-gateway", **(self.params.extra_hosts or {}) },
                     device_requests=DockerDeviceRequestsResolver(self.params.gpus).resolve(),
                     tty=tty, stdin_open=stdin_open, detach=True,
                 )

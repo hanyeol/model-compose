@@ -115,8 +115,10 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
             self.global_configs,
             channel,
         )
+
         proxy._start_timeout = self.params.start_timeout
-        proxy._stop_timeout = self.params.stop_timeout
+        proxy._stop_timeout  = self.params.stop_timeout
+
         return proxy
 
     async def _teardown_runtime(self) -> None:

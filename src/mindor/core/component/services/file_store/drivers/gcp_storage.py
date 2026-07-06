@@ -246,10 +246,11 @@ class GcpStorageFileStoreAction(FileStoreAction):
 
 @register_file_store_service(FileStoreDriver.GCP_STORAGE)
 class GcpStorageFileStoreService(FileStoreService):
+    config: GcpStorageFileStoreComponentConfig
+
     def __init__(self, id: str, config: GcpStorageFileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.config: GcpStorageFileStoreComponentConfig = config
         self.location: GcsLocation = GcsLocation(
             bucket=config.bucket,
             project=config.project,

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
+    config: ChatCompletionModelActionConfig
+
     def __init__(
         self,
         config: ChatCompletionModelActionConfig,
@@ -22,8 +24,6 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         device: torch.device
     ):
         super().__init__(config, model, tokenizer, device)
-
-        self.config: ChatCompletionModelActionConfig = config # For type only
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)

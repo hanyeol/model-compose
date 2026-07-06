@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     import torch
 
 class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
+    config: EsrganImageUpscaleModelActionConfig
+
     def __init__(
         self,
         config: EsrganImageUpscaleModelActionConfig,
@@ -24,7 +26,6 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: EsrganImageUpscaleModelActionConfig = config
         self.model: RRDBNet = model
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

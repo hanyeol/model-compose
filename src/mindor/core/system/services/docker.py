@@ -18,11 +18,11 @@ class DockerSystem(SystemService):
     Delegates SDK calls to the foundation helpers `DockerImageBuilder` and
     `DockerContainerRunner` — this class itself only encodes the
     docker-compose-up flow (image first, then container)."""
+    config: DockerSystemConfig
 
     def __init__(self, id: str, config: DockerSystemConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.config: DockerSystemConfig = config
         self._configure_system_config()
 
         self._builder: DockerImageBuilder = DockerImageBuilder(verbose=True)

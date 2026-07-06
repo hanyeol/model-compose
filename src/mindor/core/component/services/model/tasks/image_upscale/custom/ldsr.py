@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     import torch
 
 class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
+    config: LdsrImageUpscaleModelActionConfig
+
     def __init__(
         self,
         config: LdsrImageUpscaleModelActionConfig,
@@ -23,7 +25,6 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: LdsrImageUpscaleModelActionConfig = config
         self.pipeline: LDMSuperResolutionPipeline = pipeline
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

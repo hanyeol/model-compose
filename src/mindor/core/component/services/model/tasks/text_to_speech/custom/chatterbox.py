@@ -17,10 +17,11 @@ if TYPE_CHECKING:
     import torch
 
 class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
+    config: CommonTextToSpeechModelActionConfig
+
     def __init__(self, config: CommonTextToSpeechModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
-        self.config: CommonTextToSpeechModelActionConfig = config  # For type only
         self.model = model
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -60,16 +61,16 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
         return wav.squeeze(0).cpu(), self.model.sr
 
 class ChatterboxTextToSpeechGenerateTaskAction(ChatterboxTextToSpeechTaskAction):
+    config: ChatterboxTextToSpeechGenerateModelActionConfig
+
     def __init__(self, config: ChatterboxTextToSpeechGenerateModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
-        self.config: ChatterboxTextToSpeechGenerateModelActionConfig = config  # For type only
-
 class ChatterboxTextToSpeechCloneTaskAction(ChatterboxTextToSpeechTaskAction):
+    config: ChatterboxTextToSpeechCloneModelActionConfig
+
     def __init__(self, config: ChatterboxTextToSpeechCloneModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
-
-        self.config: ChatterboxTextToSpeechCloneModelActionConfig = config  # For type only
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

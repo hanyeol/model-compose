@@ -10,10 +10,10 @@ import shutil
 
 @register_system(SystemType.DOCKER_COMPOSE)
 class DockerComposeSystem(SystemService):
+    config: DockerComposeSystemConfig
+
     def __init__(self, id: str, config: DockerComposeSystemConfig, daemon: bool):
         super().__init__(id, config, daemon)
-
-        self.config: DockerComposeSystemConfig = config
 
     async def _setup(self) -> None:
         if not shutil.which("docker"):

@@ -33,10 +33,11 @@ _QWEN_LANGUAGE_MAP: dict[str, str] = {
 }
 
 class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
+    config: CommonTextToSpeechModelActionConfig
+
     def __init__(self, config: CommonTextToSpeechModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
-        self.config: CommonTextToSpeechModelActionConfig = config  # For type only
         self.model = model
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -69,10 +70,10 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         pass
 
 class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
+    config: QwenTextToSpeechGenerateModelActionConfig
+
     def __init__(self, config: QwenTextToSpeechGenerateModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
-
-        self.config: QwenTextToSpeechGenerateModelActionConfig = config  # For type only
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -94,10 +95,10 @@ class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
         )
 
 class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
+    config: QwenTextToSpeechCloneModelActionConfig
+
     def __init__(self, config: QwenTextToSpeechCloneModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
-
-        self.config: QwenTextToSpeechCloneModelActionConfig = config  # For type only
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -119,10 +120,10 @@ class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
         )
 
 class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):
+    config: QwenTextToSpeechDesignModelActionConfig
+
     def __init__(self, config: QwenTextToSpeechDesignModelActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
-
-        self.config: QwenTextToSpeechDesignModelActionConfig = config  # For type only
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

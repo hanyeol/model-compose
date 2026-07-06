@@ -12,14 +12,14 @@ if TYPE_CHECKING:
     from llama_cpp import Llama
 
 class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
+    config: ChatCompletionModelActionConfig
+
     def __init__(
         self,
         config: ChatCompletionModelActionConfig,
         model: Llama,
     ):
         super().__init__(config, model)
-
-        self.config: ChatCompletionModelActionConfig = config # For type only
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)

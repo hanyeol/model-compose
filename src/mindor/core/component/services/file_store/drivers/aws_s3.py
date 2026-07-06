@@ -255,10 +255,11 @@ class AwsS3FileStoreAction(FileStoreAction):
 
 @register_file_store_service(FileStoreDriver.AWS_S3)
 class AwsS3FileStoreService(FileStoreService):
+    config: AwsS3FileStoreComponentConfig
+
     def __init__(self, id: str, config: AwsS3FileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.config: AwsS3FileStoreComponentConfig = config
         self.location: S3Location = S3Location(
             bucket=config.bucket,
             region=config.region,

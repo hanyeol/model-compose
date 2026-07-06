@@ -14,10 +14,11 @@ if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
 
 class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelActionConfig
+
     def __init__(self, config: AceStepMusicGenerationModelActionConfig, handler: AceStepHandler):
         super().__init__(config)
 
-        self.config: AceStepMusicGenerationModelActionConfig = config
         self.handler: AceStepHandler = handler
 
     async def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Any]:

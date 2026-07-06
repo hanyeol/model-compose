@@ -14,10 +14,11 @@ if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
 
 class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
+    config: InsightfaceFaceEmbeddingModelActionConfig
+
     def __init__(self, config: InsightfaceFaceEmbeddingModelActionConfig, model: FaceAnalysis):
         super().__init__(config, None)
 
-        self.config: InsightfaceFaceEmbeddingModelActionConfig = config
         self.model: FaceAnalysis = model
 
     async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:

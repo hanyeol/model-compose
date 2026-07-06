@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceImageGenerationTaskAction(ImageGenerationTaskAction):
+    config: HuggingfaceImageGenerationModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceImageGenerationModelActionConfig,
@@ -25,7 +27,6 @@ class HuggingfaceImageGenerationTaskAction(ImageGenerationTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: HuggingfaceImageGenerationModelActionConfig = config
         self.architecture: HuggingfaceImageGenerationModelArchitecture = architecture
         self.pipeline: DiffusionPipeline = pipeline
 

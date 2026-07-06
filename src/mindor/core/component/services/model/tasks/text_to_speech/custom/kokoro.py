@@ -15,10 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
+    config: KokoroTextToSpeechGenerateModelActionConfig
+
     def __init__(self, config: KokoroTextToSpeechGenerateModelActionConfig, pipeline: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
-        self.config: KokoroTextToSpeechGenerateModelActionConfig = config  # For type only
         self.pipeline = pipeline
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

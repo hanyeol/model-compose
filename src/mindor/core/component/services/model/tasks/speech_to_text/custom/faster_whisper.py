@@ -101,10 +101,11 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         return waveform.astype(np.float32)
 
 class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
+    config: FasterWhisperSpeechToTextModelComponentConfig
+
     def __init__(self, id: str, config: FasterWhisperSpeechToTextModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.config: FasterWhisperSpeechToTextModelComponentConfig = config  # For type only
         self.model: Optional[WhisperModel] = None
         self.device: Optional[torch.device] = None
 

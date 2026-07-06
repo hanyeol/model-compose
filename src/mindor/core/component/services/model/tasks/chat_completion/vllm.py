@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
+    config: ChatCompletionModelActionConfig
+
     def __init__(
         self,
         config: ChatCompletionModelActionConfig,
@@ -21,7 +23,6 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
     ):
         super().__init__(config, engine)
 
-        self.config: ChatCompletionModelActionConfig = config  # For type only
         self.tokenizer: PreTrainedTokenizerBase = tokenizer
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:

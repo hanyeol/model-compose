@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     import torch
 
 class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
+    config: SwinIRImageUpscaleModelActionConfig
+
     def __init__(
         self,
         config: SwinIRImageUpscaleModelActionConfig,
@@ -24,7 +26,6 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: SwinIRImageUpscaleModelActionConfig = config
         self.model: SwinIR = model
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

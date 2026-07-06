@@ -304,10 +304,11 @@ class AzureBlobFileStoreAction(FileStoreAction):
 
 @register_file_store_service(FileStoreDriver.AZURE_BLOB)
 class AzureBlobFileStoreService(FileStoreService):
+    config: AzureBlobFileStoreComponentConfig
+
     def __init__(self, id: str, config: AzureBlobFileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.config: AzureBlobFileStoreComponentConfig = config
         self.location: AzureBlobLocation = AzureBlobLocation(
             container=config.container,
             account_name=config.account_name,

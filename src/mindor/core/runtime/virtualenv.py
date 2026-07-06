@@ -42,21 +42,26 @@ class VirtualEnvRuntime:
         self._subprocess: Optional[subprocess.Popen] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
+    async def bootstrap(self) -> None:
+        """Create the venv (if missing) and install runtime + user requirements.
+        Idempotent — safe to call repeatedly. Separated from `start()` so
+        callers can prepare the interpreter before opening any IPC channel."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._ensure_venv)
+        await loop.run_in_executor(None, self._install_dependencies)
+
     async def start(
         self,
         *,
         pass_fds: Tuple[int, ...] = (),
         env: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Bootstrap the venv (idempotent) and spawn the worker subprocess.
+        """Spawn the worker subprocess. Assumes `bootstrap()` has already run.
 
         `pass_fds` and `env` let the caller propagate transport handles
         (e.g., pipe read/write fds) without this lifecycle class knowing about them.
         """
         self._loop = asyncio.get_event_loop()
-
-        await self._loop.run_in_executor(None, self._ensure_venv)
-        await self._loop.run_in_executor(None, self._install_dependencies)
 
         self._subprocess = subprocess.Popen(
             [ str(self._venv_python()), "-m", self.worker_module ],

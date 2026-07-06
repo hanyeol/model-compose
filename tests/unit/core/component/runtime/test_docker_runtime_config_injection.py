@@ -5,45 +5,24 @@ mounts a unix socket, injects env vars, or maps uids. It still owns:
 - Image kind classification (STANDARD / DERIVED / CUSTOM).
 - Default image tag / container name (used when the user did not supply one).
 - Default entrypoint (`python -m mindor.core.component.runtime.docker`),
-  applied to the resolved `*RuntimeParams` only when the user hasn't
+  applied to the resolved `DockerContainerOptions` only when the user hasn't
   supplied one.
 
-The backend never mutates the user-facing DSL config: image kind lives on
-the `_image_kind` instance field; the default image tag / container name
-come from `_default_image_tag()` / `_default_container_name()`, and the
-base's `resolve_runtime()` only fills those in when the user's config
-left them unset.
+The backend never mutates the user-facing DSL config: image kind is
+computed on construction from the config + cwd; the default image tag /
+container name come from `_default_image_tag()` / `_default_container_name()`,
+and the base's `resolve_runtime()` only fills those in when the user's
+config left them unset.
 """
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
-
-from pathlib import Path
 
 from mindor.core.component.runtime.docker import ComponentDockerRuntimeBackend
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.dsl.schema.runtime.impl.common import RuntimeType
-
-
-def _classify_image_kind(runtime: DockerRuntimeConfig) -> ContainerImageKind:
-    """Mirror of `ComponentContainerRuntimeManager._resolve_image_kind`
-    without spinning up the manager (which would spawn a real backend)."""
-    if runtime.image or runtime.build:
-        return ContainerImageKind.CUSTOM
-
-    req = Path.cwd() / "requirements.txt"
-    setup = Path.cwd() / "setup.sh"
-    if setup.is_file() or (req.is_file() and any(
-        line.strip() and not line.strip().startswith("#")
-        for line in req.read_text(encoding="utf-8").splitlines()
-    )):
-        return ContainerImageKind.DERIVED
-
-    return ContainerImageKind.STANDARD
 
 
 def _runtime(**overrides) -> DockerRuntimeConfig:
@@ -54,7 +33,6 @@ def _manager(runtime: DockerRuntimeConfig) -> ComponentDockerRuntimeBackend:
     return ComponentDockerRuntimeBackend(
         worker_id="test-worker",
         runtime_config=runtime,
-        image_kind=_classify_image_kind(runtime),
     )
 
 
@@ -122,14 +100,14 @@ class TestNoIpcMutation:
 class TestImageKindResolution:
     def test_explicit_image_is_custom_kind(self):
         manager = _manager(_runtime(image="my-registry/foo:1.2.3"))
-        assert manager._image_kind == ContainerImageKind.CUSTOM
+        assert manager.image_kind == ContainerImageKind.CUSTOM
         # The user's image survives untouched on the DSL config.
         assert manager.runtime_config.image == "my-registry/foo:1.2.3"
 
     def test_build_block_is_custom_kind(self):
         from mindor.dsl.schema.containers.docker import DockerBuildConfig
         manager = _manager(_runtime(build=DockerBuildConfig(context=".", dockerfile="Dockerfile")))
-        assert manager._image_kind == ContainerImageKind.CUSTOM
+        assert manager.image_kind == ContainerImageKind.CUSTOM
         # `build:` case falls back to a `mindor/component-...:latest` default.
         assert manager._default_image_tag().startswith("mindor/component-")
         # Original `runtime.image` was never set by the user — backend must
@@ -138,7 +116,7 @@ class TestImageKindResolution:
 
     def test_no_image_or_build_falls_through_to_standard_or_derived(self):
         manager = _manager(_runtime())
-        assert manager._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
+        assert manager.image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
         assert manager._default_image_tag().startswith("mindor/component")
         # Crucially the backend does NOT mutate `runtime.image` — that's
         # what lets a second backend built from the same config classify
@@ -195,15 +173,15 @@ class TestImageKindStableAcrossRebuilds:
         # exists in cwd at test time — assert the kind is whichever one the
         # first manager chose, and require the second to match it.
         second = _manager(runtime)
-        assert second._image_kind == first._image_kind
-        assert second._image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
+        assert second.image_kind == first.image_kind
+        assert second.image_kind in (ContainerImageKind.STANDARD, ContainerImageKind.DERIVED)
         assert second._default_image_tag() == first._default_image_tag()
 
     def test_custom_kind_survives_second_manager_on_same_config(self):
         runtime = _runtime(image="my-registry/foo:1.2.3")
         first = _manager(runtime)
-        assert first._image_kind == ContainerImageKind.CUSTOM
+        assert first.image_kind == ContainerImageKind.CUSTOM
         second = _manager(runtime)
-        assert second._image_kind == ContainerImageKind.CUSTOM
+        assert second.image_kind == ContainerImageKind.CUSTOM
         # User's image survives; the default hook is not consulted.
         assert second.runtime_config.image == "my-registry/foo:1.2.3"

@@ -25,10 +25,9 @@ class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
         self,
         worker_id: str,
         runtime_config: DockerRuntimeConfig,
-        image_kind: ContainerImageKind,
         verbose: bool = False,
     ):
-        super().__init__(runtime_config=runtime_config, image_kind=image_kind, verbose=verbose)
+        super().__init__(runtime_config=runtime_config, verbose=verbose)
 
         self.worker_id: str = worker_id
 
@@ -123,13 +122,13 @@ class ComponentDockerRuntimeProxy(ComponentRuntimeProxy):
     Bridges the `DockerAttachChannel` (sync) into async `_send_message` /
     `_recv_message` via `run_in_executor`.
     """
-    _channel: DockerAttachChannel
+    channel: DockerAttachChannel
 
     async def _send_message(self, message: bytes) -> None:
-        await self._loop.run_in_executor(None, self._channel.send, message)
+        await self._loop.run_in_executor(None, self.channel.send, message)
 
     async def _recv_message(self) -> Optional[bytes]:
-        return await self._loop.run_in_executor(None, self._channel.recv)
+        return await self._loop.run_in_executor(None, self.channel.recv)
 
 class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
     """Component-side manager: composes a `ComponentDockerRuntimeBackend`
@@ -158,26 +157,23 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         self,
         component_id: str,
         runtime_config: DockerRuntimeConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ComponentDockerRuntimeBackend:
         return ComponentDockerRuntimeBackend(
             worker_id=component_id,
             runtime_config=runtime_config,
-            image_kind=image_kind,
             verbose=verbose,
         )
 
-    async def _attach_channel(self, loop: asyncio.AbstractEventLoop) -> DockerAttachChannel:
-        # Attach to stdin/stdout/stderr BEFORE starting so we never miss the
-        # worker's STATUS(ready) message — the attach socket is the only way
-        # to receive IPC traffic.
-        channel = await loop.run_in_executor(None, self._open_attach_channel)
-        # Now start the container; the entrypoint will read from stdin.
+    async def _attachchannel(self) -> DockerAttachChannel:
+        loop = asyncio.get_event_loop()
+
+        channel = await loop.run_in_executor(None, self._open_attachchannel)
         await self._runtime.start(detach=True)
+
         return channel
 
-    def _close_channel(self, channel: DockerAttachChannel) -> None:
+    def _detachchannel(self, channel: DockerAttachChannel) -> None:
         channel.close()
 
     def _create_proxy(self, channel: DockerAttachChannel) -> ComponentDockerRuntimeProxy:
@@ -187,12 +183,13 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
             self.global_configs,
             channel,
         )
-        # Propagate the timeouts to the proxy's IPC base.
+
         proxy._start_timeout = self._start_timeout
         proxy._stop_timeout = self._stop_timeout
+
         return proxy
 
-    def _open_attach_channel(self) -> DockerAttachChannel:
+    def _open_attachchannel(self) -> DockerAttachChannel:
         """Open a bidirectional attach channel to the container's
         stdin/stdout/stderr stream via the daemon's attach socket."""
         container = self._runtime.get_container()

@@ -49,13 +49,13 @@ class ComponentProcessRuntimeProxy(ComponentRuntimeProxy):
     The channel is a `(request_queue, response_queue)` tuple. Parent writes
     RUN into request_queue and reads RESULT from response_queue.
     """
-    _channel: Tuple[Queue, Queue]
+    channel: Tuple[Queue, Queue]
 
     async def _stop(self) -> None:
         await super()._stop()
 
         # Unblock the executor thread parked in _recv_message (Queue.get is blocking).
-        _, response_queue = self._channel
+        _, response_queue = self.channel
         response_queue.put(None)
 
     async def _send_start_message(self) -> None:
@@ -64,11 +64,11 @@ class ComponentProcessRuntimeProxy(ComponentRuntimeProxy):
         pass
 
     async def _send_message(self, message: bytes) -> None:
-        request_queue, _ = self._channel
+        request_queue, _ = self.channel
         await self._loop.run_in_executor(None, request_queue.put, message)
 
     async def _recv_message(self) -> Optional[bytes]:
-        _, response_queue = self._channel
+        _, response_queue = self.channel
         return await self._loop.run_in_executor(None, response_queue.get)
 
 class ComponentProcessRuntimeManager(ComponentRuntimeManager):
@@ -91,7 +91,7 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         self._response_queue: Optional[Queue] = None
         self._runtime: Optional[ProcessRuntime] = None
 
-    async def _prepare_channel(self) -> Tuple[Queue, Queue]:
+    async def _launch(self) -> Tuple[Queue, Queue]:
         self._request_queue = Queue()
         self._response_queue = Queue()
 
@@ -110,10 +110,12 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
 
         return (self._request_queue, self._response_queue)
 
-    def _close_channel(self, channel: Tuple[Queue, Queue]) -> None:
+    async def _shutdown(self, channel: Tuple[Queue, Queue]) -> None:
         # Queue objects have no `close()` we need; runtime teardown handles
-        # child exit. Nothing to do here.
-        pass
+        # child exit.
+        if self._runtime is not None:
+            await self._runtime.stop()
+            self._runtime = None
 
     def _create_proxy(self, channel: Tuple[Queue, Queue]) -> ComponentProcessRuntimeProxy:
         proxy = ComponentProcessRuntimeProxy(
@@ -127,11 +129,6 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         proxy._stop_timeout  = self._stop_timeout
 
         return proxy
-
-    async def _teardown_runtime(self) -> None:
-        if self._runtime is not None:
-            await self._runtime.stop()
-            self._runtime = None
 
     @staticmethod
     def _run_worker(

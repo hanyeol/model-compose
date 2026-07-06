@@ -28,10 +28,9 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
         self,
         worker_id: str,
         runtime_config: AppleContainerRuntimeConfig,
-        image_kind: ContainerImageKind,
         verbose: bool = False,
     ):
-        super().__init__(runtime_config=runtime_config, image_kind=image_kind, verbose=verbose)
+        super().__init__(runtime_config=runtime_config, verbose=verbose)
 
         self.worker_id: str = worker_id
 
@@ -129,13 +128,13 @@ class ComponentAppleContainerRuntimeProxy(ComponentRuntimeProxy):
     The `AppleContainerAttachChannel` is async-native (async `send`/`recv`),
     so `_send_message` / `_recv_message` await directly without executor.
     """
-    _channel: AppleContainerAttachChannel
+    channel: AppleContainerAttachChannel
 
     async def _send_message(self, message: bytes) -> None:
-        await self._channel.send(message)
+        await self.channel.send(message)
 
     async def _recv_message(self) -> Optional[bytes]:
-        return await self._channel.recv()
+        return await self.channel.recv()
 
 
 class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
@@ -161,17 +160,15 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         self,
         component_id: str,
         runtime_config: AppleContainerRuntimeConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ComponentAppleContainerRuntimeBackend:
         return ComponentAppleContainerRuntimeBackend(
             worker_id=component_id,
             runtime_config=runtime_config,
-            image_kind=image_kind,
             verbose=verbose,
         )
 
-    async def _attach_channel(self, loop: asyncio.AbstractEventLoop) -> AppleContainerAttachChannel:
+    async def _attachchannel(self) -> AppleContainerAttachChannel:
         """Spawn `container start -a -i <name>` and wrap its stdin/stdout as
         the IPC channel. The subprocess is what actually starts the container
         (no separate `runtime.start()` call needed). The subprocess inherits
@@ -185,7 +182,7 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         )
         return AppleContainerAttachChannel(process)
 
-    def _close_channel(self, channel: AppleContainerAttachChannel) -> None:
+    def _detachchannel(self, channel: AppleContainerAttachChannel) -> None:
         channel.close()
 
     def _create_proxy(self, channel: AppleContainerAttachChannel) -> ComponentAppleContainerRuntimeProxy:

@@ -9,7 +9,7 @@ from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
 from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
-from mindor.core.runtime.common import ContainerImageKind, ContainerRuntimeBackend, ContainerRuntimeConfig
+from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
 from mindor.core.logger import logging
 from mindor.version import __version__
 import asyncio, re
@@ -121,8 +121,7 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
 
         self.component_config: ComponentConfig = component_config
         self.global_configs: ComponentGlobalConfigs = global_configs
-
-        self._channel: Any = channel
+        self.channel: Any = channel
 
     async def _start(self) -> None:
         self._loop = asyncio.get_event_loop()
@@ -186,7 +185,7 @@ class ComponentRuntimeManager:
 
     async def start(self) -> None:
         try:
-            self._channel = await self._prepare_channel()
+            self._channel = await self._launch()
             self._proxy = self._create_proxy(self._channel)
             await self._proxy.start()
         except Exception:
@@ -210,31 +209,28 @@ class ComponentRuntimeManager:
         return await self._proxy.run(action_id, run_id, input_data)
 
     async def _teardown(self) -> None:
-        """Close channel + tear down runtime resources. Called on both failed
-        start and normal stop. Idempotent."""
-        await self._teardown_runtime()
+        """Shut down the runtime and channel. Called on both failed start and
+        normal stop. Idempotent."""
         if self._channel is not None:
             try:
-                self._close_channel(self._channel)
+                await self._shutdown(self._channel)
             except Exception:
                 pass
             self._channel = None
 
     @abstractmethod
-    async def _prepare_channel(self) -> Any:
-        """Spawn the runtime and return a channel to it. Called once at start()."""
+    async def _launch(self) -> Any:
+        """Prepare the runtime, start it, and open the IPC channel. Returns the
+        channel. Called once at `start()`."""
 
     @abstractmethod
-    def _close_channel(self, channel: Any) -> None:
-        """Close the backend-specific channel."""
+    async def _shutdown(self, channel: Any) -> None:
+        """Close the channel and tear down the runtime. Counterpart to
+        `_launch`. May be called after a partial launch."""
 
     @abstractmethod
     def _create_proxy(self, channel: Any) -> ComponentRuntimeProxy:
         """Wrap `channel` in the backend-specific proxy subclass."""
-
-    @abstractmethod
-    async def _teardown_runtime(self) -> None:
-        """Stop/remove the spawned runtime. May be called with runtime never spawned."""
 
 class ComponentContainerRuntimeManager(ComponentRuntimeManager):
     """Manager for container-backed component runtimes (Docker / Apple)."""
@@ -247,24 +243,20 @@ class ComponentContainerRuntimeManager(ComponentRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs)
 
-        self._image_kind: ContainerImageKind = self._resolve_image_kind(component_config)
-        self._backend: ContainerRuntimeBackend = self._create_backend(
-            component_id, component_config.runtime, self._image_kind, verbose,
-        )
+        self._backend: ContainerRuntimeBackend = self._create_backend(component_id, component_config.runtime, verbose)
         self._runtime: Optional[Any] = None
 
-    async def _prepare_channel(self) -> Any:
-        # 1) Backend resolves the image, builds/pulls if needed, and *creates*
-        #    (not starts) the container.
+    async def _launch(self) -> Any:
+        # Provision the image and container, then attach the IPC channel.
         self._runtime = await self._backend.provision_runtime()
+        return await self._attach_channel()
 
-        # 2) Backend-specific: attach the IPC channel and ensure the container
-        #    is running. Docker attaches first then calls `runtime.start`;
-        #    Apple's `container start -a -i` subprocess is what starts it.
-        loop = asyncio.get_event_loop()
-        return await self._attach_channel(loop)
+    async def _shutdown(self, channel: Any) -> None:
+        try:
+            self._detach_channel(channel)
+        except Exception:
+            pass
 
-    async def _teardown_runtime(self) -> None:
         if self._runtime is not None:
             try:
                 await self._runtime.stop()
@@ -273,43 +265,19 @@ class ComponentContainerRuntimeManager(ComponentRuntimeManager):
                 logging.warning("Error stopping container for '%s': %s", self.worker_id, e)
             self._runtime = None
 
-    def _resolve_image_kind(self, config: ComponentConfig) -> ContainerImageKind:
-        """Classify the component runtime as STANDARD / DERIVED / CUSTOM."""
-        if config.runtime.image or config.runtime.build:
-            return ContainerImageKind.CUSTOM
-
-        if self._has_derived_context():
-            return ContainerImageKind.DERIVED
-
-        return ContainerImageKind.STANDARD
-
-    def _has_derived_context(self) -> bool:
-        return (
-            self._has_meaningful_lines(Path.cwd() / "requirements.txt")
-            or (Path.cwd() / "setup.sh").is_file()
-        )
-
-    @staticmethod
-    def _has_meaningful_lines(path: Path) -> bool:
-        if not path.is_file():
-            return False
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                return True
-        return False
-
     @abstractmethod
     def _create_backend(
         self,
         component_id: str,
         runtime_config: ContainerRuntimeConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ContainerRuntimeBackend:
         """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
 
     @abstractmethod
-    async def _attach_channel(self, loop: asyncio.AbstractEventLoop) -> Any:
-        """Attach the IPC channel and ensure the container is running.
-        Returns the channel used by the proxy."""
+    async def _attach_channel(self) -> Any:
+        """Attach the IPC channel and ensure the container is running."""
+
+    @abstractmethod
+    def _detach_channel(self, channel: Any) -> None:
+        """Close the backend-specific IPC channel."""

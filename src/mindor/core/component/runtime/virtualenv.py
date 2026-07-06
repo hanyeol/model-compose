@@ -4,11 +4,7 @@ from typing import Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.common import (
-    ComponentRuntimeManager,
-    ComponentRuntimeProxy,
-    ComponentRuntimeWorker,
-)
+from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy, ComponentRuntimeWorker
 from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType, IpcStartPayload
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.runtime.virtualenv import VirtualEnvRuntime
@@ -28,7 +24,8 @@ class ComponentVirtualEnvRuntimeWorker(ComponentRuntimeWorker):
         channel: SubprocessPipeChannel,
     ):
         super().__init__(component_id, component_config, global_configs)
-        self.channel = channel
+
+        self.channel: SubprocessPipeChannel = channel
 
     async def _send_message(self, message: bytes) -> None:
         await self._loop.run_in_executor(None, self.channel.send, message)
@@ -42,13 +39,13 @@ class ComponentVirtualEnvRuntimeWorker(ComponentRuntimeWorker):
 
 class ComponentVirtualEnvRuntimeProxy(ComponentRuntimeProxy):
     """SubprocessPipeChannel-based IPC proxy for venv-spawned workers."""
-    _channel: SubprocessPipeChannel
+    channel: SubprocessPipeChannel
 
     async def _send_message(self, message: bytes) -> None:
-        await self._loop.run_in_executor(None, self._channel.send, message)
+        await self._loop.run_in_executor(None, self.channel.send, message)
 
     async def _recv_message(self) -> Optional[bytes]:
-        return await self._loop.run_in_executor(None, self._channel.recv)
+        return await self._loop.run_in_executor(None, self.channel.recv)
 
 class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
     """Manager: spawns a `VirtualEnvRuntime` child over a pipe pair and
@@ -68,16 +65,17 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
 
         self._runtime: Optional[VirtualEnvRuntime] = None
 
-    async def _prepare_channel(self) -> SubprocessPipeChannel:
-        # Create the pipe pair before spawning so we can hand the child its fds.
-        request_r,  request_w  = os.pipe()
-        response_r, response_w = os.pipe()
-
+    async def _launch(self) -> SubprocessPipeChannel:
         self._runtime = VirtualEnvRuntime(
             worker_id=self.worker_id,
             worker_module="mindor.core.component.runtime.virtualenv",
             config=self._runtime_config,
         )
+        await self._runtime.bootstrap()
+
+        # Create the pipe pair before spawning so we can hand the child its fds.
+        request_r,  request_w  = os.pipe()
+        response_r, response_w = os.pipe()
 
         try:
             await self._runtime.start(
@@ -95,8 +93,15 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         # Parent uses: read responses on response_r, write requests on request_w.
         return SubprocessPipeChannel(request_fd=response_r, response_fd=request_w)
 
-    def _close_channel(self, channel: SubprocessPipeChannel) -> None:
-        channel.close()
+    async def _shutdown(self, channel: SubprocessPipeChannel) -> None:
+        try:
+            channel.close()
+        except Exception:
+            pass
+
+        if self._runtime is not None:
+            await self._runtime.stop()
+            self._runtime = None
 
     def _create_proxy(self, channel: SubprocessPipeChannel) -> ComponentVirtualEnvRuntimeProxy:
         proxy = ComponentVirtualEnvRuntimeProxy(
@@ -108,11 +113,6 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         proxy._start_timeout = self._start_timeout
         proxy._stop_timeout = self._stop_timeout
         return proxy
-
-    async def _teardown_runtime(self) -> None:
-        if self._runtime is not None:
-            await self._runtime.stop()
-            self._runtime = None
 
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.virtualenv`."""

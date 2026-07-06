@@ -70,15 +70,14 @@ class ControllerContainerRuntimeManager:
     def __init__(self, config: ControllerConfig, verbose: bool = False):
         self.config: ControllerConfig = config
 
-        self._image_kind: ContainerImageKind = self._resolve_image_kind(config)
-        self._backend: ContainerRuntimeBackend = self._create_backend(config, self._image_kind, verbose)
+        self._backend: ContainerRuntimeBackend = self._create_backend(config, verbose)
 
     async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
         logging.info("Preparing controller container...")
 
         # STANDARD/DERIVED images expect `bootstrap.sh` to copy /mnt/bootstrap → /workspace
         # at container start. CUSTOM images are caller-baked and need neither.
-        if self._image_kind != ContainerImageKind.CUSTOM:
+        if self._backend.image_kind != ContainerImageKind.CUSTOM:
             bundle_path = Path.cwd() / ".build" / "workspace" / ControllerContainerSpec.project_name(self.config.name)
             generate_workspace_bundle(specs, bundle_path)
             self._attach_workspace_volume(bundle_path)
@@ -127,38 +126,9 @@ class ControllerContainerRuntimeManager:
     def _create_backend(
         self,
         config: ControllerConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ContainerRuntimeBackend:
         """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
-
-    def _resolve_image_kind(self, config: ControllerConfig) -> ContainerImageKind:
-        """Classify the controller runtime as STANDARD / DERIVED / CUSTOM."""
-        runtime = config.runtime
-
-        if runtime.image or runtime.build:
-            return ContainerImageKind.CUSTOM
-
-        if self._has_derived_context():
-            return ContainerImageKind.DERIVED
-
-        return ContainerImageKind.STANDARD
-
-    def _has_derived_context(self) -> bool:
-        return (
-            self._has_meaningful_lines(Path.cwd() / "requirements.txt")
-            or (Path.cwd() / "setup.sh").is_file()
-        )
-
-    @staticmethod
-    def _has_meaningful_lines(path: Path) -> bool:
-        if not path.is_file():
-            return False
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                return True
-        return False
 
     def _attach_workspace_volume(self, bundle_path: Path) -> None:
         """Idempotently add the `<bundle>:/mnt/bootstrap:ro` mount to runtime

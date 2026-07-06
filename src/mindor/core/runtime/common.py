@@ -21,7 +21,7 @@ class ContainerImageKind(str, Enum):
 
 class ContainerRuntimeBackend(ABC):
     """Shared image lifecycle for container-backed runtime managers."""
-    def __init__(self, runtime_config: ContainerRuntimeConfig, image_kind: ContainerImageKind, verbose: bool = False):
+    def __init__(self, runtime_config: ContainerRuntimeConfig, verbose: bool = False):
         self.runtime_config: ContainerRuntimeConfig = runtime_config
         self.verbose: bool = verbose
 
@@ -29,7 +29,11 @@ class ContainerRuntimeBackend(ABC):
         self._requirements_path: Path = Path.cwd() / "requirements.txt"
         self._setup_script_path: Path = Path.cwd() / "setup.sh"
         self._build_root: Path = Path.cwd() / ".build"
-        self._image_kind: ContainerImageKind = image_kind
+        self._image_kind: ContainerImageKind = self._resolve_image_kind()
+
+    @property
+    def image_kind(self) -> ContainerImageKind:
+        return self._image_kind
 
     async def provision_runtime(self) -> Any:
         """Ensure the image exists, then recreate the container fresh."""
@@ -185,6 +189,32 @@ class ContainerRuntimeBackend(ABC):
         logging.info("Pulling custom image %s...", image_tag)
         await self._builder.pull(image_tag)
         logging.info("Custom image %s pulled successfully.", image_tag)
+
+    def _resolve_image_kind(self) -> ContainerImageKind:
+        """Classify the runtime as STANDARD / DERIVED / CUSTOM based on the
+        user's runtime config and the workspace."""
+        if self.runtime_config.image or self.runtime_config.build:
+            return ContainerImageKind.CUSTOM
+
+        if self._has_derived_context():
+            return ContainerImageKind.DERIVED
+
+        return ContainerImageKind.STANDARD
+
+    def _has_derived_context(self) -> bool:
+        if self._setup_script_path.is_file() or self._has_meaningful_lines(self._requirements_path):
+            return True
+        return False
+
+    @staticmethod
+    def _has_meaningful_lines(path: Path) -> bool:
+        if not path.is_file():
+            return False
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return True
+        return False
 
     @abstractmethod
     def _image_assets_dir(self) -> Path:

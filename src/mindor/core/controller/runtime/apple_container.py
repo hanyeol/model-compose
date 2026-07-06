@@ -10,8 +10,8 @@ from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     """Apple Container backend for a controller runtime."""
 
-    def __init__(self, config: ControllerConfig, image_kind: ContainerImageKind, verbose: bool):
-        super().__init__(runtime_config=config.runtime, image_kind=image_kind, verbose=verbose)
+    def __init__(self, config: ControllerConfig, verbose: bool):
+        super().__init__(runtime_config=config.runtime, verbose=verbose)
 
         self.config: ControllerConfig = config
 
@@ -57,7 +57,6 @@ class ControllerAppleContainerRuntimeManager(ControllerContainerRuntimeManager):
     def _create_backend(
         self,
         config: ControllerConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ControllerAppleContainerRuntimeBackend:
-        return ControllerAppleContainerRuntimeBackend(config, image_kind, verbose)
+        return ControllerAppleContainerRuntimeBackend(config, verbose)

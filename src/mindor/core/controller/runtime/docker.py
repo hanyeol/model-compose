@@ -9,8 +9,8 @@ from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     """Docker backend for a controller runtime."""
-    def __init__(self, config: ControllerConfig, image_kind: ContainerImageKind, verbose: bool):
-        super().__init__(runtime_config=config.runtime, image_kind=image_kind, verbose=verbose)
+    def __init__(self, config: ControllerConfig, verbose: bool):
+        super().__init__(runtime_config=config.runtime, verbose=verbose)
 
         self.config: ControllerConfig = config
 
@@ -59,7 +59,6 @@ class ControllerDockerRuntimeManager(ControllerContainerRuntimeManager):
     def _create_backend(
         self,
         config: ControllerConfig,
-        image_kind: ContainerImageKind,
         verbose: bool,
     ) -> ControllerDockerRuntimeBackend:
-        return ControllerDockerRuntimeBackend(config, image_kind, verbose)
+        return ControllerDockerRuntimeBackend(config, verbose)

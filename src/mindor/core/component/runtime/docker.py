@@ -35,8 +35,10 @@ class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
     def _default_image_tag(self) -> str:
         if self._image_kind == ContainerImageKind.CUSTOM:
             return self._custom_image_tag()
+
         if self._image_kind == ContainerImageKind.DERIVED:
             return self._derived_image_tag()
+
         return self._standard_image_tag()
 
     def _default_container_name(self) -> str:

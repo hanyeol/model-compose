@@ -14,6 +14,7 @@ class UrlStreamResource(StreamResource):
         super().__init__(content_type, filename)
 
         self.url: str = url
+
         self._stream: Optional[StreamResource] = None
         self._has_own_content_type = bool(content_type)
 

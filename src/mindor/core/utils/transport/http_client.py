@@ -22,6 +22,7 @@ class HttpClient:
         self.headers: Optional[Dict[str, str]] = headers
         self.timeout: Optional[float] = timeout
         self.shared: bool = shared
+
         self._sessions: Dict[int, aiohttp.ClientSession] = {}
 
     async def __aenter__(self):

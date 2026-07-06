@@ -75,7 +75,6 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
         # writes from the parent.
         return { "tty": False, "stdin_open": True }
 
-
 class ComponentAppleContainerRuntimeWorker(ComponentRuntimeWorker):
     """Component-side worker that runs inside the Apple Container.
 

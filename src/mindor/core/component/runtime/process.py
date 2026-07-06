@@ -3,11 +3,7 @@ from multiprocessing import Queue
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.common import (
-    ComponentRuntimeManager,
-    ComponentRuntimeProxy,
-    ComponentRuntimeWorker,
-)
+from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy, ComponentRuntimeWorker
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from mindor.core.runtime.process import ProcessRuntime

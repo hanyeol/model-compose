@@ -61,15 +61,15 @@ class ContainerRuntimeBackend(ABC):
     def resolve_runtime(self) -> Any:
         """Build a backend runtime from the injected runtime config. User-supplied
         `image` / `container_name` win; otherwise the backend's default is used."""
-        params = self._resolve_container_options()
+        options = self._resolve_container_options()
 
-        if params.image is None:
-            params.image = self._default_image_tag()
+        if options.image is None:
+            options.image = self._default_image_tag()
 
-        if params.container_name is None:
-            params.container_name = self._default_container_name()
+        if options.container_name is None:
+            options.container_name = self._default_container_name()
 
-        return self._create_runtime(params)
+        return self._create_runtime(options)
 
     def _container_create_options(self) -> Dict[str, Any]:
         """Extra kwargs forwarded to the backend's `runtime.create()`."""
@@ -216,8 +216,8 @@ class ContainerRuntimeBackend(ABC):
         """Fallback tag for a locally-built CUSTOM image when the user only supplied `build:`."""
 
     @abstractmethod
-    def _create_runtime(self, params: Any) -> Any:
-        """Instantiate the backend-specific runtime from a fully-resolved `*RuntimeParams`."""
+    def _create_runtime(self, options: Any) -> Any:
+        """Instantiate the backend-specific runtime from resolved `*ContainerOptions`."""
 
     @abstractmethod
     def _create_builder(self) -> Any:

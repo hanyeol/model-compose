@@ -185,6 +185,9 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         )
         return AppleContainerAttachChannel(process)
 
+    def _close_channel(self, channel: AppleContainerAttachChannel) -> None:
+        channel.close()
+
     def _create_proxy(self, channel: AppleContainerAttachChannel) -> ComponentAppleContainerRuntimeProxy:
         proxy = ComponentAppleContainerRuntimeProxy(
             self.worker_id,

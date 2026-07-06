@@ -177,6 +177,9 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         await self._runtime.start(detach=True)
         return channel
 
+    def _close_channel(self, channel: DockerAttachChannel) -> None:
+        channel.close()
+
     def _create_proxy(self, channel: DockerAttachChannel) -> ComponentDockerRuntimeProxy:
         proxy = ComponentDockerRuntimeProxy(
             self.worker_id,

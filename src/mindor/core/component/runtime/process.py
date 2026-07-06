@@ -110,6 +110,11 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
 
         return (self._request_queue, self._response_queue)
 
+    def _close_channel(self, channel: Tuple[Queue, Queue]) -> None:
+        # Queue objects have no `close()` we need; runtime teardown handles
+        # child exit. Nothing to do here.
+        pass
+
     def _create_proxy(self, channel: Tuple[Queue, Queue]) -> ComponentProcessRuntimeProxy:
         proxy = ComponentProcessRuntimeProxy(
             self.worker_id,
@@ -127,11 +132,6 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         if self._runtime is not None:
             await self._runtime.stop()
             self._runtime = None
-
-    def _close_channel(self, channel: Tuple[Queue, Queue]) -> None:
-        # Queue objects have no `close()` we need; runtime teardown handles
-        # child exit. Nothing to do here.
-        pass
 
     @staticmethod
     def _run_worker(

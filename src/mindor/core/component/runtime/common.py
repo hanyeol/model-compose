@@ -225,19 +225,16 @@ class ComponentRuntimeManager:
         """Spawn the runtime and return a channel to it. Called once at start()."""
 
     @abstractmethod
+    def _close_channel(self, channel: Any) -> None:
+        """Close the backend-specific channel."""
+
+    @abstractmethod
     def _create_proxy(self, channel: Any) -> ComponentRuntimeProxy:
         """Wrap `channel` in the backend-specific proxy subclass."""
 
     @abstractmethod
     async def _teardown_runtime(self) -> None:
         """Stop/remove the spawned runtime. May be called with runtime never spawned."""
-
-    def _close_channel(self, channel: Any) -> None:
-        """Close the channel. Default implementation calls `.close()` if present."""
-        close = getattr(channel, "close", None)
-        if callable(close):
-            close()
-
 
 class ComponentContainerRuntimeManager(ComponentRuntimeManager):
     """Manager for container-backed component runtimes (Docker / Apple)."""
@@ -255,6 +252,26 @@ class ComponentContainerRuntimeManager(ComponentRuntimeManager):
             component_id, component_config.runtime, self._image_kind, verbose,
         )
         self._runtime: Optional[Any] = None
+
+    async def _prepare_channel(self) -> Any:
+        # 1) Backend resolves the image, builds/pulls if needed, and *creates*
+        #    (not starts) the container.
+        self._runtime = await self._backend.provision_runtime()
+
+        # 2) Backend-specific: attach the IPC channel and ensure the container
+        #    is running. Docker attaches first then calls `runtime.start`;
+        #    Apple's `container start -a -i` subprocess is what starts it.
+        loop = asyncio.get_event_loop()
+        return await self._attach_channel(loop)
+
+    async def _teardown_runtime(self) -> None:
+        if self._runtime is not None:
+            try:
+                await self._runtime.stop()
+                await self._runtime.remove(force=True)
+            except Exception as e:
+                logging.warning("Error stopping container for '%s': %s", self.worker_id, e)
+            self._runtime = None
 
     def _resolve_image_kind(self, config: ComponentConfig) -> ContainerImageKind:
         """Classify the component runtime as STANDARD / DERIVED / CUSTOM."""
@@ -291,26 +308,6 @@ class ComponentContainerRuntimeManager(ComponentRuntimeManager):
         verbose: bool,
     ) -> ContainerRuntimeBackend:
         """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
-
-    async def _prepare_channel(self) -> Any:
-        # 1) Backend resolves the image, builds/pulls if needed, and *creates*
-        #    (not starts) the container.
-        self._runtime = await self._backend.provision_runtime()
-
-        # 2) Backend-specific: attach the IPC channel and ensure the container
-        #    is running. Docker attaches first then calls `runtime.start`;
-        #    Apple's `container start -a -i` subprocess is what starts it.
-        loop = asyncio.get_event_loop()
-        return await self._attach_channel(loop)
-
-    async def _teardown_runtime(self) -> None:
-        if self._runtime is not None:
-            try:
-                await self._runtime.stop()
-                await self._runtime.remove(force=True)
-            except Exception as e:
-                logging.warning("Error stopping container for '%s': %s", self.worker_id, e)
-            self._runtime = None
 
     @abstractmethod
     async def _attach_channel(self, loop: asyncio.AbstractEventLoop) -> Any:

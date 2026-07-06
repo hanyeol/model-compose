@@ -95,6 +95,9 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         # Parent uses: read responses on response_r, write requests on request_w.
         return SubprocessPipeChannel(request_fd=response_r, response_fd=request_w)
 
+    def _close_channel(self, channel: SubprocessPipeChannel) -> None:
+        channel.close()
+
     def _create_proxy(self, channel: SubprocessPipeChannel) -> ComponentVirtualEnvRuntimeProxy:
         proxy = ComponentVirtualEnvRuntimeProxy(
             self.worker_id,

@@ -6,7 +6,15 @@ from mindor.core.foundation.streaming.http import HttpStreamResource, HttpEventS
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.url import encode_url
 from requests.structures import CaseInsensitiveDict
-import aiohttp, asyncio, json
+import aiohttp, asyncio, json, platform
+
+_DEFAULT_USER_AGENTS = {
+    "Darwin":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+               "(KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Windows": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    "Linux":   "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+}
 
 class HttpClient:
     _shared_instance: Optional[HttpClient] = None
@@ -47,6 +55,10 @@ class HttpClient:
         response: aiohttp.ClientResponse = None
         try:
             merged_headers = { **(self.headers or {}), **(headers or {}) }
+
+            if not CaseInsensitiveDict(merged_headers).get("User-Agent"):
+                merged_headers["User-Agent"] = self._default_user_agent()
+
             response = await self._request_with_session(
                 session=await self._get_session(),
                 url_or_path=url_or_path,
@@ -160,6 +172,10 @@ class HttpClient:
             return json.dumps(json.loads(body), indent=2)
         except (ValueError, json.JSONDecodeError):
             return body
+
+    @staticmethod
+    def _default_user_agent() -> str:
+        return _DEFAULT_USER_AGENTS.get(platform.system(), _DEFAULT_USER_AGENTS["Linux"])
 
 async def create_stream_with_url(url: str) -> Union[HttpStreamResource, HttpEventStreamResource]:
     return await HttpClient.get_shared_instance().request(url)

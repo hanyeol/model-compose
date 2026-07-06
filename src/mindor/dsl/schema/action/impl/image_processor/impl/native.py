@@ -5,7 +5,7 @@ from .common import (
     ImageProcessorActionMethod,
     ImageScaleMode,
     FlipDirection,
-    ImageMergeMode,
+    ImageConcatMode,
 )
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
@@ -53,12 +53,16 @@ class ImageProcessorAdjustSaturationActionConfig(CommonImageProcessorActionConfi
     method: Literal[ImageProcessorActionMethod.ADJUST_SATURATION]
     factor: Union[float, str] = Field(..., description="Saturation factor.")
 
-class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
-    method: Literal[ImageProcessorActionMethod.MERGE]
-    mode: Union[ImageMergeMode, str] = Field(ImageMergeMode.HORIZONTAL, description="Merge layout mode.")
+class ImageProcessorConcatActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.CONCAT]
+    mode: Union[ImageConcatMode, str] = Field(ImageConcatMode.HORIZONTAL, description="Concat layout mode.")
     columns: Optional[Union[int, str]] = Field(default=None, description="Number of columns for grid mode.")
     rows: Optional[Union[int, str]] = Field(default=None, description="Number of rows for grid mode.")
     spacing: Union[int, str] = Field(default=0, description="Pixel spacing between images for horizontal, vertical, and grid modes.")
+    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
+
+class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.MERGE]
     background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
 
 NativeImageProcessorActionConfig = Annotated[
@@ -73,6 +77,7 @@ NativeImageProcessorActionConfig = Annotated[
         ImageProcessorAdjustBrightnessActionConfig,
         ImageProcessorAdjustContrastActionConfig,
         ImageProcessorAdjustSaturationActionConfig,
+        ImageProcessorConcatActionConfig,
         ImageProcessorMergeActionConfig,
     ],
     Field(discriminator="method")

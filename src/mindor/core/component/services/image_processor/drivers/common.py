@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageMergeMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
@@ -45,7 +45,7 @@ class ImageProcessorAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Any:
-        if method in (ImageProcessorActionMethod.MERGE, ):
+        if method in (ImageProcessorActionMethod.CONCAT, ImageProcessorActionMethod.MERGE):
             return await context.render_image_array(self.config.image)
 
         return await context.render_image(self.config.image)
@@ -142,7 +142,7 @@ class ImageProcessorAction:
 
             return { "factor": factor }
 
-        if method == ImageProcessorActionMethod.MERGE:
+        if method == ImageProcessorActionMethod.CONCAT:
             mode       = await context.render_variable(self.config.mode)
             columns    = await context.render_variable(self.config.columns)
             rows       = await context.render_variable(self.config.rows)
@@ -150,15 +150,22 @@ class ImageProcessorAction:
             background = await context.render_color(self.config.background)
 
             try:
-                mode = ImageMergeMode(mode)
+                mode = ImageConcatMode(mode)
             except ValueError:
-                raise ValueError(f"Invalid merge mode: {mode}")
+                raise ValueError(f"Invalid concat mode: {mode}")
 
             return {
                 "mode": mode,
                 "columns": columns,
                 "rows": rows,
                 "spacing": spacing or 0,
+                "background": background,
+            }
+
+        if method == ImageProcessorActionMethod.MERGE:
+            background = await context.render_color(self.config.background)
+
+            return {
                 "background": background,
             }
 
@@ -210,6 +217,9 @@ class ImageProcessorAction:
         if method == ImageProcessorActionMethod.ADJUST_SATURATION:
             return self._adjust_saturation(image, params)
 
+        if method == ImageProcessorActionMethod.CONCAT:
+            return self._concat(image, params)
+
         if method == ImageProcessorActionMethod.MERGE:
             return self._merge(image, params)
 
@@ -253,6 +263,10 @@ class ImageProcessorAction:
 
     @abstractmethod
     def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod

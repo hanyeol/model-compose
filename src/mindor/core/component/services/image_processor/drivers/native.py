@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageMergeMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageConcatMode
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
@@ -64,27 +64,39 @@ class NativeImageProcessorAction(ImageProcessorAction):
     def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         return ImageEnhance.Color(image).enhance(params["factor"])
 
-    def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+    def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         mode       = params["mode"]
         spacing    = params["spacing"]
         background = params["background"]
         images     = [ image.convert("RGBA") for image in images ]
 
-        if mode == ImageMergeMode.HORIZONTAL:
-            return self._merge_horizontal(images, spacing, background)
+        if mode == ImageConcatMode.HORIZONTAL:
+            return self._concat_horizontal(images, spacing, background)
 
-        if mode == ImageMergeMode.VERTICAL:
-            return self._merge_vertical(images, spacing, background)
+        if mode == ImageConcatMode.VERTICAL:
+            return self._concat_vertical(images, spacing, background)
 
-        if mode == ImageMergeMode.GRID:
-            return self._merge_grid(images, params["columns"], params["rows"], spacing, background)
+        if mode == ImageConcatMode.GRID:
+            return self._concat_grid(images, params["columns"], params["rows"], spacing, background)
 
-        if mode == ImageMergeMode.OVERLAY:
-            return self._merge_overlay(images, background)
+        raise ValueError(f"Unsupported concat mode: {mode}")
 
-        raise ValueError(f"Unsupported merge mode: {mode}")
+    def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+        background = params["background"]
+        images     = [ image.convert("RGBA") for image in images ]
 
-    def _merge_horizontal(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
+        max_width  = max(image.width  for image in images)
+        max_height = max(image.height for image in images)
+        canvas     = PILImage.new("RGBA", (max_width, max_height), background)
+
+        for image in images:
+            offset_x = (max_width  - image.width ) // 2
+            offset_y = (max_height - image.height) // 2
+            canvas.alpha_composite(image, (offset_x, offset_y))
+
+        return canvas
+
+    def _concat_horizontal(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
         total_width = sum(image.width for image in images) + spacing * (len(images) - 1)
         max_height  = max(image.height for image in images)
         canvas      = PILImage.new("RGBA", (total_width, max_height), background)
@@ -97,7 +109,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return canvas
 
-    def _merge_vertical(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
+    def _concat_vertical(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
         max_width    = max(image.width for image in images)
         total_height = sum(image.height for image in images) + spacing * (len(images) - 1)
         canvas       = PILImage.new("RGBA", (max_width, total_height), background)
@@ -110,7 +122,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return canvas
 
-    def _merge_grid(self, images: List[PILImage.Image], columns: Optional[int], rows: Optional[int], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
+    def _concat_grid(self, images: List[PILImage.Image], columns: Optional[int], rows: Optional[int], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
         count = len(images)
 
         if columns and rows:
@@ -140,18 +152,6 @@ class NativeImageProcessorAction(ImageProcessorAction):
             offset_x = column * (cell_width  + spacing) + (cell_width  - image.width ) // 2
             offset_y = row    * (cell_height + spacing) + (cell_height - image.height) // 2
             canvas.paste(image, (offset_x, offset_y), image)
-
-        return canvas
-
-    def _merge_overlay(self, images: List[PILImage.Image], background: Tuple[int, int, int, int]) -> PILImage.Image:
-        max_width  = max(image.width  for image in images)
-        max_height = max(image.height for image in images)
-        canvas     = PILImage.new("RGBA", (max_width, max_height), background)
-
-        for image in images:
-            offset_x = (max_width  - image.width ) // 2
-            offset_y = (max_height - image.height) // 2
-            canvas.alpha_composite(image, (offset_x, offset_y))
 
         return canvas
 

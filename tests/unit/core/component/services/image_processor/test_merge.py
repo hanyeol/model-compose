@@ -1,4 +1,4 @@
-"""Tests for the image-processor merge method covering horizontal, vertical, grid, and overlay modes."""
+"""Tests for the image-processor concat and merge methods covering horizontal, vertical, grid, and overlay behaviors."""
 
 import asyncio
 
@@ -11,7 +11,10 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.image_processor.drivers.native import NativeImageProcessorAction
 from mindor.core.foundation.variable.color import parse_color
 from mindor.dsl.schema.action import ImageProcessorActionMethod
-from mindor.dsl.schema.action.impl.image_processor.impl.native import ImageProcessorMergeActionConfig
+from mindor.dsl.schema.action.impl.image_processor.impl.native import (
+    ImageProcessorConcatActionConfig,
+    ImageProcessorMergeActionConfig,
+)
 
 
 @pytest.fixture
@@ -44,12 +47,12 @@ def _solid(width, height, color):
     return PILImage.new("RGBA", (width, height), color)
 
 
-async def _run_merge(action, context):
+async def _run_action(action, context):
     result = await action.run(context, asyncio.get_running_loop())
     return result[0] if isinstance(result, list) and result else (None if result == [] else result)
 
 
-class TestMergeHorizontal:
+class TestConcatHorizontal:
     @pytest.mark.anyio
     async def test_uniform_sizes(self):
         images = [
@@ -57,13 +60,13 @@ class TestMergeHorizontal:
             _solid(10, 10, (0, 255, 0, 255)),
             _solid(10, 10, (0, 0, 255, 255)),
         ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (30, 10)
         assert result.getpixel(( 5, 5)) == (255, 0, 0, 255)
@@ -73,15 +76,15 @@ class TestMergeHorizontal:
     @pytest.mark.anyio
     async def test_with_spacing(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             spacing=5,
             background="#ffffffff",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (25, 10)
         assert result.getpixel(( 5, 5)) == (255, 0, 0, 255)
@@ -91,21 +94,21 @@ class TestMergeHorizontal:
     @pytest.mark.anyio
     async def test_different_heights_centered(self):
         images = [ _solid(10, 20, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             background="#00000000",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (20, 20)
         assert result.getpixel((15, 0))  == (0, 0, 0, 0)
         assert result.getpixel((15, 10)) == (0, 255, 0, 255)
 
 
-class TestMergeVertical:
+class TestConcatVertical:
     @pytest.mark.anyio
     async def test_uniform_sizes(self):
         images = [
@@ -113,13 +116,13 @@ class TestMergeVertical:
             _solid(10, 10, (0, 255, 0, 255)),
             _solid(10, 10, (0, 0, 255, 255)),
         ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="vertical",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (10, 30)
         assert result.getpixel((5,  5)) == (255, 0, 0, 255)
@@ -129,15 +132,15 @@ class TestMergeVertical:
     @pytest.mark.anyio
     async def test_with_spacing(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="vertical",
             spacing=4,
             background="#ffffffff",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (10, 24)
         assert result.getpixel((5,  5)) == (255, 0, 0, 255)
@@ -145,25 +148,25 @@ class TestMergeVertical:
         assert result.getpixel((5, 20)) == (0, 255, 0, 255)
 
 
-class TestMergeGrid:
+class TestConcatGrid:
     @pytest.mark.anyio
     async def test_auto_grid_square(self):
         images = [ _solid(10, 10, (i * 60, 0, 0, 255)) for i in range(4) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (20, 20)
 
     @pytest.mark.anyio
     async def test_explicit_columns(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)) for _ in range(6) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
             columns=3,
@@ -171,27 +174,27 @@ class TestMergeGrid:
             background="#ffffffff",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (3 * 10 + 2 * 2, 2 * 10 + 1 * 2)
 
     @pytest.mark.anyio
     async def test_explicit_rows_only(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)) for _ in range(5) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
             rows=2,
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         # 5 images, 2 rows → 3 columns
         assert result.size == (30, 20)
 
 
-class TestMergeOverlay:
+class TestMerge:
     @pytest.mark.anyio
     async def test_same_size(self):
         images = [
@@ -201,10 +204,9 @@ class TestMergeOverlay:
         config = ImageProcessorMergeActionConfig(
             method=ImageProcessorActionMethod.MERGE,
             image="${input.images}",
-            mode="overlay",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (20, 20)
         red, green, blue, alpha = result.getpixel((10, 10))
@@ -220,10 +222,9 @@ class TestMergeOverlay:
         config = ImageProcessorMergeActionConfig(
             method=ImageProcessorActionMethod.MERGE,
             image="${input.images}",
-            mode="overlay",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context([ big, small ]))
+        result = await _run_action(action, _make_context([ big, small ]))
 
         assert result.size == (30, 30)
         # small is centered, so the middle pixel must be green
@@ -232,43 +233,43 @@ class TestMergeOverlay:
         assert result.getpixel((2, 2))   == (255, 0, 0, 255)
 
 
-class TestMergeEdgeCases:
+class TestConcatEdgeCases:
     @pytest.mark.anyio
     async def test_single_image_passthrough(self):
         images = [ _solid(15, 15, (10, 20, 30, 255)) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (15, 15)
 
     @pytest.mark.anyio
     async def test_empty_input_returns_none(self):
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context([]))
+        result = await _run_action(action, _make_context([]))
 
         assert result is None
 
     @pytest.mark.anyio
     async def test_rgb_tuple_background(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 20, (0, 255, 0, 255)) ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = ImageProcessorConcatActionConfig(
+            method=ImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             background=[ 50, 100, 150 ],
         )
         action = NativeImageProcessorAction(config)
-        result = await _run_merge(action, _make_context(images))
+        result = await _run_action(action, _make_context(images))
 
         assert result.size == (20, 20)
         # padding area above first image is background

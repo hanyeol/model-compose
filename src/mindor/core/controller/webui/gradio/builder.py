@@ -226,11 +226,13 @@ class GradioWebUIBuilder:
                     else:
                         updates = [ output ]
 
+                    wait_for_media = self._has_pending_media_updates(updates, output_components, media_components)
+
                     if len(output_components) == 1:
                         updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
-                        _run_button_running() if media_components else _run_button_ready(),
+                        _run_button_running() if wait_for_media else _run_button_ready(),
                         *clear_interrupt,
                         *updates,
                         *log_done,
@@ -360,11 +362,13 @@ class GradioWebUIBuilder:
                     else:
                         updates = [ output ]
 
+                    wait_for_media = self._has_pending_media_updates(updates, output_components, media_components)
+
                     if len(output_components) == 1:
                         updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
-                        _run_button_running() if media_components else _run_button_ready(),
+                        _run_button_running() if wait_for_media else _run_button_ready(),
                         _resume_button_ready(),
                         *clear_interrupt,
                         *updates,
@@ -651,6 +655,21 @@ class GradioWebUIBuilder:
             return output[name]
 
         return None if variable.name else output
+
+    def _has_pending_media_updates(
+        self,
+        updates: List[Any],
+        output_components: List[gr.Component],
+        media_components: List[gr.Component]
+    ) -> bool:
+        if not media_components or len(updates) != len(output_components):
+            return bool(media_components) and False if not media_components else False
+
+        for update, component in zip(updates, output_components):
+            if component in media_components and update is not None:
+                return True
+
+        return False
 
     async def _convert_output_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
         if variable.type == WorkflowVariableType.NONE:

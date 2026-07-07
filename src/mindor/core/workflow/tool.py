@@ -1,24 +1,16 @@
 from typing import Optional, Dict, List, Tuple, Callable, Awaitable, Any
 from dataclasses import dataclass
-from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat, WorkflowVariableAnnotationConfig
 from mindor.core.workflow.schema import WorkflowSchema
 import re
 
 _INVALID_FUNCTION_CHARS_REGEX = re.compile(r"[^a-zA-Z0-9_]")
 
 @dataclass
-class WorkflowToolParameter:
-    name: str
-    type: str
-    description: Optional[str]
-    default: Optional[Any]
-    required: bool
-
-@dataclass
 class WorkflowTool:
     function: Callable[[Any], Awaitable[Any]]
     description: Optional[str]
-    parameters: List[WorkflowToolParameter]
+    parameters: List[WorkflowVariableConfig]
 
 class WorkflowToolGenerator():
     def generate(
@@ -50,7 +42,7 @@ class WorkflowToolGenerator():
         return WorkflowTool(
             function=context[f"_run_workflow_{safe_workflow_id}"],
             description=workflow.description or workflow.title,
-            parameters=self._generate_parameters(workflow)
+            parameters=workflow.input
         )
 
     async def _build_input_value(self, arguments: List[Any], workflow: WorkflowSchema) -> Any:
@@ -60,33 +52,6 @@ class WorkflowToolGenerator():
             input[variable.name or "input"] = value
 
         return input
-
-    def _generate_parameters(self, workflow: WorkflowSchema) -> List[WorkflowToolParameter]:
-        return [
-            WorkflowToolParameter(
-                name=variable.name or "input",
-                type=self._get_type(variable),
-                description=variable.get_annotation_value("description"),
-                default=variable.default,
-                required=variable.required
-            )
-            for variable in workflow.input
-        ]
-
-    def _get_type(self, variable: WorkflowVariableConfig) -> str:
-        if variable.type == WorkflowVariableType.LIST:
-            return "list[list]" if variable.is_list else "list"
-
-        if variable.type == WorkflowVariableType.OBJECT:
-            return "list[dict]" if variable.is_list else "dict"
-
-        if variable.type == WorkflowVariableType.NUMBER:
-            return "list[float]" if variable.is_list else "float"
-
-        if variable.type == WorkflowVariableType.INTEGER:
-            return "list[int]" if variable.is_list else "int"
-
-        return "list[str]" if variable.is_list else "str"
 
 class ResumeToolGenerator():
     def generate(
@@ -109,8 +74,17 @@ class ResumeToolGenerator():
             function=context[f"_resume_workflow_{safe_workflow_id}"],
             description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.",
             parameters=[
-                WorkflowToolParameter(name="task_id", type="str", description="The task ID of the interrupted workflow", default=None, required=True),
-                WorkflowToolParameter(name="job_id",  type="str", description="The job ID where the interrupt occurred",  default=None, required=True),
-                WorkflowToolParameter(name="answer",  type="str", description="Optional JSON string with answer to resume with", default="", required=False),
+                self._build_parameter("task_id", "The task ID of the interrupted workflow", required=True),
+                self._build_parameter("job_id",  "The job ID where the interrupt occurred",  required=True),
+                self._build_parameter("answer",  "Optional JSON string with answer to resume with", default="", required=False),
             ]
+        )
+
+    def _build_parameter(self, name: str, description: str, default: Any = None, required: bool = False) -> WorkflowVariableConfig:
+        return WorkflowVariableConfig(
+            name=name,
+            type=WorkflowVariableType.STRING,
+            default=default,
+            required=required,
+            annotations=[ WorkflowVariableAnnotationConfig(name="description", value=description) ]
         )

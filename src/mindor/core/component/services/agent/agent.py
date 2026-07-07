@@ -1,6 +1,7 @@
 from typing import Optional, Dict, List, Tuple, Union, Any
 from mindor.dsl.schema.component import AgentComponentConfig, ComponentConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig, AgentModelConfig
+from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
@@ -9,7 +10,23 @@ from ...base import ComponentType, register_component
 from ...context import ComponentActionContext
 import asyncio, ulid, json
 
-_JSON_SCHEMA_TYPE_MAP = { "int": "integer", "float": "number", "bool": "boolean", "list[dict]": "array" }
+_JSON_SCHEMA_TYPE_MAP: Dict[WorkflowVariableType, str] = {
+    WorkflowVariableType.STRING:   "string",
+    WorkflowVariableType.TEXT:     "string",
+    WorkflowVariableType.MARKDOWN: "string",
+    WorkflowVariableType.BASE64:   "string",
+    WorkflowVariableType.IMAGE:    "string",
+    WorkflowVariableType.AUDIO:    "string",
+    WorkflowVariableType.VIDEO:    "string",
+    WorkflowVariableType.FILE:     "string",
+    WorkflowVariableType.SELECT:   "string",
+    WorkflowVariableType.INTEGER:  "integer",
+    WorkflowVariableType.NUMBER:   "number",
+    WorkflowVariableType.BOOLEAN:  "boolean",
+    WorkflowVariableType.LIST:     "array",
+    WorkflowVariableType.OBJECT:   "object",
+    WorkflowVariableType.JSON:     "object",
+}
 
 class AgentAction:
     def __init__(
@@ -200,27 +217,52 @@ class AgentComponent(ComponentService):
         required: List[str] = []
 
         for param in tool.parameters:
-            prop: Dict[str, Any] = { "type": _JSON_SCHEMA_TYPE_MAP.get(param.type, "string") }
-            if param.description:
-                prop["description"] = param.description
-            if param.default is not None:
-                prop["default"] = param.default
+            param_name = param.name or "input"
+            properties[param_name] = self._build_parameter_schema(param)
             if param.required:
-                required.append(param.name)
-            properties[param.name] = prop
+                required.append(param_name)
+
+        parameters_schema: Dict[str, Any] = { "type": "object", "properties": properties }
+        if required:
+            parameters_schema["required"] = required
 
         schema: Dict[str, Any] = {
             "type": "function",
             "function": {
                 "name": name,
-                "parameters": { "type": "object", "properties": properties }
+                "parameters": parameters_schema
             }
         }
 
         if tool.description:
             schema["function"]["description"] = tool.description
-        if required:
-            schema["function"]["parameters"]["required"] = required
+
+        return schema
+
+    def _build_parameter_schema(self, param: WorkflowVariableConfig) -> Dict[str, Any]:
+        item_schema = self._build_scalar_schema(param)
+
+        if param.is_list:
+            schema: Dict[str, Any] = { "type": "array", "items": item_schema }
+        else:
+            schema = item_schema
+
+        description = param.get_annotation_value("description")
+
+        if description:
+            schema["description"] = description
+
+        if param.default is not None:
+            schema["default"] = param.default
+
+        return schema
+
+    def _build_scalar_schema(self, param: WorkflowVariableConfig) -> Dict[str, Any]:
+        json_type = _JSON_SCHEMA_TYPE_MAP.get(param.type, "string")
+        schema: Dict[str, Any] = { "type": json_type }
+
+        if param.type == WorkflowVariableType.SELECT and param.options:
+            schema["enum"] = param.options
 
         return schema
 

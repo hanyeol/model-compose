@@ -152,13 +152,15 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         return TextContent(type="text", text=str(value))
 
     def _build_tool_description(self, tool: WorkflowTool) -> str:
-        lines = [tool.description or ""]
+        lines = [ tool.description or "" ]
 
         if tool.parameters:
             lines.append("")
             lines.append("Args:")
             for param in tool.parameters:
-                lines.append(f"    {param.name} ({param.type}): {param.description or ''}")
+                type_label = f"list[{param.type.value}]" if param.is_list else param.type.value
+                description = param.get_annotation_value("description") or ""
+                lines.append(f"    {param.name or 'input'} ({type_label}): {description}")
 
         return "\n".join(lines)
 

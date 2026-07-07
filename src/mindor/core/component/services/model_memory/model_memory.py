@@ -47,6 +47,7 @@ class ModelMemoryAction:
         if method == ModelMemoryActionMethod.LOAD:
             # Buffer is source of truth: check buffer first
             turns = await buffer.get_turns(session_id)
+
             if turns is not None:
                 summary = await buffer.get_summary(session_id) or ""
             else:
@@ -161,6 +162,11 @@ class ModelMemoryAction:
         previous_summary: str,
         summary_config: ModelMemorySummaryConfig
     ) -> str:
+        component = self._create_component(summary_config.component, summary_config.component)
+
+        if not component.started:
+            await component.start()
+
         instruction = await context.render_variable(summary_config.instruction)
 
         if summary_config.input is None:
@@ -183,10 +189,6 @@ class ModelMemoryAction:
             context.register_source("previous_summary", previous_summary)
 
             input = await context.render_variable(summary_config.input)
-
-        component = self._create_component(summary_config.component, summary_config.component)
-        if not component.started:
-            await component.start()
 
         response = await component.run(summary_config.action, ulid.ulid(), input)
 

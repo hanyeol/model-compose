@@ -27,11 +27,12 @@ class AgentAction:
         self.function_schemas: List[Dict[str, Any]] = function_schemas
 
     async def run(self, context: ComponentActionContext) -> Any:
-        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
-
         model_component = self._create_component(self.action.model.component, self.action.model.component)
+
         if not model_component.started:
             await model_component.start()
+
+        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
 
         max_iteration_count = self.action.max_iteration_count or self.config.max_iteration_count
         tools = self.function_schemas if self.function_schemas else None
@@ -87,6 +88,7 @@ class AgentAction:
     async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
         tool_name = tool_call["function"]["name"]
         tool_arguments = tool_call["function"].get("arguments", {})
+
         if isinstance(tool_arguments, str):
             tool_arguments = json.loads(tool_arguments)
 
@@ -114,11 +116,13 @@ class AgentAction:
     def _extract_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         if isinstance(response, dict):
             return response.get("tool_calls")
+
         return None
 
     def _extract_content(self, response: Any) -> Any:
         if isinstance(response, dict):
             return response.get("content", response)
+
         return response
 
     async def _build_initial_messages(self, context: ComponentActionContext) -> List[Dict[str, Any]]:
@@ -142,6 +146,7 @@ class AgentAction:
             if "tool_calls" in response:
                 message["tool_calls"] = response["tool_calls"]
             return message
+
         return { "role": "assistant", "content": str(response) }
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
@@ -170,6 +175,7 @@ class AgentComponent(ComponentService):
     async def _start(self) -> None:
         self.tools = await self._generate_tools()
         self.function_schemas = await asyncio.gather(*[ self._build_function_schema(name, tool) for name, tool in self.tools.items() ])
+
         await super()._start()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
@@ -207,7 +213,7 @@ class AgentComponent(ComponentService):
             "type": "function",
             "function": {
                 "name": name,
-                "parameters": {"type": "object", "properties": properties}
+                "parameters": { "type": "object", "properties": properties }
             }
         }
 
@@ -222,4 +228,5 @@ class AgentComponent(ComponentService):
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
         task_id = context.task_id if context else ulid.ulid()
         interrupt_handler = context.interrupt_handler if context else None
+
         return await workflow.run(task_id, input, interrupt_handler)

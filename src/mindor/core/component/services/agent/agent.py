@@ -5,8 +5,8 @@ from mindor.core.component import ComponentService, ComponentGlobalConfigs, Comp
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import create_workflow_schemas
-from ..base import ComponentType, register_component
-from ..context import ComponentActionContext
+from ...base import ComponentType, register_component
+from ...context import ComponentActionContext
 import asyncio, ulid, json
 
 _JSON_SCHEMA_TYPE_MAP = { "int": "integer", "float": "number", "bool": "boolean", "list[dict]": "array" }

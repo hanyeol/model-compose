@@ -223,6 +223,7 @@ class AgentComponent(ComponentService):
                 required.append(param_name)
 
         parameters_schema: Dict[str, Any] = { "type": "object", "properties": properties }
+
         if required:
             parameters_schema["required"] = required
 

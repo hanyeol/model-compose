@@ -5,7 +5,7 @@ from .impl import *
 
 AudioExtractorComponentConfig = Annotated[
     Union[
-        FfmpegAudioExtractorComponentConfig,
+        FFmpegAudioExtractorComponentConfig,
     ],
     Field(discriminator="driver")
 ]

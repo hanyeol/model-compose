@@ -5,7 +5,7 @@ from .impl import *
 
 VideoFrameExtractorComponentConfig = Annotated[
     Union[
-        FfmpegVideoFrameExtractorComponentConfig,
+        FFmpegVideoFrameExtractorComponentConfig,
         OpencvVideoFrameExtractorComponentConfig,
     ],
     Field(discriminator="driver")

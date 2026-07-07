@@ -6,7 +6,7 @@ from .impl import *
 VideoSceneDetectorComponentConfig = Annotated[
     Union[
         PyscenedetectVideoSceneDetectorComponentConfig,
-        FfmpegVideoSceneDetectorComponentConfig,
+        FFmpegVideoSceneDetectorComponentConfig,
         Transnetv2VideoSceneDetectorComponentConfig,
     ],
     Field(discriminator="driver")

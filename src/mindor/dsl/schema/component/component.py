@@ -26,6 +26,8 @@ ComponentConfig = Annotated[
         VideoConverterComponentConfig,
         VideoFrameExtractorComponentConfig,
         AudioExtractorComponentConfig,
+        AudioConverterComponentConfig,
+        AudioFeatureExtractorComponentConfig,
         KeyValueStoreComponentConfig,
         GraphStoreComponentConfig,
         FileStoreComponentConfig,

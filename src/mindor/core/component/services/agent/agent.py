@@ -140,7 +140,7 @@ class AgentAction:
 
     async def _build_assistant_message(self, response: Any) -> Dict[str, Any]:
         if isinstance(response, dict):
-            message: Dict[str, Any] = {"role": "assistant"}
+            message: Dict[str, Any] = { "role": "assistant" }
             if "content" in response:
                 message["content"] = response["content"]
             if "tool_calls" in response:

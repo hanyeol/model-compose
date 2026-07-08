@@ -7,7 +7,7 @@ import asyncio
 class InterruptPoint:
     task_id: str
     job_id: str
-    phase: Literal["before", "after"]
+    phase: Literal[ "before", "after" ]
     message: Optional[str]
     metadata: Optional[Dict[str, Any]]
     future: asyncio.Future

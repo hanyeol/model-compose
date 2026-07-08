@@ -72,7 +72,7 @@ class DockerContainerConfig(BaseModel):
     cpus: Optional[Union[str, float]] = Field(default=None, description="CPU quota.")
     cpu_shares: Optional[int] = Field(default=None, description="Relative CPU weight.")
     # Restart policy and health checks
-    restart: Literal["no", "always", "on-failure", "unless-stopped"] = Field(default="no", description="Restart policy.")
+    restart: Literal[ "no", "always", "on-failure", "unless-stopped" ] = Field(default="no", description="Restart policy.")
     healthcheck: Optional[DockerHealthCheck] = Field(default=None, description="Health check configuration.")
     # Miscellaneous
     labels: Optional[Dict[str, str]] = Field(default=None, description="Container labels.")

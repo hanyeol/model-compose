@@ -7,7 +7,7 @@ class ChromeWebBrowserDebuggerConfig(BaseModel):
     url: Optional[str] = Field(default=None, description="Chrome DevTools URL (e.g. http://localhost:9222).")
     host: str = Field(default="localhost", description="Chrome DevTools hostname or IP address.")
     port: int = Field(default=9222, ge=1, le=65535, description="Chrome remote debugging port.")
-    protocol: Literal["http", "https"] = Field(default="http", description="Connection protocol.")
+    protocol: Literal[ "http", "https" ] = Field(default="http", description="Connection protocol.")
 
     @model_validator(mode="before")
     @classmethod

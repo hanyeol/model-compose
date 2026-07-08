@@ -53,7 +53,7 @@ class CommonGraphDeleteActionConfig(CommonGraphStoreActionConfig):
 class CommonGraphTraverseActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.TRAVERSE]
     start_node: Union[str, int] = Field(..., description="Starting node ID for traversal.")
-    direction: Literal["in", "out", "both"] = Field(default="out", description="Traversal direction relative to start node.")
+    direction: Literal[ "in", "out", "both" ] = Field(default="out", description="Traversal direction relative to start node.")
     max_depth: int = Field(default=3, ge=1, description="Maximum traversal depth.")
     relationship_types: Optional[List[str]] = Field(default=None, description="Filter traversal to specific relationship types.")
     node_labels: Optional[List[str]] = Field(default=None, description="Filter traversal to nodes with specific labels.")

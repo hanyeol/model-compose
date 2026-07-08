@@ -9,7 +9,7 @@ class Neo4jGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
     url: Optional[str] = Field(default=None, description="Neo4j connection URL (bolt:// or neo4j://).")
     host: str = Field(default="localhost", description="Neo4j server hostname or IP address.")
     port: int = Field(default=7687, ge=1, le=65535, description="Neo4j server port number.")
-    protocol: Literal["bolt", "neo4j", "bolt+s", "neo4j+s", "bolt+ssc", "neo4j+ssc"] = Field(default="bolt", description="Neo4j connection protocol.")
+    protocol: Literal[ "bolt", "neo4j", "bolt+s", "neo4j+s", "bolt+ssc", "neo4j+ssc" ] = Field(default="bolt", description="Neo4j connection protocol.")
     username: Optional[str] = Field(default=None, description="Username for authentication.")
     password: Optional[str] = Field(default=None, description="Password for authentication.")
     database: Optional[str] = Field(default=None, description="Target database name. Uses default database if not specified.")

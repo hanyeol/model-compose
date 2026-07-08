@@ -19,10 +19,10 @@ class GraphNodeConfig(BaseModel):
 class GraphRelationshipConfig(BaseModel):
     type: str = Field(..., description="Relationship type (Neo4j) or edge collection name (ArangoDB).")
     from_: Union[str, int] = Field(..., alias="from", description="Source node ID.")
-    to_: Union[str, int] = Field(..., alias="to", description="Target node ID.")
+    to: Union[str, int] = Field(..., description="Target node ID.")
     properties: Optional[Union[Dict[str, Any], str]] = Field(default=None, description="Key-value properties for the relationship.")
 
-    model_config = { "populate_by_name": True }
+    model_config = { "populate_by_name": True }  # `from` is a reserved keyword, so allow `from_` too.
 
 class CommonGraphStoreActionConfig(CommonActionConfig):
     method: GraphStoreActionMethod = Field(..., description="Graph store operation method.")

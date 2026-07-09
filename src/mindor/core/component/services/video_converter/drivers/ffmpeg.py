@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoConverterComponentConfig
-from mindor.dsl.schema.action import VideoConverterActionConfig, VideoAudioCodecConfig
+from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -35,8 +35,9 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         source: MediaSource,
         format: str,
         video_codec: Optional[str],
+        video_bitrate: Optional[str],
         audio_codec: Optional[str],
-        bitrate: Optional[str],
+        audio_bitrate: Optional[str],
         resolution: Optional[str],
         fps: Optional[str],
         loop: asyncio.AbstractEventLoop,
@@ -59,10 +60,12 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
+        if video_bitrate:
+            command.extend([ "-b:v", video_bitrate ])
         if audio_codec:
             command.extend([ "-c:a", audio_codec ])
-        if bitrate:
-            command.extend([ "-b:v", bitrate ])
+        if audio_bitrate:
+            command.extend([ "-b:a", audio_bitrate ])
         if resolution:
             command.extend([ "-s", resolution ])
         if fps:

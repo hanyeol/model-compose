@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import VideoConverterActionConfig, VideoAudioCodecConfig
+from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -55,35 +55,29 @@ class VideoConverterAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        format     = await context.render_variable(self.config.format) if self.config.format else "mp4"
-        video_codec, audio_codec = await self._resolve_codec(context, format)
-        bitrate    = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
-        resolution = await context.render_variable(self.config.resolution) if self.config.resolution else None
-        fps        = await context.render_variable(self.config.fps) if self.config.fps else None
+        encoding_config = self.config.encoding
+        video_encoder = encoding_config.video if encoding_config else None
+        audio_encoder = encoding_config.audio if encoding_config else None
 
-        return {
-            "format":      format,
-            "video_codec": video_codec,
-            "audio_codec": audio_codec,
-            "bitrate":     bitrate,
-            "resolution":  resolution,
-            "fps":         fps,
-        }
-
-    async def _resolve_codec(self, context: ComponentActionContext, format: str) -> Tuple[Optional[str], Optional[str]]:
+        format = await context.render_variable(encoding_config.format) if encoding_config and encoding_config.format else "mp4"
         default_video_codec, default_audio_codec = _FORMAT_CODEC_MAP.get(format, (None, None))
 
-        if isinstance(self.config.codec, VideoAudioCodecConfig):
-            video_codec = await context.render_variable(self.config.codec.video) if self.config.codec.video else default_video_codec
-            audio_codec = await context.render_variable(self.config.codec.audio) if self.config.codec.audio else default_audio_codec
-        elif self.config.codec:
-            video_codec = await context.render_variable(self.config.codec)
-            audio_codec = default_audio_codec
-        else:
-            video_codec = default_video_codec
-            audio_codec = default_audio_codec
+        video_codec   = await context.render_variable(video_encoder.codec)      if video_encoder and video_encoder.codec      else default_video_codec
+        video_bitrate = await context.render_variable(video_encoder.bitrate)    if video_encoder and video_encoder.bitrate    else None
+        audio_codec   = await context.render_variable(audio_encoder.codec)      if audio_encoder and audio_encoder.codec      else default_audio_codec
+        audio_bitrate = await context.render_variable(audio_encoder.bitrate)    if audio_encoder and audio_encoder.bitrate    else None
+        resolution    = await context.render_variable(video_encoder.resolution) if video_encoder and video_encoder.resolution else None
+        fps           = await context.render_variable(video_encoder.fps)        if video_encoder and video_encoder.fps        else None
 
-        return video_codec, audio_codec
+        return {
+            "format":        format,
+            "video_codec":   video_codec,
+            "video_bitrate": video_bitrate,
+            "audio_codec":   audio_codec,
+            "audio_bitrate": audio_bitrate,
+            "resolution":    resolution,
+            "fps":           fps,
+        }
 
     async def _process_batch(
         self,
@@ -109,8 +103,9 @@ class VideoConverterAction:
             video,
             params["format"],
             params["video_codec"],
+            params["video_bitrate"],
             params["audio_codec"],
-            params["bitrate"],
+            params["audio_bitrate"],
             params["resolution"],
             params["fps"],
             loop,
@@ -122,8 +117,9 @@ class VideoConverterAction:
         source: MediaSource,
         format: str,
         video_codec: Optional[str],
+        video_bitrate: Optional[str],
         audio_codec: Optional[str],
-        bitrate: Optional[str],
+        audio_bitrate: Optional[str],
         resolution: Optional[str],
         fps: Optional[str],
         loop: asyncio.AbstractEventLoop,

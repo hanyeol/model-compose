@@ -2,18 +2,20 @@ from typing import Union, Literal, Optional, Dict, List, Annotated, Any
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from .common import CommonActionConfig
+from .media import VideoAudioEncodingConfig
 
 class WebBrowserActionMethod(str, Enum):
-    NAVIGATE    = "navigate"
-    WAIT_FOR    = "wait-for"
-    SCREENSHOT  = "screenshot"
-    EXTRACT     = "extract"
-    CLICK       = "click"
-    INPUT_TEXT  = "input-text"
-    SCROLL      = "scroll"
-    EVALUATE    = "evaluate"
-    GET_COOKIES = "get-cookies"
-    SET_COOKIES = "set-cookies"
+    NAVIGATE      = "navigate"
+    WAIT_FOR      = "wait-for"
+    SCREENSHOT    = "screenshot"
+    EXTRACT       = "extract"
+    CLICK         = "click"
+    INPUT_TEXT    = "input-text"
+    SCROLL        = "scroll"
+    EVALUATE      = "evaluate"
+    GET_COOKIES   = "get-cookies"
+    SET_COOKIES   = "set-cookies"
+    CAPTURE_VIDEO = "capture-video"
 
 class CommonWebBrowserActionConfig(CommonActionConfig):
     method: WebBrowserActionMethod = Field(..., description="Browser action method.")
@@ -126,6 +128,16 @@ class WebBrowserSetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.SET_COOKIES]
     cookies: List[Dict[str, Any]] = Field(..., description="List of cookie dicts (name, value, domain, path, ...).")
 
+class WebBrowserCaptureVideoActionConfig(CommonWebBrowserActionConfig):
+    method: Literal[WebBrowserActionMethod.CAPTURE_VIDEO]
+    url: Optional[str] = Field(default=None, description="URL to navigate to before capturing. If omitted, captures the current page.")
+    source: Union[Literal["tab", "window", "screen"], str] = Field(default="tab", description="Capture source for getDisplayMedia.")
+    video: Union[bool, str] = Field(default=True, description="Capture the video track.")
+    audio: Union[bool, str] = Field(default=True, description="Capture the audio track.")
+    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings. If omitted, uses the browser default and enables hardware acceleration when available.")
+    chunk_interval: Union[str, int, float] = Field(default="1s", description="Interval between emitted chunks (e.g. '1s', '500ms').")
+    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration (e.g. '30s'). If omitted, capture continues until stopped.")
+
 WebBrowserActionConfig = Annotated[
     Union[
         WebBrowserNavigateActionConfig,
@@ -138,6 +150,7 @@ WebBrowserActionConfig = Annotated[
         WebBrowserEvaluateActionConfig,
         WebBrowserGetCookiesActionConfig,
         WebBrowserSetCookiesActionConfig,
+        WebBrowserCaptureVideoActionConfig,
     ],
     Field(discriminator="method")
 ]

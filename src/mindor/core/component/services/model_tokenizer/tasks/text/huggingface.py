@@ -138,4 +138,4 @@ class HuggingfaceTextModelTokenizerTaskAction:
 @register_model_tokenizer_task_service(ModelTokenizerTaskType.TEXT, ModelTokenizerDriver.HUGGINGFACE)
 class HuggingfaceTextModelTokenizerTaskService(HuggingfaceModelTokenizerTaskService):
     async def run(self, action: ModelTokenizerActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextModelTokenizerTaskAction(action, self._tokenizer).run(context)
+        return await HuggingfaceTextModelTokenizerTaskAction(action, self.tokenizer).run(context)

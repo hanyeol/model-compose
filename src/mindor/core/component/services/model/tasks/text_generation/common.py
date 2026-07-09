@@ -33,14 +33,14 @@ class TextGenerationTaskAction:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
                                 iterator = generator if isinstance(generator, AsyncIterator) else SyncGeneratorStreamer(generator, loop)
-                                async for chunk in iterator:
+                                async for chunk in self._process_stream(iterator):
                                     if chunk:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            yield await self._process_output(result)
 
             return _stream_output_generator()
         else:
@@ -51,14 +51,14 @@ class TextGenerationTaskAction:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
                             iterator = generator if isinstance(generator, AsyncIterator) else SyncGeneratorStreamer(generator, loop)
-                            async for chunk in iterator:
+                            async for chunk in self._process_stream(iterator):
                                 if chunk:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(result)
+                        results.append(await self._process_output(result))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -86,6 +86,12 @@ class TextGenerationTaskAction:
             "top_p":                top_p,
             "stop_sequences":       stop_sequences,
         }
+
+    async def _process_output(self, result: Any) -> Any:
+        return result
+
+    def _process_stream(self, chunks: AsyncIterator[Any]) -> AsyncIterator[Any]:
+        return chunks
 
     @abstractmethod
     async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:

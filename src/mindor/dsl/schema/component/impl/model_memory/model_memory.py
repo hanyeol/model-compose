@@ -48,5 +48,5 @@ class ModelMemoryComponentConfig(CommonComponentConfig):
     def inflate_window(cls, values: Dict[str, Any]):
         window = values.get("window")
         if isinstance(window, int):
-            values["window"] = {"max_turn_count": window}
+            values["window"] = { "max_turn_count": window }
         return values

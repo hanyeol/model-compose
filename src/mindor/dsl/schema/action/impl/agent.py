@@ -8,8 +8,6 @@ class AgentModelConfig(BaseModel):
     input: Dict[str, Any] = Field(default_factory=dict, description="Input mapping from agent internal state to component input.")
 
 class AgentActionConfig(CommonActionConfig):
-    model: AgentModelConfig = Field(..., description="LLM model configuration for this action.")
-    system_prompt: Optional[Any] = Field(default=None, description="System prompt for the agent.")
-    user_prompt: Optional[Any] = Field(default=None, description="User prompt for the agent.")
+    prompt: Optional[str] = Field(default=None, description="Input prompt for this invocation, applied as a user message.")
     max_iteration_count: Optional[int] = Field(default=None, description="Maximum number of ReAct loop iterations. Overrides component-level setting.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream messages as they are generated.")

@@ -160,21 +160,31 @@ class ComponentService(AsyncService):
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         pass
 
+    def _create_component(self, component_id: str) -> "ComponentService":
+        from .component import ComponentResolver, create_component
+
+        resolved_id, resolved_config = ComponentResolver(self.global_configs.components).resolve(component_id)
+        return create_component(resolved_id, resolved_config, self.global_configs, daemon=False)
+
     def _create_runtime_manager(self, runtime_type: RuntimeType):
         if runtime_type == RuntimeType.PROCESS:
-            from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
+            from .runtime.process import ComponentProcessRuntimeManager
+
             return ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.VIRTUALENV:
-            from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeManager
+            from .runtime.virtualenv import ComponentVirtualEnvRuntimeManager
+
             return ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.DOCKER:
-            from mindor.core.component.runtime.docker import ComponentDockerRuntimeManager
+            from .runtime.docker import ComponentDockerRuntimeManager
+
             return ComponentDockerRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.APPLE_CONTAINER:
-            from mindor.core.component.runtime.apple_container import ComponentAppleContainerRuntimeManager
+            from .runtime.apple_container import ComponentAppleContainerRuntimeManager
+
             return ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
 
         return None

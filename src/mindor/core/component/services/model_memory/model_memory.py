@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Union, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ComponentConfig, ModelMemoryComponentConfig
+from typing import Optional, List, Any
+from mindor.dsl.schema.component import ModelMemoryComponentConfig
 from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
 from mindor.dsl.schema.action import ActionConfig, ModelMemoryActionConfig, ModelMemoryActionMethod
-from mindor.core.component import ComponentResolver, create_component
 from mindor.core.logger import logging
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
@@ -18,12 +17,12 @@ class ModelMemoryAction:
         config: ModelMemoryActionConfig,
         window_config: Optional[ModelMemoryWindowConfig],
         summary_config: Optional[ModelMemorySummaryConfig],
-        global_configs: ComponentGlobalConfigs,
+        summary_component: Optional[ComponentService],
     ):
         self.config: ModelMemoryActionConfig = config
         self.window_config: Optional[ModelMemoryWindowConfig] = window_config
         self.summary_config: Optional[ModelMemorySummaryConfig] = summary_config
-        self.global_configs: ComponentGlobalConfigs = global_configs
+        self.summary_component: Optional[ComponentService] = summary_component
 
     async def run(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> Any:
         session_id = await context.render_variable(self.config.session_id)
@@ -128,8 +127,6 @@ class ModelMemoryAction:
 
         raise ValueError(f"Unsupported model memory action method: {method}")
 
-    # ── Window / Summary helpers ──
-
     async def _prune_and_summarize(self, context: ComponentActionContext, session_id: str, buffer: ModelMemoryBuffer) -> None:
         turns = await buffer.get_turns(session_id)
 
@@ -162,11 +159,6 @@ class ModelMemoryAction:
         previous_summary: str,
         summary_config: ModelMemorySummaryConfig
     ) -> str:
-        component = self._create_component(summary_config.component, summary_config.component)
-
-        if not component.started:
-            await component.start()
-
         instruction = await context.render_variable(summary_config.instruction)
 
         if summary_config.input is None:
@@ -190,7 +182,7 @@ class ModelMemoryAction:
 
             input = await context.render_variable(summary_config.input)
 
-        response = await component.run(summary_config.action, ulid.ulid(), input)
+        response = await self.summary_component.run(summary_config.action, ulid.ulid(), input)
 
         if not isinstance(response, str):
             logging.warning("Summary component '%s' returned %s, expected str", summary_config.component, type(response).__name__)
@@ -222,15 +214,6 @@ class ModelMemoryAction:
     def _flatten_turns(self, turns: List[List[Any]]) -> List[Any]:
         return [ message for turn in turns for message in turn ]
 
-    def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
-        return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)
-
-    def _resolve_component(self, id: str, component: Union[ComponentConfig, str]) -> Tuple[str, ComponentConfig]:
-        if isinstance(component, str):
-            return ComponentResolver(self.global_configs.components).resolve(component)
-
-        return id, component
-
 @register_component(ComponentType.MODEL_MEMORY)
 class ModelMemoryComponent(ComponentService):
     def __init__(
@@ -244,6 +227,7 @@ class ModelMemoryComponent(ComponentService):
 
         self._buffer: ModelMemoryBuffer   = self._create_buffer()
         self._storage: ModelMemoryStorage = self._create_storage()
+        self._summary_component: Optional[ComponentService] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         buffer_requirements  = self._buffer.get_setup_requirements()
@@ -252,17 +236,22 @@ class ModelMemoryComponent(ComponentService):
         return [ *(buffer_requirements or []), *(storage_requirements or []) ] or None
 
     async def _start(self) -> None:
+        if self.config.summary:
+            self._summary_component = self._create_component(self.config.summary.component)
+
         await self._buffer.setup()
         await self._storage.setup()
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         await self._buffer.close()
         await self._storage.close()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ModelMemoryAction(action, self.config.window, self.config.summary, self.global_configs).run(context, self._buffer, self._storage)
+        return await ModelMemoryAction(action, self.config.window, self.config.summary, self._summary_component).run(context, self._buffer, self._storage)
 
     def _create_buffer(self) -> ModelMemoryBuffer:
         if not ModelMemoryBufferRegistry:

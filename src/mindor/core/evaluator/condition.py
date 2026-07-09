@@ -1,5 +1,5 @@
 from typing import Any
-from mindor.dsl.schema.operator.condition import ConditionOperator
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
 import re
 
 def evaluate_condition(operator: ConditionOperator, input: Any, value: Any) -> bool:

@@ -2,10 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
+from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp import LlamaCppChatCompletionModelComponentConfig
+from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from ..text_generation import LlamaCppTextGenerationTaskAction
+from .huggingface import HuggingfaceToolBuilder
 import asyncio
 
 if TYPE_CHECKING:
@@ -18,8 +22,11 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
         self,
         config: ChatCompletionModelActionConfig,
         model: Llama,
+        tools: Optional[List[ModelTool]] = None,
     ):
         super().__init__(config, model)
+
+        self.tools: Optional[List[ModelTool]] = tools
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -28,7 +35,7 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
         if not isinstance(messages, list):
             messages = [ messages ]
 
-        tools = [ self._build_function_tool(tool) for tool in tools ] if tools else None
+        tools = HuggingfaceToolBuilder(self.tools or []).build(tools) or None
 
         conversation = self._resolve_chat_formatter()(
             messages=messages,
@@ -37,18 +44,18 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
 
         return conversation.prompt
 
-    def _build_function_tool(self, function: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "type": "function",
-            "function": { k: v for k, v in function.items() if v is not None }
-        }
+    async def _process_output(self, result: Any) -> Any:
+        return result
+
+    def _process_stream(self, chunks: AsyncIterator[Any]) -> AsyncIterator[Any]:
+        return chunks
 
     def _resolve_chat_formatter(self):
         from llama_cpp import llama_chat_format
 
-        template   = self.model.metadata.get("tokenizer.chat_template")
-        eos_token  = self.model.detokenize([self.model.token_eos()]).decode("utf-8", errors="ignore")
-        bos_token  = self.model.detokenize([self.model.token_bos()]).decode("utf-8", errors="ignore")
+        template  = self.model.metadata.get("tokenizer.chat_template")
+        eos_token = self.model.detokenize([self.model.token_eos()]).decode("utf-8", errors="ignore")
+        bos_token = self.model.detokenize([self.model.token_bos()]).decode("utf-8", errors="ignore")
 
         if not template:
             raise ValueError("Chat template not found in model metadata; cannot format chat messages.")
@@ -62,10 +69,12 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.LLAMACPP)
 class LlamaCppChatCompletionTaskService(LlamaCppModelTaskService):
+    config: LlamaCppChatCompletionModelComponentConfig
+
     async def _run(
         self,
         action: ModelActionConfig,
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await LlamaCppChatCompletionTaskAction(action, self.model).run(context, loop)
+        return await LlamaCppChatCompletionTaskAction(action, self.model, self.config.tools).run(context, loop)

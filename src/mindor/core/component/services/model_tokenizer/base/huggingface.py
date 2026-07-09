@@ -14,7 +14,7 @@ class HuggingfaceModelTokenizerTaskService(ModelTokenizerTaskService):
         return [ "transformers" ]
 
     def _load_tokenizer(self) -> None:
-        self._tokenizer = self._load_pretrained_tokenizer()
+        self.tokenizer = self._load_pretrained_tokenizer()
 
     def _load_pretrained_tokenizer(self) -> Any:
         tokenizer_cls = self._get_tokenizer_class()

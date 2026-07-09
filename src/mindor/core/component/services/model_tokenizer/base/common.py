@@ -13,13 +13,13 @@ class ModelTokenizerTaskService:
     def __init__(self, id: str, config: ModelTokenizerComponentConfig):
         self.id: str = id
         self.config: ModelTokenizerComponentConfig = config
-        self._tokenizer = None
+        self.tokenizer = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     def load(self) -> None:
-        if self._tokenizer is None:
+        if self.tokenizer is None:
             logging.info(f"Component '{self.id}': loading tokenizer...")
             self._load_tokenizer()
             logging.info(f"Component '{self.id}': tokenizer loaded.")

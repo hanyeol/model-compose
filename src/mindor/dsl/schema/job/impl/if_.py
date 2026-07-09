@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
-from mindor.dsl.schema.operator.condition import ConditionOperator
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from .common import JobType, CommonJobConfig
 
 class IfJobConditionConfig(BaseModel):

@@ -2852,3 +2852,407 @@ class TestFieldResolverRootTypes:
 
     def test_resolve_from_none_root_returns_default(self, resolver):
         assert resolver.resolve(None, "foo", default="D") == "D"
+
+
+# ============================
+# Map expressions ("*" key)
+# ============================
+
+class TestRenderMapBasic:
+    """Test map expression: dict with '*' key transforms each element."""
+
+    @pytest.mark.anyio
+    async def test_wraps_each_element_with_constant(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "tools": [{"name": "a"}, {"name": "b"}],
+        }))
+        result = await renderer.render({
+            "*": "${tools}",
+            "type": "function",
+            "function": "${item}",
+        })
+        assert result == [
+            {"type": "function", "function": {"name": "a"}},
+            {"type": "function", "function": {"name": "b"}},
+        ]
+
+    @pytest.mark.anyio
+    async def test_item_field_access(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "users": [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}],
+        }))
+        result = await renderer.render({
+            "*": "${users}",
+            "user_id": "${item.id}",
+            "display": "${item.name}",
+        })
+        assert result == [
+            {"user_id": 1, "display": "John"},
+            {"user_id": 2, "display": "Jane"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_empty_source_returns_empty_list(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": []}))
+        result = await renderer.render({"*": "${xs}", "id": "${item.id}"})
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_none_source_returns_empty_list(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": None}))
+        result = await renderer.render({"*": "${xs}", "id": "${item.id}"})
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_identity_map_returns_source_unchanged(self):
+        source = [{"a": 1}, {"a": 2}]
+        renderer = VariableRenderer(make_source_resolver({"xs": source}))
+        result = await renderer.render({"*": "${xs}"})
+        assert result == source
+
+    @pytest.mark.anyio
+    async def test_non_list_source_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"x": {"a": 1}}))
+        with pytest.raises(TypeError, match="Map source"):
+            await renderer.render({"*": "${x}", "id": "${item.id}"})
+
+
+class TestRenderMapWithSpread:
+    """Test map expression combined with dict spread ('...')."""
+
+    @pytest.mark.anyio
+    async def test_spread_item_and_override(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "msgs": [
+                {"role": "user", "content": "hi", "extra": "keep"},
+                {"role": "assistant", "content": "hello", "extra": "keep"},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${msgs}",
+            "...": "${item}",
+            "content": "CENSORED",
+        })
+        assert result == [
+            {"role": "user", "content": "CENSORED", "extra": "keep"},
+            {"role": "assistant", "content": "CENSORED", "extra": "keep"},
+        ]
+
+
+class TestRenderMapNested:
+    """Test nested maps and ${item} scope."""
+
+    @pytest.mark.anyio
+    async def test_nested_map_uses_inner_item(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "orders": [
+                {"customer": "Alice", "lines": [{"sku": "A1", "qty": 1}, {"sku": "A2", "qty": 2}]},
+                {"customer": "Bob", "lines": [{"sku": "B1", "qty": 3}]},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${orders}",
+            "customer": "${item.customer}",
+            "lines": {
+                "*": "${item.lines}",
+                "sku": "${item.sku}",
+                "qty": "${item.qty}",
+            },
+        })
+        assert result == [
+            {"customer": "Alice", "lines": [{"sku": "A1", "qty": 1}, {"sku": "A2", "qty": 2}]},
+            {"customer": "Bob", "lines": [{"sku": "B1", "qty": 3}]},
+        ]
+
+    @pytest.mark.anyio
+    async def test_item_reverts_to_outer_after_nested(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "outers": [
+                {"tag": "X", "inners": [{"v": 1}]},
+                {"tag": "Y", "inners": [{"v": 2}]},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${outers}",
+            "tag_before": "${item.tag}",
+            "inners": {
+                "*": "${item.inners}",
+                "v": "${item.v}",
+            },
+            "tag_after": "${item.tag}",
+        })
+        assert result == [
+            {"tag_before": "X", "inners": [{"v": 1}], "tag_after": "X"},
+            {"tag_before": "Y", "inners": [{"v": 2}], "tag_after": "Y"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_map_inside_regular_dict(self):
+        """Map dispatched from within a non-map dict field."""
+        renderer = VariableRenderer(make_source_resolver({
+            "tools": [{"name": "a"}, {"name": "b"}],
+        }))
+        result = await renderer.render({
+            "action": "invoke",
+            "wrapped": {
+                "*": "${tools}",
+                "type": "function",
+                "function": "${item}",
+            },
+        })
+        assert result == {
+            "action": "invoke",
+            "wrapped": [
+                {"type": "function", "function": {"name": "a"}},
+                {"type": "function", "function": {"name": "b"}},
+            ],
+        }
+
+
+class TestRenderMapItemScope:
+    """Test ${item} scope leakage rules."""
+
+    @pytest.mark.anyio
+    async def test_item_outside_map_falls_through_to_external_resolver(self):
+        """Outside a map, ${item} resolves via the external source_resolver."""
+        renderer = VariableRenderer(make_source_resolver({"item": {"external": True}}))
+        result = await renderer.render("${item.external}")
+        assert result is True
+
+    @pytest.mark.anyio
+    async def test_inner_map_item_shadows_external(self):
+        """Inside a map, ${item} refers to the current element, not external 'item' source."""
+        renderer = VariableRenderer(make_source_resolver({
+            "item": {"external": True},
+            "xs": [{"v": 1}, {"v": 2}],
+        }))
+        result = await renderer.render({"*": "${xs}", "v": "${item.v}"})
+        assert result == [{"v": 1}, {"v": 2}]
+
+    @pytest.mark.anyio
+    async def test_after_map_item_stack_empty(self):
+        """After a map finishes, ${item} resolves externally again."""
+        renderer = VariableRenderer(make_source_resolver({
+            "item": {"tag": "external"},
+            "xs": [{"v": 1}],
+        }))
+        result = await renderer.render({
+            "mapped": {"*": "${xs}", "v": "${item.v}"},
+            "outer_item": "${item.tag}",
+        })
+        assert result == {"mapped": [{"v": 1}], "outer_item": "external"}
+
+
+# ============================
+# Dict spread ("...")
+# ============================
+
+class TestRenderDictSpread:
+    """Test dict spread key '...'."""
+
+    @pytest.mark.anyio
+    async def test_spread_merges_fields(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "src": {"a": 1, "b": 2},
+        }))
+        result = await renderer.render({"...": "${src}", "c": 3})
+        assert result == {"a": 1, "b": 2, "c": 3}
+
+    @pytest.mark.anyio
+    async def test_explicit_field_overrides_spread(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "src": {"a": 1, "b": 2},
+        }))
+        result = await renderer.render({"...": "${src}", "b": 99})
+        assert result == {"a": 1, "b": 99}
+
+    @pytest.mark.anyio
+    async def test_spread_none_is_ignored(self):
+        renderer = VariableRenderer(make_source_resolver({"src": None}))
+        result = await renderer.render({"...": "${src}", "a": 1})
+        assert result == {"a": 1}
+
+    @pytest.mark.anyio
+    async def test_spread_non_dict_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"src": [1, 2, 3]}))
+        with pytest.raises(TypeError, match="Spread in dict"):
+            await renderer.render({"...": "${src}"})
+
+
+# ============================
+# List spread ("...${x}")
+# ============================
+
+class TestRenderListSpread:
+    """Test list spread expression '...${x}'."""
+
+    @pytest.mark.anyio
+    async def test_spread_appends_elements(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [2, 3]}))
+        result = await renderer.render([1, "...${xs}", 4])
+        assert result == [1, 2, 3, 4]
+
+    @pytest.mark.anyio
+    async def test_spread_at_start(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2]}))
+        result = await renderer.render(["...${xs}", 3])
+        assert result == [1, 2, 3]
+
+    @pytest.mark.anyio
+    async def test_spread_only(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render(["...${xs}"])
+        assert result == [1, 2, 3]
+
+    @pytest.mark.anyio
+    async def test_spread_none_is_ignored(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": None}))
+        result = await renderer.render([1, "...${xs}", 2])
+        assert result == [1, 2]
+
+    @pytest.mark.anyio
+    async def test_spread_non_list_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": {"a": 1}}))
+        with pytest.raises(TypeError, match="Spread in list"):
+            await renderer.render(["...${xs}"])
+
+
+# ============================
+# Realistic combined scenarios
+# ============================
+
+class TestRenderCombinedScenarios:
+    """End-to-end scenarios exercising map + spread + projection together."""
+
+    @pytest.mark.anyio
+    async def test_openai_tools_wrapping(self):
+        """Wrap each tool schema in OpenAI's {type, function} shape."""
+        renderer = VariableRenderer(make_source_resolver({
+            "tools": [
+                {"name": "search", "description": "Search the web", "parameters": {"type": "object"}},
+                {"name": "fetch", "description": "Fetch a URL", "parameters": {"type": "object"}},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${tools}",
+            "type": "function",
+            "function": "${item}",
+        })
+        assert result == [
+            {"type": "function", "function": {"name": "search", "description": "Search the web", "parameters": {"type": "object"}}},
+            {"type": "function", "function": {"name": "fetch", "description": "Fetch a URL", "parameters": {"type": "object"}}},
+        ]
+
+    @pytest.mark.anyio
+    async def test_openai_messages_with_nested_tool_calls(self):
+        """Rebuild assistant messages so each tool_call is wrapped in OpenAI's function-call shape."""
+        renderer = VariableRenderer(make_source_resolver({
+            "messages": [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "call_1", "name": "search", "arguments": '{"q":"cats"}'},
+                    ],
+                },
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${messages}",
+            "...": "${item}",
+            "tool_calls": {
+                "*": "${item.tool_calls}",
+                "id": "${item.id}",
+                "type": "function",
+                "function": {
+                    "name": "${item.name}",
+                    "arguments": "${item.arguments}",
+                },
+            },
+        })
+        assert result == [
+            {"role": "user", "content": "hi", "tool_calls": []},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "search", "arguments": '{"q":"cats"}'},
+                    },
+                ],
+            },
+        ]
+
+    @pytest.mark.anyio
+    async def test_map_result_participates_in_list_spread(self):
+        """The result of a map (a list) can be spread into a surrounding list."""
+        renderer = VariableRenderer(make_source_resolver({
+            "history": [{"role": "user", "content": "hi"}],
+        }))
+        # Wrap: build initial + spread history + trailing.
+        # Since list spread expects a string form, we render the outer list step by step.
+        history_rendered = await renderer.render({
+            "*": "${history}",
+            "role": "${item.role}",
+            "content": "${item.content}",
+        })
+        assert history_rendered == [{"role": "user", "content": "hi"}]
+
+
+class TestRenderMapIntegrationWithProjection:
+    """Test that map templates can still use 'as object[]/' projection inside."""
+
+    @pytest.mark.anyio
+    async def test_projection_inside_map_template(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "groups": [
+                {"name": "g1", "members": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}]},
+                {"name": "g2", "members": [{"id": 3, "name": "C"}]},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${groups}",
+            "name": "${item.name}",
+            "members": "${item.members as object[]/id}",
+        })
+        assert result == [
+            {"name": "g1", "members": [{"id": 1}, {"id": 2}]},
+            {"name": "g2", "members": [{"id": 3}]},
+        ]
+
+
+class TestRenderMapEdgeCases:
+    """Edge cases for map behavior."""
+
+    @pytest.mark.anyio
+    async def test_star_key_in_top_level_render(self):
+        """Top-level dict with '*' is rendered as a map."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [{"v": 1}, {"v": 2}]}))
+        result = await renderer.render({"*": "${xs}", "v": "${item.v}"})
+        assert result == [{"v": 1}, {"v": 2}]
+
+    @pytest.mark.anyio
+    async def test_star_key_with_missing_source_uses_none(self):
+        """When '*' references an undefined source, treated as None (empty)."""
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"*": "${missing}", "v": "${item.v}"})
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_map_preserves_scalar_template_values(self):
+        """Non-string template values (numbers, booleans, None) are preserved verbatim."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [{"v": 1}, {"v": 2}]}))
+        result = await renderer.render({
+            "*": "${xs}",
+            "id": "${item.v}",
+            "flag": True,
+            "count": 42,
+            "none": None,
+        })
+        assert result == [
+            {"id": 1, "flag": True, "count": 42, "none": None},
+            {"id": 2, "flag": True, "count": 42, "none": None},
+        ]

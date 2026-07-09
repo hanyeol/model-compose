@@ -1,16 +1,78 @@
 from typing import Optional, Dict, List, Tuple, Callable, Awaitable, Any
 from dataclasses import dataclass
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType, WorkflowVariableFormat, WorkflowVariableAnnotationConfig
+from mindor.dsl.schema.common.model.tool import ModelTool, ModelToolParameters, ModelToolProperty
 from mindor.core.workflow.schema import WorkflowSchema
 import re
 
 _INVALID_FUNCTION_CHARS_REGEX = re.compile(r"[^a-zA-Z0-9_]")
+
+_MODEL_TOOL_TYPE_MAP: Dict[WorkflowVariableType, str] = {
+    WorkflowVariableType.STRING:   "string",
+    WorkflowVariableType.TEXT:     "string",
+    WorkflowVariableType.MARKDOWN: "string",
+    WorkflowVariableType.BASE64:   "string",
+    WorkflowVariableType.IMAGE:    "string",
+    WorkflowVariableType.AUDIO:    "string",
+    WorkflowVariableType.VIDEO:    "string",
+    WorkflowVariableType.FILE:     "string",
+    WorkflowVariableType.SELECT:   "string",
+    WorkflowVariableType.INTEGER:  "integer",
+    WorkflowVariableType.NUMBER:   "number",
+    WorkflowVariableType.BOOLEAN:  "boolean",
+    WorkflowVariableType.LIST:     "array",
+    WorkflowVariableType.OBJECT:   "object",
+    WorkflowVariableType.JSON:     "object",
+}
 
 @dataclass
 class WorkflowTool:
     function: Callable[[Any], Awaitable[Any]]
     description: Optional[str]
     parameters: List[WorkflowVariableConfig]
+
+    def as_model_tool(self, name: str) -> ModelTool:
+        properties: Dict[str, ModelToolProperty] = {}
+        required: List[str] = []
+
+        for param in self.parameters:
+            param_name = param.name or "input"
+            properties[param_name] = self._build_parameter_property(param)
+            if param.required:
+                required.append(param_name)
+
+        return ModelTool(
+            name=name,
+            description=self.description,
+            parameters=ModelToolParameters(properties=properties, required=required),
+        )
+
+    def _build_parameter_property(self, param: WorkflowVariableConfig) -> ModelToolProperty:
+        scalar = self._build_scalar_property(param)
+
+        if param.is_list:
+            property = ModelToolProperty(type="array", items=scalar)
+        else:
+            property = scalar
+
+        description = param.get_annotation_value("description")
+
+        if description:
+            property.description = description
+
+        if param.default is not None:
+            property.default = param.default
+
+        return property
+
+    def _build_scalar_property(self, param: WorkflowVariableConfig) -> ModelToolProperty:
+        json_type = _MODEL_TOOL_TYPE_MAP.get(param.type, "string")
+        property = ModelToolProperty(type=json_type)
+
+        if param.type == WorkflowVariableType.SELECT and param.options:
+            property.enum = param.options
+
+        return property
 
 class WorkflowToolGenerator():
     def generate(

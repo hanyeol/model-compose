@@ -71,6 +71,8 @@ class VariableRenderer:
             "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
+        self._item_stack: List[Any] = []
+
     async def render(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
         return await self._render_element(value, scope, skip_decode)
 
@@ -85,6 +87,8 @@ class VariableRenderer:
             return await self._render_element(value.model_dump(by_alias=True), scope, skip_decode)
 
         if isinstance(value, dict):
+            if "*" in value:
+                return await self._render_map(value, scope, skip_decode)
             return await self._render_dict(value, scope, skip_decode)
 
         if isinstance(value, (list, tuple)):
@@ -92,8 +96,34 @@ class VariableRenderer:
 
         return value
 
-    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> dict:
+    async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> List[Any]:
+        source = await self._render_element(entries["*"], scope, skip_decode)
+
+        if source is None:
+            return []
+
+        if not isinstance(source, (list, tuple)):
+            raise TypeError(f"Map source (`*`) must resolve to a list, got {type(source).__name__}")
+
+        template = { key: value for key, value in entries.items() if key != "*" }
+
+        if not template:
+            return list(source)
+
+        values: List[Any] = []
+
+        for item in source:
+            self._item_stack.append(item)
+            try:
+                values.append(await self._render_dict(template, scope, skip_decode))
+            finally:
+                self._item_stack.pop()
+
+        return values
+
+    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
         values = {}
+
         for key, value in entries.items():
             if key == "...":
                 value = await self._render_element(value, scope, skip_decode)
@@ -103,10 +133,12 @@ class VariableRenderer:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             else:
                 values[key] = await self._render_element(value, scope, skip_decode)
+
         return values
 
     async def _render_list(self, entries: list, scope: Optional[str], skip_decode: bool) -> list:
         values = []
+
         for item in entries:
             if isinstance(item, str) and self._is_spread_expression(item):
                 value = await self._render_text(item[3:], scope, skip_decode)
@@ -116,6 +148,7 @@ class VariableRenderer:
                     raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
                 values.append(await self._render_element(item, scope, skip_decode))
+
         return values
 
     async def _render_text(self, text: str, scope: Optional[str], skip_decode: bool) -> Any:
@@ -130,7 +163,7 @@ class VariableRenderer:
                 attrs = await self._render_attrs(attrs, scope)
 
             try:
-                value = self.field_resolver.resolve(await self.source_resolver(key, index, scope), path)
+                value = self.field_resolver.resolve(await self._resolve_source(key, index, scope), path)
             except Exception:
                 value = None
 
@@ -148,6 +181,15 @@ class VariableRenderer:
             text = text[:start] + (str(value) if value is not None else "") + text[end:]
 
         return text
+
+    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+        if key == "item" and self._item_stack:
+            value = self._item_stack[-1]
+            if index is not None and isinstance(value, list):
+                return value[index]
+            return value
+
+        return await self.source_resolver(key, index, scope)
 
     async def _convert_value_to_type(
         self,

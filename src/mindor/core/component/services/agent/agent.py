@@ -1,7 +1,6 @@
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import AgentComponentConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
-from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableType
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
 from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
@@ -10,24 +9,6 @@ from ...base import ComponentType, register_component
 from ...context import ComponentActionContext
 import asyncio, ulid, json
 
-_JSON_SCHEMA_TYPE_MAP: Dict[WorkflowVariableType, str] = {
-    WorkflowVariableType.STRING:   "string",
-    WorkflowVariableType.TEXT:     "string",
-    WorkflowVariableType.MARKDOWN: "string",
-    WorkflowVariableType.BASE64:   "string",
-    WorkflowVariableType.IMAGE:    "string",
-    WorkflowVariableType.AUDIO:    "string",
-    WorkflowVariableType.VIDEO:    "string",
-    WorkflowVariableType.FILE:     "string",
-    WorkflowVariableType.SELECT:   "string",
-    WorkflowVariableType.INTEGER:  "integer",
-    WorkflowVariableType.NUMBER:   "number",
-    WorkflowVariableType.BOOLEAN:  "boolean",
-    WorkflowVariableType.LIST:     "array",
-    WorkflowVariableType.OBJECT:   "object",
-    WorkflowVariableType.JSON:     "object",
-}
-
 class AgentAction:
     def __init__(
         self,
@@ -35,29 +16,28 @@ class AgentAction:
         component_config: AgentComponentConfig,
         model_component: ComponentService,
         tools: Dict[str, WorkflowTool],
-        function_schemas: List[Dict[str, Any]]
+        tool_schemas: List[Dict[str, Any]]
     ):
         self.config: AgentActionConfig = config
         self.component_config: AgentComponentConfig = component_config
         self.model_component: ComponentService = model_component
         self.tools: Dict[str, WorkflowTool] = tools
-        self.function_schemas: List[Dict[str, Any]] = function_schemas
+        self.tool_schemas: List[Dict[str, Any]] = tool_schemas
 
     async def run(self, context: ComponentActionContext) -> Any:
-        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
+        max_iteration_count = await context.render_variable(self.config.max_iteration_count) if self.config.max_iteration_count else None
+        streaming           = await context.render_variable(self.config.streaming)
 
-        max_iteration_count = self.config.max_iteration_count or self.component_config.max_iteration_count
-        tools = self.function_schemas if self.function_schemas else None
-        streaming = await context.render_variable(self.config.streaming)
+        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
+        max_iteration_count = max_iteration_count or self.component_config.max_iteration_count
+        tools = self.tool_schemas if self.tool_schemas else None
 
         if streaming:
             async def _stream_message_generator():
-                for message in messages:
-                    yield message
-
                 for _ in range(max_iteration_count):
                     model_input = await self._render_model_input(context, self.component_config.model.input, messages, tools)
                     response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
+                    response = await self._normalize_response(context, response)
 
                     assistant_message = await self._build_assistant_message(response)
                     messages.append(assistant_message)
@@ -79,6 +59,7 @@ class AgentAction:
             for _ in range(max_iteration_count):
                 model_input = await self._render_model_input(context, self.component_config.model.input, messages, tools)
                 response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
+                response = await self._normalize_response(context, response)
 
                 assistant_message = await self._build_assistant_message(response)
                 messages.append(assistant_message)
@@ -97,46 +78,6 @@ class AgentAction:
 
             return (await context.render_variable(self.config.output)) if self.config.output else messages
 
-    async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
-        tool_name = tool_call["function"]["name"]
-        tool_arguments = tool_call["function"].get("arguments", {})
-
-        if isinstance(tool_arguments, str):
-            tool_arguments = json.loads(tool_arguments)
-
-        if tool_name in self.tools:
-            result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
-            content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
-        else:
-            content = f"Error: Unknown tool '{tool_name}'"
-
-        return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
-
-    async def _render_model_input(
-        self,
-        context: ComponentActionContext,
-        input_mapping: Dict[str, Any],
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]]
-    ) -> Dict[str, Any]:
-        context.register_source("messages", messages)
-        if tools:
-            context.register_source("tools", tools)
-
-        return await context.render_variable(input_mapping)
-
-    def _extract_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
-        if isinstance(response, dict):
-            return response.get("tool_calls")
-
-        return None
-
-    def _extract_content(self, response: Any) -> Any:
-        if isinstance(response, dict):
-            return response.get("content", response)
-
-        return response
-
     async def _build_initial_messages(self, context: ComponentActionContext) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []
 
@@ -147,9 +88,6 @@ class AgentAction:
         if self.config.prompt:
             prompt = await context.render_variable(self.config.prompt)
             messages.append({ "role": "user", "content": prompt })
-        else:
-            user = context.input
-            messages.append({ "role": "user", "content": user if isinstance(user, str) else json.dumps(user) })
 
         return messages
 
@@ -164,6 +102,54 @@ class AgentAction:
 
         return { "role": "assistant", "content": str(response) }
 
+    async def _render_model_input(
+        self,
+        context: ComponentActionContext,
+        input: Dict[str, Any],
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]]
+    ) -> Dict[str, Any]:
+        context.register_source("messages", messages)
+
+        if tools:
+            context.register_source("tools", tools)
+
+        return await context.render_variable(input)
+
+    async def _normalize_response(self, context: ComponentActionContext, response: Any) -> Any:
+        if not self.component_config.model.output:
+            return response
+
+        context.register_source("response", response)
+        return await context.render_variable(self.component_config.model.output)
+
+    async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
+        tool_name = tool_call["name"]
+        tool_arguments = tool_call.get("arguments", {})
+
+        if isinstance(tool_arguments, str):
+            tool_arguments = json.loads(tool_arguments)
+
+        if tool_name in self.tools:
+            result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
+            content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
+        else:
+            content = f"Error: Unknown tool '{tool_name}'"
+
+        return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
+
+    def _extract_content(self, response: Any) -> Any:
+        if isinstance(response, dict):
+            return response.get("content", response)
+
+        return response
+
+    def _extract_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
+        if isinstance(response, dict):
+            return response.get("tool_calls")
+
+        return None
+
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):
     def __init__(
@@ -177,17 +163,17 @@ class AgentComponent(ComponentService):
 
         self.model_component: Optional[ComponentService] = None
         self.tools: Optional[Dict[str, WorkflowTool]] = None
-        self.function_schemas: Optional[List[Dict[str, Any]]] = None
+        self.tool_schemas: Optional[List[Dict[str, Any]]] = None
 
     async def _start(self) -> None:
         self.model_component = self._create_component(self.config.model.component)
         self.tools = await self._generate_tools()
-        self.function_schemas = await asyncio.gather(*[ self._build_function_schema(name, tool) for name, tool in self.tools.items() ])
+        self.tool_schemas = [ tool.as_model_tool(name).model_dump(exclude_none=True) for name, tool in self.tools.items() ]
 
         await super()._start()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await AgentAction(action, self.config, self.model_component, self.tools, self.function_schemas).run(context)
+        return await AgentAction(action, self.config, self.model_component, self.tools, self.tool_schemas).run(context)
 
     async def _generate_tools(self) -> Dict[str, WorkflowTool]:
         workflow_schemas = create_workflow_schemas(self.global_configs.workflows, self.global_configs.components)
@@ -202,61 +188,6 @@ class AgentComponent(ComponentService):
             tools[workflow.name or workflow_id] = tool
 
         return tools
-
-    async def _build_function_schema(self, name: str, tool: WorkflowTool) -> Dict[str, Any]:
-        properties: Dict[str, Any] = {}
-        required: List[str] = []
-
-        for param in tool.parameters:
-            param_name = param.name or "input"
-            properties[param_name] = self._build_parameter_schema(param)
-            if param.required:
-                required.append(param_name)
-
-        parameters_schema: Dict[str, Any] = { "type": "object", "properties": properties }
-
-        if required:
-            parameters_schema["required"] = required
-
-        schema: Dict[str, Any] = {
-            "type": "function",
-            "function": {
-                "name": name,
-                "parameters": parameters_schema
-            }
-        }
-
-        if tool.description:
-            schema["function"]["description"] = tool.description
-
-        return schema
-
-    def _build_parameter_schema(self, param: WorkflowVariableConfig) -> Dict[str, Any]:
-        item_schema = self._build_scalar_schema(param)
-
-        if param.is_list:
-            schema: Dict[str, Any] = { "type": "array", "items": item_schema }
-        else:
-            schema = item_schema
-
-        description = param.get_annotation_value("description")
-
-        if description:
-            schema["description"] = description
-
-        if param.default is not None:
-            schema["default"] = param.default
-
-        return schema
-
-    def _build_scalar_schema(self, param: WorkflowVariableConfig) -> Dict[str, Any]:
-        json_type = _JSON_SCHEMA_TYPE_MAP.get(param.type, "string")
-        schema: Dict[str, Any] = { "type": json_type }
-
-        if param.type == WorkflowVariableType.SELECT and param.options:
-            schema["enum"] = param.options
-
-        return schema
 
     async def _run_workflow(self, workflow_id: str, input: Any, context=None) -> Any:
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)

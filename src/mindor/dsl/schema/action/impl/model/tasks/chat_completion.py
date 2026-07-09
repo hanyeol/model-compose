@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
+from typing import Type, Union, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.common.model.tool import ModelTool
@@ -12,8 +12,8 @@ class ChatMessage(BaseModel):
 
 class ToolCall(BaseModel):
     id: str = Field(..., description="Tool call identifier.")
-    type: Literal["function"] = Field(default="function", description="Tool call type.")
-    function: Dict[str, Any] = Field(default_factory=dict, description="Function name and arguments.")
+    name: str = Field(..., description="Tool name to invoke.")
+    arguments: Union[str, Dict[str, Any]] = Field(default_factory=dict, description="Arguments to pass to the tool. May be a JSON string or a decoded dict.")
 
 class ChatCompletionMessage(ChatMessage):
     tool_calls: Optional[List[ToolCall]] = Field(default=None, description="Tool calls requested by the model.")

@@ -120,7 +120,7 @@ class McpClient:
 
     async def _cleanup(self) -> None:
         if self.session:
-            await self.client.__aexit__(None, None, None)
             await self.session.__aexit__(None, None, None)
+            await self.client.__aexit__(None, None, None)
             self.client = None
             self.session = None

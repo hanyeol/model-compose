@@ -1,28 +1,6 @@
-from .http_server import *
-from .http_client import *
-from .websocket_server import *
-from .websocket_client import *
-from .mcp_server import *
-from .mcp_client import *
-from .agent import *
-from .model import *
-from .model_memory import *
-from .model_tokenizer import *
-from .datasets import *
-from .vector_store import *
-from .workflow import *
-from .shell import *
-from .text_splitter import *
-from .image_processor import *
-from .web_scraper import *
-from .web_browser import *
-from .video_converter import *
-from .video_scene_detector import *
-from .video_frame_extractor import *
-from .audio_extractor import *
-from .audio_converter import *
-from .audio_feature_extractor import *
-from .key_value_store import *
-from .graph_store import *
-from .file_store import *
-from .search_engine import *
+# Component services are loaded on demand by create_component() using the
+# convention: ComponentType value ↔ module path
+# (e.g. "web-browser" ↔ services/web_browser, "shell" ↔ services/shell).
+# Do not eagerly import services here — it forces every component's
+# dependencies (playwright, ffmpeg wrappers, transformers, ...) to load even
+# when the compose file never mentions them.

@@ -1,6 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from mindor.dsl.schema.component import ComponentConfig
+from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from .base import ComponentService, ComponentGlobalConfigs, ComponentRegistry, ActionResolver
+import importlib
 
 ComponentInstances: Dict[str, ComponentService] = {}
 
@@ -28,11 +29,24 @@ def create_component(id: str, config: ComponentConfig, global_configs: Component
         component = ComponentInstances[id] if id in ComponentInstances else None
 
         if not component:
-            if not ComponentRegistry:
-                from . import services
+            if config.type not in ComponentRegistry:
+                _load_component_module(config.type)
             component = ComponentRegistry[config.type](id, config, global_configs, daemon)
             ComponentInstances[id] = component
 
         return component
     except KeyError:
         raise ValueError(f"Unsupported component type: {config.type}")
+
+def _load_component_module(type: ComponentType) -> None:
+    """Import the module that registers the given component type.
+
+    Convention: a component type "foo-bar" (ComponentType.value) maps to
+    mindor.core.component.services.foo_bar — either a single-file module
+    (foo_bar.py) or a package (foo_bar/__init__.py). Importing the module
+    triggers its @register_component decorator, populating ComponentRegistry.
+    """
+    try:
+        importlib.import_module(f"mindor.core.component.services.{type.value.replace("-", "_")}")
+    except ImportError as e:
+        raise ValueError(f"Unsupported component type: {type}") from e

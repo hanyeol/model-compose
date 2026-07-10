@@ -55,6 +55,7 @@ class PlaywrightBrowserSession(WebBrowserSession):
             "hidden": "hidden",
         }
         state = state_map.get(condition, "visible")
+
         await locator.wait_for(state=state, timeout=timeout * 1000)
 
     async def extract(
@@ -82,7 +83,8 @@ class PlaywrightBrowserSession(WebBrowserSession):
         format: str,
         quality: Optional[int]
     ) -> PILImage.Image:
-        params: Dict[str, Any] = {"type": format, "full_page": full_page}
+        params: Dict[str, Any] = { "type": format, "full_page": full_page }
+
         if format == "jpeg" and quality is not None:
             params["quality"] = int(quality)
 

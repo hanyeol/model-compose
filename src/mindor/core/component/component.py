@@ -46,7 +46,8 @@ def _load_component_module(type: ComponentType) -> None:
     (foo_bar.py) or a package (foo_bar/__init__.py). Importing the module
     triggers its @register_component decorator, populating ComponentRegistry.
     """
+    module_name = type.value.replace("-", "_")
     try:
-        importlib.import_module(f"mindor.core.component.services.{type.value.replace("-", "_")}")
+        importlib.import_module(f"mindor.core.component.services.{module_name}")
     except ImportError as e:
         raise ValueError(f"Unsupported component type: {type}") from e

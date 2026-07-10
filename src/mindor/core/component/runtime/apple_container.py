@@ -24,6 +24,7 @@ import asyncio
 
 class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     """Image + container preparer for a component runtime on Apple Container."""
+
     def __init__(
         self,
         worker_id: str,

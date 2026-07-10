@@ -1,16 +1,97 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMethod
+from dataclasses import dataclass
+from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMethod, VideoAudioEncodingConfig, VideoEncoderConfig, AudioEncoderConfig
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
+from mindor.core.foundation.streaming.video import VideoStreamResource
+from PIL import Image as PILImage
 from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.bitrate import parse_bitrate
 from ..base import ComponentActionContext
+
+
+@dataclass
+class VideoEncoderParams:
+    codec: Optional[str] = None
+    bitrate: Optional[int] = None
+    resolution: Optional[str] = None
+    fps: Optional[float] = None
+
+
+@dataclass
+class AudioEncoderParams:
+    codec: Optional[str] = None
+    bitrate: Optional[int] = None
+
+
+@dataclass
+class VideoAudioEncodingParams:
+    """Rendered encoding parameters ready for the session/recorder layer.
+
+    Values here are already resolved from variable references (${input.foo})
+    and normalized (e.g. bitrate parsed to bits per second), so downstream
+    consumers don't need to touch the DSL config again.
+    """
+    format: Optional[str] = None
+    video: Optional[VideoEncoderParams] = None
+    audio: Optional[AudioEncoderParams] = None
+
 
 class WebBrowserSession(ABC):
     """Abstract browser session exposing high-level browser actions."""
 
     @abstractmethod
     async def navigate(self, url: str, wait_until: str, timeout: float) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def wait_for(
+        self,
+        selector: Optional[str],
+        xpath: Optional[str],
+        condition: str,
+        timeout: float
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def extract(
+        self,
+        selector: Optional[str],
+        xpath: Optional[str],
+        extract_mode: str,
+        attribute: Optional[str],
+        multiple: bool
+    ) -> Any:
+        pass
+
+    @abstractmethod
+    async def screenshot(
+        self,
+        full_page: bool,
+        selector: Optional[str],
+        format: str,
+        quality: Optional[int]
+    ) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def capture_video(
+        self,
+        url: Optional[str],
+        selector: Optional[str],
+        include_video_track: bool,
+        include_audio_track: bool,
+        encoding: Optional[VideoAudioEncodingParams],
+        duration: Optional[float],
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def evaluate(self, expression: str) -> Any:
         pass
 
     @abstractmethod
@@ -36,42 +117,13 @@ class WebBrowserSession(ABC):
         pass
 
     @abstractmethod
-    async def scroll(self, selector: Optional[str], xpath: Optional[str], x: Optional[int], y: Optional[int]) -> Dict[str, Any]:
-        pass
-
-    @abstractmethod
-    async def wait_for(
+    async def scroll(
         self,
         selector: Optional[str],
         xpath: Optional[str],
-        condition: str,
-        timeout: float
-    ) -> None:
-        pass
-
-    @abstractmethod
-    async def extract(
-        self,
-        selector: Optional[str],
-        xpath: Optional[str],
-        extract_mode: str,
-        attribute: Optional[str],
-        multiple: bool
-    ) -> Any:
-        pass
-
-    @abstractmethod
-    async def evaluate(self, expression: str) -> Any:
-        pass
-
-    @abstractmethod
-    async def screenshot(
-        self,
-        full_page: bool,
-        selector: Optional[str],
-        format: str,
-        quality: Optional[int]
-    ) -> str:
+        x: Optional[int],
+        y: Optional[int]
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -94,10 +146,21 @@ class WebBrowserAction:
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
         timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 30.0)
 
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         result = await self._dispatch(context, self.config.method, session, timeout)
+
+        if isinstance(result, (StreamIterator, AsyncIterator)):
+            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                async for chunk in result:
+                    context.register_source("result[]", chunk, scope=scope)
+                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
+
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(
         self,
@@ -124,14 +187,6 @@ class WebBrowserAction:
 
             return await session.wait_for(selector, xpath, condition, timeout)
 
-        if method == WebBrowserActionMethod.SCREENSHOT:
-            selector  = await context.render_variable(self.config.selector) if self.config.selector else None
-            full_page = bool(await context.render_variable(self.config.full_page))
-            format    = await context.render_variable(self.config.format)
-            quality   = await context.render_variable(self.config.quality) if self.config.quality is not None else None
-
-            return await session.screenshot(full_page, selector, format, quality)
-
         if method == WebBrowserActionMethod.EXTRACT:
             selector     = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath        = await context.render_variable(self.config.xpath) if self.config.xpath else None
@@ -154,6 +209,25 @@ class WebBrowserAction:
                 return await session.extract(None, xpath, extract_mode, attribute, multiple)
 
             return await session.extract(None, None, extract_mode, attribute, multiple)
+
+        if method == WebBrowserActionMethod.SCREENSHOT:
+            selector  = await context.render_variable(self.config.selector) if self.config.selector else None
+            full_page = bool(await context.render_variable(self.config.full_page))
+            format    = await context.render_variable(self.config.format)
+            quality   = await context.render_variable(self.config.quality) if self.config.quality is not None else None
+
+            return await session.screenshot(full_page, selector, format, quality)
+
+        # Media capture
+        if method == WebBrowserActionMethod.CAPTURE_VIDEO:
+            url                 = await context.render_variable(self.config.url) if self.config.url else None
+            selector            = await context.render_variable(self.config.selector) if self.config.selector else None
+            include_video_track = bool(await context.render_variable(self.config.include_video_track))
+            include_audio_track = bool(await context.render_variable(self.config.include_audio_track))
+            encoding            = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
+            duration            = parse_duration(await context.render_variable(self.config.duration)) if self.config.duration else None
+
+            return await session.capture_video(url, selector, include_video_track, include_audio_track, encoding, duration)
 
         # Interaction
         if method == WebBrowserActionMethod.CLICK:
@@ -206,3 +280,34 @@ class WebBrowserAction:
             return await session.set_cookies(cookies)
 
         raise ValueError(f"Unsupported web-browser action method: {method}")
+
+    async def _resolve_encoding_params(self, context: ComponentActionContext, config: VideoAudioEncodingConfig) -> VideoAudioEncodingParams:
+        format = await context.render_variable(config.format) if config.format else None
+
+        return VideoAudioEncodingParams(
+            format=format,
+            video=await self._resolve_video_encoder(context, config.video) if config.video else None,
+            audio=await self._resolve_audio_encoder(context, config.audio) if config.audio else None,
+        )
+
+    async def _resolve_video_encoder(self, context: ComponentActionContext, config: VideoEncoderConfig) -> VideoEncoderParams:
+        codec      = await context.render_variable(config.codec)      if config.codec      else None
+        bitrate    = await context.render_variable(config.bitrate)    if config.bitrate    else None
+        resolution = await context.render_variable(config.resolution) if config.resolution else None
+        fps        = await context.render_variable(config.fps)        if config.fps        else None
+
+        return VideoEncoderParams(
+            codec=codec,
+            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
+            resolution=resolution,
+            fps=float(fps) if fps is not None else None,
+        )
+
+    async def _resolve_audio_encoder(self, context: ComponentActionContext, config: AudioEncoderConfig) -> AudioEncoderParams:
+        codec   = await context.render_variable(config.codec)   if config.codec   else None
+        bitrate = await context.render_variable(config.bitrate) if config.bitrate else None
+
+        return AudioEncoderParams(
+            codec=codec,
+            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
+        )

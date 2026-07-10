@@ -7,15 +7,15 @@ from .media import VideoAudioEncodingConfig
 class WebBrowserActionMethod(str, Enum):
     NAVIGATE      = "navigate"
     WAIT_FOR      = "wait-for"
-    SCREENSHOT    = "screenshot"
     EXTRACT       = "extract"
+    SCREENSHOT    = "screenshot"
+    CAPTURE_VIDEO = "capture-video"
     CLICK         = "click"
     INPUT_TEXT    = "input-text"
     SCROLL        = "scroll"
     EVALUATE      = "evaluate"
     GET_COOKIES   = "get-cookies"
     SET_COOKIES   = "set-cookies"
-    CAPTURE_VIDEO = "capture-video"
 
 class CommonWebBrowserActionConfig(CommonActionConfig):
     method: WebBrowserActionMethod = Field(..., description="Browser action method.")
@@ -41,13 +41,6 @@ class WebBrowserWaitForActionConfig(CommonWebBrowserActionConfig):
             raise ValueError("Only one of 'selector' or 'xpath' can be provided.")
         return self
 
-class WebBrowserScreenshotActionConfig(CommonWebBrowserActionConfig):
-    method: Literal[WebBrowserActionMethod.SCREENSHOT]
-    full_page: Union[bool, str] = Field(default=False, description="Capture the full scrollable page.")
-    selector: Optional[str] = Field(default=None, description="CSS selector to capture only a specific element.")
-    format: Union[Literal["png", "jpeg"], str] = Field(default="png", description="Image format.")
-    quality: Optional[Union[int, str]] = Field(default=None, description="JPEG quality (0-100). Only applicable when format='jpeg'.")
-
 class WebBrowserExtractActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.EXTRACT]
     selector: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="CSS selector(s) to extract elements.")
@@ -69,6 +62,22 @@ class WebBrowserExtractActionConfig(CommonWebBrowserActionConfig):
         if self.extract_mode == "attribute" and self.attribute is None:
             raise ValueError("'attribute' is required when extract_mode is 'attribute'.")
         return self
+
+class WebBrowserScreenshotActionConfig(CommonWebBrowserActionConfig):
+    method: Literal[WebBrowserActionMethod.SCREENSHOT]
+    full_page: Union[bool, str] = Field(default=False, description="Capture the full scrollable page.")
+    selector: Optional[str] = Field(default=None, description="CSS selector to capture only a specific element.")
+    format: Union[Literal[ "png", "jpeg" ], str] = Field(default="png", description="Image format.")
+    quality: Optional[Union[int, str]] = Field(default=None, description="JPEG quality (0-100). Only applicable when format='jpeg'.")
+
+class WebBrowserCaptureVideoActionConfig(CommonWebBrowserActionConfig):
+    method: Literal[WebBrowserActionMethod.CAPTURE_VIDEO]
+    url: Optional[str] = Field(default=None, description="URL to navigate to before capturing. If omitted, captures the current page.")
+    selector: Optional[str] = Field(default=None, description="CSS selector for the <video> element to capture. If omitted, the first <video> element on the page is used.")
+    include_video_track: Union[bool, str] = Field(default=True, description="Include the video track in the capture.")
+    include_audio_track: Union[bool, str] = Field(default=True, description="Include the audio track in the capture.")
+    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings. If omitted, uses the browser default and enables hardware acceleration when available.")
+    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration (e.g. '30s'). If omitted, capture continues until stopped.")
 
 class WebBrowserClickActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.CLICK]
@@ -127,16 +136,6 @@ class WebBrowserGetCookiesActionConfig(CommonWebBrowserActionConfig):
 class WebBrowserSetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.SET_COOKIES]
     cookies: List[Dict[str, Any]] = Field(..., description="List of cookie dicts (name, value, domain, path, ...).")
-
-class WebBrowserCaptureVideoActionConfig(CommonWebBrowserActionConfig):
-    method: Literal[WebBrowserActionMethod.CAPTURE_VIDEO]
-    url: Optional[str] = Field(default=None, description="URL to navigate to before capturing. If omitted, captures the current page.")
-    source: Union[Literal["tab", "window", "screen"], str] = Field(default="tab", description="Capture source for getDisplayMedia.")
-    video: Union[bool, str] = Field(default=True, description="Capture the video track.")
-    audio: Union[bool, str] = Field(default=True, description="Capture the audio track.")
-    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings. If omitted, uses the browser default and enables hardware acceleration when available.")
-    chunk_interval: Union[str, int, float] = Field(default="1s", description="Interval between emitted chunks (e.g. '1s', '500ms').")
-    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration (e.g. '30s'). If omitted, capture continues until stopped.")
 
 WebBrowserActionConfig = Annotated[
     Union[

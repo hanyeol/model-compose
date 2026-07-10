@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
 class WebBrowserDriver(str, Enum):
-    CHROME = "chrome"
+    CHROME     = "chrome"
     PLAYWRIGHT = "playwright"
 
 class CommonWebBrowserComponentConfig(CommonComponentConfig):

@@ -1,9 +1,95 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Callable, Awaitable, Any
+from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriver
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
+from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.transport.cdp_client import CdpClient
 from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
+from .utils.chrome import VideoRecorder, PageAdapter
+from PIL import Image as PILImage
 import asyncio
+import base64
+import io
+import json
+
+
+class CdpPageAdapter(PageAdapter):
+    """Reproduces the PageAdapter surface on top of a raw CDP client.
+
+    - goto: Page.navigate + Page.loadEventFired wait.
+    - expose_binding: Runtime.addBinding + Runtime.bindingCalled event listener.
+      Playwright's binding callback signature is (source, arg); the CDP protocol
+      has no 'source' equivalent so we always pass None.
+    - evaluate: Runtime.evaluate. Playwright accepts a function expression plus
+      an argument that it JSON-serializes for you; CDP only accepts an
+      expression, so we wrap it in an IIFE with the JSON-encoded argument
+      inlined.
+    """
+
+    def __init__(self, client: CdpClient):
+        self._client = client
+        self._runtime_enabled = False
+        self._page_enabled = False
+
+    async def navigate(self, url: str) -> None:
+        if not self._page_enabled:
+            await self._client.send_command("Page.enable")
+            self._page_enabled = True
+
+        loop = asyncio.get_running_loop()
+        loaded: asyncio.Future = loop.create_future()
+
+        async def _on_load(_params):
+            if not loaded.done():
+                loaded.set_result(True)
+
+        self._client.on_event("Page.loadEventFired", _on_load)
+        try:
+            await self._client.send_command("Page.navigate", { "url": url })
+            await loaded
+        finally:
+            self._client.remove_event_listener("Page.loadEventFired", _on_load)
+
+    async def expose_binding(
+        self,
+        name: str,
+        callback: Callable[..., Awaitable[None]],
+    ) -> None:
+        if not self._runtime_enabled:
+            await self._client.send_command("Runtime.enable")
+            self._runtime_enabled = True
+
+        await self._client.send_command("Runtime.addBinding", { "name": name })
+
+        async def _on_binding(params: Dict[str, Any]) -> None:
+            if params.get("name") != name:
+                return
+            try:
+                arg = json.loads(params["payload"])
+            except (KeyError, ValueError):
+                arg = params.get("payload")
+            await callback(None, arg)
+
+        self._client.on_event("Runtime.bindingCalled", _on_binding)
+
+    async def evaluate(self, expression: str, arg: Any = None) -> Any:
+        if arg is None:
+            wrapped = f"({expression})()"
+        else:
+            wrapped = f"({expression})({json.dumps(arg)})"
+
+        result = await self._client.send_command("Runtime.evaluate", {
+            "expression": wrapped,
+            "returnByValue": True,
+            "awaitPromise": True,
+        })
+
+        if "exceptionDetails" in result:
+            raise RuntimeError(f"JS error: {result['exceptionDetails']}")
+
+        return result.get("result", {}).get("value")
+
 
 class ChromeBrowserSession(WebBrowserSession):
     """Browser session backed by a persistent CDP connection."""
@@ -69,27 +155,6 @@ class ChromeBrowserSession(WebBrowserSession):
 
         raise TimeoutError(f"wait_for '{selector or xpath}' ({condition}) timed out after {timeout}s")
 
-    async def screenshot(
-        self,
-        full_page: bool,
-        selector: Optional[str],
-        format: str,
-        quality: Optional[int]
-    ) -> str:
-        params: Dict[str, Any] = {"format": format}
-
-        if format == "jpeg" and quality is not None:
-            params["quality"] = int(quality)
-        if full_page:
-            params["captureBeyondViewport"] = True
-        if selector:
-            box = await self._find_element_bounding_box(selector, None)
-            if box:
-                params["clip"] = { **box, "scale": 1 }
-
-        result = await self.client.send_command("Page.captureScreenshot", params)
-        return result["data"]  # base64-encoded
-
     async def extract(
         self,
         selector: Optional[str],
@@ -107,6 +172,52 @@ class ChromeBrowserSession(WebBrowserSession):
             raise RuntimeError(f"Extract JavaScript error: { result['exceptionDetails'] }")
 
         return result.get("result", {}).get("value")
+
+    async def screenshot(
+        self,
+        full_page: bool,
+        selector: Optional[str],
+        format: str,
+        quality: Optional[int]
+    ) -> PILImage.Image:
+        params: Dict[str, Any] = { "format": format }
+
+        if format == "jpeg" and quality is not None:
+            params["quality"] = int(quality)
+
+        if full_page:
+            params["captureBeyondViewport"] = True
+
+        if selector:
+            box = await self._find_element_bounding_box(selector, None)
+            if box:
+                params["clip"] = { **box, "scale": 1 }
+
+        result = await self.client.send_command("Page.captureScreenshot", params)
+        data = base64.b64decode(result["data"])
+
+        return PILImage.open(io.BytesIO(data))
+
+    async def capture_video(
+        self,
+        url: Optional[str],
+        selector: Optional[str],
+        include_video_track: bool,
+        include_audio_track: bool,
+        encoding: Optional[VideoAudioEncodingParams],
+        duration: Optional[float],
+    ) -> VideoStreamResource:
+        format = (encoding.format if encoding and encoding.format else "webm").lower()
+        source = VideoRecorder(CdpPageAdapter(self.client)).capture(
+            url=url,
+            selector=selector,
+            include_video_track=include_video_track,
+            include_audio_track=include_audio_track,
+            encoding=encoding,
+            duration=duration,
+        )
+
+        return VideoStreamResource(AsyncIterableStreamResource(source), format=format)
 
     async def click(
         self,
@@ -332,7 +443,9 @@ class ChromeBrowserSession(WebBrowserSession):
 
 @register_web_browser_service(WebBrowserDriver.CHROME)
 class ChromeWebBrowserService(WebBrowserService):
-    def __init__(self, id: str, config: Any, daemon: bool):
+    config: ChromeWebBrowserComponentConfig
+
+    def __init__(self, id: str, config: ChromeWebBrowserComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
         debugger = config.debugger

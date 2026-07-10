@@ -22,6 +22,7 @@ class WebBrowserComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.service: WebBrowserService = self._create_service(self.config.driver)
+
         self._sessions: Dict[str, WebBrowserSession] = {}
         self._sessions_lock: asyncio.Lock = asyncio.Lock()
 

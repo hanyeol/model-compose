@@ -1,7 +1,35 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Callable, Awaitable, Any
+from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import PlaywrightWebBrowserComponentConfig, WebBrowserDriver
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
+from mindor.core.foundation.streaming.video import VideoStreamResource
 from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
+from .utils.chrome import VideoRecorder, PageAdapter
+from PIL import Image as PILImage
+import io
+
+class PlaywrightPageAdapter(PageAdapter):
+    """Thin wrapper around a Playwright Page. Every method delegates directly."""
+
+    def __init__(self, page: Any):
+        self._page = page
+
+    async def navigate(self, url: str) -> None:
+        await self._page.goto(url)
+
+    async def expose_binding(
+        self,
+        name: str,
+        callback: Callable[..., Awaitable[None]],
+    ) -> None:
+        await self._page.expose_binding(name, callback)
+
+    async def evaluate(self, expression: str, arg: Any = None) -> Any:
+        if arg is None:
+            return await self._page.evaluate(expression)
+        return await self._page.evaluate(expression, arg)
+
 
 class PlaywrightBrowserSession(WebBrowserSession):
     """Browser session backed by a Playwright page."""
@@ -29,27 +57,6 @@ class PlaywrightBrowserSession(WebBrowserSession):
         state = state_map.get(condition, "visible")
         await locator.wait_for(state=state, timeout=timeout * 1000)
 
-    async def screenshot(
-        self,
-        full_page: bool,
-        selector: Optional[str],
-        format: str,
-        quality: Optional[int]
-    ) -> str:
-        import base64
-
-        params: Dict[str, Any] = {"type": format, "full_page": full_page}
-        if format == "jpeg" and quality is not None:
-            params["quality"] = int(quality)
-
-        if selector:
-            locator = self._page.locator(selector)
-            data = await locator.screenshot(**params)
-        else:
-            data = await self._page.screenshot(**params)
-
-        return base64.b64encode(data).decode("ascii")
-
     async def extract(
         self,
         selector: Optional[str],
@@ -67,6 +74,46 @@ class PlaywrightBrowserSession(WebBrowserSession):
             return None
 
         return await self._extract_from_element(locator.first, extract_mode, attribute)
+
+    async def screenshot(
+        self,
+        full_page: bool,
+        selector: Optional[str],
+        format: str,
+        quality: Optional[int]
+    ) -> PILImage.Image:
+        params: Dict[str, Any] = {"type": format, "full_page": full_page}
+        if format == "jpeg" and quality is not None:
+            params["quality"] = int(quality)
+
+        if selector:
+            locator = self._page.locator(selector)
+            data = await locator.screenshot(**params)
+        else:
+            data = await self._page.screenshot(**params)
+
+        return PILImage.open(io.BytesIO(data))
+
+    async def capture_video(
+        self,
+        url: Optional[str],
+        selector: Optional[str],
+        include_video_track: bool,
+        include_audio_track: bool,
+        encoding: Optional[VideoAudioEncodingParams],
+        duration: Optional[float],
+    ) -> VideoStreamResource:
+        format = (encoding.format if encoding and encoding.format else "webm").lower()
+        source = VideoRecorder(PlaywrightPageAdapter(self._page)).capture(
+            url=url,
+            selector=selector,
+            include_video_track=include_video_track,
+            include_audio_track=include_audio_track,
+            encoding=encoding,
+            duration=duration,
+        )
+
+        return VideoStreamResource(AsyncIterableStreamResource(source), format=format)
 
     async def click(
         self,
@@ -169,28 +216,65 @@ class PlaywrightBrowserSession(WebBrowserSession):
 
 @register_web_browser_service(WebBrowserDriver.PLAYWRIGHT)
 class PlaywrightWebBrowserService(WebBrowserService):
-    def __init__(self, id: str, config: Any, daemon: bool):
+    config: PlaywrightWebBrowserComponentConfig
+
+    def __init__(self, id: str, config: PlaywrightWebBrowserComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self._playwrite = None
-        self._browser = None
+        self._playwright = None
+        self._browser = None             # persistent-launch or CDP-attach browser wrapper
+        self._persistent_context = None  # non-None only for launch_persistent_context
+        self._attached = False           # True when connected via CDP; leave browser alive on close
 
     async def create_session(self) -> PlaywrightBrowserSession:
-        if self._browser is None:
-            from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright
 
-            self._playwrite = await async_playwright().start()
-            launcher = getattr(self._playwrite, self.config.browser)
-            self._browser = await launcher.launch(headless=self.config.headless, args=self.config.args or None)
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
 
-        page = await self._browser.new_page()
+        if self._browser is None and self._persistent_context is None:
+            if self.config.cdp_url:
+                self._browser = await self._playwright.chromium.connect_over_cdp(self.config.cdp_url)
+                self._attached = True
+            elif self.config.persistent_dir:
+                launcher = getattr(self._playwright, self.config.browser)
+                self._persistent_context = await launcher.launch_persistent_context(
+                    user_data_dir=self.config.persistent_dir,
+                    headless=self.config.headless,
+                    args=self.config.args or None,
+                    channel=self.config.channel,
+                )
+            else:
+                launcher = getattr(self._playwright, self.config.browser)
+                self._browser = await launcher.launch(
+                    headless=self.config.headless,
+                    args=self.config.args or None,
+                    channel=self.config.channel,
+                )
+
+        if self._persistent_context is not None:
+            page = await self._persistent_context.new_page()
+        elif self._attached:
+            context = self._browser.contexts[0] if self._browser.contexts else await self._browser.new_context()
+            page = await context.new_page()
+        else:
+            page = await self._browser.new_page()
+
         return PlaywrightBrowserSession(page)
 
     async def close_browser(self) -> None:
-        if self._browser:
+        if self._persistent_context is not None:
+            await self._persistent_context.close()
+            self._persistent_context = None
+
+        if self._browser is not None:
+            # For CDP-attached browsers, close() only tears down our client; the
+            # user's Chrome instance keeps running, which is the whole point of
+            # attaching over CDP.
             await self._browser.close()
             self._browser = None
+            self._attached = False
 
-        if self._playwrite:
-            await self._playwrite.stop()
-            self._playwrite = None
+        if self._playwright is not None:
+            await self._playwright.stop()
+            self._playwright = None

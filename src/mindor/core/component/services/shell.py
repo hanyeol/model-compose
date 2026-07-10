@@ -1,5 +1,5 @@
 from typing import Optional, Dict, List, Any
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -38,7 +38,7 @@ class ShellAction:
                 async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_commands, params, streaming)
                     for result in batch_results:
-                        if isinstance(result, AsyncIterable):
+                        if isinstance(result, (StreamIterator, AsyncIterator)):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -54,7 +54,7 @@ class ShellAction:
             async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(batch_commands, params, streaming)
                 for result in batch_results:
-                    if isinstance(result, AsyncIterable):
+                    if isinstance(result, (StreamIterator, AsyncIterator)):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)

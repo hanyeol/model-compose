@@ -1,5 +1,5 @@
 from typing import Optional, Dict, List, Iterator, Tuple, Any
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import TextSplitterComponentConfig
 from mindor.dsl.schema.action import ActionConfig, TextSplitterActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
@@ -255,7 +255,7 @@ class TextSplitterAction:
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_texts, params, streaming, loop)
                     for result in batch_results:
-                        if isinstance(result, AsyncIterable):
+                        if isinstance(result, (StreamIterator, AsyncIterator)):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -271,7 +271,7 @@ class TextSplitterAction:
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(batch_texts, params, streaming, loop)
                 for result in batch_results:
-                    if isinstance(result, AsyncIterable):
+                    if isinstance(result, (StreamIterator, AsyncIterator)):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)

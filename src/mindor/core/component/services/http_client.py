@@ -7,7 +7,7 @@ from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.transport.http_client import HttpClient
 from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.rate_limit import RateLimiter
-from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.http import HttpEventStreamResource
 from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -100,7 +100,7 @@ class HttpClientAction:
 
         response = await client.request(url_or_path, method, params, body, headers)
 
-        if isinstance(response, StreamResource):
+        if isinstance(response, HttpEventStreamResource):
             async def _stream_chunk_generator():
                 async for chunk in response:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
@@ -115,7 +115,7 @@ class HttpClientAction:
 
             result = await self.completion.run(context, client)
 
-            if isinstance(result, StreamResource):
+            if isinstance(result, HttpEventStreamResource):
                 async def _stream_chunk_generator():
                     async for chunk in result:
                         context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))

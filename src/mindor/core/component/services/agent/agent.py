@@ -28,16 +28,18 @@ class AgentAction:
         max_iteration_count = await context.render_variable(self.config.max_iteration_count) if self.config.max_iteration_count else None
         streaming           = await context.render_variable(self.config.streaming)
 
-        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
         max_iteration_count = max_iteration_count or self.component_config.max_iteration_count
         tools = self.tool_schemas if self.tool_schemas else None
 
+        initial_messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
+        messages: List[Dict[str, Any]] = []
+        
         if streaming:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
-                    model_input = await self._render_model_input(context, self.component_config.model.input, messages, tools)
+                    model_input = await self._render_model_input(context, messages or initial_messages, tools)
                     response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
-                    response = await self._normalize_response(context, response)
+                    response = await self._render_model_response(context, response)
 
                     assistant_message = await self._build_assistant_message(response)
                     messages.append(assistant_message)
@@ -57,9 +59,9 @@ class AgentAction:
             return _stream_message_generator()
         else:
             for _ in range(max_iteration_count):
-                model_input = await self._render_model_input(context, self.component_config.model.input, messages, tools)
+                model_input = await self._render_model_input(context, messages or initial_messages, tools)
                 response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
-                response = await self._normalize_response(context, response)
+                response = await self._render_model_response(context, response)
 
                 assistant_message = await self._build_assistant_message(response)
                 messages.append(assistant_message)
@@ -69,7 +71,7 @@ class AgentAction:
                 if not tool_calls:
                     break
 
-                tool_messages = await asyncio.gather(*[self._execute_tool_call(tool_call, context) for tool_call in tool_calls])
+                tool_messages = await asyncio.gather(*[ self._execute_tool_call(tool_call, context) for tool_call in tool_calls ])
                 for tool_message in tool_messages:
                     messages.append(tool_message)
                     await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -105,7 +107,6 @@ class AgentAction:
     async def _render_model_input(
         self,
         context: ComponentActionContext,
-        input: Dict[str, Any],
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]]
     ) -> Dict[str, Any]:
@@ -114,14 +115,18 @@ class AgentAction:
         if tools:
             context.register_source("tools", tools)
 
-        return await context.render_variable(input)
+        return await context.render_variable(self.component_config.model.input)
 
-    async def _normalize_response(self, context: ComponentActionContext, response: Any) -> Any:
-        if not self.component_config.model.output:
-            return response
+    async def _render_model_response(
+        self,
+        context: ComponentActionContext,
+        response: Any
+    ) -> Any:
+        if self.component_config.model.output:
+            context.register_source("response", response)
+            return await context.render_variable(self.component_config.model.output)
 
-        context.register_source("response", response)
-        return await context.render_variable(self.component_config.model.output)
+        return response
 
     async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
         tool_name = tool_call["name"]

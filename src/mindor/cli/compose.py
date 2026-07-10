@@ -31,7 +31,6 @@ def _get_version() -> str:
 )
 @click.pass_context
 def compose_command(ctx: click.Context, config_files: List[Path]) -> None:
-    """model-compose"""
     ctx.ensure_object(dict)
     ctx.obj["config_files"] = list(config_files)
 

@@ -1,8 +1,10 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Union, Dict, List, Any
 from mindor.dsl.schema.component import AgentComponentConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
+from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
-from mindor.core.workflow import Workflow, WorkflowResolver, create_workflow
+from mindor.core.workflow import WorkflowResolver, create_workflow
+from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import create_workflow_schemas
 from ...base import ComponentType, register_component
@@ -15,13 +17,13 @@ class AgentAction:
         config: AgentActionConfig,
         component_config: AgentComponentConfig,
         model_component: ComponentService,
-        tools: Dict[str, WorkflowTool],
+        tools: Dict[str, Union[WorkflowTool, ModelTool]],
         tool_schemas: List[Dict[str, Any]]
     ):
         self.config: AgentActionConfig = config
         self.component_config: AgentComponentConfig = component_config
         self.model_component: ComponentService = model_component
-        self.tools: Dict[str, WorkflowTool] = tools
+        self.tools: Dict[str, Union[WorkflowTool, ModelTool]] = tools
         self.tool_schemas: List[Dict[str, Any]] = tool_schemas
 
     async def run(self, context: ComponentActionContext) -> Any:
@@ -33,12 +35,12 @@ class AgentAction:
 
         initial_messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
         messages: List[Dict[str, Any]] = []
-        
+
         if streaming:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
                     model_input = await self._render_model_input(context, messages or initial_messages, tools)
-                    response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
+                    response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input, workflow=context.workflow, job_id=context.job_id)
                     response = await self._render_model_response(context, response)
 
                     assistant_message = await self._build_assistant_message(response)
@@ -50,7 +52,7 @@ class AgentAction:
                     if not tool_calls:
                         break
 
-                    tool_messages = await asyncio.gather(*[self._execute_tool_call(tc, context) for tc in tool_calls])
+                    tool_messages = await self._execute_tool_calls(tool_calls, context)
                     for tool_message in tool_messages:
                         messages.append(tool_message)
                         await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -60,7 +62,7 @@ class AgentAction:
         else:
             for _ in range(max_iteration_count):
                 model_input = await self._render_model_input(context, messages or initial_messages, tools)
-                response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input)
+                response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input, workflow=context.workflow, job_id=context.job_id)
                 response = await self._render_model_response(context, response)
 
                 assistant_message = await self._build_assistant_message(response)
@@ -71,7 +73,7 @@ class AgentAction:
                 if not tool_calls:
                     break
 
-                tool_messages = await asyncio.gather(*[ self._execute_tool_call(tool_call, context) for tool_call in tool_calls ])
+                tool_messages = await self._execute_tool_calls(tool_calls, context)
                 for tool_message in tool_messages:
                     messages.append(tool_message)
                     await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -128,20 +130,105 @@ class AgentAction:
 
         return response
 
-    async def _execute_tool_call(self, tool_call: Dict[str, Any], context: ComponentActionContext) -> Dict[str, Any]:
-        tool_name = tool_call["name"]
-        tool_arguments = tool_call.get("arguments", {})
+    async def _execute_tool_calls(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        context: ComponentActionContext
+    ) -> List[Dict[str, Any]]:
+        tool_kinds: List[str] = []
+        workflow_calls: List[Dict[str, Any]] = []
+        external_calls: List[Dict[str, Any]] = []
 
-        if isinstance(tool_arguments, str):
-            tool_arguments = json.loads(tool_arguments)
+        for tool_call in tool_calls:
+            tool = self.tools.get(tool_call.get("name", ""))
+            if isinstance(tool, WorkflowTool):
+                tool_kinds.append("workflow")
+                workflow_calls.append(tool_call)
+            elif isinstance(tool, ModelTool):
+                tool_kinds.append("external")
+                external_calls.append(tool_call)
+            else:
+                tool_kinds.append("unknown")
 
-        if tool_name in self.tools:
+        workflow_messages = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
+        external_messages = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
+
+        messages: List[Dict[str, Any]] = []
+        for tool_call, tool_kind in zip(tool_calls, tool_kinds):
+            if tool_kind == "workflow":
+                messages.append(next(workflow_messages))
+            elif tool_kind == "external":
+                messages.append(next(external_messages))
+            else:
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.get("id", ""),
+                    "content": f"Error: Unknown tool '{tool_call.get('name', '')}'"
+                })
+
+        return messages
+
+    async def _execute_workflow_tool_calls(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        context: ComponentActionContext
+    ) -> List[Dict[str, Any]]:
+        async def _execute_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
+            tool_name = tool_call["name"]
+            tool_arguments = tool_call.get("arguments", {})
+
+            if isinstance(tool_arguments, str):
+                tool_arguments = json.loads(tool_arguments)
+
             result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
             content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
-        else:
-            content = f"Error: Unknown tool '{tool_name}'"
 
-        return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
+            return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
+
+        return list(await asyncio.gather(*[ _execute_tool_call(tool_call) for tool_call in tool_calls ]))
+
+    async def _execute_external_tool_calls(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        context: ComponentActionContext
+    ) -> List[Dict[str, Any]]:
+        # NOTE: Reuses the enclosing ComponentJob's job_id and phase="after". If the
+        # same job also declares a static `interrupt.after` in its config, the two
+        # points would collide in InterruptHandler._points — do not mix them.
+        future = asyncio.get_running_loop().create_future()
+        point = InterruptPoint(
+            task_id=context.workflow.task_id,
+            job_id=context.job_id,
+            phase="after",
+            message="Agent is waiting for tool results.",
+            metadata={
+                "kind": "tool_calls",
+                "tool_calls": [
+                    {
+                        "id": tool_call.get("id", ""),
+                        "name": tool_call.get("name", ""),
+                        "arguments": tool_call.get("arguments", {})
+                    }
+                    for tool_call in tool_calls
+                ]
+            },
+            future=future
+        )
+
+        answer = await context.workflow.interrupt_handler.interrupt(point)
+        tool_results = answer if isinstance(answer, dict) else {}
+
+        messages: List[Dict[str, Any]] = []
+        for tool_call in tool_calls:
+            call_id = tool_call.get("id", "")
+            if call_id in tool_results:
+                result = tool_results[call_id]
+                content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
+            else:
+                content = f"Error: no result provided for tool_call '{call_id}'"
+            messages.append({ "role": "tool", "tool_call_id": call_id, "content": content })
+
+        return messages
 
     def _extract_content(self, response: Any) -> Any:
         if isinstance(response, dict):
@@ -167,32 +254,47 @@ class AgentComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.model_component: Optional[ComponentService] = None
-        self.tools: Optional[Dict[str, WorkflowTool]] = None
+        self.tools: Optional[Dict[str, Union[WorkflowTool, ModelTool]]] = None
         self.tool_schemas: Optional[List[Dict[str, Any]]] = None
 
     async def _start(self) -> None:
         self.model_component = self._create_component(self.config.model.component)
-        self.tools = await self._generate_tools()
-        self.tool_schemas = [ tool.as_model_tool(name).model_dump(exclude_none=True) for name, tool in self.tools.items() ]
+        self.tools, self.tool_schemas = await self._generate_tools()
 
         await super()._start()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await AgentAction(action, self.config, self.model_component, self.tools, self.tool_schemas).run(context)
 
-    async def _generate_tools(self) -> Dict[str, WorkflowTool]:
+    async def _generate_tools(self) -> tuple[Dict[str, Union[WorkflowTool, ModelTool]], List[Dict[str, Any]]]:
         workflow_schemas = create_workflow_schemas(self.global_configs.workflows, self.global_configs.components)
-        tools: Dict[str, WorkflowTool] = {}
+        tools: Dict[str, Union[WorkflowTool, ModelTool]] = {}
+        tool_schemas: List[Dict[str, Any]] = []
 
-        for workflow_id in self.config.tools:
-            if workflow_id not in workflow_schemas:
-                raise LookupError(f"Workflow not found for tool: {workflow_id}")
+        for tool in self.config.tools:
+            if isinstance(tool, str):
+                if tool not in workflow_schemas:
+                    raise LookupError(f"Workflow not found for tool: {tool}")
 
-            workflow = workflow_schemas[workflow_id]
-            tool = WorkflowToolGenerator().generate(workflow_id, workflow, self._run_workflow)
-            tools[workflow.name or workflow_id] = tool
+                workflow = workflow_schemas[tool]
+                workflow_tool = WorkflowToolGenerator().generate(tool, workflow, self._run_workflow)
+                tool_name = workflow.name or tool
 
-        return tools
+                if tool_name in tools:
+                    raise ValueError(f"Duplicate tool name '{tool_name}' in agent tools.")
+
+                tools[tool_name] = workflow_tool
+                tool_schemas.append(workflow_tool.as_model_tool(tool_name).model_dump(exclude_none=True))
+            elif isinstance(tool, ModelTool):
+                if tool.name in tools:
+                    raise ValueError(f"Duplicate tool name '{tool.name}' in agent tools.")
+
+                tools[tool.name] = tool
+                tool_schemas.append(tool.model_dump(exclude_none=True))
+            else:
+                raise TypeError(f"Unsupported tool entry type: {type(tool).__name__}")
+
+        return tools, tool_schemas
 
     async def _run_workflow(self, workflow_id: str, input: Any, context=None) -> Any:
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)

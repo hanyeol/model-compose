@@ -3,7 +3,7 @@ from mindor.dsl.schema.component import AgentComponentConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
-from mindor.core.workflow import WorkflowResolver, create_workflow
+from mindor.core.workflow import WorkflowResolver, WorkflowContext, create_workflow
 from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import create_workflow_schemas
@@ -296,7 +296,7 @@ class AgentComponent(ComponentService):
 
         return tools, tool_schemas
 
-    async def _run_workflow(self, workflow_id: str, input: Any, context=None) -> Any:
+    async def _run_workflow(self, workflow_id: str, input: Any, context: Optional[WorkflowContext] = None) -> Any:
         workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
         task_id = context.task_id if context else ulid.ulid()
         interrupt_handler = context.interrupt_handler if context else None

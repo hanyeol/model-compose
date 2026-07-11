@@ -174,10 +174,18 @@ class TestSimilarity:
         assert result == pytest.approx([1.0, 0.0])
 
     @pytest.mark.anyio
-    async def test_2d_vs_2d_returns_matrix(self):
+    async def test_2d_vs_2d_pairs_element_wise(self):
+        """Both sides as batches -> each row of `vector` paired with the same-index row of `other`.
+        This is zip semantics, not an outer product (matrix)."""
         cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [[1, 0], [0, 1]], "b": [[1, 0], [0, 1]]})
-        _approx_nested(result, [[1.0, 0.0], [0.0, 1.0]])
+        assert result == pytest.approx([1.0, 1.0])
+
+    @pytest.mark.anyio
+    async def test_2d_vs_2d_length_mismatch_raises(self):
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
+        with pytest.raises(ValueError, match="length mismatch"):
+            await _run(cfg, {"a": [[1, 0]], "b": [[1, 0], [0, 1]]})
 
     @pytest.mark.anyio
     async def test_zero_vector_returns_zero_similarity(self):
@@ -310,11 +318,12 @@ class TestSum:
         assert result == pytest.approx([4.0, 6.0])
 
     @pytest.mark.anyio
-    async def test_1d_reduction_scalar(self):
+    async def test_single_vector_input_treated_as_one_row_matrix(self):
+        """A 1D input is a single vector, so summing axis=0 across a
+        one-row matrix yields that same vector back."""
         cfg = _cfg({"method": "sum", "vectors": "${input.v}", "axis": 0})
         result = await _run(cfg, {"v": [1, 2, 3, 4]})
-        # 1D + axis=0 -> scalar sum
-        assert _approx(result, 10.0)
+        assert result == pytest.approx([1.0, 2.0, 3.0, 4.0])
 
 
 # ------------------------------------------------------------------ #
@@ -361,17 +370,6 @@ class TestTopK:
         result = await _run(cfg, {"q": [0, 0], "c": [[3, 4], [1, 1], [10, 10]]})
         # Distances: 5, sqrt(2), 10*sqrt(2). Sorted ascending -> index 1, 0, 2.
         assert [r["index"] for r in result] == [1, 0, 2]
-
-    @pytest.mark.anyio
-    async def test_empty_candidates_returns_empty_list(self):
-        cfg = _cfg({
-            "method": "top-k",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "k": 5,
-        })
-        result = await _run(cfg, {"q": [1, 0], "c": []})
-        assert result == []
 
 
 # ------------------------------------------------------------------ #

@@ -40,18 +40,29 @@ class ModelComponent(ComponentService):
 
     async def _start(self) -> None:
         await self.service.start()
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         await self.service.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ModelAction(action).run(context, self.service)
 
 def _load_model_task_module(task: ModelTaskType, driver: ModelDriver) -> None:
+    """Import the module that registers the given model task and driver.
+
+    Convention: a task "foo-bar" (ModelTaskType.value) with driver "baz-qux"
+    (ModelDriver.value) maps to mindor.core.component.services.model.tasks.foo_bar.baz_qux
+    — either a single-file module (baz_qux.py) or a package (baz_qux/__init__.py).
+    Importing the module triggers its @register_model_task_service decorator,
+    populating ModelTaskServiceRegistry.
+    """
     task_module = task.value.replace("-", "_")
     driver_module = driver.value.replace("-", "_")
+
     try:
         importlib.import_module(f"mindor.core.component.services.model.tasks.{task_module}.{driver_module}")
     except ImportError as e:

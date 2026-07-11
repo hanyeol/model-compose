@@ -47,6 +47,7 @@ def _load_component_module(type: ComponentType) -> None:
     triggers its @register_component decorator, populating ComponentRegistry.
     """
     module_name = type.value.replace("-", "_")
+
     try:
         importlib.import_module(f"mindor.core.component.services.{module_name}")
     except ImportError as e:

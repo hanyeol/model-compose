@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, Union, Dict, List, Any
+from typing import Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import (
     VectorProcessorActionConfig,
     VectorProcessorActionMethod,
     SimilarityMetric,
     DistanceMetric,
+    RankingMetric,
 )
 from mindor.core.foundation.variable.vector import VectorValue
 from ..base import ComponentActionContext
@@ -272,7 +273,7 @@ class VectorProcessorAction:
             raise ValueError(f"Invalid distance metric: {value}")
 
     @staticmethod
-    def _as_ranking_metric(value: Any) -> Union[SimilarityMetric, DistanceMetric]:
+    def _as_ranking_metric(value: Any) -> RankingMetric:
         """Ranking metrics may be either a similarity or a distance measure.
 
         The sign convention (higher-is-better vs lower-is-better) is decided by

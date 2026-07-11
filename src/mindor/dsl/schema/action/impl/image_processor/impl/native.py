@@ -6,6 +6,7 @@ from .common import (
     ImageScaleMode,
     FlipDirection,
     ImageConcatMode,
+    ImageCompressStrategy,
 )
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
@@ -65,6 +66,16 @@ class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MERGE]
     background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
 
+class ImageProcessorCompressActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.COMPRESS]
+    strategy: Union[ImageCompressStrategy, str] = Field(default=ImageCompressStrategy.LOSSLESS, description="PNG compression strategy: lossless (Pillow), optimized (oxipng), or quantized (pngquant, lossy).")
+    compress_level: Union[int, str] = Field(default=9, description="DEFLATE compression level (0-9). Higher is smaller and slower.")
+    min_quality: Optional[Union[int, str]] = Field(default=None, description="Quantized strategy minimum quality (0-100). If output would fall below this, save fails.")
+    max_quality: Optional[Union[int, str]] = Field(default=None, description="Quantized strategy maximum quality (0-100). Compressor tries to stay at or below this.")
+    speed: Union[int, str] = Field(default=3, description="Quantized strategy speed (1=slowest/best, 11=fastest).")
+    level: Union[int, str] = Field(default=4, description="Optimized strategy level (0-6). Higher is smaller and slower.")
+    strip_metadata: Union[bool, str] = Field(default=True, description="Strip ancillary metadata chunks (tEXt, eXIf, iCCP, etc.).")
+
 NativeImageProcessorActionConfig = Annotated[
     Union[
         ImageProcessorResizeActionConfig,
@@ -79,6 +90,7 @@ NativeImageProcessorActionConfig = Annotated[
         ImageProcessorAdjustSaturationActionConfig,
         ImageProcessorConcatActionConfig,
         ImageProcessorMergeActionConfig,
+        ImageProcessorCompressActionConfig,
     ],
     Field(discriminator="method")
 ]

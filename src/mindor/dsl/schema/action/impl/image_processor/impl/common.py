@@ -16,6 +16,7 @@ class ImageProcessorActionMethod(str, Enum):
     ADJUST_SATURATION = "adjust-saturation"
     CONCAT            = "concat"
     MERGE             = "merge"
+    COMPRESS          = "compress"
 
 class ImageScaleMode(str, Enum):
     FIT     = "fit"
@@ -30,6 +31,11 @@ class ImageConcatMode(str, Enum):
     HORIZONTAL = "horizontal"
     VERTICAL   = "vertical"
     GRID       = "grid"
+
+class ImageCompressStrategy(str, Enum):
+    LOSSLESS  = "lossless"
+    OPTIMIZED = "optimized"
+    QUANTIZED = "quantized"
 
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")

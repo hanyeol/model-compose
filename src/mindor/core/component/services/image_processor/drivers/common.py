@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageCompressStrategy
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
@@ -169,6 +169,30 @@ class ImageProcessorAction:
                 "background": background,
             }
 
+        if method == ImageProcessorActionMethod.COMPRESS:
+            strategy       = await context.render_variable(self.config.strategy)
+            compress_level = await context.render_variable(self.config.compress_level)
+            min_quality    = await context.render_variable(self.config.min_quality)
+            max_quality    = await context.render_variable(self.config.max_quality)
+            speed          = await context.render_variable(self.config.speed)
+            level          = await context.render_variable(self.config.level)
+            strip_metadata = await context.render_variable(self.config.strip_metadata)
+
+            try:
+                strategy = ImageCompressStrategy(strategy)
+            except ValueError:
+                raise ValueError(f"Invalid compress strategy: {strategy}")
+
+            return {
+                "strategy": strategy,
+                "compress_level": compress_level,
+                "min_quality": min_quality,
+                "max_quality": max_quality,
+                "speed": speed,
+                "level": level,
+                "strip_metadata": strip_metadata,
+            }
+
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
     async def _process_batch(
@@ -223,6 +247,9 @@ class ImageProcessorAction:
         if method == ImageProcessorActionMethod.MERGE:
             return self._merge(image, params)
 
+        if method == ImageProcessorActionMethod.COMPRESS:
+            return self._compress(image, params)
+
         raise ValueError(f"Unsupported image processing action method: {method}")
 
     @abstractmethod
@@ -271,4 +298,8 @@ class ImageProcessorAction:
 
     @abstractmethod
     def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
         pass

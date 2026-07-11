@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageConcatMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageCompressStrategy
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
 from PIL import Image as PILImage, ImageFilter, ImageEnhance
-import asyncio, math
+import asyncio, math, io, shutil, subprocess
 
 class NativeImageProcessorAction(ImageProcessorAction):
     def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
@@ -95,6 +95,23 @@ class NativeImageProcessorAction(ImageProcessorAction):
             canvas.alpha_composite(image, (offset_x, offset_y))
 
         return canvas
+
+    def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
+        strategy       = params["strategy"]
+        strip_metadata = params["strip_metadata"]
+
+        if strategy == ImageCompressStrategy.LOSSLESS:
+            return self._compress_lossless(image, params, strip_metadata)
+
+        if strategy == ImageCompressStrategy.OPTIMIZED:
+            data = self._compress_lossless(image, params, strip_metadata=False)
+            return self._compress_optimized(data, params, strip_metadata)
+
+        if strategy == ImageCompressStrategy.QUANTIZED:
+            data = self._compress_lossless(image, params, strip_metadata=False)
+            return self._compress_quantized(data, params, strip_metadata)
+
+        raise ValueError(f"Unsupported compress strategy: {strategy}")
 
     def _concat_horizontal(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
         total_width = sum(image.width for image in images) + spacing * (len(images) - 1)
@@ -199,10 +216,85 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return (left, top, right, bottom)
 
+    def _compress_lossless(self, image: PILImage.Image, params: Dict[str, Any], strip_metadata: bool) -> bytes:
+        buffer = io.BytesIO()
+        save_params = {
+            "format": "PNG",
+            "optimize": True,
+            "compress_level": params["compress_level"],
+        }
+
+        if not strip_metadata and image.info:
+            pnginfo = self._build_pnginfo(image.info)
+            if pnginfo is not None:
+                save_params["pnginfo"] = pnginfo
+
+        image.save(buffer, **save_params)
+        return buffer.getvalue()
+
+    def _build_pnginfo(self, info: Dict[str, Any]) -> Optional[Any]:
+        from PIL import PngImagePlugin
+
+        pnginfo = PngImagePlugin.PngInfo()
+        added = False
+        for key, value in info.items():
+            if isinstance(value, str):
+                pnginfo.add_text(key, value)
+                added = True
+
+        return pnginfo if added else None
+
+    def _compress_optimized(self, data: bytes, params: Dict[str, Any], strip_metadata: bool) -> bytes:
+        import oxipng
+
+        strip = oxipng.StripChunks.safe() if strip_metadata else oxipng.StripChunks.none()
+        return oxipng.optimize_from_memory(data, level=params["level"], strip=strip)
+
+    def _compress_quantized(self, data: bytes, params: Dict[str, Any], strip_metadata: bool) -> bytes:
+        program = shutil.which("pngquant")
+
+        if not program:
+            raise RuntimeError("Compress strategy 'quantized' requires the 'pngquant' program in PATH.")
+
+        command = [ program, "--speed", str(params["speed"]) ]
+
+        if strip_metadata:
+            command.append("--strip")
+
+        quality = self._format_quality_range(params["min_quality"], params["max_quality"])
+        if quality:
+            command += [ "--quality", quality ]
+
+        command += [ "--output", "-", "-" ]
+
+        result = subprocess.run(command, input=data, capture_output=True, check=True)
+        return result.stdout
+
+    def _format_quality_range(self, min_quality: Optional[int], max_quality: Optional[int]) -> Optional[str]:
+        if min_quality is None and max_quality is None:
+            return None
+
+        return f"{min_quality if min_quality is not None else 0}-{max_quality if max_quality is not None else 100}"
+
 @register_image_processor_service(ImageProcessorDriver.NATIVE)
 class NativeImageProcessorService(ImageProcessorService):
     def __init__(self, id: str, config: ImageProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        requirements: List[str] = []
+
+        if self._has_compress_strategy(ImageCompressStrategy.OPTIMIZED):
+            requirements.append("pyoxipng")
+
+        return requirements or None
+
     async def _run(self, action: ImageProcessorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await NativeImageProcessorAction(action).run(context, loop)
+
+    def _has_compress_strategy(self, strategy: ImageCompressStrategy) -> bool:
+        for action in self.config.actions:
+            if action.method == ImageProcessorActionMethod.COMPRESS and action.strategy == strategy:
+                return True
+
+        return False

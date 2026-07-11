@@ -5,6 +5,7 @@ from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import GraphStoreService, GraphStoreServiceRegistry
+import importlib
 
 @register_component(ComponentType.GRAPH_STORE)
 class GraphStoreComponent(ComponentService):
@@ -21,8 +22,8 @@ class GraphStoreComponent(ComponentService):
 
     def _create_service(self, driver: GraphStoreDriver) -> GraphStoreService:
         try:
-            if not GraphStoreServiceRegistry:
-                from . import drivers
+            if driver not in GraphStoreServiceRegistry:
+                _load_driver_module(driver)
             return GraphStoreServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported graph store driver: {driver}")
@@ -40,3 +41,19 @@ class GraphStoreComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
+
+def _load_driver_module(driver: GraphStoreDriver) -> None:
+    """Import the module that registers the given graph store driver.
+
+    Convention: a driver "foo-bar" (GraphStoreDriver.value) maps to
+    mindor.core.component.services.graph_store.drivers.foo_bar — either
+    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+    Importing the module triggers its @register_graph_store_service decorator,
+    populating GraphStoreServiceRegistry.
+    """
+    driver_module = driver.value.replace("-", "_")
+
+    try:
+        importlib.import_module(f"mindor.core.component.services.graph_store.drivers.{driver_module}")
+    except ImportError as e:
+        raise ValueError(f"Unsupported graph store driver: {driver}") from e

@@ -6,6 +6,7 @@ class CustomFaceSwapTaskService:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == FaceSwapModelFamily.INSIGHTFACE:
             from .insightface import InsightfaceFaceSwapTaskService
+
             return InsightfaceFaceSwapTaskService(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

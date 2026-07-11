@@ -4,6 +4,7 @@ from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import SearchEngineService, SearchEngineServiceRegistry
+import importlib
 
 @register_component(ComponentType.SEARCH_ENGINE)
 class SearchEngineComponent(ComponentService):
@@ -20,8 +21,8 @@ class SearchEngineComponent(ComponentService):
 
     def _create_service(self, driver: SearchEngineDriver) -> SearchEngineService:
         try:
-            if not SearchEngineServiceRegistry:
-                from . import drivers
+            if driver not in SearchEngineServiceRegistry:
+                _load_driver_module(driver)
             return SearchEngineServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported search engine driver: {driver}")
@@ -39,3 +40,19 @@ class SearchEngineComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
+
+def _load_driver_module(driver: SearchEngineDriver) -> None:
+    """Import the module that registers the given search engine driver.
+
+    Convention: a driver "foo-bar" (SearchEngineDriver.value) maps to
+    mindor.core.component.services.search_engine.drivers.foo_bar — either
+    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+    Importing the module triggers its @register_search_engine_service
+    decorator, populating SearchEngineServiceRegistry.
+    """
+    driver_module = driver.value.replace("-", "_")
+
+    try:
+        importlib.import_module(f"mindor.core.component.services.search_engine.drivers.{driver_module}")
+    except ImportError as e:
+        raise ValueError(f"Unsupported search engine driver: {driver}") from e

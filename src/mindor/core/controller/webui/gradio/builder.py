@@ -14,7 +14,7 @@ from mindor.core.foundation.streaming.resources import save_stream_to_temporary_
 from mindor.core.foundation.streaming.url import DataUriStreamResource
 from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
-from mindor.core.foundation.streaming.image import load_image_from_stream
+from mindor.core.foundation.streaming.image import ImageStreamResource, load_image_from_stream
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.event_queue import EventQueue
@@ -720,6 +720,9 @@ class GradioWebUIBuilder:
 
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await load_image_from_stream(Base64StreamResource(value))
+
+        if isinstance(value, ImageStreamResource):
+            return value.image
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value)

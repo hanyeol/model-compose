@@ -9,7 +9,7 @@ from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
-from ..text_generation import HuggingfaceTextGenerationTaskAction
+from ..text_generation.huggingface import HuggingfaceTextGenerationTaskAction
 from .common import ToolBuilder
 import asyncio
 

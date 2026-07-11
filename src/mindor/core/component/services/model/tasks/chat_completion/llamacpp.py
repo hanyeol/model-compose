@@ -8,7 +8,7 @@ from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp 
 from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
-from ..text_generation import LlamaCppTextGenerationTaskAction
+from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
 from .huggingface import HuggingfaceToolBuilder
 import asyncio
 

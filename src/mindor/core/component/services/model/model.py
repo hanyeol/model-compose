@@ -5,6 +5,7 @@ from mindor.dsl.schema.action import ActionConfig, ModelActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import ModelTaskService, ModelTaskServiceRegistry
+import importlib
 
 class ModelAction:
     def __init__(self, config: ModelActionConfig):
@@ -28,8 +29,8 @@ class ModelComponent(ComponentService):
 
     def _create_service(self, type: ModelTaskType, driver: ModelDriver) -> ModelTaskService:
         try:
-            if not ModelTaskServiceRegistry:
-                from . import tasks
+            if type not in ModelTaskServiceRegistry or driver not in ModelTaskServiceRegistry[type]:
+                _load_model_task_module(type, driver)
             return ModelTaskServiceRegistry[type][driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported model task type: {type} on {driver}")
@@ -47,3 +48,11 @@ class ModelComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ModelAction(action).run(context, self.service)
+
+def _load_model_task_module(task: ModelTaskType, driver: ModelDriver) -> None:
+    task_module = task.value.replace("-", "_")
+    driver_module = driver.value.replace("-", "_")
+    try:
+        importlib.import_module(f"mindor.core.component.services.model.tasks.{task_module}.{driver_module}")
+    except ImportError as e:
+        raise ValueError(f"Unsupported model task type: {task} on {driver}") from e

@@ -38,7 +38,7 @@ class FaceEmbeddingTaskAction:
 
             return _stream_output_generator()
         else:
-            results: List[List[float]] = []
+            results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_results = await self._embed(batch_images, params, loop)
                 results.extend(batch_results)
@@ -49,9 +49,9 @@ class FaceEmbeddingTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        face_detection       = await context.render_variable(self.config.face_detection)
-        alignment            = await context.render_variable(self.config.alignment)
-        normalize_embeddings = await context.render_variable(self.config.normalize_embeddings)
+        face_detection       = bool(await context.render_variable(self.config.face_detection))
+        alignment            = bool(await context.render_variable(self.config.alignment))
+        normalize_embeddings = bool(await context.render_variable(self.config.normalize_embeddings))
 
         return {
             "face_detection":       face_detection,
@@ -60,7 +60,7 @@ class FaceEmbeddingTaskAction:
         }
 
     @abstractmethod
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
         pass
 
 class FaceEmbeddingTaskService(ModelTaskService):

@@ -12,6 +12,8 @@ import asyncio, os, shutil
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
+    from insightface.app.common import Face
+    import numpy as np
 
 class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     config: InsightfaceFaceEmbeddingModelActionConfig
@@ -21,20 +23,89 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         self.model: FaceAnalysis = model
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
-        return await loop.run_in_executor(None, self._embed_batch, images)
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-    def _embed_batch(self, images: List[PILImage.Image]) -> List[List[float]]:
+        params["return_landmarks"]  = bool(await context.render_variable(self.config.return_landmarks))
+        params["return_gender_age"] = bool(await context.render_variable(self.config.return_gender_age))
+        params["max_num_faces"]     = int(await context.render_variable(self.config.max_num_faces))
+
+        return params
+
+    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
+        return await loop.run_in_executor(None, self._embed_batch, images, params)
+
+    def _embed_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
         import cv2
 
-        embeddings: List[List[float]] = []
+        results: List[Dict[str, Any]] = []
 
         for image in images:
-            image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            embeddings.append([ face.embedding.tolist() for face in self.model.get(image_cv) ])
+            rgb_frame = np.asarray(image.convert("RGB"))
+            height, width = rgb_frame.shape[:2]
 
-        return embeddings
+            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+            detections = self.model.get(bgr_frame)
+
+            results.append(self._serialize(detections, width, height, params))
+
+        return results
+
+    def _serialize(self, detections: List[Face], width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
+        detections = detections[:params["max_num_faces"]] if params["max_num_faces"] and params["max_num_faces"] > 0 else detections
+        faces: List[Dict[str, Any]] = []
+
+        for detection in detections:
+            embedding = detection.normed_embedding if params["normalize_embeddings"] else detection.embedding
+
+            face: Dict[str, Any] = {
+                "embedding":    embedding.tolist(),
+                "bounding_box": self._serialize_bounding_box(detection.bbox),
+                "score":        float(getattr(detection, "det_score", 0.0)),
+            }
+
+            if params["return_landmarks"]:
+                landmarks = self._serialize_landmarks(detection)
+
+                if landmarks:
+                    face["landmarks"] = landmarks
+
+            if params["return_gender_age"]:
+                if getattr(detection, "gender", None) is not None:
+                    face["gender"] = self._gender_to_label(int(detection.gender))
+                if getattr(detection, "age", None) is not None:
+                    face["age"] = int(detection.age)
+
+            pose = getattr(detection, "pose", None)
+
+            if pose is not None:
+                face["pose"] = { "pitch": float(pose[0]), "yaw": float(pose[1]), "roll": float(pose[2]) }
+
+            faces.append(face)
+
+        return {
+            "faces":  faces,
+            "width":  width,
+            "height": height,
+        }
+
+    def _serialize_landmarks(self, detection: Face) -> List[Dict[str, int]]:
+        # Prefer the densest landmark set the loaded model exposes.
+        for attr in ("landmark_2d_106", "landmark_3d_68", "kps"):
+            points = getattr(detection, attr, None)
+
+            if points is not None:
+                return [ { "x": int(p[0]), "y": int(p[1]) } for p in points ]
+
+        return []
+
+    def _serialize_bounding_box(self, bbox: np.ndarray) -> List[int]:
+        x1, y1, x2, y2 = [ int(v) for v in bbox ]
+        return [ x1, y1, x2 - x1, y2 - y1 ]
+
+    def _gender_to_label(self, gender: int) -> str:
+        return "male" if gender == 1 else "female"
 
 class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -79,7 +150,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
             return { "name": name, "root": root }
 
         raise ValueError(f"Unsupported model type: {type(self.config.model)}")
-    
+
     def _prepare_model_path(self, path: str) -> Tuple[str, str]:
         root = os.path.dirname(path)
         name = os.path.basename(path)
@@ -92,7 +163,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
             root = os.path.dirname(root)
 
         return (root, name)
-    
+
     def _fix_wrong_model_path(self, params: Dict[str, Any]) -> None:
         root, name = params["root"], params["name"]
         model_dir = os.path.join(root, "models", name)

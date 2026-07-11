@@ -7,5 +7,5 @@ from ...base.vllm import VllmEngineOptionsConfig
 
 class VllmTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
     driver: Literal[ModelDriver.VLLM] = Field(default=ModelDriver.VLLM)
-    options: Optional[VllmEngineOptionsConfig] = Field(default=None, description="vLLM-specific engine options. Values set here override anything derived from the common fields.")
+    options: Optional[VllmEngineOptionsConfig] = Field(default=None, description="vLLM engine options.")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)

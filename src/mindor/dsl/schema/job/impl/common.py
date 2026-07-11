@@ -11,14 +11,14 @@ class CommonJobConfig(BaseModel):
     max_run_count: int = Field(default=5, gt=0, description="Maximum number of times this job may be executed within a single workflow run (including re-runs triggered by routing).")
     depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
 
-    def get_routing_jobs(self) -> List[str]:
-        return []
-
     @field_validator("id")
     def validate_id(cls, value):
         if value == "__default__":
             raise ValueError("Job id cannot be '__default__'")
         return value
+
+    def get_routing_jobs(self) -> List[str]:
+        return []
 
 class OutputJobConfig(CommonJobConfig):
     output: Optional[Any] = Field(default=None, description="The output data returned from this job. Accepts any type.")

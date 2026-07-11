@@ -19,6 +19,7 @@ ComponentConfig = Annotated[
         ShellComponentConfig,
         TextSplitterComponentConfig,
         ImageProcessorComponentConfig,
+        VectorProcessorComponentConfig,
         WebScraperComponentConfig,
         AgentComponentConfig,
         WebBrowserComponentConfig,

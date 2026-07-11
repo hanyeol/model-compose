@@ -15,6 +15,7 @@ from .workflow import *
 from .shell import *
 from .text_splitter import *
 from .image_processor import *
+from .vector_processor import *
 from .web_scraper import *
 from .web_browser import *
 from .video_scene_detector import *

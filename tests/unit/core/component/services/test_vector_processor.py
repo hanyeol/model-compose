@@ -1,13 +1,12 @@
-"""End-to-end tests for VectorProcessorAction across all 8 methods.
+"""End-to-end tests for VectorProcessorAction.
 
 Covers:
   - DSL schema round-trip via TypeAdapter (discriminator on `method` field, default values)
   - Full action execution through ComponentActionContext
   - Output containers (single value, list of dicts, list of floats, matrix)
-  - Metric-dependent semantics (top-k / threshold-filter: higher-better for cosine/dot,
-    lower-better for euclidean)
-  - Provenance in ranking results (index for flat candidates, outer_index/inner_index
-    for nested)
+  - Metric-dependent semantics (top-k / threshold-filter: higher-better for
+    similarity metrics, lower-better for distance metrics)
+  - Provenance in ranking results (`index` for each surviving candidate)
 """
 
 from __future__ import annotations
@@ -64,19 +63,25 @@ def _approx_nested(actual: Any, expected: Any, tol: float = 1e-9) -> None:
 class TestSchemaValidation:
     """Round-trip every method through the discriminated union."""
 
-    def test_cosine_similarity_schema(self):
-        c = _cfg({"method": "cosine-similarity", "vector": [1, 0], "other": [0, 1]})
-        assert c.method.value == "cosine-similarity"
+    def test_similarity_schema_default_metric(self):
+        c = _cfg({"method": "similarity", "vector": [1, 0], "other": [0, 1]})
+        assert c.method.value == "similarity"
         assert c.vector == [1, 0]
         assert c.other == [0, 1]
+        assert _metric_value(c.metric) == "cosine"
+
+    def test_similarity_schema_explicit_metric(self):
+        c = _cfg({"method": "similarity", "vector": [1, 0], "other": [0, 1], "metric": "cosine"})
+        assert _metric_value(c.metric) == "cosine"
 
     def test_dot_product_schema(self):
         c = _cfg({"method": "dot-product", "vector": [1, 2], "other": [3, 4]})
         assert c.method.value == "dot-product"
 
-    def test_euclidean_distance_schema(self):
-        c = _cfg({"method": "euclidean-distance", "vector": [0, 0], "other": [3, 4]})
-        assert c.method.value == "euclidean-distance"
+    def test_distance_schema_default_metric(self):
+        c = _cfg({"method": "distance", "vector": [0, 0], "other": [3, 4]})
+        assert c.method.value == "distance"
+        assert _metric_value(c.metric) == "euclidean"
 
     def test_normalize_schema(self):
         c = _cfg({"method": "normalize", "vector": [3, 4]})
@@ -100,7 +105,6 @@ class TestSchemaValidation:
         # `metric` may be resolved as either the enum or its string value depending
         # on which arm of the Union pydantic picks; both are accepted downstream.
         assert _metric_value(c.metric) == "cosine"
-        assert c.flatten is True
 
     def test_top_k_custom_metric(self):
         c = _cfg({
@@ -109,11 +113,9 @@ class TestSchemaValidation:
             "candidates": [[1, 0]],
             "k": 3,
             "metric": "euclidean",
-            "flatten": False,
         })
         assert c.k == 3
         assert _metric_value(c.metric) == "euclidean"
-        assert c.flatten is False
 
     def test_threshold_filter_requires_threshold(self):
         with pytest.raises(Exception):
@@ -135,53 +137,60 @@ class TestSchemaValidation:
 
 
 # ------------------------------------------------------------------ #
-# Cosine similarity                                                  #
+# Similarity (default metric: cosine)                                #
 # ------------------------------------------------------------------ #
 
-class TestCosineSimilarity:
+class TestSimilarity:
 
     @pytest.mark.anyio
     async def test_1d_vs_1d_returns_scalar(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [1, 0, 0], "b": [1, 0, 0]})
         assert isinstance(result, float)
         assert _approx(result, 1.0)
 
     @pytest.mark.anyio
     async def test_orthogonal_is_zero(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [1, 0], "b": [0, 1]})
         assert _approx(result, 0.0)
 
     @pytest.mark.anyio
     async def test_opposite_is_minus_one(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [1, 0], "b": [-1, 0]})
         assert _approx(result, -1.0)
 
     @pytest.mark.anyio
     async def test_1d_vs_2d_returns_list(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.q}", "other": "${input.candidates}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.q}", "other": "${input.candidates}"})
         result = await _run(cfg, {"q": [1, 0], "candidates": [[1, 0], [0, 1], [-1, 0]]})
         assert result == pytest.approx([1.0, 0.0, -1.0])
 
     @pytest.mark.anyio
     async def test_2d_vs_1d_returns_list(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [[1, 0], [0, 1]], "b": [1, 0]})
         assert result == pytest.approx([1.0, 0.0])
 
     @pytest.mark.anyio
     async def test_2d_vs_2d_returns_matrix(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [[1, 0], [0, 1]], "b": [[1, 0], [0, 1]]})
         _approx_nested(result, [[1.0, 0.0], [0.0, 1.0]])
 
     @pytest.mark.anyio
     async def test_zero_vector_returns_zero_similarity(self):
-        cfg = _cfg({"method": "cosine-similarity", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [0, 0], "b": [1, 0]})
         assert _approx(result, 0.0)
+
+    @pytest.mark.anyio
+    async def test_distance_metric_rejected_at_runtime(self):
+        """method=similarity + metric=euclidean is caught at param resolution."""
+        cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}", "metric": "euclidean"})
+        with pytest.raises(ValueError, match="similarity metric"):
+            await _run(cfg, {"a": [1, 0], "b": [0, 1]})
 
 
 # ------------------------------------------------------------------ #
@@ -205,26 +214,26 @@ class TestDotProduct:
 
 
 # ------------------------------------------------------------------ #
-# Euclidean distance                                                 #
+# Distance (default metric: euclidean)                               #
 # ------------------------------------------------------------------ #
 
-class TestEuclideanDistance:
+class TestDistance:
 
     @pytest.mark.anyio
     async def test_3_4_5(self):
-        cfg = _cfg({"method": "euclidean-distance", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "distance", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [0, 0], "b": [3, 4]})
         assert _approx(result, 5.0)
 
     @pytest.mark.anyio
     async def test_identical_vectors_zero(self):
-        cfg = _cfg({"method": "euclidean-distance", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "distance", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [1, 2, 3], "b": [1, 2, 3]})
         assert _approx(result, 0.0)
 
     @pytest.mark.anyio
     async def test_1d_vs_2d(self):
-        cfg = _cfg({"method": "euclidean-distance", "vector": "${input.a}", "other": "${input.b}"})
+        cfg = _cfg({"method": "distance", "vector": "${input.a}", "other": "${input.b}"})
         result = await _run(cfg, {"a": [0, 0], "b": [[3, 4], [0, 0], [1, 0]]})
         assert result == pytest.approx([5.0, 0.0, 1.0])
 
@@ -329,40 +338,6 @@ class TestTopK:
         assert result[1]["index"] == 2  # closer to [1,0] than [0,1]
 
     @pytest.mark.anyio
-    async def test_nested_candidates_preserve_provenance(self):
-        """Nested list e.g. per-frame per-face embeddings -> outer/inner indices."""
-        cfg = _cfg({
-            "method": "top-k",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "k": 2,
-        })
-        result = await _run(cfg, {
-            "q": [1, 0],
-            "c": [
-                [[1, 0], [0.5, 0.5]],  # frame 0: 2 faces
-                [[0, 1]],              # frame 1: 1 face
-            ],
-        })
-        assert len(result) == 2
-        assert result[0] == {"score": pytest.approx(1.0), "outer_index": 0, "inner_index": 0}
-        # Second best is frame 0 face 1 (cos([1,0],[0.5,0.5]) ~ 0.707)
-        assert result[1]["outer_index"] == 0
-        assert result[1]["inner_index"] == 1
-
-    @pytest.mark.anyio
-    async def test_flatten_false_treats_as_flat(self):
-        cfg = _cfg({
-            "method": "top-k",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "k": 1,
-            "flatten": False,
-        })
-        result = await _run(cfg, {"q": [1, 0], "c": [[1, 0], [0, 1]]})
-        assert result[0] == {"score": pytest.approx(1.0), "index": 0}
-
-    @pytest.mark.anyio
     async def test_k_larger_than_candidates(self):
         cfg = _cfg({
             "method": "top-k",
@@ -388,19 +363,6 @@ class TestTopK:
         assert [r["index"] for r in result] == [1, 0, 2]
 
     @pytest.mark.anyio
-    async def test_dot_metric(self):
-        cfg = _cfg({
-            "method": "top-k",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "k": 2,
-            "metric": "dot",
-        })
-        result = await _run(cfg, {"q": [1, 1], "c": [[2, 2], [1, 0], [3, -1]]})
-        # Dots: 4, 1, 2 -> order: 0, 2, 1
-        assert [r["index"] for r in result] == [0, 2]
-
-    @pytest.mark.anyio
     async def test_empty_candidates_returns_empty_list(self):
         cfg = _cfg({
             "method": "top-k",
@@ -410,22 +372,6 @@ class TestTopK:
         })
         result = await _run(cfg, {"q": [1, 0], "c": []})
         assert result == []
-
-    @pytest.mark.anyio
-    async def test_nested_with_empty_inner(self):
-        """Frames with zero detected faces should be skipped, not crash."""
-        cfg = _cfg({
-            "method": "top-k",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "k": 5,
-        })
-        result = await _run(cfg, {
-            "q": [1, 0],
-            "c": [[], [[1, 0]], [], [[0, 1]]],
-        })
-        assert len(result) == 2
-        assert result[0] == {"score": pytest.approx(1.0), "outer_index": 1, "inner_index": 0}
 
 
 # ------------------------------------------------------------------ #
@@ -472,21 +418,3 @@ class TestThresholdFilter:
         result = await _run(cfg, {"q": [1, 0], "c": [[0, 1], [0.5, 0.5]]})
         assert result == []
 
-    @pytest.mark.anyio
-    async def test_nested_candidates(self):
-        cfg = _cfg({
-            "method": "threshold-filter",
-            "query": "${input.q}",
-            "candidates": "${input.c}",
-            "threshold": 0.9,
-        })
-        result = await _run(cfg, {
-            "q": [1, 0],
-            "c": [
-                [[1, 0], [0, 1]],   # frame 0: face 0 matches
-                [[0.95, 0.05]],     # frame 1: face 0 matches
-            ],
-        })
-        assert len(result) == 2
-        keys = sorted((r["outer_index"], r["inner_index"]) for r in result)
-        assert keys == [(0, 0), (1, 0)]

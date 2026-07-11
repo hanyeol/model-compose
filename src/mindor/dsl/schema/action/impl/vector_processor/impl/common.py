@@ -22,5 +22,10 @@ class SimilarityMetric(str, Enum):
 class DistanceMetric(str, Enum):
     EUCLIDEAN = "euclidean"
 
+# For ranking (top-k / threshold-filter) the metric may be either a similarity
+# or a distance measure; sign convention (higher-is-better vs lower-is-better)
+# is decided by which enum the value belongs to.
+RankingMetric = Union[ SimilarityMetric, DistanceMetric ]
+
 class CommonVectorProcessorActionConfig(CommonActionConfig):
     method: VectorProcessorActionMethod = Field(..., description="Vector processor method.")

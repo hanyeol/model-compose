@@ -13,6 +13,7 @@ from mindor.core.foundation.variable.text import TextValueRenderer
 from mindor.core.foundation.variable.size import SizeValueRenderer
 from mindor.core.foundation.variable.color import ColorValueRenderer, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
+from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
@@ -98,6 +99,12 @@ class ComponentActionContext:
 
     async def render_file(self, value: Any) -> Any:
         return await FileValueRenderer().render(await self.render_variable(value))
+
+    async def render_vector(self, value: Any) -> Union[VectorValue, List[VectorValue], AsyncIterator[VectorValue]]:
+        return await VectorValueRenderer().render(await self.render_variable(value))
+
+    async def render_vector_list(self, value: Any) -> Union[List[VectorValue], AsyncIterator[List[VectorValue]]]:
+        return await VectorValueRenderer().render_list(await self.render_variable(value))
 
     async def render_array(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         return await ArrayValueRenderer().render(await self.render_variable(value))

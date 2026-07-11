@@ -13,17 +13,17 @@ import math
 import numpy as np
 import pytest
 
-from mindor.core.component.services.vector_processor.drivers.native import (
-    _as_array,
-    _cosine,
-    _dot,
-    _euclidean,
-    _flatten_candidates,
-    _pairwise,
-    _score_all,
-    _to_python,
-)
-from mindor.dsl.schema.action import VectorSimilarityMetric
+from mindor.core.component.services.vector_processor.drivers.native import NativeVectorProcessorAction as _NA
+from mindor.dsl.schema.action import SimilarityMetric, DistanceMetric
+
+_as_array             = _NA._as_array
+_cosine               = _NA._cosine
+_dot                  = _NA._dot
+_euclidean            = _NA._euclidean
+_normalize_candidates = _NA._normalize_candidates
+_pairwise             = _NA._pairwise
+_score_all            = _NA._score_all
+_as_native            = _NA._as_native
 
 
 # ------------------------------------------------------------------ #
@@ -51,26 +51,26 @@ class TestAsArray:
 
 
 # ------------------------------------------------------------------ #
-# _to_python                                                         #
+# _as_native                                                         #
 # ------------------------------------------------------------------ #
 
-class TestToPython:
+class TestAsNative:
 
     def test_array_to_list(self):
-        assert _to_python(np.array([1.0, 2.0])) == [1.0, 2.0]
+        assert _as_native(np.array([1.0, 2.0])) == [1.0, 2.0]
 
-    def test_numpy_scalar_to_python_float(self):
-        result = _to_python(np.float64(3.14))
+    def test_numpy_scalar_as_native_float(self):
+        result = _as_native(np.float64(3.14))
         assert isinstance(result, float)
         assert result == pytest.approx(3.14)
 
-    def test_numpy_int_to_python_int(self):
-        result = _to_python(np.int64(42))
+    def test_numpy_int_as_native_int(self):
+        result = _as_native(np.int64(42))
         assert isinstance(result, int)
         assert result == 42
 
     def test_python_scalar_passthrough(self):
-        assert _to_python(3.14) == 3.14
+        assert _as_native(3.14) == 3.14
 
 
 # ------------------------------------------------------------------ #
@@ -166,56 +166,37 @@ class TestPairwise:
 
 
 # ------------------------------------------------------------------ #
-# _flatten_candidates                                                #
+# _normalize_candidates                                              #
 # ------------------------------------------------------------------ #
 
-class TestFlattenCandidates:
+class TestNormalizeCandidates:
 
     def test_none_returns_empty(self):
-        vecs, prov = _flatten_candidates(None, True)
+        vecs, prov = _normalize_candidates(None)
         assert vecs == []
         assert prov == []
 
     def test_empty_list_returns_empty(self):
-        vecs, prov = _flatten_candidates([], True)
+        vecs, prov = _normalize_candidates([])
         assert vecs == []
         assert prov == []
 
     def test_non_list_raises(self):
         with pytest.raises(ValueError):
-            _flatten_candidates("not a list", True)
+            _normalize_candidates("not a list")
 
-    def test_flat_list_with_flatten_true(self):
-        vecs, prov = _flatten_candidates([[1, 0], [0, 1]], True)
+    def test_flat_list(self):
+        vecs, prov = _normalize_candidates([[1, 0], [0, 1]])
         assert len(vecs) == 2
         assert prov == [{"index": 0}, {"index": 1}]
 
-    def test_flat_list_with_flatten_false(self):
-        vecs, prov = _flatten_candidates([[1, 0], [0, 1]], False)
+    def test_none_entries_skipped_but_indices_preserved(self):
+        vecs, prov = _normalize_candidates([[1, 0], None, [0, 1]])
         assert len(vecs) == 2
-        assert prov == [{"index": 0}, {"index": 1}]
+        assert prov == [{"index": 0}, {"index": 2}]
 
-    def test_nested_list_flattens_one_level(self):
-        vecs, prov = _flatten_candidates([[[1, 0], [0.5, 0.5]], [[0, 1]]], True)
-        assert len(vecs) == 3
-        assert prov == [
-            {"outer_index": 0, "inner_index": 0},
-            {"outer_index": 0, "inner_index": 1},
-            {"outer_index": 1, "inner_index": 0},
-        ]
-
-    def test_nested_but_flatten_disabled_treats_as_flat(self):
-        """When flatten=False, we assume the caller already passed a flat list."""
-        vecs, prov = _flatten_candidates([[1, 0], [0, 1]], False)
-        assert prov == [{"index": 0}, {"index": 1}]
-
-    def test_nested_with_empty_inner_lists_skipped(self):
-        vecs, prov = _flatten_candidates([[], [[1, 0]], []], True)
-        assert len(vecs) == 1
-        assert prov == [{"outer_index": 1, "inner_index": 0}]
-
-    def test_flat_with_none_entries_skipped(self):
-        vecs, prov = _flatten_candidates([[1, 0], None, [0, 1]], False)
+    def test_empty_vector_entries_skipped(self):
+        vecs, prov = _normalize_candidates([[1, 0], [], [0, 1]])
         assert len(vecs) == 2
         assert prov == [{"index": 0}, {"index": 2}]
 
@@ -229,35 +210,29 @@ class TestScoreAll:
     def test_cosine(self):
         query = np.array([1.0, 0.0])
         candidates = [np.array([1.0, 0.0]), np.array([0.0, 1.0]), np.array([-1.0, 0.0])]
-        scores = _score_all(query, candidates, VectorSimilarityMetric.COSINE)
+        scores = _score_all(query, candidates, SimilarityMetric.COSINE)
         assert scores == pytest.approx([1.0, 0.0, -1.0])
-
-    def test_dot(self):
-        query = np.array([1.0, 1.0])
-        candidates = [np.array([2.0, 3.0]), np.array([-1.0, -1.0])]
-        scores = _score_all(query, candidates, VectorSimilarityMetric.DOT)
-        assert scores == pytest.approx([5.0, -2.0])
 
     def test_euclidean(self):
         query = np.array([0.0, 0.0])
         candidates = [np.array([3.0, 4.0]), np.array([0.0, 0.0]), np.array([1.0, 1.0])]
-        scores = _score_all(query, candidates, VectorSimilarityMetric.EUCLIDEAN)
+        scores = _score_all(query, candidates, DistanceMetric.EUCLIDEAN)
         assert scores == pytest.approx([5.0, 0.0, math.sqrt(2.0)])
 
     def test_2d_query_raises(self):
         query = np.zeros((2, 2))
         with pytest.raises(ValueError):
-            _score_all(query, [np.array([1.0, 0.0])], VectorSimilarityMetric.COSINE)
+            _score_all(query, [np.array([1.0, 0.0])], SimilarityMetric.COSINE)
 
     def test_cosine_zero_candidate_gives_zero_score(self):
         query = np.array([1.0, 0.0])
         candidates = [np.array([0.0, 0.0]), np.array([1.0, 0.0])]
-        scores = _score_all(query, candidates, VectorSimilarityMetric.COSINE)
+        scores = _score_all(query, candidates, SimilarityMetric.COSINE)
         assert scores[0] == 0.0
         assert scores[1] == pytest.approx(1.0)
 
     def test_cosine_zero_query_gives_all_zero(self):
         query = np.array([0.0, 0.0])
         candidates = [np.array([1.0, 0.0]), np.array([0.0, 1.0])]
-        scores = _score_all(query, candidates, VectorSimilarityMetric.COSINE)
+        scores = _score_all(query, candidates, SimilarityMetric.COSINE)
         assert list(scores) == [0.0, 0.0]

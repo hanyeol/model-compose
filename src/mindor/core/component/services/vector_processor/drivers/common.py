@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import (
     SimilarityMetric,
     DistanceMetric,
 )
+from mindor.core.foundation.variable.vector import VectorValue
 from ..base import ComponentActionContext
 import asyncio
 
@@ -28,47 +29,80 @@ class VectorProcessorAction:
 
     async def _resolve_params(self, method: VectorProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == VectorProcessorActionMethod.SIMILARITY:
-            vector = await context.render_variable(self.config.vector)
-            other  = await context.render_variable(self.config.other)
+            vector = await context.render_vector(self.config.vector)
+            other  = await context.render_vector(self.config.other)
             metric = self._as_similarity_metric(await context.render_variable(self.config.metric))
+
+            if vector is None:
+                raise ValueError("'vector' must be specified for 'similarity' method")
+
+            if other is None:
+                raise ValueError("'other' must be specified for 'similarity' method")
 
             return { "vector": vector, "other": other, "metric": metric }
 
         if method == VectorProcessorActionMethod.DISTANCE:
-            vector = await context.render_variable(self.config.vector)
-            other  = await context.render_variable(self.config.other)
+            vector = await context.render_vector(self.config.vector)
+            other  = await context.render_vector(self.config.other)
             metric = self._as_distance_metric(await context.render_variable(self.config.metric))
+
+            if vector is None:
+                raise ValueError("'vector' must be specified for 'distance' method")
+
+            if other is None:
+                raise ValueError("'other' must be specified for 'distance' method")
 
             return { "vector": vector, "other": other, "metric": metric }
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
-            vector = await context.render_variable(self.config.vector)
-            other  = await context.render_variable(self.config.other)
+            vector = await context.render_vector(self.config.vector)
+            other  = await context.render_vector(self.config.other)
+
+            if vector is None:
+                raise ValueError("'vector' must be specified for 'dot-product' method")
+
+            if other is None:
+                raise ValueError("'other' must be specified for 'dot-product' method")
 
             return { "vector": vector, "other": other }
 
         if method == VectorProcessorActionMethod.NORMALIZE:
-            vector = await context.render_variable(self.config.vector)
+            vector = await context.render_vector(self.config.vector)
+
+            if vector is None:
+                raise ValueError("'vector' must be specified for 'normalize' method")
 
             return { "vector": vector }
 
         if method == VectorProcessorActionMethod.MEAN:
-            vectors = await context.render_variable(self.config.vectors)
+            vectors = await context.render_vector_list(self.config.vectors)
             axis    = await context.render_variable(self.config.axis)
+
+            if vectors is None:
+                raise ValueError("'vectors' must be specified for 'mean' method")
 
             return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
 
         if method == VectorProcessorActionMethod.SUM:
-            vectors = await context.render_variable(self.config.vectors)
+            vectors = await context.render_vector_list(self.config.vectors)
             axis    = await context.render_variable(self.config.axis)
+
+            if vectors is None:
+                raise ValueError("'vectors' must be specified for 'sum' method")
 
             return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
 
         if method == VectorProcessorActionMethod.TOP_K:
-            query      = await context.render_variable(self.config.query)
-            candidates = await context.render_variable(self.config.candidates)
+            query      = await context.render_vector(self.config.query)
+            candidates = await context.render_vector_list(self.config.candidates)
             k          = await context.render_variable(self.config.k)
             metric     = self._as_ranking_metric(await context.render_variable(self.config.metric))
+
+            if query is None:
+                raise ValueError("'query' must be specified for 'top-k' method")
+
+            if candidates is None:
+                raise ValueError("'candidates' must be specified for 'top-k' method")
 
             return {
                 "query": query,
@@ -78,10 +112,16 @@ class VectorProcessorAction:
             }
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
-            query      = await context.render_variable(self.config.query)
-            candidates = await context.render_variable(self.config.candidates)
+            query      = await context.render_vector(self.config.query)
+            candidates = await context.render_vector_list(self.config.candidates)
             threshold  = await context.render_variable(self.config.threshold)
             metric     = self._as_ranking_metric(await context.render_variable(self.config.metric))
+
+            if query is None:
+                raise ValueError("'query' must be specified for 'threshold-filter' method")
+
+            if candidates is None:
+                raise ValueError("'candidates' must be specified for 'threshold-filter' method")
 
             if threshold is None:
                 raise ValueError("'threshold' must be specified for 'threshold-filter' method")
@@ -97,61 +137,124 @@ class VectorProcessorAction:
 
     def _process(self, method: VectorProcessorActionMethod, params: Dict[str, Any]) -> Any:
         if method == VectorProcessorActionMethod.SIMILARITY:
-            return self._similarity(params)
+            vector = params.pop("vector")
+            other  = params.pop("other")
+
+            if isinstance(vector, list) and isinstance(other, list):
+                if len(vector) != len(other):
+                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
+                return [ self._similarity(v, o, params) for v, o in zip(vector, other) ]
+
+            if isinstance(vector, list):
+                return [ self._similarity(v, other, params) for v in vector ]
+
+            if isinstance(other, list):
+                return [ self._similarity(vector, o, params) for o in other ]
+
+            return self._similarity(vector, other, params)
 
         if method == VectorProcessorActionMethod.DISTANCE:
-            return self._distance(params)
+            vector = params.pop("vector")
+            other  = params.pop("other")
+
+            if isinstance(vector, list) and isinstance(other, list):
+                if len(vector) != len(other):
+                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
+                return [ self._distance(v, o, params) for v, o in zip(vector, other) ]
+
+            if isinstance(vector, list):
+                return [ self._distance(v, other, params) for v in vector ]
+
+            if isinstance(other, list):
+                return [ self._distance(vector, o, params) for o in other ]
+
+            return self._distance(vector, other, params)
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
-            return self._dot_product(params)
+            vector = params.pop("vector")
+            other  = params.pop("other")
+
+            if isinstance(vector, list) and isinstance(other, list):
+                if len(vector) != len(other):
+                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
+                return [ self._dot_product(v, o, params) for v, o in zip(vector, other) ]
+
+            if isinstance(vector, list):
+                return [ self._dot_product(v, other, params) for v in vector ]
+
+            if isinstance(other, list):
+                return [ self._dot_product(vector, o, params) for o in other ]
+
+            return self._dot_product(vector, other, params)
 
         if method == VectorProcessorActionMethod.NORMALIZE:
-            return self._normalize(params)
+            vector = params.pop("vector")
+
+            if isinstance(vector, list):
+                return [ self._normalize(v, params) for v in vector ]
+
+            return self._normalize(vector, params)
 
         if method == VectorProcessorActionMethod.MEAN:
-            return self._mean(params)
+            vectors = params.pop("vectors")
+
+            return self._mean(vectors, params)
 
         if method == VectorProcessorActionMethod.SUM:
-            return self._sum(params)
+            vectors = params.pop("vectors")
+
+            return self._sum(vectors, params)
 
         if method == VectorProcessorActionMethod.TOP_K:
-            return self._top_k(params)
+            query      = params.pop("query")
+            candidates = params.pop("candidates")
+
+            if isinstance(query, list):
+                return [ self._top_k(q, candidates, params) for q in query ]
+
+            return self._top_k(query, candidates, params)
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
-            return self._threshold_filter(params)
+            query      = params.pop("query")
+            candidates = params.pop("candidates")
+
+            if isinstance(query, list):
+                return [ self._threshold_filter(q, candidates, params) for q in query ]
+
+            return self._threshold_filter(query, candidates, params)
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
     @abstractmethod
-    def _similarity(self, params: Dict[str, Any]) -> Any:
+    def _similarity(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _distance(self, params: Dict[str, Any]) -> Any:
+    def _distance(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _dot_product(self, params: Dict[str, Any]) -> Any:
+    def _dot_product(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _normalize(self, params: Dict[str, Any]) -> Any:
+    def _normalize(self, vector: VectorValue, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _mean(self, params: Dict[str, Any]) -> Any:
+    def _mean(self, vectors: List[VectorValue], params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _sum(self, params: Dict[str, Any]) -> Any:
+    def _sum(self, vectors: List[VectorValue], params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _top_k(self, params: Dict[str, Any]) -> Any:
+    def _top_k(self, query: VectorValue, candidates: List[VectorValue], params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    def _threshold_filter(self, params: Dict[str, Any]) -> Any:
+    def _threshold_filter(self, query: VectorValue, candidates: List[VectorValue], params: Dict[str, Any]) -> Any:
         pass
 
     @staticmethod

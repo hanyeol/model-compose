@@ -79,10 +79,10 @@ async def _collect(stream: AsyncIterator[Any]) -> list:
 
 def _assert_detection_result(result: Any, width: int, height: int) -> None:
     assert isinstance(result, dict)
-    assert set(result.keys()) >= { "detections", "width", "height" }
+    assert set(result.keys()) >= { "faces", "width", "height" }
     assert result["width"] == width
     assert result["height"] == height
-    assert isinstance(result["detections"], list)
+    assert isinstance(result["faces"], list)
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +140,7 @@ class TestSingleImageInput:
 
         result = await action.run(context, asyncio.get_running_loop())
 
-        assert result["detections"] == []
+        assert result["faces"] == []
 
     @pytest.mark.anyio
     async def test_registers_result_source(self, make_action):
@@ -170,7 +170,7 @@ class TestListImageInput:
         assert len(result) == 3
         for entry in result:
             _assert_detection_result(entry, width=64, height=48)
-            assert entry["detections"] == []
+            assert entry["faces"] == []
 
     @pytest.mark.anyio
     async def test_empty_list_returns_empty_list(self, make_action):
@@ -273,7 +273,7 @@ class TestOutputExpressionRendering:
 
     @pytest.mark.anyio
     async def test_custom_output_extracts_field(self, make_action):
-        action = make_action(output="${result.detections}")
+        action = make_action(output="${result.faces}")
         context = ComponentActionContext("run-extract", { "image": _blank_image() })
 
         result = await action.run(context, asyncio.get_running_loop())
@@ -297,16 +297,16 @@ class TestRealHumanFace:
         result = await action.run(context, asyncio.get_running_loop())
 
         _assert_detection_result(result, width=width, height=height)
-        assert len(result["detections"]) >= 1, "Expected at least one face in the sample portrait"
+        assert len(result["faces"]) >= 1, "Expected at least one face in the sample portrait"
 
-        for detection in result["detections"]:
-            assert set(detection.keys()) >= { "box", "score" }
-            x, y, w, h = detection["box"]
+        for face in result["faces"]:
+            assert set(face.keys()) >= { "bounding_box", "score" }
+            x, y, w, h = face["bounding_box"]
             assert 0 <= x < width
             assert 0 <= y < height
             assert w > 0 and h > 0
-            assert 0.0 <= detection["score"] <= 1.0
-            assert "landmarks" not in detection
+            assert 0.0 <= face["score"] <= 1.0
+            assert "landmarks" not in face
 
     @pytest.mark.anyio
     async def test_landmarks_included_when_requested(self, make_action, sample_face_image):
@@ -315,14 +315,14 @@ class TestRealHumanFace:
 
         result = await action.run(context, asyncio.get_running_loop())
 
-        assert len(result["detections"]) >= 1
+        assert len(result["faces"]) >= 1
 
         width, height = sample_face_image.size
-        for detection in result["detections"]:
-            assert "landmarks" in detection
-            assert isinstance(detection["landmarks"], list)
-            assert len(detection["landmarks"]) > 0
-            for kp in detection["landmarks"]:
+        for face in result["faces"]:
+            assert "landmarks" in face
+            assert isinstance(face["landmarks"], list)
+            assert len(face["landmarks"]) > 0
+            for kp in face["landmarks"]:
                 assert 0 <= kp["x"] <= width
                 assert 0 <= kp["y"] <= height
 
@@ -333,4 +333,4 @@ class TestRealHumanFace:
 
         result = await action.run(context, asyncio.get_running_loop())
 
-        assert result["detections"] == []
+        assert result["faces"] == []

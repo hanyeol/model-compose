@@ -3,7 +3,7 @@
 import pytest
 
 from mindor.core.evaluator.condition import evaluate_condition
-from mindor.dsl.schema.operator.condition import ConditionOperator
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
 
 
 class TestEquality:

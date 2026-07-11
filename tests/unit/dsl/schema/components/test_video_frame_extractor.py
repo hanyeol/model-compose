@@ -1,10 +1,17 @@
 """Tests for video-frame-extractor component and action schemas."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriver
+
+_video_frame_extractor_adapter = TypeAdapter(VideoFrameExtractorComponentConfig)
+
+
+def _make_component(**values):
+    """Validate a video-frame-extractor component config through its discriminated union."""
+    return _video_frame_extractor_adapter.validate_python(values)
 
 
 class TestVideoFrameExtractorActionConfig:
@@ -89,9 +96,10 @@ class TestVideoFrameExtractorComponentConfig:
 
     def test_minimal_valid_config(self):
         """Test minimal valid component configuration."""
-        config = VideoFrameExtractorComponentConfig(
+        config = _make_component(
             id="extractor",
-            type="video-frame-extractor"
+            type="video-frame-extractor",
+            driver="ffmpeg",
         )
         assert config.id == "extractor"
         assert config.type == "video-frame-extractor"
@@ -100,24 +108,22 @@ class TestVideoFrameExtractorComponentConfig:
 
     def test_explicit_opencv_driver(self):
         """Test explicit OpenCV driver."""
-        config = VideoFrameExtractorComponentConfig(
+        config = _make_component(
             id="extractor",
             type="video-frame-extractor",
-            driver="opencv"
+            driver="opencv",
         )
         assert config.driver == "opencv"
 
     def test_component_with_single_action(self):
         """Test component with a single action."""
-        config = VideoFrameExtractorComponentConfig(
+        config = _make_component(
             id="extractor",
             type="video-frame-extractor",
+            driver="ffmpeg",
             actions=[
-                VideoFrameExtractorActionConfig(
-                    video="${input.video}",
-                    frame_interval=2
-                )
-            ]
+                {"video": "${input.video}", "frame_interval": 2},
+            ],
         )
         assert len(config.actions) == 1
         assert config.actions[0].video == "${input.video}"
@@ -125,21 +131,14 @@ class TestVideoFrameExtractorComponentConfig:
 
     def test_component_with_multiple_actions(self):
         """Test component with multiple actions."""
-        config = VideoFrameExtractorComponentConfig(
+        config = _make_component(
             id="extractor",
             type="video-frame-extractor",
+            driver="ffmpeg",
             actions=[
-                VideoFrameExtractorActionConfig(
-                    id="thumbnails",
-                    video="${input.video}",
-                    max_frame_count=10
-                ),
-                VideoFrameExtractorActionConfig(
-                    id="full",
-                    video="${input.video}",
-                    frame_interval=1
-                )
-            ]
+                {"id": "thumbnails", "video": "${input.video}", "max_frame_count": 10},
+                {"id": "full", "video": "${input.video}", "frame_interval": 1},
+            ],
         )
         assert len(config.actions) == 2
         assert config.actions[0].id == "thumbnails"

@@ -48,9 +48,15 @@ class PoseDetectionTaskAction:
         min_confidence            = float(await context.render_variable(self.config.min_confidence))
         min_presence_confidence   = float(await context.render_variable(self.config.min_presence_confidence))
         min_tracking_confidence   = float(await context.render_variable(self.config.min_tracking_confidence))
-        return_keypoints         = bool(await context.render_variable(self.config.return_keypoints))
-        return_keypoints_3d      = bool(await context.render_variable(self.config.return_keypoints_3d))
-        return_segmentation_mask = bool(await context.render_variable(self.config.return_segmentation_mask))
+        return_keypoints          = bool(await context.render_variable(self.config.return_keypoints))
+        return_keypoints_3d       = bool(await context.render_variable(self.config.return_keypoints_3d))
+        return_openpose_keypoints = bool(await context.render_variable(self.config.return_openpose_keypoints))
+        return_segmentation_mask  = bool(await context.render_variable(self.config.return_segmentation_mask))
+        return_skeleton_image     = bool(await context.render_variable(self.config.return_skeleton_image))
+        skeleton_format           = str(await context.render_variable(self.config.skeleton_format))
+
+        if skeleton_format not in ("natural", "openpose"):
+            raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
 
         if max_pose_count < 1:
             raise ValueError(f"'max_pose_count' must be >= 1, got {max_pose_count}")
@@ -68,9 +74,12 @@ class PoseDetectionTaskAction:
             "min_confidence":            min_confidence,
             "min_presence_confidence":   min_presence_confidence,
             "min_tracking_confidence":   min_tracking_confidence,
-            "return_keypoints":         return_keypoints,
-            "return_keypoints_3d":      return_keypoints_3d,
-            "return_segmentation_mask": return_segmentation_mask,
+            "return_keypoints":          return_keypoints,
+            "return_keypoints_3d":       return_keypoints_3d,
+            "return_openpose_keypoints": return_openpose_keypoints,
+            "return_segmentation_mask":  return_segmentation_mask,
+            "return_skeleton_image":     return_skeleton_image,
+            "skeleton_format":           skeleton_format,
         }
 
     @abstractmethod

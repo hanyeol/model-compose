@@ -23,7 +23,11 @@ from mindor.core.component.services.video_converter.drivers.ffmpeg import (
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.dsl.schema.action import VideoConverterActionConfig
-from mindor.dsl.schema.action.impl.media import VideoAudioCodecConfig
+from mindor.dsl.schema.action.impl.media import (
+    AudioEncoderConfig,
+    VideoAudioEncodingConfig,
+    VideoEncoderConfig,
+)
 
 
 ffmpeg_required = pytest.mark.skipif(
@@ -106,12 +110,52 @@ def make_context():
     return _make_context()
 
 
+def _wrap_encoding(kwargs: dict) -> dict:
+    """Translate legacy flat kwargs (format/codec/resolution/fps) into the current
+    `encoding=VideoAudioEncodingConfig(...)` shape used by VideoConverterActionConfig."""
+    fmt = kwargs.pop("format", None)
+    codec = kwargs.pop("codec", None)
+    resolution = kwargs.pop("resolution", None)
+    fps = kwargs.pop("fps", None)
+
+    if fmt is None and codec is None and resolution is None and fps is None:
+        return kwargs
+
+    video_kwargs = {}
+    audio_kwargs = {}
+    if isinstance(codec, VideoAudioEncodingConfig):
+        encoding = codec
+        if fmt is not None:
+            encoding = encoding.model_copy(update={"format": fmt})
+        kwargs["encoding"] = encoding
+        return kwargs
+    if isinstance(codec, str):
+        video_kwargs["codec"] = codec
+    elif codec is not None and hasattr(codec, "video"):
+        # Back-compat: legacy tests may still pass an object exposing .video/.audio
+        if codec.video is not None:
+            video_kwargs["codec"] = codec.video
+        if codec.audio is not None:
+            audio_kwargs["codec"] = codec.audio
+    if resolution is not None:
+        video_kwargs["resolution"] = resolution
+    if fps is not None:
+        video_kwargs["fps"] = fps
+
+    kwargs["encoding"] = VideoAudioEncodingConfig(
+        format=fmt,
+        video=VideoEncoderConfig(**video_kwargs) if video_kwargs else None,
+        audio=AudioEncoderConfig(**audio_kwargs) if audio_kwargs else None,
+    )
+    return kwargs
+
+
 def make_config(video, **kwargs):
-    return VideoConverterActionConfig(video=video, **kwargs)
+    return VideoConverterActionConfig(video=video, **_wrap_encoding(kwargs))
 
 
 def _make_config(video: Any = "<placeholder>", **kwargs) -> VideoConverterActionConfig:
-    return VideoConverterActionConfig(video=video, **kwargs)
+    return VideoConverterActionConfig(video=video, **_wrap_encoding(kwargs))
 
 
 @pytest.fixture(scope="module")
@@ -267,8 +311,12 @@ class TestFFmpegVideoConverter:
 
     @pytest.mark.anyio
     async def test_explicit_codec_config(self, sample_mp4_path):
-        codec_config = VideoAudioCodecConfig(video="libx264", audio="aac")
-        config = make_config(sample_mp4_path, format="mkv", codec=codec_config)
+        encoding = VideoAudioEncodingConfig(
+            format="mkv",
+            video=VideoEncoderConfig(codec="libx264"),
+            audio=AudioEncoderConfig(codec="aac"),
+        )
+        config = VideoConverterActionConfig(video=sample_mp4_path, encoding=encoding)
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 

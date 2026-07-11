@@ -1,6 +1,6 @@
-"""Tests for the MediaPipe pose-detection model task.
+"""Tests for the YOLO pose-detection model task.
 
-Verifies the I/O matrix for pose detection (model-task pattern, matches face-detection):
+Verifies the I/O matrix for pose detection (mirrors test_mediapipe.py):
 
     | input \\           | result shape                       |
     |--------------------|------------------------------------|
@@ -8,9 +8,9 @@ Verifies the I/O matrix for pose detection (model-task pattern, matches face-det
     | List[PILImage]     | List[Dict]                         |
     | AsyncIterator[...] | AsyncIterator[Dict]                |
 
-Also verifies model resolution (default sentinel → auto-download, explicit path → as-is)
-and an end-to-end check against a real full-body image that asserts at least one pose is
-detected with plausible keypoint coordinates.
+Also verifies model resolution (default sentinel → auto-download, explicit path → as-is),
+YOLO-specific validator (rejects return_keypoints_3d / return_segmentation_mask), and an
+end-to-end check against a real full-body image with plausible keypoint coordinates.
 """
 
 from __future__ import annotations
@@ -25,23 +25,26 @@ from urllib.request import Request, urlopen
 import pytest
 
 from PIL import Image as PILImage
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.dsl.schema.action import PoseDetectionModelActionConfig
 from mindor.dsl.schema.component import ModelComponentConfig
 
 
-pytest.importorskip("mediapipe")
+pytest.importorskip("ultralytics")
 pytest.importorskip("numpy")
 
-from mindor.core.component.services.model.tasks.pose_detection.custom.mediapipe import (
-    BlazePosePoseDetectionTaskAction,
-    BlazePosePoseDetectionTaskService,
+from mindor.core.component.services.model.tasks.pose_detection.custom.yolo import (
+    YoloPoseDetectionTaskAction,
+    YoloPoseDetectionTaskService,
+)
+from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.impl.yolo import (
+    YoloPoseDetectionModelActionConfig,
 )
 
 
-# Full-body subject from the OpenCV samples repository (consistent with face-detection tests).
+# Full-body subject from the OpenCV samples repository (consistent with mediapipe tests).
 _SAMPLE_POSE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/messi5.jpg"
 
 
@@ -51,7 +54,8 @@ def anyio_backend():
 
 
 def _make_action_config(image: Any = "${input.image}", **kwargs: Any) -> PoseDetectionModelActionConfig:
-    return TypeAdapter(PoseDetectionModelActionConfig).validate_python({ "image": image, **kwargs })
+    raw: dict[str, Any] = { "family": "yolo", "image": image, **kwargs }
+    return TypeAdapter(PoseDetectionModelActionConfig).validate_python(raw)
 
 
 def _make_component_config(**kwargs: Any) -> ModelComponentConfig:
@@ -59,7 +63,7 @@ def _make_component_config(**kwargs: Any) -> ModelComponentConfig:
         "type":   "model",
         "task":   "pose-detection",
         "driver": "custom",
-        "family": "blazepose",
+        "family": "yolo",
         **kwargs,
     }
     return TypeAdapter(ModelComponentConfig).validate_python(raw)
@@ -87,19 +91,24 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 
 
 @pytest.fixture(scope="module")
-def mediapipe_model_path() -> str:
-    """Resolve (download if needed) the default BlazePose .task model once per module."""
-    service = BlazePosePoseDetectionTaskService(id="pose-detection", config=_make_component_config(), daemon=False)
+def yolo_model_path() -> str:
+    """Resolve (download if needed) the default YOLO pose weights once per module."""
+    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(), daemon=False)
     try:
         return asyncio.run(service._resolve_model_path())
     except (URLError, TimeoutError, OSError) as e:
-        pytest.skip(f"Unable to fetch MediaPipe pose detection model: {e}")
+        pytest.skip(f"Unable to fetch YOLO pose detection model: {e}")
 
 
 @pytest.fixture
-def make_action(mediapipe_model_path):
-    def _factory(**kwargs: Any) -> BlazePosePoseDetectionTaskAction:
-        return BlazePosePoseDetectionTaskAction(_make_action_config(**kwargs), mediapipe_model_path)
+def make_action(yolo_model_path):
+    from ultralytics import YOLO
+
+    model = YOLO(yolo_model_path)
+
+    def _factory(**kwargs: Any) -> YoloPoseDetectionTaskAction:
+        return YoloPoseDetectionTaskAction(_make_action_config(**kwargs), model)
+
     return _factory
 
 
@@ -182,18 +191,6 @@ class TestListImageInput:
 
         assert result == []
 
-    @pytest.mark.anyio
-    async def test_registers_list_result_source(self, make_action):
-        images = [ _blank_image(), _blank_image() ]
-        action = make_action(image="${input.images}")
-        context = ComponentActionContext("run-list-source", { "images": images })
-
-        await action.run(context, asyncio.get_running_loop())
-
-        registered = context.sources["__global__"]["result"]
-        assert isinstance(registered, list)
-        assert len(registered) == 2
-
 
 # -----------------------------------------------------------------------------
 # AsyncIterator[PILImage] input
@@ -202,7 +199,7 @@ class TestListImageInput:
 class TestAsyncIteratorInput:
     @pytest.mark.anyio
     async def test_returns_async_iterator_for_stream_input(self, make_action):
-        images = [ _blank_image(), _blank_image(), _blank_image() ]
+        images = [ _blank_image(), _blank_image() ]
         action = make_action(image="${input.stream}")
         context = ComponentActionContext("run-stream", { "stream": _make_async_iter(images) })
 
@@ -211,9 +208,23 @@ class TestAsyncIteratorInput:
         assert isinstance(result, AsyncIterator)
 
         collected = await _collect(result)
-        assert len(collected) == 3
+        assert len(collected) == 2
         for entry in collected:
             _assert_detection_result(entry, width=64, height=48)
+
+
+# -----------------------------------------------------------------------------
+# YOLO-specific validators
+# -----------------------------------------------------------------------------
+
+class TestYoloValidators:
+    def test_return_keypoints_3d_rejected(self):
+        with pytest.raises(ValidationError, match="return_keypoints_3d"):
+            YoloPoseDetectionModelActionConfig(image="${input.image}", return_keypoints_3d=True)
+
+    def test_return_segmentation_mask_rejected(self):
+        with pytest.raises(ValidationError, match="return_segmentation_mask"):
+            YoloPoseDetectionModelActionConfig(image="${input.image}", return_segmentation_mask=True)
 
 
 # -----------------------------------------------------------------------------
@@ -243,52 +254,25 @@ class TestDetectionOptions:
 # -----------------------------------------------------------------------------
 
 class TestModelResolution:
-    """`model` lives on the component config; service resolves it to a local .task path."""
+    def test_default_sentinel_resolves_to_local_file(self, yolo_model_path):
+        assert yolo_model_path.endswith(".pt")
 
-    def test_default_sentinel_resolves_to_local_file(self, mediapipe_model_path):
-        assert mediapipe_model_path.endswith(".task")
-
-    def test_custom_local_model_path_used_directly(self, mediapipe_model_path):
-        service = BlazePosePoseDetectionTaskService(
+    def test_custom_local_model_path_used_directly(self, yolo_model_path):
+        service = YoloPoseDetectionTaskService(
             id="pose-detection",
-            config=_make_component_config(model=mediapipe_model_path),
+            config=_make_component_config(model=yolo_model_path),
             daemon=False,
         )
-        assert asyncio.run(service._resolve_model_path()) == mediapipe_model_path
+        assert asyncio.run(service._resolve_model_path()) == yolo_model_path
 
     def test_missing_local_model_path_raises(self):
-        service = BlazePosePoseDetectionTaskService(
+        service = YoloPoseDetectionTaskService(
             id="pose-detection",
-            config=_make_component_config(model="/nonexistent/pose_model.task"),
+            config=_make_component_config(model="/nonexistent/pose_model.pt"),
             daemon=False,
         )
         with pytest.raises(FileNotFoundError):
             asyncio.run(service._resolve_model_path())
-
-
-# -----------------------------------------------------------------------------
-# Output expression rendering
-# -----------------------------------------------------------------------------
-
-class TestOutputExpressionRendering:
-    @pytest.mark.anyio
-    async def test_passthrough_output_returns_raw_result(self, make_action):
-        action = make_action(output="${result}")
-        context = ComponentActionContext("run-passthrough", { "image": _blank_image() })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        _assert_detection_result(result, width=64, height=48)
-
-    @pytest.mark.anyio
-    async def test_custom_output_extracts_field(self, make_action):
-        action = make_action(output="${result.poses}")
-        context = ComponentActionContext("run-extract", { "image": _blank_image() })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        assert isinstance(result, list)
-        assert result == []
 
 
 # -----------------------------------------------------------------------------
@@ -313,81 +297,22 @@ class TestRealHumanPose:
             x, y, w, h = pose["bounding_box"]
             assert w > 0 and h > 0
 
+            assert "score" in pose
+            assert 0.0 <= pose["score"] <= 1.0
+
             assert "keypoints" in pose
             assert isinstance(pose["keypoints"], list)
-            # MediaPipe Pose returns 33 landmarks per detected pose.
-            assert len(pose["keypoints"]) == 33
+            # YOLO / COCO topology returns 17 keypoints per detected pose.
+            assert len(pose["keypoints"]) == 17
 
             for keypoint in pose["keypoints"]:
-                assert set(keypoint.keys()) >= { "x", "y", "z", "visibility", "presence" }
-                # 2D coordinates may slightly exceed the frame for out-of-frame body parts;
-                # MediaPipe still returns predictions. Loosely bound around the image size.
+                assert set(keypoint.keys()) == { "x", "y", "visibility" }
                 assert -width <= keypoint["x"] <= 2 * width
                 assert -height <= keypoint["y"] <= 2 * height
                 assert 0.0 <= keypoint["visibility"] <= 1.0
-                assert 0.0 <= keypoint["presence"] <= 1.0
 
             assert "keypoints_3d" not in pose
             assert "segmentation_mask" not in pose
-
-    @pytest.mark.anyio
-    async def test_keypoints_3d_included_when_requested(self, make_action, sample_pose_image):
-        action = make_action(return_keypoints_3d=True)
-        context = ComponentActionContext("run-real-3d", { "image": sample_pose_image })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        assert len(result["poses"]) >= 1
-        for pose in result["poses"]:
-            assert "keypoints_3d" in pose
-            assert isinstance(pose["keypoints_3d"], list)
-            assert len(pose["keypoints_3d"]) == 33
-            for keypoint in pose["keypoints_3d"]:
-                # World landmarks are in meters relative to the hip center.
-                # Plausible human extent is well within ±2 m on each axis.
-                assert -2.0 <= keypoint["x"] <= 2.0
-                assert -2.0 <= keypoint["y"] <= 2.0
-                assert -2.0 <= keypoint["z"] <= 2.0
-
-    @pytest.mark.anyio
-    async def test_segmentation_mask_included_when_requested(self, make_action, sample_pose_image):
-        width, height = sample_pose_image.size
-        action = make_action(return_segmentation_mask=True)
-        context = ComponentActionContext("run-real-mask", { "image": sample_pose_image })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        assert len(result["poses"]) >= 1
-        for pose in result["poses"]:
-            assert "segmentation_mask" in pose
-            mask = pose["segmentation_mask"]
-            assert isinstance(mask, PILImage.Image)
-            assert mask.mode == "L"
-            assert mask.size == (width, height)
-
-    @pytest.mark.anyio
-    async def test_keypoints_excluded_when_disabled(self, make_action, sample_pose_image):
-        # At least one return_* flag must remain true (schema-enforced); pair
-        # return_keypoints=False with return_keypoints_3d=True so the request is valid.
-        action = make_action(return_keypoints=False, return_keypoints_3d=True)
-        context = ComponentActionContext("run-real-nokp", { "image": sample_pose_image })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        assert len(result["poses"]) >= 1
-        for pose in result["poses"]:
-            assert "keypoints" not in pose
-            assert "keypoints_3d" in pose
-
-    @pytest.mark.anyio
-    async def test_high_confidence_threshold_filters_results(self, make_action, sample_pose_image):
-        action = make_action(min_confidence=0.99, min_presence_confidence=0.99)
-        context = ComponentActionContext("run-real-strict", { "image": sample_pose_image })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        # Extremely strict thresholds should drop detections on most images.
-        assert result["poses"] == []
 
 
 # -----------------------------------------------------------------------------
@@ -405,27 +330,14 @@ class TestOpenposeAndSkeleton:
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
             assert "openpose_keypoints" in pose
-            assert isinstance(pose["openpose_keypoints"], list)
-            # BODY_18 layout
             assert len(pose["openpose_keypoints"]) == 18
             for keypoint in pose["openpose_keypoints"]:
                 assert set(keypoint.keys()) == { "x", "y", "visibility" }
 
     @pytest.mark.anyio
-    async def test_openpose_keypoints_independent_from_natural(self, make_action, sample_pose_image):
-        action = make_action(return_keypoints=False, return_openpose_keypoints=True)
-        context = ComponentActionContext("run-op-only", { "image": sample_pose_image })
-
-        result = await action.run(context, asyncio.get_running_loop())
-
-        for pose in result["poses"]:
-            assert "keypoints" not in pose
-            assert "openpose_keypoints" in pose
-
-    @pytest.mark.anyio
     async def test_skeleton_image_natural_layout(self, make_action, sample_pose_image):
         width, height = sample_pose_image.size
-        action = make_action(return_skeleton_image=True)  # default skeleton_format='natural'
+        action = make_action(return_skeleton_image=True)
         context = ComponentActionContext("run-skel-natural", { "image": sample_pose_image })
 
         result = await action.run(context, asyncio.get_running_loop())
@@ -435,8 +347,6 @@ class TestOpenposeAndSkeleton:
             skeleton = pose["skeleton_image"]
             assert isinstance(skeleton, PILImage.Image)
             assert skeleton.size == (width, height)
-            assert skeleton.mode == "RGB"
-            # Non-black pixels prove bones/joints were drawn.
             assert skeleton.getextrema() != ((0, 0), (0, 0), (0, 0))
 
     @pytest.mark.anyio
@@ -449,9 +359,8 @@ class TestOpenposeAndSkeleton:
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
-            skeleton = pose["skeleton_image"]
-            assert isinstance(skeleton, PILImage.Image)
-            assert skeleton.size == (width, height)
+            assert isinstance(pose["skeleton_image"], PILImage.Image)
+            assert pose["skeleton_image"].size == (width, height)
 
     @pytest.mark.anyio
     async def test_invalid_skeleton_format_raises(self, make_action):

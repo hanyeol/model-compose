@@ -1,16 +1,24 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, Dict, Any
 from mindor.dsl.schema.tracer import OtlpTracerConfig
 from mindor.dsl.schema.tracer.impl.types import TracerDriver
 from ..base import TracerService, register_tracer
 import json, copy
 
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.trace import Tracer
+
 @register_tracer(TracerDriver.OTLP)
 class OtlpTracerService(TracerService):
     def __init__(self, id: str, config: OtlpTracerConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self._tracer = None
-        self._provider = None
+        self.tracer: Optional[Tracer] = None
+        self.provider: Optional[TracerProvider] = None
+
         self._trace_spans: Dict[str, Any] = {}
         self._job_spans: Dict[str, Any] = {}
         self._trace_attachments: Dict[str, Any] = {}
@@ -47,24 +55,24 @@ class OtlpTracerService(TracerService):
             )
 
         resource = Resource.create({"service.name": self.config.service_name})
-        self._provider = TracerProvider(resource=resource)
-        self._provider.add_span_processor(BatchSpanProcessor(exporter))
-        self._tracer = self._provider.get_tracer("model-compose")
+        self.provider = TracerProvider(resource=resource)
+        self.provider.add_span_processor(BatchSpanProcessor(exporter))
+        self.tracer = self.provider.get_tracer("model-compose")
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        if self._provider:
-            self._provider.shutdown()
-            self._provider = None
-            self._tracer = None
+        if self.provider:
+            self.provider.shutdown()
+            self.provider = None
+            self.tracer = None
 
     def on_workflow_start(self, task_id: str, workflow_id: str, input: Any, session_id: Optional[str], metadata: Any) -> None:
         from opentelemetry import context as context_api, trace as trace_api
 
-        span = self._tracer.start_span(
+        span = self.tracer.start_span(
             name=f"workflow.{workflow_id}",
             attributes=self._workflow_start_attributes(task_id, workflow_id, session_id, input, metadata),
         )
@@ -118,7 +126,7 @@ class OtlpTracerService(TracerService):
             return
 
         context, _ = attachment
-        span = self._tracer.start_span(
+        span = self.tracer.start_span(
             name=f"job.{job_id}",
             context=context,
             attributes={

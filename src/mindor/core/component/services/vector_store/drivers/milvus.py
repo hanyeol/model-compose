@@ -295,10 +295,12 @@ class MilvusVectorStoreService(VectorStoreService):
             db_name=self.config.database or "",
             timeout=parse_duration(self.config.timeout)
         )
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.client:
             await self.client.close()
             self.client = None

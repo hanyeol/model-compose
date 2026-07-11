@@ -336,7 +336,7 @@ class WebScraperComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.rate_limiter: Optional[RateLimiter] = None
+        self._rate_limiter: Optional[RateLimiter] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "playwright", "beautifulsoup4", "lxml" ]
@@ -349,15 +349,19 @@ class WebScraperComponent(ComponentService):
         )
 
     async def _start(self) -> None:
-        self.rate_limiter = RateLimiter(self.config.rate_limit) if self.config.rate_limit else None
+        if self.config.rate_limit:
+            self._rate_limiter = RateLimiter(self.config.rate_limit)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        self.rate_limiter = None
+
+        self._rate_limiter = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        if self.rate_limiter:
-            await self.rate_limiter.acquire()
+        if self._rate_limiter:
+            await self._rate_limiter.acquire()
+
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context, loop)

@@ -1,15 +1,22 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, Dict, Any
 from mindor.dsl.schema.tracer import LangfuseTracerConfig
 from mindor.dsl.schema.tracer.impl.types import TracerDriver
 from ..base import TracerService, register_tracer
 import json, copy
 
+if TYPE_CHECKING:
+    from langfuse import Langfuse
+
 @register_tracer(TracerDriver.LANGFUSE)
 class LangfuseTracerService(TracerService):
     def __init__(self, id: str, config: LangfuseTracerConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self._client = None
+        self.client: Optional[Langfuse] = None
+
         self._trace_spans: Dict[str, Any] = {}
         self._job_spans: Dict[str, Any] = {}
 
@@ -19,31 +26,24 @@ class LangfuseTracerService(TracerService):
     async def _start(self) -> None:
         from langfuse import Langfuse
 
-        self._client = Langfuse(
+        self.client = Langfuse(
             public_key=self.config.public_key,
             secret_key=self.config.secret_key,
             base_url=self._resolve_base_url(),
             timeout=self.config.timeout
         )
-        await super()._start()
 
-    def _resolve_base_url(self) -> str:
-        if self.config.url:
-            return self.config.url
-        scheme = "https" if self.config.secure else "http"
-        default_port = 443 if self.config.secure else 80
-        if self.config.port == default_port:
-            return f"{scheme}://{self.config.host}"
-        return f"{scheme}://{self.config.host}:{self.config.port}"
+        await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        if self._client:
-            self._client.shutdown()
-            self._client = None
+
+        if self.client:
+            self.client.shutdown()
+            self.client = None
 
     def on_workflow_start(self, task_id: str, workflow_id: str, input: Any, session_id: Optional[str], metadata: Any) -> None:
-        trace_id = self._client.create_trace_id(seed=task_id)
+        trace_id = self.client.create_trace_id(seed=task_id)
 
         self._upsert_trace(
             trace_id=trace_id,
@@ -56,7 +56,7 @@ class LangfuseTracerService(TracerService):
             }
         )
 
-        trace_span = self._client.start_observation(
+        trace_span = self.client.start_observation(
             name=workflow_id,
             trace_context={"trace_id": trace_id},
         )
@@ -129,7 +129,7 @@ class LangfuseTracerService(TracerService):
         from langfuse._utils import _get_timestamp
 
         event = {
-            "id": self._client.create_trace_id(),
+            "id": self.client.create_trace_id(),
             "type": "trace-create",
             "timestamp": _get_timestamp(),
             "body": TraceBody(
@@ -140,7 +140,16 @@ class LangfuseTracerService(TracerService):
                 metadata=metadata,
             ),
         }
-        self._client._resources.add_trace_task(event)
+        self.client._resources.add_trace_task(event)
+
+    def _resolve_base_url(self) -> str:
+        if self.config.url:
+            return self.config.url
+        scheme = "https" if self.config.secure else "http"
+        default_port = 443 if self.config.secure else 80
+        if self.config.port == default_port:
+            return f"{scheme}://{self.config.host}"
+        return f"{scheme}://{self.config.host}:{self.config.port}"
 
     def _capture_input(self, data: Any) -> Any:
         if self.config.capture.input:

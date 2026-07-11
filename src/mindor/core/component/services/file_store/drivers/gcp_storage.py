@@ -265,16 +265,19 @@ class GcpStorageFileStoreService(FileStoreService):
 
     async def _start(self) -> None:
         self.client, self.session = self._create_client()
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        if self.client is not None:
+
+        if self.client:
             try:
                 await self.client.close()
             finally:
                 self.client = None
-        if self.session is not None:
+
+        if self.session:
             try:
                 await self.session.close()
             finally:
@@ -288,8 +291,10 @@ class GcpStorageFileStoreService(FileStoreService):
 
         session = aiohttp.ClientSession()
         client_params: Dict[str, Any] = { "session": session }
+
         if self.config.credentials_path:
             client_params["service_file"] = self.config.credentials_path
+
         if self.location.endpoint:
             client_params["api_root"] = self.location.endpoint
 

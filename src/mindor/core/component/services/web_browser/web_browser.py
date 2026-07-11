@@ -39,6 +39,7 @@ class WebBrowserComponent(ComponentService):
 
     async def _stop(self) -> None:
         await super()._stop()
+
         async with self._sessions_lock:
             for session_key, session in self._sessions.items():
                 try:

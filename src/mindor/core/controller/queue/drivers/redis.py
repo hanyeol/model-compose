@@ -12,6 +12,7 @@ from mindor.core.logger import logging
 import asyncio, json, ulid
 
 if TYPE_CHECKING:
+    from redis.asyncio import Redis
     from redis.asyncio.client import PubSub
 
 class RedisStreamIterator:
@@ -71,7 +72,8 @@ class RedisControllerQueueService(CommonControllerQueueService):
     def __init__(self, config: RedisControllerQueueConfig):
         super().__init__(config)
 
-        self._client = None
+        self.client: Optional[Redis] = None
+
         self._timeout: Optional[float] = None
         self._blob_ttl: int = 0
         self._max_blob_size: Optional[int] = None
@@ -82,7 +84,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
     async def _start(self) -> None:
         import redis.asyncio as aioredis
 
-        self._client = aioredis.from_url(
+        self.client = aioredis.from_url(
             self._build_redis_url(),
             db=self.config.database,
             password=self.config.password,
@@ -96,9 +98,9 @@ class RedisControllerQueueService(CommonControllerQueueService):
         await super()._start()
 
     async def _stop(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        if self.client:
+            await self.client.aclose()
+            self.client = None
 
         await super()._stop()
 
@@ -121,7 +123,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
         try:
             serialized_input, blob_keys = await serialize_input(
                 input,
-                self._client,
+                self.client,
                 blob_prefix,
                 ttl_seconds=self._blob_ttl,
                 max_blob_size=self._max_blob_size,
@@ -132,13 +134,13 @@ class RedisControllerQueueService(CommonControllerQueueService):
                 "input": serialized_input,
             })
 
-            pubsub = self._client.pubsub()
+            pubsub = self.client.pubsub()
             await pubsub.subscribe(result_key)
-            await self._client.lpush(queue_key, message)
+            await self.client.lpush(queue_key, message)
         except BaseException:
             if blob_keys:
                 try:
-                    await self._client.delete(*blob_keys)
+                    await self.client.delete(*blob_keys)
                 except BaseException as e:
                     logging.warning("Failed to cleanup blob keys (%d keys): %s", len(blob_keys), e)
             if pubsub is not None:
@@ -156,12 +158,12 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 if status == "interrupted" and on_interrupt:
                     answer = await on_interrupt(result.get("interrupt", {}))
-                    await self._client.publish(resume_key, json.dumps({ "answer": answer }, default=str))
+                    await self.client.publish(resume_key, json.dumps({ "answer": answer }, default=str))
                     continue
 
                 if status == "streaming":
                     stream_key = result.get("stream_key")
-                    return RedisStreamIterator(self._client, stream_key, self._timeout)
+                    return RedisStreamIterator(self.client, stream_key, self._timeout)
 
                 if status == "failed":
                     raise RuntimeError(result.get("error", "Unknown error from queue worker"))

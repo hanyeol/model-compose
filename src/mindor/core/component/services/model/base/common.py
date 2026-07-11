@@ -46,6 +46,7 @@ class ModelTaskService(AsyncService):
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self._model_loaded:
             await self._unload_model()
             self._model_loaded = False

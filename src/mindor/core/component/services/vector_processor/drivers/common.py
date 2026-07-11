@@ -5,7 +5,8 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import (
     VectorProcessorActionConfig,
     VectorProcessorActionMethod,
-    VectorSimilarityMetric,
+    SimilarityMetric,
+    DistanceMetric,
 )
 from ..base import ComponentActionContext
 import asyncio
@@ -15,31 +16,32 @@ class VectorProcessorAction:
         self.config: VectorProcessorActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        method: VectorProcessorActionMethod = self.config.method
-        params = await self._resolve_params(method, context)
+        params = await self._resolve_params(self.config.method, context)
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        result = await asyncio.to_thread(self._process, method, params)
+        result = await asyncio.to_thread(self._process, self.config.method, params)
 
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, method: VectorProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
-        if method == VectorProcessorActionMethod.COSINE_SIMILARITY:
+        if method == VectorProcessorActionMethod.SIMILARITY:
             vector = await context.render_variable(self.config.vector)
             other  = await context.render_variable(self.config.other)
+            metric = self._as_similarity_metric(await context.render_variable(self.config.metric))
 
-            return { "vector": vector, "other": other }
+            return { "vector": vector, "other": other, "metric": metric }
+
+        if method == VectorProcessorActionMethod.DISTANCE:
+            vector = await context.render_variable(self.config.vector)
+            other  = await context.render_variable(self.config.other)
+            metric = self._as_distance_metric(await context.render_variable(self.config.metric))
+
+            return { "vector": vector, "other": other, "metric": metric }
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
-            vector = await context.render_variable(self.config.vector)
-            other  = await context.render_variable(self.config.other)
-
-            return { "vector": vector, "other": other }
-
-        if method == VectorProcessorActionMethod.EUCLIDEAN_DISTANCE:
             vector = await context.render_variable(self.config.vector)
             other  = await context.render_variable(self.config.other)
 
@@ -52,13 +54,13 @@ class VectorProcessorAction:
 
         if method == VectorProcessorActionMethod.MEAN:
             vectors = await context.render_variable(self.config.vectors)
-            axis = await context.render_variable(self.config.axis)
+            axis    = await context.render_variable(self.config.axis)
 
             return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
 
         if method == VectorProcessorActionMethod.SUM:
             vectors = await context.render_variable(self.config.vectors)
-            axis = await context.render_variable(self.config.axis)
+            axis    = await context.render_variable(self.config.axis)
 
             return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
 
@@ -66,56 +68,42 @@ class VectorProcessorAction:
             query      = await context.render_variable(self.config.query)
             candidates = await context.render_variable(self.config.candidates)
             k          = await context.render_variable(self.config.k)
-            metric     = await context.render_variable(self.config.metric)
-            flatten    = await context.render_variable(self.config.flatten)
-
-            try:
-                metric = VectorSimilarityMetric(metric)
-            except ValueError:
-                raise ValueError(f"Invalid similarity metric: {metric}")
+            metric     = self._as_ranking_metric(await context.render_variable(self.config.metric))
 
             return {
                 "query": query,
                 "candidates": candidates,
                 "k": int(k) if k is not None else 1,
                 "metric": metric,
-                "flatten": bool(flatten) if flatten is not None else True,
             }
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
             query      = await context.render_variable(self.config.query)
             candidates = await context.render_variable(self.config.candidates)
             threshold  = await context.render_variable(self.config.threshold)
-            metric     = await context.render_variable(self.config.metric)
-            flatten    = await context.render_variable(self.config.flatten)
+            metric     = self._as_ranking_metric(await context.render_variable(self.config.metric))
 
             if threshold is None:
                 raise ValueError("'threshold' must be specified for 'threshold-filter' method")
-
-            try:
-                metric = VectorSimilarityMetric(metric)
-            except ValueError:
-                raise ValueError(f"Invalid similarity metric: {metric}")
 
             return {
                 "query": query,
                 "candidates": candidates,
                 "threshold": float(threshold),
                 "metric": metric,
-                "flatten": bool(flatten) if flatten is not None else True,
             }
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
     def _process(self, method: VectorProcessorActionMethod, params: Dict[str, Any]) -> Any:
-        if method == VectorProcessorActionMethod.COSINE_SIMILARITY:
-            return self._cosine_similarity(params)
+        if method == VectorProcessorActionMethod.SIMILARITY:
+            return self._similarity(params)
+
+        if method == VectorProcessorActionMethod.DISTANCE:
+            return self._distance(params)
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
             return self._dot_product(params)
-
-        if method == VectorProcessorActionMethod.EUCLIDEAN_DISTANCE:
-            return self._euclidean_distance(params)
 
         if method == VectorProcessorActionMethod.NORMALIZE:
             return self._normalize(params)
@@ -135,15 +123,15 @@ class VectorProcessorAction:
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
     @abstractmethod
-    def _cosine_similarity(self, params: Dict[str, Any]) -> Any:
+    def _similarity(self, params: Dict[str, Any]) -> Any:
+        pass
+
+    @abstractmethod
+    def _distance(self, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
     def _dot_product(self, params: Dict[str, Any]) -> Any:
-        pass
-
-    @abstractmethod
-    def _euclidean_distance(self, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
@@ -165,3 +153,33 @@ class VectorProcessorAction:
     @abstractmethod
     def _threshold_filter(self, params: Dict[str, Any]) -> Any:
         pass
+
+    @staticmethod
+    def _as_similarity_metric(value: Any) -> SimilarityMetric:
+        try:
+            return SimilarityMetric(value)
+        except ValueError:
+            raise ValueError(f"Invalid similarity metric: {value}")
+
+    @staticmethod
+    def _as_distance_metric(value: Any) -> DistanceMetric:
+        try:
+            return DistanceMetric(value)
+        except ValueError:
+            raise ValueError(f"Invalid distance metric: {value}")
+
+    @staticmethod
+    def _as_ranking_metric(value: Any) -> Union[SimilarityMetric, DistanceMetric]:
+        """Ranking metrics may be either a similarity or a distance measure.
+
+        The sign convention (higher-is-better vs lower-is-better) is decided by
+        which enum the value belongs to.
+        """
+        try:
+            return SimilarityMetric(value)
+        except ValueError:
+            pass
+        try:
+            return DistanceMetric(value)
+        except ValueError:
+            raise ValueError(f"Invalid ranking metric: {value}")

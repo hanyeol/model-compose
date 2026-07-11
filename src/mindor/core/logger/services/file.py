@@ -32,10 +32,12 @@ class FileLogger(LoggerService):
         self.handler = logging.FileHandler(self.config.path, mode="a", encoding="utf-8")
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         self.logger.removeHandler(self.handler)
         self.handler = None
 

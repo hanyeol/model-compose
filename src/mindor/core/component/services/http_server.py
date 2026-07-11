@@ -163,12 +163,15 @@ class HttpServerComponent(ComponentService):
     async def _start(self) -> None:
         base_url = f"http://localhost:{self.config.port}" + (self.config.base_path or "")
         self.client = HttpClient(base_url, self.config.headers)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        await self.client.close()
-        self.client = None
+
+        if self.client:
+            await self.client.close()
+            self.client = None
 
     async def _serve(self) -> None:
         if self.config.manage.scripts.start:

@@ -147,6 +147,7 @@ class ComponentService(AsyncService):
             await self.work_queue.stop()
 
         await self._active_counter.wait_for_zero()
+
         await super()._stop()
 
     async def _is_ready(self) -> bool:

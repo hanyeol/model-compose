@@ -57,12 +57,15 @@ class McpClientComponent(ComponentService):
 
     async def _start(self) -> None:
         self.client = McpClient(self.config.url, self.config.headers)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        await self.client.close()
-        self.client = None
+
+        if self.client:
+            await self.client.close()
+            self.client = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await McpClientAction(action).run(context, self.client)

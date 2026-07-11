@@ -31,10 +31,12 @@ class ConsoleLogger(LoggerService):
         self.handler = logging.StreamHandler()
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         self.logger.removeHandler(self.handler)
         self.handler = None
 

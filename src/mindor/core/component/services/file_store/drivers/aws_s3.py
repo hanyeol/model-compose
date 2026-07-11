@@ -276,10 +276,12 @@ class AwsS3FileStoreService(FileStoreService):
     async def _start(self) -> None:
         self._client_session = self._create_client_session()
         self.client = await self._client_session.__aenter__()
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self._client_session is not None:
             try:
                 await self._client_session.__aexit__(None, None, None)

@@ -133,10 +133,12 @@ class WebSocketClientComponent(ComponentService):
             additional_headers=self.config.headers or None,
             params=self.config.params or None
         )
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.client:
             await self.client.close()
             self.client = None

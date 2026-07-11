@@ -4,18 +4,22 @@ from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
 class VectorProcessorActionMethod(str, Enum):
-    COSINE_SIMILARITY   = "cosine-similarity"
-    DOT_PRODUCT         = "dot-product"
-    EUCLIDEAN_DISTANCE  = "euclidean-distance"
-    NORMALIZE           = "normalize"
-    MEAN                = "mean"
-    SUM                 = "sum"
-    TOP_K               = "top-k"
-    THRESHOLD_FILTER    = "threshold-filter"
+    # Similarity / distance (higher-is-closer vs lower-is-closer)
+    SIMILARITY        = "similarity"
+    DISTANCE          = "distance"
+    # Ranking / filtering built on top of similarity or distance
+    TOP_K             = "top-k"
+    THRESHOLD_FILTER  = "threshold-filter"
+    # Pure vector operations
+    DOT_PRODUCT       = "dot-product"
+    NORMALIZE         = "normalize"
+    MEAN              = "mean"
+    SUM               = "sum"
 
-class VectorSimilarityMetric(str, Enum):
-    COSINE    = "cosine"
-    DOT       = "dot"
+class SimilarityMetric(str, Enum):
+    COSINE = "cosine"
+
+class DistanceMetric(str, Enum):
     EUCLIDEAN = "euclidean"
 
 class CommonVectorProcessorActionConfig(CommonActionConfig):

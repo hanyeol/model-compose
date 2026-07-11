@@ -248,13 +248,16 @@ class Neo4jGraphStoreService(GraphStoreService):
     async def _start(self) -> None:
         self.driver = self._create_driver()
         self.session = self.driver.session(database=self.config.database)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.session:
             await self.session.close()
             self.session = None
+
         if self.driver:
             await self.driver.close()
             self.driver = None

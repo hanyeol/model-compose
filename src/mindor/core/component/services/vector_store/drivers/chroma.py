@@ -215,10 +215,12 @@ class ChromaVectorStoreService(VectorStoreService):
 
     async def _start(self) -> None:
         self.client = self._create_client()
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.client:
             self.client = None
 

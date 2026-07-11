@@ -157,21 +157,28 @@ class HttpClientComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[HttpClient] = None
-        self.rate_limiter: Optional[RateLimiter] = None
+
+        self._rate_limiter: Optional[RateLimiter] = None
 
     async def _start(self) -> None:
         self.client = HttpClient(self.config.base_url, self.config.headers)
-        self.rate_limiter = RateLimiter(self.config.rate_limit) if self.config.rate_limit else None
+
+        if self.config.rate_limit:
+            self._rate_limiter = RateLimiter(self.config.rate_limit)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.client:
             await self.client.close()
             self.client = None
-        self.rate_limiter = None
+
+        self._rate_limiter = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        if self.rate_limiter:
-            await self.rate_limiter.acquire()
+        if self._rate_limiter:
+            await self._rate_limiter.acquire()
+
         return await HttpClientAction(action).run(context, self.client)

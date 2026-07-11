@@ -314,29 +314,33 @@ class AzureBlobFileStoreService(FileStoreService):
             account_name=config.account_name,
         )
         self.base_path: Optional[str] = (config.base_path.rstrip("/") + "/") if config.base_path else None
-        self.service_client: Optional[BlobServiceClient] = None
-        self.container_client: Optional[ContainerClient] = None
+        self.client: Optional[ContainerClient] = None
+
+        self._service_client: Optional[BlobServiceClient] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "azure-storage-blob", "aiohttp" ]
 
     async def _start(self) -> None:
-        self.service_client = self._create_service_client()
-        self.container_client = self.service_client.get_container_client(self.config.container)
+        self._service_client = self._create_service_client()
+        self.client = self._service_client.get_container_client(self.config.container)
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
-        if self.container_client is not None:
+
+        if self.client:
             try:
-                await self.container_client.close()
+                await self.client.close()
             finally:
-                self.container_client = None
-        if self.service_client is not None:
+                self.client = None
+
+        if self._service_client:
             try:
-                await self.service_client.close()
+                await self._service_client.close()
             finally:
-                self.service_client = None
+                self._service_client = None
 
     async def _run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:
         return await AzureBlobFileStoreAction(action, self.container_client, self.location, self.base_path).run(context)

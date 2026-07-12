@@ -7,8 +7,9 @@ from mindor.core.foundation.streaming.iterators import StreamChunkIterator, Stre
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.text import TextStreamResource
 from mindor.core.logger import logging
-from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
-from ..context import ComponentActionContext
+from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
+from ...context import ComponentActionContext
+from .separators import DEFAULT_SEPARATORS, from_language as seperators_from_language
 import asyncio
 
 class SegmentMergeBuffer:
@@ -287,9 +288,16 @@ class TextSplitterAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        language      = await context.render_variable(self.config.language) if self.config.language is not None else None
         separators    = await context.render_variable(self.config.separators)
         chunk_size    = await context.render_variable(self.config.chunk_size)
         chunk_overlap = await context.render_variable(self.config.chunk_overlap)
+
+        if language is not None:
+            separators = seperators_from_language(language)
+        
+        if not separators:
+            separators = list(DEFAULT_SEPARATORS)
 
         if chunk_size is None:
             raise ValueError("'chunk_size' must be specified for text splitter")
@@ -299,9 +307,6 @@ class TextSplitterAction:
 
         if chunk_overlap > chunk_size:
             raise ValueError(f"Got a larger chunk overlap ({chunk_overlap}) than chunk size ({chunk_size}), should be smaller.")
-
-        if not separators:
-            separators = [ "\n\n", "\n", " ", "" ]
 
         return { "separators": separators, "chunk_size": chunk_size, "chunk_overlap": chunk_overlap }
 

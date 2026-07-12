@@ -480,3 +480,386 @@ class TestTextSplitterStreamingInput:
             stream_collected.append(await _collect(inner))
 
         assert stream_collected == batch_result
+
+
+# ---------------------------------------------------------------------------
+# Language presets — verify that `language` selects a preset separator list,
+# `language` and `separators` are mutually exclusive at the schema layer, and
+# every enum value is covered.
+# ---------------------------------------------------------------------------
+
+from mindor.dsl.schema.action import TextSplitterLanguage
+from mindor.core.component.services.text_splitter.separators import (
+    DEFAULT_SEPARATORS,
+    LANGUAGE_SEPARATORS,
+    from_language,
+)
+
+
+class TestLanguagePresets:
+    """Language-preset resolution and end-to-end splitting behavior."""
+
+    def test_every_enum_value_has_preset(self):
+        # If a new enum value is added without a preset entry, this fails fast.
+        missing = [ language.value for language in TextSplitterLanguage if language not in LANGUAGE_SEPARATORS ]
+        assert missing == []
+
+    def test_default_separators_constant(self):
+        assert DEFAULT_SEPARATORS == [ "\n\n", "\n", " ", "" ]
+
+    def test_language_selects_preset(self):
+        result = from_language(TextSplitterLanguage.PYTHON)
+        assert result[:3] == [ "\nclass ", "\ndef ", "\n\tdef " ]
+
+    def test_preset_returns_fresh_copy(self):
+        # Callers may mutate the returned list; the module-level table must stay clean.
+        first = from_language(TextSplitterLanguage.PYTHON)
+        first.append("MUTATED")
+        second = from_language(TextSplitterLanguage.PYTHON)
+        assert "MUTATED" not in second
+
+    @pytest.mark.anyio
+    async def test_python_preset_splits_on_class_boundary(self, mock_context):
+        """Python preset should prefer `class`/`def` boundaries over paragraph breaks."""
+        code = "\n".join([
+            "class Foo:",
+            "    def method_a(self):",
+            "        return 1",
+            "",
+            "class Bar:",
+            "    def method_b(self):",
+            "        return 2",
+        ])
+        config = TextSplitterActionConfig(
+            text=code,
+            language=TextSplitterLanguage.PYTHON,
+            chunk_size=60,
+            chunk_overlap=0,
+        )
+        result = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+
+        # Both `class Foo:` and `class Bar:` should each start their own chunk.
+        starts = [ chunk.lstrip("\n").splitlines()[0] for chunk in result ]
+        assert any(line.startswith("class Foo") for line in starts)
+        assert any(line.startswith("class Bar") for line in starts)
+
+    @pytest.mark.anyio
+    async def test_markdown_preset_splits_on_heading(self, mock_context):
+        md = "\n".join([
+            "# Title",
+            "Intro paragraph.",
+            "",
+            "## Section A",
+            "Content of section A goes here.",
+            "",
+            "## Section B",
+            "Content of section B goes here.",
+        ])
+        config = TextSplitterActionConfig(
+            text=md,
+            language=TextSplitterLanguage.MARKDOWN,
+            chunk_size=60,
+            chunk_overlap=0,
+        )
+        result = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+
+        joined = " || ".join(result)
+        # `## Section A` and `## Section B` should each begin a new chunk.
+        assert "## Section A" in joined
+        assert "## Section B" in joined
+
+    def test_language_and_separators_are_mutually_exclusive(self):
+        """DSL validation rejects configs that specify both."""
+        with pytest.raises(ValueError, match="language.*separators|separators.*language"):
+            TextSplitterActionConfig(
+                text="hello world",
+                language=TextSplitterLanguage.PYTHON,
+                separators=[ " ", "" ],
+                chunk_size=6,
+                chunk_overlap=0,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Per-language preset splitting — for every language enum value, verify that
+# splitting real code/markup keeps expected syntactic boundaries as chunk
+# starts. Each case supplies:
+#   - a representative source snippet with several top-level declarations,
+#   - a list of substrings that MUST each begin one of the emitted chunks
+#     (i.e. the preset's high-priority separators actually take effect).
+# `chunk_size` is picked small enough to force a split but large enough that
+# each declaration body stays intact within its own chunk.
+# ---------------------------------------------------------------------------
+
+def _chunk_starts(chunks):
+    """Return the first non-empty line of each chunk (after stripping any
+    leading separator characters the splitter kept around)."""
+    starts = []
+    for chunk in chunks:
+        for line in chunk.splitlines():
+            stripped = line.strip()
+            if stripped:
+                starts.append(stripped)
+                break
+        else:
+            starts.append("")
+    return starts
+
+
+def _make_language_source(units):
+    """Join a list of self-contained top-level units with blank lines."""
+    return "\n\n".join(units)
+
+
+LANGUAGE_SPLIT_CASES = [
+    # (language, source, expected chunk-start substrings, chunk_size)
+    #
+    # chunk_size is tuned per case so each top-level declaration is small
+    # enough to become its own chunk (the splitter merges consecutive
+    # separator-delimited segments until they exceed chunk_size). Sources are
+    # sized so at least two chunks fall out, which the sanity check enforces.
+    (
+        TextSplitterLanguage.PYTHON,
+        _make_language_source([
+            "class Foo:\n    def method_a(self):\n        return 1",
+            "class Bar:\n    def method_b(self):\n        return 2",
+            "def top_level():\n    return 3",
+        ]),
+        [ "class Foo:", "class Bar:", "def top_level():" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.JAVASCRIPT,
+        _make_language_source([
+            "function greet(name) { return `hi ${name}`; }",
+            "const answer = 42;",
+            "class Widget { constructor() { this.value = 0; } }",
+        ]),
+        [ "function greet(name) {", "const answer = 42;", "class Widget {" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.TYPESCRIPT,
+        _make_language_source([
+            "interface User { name: string; age: number; }",
+            "type Callback = (u: User) => void;",
+            "enum Status { Active, Inactive }",
+            "class Session { constructor(public user: User) {} }",
+        ]),
+        [ "interface User {", "type Callback", "enum Status {", "class Session {" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.JAVA,
+        _make_language_source([
+            "class Foo { public int compute() { return 1; } }",
+            "class Bar { private String name; public String name() { return name; } }",
+            "public class Baz { }",
+        ]),
+        [ "class Foo {", "class Bar {", "public class Baz {" ],
+        80,
+    ),
+    (
+        TextSplitterLanguage.KOTLIN,
+        _make_language_source([
+            "class Point(val x: Int, val y: Int)",
+            "object Origin { val point = Point(0, 0) }",
+            "interface Drawable { fun draw() }",
+            "fun main() { println(\"hi\") }",
+        ]),
+        [ "class Point(val x: Int, val y: Int)", "object Origin {", "interface Drawable {", "fun main() {" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.SCALA,
+        _make_language_source([
+            "class Foo(val n: Int)",
+            "object Bar { def make(): Foo = new Foo(1) }",
+            "trait Named { def name: String }",
+            "def top(): Int = 42",
+        ]),
+        [ "class Foo(val n: Int)", "object Bar {", "trait Named {", "def top(): Int = 42" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.GO,
+        _make_language_source([
+            "func Hello() string { return \"hello\" }",
+            "type Point struct { X, Y int }",
+            "const Version = \"1.0\"",
+        ]),
+        [ "func Hello() string {", "type Point struct {", "const Version = \"1.0\"" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.RUST,
+        _make_language_source([
+            "struct Point { x: i32, y: i32 }",
+            "enum Shape { Circle, Square }",
+            "trait Draw { fn draw(&self); }",
+            "impl Draw for Point { fn draw(&self) {} }",
+            "fn main() { println!(\"hi\"); }",
+        ]),
+        [ "struct Point {", "enum Shape {", "trait Draw {", "impl Draw for Point {", "fn main() {" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.CPP,
+        _make_language_source([
+            "class Foo { public: int compute() { return 1; } };",
+            "void greet() { std::cout << \"hello\"; }",
+            "int main() { return compute() + 0; }",
+        ]),
+        [ "class Foo {", "void greet() {", "int main() {" ],
+        45,
+    ),
+    (
+        TextSplitterLanguage.C,
+        _make_language_source([
+            "struct Point { int x; int y; };",
+            "void greet(void) { printf(\"hi\"); }",
+            "int main(void) { return 0; }",
+        ]),
+        [ "struct Point {", "void greet(void) {", "int main(void) {" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.CSHARP,
+        _make_language_source([
+            "namespace App { class Foo { } }",
+            "public class Bar { public int N { get; set; } }",
+            "private class Baz { }",
+        ]),
+        [ "namespace App {", "public class Bar {", "private class Baz {" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.RUBY,
+        _make_language_source([
+            "class Foo\n  def bar\n    42\n  end\nend",
+            "module Baz\n  def self.qux; end\nend",
+            "def top\n  1\nend",
+        ]),
+        [ "class Foo", "module Baz", "def top" ],
+        40,
+    ),
+    (
+        TextSplitterLanguage.PHP,
+        _make_language_source([
+            "function greet($name) { return \"hi \" . $name; }",
+            "class User { public $name; }",
+            "function farewell($name) { return \"bye \" . $name; }",
+        ]),
+        [ "function greet($name) {", "class User {", "function farewell($name) {" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.SWIFT,
+        _make_language_source([
+            "struct Point { let x: Int; let y: Int }",
+            "class Foo { func hi() { print(\"hi\") } }",
+            "protocol Draw { func draw() }",
+            "extension Point: Draw { func draw() {} }",
+            "func top() { print(\"ok\") }",
+        ]),
+        [ "struct Point {", "class Foo {", "protocol Draw {", "extension Point: Draw {", "func top() {" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.HTML,
+        (
+            "<body>"
+            "<div class=\"a\"><p>alpha paragraph text goes here</p></div>"
+            "<div class=\"b\"><p>beta paragraph text goes here</p></div>"
+            "<table><tr><td>cell text goes here</td></tr></table>"
+            "</body>"
+        ),
+        [ "<body>", "<div class=\"a\">", "<div class=\"b\">", "<table>" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.MARKDOWN,
+        _make_language_source([
+            "## Section A\nContent of section A goes here.",
+            "## Section B\nContent of section B goes here.",
+            "### Section B.1\nNested detail lives inside B.",
+        ]),
+        [ "## Section A", "## Section B", "### Section B.1" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.LATEX,
+        _make_language_source([
+            "\\section{Intro}\nSome intro text goes here.",
+            "\\subsection{Details}\nMore detailed text for the subsection.",
+            "\\subsection{Wrap-up}\nClosing remarks for the section.",
+        ]),
+        [ "\\section{Intro}", "\\subsection{Details}", "\\subsection{Wrap-up}" ],
+        60,
+    ),
+    (
+        TextSplitterLanguage.SQL,
+        _make_language_source([
+            "SELECT id, name FROM users WHERE active = 1;",
+            "INSERT INTO logs(event) VALUES ('login');",
+            "UPDATE users SET last_login = NOW() WHERE id = 1;",
+            "DELETE FROM sessions WHERE expired = 1;",
+        ]),
+        [ "SELECT id, name FROM users", "INSERT INTO logs(event)", "UPDATE users SET", "DELETE FROM sessions" ],
+        50,
+    ),
+    (
+        TextSplitterLanguage.SOLIDITY,
+        _make_language_source([
+            "pragma solidity ^0.8.0;",
+            "contract Coin { address public minter; }",
+            "interface IERC20 { function balanceOf(address) external view returns (uint256); }",
+            "library Math { function add(uint a, uint b) internal pure returns (uint) { return a + b; } }",
+        ]),
+        [ "pragma solidity ^0.8.0;", "contract Coin {", "interface IERC20 {", "library Math {" ],
+        90,
+    ),
+    (
+        TextSplitterLanguage.PROTO,
+        _make_language_source([
+            "syntax = \"proto3\";",
+            "message User { string name = 1; int32 age = 2; }",
+            "service UserSvc { rpc Get (User) returns (User); }",
+            "enum Status { ACTIVE = 0; INACTIVE = 1; }",
+        ]),
+        [ "syntax = \"proto3\";", "message User {", "service UserSvc {", "enum Status {" ],
+        60,
+    ),
+]
+
+
+class TestPerLanguagePresets:
+    """Every language preset must actually cut on its language-specific boundaries."""
+
+    def test_all_enum_values_covered(self):
+        # Guard: adding a new enum value must also add a case here.
+        covered = { case[0] for case in LANGUAGE_SPLIT_CASES }
+        missing = [ language.value for language in TextSplitterLanguage if language not in covered ]
+        assert missing == [], f"Missing per-language split cases for: {missing}"
+
+    @pytest.mark.parametrize("language,source,expected_starts,chunk_size", LANGUAGE_SPLIT_CASES, ids=lambda p: p.value if isinstance(p, TextSplitterLanguage) else None)
+    @pytest.mark.anyio
+    async def test_language_preset_cuts_on_syntactic_boundary(self, mock_context, language, source, expected_starts, chunk_size):
+        config = TextSplitterActionConfig(
+            text=source,
+            language=language,
+            chunk_size=chunk_size,
+            chunk_overlap=0,
+        )
+        chunks = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+
+        # Sanity: chunk_size is tuned so splitting produces at least one chunk
+        # per expected boundary (i.e. more than one chunk overall).
+        assert len(chunks) > 1, f"{language.value}: expected multiple chunks, got {len(chunks)}"
+
+        starts = _chunk_starts(chunks)
+        for expected in expected_starts:
+            assert any(start.startswith(expected) for start in starts), (
+                f"{language.value}: expected some chunk to START with {expected!r}; "
+                f"got chunk starts {starts!r}"
+            )

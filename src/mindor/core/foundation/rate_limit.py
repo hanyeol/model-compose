@@ -1,5 +1,5 @@
 from typing import Optional
-from mindor.dsl.schema.component.impl.rate_limit import RateLimitConfig
+from mindor.dsl.schema.common.rate_limit import RateLimitConfig
 from mindor.core.foundation.variable.time import parse_duration
 import asyncio, time
 

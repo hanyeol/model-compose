@@ -1,4 +1,4 @@
-"""Unit tests for ``mindor.dsl.schema.component.impl.rate_limit``.
+"""Unit tests for ``mindor.dsl.schema.common.rate_limit``.
 
 Covers the pydantic validators on ``RateLimitConfig`` and the
 ``inflate_rate_limit_shorthand`` parser used to expand strings like ``"10/1s"``.
@@ -7,7 +7,7 @@ Covers the pydantic validators on ``RateLimitConfig`` and the
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.component.impl.rate_limit import (
+from mindor.dsl.schema.common.rate_limit import (
     RateLimitConfig,
     inflate_rate_limit_shorthand,
 )

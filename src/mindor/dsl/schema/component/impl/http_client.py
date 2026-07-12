@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import HttpClientActionConfig, HttpClientPollingCompletionConfig
 from .common import ComponentType, CommonComponentConfig
-from .rate_limit import RateLimitConfig, inflate_rate_limit_shorthand
+from mindor.dsl.schema.common.rate_limit import RateLimitConfig, inflate_rate_limit_shorthand
 
 class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]

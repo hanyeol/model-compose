@@ -81,6 +81,70 @@ class TestBatchSourceIteratorWithTupleZip:
         with pytest.raises(ValueError, match="different lengths"):
             await _collect(BatchSourceIterator(([1, 2], ["a"]), batch_size=2))
 
+    @pytest.mark.anyio
+    async def test_all_scalars_yield_once(self):
+        result = await _collect(BatchSourceIterator(("a", "b"), batch_size=1))
+        assert result == [(["a"], ["b"])]
+
+
+class TestBatchSourceIteratorWithTupleBroadcast:
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_across_list(self):
+        result = await _collect(BatchSourceIterator((["im1", "im2", "im3"], "describe"), batch_size=1))
+        assert result == [
+            (["im1"], ["describe"]),
+            (["im2"], ["describe"]),
+            (["im3"], ["describe"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_leading_slot(self):
+        result = await _collect(BatchSourceIterator(("query", ["d1", "d2", "d3"]), batch_size=1))
+        assert result == [
+            (["query"], ["d1"]),
+            (["query"], ["d2"]),
+            (["query"], ["d3"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_batched(self):
+        result = await _collect(BatchSourceIterator(("q", ["d1", "d2", "d3", "d4", "d5"]), batch_size=2))
+        assert result == [
+            (["q", "q"], ["d1", "d2"]),
+            (["q", "q"], ["d3", "d4"]),
+            (["q"], ["d5"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_across_async_iterator(self):
+        result = await _collect(BatchSourceIterator(("q", _async_iter(["d1", "d2", "d3"])), batch_size=1))
+        assert result == [
+            (["q"], ["d1"]),
+            (["q"], ["d2"]),
+            (["q"], ["d3"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_across_stream_iterator(self):
+        result = await _collect(BatchSourceIterator(("q", StreamChunkIterator(_async_iter(["d1", "d2"]))), batch_size=1))
+        assert result == [
+            (["q"], ["d1"]),
+            (["q"], ["d2"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_and_none_broadcast_together(self):
+        result = await _collect(BatchSourceIterator((["a", "b"], None, "z"), batch_size=1))
+        assert result == [
+            (["a"], None, ["z"]),
+            (["b"], None, ["z"]),
+        ]
+
+    @pytest.mark.anyio
+    async def test_scalar_broadcast_stops_when_iterable_exhausts(self):
+        result = await _collect(BatchSourceIterator(("q", []), batch_size=1))
+        assert result == []
+
 
 class TestStreamChunkIterator:
     @pytest.mark.anyio

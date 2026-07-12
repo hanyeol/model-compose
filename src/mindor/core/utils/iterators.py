@@ -12,9 +12,13 @@ class BatchSourceIterator:
     - any other value: yielded as a single item
     - tuple of sources: zipped — each tick yields a tuple of per-source batches.
       A `None` slot is broadcast (its batch stays `None` instead of being treated as
-      a single-item sequence). Non-None sources must produce the same number of items
-      or ValueError is raised. To pass a single-source tuple/list as a sequence
-      rather than a zip group, wrap it in another value type or pre-materialize it.
+      a single-item sequence). A scalar slot (any non-iterable, non-tuple, non-None
+      value that is not a list/AsyncIterator/StreamIterator) is also broadcast: its
+      value is repeated for every tick until the iterable slots are exhausted. If
+      all slots are scalar/None, the zip yields once. Iterable sources must produce
+      the same number of items or ValueError is raised. To pass a single-source
+      tuple/list as a sequence rather than a zip group, wrap it in another value
+      type or pre-materialize it.
 
     Items are grouped into batches (lists) of `batch_size`. The final batch may be
     smaller than `batch_size`.
@@ -77,26 +81,37 @@ class BatchSourceIterator:
             yield item
 
     async def _iterate_zipped(self, source: Tuple[Any, ...]) -> AsyncIterator[Tuple[Any, ...]]:
-        iterators = [ self._iterate_single(single).__aiter__() for single in source ]
+        iterables = [ isinstance(value, (list, tuple, StreamIterator, AsyncIterator)) for value in source ]
+        iterators = [ self._iterate_single(value).__aiter__() if iterable else None for value, iterable in zip(source, iterables) ]
+        has_iterables = any(iterables)
 
         while True:
             items: List[Any] = []
             stops: List[bool] = []
 
-            for iterator in iterators:
+            for index, iterator in enumerate(iterators):
+                if iterator is None:
+                    items.append(source[index])
+                    stops.append(False)
+                    continue
                 try:
                     items.append(await iterator.__anext__())
                     stops.append(False)
                 except StopAsyncIteration:
+                    items.append(None)
                     stops.append(True)
 
-            if all(stops):
-                return
-
-            if any(stops):
-                raise ValueError("zipped sources have different lengths")
+            if has_iterables:
+                iterable_stops = [ stops[i] for i, iterable in enumerate(iterables) if iterable ]
+                if all(iterable_stops):
+                    return
+                if any(iterable_stops):
+                    raise ValueError("zipped sources have different lengths")
 
             yield tuple(items)
+
+            if not has_iterables:
+                return
 
     async def _iterate_single(self, source: Any) -> AsyncIterator[Any]:
         if isinstance(source, (StreamIterator, AsyncIterator)):

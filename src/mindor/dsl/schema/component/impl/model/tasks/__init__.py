@@ -5,6 +5,7 @@ from .chat_completion import *
 from .text_to_text import *
 from .text_classification import *
 from .text_embedding import *
+from .text_reranking import *
 from .image_to_text import *
 from .image_text_to_text import *
 from .image_generation import *

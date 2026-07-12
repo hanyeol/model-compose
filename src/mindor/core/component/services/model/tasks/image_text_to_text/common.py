@@ -18,8 +18,8 @@ class ImageTextToTextTaskAction:
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         image         = await context.render_image(self.config.image)
-        prompt        = await context.render_variable(self.config.prompt)
-        system_prompt = await context.render_variable(self.config.system_prompt)
+        prompt        = await context.render_text(self.config.prompt)
+        system_prompt = await context.render_text(self.config.system_prompt)
         batch_size    = await context.render_variable(self.config.batch_size)
         streaming     = await context.render_variable(self.config.streaming)
 

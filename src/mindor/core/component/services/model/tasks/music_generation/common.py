@@ -19,11 +19,11 @@ class MusicGenerationTaskAction:
         self.config: MusicGenerationModelActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        prompt     = await context.render_variable(self.config.prompt)
-        lyrics     = await context.render_variable(self.config.lyrics) if self.config.lyrics is not None else None
+        prompt     = await context.render_text(self.config.prompt)
+        lyrics     = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         batch_size = await context.render_variable(self.config.batch_size)
 
-        params = await self._resolve_generation_params(context)
+        params = await self._resolve_params(context)
 
         is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -47,7 +47,7 @@ class MusicGenerationTaskAction:
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         duration  = await context.render_variable(self.config.params.duration)
         bpm       = await context.render_variable(self.config.params.bpm)
         key_scale = await context.render_variable(self.config.params.key_scale)

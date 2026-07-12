@@ -21,7 +21,7 @@ class TextToSpeechTaskAction:
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        text       = await context.render_variable(self.config.text)
+        text       = await context.render_text(self.config.text)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)

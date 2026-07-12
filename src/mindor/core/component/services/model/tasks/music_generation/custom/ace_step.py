@@ -21,6 +21,16 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         self.handler: AceStepHandler = handler
 
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        params["time_signature" ] = await context.render_variable(self.config.params.time_signature)
+        params["inference_steps"] = await context.render_variable(self.config.params.inference_steps)
+        params["guidance_scale" ] = await context.render_variable(self.config.params.guidance_scale)
+        params["seed"           ] = await context.render_variable(self.config.params.seed)
+
+        return params
+
     async def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Any]:
         return await loop.run_in_executor(None, self._generate_batch, prompts, lyrics, params)
 
@@ -68,16 +78,6 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             }))
 
         return results
-
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        params = await super()._resolve_generation_params(context)
-
-        params["time_signature" ] = await context.render_variable(self.config.params.time_signature)
-        params["inference_steps"] = await context.render_variable(self.config.params.inference_steps)
-        params["guidance_scale" ] = await context.render_variable(self.config.params.guidance_scale)
-        params["seed"           ] = await context.render_variable(self.config.params.seed)
-
-        return params
 
 class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

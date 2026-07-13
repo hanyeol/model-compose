@@ -213,7 +213,7 @@ class VectorProcessorAction:
             if isinstance(query, list):
                 return [ self._top_k(q, candidates, params) if candidates else [] for q in query ]
 
-            return self._top_k(query, candidates, params)
+            return self._top_k(query, candidates, params) if candidates else []
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
             query      = params.pop("query")
@@ -222,7 +222,7 @@ class VectorProcessorAction:
             if isinstance(query, list):
                 return [ self._threshold_filter(q, candidates, params) if candidates else [] for q in query ]
 
-            return self._threshold_filter(query, candidates, params)
+            return self._threshold_filter(query, candidates, params) if candidates else []
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 

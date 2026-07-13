@@ -6,9 +6,9 @@ class AgentModelConfig(BaseModel):
     component: str = Field(..., description="ID of the component to use for LLM calls.")
     action: str = Field(default="__default__", description="ID of the action to invoke on the component.")
     input: Dict[str, Any] = Field(default_factory=dict, description="Input mapping from agent internal state to component input.")
-    output: Optional[Any] = Field(default=None, description="Output mapping from component response to a ChatCompletionMessage-shaped dict. If omitted, the raw response is used.")
+    output: Optional[Any] = Field(default=None, description="Mapping from component response to a ChatCompletionMessage-shaped dict.")
 
 class AgentActionConfig(CommonActionConfig):
-    prompt: Optional[str] = Field(default=None, description="Input prompt for this invocation, applied as a user message.")
-    max_iteration_count: Optional[int] = Field(default=None, description="Maximum number of ReAct loop iterations. Overrides component-level setting.")
-    streaming: Union[bool, str] = Field(default=False, description="Whether to stream messages as they are generated.")
+    prompt: Optional[str] = Field(default=None, description="Prompt for this invocation, applied as a user message.")
+    max_iteration_count: Optional[int] = Field(default=None, description="Maximum ReAct loop iterations. Overrides component-level setting.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether to stream messages as generated.")

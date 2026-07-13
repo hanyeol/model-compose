@@ -40,4 +40,4 @@ class ImageCompressStrategy(str, Enum):
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
     image: Union[str, List[str]] = Field(..., description="Input image(s) (file path, base64 string, or variable reference).")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images to process in a single batch.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images per batch.")

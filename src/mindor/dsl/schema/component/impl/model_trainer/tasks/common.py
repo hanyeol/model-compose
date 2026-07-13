@@ -13,12 +13,12 @@ class ModelTrainerLoraConfig(BaseModel):
     rank: int = Field(default=8, description="LoRA rank.")
     alpha: int = Field(default=16, description="LoRA alpha for scaling.")
     dropout: float = Field(default=0.05, description="LoRA dropout rate.")
-    target_modules: Optional[List[str]] = Field(default=None, description="Target modules for LoRA. If not specified, auto-detects.")
+    target_modules: Optional[List[str]] = Field(default=None, description="Target modules for LoRA. Auto-detected if unset.")
     bias: Literal[ "none", "all", "lora_only" ] = Field(default="none", description="Bias training strategy for LoRA.")
 
 class CommonModelTrainerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TRAINER]
-    task: TrainingTaskType = Field(..., description="Type of training task to perform.")
+    task: TrainingTaskType = Field(..., description="Training task type.")
     lora: Optional[ModelTrainerLoraConfig] = Field(default=None, description="LoRA adapter configuration for training.")
     quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
 

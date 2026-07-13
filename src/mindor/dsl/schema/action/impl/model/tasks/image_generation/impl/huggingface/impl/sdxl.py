@@ -18,11 +18,11 @@ class SdxlHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGe
 
 class SdxlHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
-    params: SdxlHuggingfaceImageGenerationParamsConfig = Field(default_factory=SdxlHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+    params: SdxlHuggingfaceImageGenerationParamsConfig = Field(default_factory=SdxlHuggingfaceImageGenerationParamsConfig, description="Image generation parameters.")
 
 class SdxlHuggingfaceImageGenerationModelInpaintActionConfig(CommonHuggingfaceImageGenerationModelInpaintActionConfig):
     method: Literal[ImageGenerationActionMethod.INPAINT] = Field(default=ImageGenerationActionMethod.INPAINT)
-    params: SdxlHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=SdxlHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting configuration parameters.")
+    params: SdxlHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=SdxlHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting parameters.")
 
 SdxlHuggingfaceImageGenerationModelActionConfig = Annotated[
     Union[

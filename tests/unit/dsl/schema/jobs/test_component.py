@@ -1,36 +1,36 @@
-"""Unit tests for ``ComponentJobConfig`` validators (interrupt point normalisation
+"""Unit tests for ``ComponentJobConfig`` validators (interrupt normalisation
 and ``repeat_count`` validation)."""
 
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.job.impl.component import (
-    ComponentInterruptConfig,
-    ComponentInterruptPointConfig,
-    ComponentJobConfig,
+from mindor.dsl.schema.job.impl.common import (
+    JobInterruptConfig,
+    JobInterruptsConfig,
 )
+from mindor.dsl.schema.job.impl.component import ComponentJobConfig
 
 
-class TestInterruptPointNormalisation:
-    def test_before_true_inflated_to_default_point(self):
-        cfg = ComponentInterruptConfig(before=True)
-        assert isinstance(cfg.before, ComponentInterruptPointConfig)
+class TestInterruptNormalisation:
+    def test_before_true_inflated_to_default_interrupt(self):
+        cfg = JobInterruptsConfig(before=True)
+        assert isinstance(cfg.before, JobInterruptConfig)
 
     def test_before_false_stays_false(self):
-        cfg = ComponentInterruptConfig(before=False)
+        cfg = JobInterruptsConfig(before=False)
         assert cfg.before is False
 
     def test_before_none_treated_as_false(self):
-        cfg = ComponentInterruptConfig(before=None)
+        cfg = JobInterruptsConfig(before=None)
         assert cfg.before is False
 
-    def test_explicit_point_object_preserved(self):
-        cfg = ComponentInterruptConfig(after={"message": "stop here"})
-        assert isinstance(cfg.after, ComponentInterruptPointConfig)
+    def test_explicit_interrupt_object_preserved(self):
+        cfg = JobInterruptsConfig(after={"message": "stop here"})
+        assert isinstance(cfg.after, JobInterruptConfig)
         assert cfg.after.message == "stop here"
 
     def test_default_values_are_false(self):
-        cfg = ComponentInterruptConfig()
+        cfg = JobInterruptsConfig()
         assert cfg.before is False and cfg.after is False
 
 

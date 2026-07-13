@@ -5,7 +5,7 @@ from .common import CommonKeyValueStoreComponentConfig, KeyValueStoreDriver
 
 class RedisKeyValueStoreComponentConfig(CommonKeyValueStoreComponentConfig):
     driver: Literal[KeyValueStoreDriver.REDIS]
-    url: Optional[str] = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379, rediss://localhost:6379 for TLS).")
+    url: Optional[str] = Field(default=None, description="Redis connection URL.")
     host: str = Field(default="localhost", description="Redis server hostname or IP address.")
     port: int = Field(default=6379, ge=1, le=65535, description="Redis server port number.")
     secure: bool = Field(default=False, description="Use TLS/SSL for connections (equivalent to rediss:// protocol).")

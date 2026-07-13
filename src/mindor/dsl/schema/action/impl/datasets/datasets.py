@@ -15,7 +15,7 @@ DatasetsLoadActionConfig = Annotated[
 class DatasetsConcatActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.CONCAT]
     datasets: Union[List[str], str] = Field(..., description="List of datasets to concatenate.")
-    direction: Literal[ "vertical", "horizontal" ] = Field(default="vertical", description="Direction to concatenate. 'vertical' for rows (default), 'horizontal' for columns.")
+    direction: Literal[ "vertical", "horizontal" ] = Field(default="vertical", description="Direction to concatenate.")
     info: Optional[Any] = Field(default=None, description="Dataset info to use for the concatenated dataset.")
     split: Optional[str] = Field(default=None, description="Name of the split for the concatenated dataset.")
 
@@ -32,7 +32,7 @@ class DatasetsFilterActionConfig(CommonDatasetsActionConfig):
 class DatasetsMapActionConfig(CommonDatasetsActionConfig):
     method: Literal[DatasetsActionMethod.MAP]
     dataset: str = Field(..., description="Source dataset to map.")
-    template: str = Field(..., description="Template string with {column_name} placeholders to be replaced with dataset column values.")
+    template: str = Field(..., description="Template with {column_name} placeholders.")
     output_column: str = Field(..., description="Name of the new column to create with the mapped values.")
     remove_columns: Optional[Union[List[str], str]] = Field(default=None, description="Columns to remove after mapping.")
 

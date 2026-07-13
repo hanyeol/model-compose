@@ -25,6 +25,8 @@ class ForEachJob(Job):
         batch_size = await context.render_variable(None, self.config.batch_size)
         streaming  = await context.render_variable(None, self.config.streaming)
 
+        input = await self._before_run(context, None, input)
+
         is_single_input = not isinstance(input, (list, StreamIterator, AsyncIterator))
 
         if isinstance(input, (StreamIterator, AsyncIterator)) or (streaming and not is_single_input):
@@ -41,9 +43,14 @@ class ForEachJob(Job):
                 results.extend(await self._run_batch(batch_items, component, context))
 
             output = results[0] if is_single_input else results
-            context.register_source(None, "output", output)
 
-            return (await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
+            if self.config.output:
+                context.register_source(None, "output", output)
+                output = await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)
+
+            output = await self._after_run(context, None, input, output)
+
+            return output
 
     async def _run_batch(self, batch_items: List[Any], component: ComponentService, context: JobContext) -> List[Any]:
         return await asyncio.gather(*[ self._run(item, component, context) for item in batch_items ])

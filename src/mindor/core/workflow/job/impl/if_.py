@@ -14,6 +14,9 @@ class IfJob(Job):
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         input = await context.render_variable(None, self.config.input)
 
+        input = await self._before_run(context, None, input)
+
+        target: Optional[str] = None
         for condition in self.config.conditions:
             value = await context.render_variable(None, condition.value)
 
@@ -21,9 +24,16 @@ class IfJob(Job):
 
             if evaluate_condition(condition.operator, input, value):
                 if condition.if_true:
-                    return RoutingTarget(condition.if_true)
+                    target = condition.if_true
+                    break
             else:
                 if condition.if_false:
-                    return RoutingTarget(condition.if_false)
+                    target = condition.if_false
+                    break
 
-        return RoutingTarget(await context.render_variable(None, self.config.otherwise))
+        if target is None:
+            target = await context.render_variable(None, self.config.otherwise)
+
+        await self._after_run(context, None, input, None)
+
+        return RoutingTarget(target)

@@ -15,11 +15,11 @@ class DockerBuildConfig(BaseModel):
 class DockerPortConfig(BaseModel):
     container_port: int = Field(..., description="Port exposed by the container.")
     host_port: Optional[int] = Field(default=None, description="Host port to publish.")
-    host_ip: Optional[str] = Field(default=None, description="Host IP to bind the published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
+    host_ip: Optional[str] = Field(default=None, description="Host IP to bind published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
     protocol: Optional[Literal["tcp", "udp"]] = Field(default="tcp", description="Protocol.")
 
 class DockerVolumeOptionsConfig(BaseModel):
-    nocopy: bool = Field(default=False, description="Disable copying data from container path when volume is created.")
+    nocopy: bool = Field(default=False, description="Disable copying data from container path when the volume is created.")
     labels: Optional[Dict[str, str]] = Field(default=None, description="Metadata labels for the volume.")
 
 class DockerTmpfsOptionsConfig(BaseModel):
@@ -39,13 +39,13 @@ class DockerHealthCheck(BaseModel):
     test: Union[str, List[str]] = Field(..., description="Health check command.")
     interval: Union[str, int, float] = Field(default="30s", description="Time between checks.")
     timeout: Union[str, int, float] = Field(default="30s", description="Timeout for each check.")
-    max_retry_count: Optional[int] = Field(default=3, description="Number of failures before marking as unhealthy.")
-    start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks start.")
+    max_retry_count: Optional[int] = Field(default=3, description="Failures before marking as unhealthy.")
+    start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks begin.")
 
 class DockerContainerConfig(BaseModel):
     # Image or build
     image: Optional[str] = Field(default=None, description="Docker image name with optional tag.")
-    build: Optional[DockerBuildConfig] = Field(default=None, description="Build configuration for building image locally.")
+    build: Optional[DockerBuildConfig] = Field(default=None, description="Build config for building the image locally.")
     # Container identity
     container_name: Optional[str] = Field(default=None, description="Name of the container.")
     hostname: Optional[str] = Field(default=None, description="Hostname inside the container.")
@@ -56,7 +56,7 @@ class DockerContainerConfig(BaseModel):
     # Volumes
     volumes: Optional[List[Union[str, DockerVolumeConfig]]] = Field(default=None, description="Volume mounts.")
     # GPU
-    gpus: Optional[Union[str, int]] = Field(default=None, description="GPU devices to expose. Use 'all' for all GPUs or a count (e.g. 1).")
+    gpus: Optional[Union[str, int]] = Field(default=None, description="GPUs to expose. Use 'all' or a count (e.g. 1).")
     # Environment variables
     environment: Optional[Dict[str, Union[str, int, float, bool]]] = Field(default=None, description="Environment variables.")
     env_file: Optional[Union[str, List[str]]] = Field(default=None, description="Environment files.")

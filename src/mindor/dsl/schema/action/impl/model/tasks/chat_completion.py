@@ -13,7 +13,7 @@ class ChatMessage(BaseModel):
 class ToolCall(BaseModel):
     id: str = Field(..., description="Tool call identifier.")
     name: str = Field(..., description="Tool name to invoke.")
-    arguments: Union[str, Dict[str, Any]] = Field(default_factory=dict, description="Arguments to pass to the tool. May be a JSON string or a decoded dict.")
+    arguments: Union[str, Dict[str, Any]] = Field(default_factory=dict, description="Tool arguments as JSON string or decoded dict.")
 
 class ChatCompletionMessage(ChatMessage):
     tool_calls: Optional[List[ToolCall]] = Field(default=None, description="Tool calls requested by the model.")
@@ -22,9 +22,9 @@ InputMessage: TypeAlias = Union[ChatMessage, Dict[str, Any]]
 
 class ChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input messages to generate chat response from.")
-    batch_size: Union[int, str] = Field(default=1, description="Number of input texts to process in a single batch.")
-    max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens per input text.")
+    batch_size: Union[int, str] = Field(default=1, description="Input texts per batch.")
+    max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens per input text.")
     stop_sequences: Optional[Union[str, List[str]]] = Field(default=None, description="List of stop sequences.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream generated tokens as they are produced.")
-    params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion configuration parameters.")
-    tools: Optional[Union[List[str], List[ModelTool]]] = Field(default=None, description="Tools for this action: either names referencing the component's catalog, or inline ModelTool definitions. None exposes all tools from the catalog.")
+    params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Chat completion parameters.")
+    tools: Optional[Union[List[str], List[ModelTool]]] = Field(default=None, description="Tools available for this action.")

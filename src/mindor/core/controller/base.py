@@ -55,6 +55,7 @@ class TaskStatus(str, Enum):
 @dataclass
 class InterruptState:
     job_id: str
+    run_id: Optional[str]
     phase: Literal[ "before", "after" ]
     message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -341,7 +342,7 @@ class ControllerService(AsyncService):
 
         return state
 
-    async def resume_workflow(self, task_id: str, job_id: str, answer: Any = None) -> TaskState:
+    async def resume_workflow(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any = None) -> TaskState:
         with self.task_states_lock:
             state = self.task_states.get(task_id)
 
@@ -355,10 +356,12 @@ class ControllerService(AsyncService):
             raise JobIdMismatchError(f"Job ID mismatch: expected '{state.interrupt.job_id}', got '{job_id}'")
 
         handler = self.interrupt_handlers.get(task_id)
+
         if not handler:
             raise InterruptNotActiveError(f"No active interrupt handler for task '{task_id}'")
 
-        success = handler.resolve(task_id, job_id, answer)
+        success = handler.resolve(task_id, job_id, run_id, answer)
+
         if not success:
             raise InterruptNotActiveError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
 
@@ -755,6 +758,7 @@ class ControllerService(AsyncService):
         async def _callback(point: InterruptPoint):
             interrupt = InterruptState(
                 job_id=point.job_id,
+                run_id=point.run_id,
                 phase=point.phase,
                 message=point.message,
                 metadata=point.metadata

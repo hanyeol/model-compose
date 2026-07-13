@@ -19,7 +19,7 @@ class WebSocketServerManageScripts(BaseModel):
         return values
 
 class WebSocketServerManageConfig(BaseModel):
-    scripts: WebSocketServerManageScripts = Field(..., description="Shell scripts used to install, build, clean, and start the server.")
+    scripts: WebSocketServerManageScripts = Field(..., description="Shell scripts to install, build, clean, and start the server.")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
 
@@ -31,13 +31,13 @@ class WebSocketServerManageConfig(BaseModel):
 
 class WebSocketServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.WEBSOCKET_SERVER]
-    manage: WebSocketServerManageConfig = Field(default_factory=WebSocketServerManageConfig, description="Configuration used to manage the WebSocket server lifecycle.")
-    port: int = Field(default=3000, ge=1, le=65535, description="Port on which the WebSocket server will listen for incoming connections.")
-    base_path: Optional[str] = Field(default=None, description="Base path to prefix all WebSocket routes exposed by this component.")
-    params: Dict[str, Any] = Field(default_factory=dict, description="Default query parameters to include in all WebSocket connection URLs.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="Headers to be included in all outgoing WebSocket handshake requests.")
-    ping_interval: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping interval (e.g. '20s'). Omit to use library default.")
-    ping_timeout: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping timeout (e.g. '10s'). Omit to use library default.")
+    manage: WebSocketServerManageConfig = Field(default_factory=WebSocketServerManageConfig, description="Manages the WebSocket server lifecycle.")
+    port: int = Field(default=3000, ge=1, le=65535, description="Port on which the WebSocket server listens.")
+    base_path: Optional[str] = Field(default=None, description="Base path prefix for all WebSocket routes exposed by this component.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Default query parameters for all connection URLs.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="Headers included in all outgoing WebSocket handshake requests.")
+    ping_interval: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping interval (e.g. '20s').")
+    ping_timeout: Optional[Union[str, int, float]] = Field(default=None, description="WebSocket ping timeout (e.g. '10s').")
     actions: List[WebSocketServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

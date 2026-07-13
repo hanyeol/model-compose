@@ -9,8 +9,8 @@ _RATE_LIMIT_SHORTHAND_RE = re.compile(
 )
 
 class RateLimitConfig(BaseModel):
-    requests: Optional[int] = Field(default=None, description="Maximum number of requests allowed within 'period'.")
-    period: Optional[Union[str, float]] = Field(default=None, description="Length of the token-bucket window (e.g. '1s', '500ms', '1m'). Defaults to '1s' when 'requests' is set.")
+    requests: Optional[int] = Field(default=None, description="Max requests allowed within 'period'.")
+    period: Optional[Union[str, float]] = Field(default=None, description="Token-bucket window length.")
     burst: Optional[int] = Field(default=None, description="Token bucket capacity. Defaults to 'requests' when omitted.")
     interval: Optional[Union[str, float]] = Field(default=None, description="Minimum gap between consecutive requests (e.g. '100ms').")
 

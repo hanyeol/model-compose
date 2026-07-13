@@ -8,5 +8,5 @@ from .....common import ModelDriver
 class InsightfaceFaceSwapModelComponentConfig(CommonFaceSwapModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceSwapModelFamily.INSIGHTFACE]
-    detector_model: str = Field(default="buffalo_l", description="InsightFace face-analysis model pack used to detect and align faces (e.g. 'buffalo_l', 'antelopev2').")
+    detector_model: str = Field(default="buffalo_l", description="InsightFace model pack for face detection and alignment.")
     actions: List[InsightfaceFaceSwapModelActionConfig] = Field(default_factory=list)

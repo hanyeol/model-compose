@@ -28,6 +28,7 @@ class CommonControllerQueueService(AsyncService):
             point = InterruptPoint(
                 task_id=task_id,
                 job_id=data.get("job_id", ""),
+                run_id=data.get("run_id"),
                 phase=data.get("phase", "before"),
                 message=data.get("message"),
                 metadata=data.get("metadata"),

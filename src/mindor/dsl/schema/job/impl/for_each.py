@@ -4,14 +4,14 @@ from mindor.dsl.schema.component import ComponentConfig
 from .common import JobType, OutputJobConfig
 
 class ForEachDoConfig(BaseModel):
-    component: Union[str, ComponentConfig] = Field(default="__default__", description="The component to run for each item. May be either a string identifier or a full config object.")
-    action: str = Field(default="__default__", description="The action to invoke on the component. Defaults to '__default__'.")
-    input: Optional[Any] = Field(default=None, description="Input data supplied to the component for each item. Accepts any type.")
-    output: Optional[Any] = Field(default=None, description="The output data returned from each iteration. Accepts any type.")
+    component: Union[str, ComponentConfig] = Field(default="__default__", description="Component to run for each item. String identifier or full config object.")
+    action: str = Field(default="__default__", description="Action to invoke on the component.")
+    input: Optional[Any] = Field(default=None, description="Input data supplied to the component for each item.")
+    output: Optional[Any] = Field(default=None, description="Output data returned from each iteration.")
 
 class ForEachJobConfig(OutputJobConfig):
     type: Literal[JobType.FOR_EACH]
-    input: Any = Field(..., description="Source of items to iterate over. Accepts a list, an async stream, or any iterable value.")
-    batch_size: Optional[int] = Field(default=None, description="Number of items processed concurrently per batch. Defaults to 1 (one item at a time).")
-    streaming: bool = Field(default=False, description="If true, yield results as they complete instead of accumulating into a list. Prevents memory blow-up when per-item outputs are large.")
+    input: Any = Field(..., description="Source of items to iterate over. Accepts a list, async stream, or iterable.")
+    batch_size: Optional[int] = Field(default=None, description="Items processed concurrently per batch. Defaults to 1.")
+    streaming: bool = Field(default=False, description="If true, yield results as they complete instead of accumulating into a list.")
     do: ForEachDoConfig = Field(..., description="Component invocation to execute for each item.")

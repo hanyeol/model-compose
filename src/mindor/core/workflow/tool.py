@@ -119,15 +119,15 @@ class ResumeToolGenerator():
     def generate(
         self,
         workflow_id: str,
-        runner: Callable[[str, str, Any], Awaitable[Any]]
+        runner: Callable[[str, str, Optional[str], Any], Awaitable[Any]]
     ) -> WorkflowTool:
-        async def _resume_workflow(task_id, job_id, answer=None) -> Any:
-            return await runner(task_id, job_id, answer)
+        async def _resume_workflow(task_id, job_id, run_id=None, answer=None) -> Any:
+            return await runner(task_id, job_id, run_id, answer)
 
         safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
         code = (
-            f"async def _resume_workflow_{safe_workflow_id}(task_id=None, job_id=None, answer=''):\n"
-            f"    return await _resume_workflow(task_id, job_id, answer)"
+            f"async def _resume_workflow_{safe_workflow_id}(task_id=None, job_id=None, run_id=None, answer=''):\n"
+            f"    return await _resume_workflow(task_id, job_id, run_id, answer)"
         )
         context = { "_resume_workflow": _resume_workflow }
         exec(compile(code, f"<string>", "exec"), context)
@@ -138,6 +138,7 @@ class ResumeToolGenerator():
             parameters=[
                 self._build_parameter("task_id", "The task ID of the interrupted workflow", required=True),
                 self._build_parameter("job_id",  "The job ID where the interrupt occurred",  required=True),
+                self._build_parameter("run_id",  "The run ID where the interrupt occurred", default=None, required=False),
                 self._build_parameter("answer",  "Optional JSON string with answer to resume with", default="", required=False),
             ]
         )

@@ -20,11 +20,11 @@ class FluxHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGe
 
 class FluxHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
-    params: FluxHuggingfaceImageGenerationParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+    params: FluxHuggingfaceImageGenerationParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationParamsConfig, description="Image generation parameters.")
 
 class FluxHuggingfaceImageGenerationModelInpaintActionConfig(CommonHuggingfaceImageGenerationModelInpaintActionConfig):
     method: Literal[ImageGenerationActionMethod.INPAINT] = Field(default=ImageGenerationActionMethod.INPAINT)
-    params: FluxHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting configuration parameters.")
+    params: FluxHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting parameters.")
 
 FluxHuggingfaceImageGenerationModelActionConfig = Annotated[
     Union[

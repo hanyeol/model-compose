@@ -7,6 +7,7 @@ import asyncio
 class InterruptPoint:
     task_id: str
     job_id: str
+    run_id: Optional[str]
     phase: Literal[ "before", "after" ]
     message: Optional[str]
     metadata: Optional[Dict[str, Any]]
@@ -19,7 +20,7 @@ class InterruptHandler:
         self._callback: Optional[Callable[[InterruptPoint], Awaitable[None]]] = callback
 
     async def interrupt(self, point: InterruptPoint) -> Any:
-        key = f"{point.task_id}:{point.job_id}:{point.phase}"
+        key = f"{point.task_id}:{point.job_id}:{point.run_id}:{point.phase}"
         with self._lock:
             self._points[key] = point
 
@@ -28,9 +29,9 @@ class InterruptHandler:
 
         return await point.future
 
-    def resolve(self, task_id: str, job_id: str, answer: Any) -> bool:
+    def resolve(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any) -> bool:
         with self._lock:
-            point = self._pop_point(task_id, job_id)
+            point = self._pop_point(task_id, job_id, run_id)
 
         if point is None:
             return False
@@ -40,8 +41,8 @@ class InterruptHandler:
 
         return True
 
-    def _pop_point(self, task_id: str, job_id: str) -> Optional[InterruptPoint]:
+    def _pop_point(self, task_id: str, job_id: str, run_id: Optional[str]) -> Optional[InterruptPoint]:
         for key, point in self._points.items():
-            if point.task_id == task_id and point.job_id == job_id:
+            if point.task_id == task_id and point.job_id == job_id and (run_id is None or point.run_id == run_id):
                 return self._points.pop(key)
         return None

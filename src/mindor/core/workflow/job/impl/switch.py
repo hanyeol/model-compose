@@ -13,9 +13,15 @@ class SwitchJob(Job):
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         input = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
 
+        input = await self._before_run(context, None, input)
+
+        target = self.config.otherwise
         for case in self.config.cases:
             value = await context.render_variable(None, case.value)
             if input == value:
-                return RoutingTarget(case.then)
+                target = case.then
+                break
 
-        return RoutingTarget(self.config.otherwise)
+        await self._after_run(context, None, input, None)
+
+        return RoutingTarget(target)

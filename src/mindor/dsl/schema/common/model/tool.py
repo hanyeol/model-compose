@@ -10,8 +10,8 @@ class ModelToolProperty(BaseModel):
     items: Optional[ModelToolProperty] = Field(default=None, description="Item schema when type is 'array'.")
     properties: Optional[Dict[str, ModelToolProperty]] = Field(default=None, description="Nested parameter schemas when type is 'object'.")
     format: Optional[str] = Field(default=None, description="Semantic format hint (e.g., 'date-time', 'email', 'uri').")
-    default: Optional[Any] = Field(default=None, description="Default value used when the parameter is omitted.")
-    required: Optional[List[str]] = Field(default=None, description="Names of required nested parameters when type is 'object'.")
+    default: Optional[Any] = Field(default=None, description="Default value when the parameter is omitted.")
+    required: Optional[List[str]] = Field(default=None, description="Required nested parameter names when type is 'object'.")
 
     model_config = { "extra": "allow" }
 
@@ -30,7 +30,7 @@ class ModelToolProperty(BaseModel):
 class ModelToolParameters(BaseModel):
     type: Literal[ "object" ] = Field(default="object", description="Schema container type. Always 'object'.")
     properties: Dict[str, ModelToolProperty] = Field(default_factory=dict, description="Parameter schemas keyed by parameter name.")
-    required: List[str] = Field(default_factory=list, description="Names of parameters that must be provided.")
+    required: List[str] = Field(default_factory=list, description="Names of required parameters.")
 
 class ModelTool(BaseModel):
     name: str = Field(..., description="Tool name.")

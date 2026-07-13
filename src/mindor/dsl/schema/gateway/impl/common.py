@@ -5,4 +5,4 @@ from .types import GatewayType
 
 class CommonGatewayConfig(BaseModel):
     type: GatewayType = Field(..., description="Type of gateway service.")
-    runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="Runtime environment for executing the gateway service.")
+    runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="Runtime environment for executing the gateway.")

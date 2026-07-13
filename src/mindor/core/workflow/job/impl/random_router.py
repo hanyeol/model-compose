@@ -11,6 +11,15 @@ class RandomRouterJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+        await self._before_run(context, None, None)
+
+        target = await self._select_target(context)
+
+        await self._after_run(context, None, None, None)
+
+        return RoutingTarget(target)
+
+    async def _select_target(self, context: JobContext) -> str:
         if self.config.mode == RandomRoutingMode.WEIGHTED:
             weights, targets = [], []
             for routing in self.config.routings:
@@ -22,8 +31,7 @@ class RandomRouterJob(Job):
             if not weights:
                 raise ValueError(f"No valid weights found in random-router job '{self.id}'")
 
-            target = random.choices(targets, weights=weights, k=1)[0]
-            return RoutingTarget(target)
+            return random.choices(targets, weights=weights, k=1)[0]
 
         if self.config.mode == RandomRoutingMode.UNIFORM:
             targets = [ routing.to for routing in self.config.routings ]
@@ -31,7 +39,6 @@ class RandomRouterJob(Job):
             if not targets:
                 raise ValueError(f"No valid routing found in random-router job '{self.id}'")
 
-            target = random.choice(targets)
-            return RoutingTarget(target)
+            return random.choice(targets)
 
         raise ValueError(f"Unsupported routing mode: {self.config.mode}")

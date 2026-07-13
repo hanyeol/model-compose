@@ -203,6 +203,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         if state.status == TaskStatus.INTERRUPTED and state.interrupt:
             return { "interrupt": {
                 "job_id": state.interrupt.job_id,
+                "run_id": state.interrupt.run_id,
                 "phase": state.interrupt.phase,
                 "message": state.interrupt.message,
                 "metadata": state.interrupt.metadata,

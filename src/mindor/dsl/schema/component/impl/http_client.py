@@ -8,8 +8,8 @@ from mindor.dsl.schema.common.rate_limit import RateLimitConfig, inflate_rate_li
 class HttpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_CLIENT]
     base_url: Optional[str] = Field(default=None, description="Base URL for HTTP requests.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="Default HTTP headers to include in all requests.")
-    rate_limit: Optional[RateLimitConfig] = Field(default=None, description="Optional rate limit applied to all actions in this component.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Default HTTP headers for all requests.")
+    rate_limit: Optional[RateLimitConfig] = Field(default=None, description="Rate limit applied to all actions in this component.")
     actions: List[HttpClientActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

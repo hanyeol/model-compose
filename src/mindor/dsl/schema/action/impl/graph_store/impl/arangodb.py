@@ -25,7 +25,7 @@ class ArangoDBGraphDeleteActionConfig(CommonGraphDeleteActionConfig):
 
 class ArangoDBGraphTraverseActionConfig(CommonGraphTraverseActionConfig):
     graph: Optional[str] = Field(default=None, description="Named graph to traverse.")
-    edge_collection: Optional[str] = Field(default=None, description="Edge collection to traverse if not using named graph.")
+    edge_collection: Optional[str] = Field(default=None, description="Edge collection to traverse when not using a named graph.")
 
 ArangoDBGraphStoreActionConfig = Annotated[
     Union[

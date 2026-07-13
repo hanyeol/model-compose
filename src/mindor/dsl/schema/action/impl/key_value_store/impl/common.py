@@ -28,4 +28,4 @@ class CommonKeyValueDeleteActionConfig(CommonKeyValueStoreActionConfig):
 
 class CommonKeyValueExistsActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.EXISTS]
-    key: Union[str, List[str]] = Field(..., description="Key(s) to check existence.")
+    key: Union[str, List[str]] = Field(..., description="Key(s) to check for existence.")

@@ -192,13 +192,15 @@ class AgentAction:
         tool_calls: List[Dict[str, Any]],
         context: ComponentActionContext
     ) -> List[Dict[str, Any]]:
-        # NOTE: Reuses the enclosing ComponentJob's job_id and phase="after". If the
-        # same job also declares a static `interrupt.after` in its config, the two
-        # points would collide in InterruptHandler._points — do not mix them.
+        # NOTE: Reuses the enclosing ComponentJob's job_id/run_id and phase="after".
+        # If the same job also declares a static `interrupt.after` in its config,
+        # the two points collide on the same (task_id, job_id, run_id, phase) key
+        # in InterruptHandler._points — do not mix them.
         future = asyncio.get_running_loop().create_future()
         point = InterruptPoint(
             task_id=context.workflow.task_id,
             job_id=context.job_id,
+            run_id=context.run_id,
             phase="after",
             message="Agent is waiting for tool results.",
             metadata={

@@ -19,7 +19,7 @@ class McpServerManageScripts(BaseModel):
         return values
 
 class McpServerManageConfig(BaseModel):
-    scripts: McpServerManageScripts = Field(..., description="Shell scripts used to install, build, clean, and start the server.")
+    scripts: McpServerManageScripts = Field(..., description="Shell scripts to install, build, clean, and start the server.")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
 
@@ -31,10 +31,10 @@ class McpServerManageConfig(BaseModel):
 
 class McpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_SERVER]
-    manage: McpServerManageConfig = Field(default_factory=McpServerManageConfig, description="Configuration used to manage the MCP server lifecycle.")
-    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the MCP server will listen for incoming requests.")
-    base_path: Optional[str] = Field(default=None, description="Base path to prefix all MCP routes exposed by this component.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers to be included in all outgoing requests.")
+    manage: McpServerManageConfig = Field(default_factory=McpServerManageConfig, description="Manages the MCP server lifecycle.")
+    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the MCP server listens.")
+    base_path: Optional[str] = Field(default=None, description="Base path prefix for all MCP routes exposed by this component.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers included in all outgoing requests.")
     actions: List[McpServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

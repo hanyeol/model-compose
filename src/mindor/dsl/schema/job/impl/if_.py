@@ -13,8 +13,8 @@ class IfJobConditionConfig(BaseModel):
 class IfJobConfig(CommonJobConfig):
     type: Literal[JobType.IF]
     input: Optional[Any] = Field(default=None, description="Input to evaluate against the conditions.")
-    conditions: List[IfJobConditionConfig] = Field(default_factory=list, description="List of conditions to evaluate.")
-    otherwise: Optional[str] = Field(default=None, description="Job ID to run if no conditions matched or no result returned.")
+    conditions: List[IfJobConditionConfig] = Field(default_factory=list, description="Conditions to evaluate.")
+    otherwise: Optional[str] = Field(default=None, description="Job ID to run if no conditions matched.")
 
     @model_validator(mode="before")
     def inflate_single_condition(cls, values: Dict[str, Any]):

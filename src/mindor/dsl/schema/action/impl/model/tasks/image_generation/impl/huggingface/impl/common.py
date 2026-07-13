@@ -10,10 +10,10 @@ class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for deterministic generation.")
 
 class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
-    strength: Union[float, str] = Field(default=1.0, description="How much noise to add to the input image (0.0 keeps original, 1.0 fully replaces the masked region).")
+    strength: Union[float, str] = Field(default=1.0, description="Noise strength for the input image.")
 
 class CommonHuggingfaceImageGenerationModelActionConfig(CommonImageGenerationModelActionConfig):
-    params: CommonHuggingfaceImageGenerationParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+    params: CommonHuggingfaceImageGenerationParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationParamsConfig, description="Image generation parameters.")
 
 class CommonHuggingfaceImageGenerationModelInpaintActionConfig(CommonImageGenerationModelInpaintActionConfig):
-    params: CommonHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting configuration parameters.")
+    params: CommonHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting parameters.")

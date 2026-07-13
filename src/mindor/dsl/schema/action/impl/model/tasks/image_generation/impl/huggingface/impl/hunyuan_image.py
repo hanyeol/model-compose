@@ -10,7 +10,7 @@ class HunyuanImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageG
 
 class HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
-    params: HunyuanImageHuggingfaceImageGenerationParamsConfig = Field(default_factory=HunyuanImageHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+    params: HunyuanImageHuggingfaceImageGenerationParamsConfig = Field(default_factory=HunyuanImageHuggingfaceImageGenerationParamsConfig, description="Image generation parameters.")
 
 HunyuanImageHuggingfaceImageGenerationModelActionConfig = Annotated[
     Union[

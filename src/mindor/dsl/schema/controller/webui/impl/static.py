@@ -4,4 +4,4 @@ from .common import CommonWebUIConfig, ControllerWebUIDriver
 
 class StaticWebUIConfig(CommonWebUIConfig):
     driver: Literal[ControllerWebUIDriver.STATIC]
-    static_dir: str = Field(default="webui", description="Directory containing static HTML/CSS/JS files for the web UI.")
+    static_dir: str = Field(default="webui", description="Directory with static HTML/CSS/JS files.")

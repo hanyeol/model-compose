@@ -12,7 +12,7 @@ class AppleContainerBuildConfig(BaseModel):
 class AppleContainerPortConfig(BaseModel):
     container_port: int = Field(..., description="Port exposed by the container.")
     host_port: Optional[int] = Field(default=None, description="Host port to publish.")
-    host_ip: Optional[str] = Field(default=None, description="Host IP to bind the published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
+    host_ip: Optional[str] = Field(default=None, description="Host IP to bind published port to (e.g. 127.0.0.1). Defaults to all interfaces.")
     protocol: Optional[Literal["tcp", "udp"]] = Field(default="tcp", description="Protocol.")
 
 class AppleContainerVolumeConfig(BaseModel):
@@ -26,13 +26,13 @@ class AppleContainerHealthCheck(BaseModel):
     test: Union[str, List[str]] = Field(..., description="Health check command.")
     interval: Union[str, int, float] = Field(default="30s", description="Time between checks.")
     timeout: Union[str, int, float] = Field(default="30s", description="Timeout for each check.")
-    max_retry_count: Optional[int] = Field(default=3, description="Number of failures before marking as unhealthy.")
-    start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks start.")
+    max_retry_count: Optional[int] = Field(default=3, description="Failures before marking as unhealthy.")
+    start_period: Optional[Union[str, int, float]] = Field(default="0s", description="Startup grace period before checks begin.")
 
 class AppleContainerConfig(BaseModel):
     # Image or build
     image: Optional[str] = Field(default=None, description="Container image name with optional tag.")
-    build: Optional[AppleContainerBuildConfig] = Field(default=None, description="Build configuration for building image locally.")
+    build: Optional[AppleContainerBuildConfig] = Field(default=None, description="Build config for building the image locally.")
     # Container identity
     container_name: Optional[str] = Field(default=None, description="Name of the container.")
     # Networking

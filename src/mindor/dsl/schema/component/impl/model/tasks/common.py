@@ -142,7 +142,7 @@ class PeftAdapterConfig(BaseModel):
 
 class OnDemandConfig(BaseModel):
     priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Memory retention priority when memory pressure requires unloading.")
-    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading the model (e.g. '5m', '300s'). '0s' disables idle-based auto-unload.")
+    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading (e.g. '5m', '300s'). '0s' disables auto-unload.")
 
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]

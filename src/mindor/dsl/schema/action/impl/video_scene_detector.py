@@ -16,5 +16,5 @@ class VideoSceneDetectorActionConfig(CommonActionConfig):
     threshold: Optional[Union[float, str]] = Field(default=None, description="Detection sensitivity threshold.")
     start_time: Optional[str] = Field(default=None, description="Start time for detection (e.g. '00:01:00', '60s').")
     end_time: Optional[str] = Field(default=None, description="End time for detection (e.g. '00:05:00', '300s').")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input videos to process in a single batch.")
-    streaming: Union[bool, str] = Field(default=False, description="Whether the unit result should be streamed instead of returned as a single value.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input videos per batch.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether to stream unit results instead of returning a single value.")

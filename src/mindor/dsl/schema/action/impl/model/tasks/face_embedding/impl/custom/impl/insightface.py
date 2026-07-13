@@ -12,4 +12,4 @@ class InsightfaceFaceEmbeddingModelActionConfig(CommonFaceEmbeddingModelActionCo
 
     # Output options
     return_landmarks: Union[bool, str] = Field(default=False, description="Whether to return facial landmarks.")
-    return_gender_age: Union[bool, str] = Field(default=False, description="Whether to return gender and age predictions.")
+    return_gender_age: Union[bool, str] = Field(default=False, description="Whether to return gender/age predictions.")

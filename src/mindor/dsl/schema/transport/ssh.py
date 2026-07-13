@@ -8,12 +8,12 @@ class SshAuthType(str, Enum):
     PASSWORD = "password"
 
 class CommonSshAuthConfig(BaseModel):
-    type: SshAuthType = Field(..., description="Type of SSH authentication to use.")
-    username: str = Field(..., description="Username for the SSH connection.")
+    type: SshAuthType = Field(..., description="SSH authentication type.")
+    username: str = Field(..., description="SSH connection username.")
 
 class SshKeyfileAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.KEYFILE]
-    keyfile: str = Field(..., description="Path to the private key file for SSH authentication.")
+    keyfile: str = Field(..., description="Path to the SSH private key file.")
 
 class SshPasswordAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.PASSWORD]
@@ -28,10 +28,10 @@ SshAuthConfig = Annotated[
 ]
 
 class SshConnectionConfig(BaseModel):
-    host: str = Field(..., description="Host address of the SSH server to connect to.")
-    port: int = Field(default=22, ge=1, le=65535, description="Port number used to connect to the SSH server.")
-    auth: SshAuthConfig = Field(..., description="SSH authentication configuration.")
-    keepalive_interval: Union[str, int, float] = Field(default="10s", description="SSH keepalive interval. Set to '0s' to disable keepalive.")
-    watch_interval: Union[str, int, float] = Field(default="5s", description="Interval between SSH connection health checks.")
+    host: str = Field(..., description="SSH server host address.")
+    port: int = Field(default=22, ge=1, le=65535, description="SSH server port.")
+    auth: SshAuthConfig = Field(..., description="SSH authentication config.")
+    keepalive_interval: Union[str, int, float] = Field(default="10s", description="SSH keepalive interval. '0s' to disable.")
+    watch_interval: Union[str, int, float] = Field(default="5s", description="Interval between SSH health checks.")
     retry_interval: Union[str, int, float] = Field(default="5s", description="Interval between reconnection attempts.")
-    max_retry_count: int = Field(default=0, ge=0, description="Maximum number of reconnection attempts. 0 for unlimited.")
+    max_retry_count: int = Field(default=0, ge=0, description="Max reconnection attempts. 0 for unlimited.")

@@ -1,9 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.job import ComponentJobConfig, ComponentInterruptPointConfig, JobType
-from mindor.core.evaluator.condition import evaluate_condition
+from mindor.dsl.schema.job import ComponentJobConfig, JobType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
-from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
@@ -38,52 +36,19 @@ class ComponentJob(Job):
         job_time_tracker = TimeTracker()
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
 
-        if self.config.interrupt and self.config.interrupt.before:
-            logging.info("[task-%s] Job '%s:%s' interrupted at 'before' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
-            context.register_source(run_id, "job", { "input": input })
-            answer = await self._interrupt(context, run_id, "before", self.config.interrupt.before)
-            if answer is not None:
-                input = answer
+        input = await self._before_run(context, run_id, input)
 
         output = await component.run(self.config.action, run_id, input, workflow=context.workflow, job_id=self.id)
-        context.register_source(run_id, "output", output)
 
-        if self.config.interrupt and self.config.interrupt.after:
-            logging.info("[task-%s] Job '%s:%s' interrupted at 'after' phase.", context.workflow.task_id, self.id, context.workflow.workflow_id)
-            context.register_source(run_id, "job", { "input": input, "output": output })
-            answer = await self._interrupt(context, run_id, "after", self.config.interrupt.after)
-            if answer is not None:
-                output = answer
+        if self.config.output:
             context.register_source(run_id, "output", output)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)
+
+        output = await self._after_run(context, run_id, input, output)
 
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
 
-        return (await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
-
-    async def _interrupt(self, context: JobContext, run_id: str, phase: str, point: ComponentInterruptPointConfig) -> Any:
-        if point.condition:
-            input  = await context.render_variable(run_id, point.condition.input)
-            value  = await context.render_variable(run_id, point.condition.value)
-            if not evaluate_condition(point.condition.operator, input, value):
-                logging.debug("[task-%s] Job '%s:%s' interrupt at '%s' phase skipped: condition not met.", context.workflow.task_id, self.id, context.workflow.workflow_id, phase)
-                return None
-
-        message  = (await context.render_variable(run_id, point.message))  if point.message  else None
-        metadata = (await context.render_variable(run_id, point.metadata)) if point.metadata else None
-
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        future = loop.create_future()
-
-        point = InterruptPoint(
-            task_id=context.workflow.task_id,
-            job_id=self.id,
-            phase=phase,
-            message=message,
-            metadata=metadata,
-            future=future
-        )
-
-        return await context.workflow.interrupt_handler.interrupt(point)
+        return output
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
         return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)

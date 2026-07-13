@@ -14,13 +14,13 @@ from .logger import LoggerConfig
 
 class ComposeConfig(BaseModel):
     controller: ControllerConfig
-    components: List[ComponentConfig] = Field(default_factory=list, description="List of reusable components that define API calls, model tasks, or other operations")
-    listeners: List[ListenerConfig] = Field(default_factory=list, description="List of listeners for handling asynchronous responses from external services.")
-    gateways: List[GatewayConfig] = Field(default_factory=list, description="List of gateway services for tunneling local endpoints to public.")
-    systems: List[SystemConfig] = Field(default_factory=list, description="List of external systems (e.g. docker-compose) to manage alongside the controller lifecycle.")
-    workflows: List[WorkflowConfig] = Field(default_factory=list, description="List of workflows that define sequences of jobs and their execution flow.")
-    tracers: List[TracerConfig] = Field(default_factory=list, description="List of tracer configurations for sending structured tracing to external observability tools.")
-    loggers: List[LoggerConfig] = Field(default_factory=list, description="List of logger configurations for capturing and storing execution logs.")
+    components: List[ComponentConfig] = Field(default_factory=list, description="Reusable components defining API calls, model tasks, or other operations.")
+    listeners: List[ListenerConfig] = Field(default_factory=list, description="Listeners handling asynchronous responses from external services.")
+    gateways: List[GatewayConfig] = Field(default_factory=list, description="Gateway services for tunneling local endpoints publicly.")
+    systems: List[SystemConfig] = Field(default_factory=list, description="External systems managed alongside the controller lifecycle.")
+    workflows: List[WorkflowConfig] = Field(default_factory=list, description="Workflows defining job sequences and execution flow.")
+    tracers: List[TracerConfig] = Field(default_factory=list, description="Tracer configs for sending structured traces to external observability tools.")
+    loggers: List[LoggerConfig] = Field(default_factory=list, description="Logger configs for capturing and storing execution logs.")
 
     @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):

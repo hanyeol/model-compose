@@ -7,6 +7,6 @@ class GcpStorageFileStoreComponentConfig(CommonFileStoreComponentConfig):
     driver: Literal[FileStoreDriver.GCP_STORAGE]
     bucket: str = Field(..., description="GCS bucket name.")
     project: Optional[str] = Field(default=None, description="GCP project ID. If not set, SDK default is used.")
-    endpoint: Optional[str] = Field(default=None, description="Custom endpoint URL for GCS-compatible storage or local emulators (e.g. fake-gcs-server). Include scheme, no trailing slash.")
-    credentials_path: Optional[str] = Field(default=None, description="Path to service account JSON key file. If not set, Application Default Credentials are used.")
+    endpoint: Optional[str] = Field(default=None, description="Custom endpoint URL for GCS-compatible storage.")
+    credentials_path: Optional[str] = Field(default=None, description="Path to service account JSON key file.")
     actions: List[GcpStorageFileStoreActionConfig] = Field(default_factory=list)

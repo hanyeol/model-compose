@@ -247,7 +247,7 @@ class GradioWebUIBuilder:
                     *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
                 ]
 
-                task_id, job_id = ui_state["task_id"], ui_state["job_id"]
+                task_id, job_id, run_id = ui_state["task_id"], ui_state["job_id"], ui_state.get("run_id")
 
                 # Parse answer: try JSON first, fallback to string
                 answer = answer_text
@@ -258,7 +258,7 @@ class GradioWebUIBuilder:
                         pass
 
                 try:
-                    await runner().resume_workflow(task_id, job_id, answer if answer_text else None)
+                    await runner().resume_workflow(task_id, job_id, run_id, answer if answer_text else None)
                     task = asyncio.create_task(runner().wait_for_completion(task_id))
                 except Exception as e:
                     yield [
@@ -472,7 +472,11 @@ class GradioWebUIBuilder:
 
     def _build_interrupt_updates(self, state: TaskState) -> List[Any]:
         interrupt = state.interrupt
-        ui_state = { "task_id": state.task_id, "job_id": interrupt.job_id if interrupt else None }
+        ui_state = {
+            "task_id": state.task_id,
+            "job_id": interrupt.job_id if interrupt else None,
+            "run_id": interrupt.run_id if interrupt else None,
+        }
         message = (interrupt.message if interrupt else None) or "The workflow is waiting for your input."
         metadata = interrupt.metadata if interrupt else None
 

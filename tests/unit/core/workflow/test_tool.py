@@ -210,7 +210,7 @@ class TestResumeToolGenerator:
 
         assert all(isinstance(p, WorkflowVariableConfig) for p in tool.parameters)
         names = [p.name for p in tool.parameters]
-        assert names == ["task_id", "job_id", "answer"]
+        assert names == ["task_id", "job_id", "run_id", "answer"]
 
     def test_parameter_types_and_required_flags_match_original_contract(self) -> None:
         tool = ResumeToolGenerator().generate("resume", _noop_resume_runner)
@@ -256,20 +256,20 @@ class TestResumeToolGenerator:
     async def test_generated_function_forwards_arguments_to_runner(self) -> None:
         captured: dict = {}
 
-        async def runner(task_id: str, job_id: str, answer: Any) -> Any:
-            captured.update(task_id=task_id, job_id=job_id, answer=answer)
+        async def runner(task_id: str, job_id: str, run_id: Any, answer: Any) -> Any:
+            captured.update(task_id=task_id, job_id=job_id, run_id=run_id, answer=answer)
             return "resumed"
 
         tool = ResumeToolGenerator().generate("resume", runner)
-        result = await tool.function(task_id="t1", job_id="j1", answer='{"ok":true}')
+        result = await tool.function(task_id="t1", job_id="j1", run_id="r1", answer='{"ok":true}')
 
         assert result == "resumed"
-        assert captured == {"task_id": "t1", "job_id": "j1", "answer": '{"ok":true}'}
+        assert captured == {"task_id": "t1", "job_id": "j1", "run_id": "r1", "answer": '{"ok":true}'}
 
 
 async def _noop_runner(workflow_id: str, input: Any, context: Any = None) -> Any:
     return None
 
 
-async def _noop_resume_runner(task_id: str, job_id: str, answer: Any) -> Any:
+async def _noop_resume_runner(task_id: str, job_id: str, run_id: Any, answer: Any) -> Any:
     return None

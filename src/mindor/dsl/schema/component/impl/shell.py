@@ -17,7 +17,7 @@ class ShellManageScripts(BaseModel):
         return values
 
 class ShellManageConfig(BaseModel):
-    scripts: ShellManageScripts = Field(..., description="Shell scripts used to install dependencies and clean up the environment.")
+    scripts: ShellManageScripts = Field(..., description="Shell scripts to install dependencies and clean up the environment.")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
 
@@ -29,9 +29,9 @@ class ShellManageConfig(BaseModel):
 
 class ShellComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SHELL]
-    manage: ShellManageConfig = Field(default_factory=ShellManageConfig, description="Configuration for scripts and environment setup related to this shell component.")
+    manage: ShellManageConfig = Field(default_factory=ShellManageConfig, description="Scripts and environment setup for this shell component.")
     base_dir: Optional[str] = Field(default=None, description="Base working directory for all actions in this component.")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set for all actions in this component.")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables set for all actions in this component.")
     actions: List[ShellActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

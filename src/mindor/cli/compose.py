@@ -243,7 +243,7 @@ def run_command(
                     click.echo("❌ Workflow interrupted but no TTY available. Use --auto-resume to skip.", err=True)
                     raise SystemExit(1)
                 answer = None if auto_resume else prompt_for_interrupt(state)
-                state = await manager.resume_workflow(state.task_id, state.interrupt.job_id, answer)
+                state = await manager.resume_workflow(state.task_id, state.interrupt.job_id, state.interrupt.run_id, answer)
 
             if isinstance(state.output, (dict, list)) or state.error:
                 click.echo(json.dumps(

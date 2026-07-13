@@ -9,11 +9,11 @@ class QueueSubscriberDriver(str, Enum):
 class CommonQueueSubscriberControllerAdapterConfig(BaseModel):
     type: Literal[ControllerAdapterType.QUEUE_SUBSCRIBER]
     driver: QueueSubscriberDriver = Field(..., description="Queue backend driver.")
-    name: str = Field(default="controller-queue", description="Queue name to consume tasks from. Queue key: {name}:{workflow_id}. Result key: {name}:{workflow_id}:{run_id}.")
+    name: str = Field(default="controller-queue", description="Queue name to consume tasks from.")
     result_ttl: str = Field(default="1h", description="TTL for result entries (e.g. '1h', '30m'). '0s' means no expiry.")
-    max_concurrent_count: int = Field(default=1, ge=1, description="Maximum number of tasks this worker processes concurrently.")
-    worker_id: Optional[str] = Field(default=None, description="Unique identifier for this worker instance. Auto-generated if not set.")
-    workflows: Optional[List[str]] = Field(default=None, description="List of workflow IDs this worker handles. Each workflow gets its own queue: {name}:{workflow_id}. If not specified, all non-private workflows are used.")
+    max_concurrent_count: int = Field(default=1, ge=1, description="Max concurrent tasks this worker processes.")
+    worker_id: Optional[str] = Field(default=None, description="Unique worker instance ID. Auto-generated if unset.")
+    workflows: Optional[List[str]] = Field(default=None, description="Workflow IDs this worker handles.")
 
     @model_validator(mode="before")
     def inflate_single_workflow(cls, values: Dict[str, Any]):

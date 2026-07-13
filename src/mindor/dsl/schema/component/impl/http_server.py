@@ -19,7 +19,7 @@ class HttpServerManageScripts(BaseModel):
         return values
 
 class HttpServerManageConfig(BaseModel):
-    scripts: HttpServerManageScripts = Field(..., description="Shell scripts used to install, build, clean, and start the server.")
+    scripts: HttpServerManageScripts = Field(..., description="Shell scripts to install, build, clean, and start the server.")
     working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
 
@@ -31,10 +31,10 @@ class HttpServerManageConfig(BaseModel):
 
 class HttpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_SERVER]
-    manage: HttpServerManageConfig = Field(default_factory=HttpServerManageConfig, description="Configuration used to manage the HTTP server lifecycle.")
-    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the HTTP server will listen for incoming requests.")
-    base_path: Optional[str] = Field(default=None, description="Base path to prefix all HTTP routes exposed by this component.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers to be included in all outgoing HTTP requests.")
+    manage: HttpServerManageConfig = Field(default_factory=HttpServerManageConfig, description="Manages the HTTP server lifecycle.")
+    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the HTTP server listens.")
+    base_path: Optional[str] = Field(default=None, description="Base path prefix for all HTTP routes exposed by this component.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers included in all outgoing HTTP requests.")
     actions: List[HttpServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

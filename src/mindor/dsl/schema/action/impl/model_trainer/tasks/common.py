@@ -55,11 +55,11 @@ class CommonModelTrainerActionConfig(CommonActionConfig):
     # Essential training parameters
     learning_rate: Union[float, str] = Field(default=5e-5, description="Learning rate for training.")
     per_device_train_batch_size: Union[int, str] = Field(default=8, description="Training batch size per device.")
-    per_device_eval_batch_size: Optional[Union[int, str]] = Field(default=None, description="Evaluation batch size per device. If None, uses per_device_train_batch_size.")
+    per_device_eval_batch_size: Optional[Union[int, str]] = Field(default=None, description="Evaluation batch size per device. Defaults to per_device_train_batch_size.")
     num_epochs: Union[int, str] = Field(default=3, description="Number of training epochs.")
 
     # Optimizer and scheduler
-    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW_TORCH, description="Optimizer to use for training.")
+    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW_TORCH, description="Training optimizer.")
     lr_scheduler_type: LRSchedulerType = Field(default=LRSchedulerType.LINEAR, description="Learning rate scheduler type.")
 
     # Output configuration
@@ -73,7 +73,7 @@ class CommonModelTrainerActionConfig(CommonActionConfig):
 
     # Evaluation and saving
     eval_steps: Union[int, str] = Field(default=500, description="Steps between evaluations.")
-    save_steps: Optional[Union[int, str]] = Field(default=None, description="Steps between model saves. If not specified, uses eval_steps.")
+    save_steps: Optional[Union[int, str]] = Field(default=None, description="Steps between model saves. Defaults to eval_steps.")
     logging_steps: Union[int, str] = Field(default=10, description="Steps between logging.")
 
     # Memory optimization

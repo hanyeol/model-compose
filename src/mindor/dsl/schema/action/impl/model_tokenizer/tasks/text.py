@@ -8,19 +8,19 @@ class TextModelTokenizerEncodeActionConfig(CommonModelTokenizerActionConfig):
     max_length: Optional[Union[int, str]] = Field(default=None, description="Maximum token length.")
     padding: Union[bool, str] = Field(default=False, description="Whether to pad to max_length.")
     truncation: Union[bool, str] = Field(default=False, description="Whether to truncate to max_length.")
-    additional_returns: Union[List[str], str] = Field(default_factory=list, description="Additional fields to include in each result, on top of input_ids and attention_mask.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input texts to process in a single batch.")
+    additional_returns: Union[List[str], str] = Field(default_factory=list, description="Extra fields to include in each result, beyond input_ids and attention_mask.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Input texts per batch.")
 
 class TextModelTokenizerDecodeActionConfig(CommonModelTokenizerActionConfig):
     method: Literal[ModelTokenizerMethod.DECODE]
     token_ids: Union[List[int], List[List[int]], str] = Field(..., description="Token ID(s) to decode.")
     skip_special_tokens: Union[bool, str] = Field(default=True, description="Whether to skip special tokens in output.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input token ID lists to process in a single batch.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Input token ID lists per batch.")
 
 class TextModelTokenizerCountActionConfig(CommonModelTokenizerActionConfig):
     method: Literal[ModelTokenizerMethod.COUNT]
     text: Union[str, List[str]] = Field(..., description="Input text(s) to count tokens for.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input texts to process in a single batch.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Input texts per batch.")
 
 TextModelTokenizerActionConfig = Annotated[
     Union[

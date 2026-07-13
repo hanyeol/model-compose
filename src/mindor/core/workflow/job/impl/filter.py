@@ -19,6 +19,8 @@ class FilterJob(Job):
         input     = await context.render_variable(None, self.config.input)
         streaming = await context.render_variable(None, self.config.streaming)
 
+        input = await self._before_run(context, None, input)
+
         is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${output[]}"
 
@@ -44,7 +46,7 @@ class FilterJob(Job):
                     index += 1
 
             output = results[0] if is_single_input else results
-            context.register_source(None, "output", output)
+            output = await self._after_run(context, None, input, output)
 
             return output
 

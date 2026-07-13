@@ -14,10 +14,15 @@ class DelayJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: JobContext) -> Any:
+        await self._before_run(context, None, None)
+
         output = await self._delay(self.config.mode, context)
 
-        output = (await context.render_variable(None, self.config.output)) if self.config.output else output
-        context.register_source(None, "output", output)
+        if self.config.output:
+            context.register_source(None, "output", output)
+            output = (await context.render_variable(None, self.config.output))
+
+        output = await self._after_run(context, None, None, output)
 
         return output
 

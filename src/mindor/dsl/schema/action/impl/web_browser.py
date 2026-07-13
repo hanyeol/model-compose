@@ -25,7 +25,7 @@ class CommonWebBrowserActionConfig(CommonActionConfig):
 class WebBrowserNavigateActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.NAVIGATE]
     url: str = Field(..., description="URL to navigate to.")
-    wait_until: Union[Literal["load", "domcontentloaded", "networkidle", "commit"], str] = Field(default="load", description="Navigation event to wait for before returning.")
+    wait_until: Union[Literal["load", "domcontentloaded", "networkidle", "commit"], str] = Field(default="load", description="Navigation event to await before returning.")
 
 class WebBrowserWaitForActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.WAIT_FOR]
@@ -68,16 +68,16 @@ class WebBrowserScreenshotActionConfig(CommonWebBrowserActionConfig):
     full_page: Union[bool, str] = Field(default=False, description="Capture the full scrollable page.")
     selector: Optional[str] = Field(default=None, description="CSS selector to capture only a specific element.")
     format: Union[Literal[ "png", "jpeg" ], str] = Field(default="png", description="Image format.")
-    quality: Optional[Union[int, str]] = Field(default=None, description="JPEG quality (0-100). Only applicable when format='jpeg'.")
+    quality: Optional[Union[int, str]] = Field(default=None, description="JPEG quality (0-100). Applies only when format='jpeg'.")
 
 class WebBrowserCaptureVideoActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.CAPTURE_VIDEO]
     url: Optional[str] = Field(default=None, description="URL to navigate to before capturing. If omitted, captures the current page.")
-    selector: Optional[str] = Field(default=None, description="CSS selector for the <video> element to capture. If omitted, the first <video> element on the page is used.")
+    selector: Optional[str] = Field(default=None, description="CSS selector for the <video> element to capture.")
     include_video_track: Union[bool, str] = Field(default=True, description="Include the video track in the capture.")
     include_audio_track: Union[bool, str] = Field(default=True, description="Include the audio track in the capture.")
-    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings. If omitted, uses the browser default and enables hardware acceleration when available.")
-    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration (e.g. '30s'). If omitted, capture continues until stopped.")
+    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings.")
+    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration.")
 
 class WebBrowserClickActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.CLICK]
@@ -131,7 +131,7 @@ class WebBrowserEvaluateActionConfig(CommonWebBrowserActionConfig):
 
 class WebBrowserGetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.GET_COOKIES]
-    urls: Optional[List[str]] = Field(default=None, description="Restrict returned cookies to these URLs. If omitted, returns all cookies.")
+    urls: Optional[List[str]] = Field(default=None, description="Restrict returned cookies to these URLs. If omitted, returns all.")
 
 class WebBrowserSetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.SET_COOKIES]

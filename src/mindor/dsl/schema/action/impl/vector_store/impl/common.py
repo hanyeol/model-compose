@@ -21,15 +21,15 @@ class VectorStoreFilterOperator(str, Enum):
     NOT_IN = "not-in"
 
 class VectorStoreFilterCondition(BaseModel):
-    field: str = Field(..., description="Field name to apply the filter condition on.")
-    operator: VectorStoreFilterOperator = Field(default=..., description="Comparison operator to use for filtering.")
-    value: Any = Field(..., description="Value to compare against when applying the filter.")
+    field: str = Field(..., description="Field name to apply the filter on.")
+    operator: VectorStoreFilterOperator = Field(default=..., description="Comparison operator for filtering.")
+    value: Any = Field(..., description="Value to compare against.")
 
 class CommonVectorStoreActionConfig(CommonActionConfig):
     method: VectorStoreActionMethod = Field(..., description="Vector store operation method.")
-    id_field: str = Field(default="id", description="Field name used to identify vectors in the store.")
-    vector_field: str = Field(default="vector", description="Field name where vector embeddings are stored.")
-    batch_size: Union[int, str] = Field(default=0, description="Number of items to process in a single batch.")
+    id_field: str = Field(default="id", description="Field name identifying vectors in the store.")
+    vector_field: str = Field(default="vector", description="Field name storing vector embeddings.")
+    batch_size: Union[int, str] = Field(default=0, description="Number of items per batch.")
 
     @classmethod
     def normalize_filter(cls, filter: Any) -> None:
@@ -55,15 +55,15 @@ class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):
     vector_id: Union[Union[Union[int, str], List[Union[int, str]]], str] = Field(..., description="ID of vector to update.")
     vector: Optional[Union[Union[List[float], List[List[float]]], str]] = Field(default=None, description="New vector to replace.")
     metadata: Optional[Union[Union[Dict[str, Any], List[Dict[str, Any]]], str]] = Field(default=None, description="Updated metadata for vector.")
-    insert_if_not_exist: bool = Field(default=True, description="Whether to insert the vector if it doesn't already exist.")
+    insert_if_not_exist: bool = Field(default=True, description="Insert the vector if it doesn't already exist.")
 
 class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.SEARCH]
     query: Union[List[float], str] = Field(..., description="Query vector for similarity search.")
     top_k: int = Field(default=10, description="Number of top similar vectors to return.")
-    metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.)")
-    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition]], str]] = Field(default=None, description="Filter conditions to apply when searching vectors.")
-    output_fields: Optional[List[str]] = Field(default=None, description="List of metadata fields to include in search results.")
+    metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.).")
+    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition]], str]] = Field(default=None, description="Filter conditions applied when searching vectors.")
+    output_fields: Optional[List[str]] = Field(default=None, description="Metadata fields to include in search results.")
 
     @model_validator(mode="before")
     def inflate_filter(cls, values: Dict[str, Any]):
@@ -75,7 +75,7 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
 class CommonVectorDeleteActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.DELETE]
     vector_id: Union[Union[Union[int, str], List[Union[int, str]]], str] = Field(..., description="ID of vector to remove.")
-    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition], str]]] = Field(default=None, description="Filter conditions to determine which vectors to delete")
+    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition], str]]] = Field(default=None, description="Filter conditions determining which vectors to delete.")
 
     @model_validator(mode="before")
     def inflate_filter(cls, values: Dict[str, Any]):

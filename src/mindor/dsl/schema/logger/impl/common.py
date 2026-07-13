@@ -11,5 +11,5 @@ class LoggingLevel(str, Enum):
     CRITICAL = "critical"
 
 class CommonLoggerConfig(BaseModel):
-    type: LoggerType = Field(..., description="Type of logger.")
+    type: LoggerType = Field(..., description="Logger type.")
     level: LoggingLevel = Field(default=LoggingLevel.INFO, description="Minimum logging level to capture.")

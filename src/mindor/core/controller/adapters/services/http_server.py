@@ -40,6 +40,7 @@ class WorkflowRunBody(BaseModel):
 
 class WorkflowResumeBody(BaseModel):
     job_id: str
+    run_id: Optional[str] = None
     answer: Optional[Any] = None
 
 class WebSocketMessage(BaseModel):
@@ -64,6 +65,7 @@ class TaskUnsubscribePayload(BaseModel):
 class TaskResumePayload(BaseModel):
     task_id: str
     job_id: str
+    run_id: Optional[str] = None
     answer: Optional[Any] = None
 
 class TaskGetPayload(BaseModel):
@@ -74,6 +76,7 @@ class PingPayload(BaseModel):
 
 class InterruptResult(BaseModel):
     job_id: str
+    run_id: Optional[str] = None
     phase: Literal[ "before", "after" ]
     message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -82,6 +85,7 @@ class InterruptResult(BaseModel):
     def from_instance(cls, instance: InterruptState) -> Self:
         return cls(
             job_id=instance.job_id,
+            run_id=instance.run_id,
             phase=instance.phase,
             message=instance.message,
             metadata=instance.metadata
@@ -512,7 +516,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             body: WorkflowResumeBody = Body(...)
         ):
             try:
-                state = await self.controller.resume_workflow(task_id, body.job_id, body.answer)
+                state = await self.controller.resume_workflow(task_id, body.job_id, body.run_id, body.answer)
                 return JSONResponse(content=TaskStateResult.to_dict(state))
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
@@ -652,7 +656,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         @self.websocket_router.handler("resume_task")
         async def resume_task(client_id: str, message_id: Optional[str], payload: TaskResumePayload) -> None:
             try:
-                state = await self.controller.resume_workflow(payload.task_id, payload.job_id, payload.answer)
+                state = await self.controller.resume_workflow(payload.task_id, payload.job_id, payload.run_id, payload.answer)
                 await self.websocket_manager.send_message(client_id, WebSocketMessage(
                     type="task_resumed",
                     id=message_id,

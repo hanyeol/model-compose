@@ -45,7 +45,7 @@ class VectorProcessorThresholdFilterActionConfig(CommonVectorProcessorActionConf
     method: Literal[VectorProcessorActionMethod.THRESHOLD_FILTER]
     query: Union[Vector, str] = Field(..., description="Query vector.")
     candidates: Union[VectorList, str] = Field(..., description="Flat list of candidate vectors.")
-    threshold: Union[float, str] = Field(..., description="Score threshold. For similarity metrics, keep score >= threshold; for distance metrics, keep score <= threshold.")
+    threshold: Union[float, str] = Field(..., description="Score threshold for filtering candidates.")
     metric: Union[RankingMetric, str] = Field(default=SimilarityMetric.COSINE, description="Similarity or distance metric.")
 
 NativeVectorProcessorActionConfig = Annotated[

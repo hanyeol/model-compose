@@ -10,7 +10,7 @@ from .common import (
 
 class ChromaVectorInsertActionConfig(CommonVectorInsertActionConfig):
     collection: str = Field(..., description="Target collection for vector insertion.")
-    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text or list of documents to associate with vectors.")
+    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text or list of documents associated with vectors.")
 
 class ChromaVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
     collection: str = Field(..., description="Target collection for vector update.")

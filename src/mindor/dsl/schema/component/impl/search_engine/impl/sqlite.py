@@ -6,5 +6,5 @@ from .common import CommonSearchEngineComponentConfig, SearchEngineDriver
 class SQLiteSearchEngineComponentConfig(CommonSearchEngineComponentConfig):
     driver: Literal[SearchEngineDriver.SQLITE]
     storage_dir: str = Field(default="./sqlite-search", description="Directory where the SQLite database file is stored.")
-    database: str = Field(default="search.db", description="SQLite database file name. Multiple indexes are stored as virtual tables in the same database.")
+    database: str = Field(default="search.db", description="SQLite database file name.")
     actions: List[SQLiteSearchEngineActionConfig] = Field(default_factory=list)

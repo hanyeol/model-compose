@@ -15,25 +15,25 @@ class SearchEngineFieldType(str, Enum):
 
 class SearchEngineFieldConfig(BaseModel):
     name: str = Field(..., description="Field name.")
-    type: SearchEngineFieldType = Field(default=SearchEngineFieldType.TEXT, description="Field type: 'text' for full-text search, 'id' for exact-match identifier, 'keyword' for tag-like values.")
+    type: SearchEngineFieldType = Field(default=SearchEngineFieldType.TEXT, description="Field type.")
 
 class CommonSearchEngineActionConfig(CommonActionConfig):
     method: SearchEngineActionMethod = Field(..., description="Search engine operation method.")
 
 class CommonSearchIndexActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.INDEX]
-    index: str = Field(..., description="Target index name to insert documents into.")
+    index: str = Field(..., description="Target index to insert documents into.")
     fields: Optional[List[SearchEngineFieldConfig]] = Field(default=None, description="Index schema field definitions. Optional when appending to an existing index.")
     documents: Union[List[Dict[str, Any]], str] = Field(..., description="List of documents to index.")
 
 class CommonSearchSearchActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.SEARCH]
-    index: str = Field(..., description="Target index name to search.")
+    index: str = Field(..., description="Target index to search.")
     query: str = Field(..., description="Search query string.")
     search_fields: Optional[Union[List[str], str]] = Field(default=None, description="Fields to search in. When omitted, all text fields are searched.")
-    limit: Union[int, str] = Field(default=10, description="Maximum number of search results to return.")
+    limit: Union[int, str] = Field(default=10, description="Maximum search results to return.")
 
 class CommonSearchDeleteActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.DELETE]
-    index: str = Field(..., description="Target index name to delete documents from.")
-    document_ids: Union[List[str], str] = Field(..., description="List of document ID values to delete.")
+    index: str = Field(..., description="Target index to delete documents from.")
+    document_ids: Union[List[str], str] = Field(..., description="Document IDs to delete.")

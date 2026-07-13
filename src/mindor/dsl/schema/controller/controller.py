@@ -7,14 +7,14 @@ from .queue import ControllerQueueConfig, ControllerQueueDriver, RedisController
 from .webui import ControllerWebUIConfig, ControllerWebUIDriver
 
 class ControllerConfig(BaseModel):
-    name: Optional[str] = Field(default=None, description="Name used to identify this controller.")
+    name: Optional[str] = Field(default=None, description="Controller identifier name.")
     runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=0, description="Maximum number of tasks that can be executed concurrently.")
-    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
+    max_concurrent_count: int = Field(default=0, description="Max tasks executed concurrently.")
+    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Max wait time for in-progress tasks during shutdown.")
     threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
-    queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue dispatch configuration for delegating workflow execution to remote workers.")
-    webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Configuration for the controller's Web UI interface.")
-    adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="List of adapters that expose the controller via different protocols.")
+    queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue dispatch config for delegating workflow execution to remote workers.")
+    webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Controller Web UI configuration.")
+    adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="Adapters that expose the controller via different protocols.")
 
     @model_validator(mode="before")
     def inflate_single_adapter(cls, values: Dict[str, Any]):

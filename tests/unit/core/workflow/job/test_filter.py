@@ -86,14 +86,10 @@ class TestSourceList:
         assert result == [1, 2, 3]
 
     @pytest.mark.anyio
-    async def test_none_source_raises(self):
-        with pytest.raises(TypeError):
-            await _run({"input": "${missing}"})
-
-    @pytest.mark.anyio
-    async def test_non_list_source_raises(self):
-        with pytest.raises(TypeError):
-            await _run({"input": "${source}"}, {"source": {"not": "a list"}})
+    async def test_scalar_source_returns_as_single_item(self):
+        # Non-list inputs are treated as a single item by BatchSourceIterator.
+        result = await _run({"input": "${source}"}, {"source": {"k": "v"}})
+        assert result == {"k": "v"}
 
 
 # ------------------------------------------------------------------ #
@@ -227,27 +223,28 @@ class TestOutputTemplate:
 
     @pytest.mark.anyio
     async def test_output_string_expression_renders_against_result(self):
+        # FilterJob renders `output` per kept item; `${output[]}` refers to the
+        # current item during that per-item render pass.
         result = await _run(
             {
                 "input": "${source}",
                 "where": {"input": "${item}", "operator": "gt", "value": 1},
-                "output": "${output}",
+                "output": "${output[]}",
             },
             {"source": [1, 2, 3]},
         )
         assert result == [2, 3]
 
     @pytest.mark.anyio
-    async def test_output_map_projection(self):
-        """Renderer's map syntax `"*": ${output}` iterates the kept items with fresh ${item}."""
+    async def test_output_dict_projection_per_item(self):
+        """Each kept item is projected through the dict template, receiving `${output[]}` as itself."""
         result = await _run(
             {
                 "input": "${source}",
                 "where": {"input": "${item.score}", "operator": "gte", "value": 0.5},
                 "output": {
-                    "*": "${output}",
-                    "id": "${item.id}",
-                    "score": "${item.score}",
+                    "id": "${output[].id}",
+                    "score": "${output[].score}",
                 },
             },
             {"source": [
@@ -262,12 +259,14 @@ class TestOutputTemplate:
         ]
 
     @pytest.mark.anyio
-    async def test_output_dict_no_map(self):
+    async def test_output_dict_wraps_each_item(self):
+        # Dict output template runs per kept item, so a 3-element source produces
+        # 3 dicts each wrapping the item under `value`.
         result = await _run(
             {
                 "input": "${source}",
-                "output": {"count": "${output}"},
+                "output": {"value": "${output[]}"},
             },
             {"source": [1, 2, 3]},
         )
-        assert result == {"count": [1, 2, 3]}
+        assert result == [{"value": 1}, {"value": 2}, {"value": 3}]

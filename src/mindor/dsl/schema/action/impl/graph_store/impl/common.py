@@ -41,19 +41,19 @@ class CommonGraphUpdateActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.UPDATE]
     node_id: Optional[Union[Union[str, int], List[Union[str, int]], str]] = Field(default=None, description="ID(s) of node(s) to update.")
     relationship_id: Optional[Union[Union[str, int], List[Union[str, int]], str]] = Field(default=None, description="ID(s) of relationship(s) to update.")
-    properties: Optional[Union[Dict[str, Any], str]] = Field(default=None, description="Properties to set on the target element(s).")
-    labels: Optional[Union[str, List[str]]] = Field(default=None, description="Label(s) to add to the target node(s).")
+    properties: Optional[Union[Dict[str, Any], str]] = Field(default=None, description="Properties to set on target element(s).")
+    labels: Optional[Union[str, List[str]]] = Field(default=None, description="Label(s) to add to target node(s).")
 
 class CommonGraphDeleteActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.DELETE]
     node_id: Optional[Union[Union[str, int], List[Union[str, int]], str]] = Field(default=None, description="ID(s) of node(s) to delete.")
     relationship_id: Optional[Union[Union[str, int], List[Union[str, int]], str]] = Field(default=None, description="ID(s) of relationship(s) to delete.")
-    detach: Union[bool, str] = Field(default=True, description="Also delete connected relationships when deleting nodes.")
+    detach: Union[bool, str] = Field(default=True, description="Delete connected relationships when deleting nodes.")
 
 class CommonGraphTraverseActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.TRAVERSE]
     start_node: Union[str, int] = Field(..., description="Starting node ID for traversal.")
     direction: Literal[ "in", "out", "both" ] = Field(default="out", description="Traversal direction relative to start node.")
     max_depth: int = Field(default=3, ge=1, description="Maximum traversal depth.")
-    relationship_types: Optional[List[str]] = Field(default=None, description="Filter traversal to specific relationship types.")
-    node_labels: Optional[List[str]] = Field(default=None, description="Filter traversal to nodes with specific labels.")
+    relationship_types: Optional[List[str]] = Field(default=None, description="Restrict traversal to specific relationship types.")
+    node_labels: Optional[List[str]] = Field(default=None, description="Restrict traversal to nodes with specific labels.")

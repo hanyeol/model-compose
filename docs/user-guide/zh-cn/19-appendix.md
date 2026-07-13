@@ -327,6 +327,11 @@ workflows:
 
 **作业类型**：
 ```yaml
+# 通用字段（适用于每种作业类型）
+# - id、name、depends_on、max_run_count
+# - interrupt: { before, after }     # 每个：false | true | { condition, message, metadata }
+# - hook: { before, after }          # 每个：单个钩子或 { script } 列表
+
 # 1. Component 作业（默认 - 执行组件）
 - id: job1
   type: component        # 可以省略（默认）
@@ -339,6 +344,15 @@ workflows:
   interrupt:
     before: false        # true 或 { condition, message, metadata }
     after: false
+  hook:
+    before:              # 单个钩子或钩子列表
+      script: |
+        async def hook(input, **kwargs):
+            return input
+    after:
+      - script: |
+          async def hook(input, output, **kwargs):
+              return output
 
 # 2. If 作业（条件分支）
 - id: job2

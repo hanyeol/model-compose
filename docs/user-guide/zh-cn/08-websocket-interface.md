@@ -298,6 +298,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "data": {
     "task_id": "01HXYZ...",
     "job_id": "review-step",
+    "run_id": null,
     "answer": {
       "approved": true
     }
@@ -308,6 +309,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 **字段：**
 - `task_id`（string，必填）：要恢复的任务
 - `job_id`（string，必填）：中断的作业 ID（来自 `interrupt.job_id`）
+- `run_id`（string，可选）：来自 `interrupt.run_id` 的单次运行 ID。仅当 `component` 作业的 `repeat_count > 1` 时必填；其他情况请传 `null`（或省略）。
 - `answer`（any，可选）：传递给工作流的响应值
 
 **响应：** `task_resumed` 或 `error` 消息。
@@ -400,6 +402,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
     "error": null,
     "interrupt": {
       "job_id": "review-step",
+      "run_id": null,
       "phase": "before",
       "message": "Approval required",
       "metadata": { "cost": 0.5 }
@@ -413,7 +416,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 - `status`：`"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
 - `output`：完成时的结果数据（仅 JSON 可序列化的值；不可序列化的输出如图像返回 `null`）
 - `error`：失败时的错误消息
-- `interrupt`：状态为 `"interrupted"` 时的中断详情（`job_id`、`phase`、`message`、`metadata`）
+- `interrupt`：状态为 `"interrupted"` 时的中断详情（`job_id`、`run_id`、`phase`、`message`、`metadata`）。仅当 `component` 作业的 `repeat_count > 1` 时 `run_id` 非空。
 - `timestamp`：状态变更时间（ISO 8601）
 
 #### `job_event` — 单 Job 生命周期事件
@@ -710,6 +713,7 @@ ws.onmessage = (event) => {
       data: {
         task_id: msg.data.task_id,
         job_id: interrupt.job_id,
+        run_id: interrupt.run_id,
         answer: { approved: true }
       }
     }));

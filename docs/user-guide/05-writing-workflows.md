@@ -439,11 +439,116 @@ model-compose provides various job types to support different task patterns.
 
 > **Note**: If `type` is not specified, it defaults to `component`.
 
+### Common Job Fields
+
+Regardless of type, every job supports the following fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | `string` | `"__job__"` | Unique job identifier. |
+| `name` | `string` | `null` | Human-readable label used as a group label in the web UI. |
+| `depends_on` | `string[]` | `[]` | List of job IDs that must complete before this job runs. |
+| `max_run_count` | `int` | `5` | Maximum times this job may execute within one workflow run (including routing re-runs). |
+| `interrupt` | object | `null` | Human-in-the-loop interrupt points. See [Interrupts (Human-in-the-Loop)](#interrupts-human-in-the-loop) below. |
+| `hook` | object | `null` | Inline Python hooks that run before/after the job. See [Hooks](#hooks) below. |
+
+Interrupts and hooks work on every job type — component, if, switch, delay, filter, for-each, random-router.
+
+#### Interrupts (Human-in-the-Loop)
+
+Pause a job before and/or after it runs, so a human (or another system) can inspect or override the state. Each phase accepts either `true` (always interrupt) or a detailed config:
+
+```yaml
+jobs:
+  - id: send-invoice
+    component: mailer
+    interrupt:
+      before:
+        message: "Confirm before sending"
+        condition:
+          input: ${input.amount}
+          operator: gt
+          value: 1000
+      after: true
+```
+
+- **`message`** — text shown to the user or client when the interrupt fires.
+- **`metadata`** — structured data forwarded to the client (e.g., preview payload).
+- **`condition`** — optional `{ operator, input, value }`; the interrupt only fires when the condition is truthy. Uses the same operators as [If Job](#if-job) (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not-in`, `match`).
+
+**Task lifecycle around an interrupt:**
+
+```
+PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
+```
+
+The task remains in `INTERRUPTED` until it is resumed. Resuming with an `answer` replaces the job's input (before phase) or output (after phase); a null/empty answer leaves the data unchanged.
+
+**Resume payload:**
+
+Every resume call needs `task_id`, `job_id`, `run_id`, and optionally `answer`. `run_id` is non-null only for `component` jobs with `repeat_count > 1`, where each parallel repeat interrupts independently — for all other jobs pass `null`.
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{"job_id": "send-invoice", "run_id": null, "answer": {"approved": true}}'
+```
+
+For CLI, WebSocket, and MCP flows, see [Chapter 3](./03-cli-usage.md#interrupt-handling), [Chapter 7](./07-controller-configuration.md), and [Chapter 8](./08-websocket-interface.md).
+
+#### Hooks
+
+Run inline Python code before and/or after a job, without pausing for a human. Hooks are useful for shaping input/output, side effects (logging, metrics), or wiring in-process helpers.
+
+```yaml
+jobs:
+  - id: enrich
+    component: my-component
+    hook:
+      before:
+        script: |
+          async def hook(input, **kwargs):
+              input["received_at"] = kwargs["run_id"]
+              return input
+      after:
+        - script: |
+            async def hook(input, output, **kwargs):
+                output["enriched"] = True
+                return output
+        - script: |
+            async def hook(input, output, **kwargs):
+                # observation-only hook — return the value unchanged
+                print(f"[{kwargs['phase']}] {kwargs['job_id']} produced {output}")
+                return output
+```
+
+**Hook signatures:**
+
+- **Before phase:** `async def hook(input, **kwargs)` — returned value replaces the input.
+- **After phase:** `async def hook(input, output, **kwargs)` — returned value replaces the output.
+
+The return value is always used verbatim; to leave data unchanged you must explicitly `return input` (or `return output`). Both sync and async functions are supported.
+
+**`kwargs` fields (`HookPoint`):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id` | `str` | Workflow task ID |
+| `job_id` | `str` | Job ID |
+| `run_id` | `str \| None` | Per-run ID; non-null only for `component` jobs with `repeat_count > 1` |
+| `phase` | `"before" \| "after"` | The phase this hook is bound to |
+
+Each phase accepts either a single hook or a list. When a list is given, hooks pipe results together in order.
+
+**Interaction with routing jobs (`if`, `switch`, `random-router`):** the after-hook is invoked with `output=None` and its return value is discarded — hooks on routing jobs are effectively observation-only.
+
+**Execution order per job:** `before-interrupt → before-hook → job body → output template render → after-interrupt → after-hook`.
+
 ### Component Job
 
 The default job type that executes a component. If `type` is omitted, the job is treated as a component job.
 
-#### Fields
+#### Fields (in addition to [Common Job Fields](#common-job-fields))
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -451,9 +556,7 @@ The default job type that executes a component. If `type` is omitted, the job is
 | `action` | `string` | `"__default__"` | The action to invoke on the component. For components with multiple actions, specify which one to call. |
 | `input` | any | `null` | Input data supplied to the component. Supports variable binding (`${input.field}`, `${jobs.*.output}`). |
 | `output` | any | `null` | Output mapping. Extracts and reshapes the component's output for use by subsequent jobs. |
-| `repeat_count` | `int` or `string` | `1` | Number of times to repeat the component execution. Must be at least 1. Supports variable binding. |
-| `interrupt` | object | `null` | Human-in-the-loop interrupt configuration. See [Interrupt](#interrupt-human-in-the-loop) below. |
-| `depends_on` | `string[]` | `[]` | List of job IDs that must complete before this job runs. |
+| `repeat_count` | `int` or `string` | `1` | Number of times to repeat the component execution. Must be at least 1. Each repeat gets a distinct `run_id`, so interrupts and hooks are isolated per run. |
 
 #### Basic Structure
 
@@ -503,74 +606,9 @@ The `repeat_count` also supports variable binding:
 repeat_count: ${input.count}
 ```
 
-#### Interrupt (Human-in-the-Loop)
+#### Example: Shell Command with Human Approval
 
-Component jobs support an `interrupt` field that pauses workflow execution at defined points and waits for external input before continuing. This enables human-in-the-loop patterns such as approval gates, data review, or interactive editing.
-
-**Basic structure:**
-
-```yaml
-jobs:
-  - id: my-task
-    component: my-component
-    input: ${input}
-    interrupt:
-      before: true   # Pause before component executes
-      after: true    # Pause after component executes
-```
-
-**Interrupt phases:**
-
-| Phase | Timing | Resume data effect |
-|-------|--------|-------------------|
-| `before` | Before the component runs | Replaces the job's input |
-| `after` | After the component runs | Replaces the job's output |
-
-**Configuration options:**
-
-Each phase accepts either `true` (always interrupt) or a detailed configuration:
-
-```yaml
-interrupt:
-  before:
-    message: "Review the input before processing"
-    metadata:
-      preview: ${input.data}
-  after:
-    condition:
-      operator: gt
-      input: ${output.confidence}
-      value: 0.5
-    message: "Low confidence result. Please review."
-```
-
-- **`message`**: A message displayed to the user or client when the interrupt fires.
-- **`metadata`**: Structured data passed to the client (e.g., preview data, options).
-- **`condition`**: An optional condition that must evaluate to true for the interrupt to fire. Uses the same operators as [If Job](#if-job) (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not-in`, `match`). If omitted, the interrupt always fires.
-
-**Task states:**
-
-When a workflow hits an interrupt, the task transitions through these states:
-
-```
-PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
-```
-
-The task remains in the `INTERRUPTED` state until it is resumed via the CLI, HTTP API, or MCP tool.
-
-**Resuming via HTTP API:**
-
-```bash
-curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
-  -H "Content-Type: application/json" \
-  -d '{"job_id": "my-task", "data": {"revised": "value"}}'
-```
-
-**Resuming via CLI:**
-
-When using `model-compose run`, the CLI automatically prompts for input at interrupt points. Use `--auto-resume` to skip prompts. See [Chapter 3: CLI Usage](./03-cli-usage.md#interrupt-handling) for details.
-
-**Example: Shell command with human approval:**
+`interrupt` (documented in [Common Job Fields](#common-job-fields)) is often used to gate side-effecting component jobs like shell execution:
 
 ```yaml
 workflow:

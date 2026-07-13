@@ -298,6 +298,7 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
   "data": {
     "task_id": "01HXYZ...",
     "job_id": "review-step",
+    "run_id": null,
     "answer": {
       "approved": true
     }
@@ -308,6 +309,7 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
 **Fields:**
 - `task_id` (string, required): Task to resume
 - `job_id` (string, required): Interrupted job ID (from `interrupt.job_id`)
+- `run_id` (string, optional): Per-run ID from `interrupt.run_id`. Required only for `component` jobs with `repeat_count > 1`; pass `null` (or omit) otherwise.
 - `answer` (any, optional): Response value to pass to the workflow
 
 **Response:** `task_resumed` or `error` message.
@@ -400,6 +402,7 @@ Sent in response to `subscribe_task`. Includes the current task state at the tim
     "error": null,
     "interrupt": {
       "job_id": "review-step",
+      "run_id": null,
       "phase": "before",
       "message": "Approval required",
       "metadata": { "cost": 0.5 }
@@ -413,7 +416,7 @@ Sent in response to `subscribe_task`. Includes the current task state at the tim
 - `status`: `"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
 - `output`: Result data on completion (JSON-serializable values only; non-serializable outputs like images return `null`)
 - `error`: Error message on failure
-- `interrupt`: Interrupt details when status is `"interrupted"` (`job_id`, `phase`, `message`, `metadata`)
+- `interrupt`: Interrupt details when status is `"interrupted"` (`job_id`, `run_id`, `phase`, `message`, `metadata`). `run_id` is non-null only for `component` jobs with `repeat_count > 1`.
 - `timestamp`: State change time (ISO 8601)
 
 #### `job_event` — Per-Job Lifecycle Event
@@ -710,6 +713,7 @@ ws.onmessage = (event) => {
       data: {
         task_id: msg.data.task_id,
         job_id: interrupt.job_id,
+        run_id: interrupt.run_id,
         answer: { approved: true }
       }
     }));

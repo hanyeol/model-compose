@@ -169,6 +169,7 @@ When `interrupted`, the result includes an `interrupt` field:
   "status": "interrupted",
   "interrupt": {
     "job_id": "review-step",
+    "run_id": null,
     "phase": "before",
     "message": "Please review before proceeding.",
     "metadata": {}

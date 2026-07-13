@@ -298,6 +298,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "data": {
     "task_id": "01HXYZ...",
     "job_id": "review-step",
+    "run_id": null,
     "answer": {
       "approved": true
     }
@@ -308,6 +309,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 **필드:**
 - `task_id` (string, 필수): 재개할 태스크 ID
 - `job_id` (string, 필수): 중단된 작업 ID (`interrupt.job_id`)
+- `run_id` (string, 선택): `interrupt.run_id`에서 받은 실행별 ID. `repeat_count > 1`인 `component` Job에서만 필요하며, 그 외의 경우에는 `null`을 전달하거나 생략합니다.
 - `answer` (any, 선택): 워크플로우에 전달할 응답 값
 
 **응답:** `task_resumed` 또는 `error` 메시지.
@@ -400,6 +402,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
     "error": null,
     "interrupt": {
       "job_id": "review-step",
+      "run_id": null,
       "phase": "before",
       "message": "승인이 필요합니다",
       "metadata": { "cost": 0.5 }
@@ -413,7 +416,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 - `status`: `"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
 - `output`: 완료 시 결과 데이터 (JSON 직렬화 가능한 값만. 이미지 등 직렬화 불가한 출력은 `null`)
 - `error`: 실패 시 에러 메시지
-- `interrupt`: `"interrupted"` 상태일 때 인터럽트 상세 정보 (`job_id`, `phase`, `message`, `metadata`)
+- `interrupt`: `"interrupted"` 상태일 때 인터럽트 상세 정보 (`job_id`, `run_id`, `phase`, `message`, `metadata`). `run_id`는 `repeat_count > 1`인 `component` Job에서만 non-null 값을 갖습니다.
 - `timestamp`: 상태 변경 시각 (ISO 8601)
 
 #### `job_event` — Job별 라이프사이클 이벤트
@@ -710,6 +713,7 @@ ws.onmessage = (event) => {
       data: {
         task_id: msg.data.task_id,
         job_id: interrupt.job_id,
+        run_id: interrupt.run_id,
         answer: { approved: true }
       }
     }));

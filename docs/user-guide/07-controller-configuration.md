@@ -279,6 +279,7 @@ Response when interrupted:
   "status": "interrupted",
   "interrupt": {
     "job_id": "review-step",
+    "run_id": null,
     "phase": "before",
     "message": "Please review the generated content before proceeding.",
     "metadata": { "draft": "..." }
@@ -328,7 +329,8 @@ Resumes an interrupted workflow. When a task is in `interrupted` status, send th
 
 Request body parameters:
 - `job_id` (string, required): The job ID from the interrupt response
-- `answer` (any, optional): Answer data to pass to the workflow (JSON or string)
+- `run_id` (string, optional): The per-run ID from the interrupt response. Required only for `component` jobs with `repeat_count > 1`, where each parallel run interrupts independently. Pass `null` (or omit) for all other cases.
+- `answer` (any, optional): Answer data to pass to the workflow (JSON or string). Replaces the job's input (before phase) or output (after phase); if omitted, the data is left unchanged.
 
 Request example:
 ```bash
@@ -336,6 +338,7 @@ curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
     "job_id": "review-step",
+    "run_id": null,
     "answer": "approved"
   }'
 ```

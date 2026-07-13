@@ -110,6 +110,7 @@ Resume an interrupted workflow. Equivalent to `POST /tasks/{task_id}/resume`.
   "data": {
     "task_id": "01HXYZ...",
     "job_id": "review-step",
+    "run_id": null,
     "answer": { "approved": true }
   }
 }
@@ -119,6 +120,7 @@ Resume an interrupted workflow. Equivalent to `POST /tasks/{task_id}/resume`.
 |-------|------|----------|-------------|
 | `task_id` | string | yes | Task to resume |
 | `job_id` | string | yes | Must match the interrupted job (`interrupt.job_id`) |
+| `run_id` | string \| null | no | Must match `interrupt.run_id`. Non-null only for `component` jobs with `repeat_count > 1`; pass `null` (or omit) otherwise |
 | `answer` | any | no | Value passed to the workflow as the interrupt answer |
 
 **Response:** `task_resumed` on success, or `error`.
@@ -224,7 +226,7 @@ Latest-state snapshot of the workflow as a whole. Pushed automatically to subscr
 | `status` | string | `"pending"` \| `"processing"` \| `"interrupted"` \| `"completed"` \| `"failed"` |
 | `output` | any \| null | Final output on `completed`. Only JSON-serializable values; non-serializable outputs (e.g. raw images) become `null` |
 | `error` | string \| null | Error message on `failed` |
-| `interrupt` | object \| null | Interrupt details on `interrupted` (`job_id`, `phase`, `message`, `metadata`) |
+| `interrupt` | object \| null | Interrupt details on `interrupted` (`job_id`, `run_id`, `phase`, `message`, `metadata`) |
 | `session_id` | string \| null | Session associated with the task |
 | `metadata` | any \| null | Metadata supplied at `run_workflow` time |
 | `timestamp` | string | ISO 8601 UTC timestamp of state change |

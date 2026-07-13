@@ -278,6 +278,7 @@ curl http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T
   "status": "interrupted",
   "interrupt": {
     "job_id": "review-step",
+    "run_id": null,
     "phase": "before",
     "message": "Please review the generated content before proceeding.",
     "metadata": { "draft": "..." }
@@ -327,7 +328,8 @@ POST /api/tasks/{task_id}/resume
 
 请求体参数：
 - `job_id` (string, 必填): 中断响应中的 job ID
-- `answer` (any, 可选): 传递给工作流的答案数据（JSON 或字符串）
+- `run_id` (string, 可选): 中断响应中每次运行的 ID。仅当 `component` 作业的 `repeat_count > 1` 时必填，此时每个并行运行会独立中断。其他所有情况请传 `null`（或省略）。
+- `answer` (any, 可选): 传递给工作流的答案数据（JSON 或字符串）。会替换作业的输入（before 阶段）或输出（after 阶段）；若省略，则数据保持不变。
 
 请求示例：
 ```bash
@@ -335,6 +337,7 @@ curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
     "job_id": "review-step",
+    "run_id": null,
     "answer": "approved"
   }'
 ```

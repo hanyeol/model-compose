@@ -438,11 +438,116 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 
 > **注意**: 如果未指定 `type`，则默认为 `component`。
 
+### 通用作业字段
+
+无论类型如何，每个作业都支持以下字段：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `id` | `string` | `"__job__"` | 唯一的作业标识符。 |
+| `name` | `string` | `null` | 人类可读的标签，在 Web UI 中用作分组标签。 |
+| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `max_run_count` | `int` | `5` | 此作业在单次工作流运行中可执行的最大次数（含路由重跑）。 |
+| `interrupt` | object | `null` | 人机协作的中断点。参见下方 [中断（人机协作）](#中断人机协作)。 |
+| `hook` | object | `null` | 在作业前/后运行的内联 Python 钩子。参见下方 [钩子](#钩子)。 |
+
+中断和钩子适用于每种作业类型 —— component、if、switch、delay、filter、for-each、random-router。
+
+#### 中断（人机协作）
+
+在作业运行之前和/或之后暂停它，以便人（或其他系统）可以检查或覆盖状态。每个阶段接受 `true`（始终中断）或详细配置：
+
+```yaml
+jobs:
+  - id: send-invoice
+    component: mailer
+    interrupt:
+      before:
+        message: "发送前请确认"
+        condition:
+          input: ${input.amount}
+          operator: gt
+          value: 1000
+      after: true
+```
+
+- **`message`** — 中断触发时向用户或客户端显示的文本。
+- **`metadata`** — 转发给客户端的结构化数据（例如预览负载）。
+- **`condition`** — 可选的 `{ operator, input, value }`；仅当条件为真时才触发中断。使用与 [If 作业](#if-作业) 相同的运算符（`eq`、`neq`、`gt`、`gte`、`lt`、`lte`、`in`、`not-in`、`match`）。
+
+**围绕中断的任务生命周期：**
+
+```
+PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
+```
+
+任务将保持在 `INTERRUPTED` 状态，直到被恢复。恢复时携带 `answer` 会替换作业的输入（before 阶段）或输出（after 阶段）；若 answer 为 null/空，则数据保持不变。
+
+**恢复负载：**
+
+每次恢复调用都需要 `task_id`、`job_id`、`run_id`，以及可选的 `answer`。仅当 `component` 作业的 `repeat_count > 1` 时 `run_id` 才为非空 —— 此时每个并行的重复会独立中断；其他所有情形请传 `null`。
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{"job_id": "send-invoice", "run_id": null, "answer": {"approved": true}}'
+```
+
+关于 CLI、WebSocket 和 MCP 流程，请参见 [第 3 章](./03-cli-usage.md#中断处理)、[第 7 章](./07-controller-configuration.md) 和 [第 8 章](./08-websocket-interface.md)。
+
+#### 钩子
+
+在作业之前和/或之后运行内联 Python 代码，无需等待人工介入。钩子可用于塑造输入/输出、执行副作用（日志、指标）或接入进程内辅助逻辑。
+
+```yaml
+jobs:
+  - id: enrich
+    component: my-component
+    hook:
+      before:
+        script: |
+          async def hook(input, **kwargs):
+              input["received_at"] = kwargs["run_id"]
+              return input
+      after:
+        - script: |
+            async def hook(input, output, **kwargs):
+                output["enriched"] = True
+                return output
+        - script: |
+            async def hook(input, output, **kwargs):
+                # 仅观察的钩子 —— 原样返回值
+                print(f"[{kwargs['phase']}] {kwargs['job_id']} produced {output}")
+                return output
+```
+
+**钩子签名：**
+
+- **Before 阶段：** `async def hook(input, **kwargs)` —— 返回值将替换输入。
+- **After 阶段：** `async def hook(input, output, **kwargs)` —— 返回值将替换输出。
+
+返回值始终会被原样使用；若希望数据保持不变，必须显式 `return input`（或 `return output`）。同步和异步函数均受支持。
+
+**`kwargs` 字段（`HookPoint`）：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | `str` | 工作流任务 ID |
+| `job_id` | `str` | 作业 ID |
+| `run_id` | `str \| None` | 单次运行的 ID；仅当 `component` 作业的 `repeat_count > 1` 时非空 |
+| `phase` | `"before" \| "after"` | 此钩子绑定的阶段 |
+
+每个阶段可接受单个钩子或列表。若给出列表，钩子会按顺序将结果依次串联。
+
+**与路由类作业（`if`、`switch`、`random-router`）的交互：** after 钩子会以 `output=None` 调用，并且其返回值会被丢弃 —— 路由类作业上的钩子实际上是仅观察的。
+
+**每个作业的执行顺序：** `before-interrupt → before-hook → job body → output template render → after-interrupt → after-hook`。
+
 ### Component 作业
 
 执行组件的默认作业类型。省略 `type` 时，作业将作为 component 作业处理。
 
-#### 字段
+#### 字段（除 [通用作业字段](#通用作业字段) 外）
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -450,9 +555,7 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 | `action` | `string` | `"__default__"` | 要在组件上调用的动作。对于具有多个动作的组件，指定要调用的动作。 |
 | `input` | any | `null` | 提供给组件的输入数据。支持变量绑定（`${input.field}`、`${jobs.*.output}`）。 |
 | `output` | any | `null` | 输出映射。提取并重组组件的输出，供后续作业使用。 |
-| `repeat_count` | `int` 或 `string` | `1` | 组件执行的重复次数。最小为 1。支持变量绑定。 |
-| `interrupt` | object | `null` | 人机协作中断配置。参见下方 [Interrupt](#interrupt人机协作)。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `repeat_count` | `int` 或 `string` | `1` | 组件执行的重复次数。最小为 1。每次重复都会获得不同的 `run_id`，因此每次运行的中断和钩子相互隔离。 |
 
 #### 基本结构
 
@@ -502,74 +605,9 @@ jobs:
 repeat_count: ${input.count}
 ```
 
-#### Interrupt（人机协作）
+#### 示例：需要人工审批的 Shell 命令
 
-Component 作业支持 `interrupt` 字段，可在指定的点暂停工作流执行，等待外部输入后继续。这使得审批门控、数据审核、交互式编辑等人机协作模式成为可能。
-
-**基本结构：**
-
-```yaml
-jobs:
-  - id: my-task
-    component: my-component
-    input: ${input}
-    interrupt:
-      before: true   # 组件执行前暂停
-      after: true    # 组件执行后暂停
-```
-
-**中断阶段：**
-
-| 阶段 | 时机 | 恢复数据效果 |
-|------|------|-------------|
-| `before` | 组件运行前 | 替换作业的输入 |
-| `after` | 组件运行后 | 替换作业的输出 |
-
-**配置选项：**
-
-每个阶段可以接受 `true`（始终中断）或详细配置：
-
-```yaml
-interrupt:
-  before:
-    message: "处理前请检查输入"
-    metadata:
-      preview: ${input.data}
-  after:
-    condition:
-      operator: gt
-      input: ${output.confidence}
-      value: 0.5
-    message: "置信度较低的结果，请审核。"
-```
-
-- **`message`**：中断触发时向用户或客户端显示的消息。
-- **`metadata`**：传递给客户端的结构化数据（如预览数据、选项）。
-- **`condition`**：中断触发的可选条件。使用与 [If 作业](#if-作业) 相同的运算符（`eq`、`neq`、`gt`、`gte`、`lt`、`lte`、`in`、`not-in`、`match`）。省略时始终触发中断。
-
-**任务状态：**
-
-当工作流到达中断点时，任务状态按以下方式转换：
-
-```
-PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FAILED
-```
-
-任务将保持 `INTERRUPTED` 状态，直到通过 CLI、HTTP API 或 MCP 工具恢复。
-
-**通过 HTTP API 恢复：**
-
-```bash
-curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
-  -H "Content-Type: application/json" \
-  -d '{"job_id": "my-task", "data": {"revised": "value"}}'
-```
-
-**通过 CLI 恢复：**
-
-使用 `model-compose run` 时，CLI 会在中断点自动提示输入。使用 `--auto-resume` 可跳过提示。详情请参阅 [第 3 章：CLI 使用](./03-cli-usage.md#中断处理)。
-
-**示例：需要人工审批的 Shell 命令执行：**
+`interrupt`（在 [通用作业字段](#通用作业字段) 中已说明）常用于对产生副作用的组件作业（如 Shell 执行）进行门控：
 
 ```yaml
 workflow:

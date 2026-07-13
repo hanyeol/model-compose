@@ -326,6 +326,11 @@ workflows:
 
 **작업 타입**:
 ```yaml
+# 공통 필드 (모든 작업 타입에서 사용 가능)
+# - id, name, depends_on, max_run_count
+# - interrupt: { before, after }     # 각 항목: false | true | { condition, message, metadata }
+# - hook: { before, after }          # 각 항목: 단일 훅 또는 { script } 목록
+
 # 1. Component 작업 (기본 - 컴포넌트 실행)
 - id: job1
   type: component        # 생략 가능 (기본값)
@@ -338,6 +343,15 @@ workflows:
   interrupt:
     before: false        # true 또는 { condition, message, metadata }
     after: false
+  hook:
+    before:              # 단일 훅 또는 훅 목록
+      script: |
+        async def hook(input, **kwargs):
+            return input
+    after:
+      - script: |
+          async def hook(input, output, **kwargs):
+              return output
 
 # 2. If 작업 (조건부 분기)
 - id: job2

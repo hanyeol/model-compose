@@ -54,6 +54,98 @@ workflows:
 | `default` | boolean | `false` | Whether this workflow should be used as default |
 | `private` | boolean | `false` | Whether this workflow is private and should not be exposed externally |
 
+## Common Job Fields
+
+Every job type supports a shared set of fields for identification, dependencies, interrupts, and hooks. Individual job-type sections below list only their type-specific fields.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | `"__job__"` | Unique job identifier |
+| `name` | string | `null` | Human-readable label used as a group label in the web UI |
+| `depends_on` | array | `[]` | List of job IDs that must complete before this job runs |
+| `max_run_count` | integer | `5` | Maximum executions within a single workflow run (including re-runs from routing) |
+| `interrupt` | object | `null` | Human-in-the-Loop interrupt points; see [Job Interrupts](#job-interrupts) |
+| `hook` | object | `null` | Inline Python hooks; see [Job Hooks](#job-hooks) |
+| `output` | any | `null` | Output mapping expression for this job (except router-only jobs like `if`, `switch`, `random-router`) |
+
+### Job Interrupts
+
+Pause execution before and/or after a job runs so a human can inspect, approve, or override the state. Interrupts work on every job type.
+
+```yaml
+jobs:
+  - id: send-invoice
+    component: mailer
+    interrupt:
+      before:
+        message: "Confirm before sending"
+        condition:
+          input: ${input.amount}
+          operator: gt
+          value: 1000
+      after: true
+```
+
+Each interrupt point accepts `{ condition?, message?, metadata? }`. Setting a point to `true` interrupts unconditionally. Conditions use `{ operator, input, value }` with the operators defined by `ConditionOperator` (`eq`, `ne`, `gt`, `lt`, etc.).
+
+When an interrupt fires, the workflow transitions to `interrupted` state and exposes an `InterruptState` on the task:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | ID of the job that interrupted |
+| `run_id` | string \| null | Per-run identifier — non-null only for `component` jobs with `repeat_count > 1`, where each parallel run interrupts independently |
+| `phase` | `"before"` \| `"after"` | Whether the interrupt fired before or after the job body |
+| `message` | string \| null | Human-readable message from the interrupt config |
+| `metadata` | object \| null | Structured metadata from the interrupt config |
+
+To resume, callers pass `task_id`, `job_id`, `run_id`, and an optional `answer` back to the controller. If the answer is not `null`, it replaces the job's input (before phase) or output (after phase).
+
+### Job Hooks
+
+Run inline Python code before and/or after a job runs. Unlike interrupts, hooks execute automatically without external intervention.
+
+```yaml
+jobs:
+  - id: transform
+    component: my-component
+    hook:
+      before:
+        script: |
+          async def hook(input, **kwargs):
+              input["timestamp"] = int(kwargs["run_id"] or 0)
+              return input
+      after:
+        - script: |
+            async def hook(input, output, **kwargs):
+                output["source_job"] = kwargs["job_id"]
+                return output
+        - script: |
+            async def hook(input, output, **kwargs):
+                # observation-only hook: return the value unchanged
+                print(f"[{kwargs['phase']}] output = {output}")
+                return output
+```
+
+Each phase accepts a single hook object or a list of hooks. Hooks run in declaration order and pipe their results together.
+
+**Hook function signatures:**
+
+- **Before phase:** `async def hook(input, **kwargs)` → returned value replaces the input
+- **After phase:** `async def hook(input, output, **kwargs)` → returned value replaces the output
+
+**`kwargs` fields (from `HookPoint`):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | The workflow task ID |
+| `job_id` | string | The job's ID |
+| `run_id` | string \| null | Per-run identifier — non-null only for `component` jobs with `repeat_count > 1` |
+| `phase` | `"before"` \| `"after"` | The phase this hook is bound to |
+
+Hooks may be sync or async. The return value is always used verbatim: to leave data unchanged, explicitly `return input` (before) or `return output` (after). For routing jobs (`if`, `switch`, `random-router`), after-hook `output` is `None` and the return value is discarded — after hooks on those jobs are observation-only.
+
+**Execution order per job:** interrupt → hook. When a job declares an `output` mapping expression, it is rendered *before* the after-hook, so hooks see the shaped output.
+
 ## Job Types
 
 Workflows support different job types for various execution patterns:
@@ -73,40 +165,15 @@ jobs:
     repeat_count: 1
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | `component` | Job type (can be omitted, defaults to component) |
-| `id` | string | `"__job__"` | Unique job identifier |
-| `name` | string | `null` | Human-readable label used as a group label in the web UI |
 | `component` | string/object | `"__default__"` | Component to execute |
 | `action` | string | `"__default__"` | Action to invoke on the component |
 | `input` | any | `null` | Input data for the component |
-| `output` | any | `null` | Output mapping expression for this job |
-| `repeat_count` | integer/string | `1` | Number of times to repeat execution (must be >= 1) |
-| `max_run_count` | integer | `5` | Maximum executions within a single workflow run (including re-runs from routing) |
-| `depends_on` | array | `[]` | List of job IDs that must complete before this job runs |
-| `interrupt` | object | `null` | Human-in-the-Loop interrupt points; see [Interrupts](#component-job-interrupts) |
-
-#### Component Job Interrupts
-
-Pause execution before and/or after a component runs so a human can inspect or approve the state.
-
-```yaml
-jobs:
-  - id: send-invoice
-    component: mailer
-    interrupt:
-      before:
-        message: "Confirm before sending"
-        condition:
-          input: ${input.amount}
-          operator: gt
-          value: 1000
-      after: true
-```
-
-Each interrupt point accepts `{ condition?, message?, metadata? }`. Setting a point to `true` interrupts unconditionally. Conditions use `{ operator, input, value }` with the operators defined by `ConditionOperator` (`eq`, `ne`, `gt`, `lt`, etc.).
+| `repeat_count` | integer/string | `1` | Number of times to repeat execution (must be >= 1). Each repeat gets its own `run_id`, so interrupts and hooks are isolated per run. |
 
 ### Delay Job (`delay`)
 
@@ -126,7 +193,8 @@ jobs:
     timezone: Asia/Seoul
 ```
 
-**Configuration (common):**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `delay` |
@@ -181,7 +249,8 @@ For a single condition you can inline the fields instead of using a list:
   if_false: fail-job
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `if` |
@@ -217,7 +286,8 @@ jobs:
     component: error-handler
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `switch` |
@@ -246,7 +316,8 @@ jobs:
     component: server-b
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `random-router` |
@@ -265,7 +336,8 @@ jobs:
       active: ${jobs.load.output.records}
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `filter` |
@@ -290,7 +362,8 @@ jobs:
       output: ${result}
 ```
 
-**Configuration:**
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `for-each` |

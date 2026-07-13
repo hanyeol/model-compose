@@ -278,6 +278,7 @@ curl http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T
   "status": "interrupted",
   "interrupt": {
     "job_id": "review-step",
+    "run_id": null,
     "phase": "before",
     "message": "Please review the generated content before proceeding.",
     "metadata": { "draft": "..." }
@@ -327,7 +328,8 @@ POST /api/tasks/{task_id}/resume
 
 요청 본문 파라미터:
 - `job_id` (string, 필수): 인터럽트 응답에서 받은 job ID
-- `answer` (any, optional): 워크플로우에 전달할 답변 데이터 (JSON 또는 문자열)
+- `run_id` (string, 선택): 인터럽트 응답에서 받은 실행별 ID. `repeat_count > 1`인 `component` Job에서만 필요합니다. 이 경우 병렬로 반복 실행되는 각 인스턴스가 독립적으로 인터럽트되기 때문입니다. 그 외의 모든 경우에는 `null`을 전달하거나 생략합니다.
+- `answer` (any, 선택): 워크플로우에 전달할 답변 데이터 (JSON 또는 문자열). Job의 입력(before 단계) 또는 출력(after 단계)을 대체합니다. 생략하면 데이터가 변경되지 않은 채 유지됩니다.
 
 요청 예시:
 ```bash
@@ -335,6 +337,7 @@ curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
     "job_id": "review-step",
+    "run_id": null,
     "answer": "approved"
   }'
 ```

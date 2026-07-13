@@ -375,6 +375,11 @@ workflows:
 
 **Job Types**:
 ```yaml
+# Common fields (available on every job type)
+# - id, name, depends_on, max_run_count
+# - interrupt: { before, after }     # each: false | true | { condition, message, metadata }
+# - hook: { before, after }          # each: single hook or list of { script }
+
 # 1. Component job (default - executes component)
 - id: job1
   type: component        # Can be omitted (default)
@@ -387,6 +392,15 @@ workflows:
   interrupt:
     before: false        # true or { condition, message, metadata }
     after: false
+  hook:
+    before:              # single hook or list of hooks
+      script: |
+        async def hook(input, **kwargs):
+            return input
+    after:
+      - script: |
+          async def hook(input, output, **kwargs):
+              return output
 
 # 2. If job (conditional branching)
 - id: job2

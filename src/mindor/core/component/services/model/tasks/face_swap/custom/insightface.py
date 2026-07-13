@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.url import download_to_file
 from ..common import FaceSwapTaskService, FaceSwapTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os, shutil
+import asyncio, os
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
@@ -39,15 +39,24 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         params["detection_threshold"] = detection_threshold
         params["detection_size"]      = tuple(self.config.detection_size)
+
         return params
 
-    async def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> Face:
-        return await loop.run_in_executor(None, self._detect_primary_face, image, params)
+    def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any]) -> Face:
+        import numpy as np
+        import cv2
 
-    async def _swap(self, images: List[PILImage.Image], source_face: Face, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
-        return await loop.run_in_executor(None, self._swap_batch, images, source_face, params)
+        self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
-    def _swap_batch(self, images: List[PILImage.Image], source_face: Face, params: Dict[str, Any]) -> List[PILImage.Image]:
+        image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+        faces = self.analyzer.get(image_cv)
+
+        if not faces:
+            raise ValueError("No face detected in the source image.")
+
+        return max(faces, key=lambda face: face.det_score)
+
+    def _swap(self, images: List[PILImage.Image], source_face: Face, params: Dict[str, Any]) -> List[PILImage.Image]:
         import numpy as np
         import cv2
 
@@ -80,20 +89,6 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
             results.append(PILImage.fromarray(cv2.cvtColor(swapped, cv2.COLOR_BGR2RGB)))
 
         return results
-
-    def _detect_primary_face(self, image: PILImage.Image, params: Dict[str, Any]) -> Face:
-        import numpy as np
-        import cv2
-
-        self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
-
-        image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-        faces = self.analyzer.get(image_cv)
-
-        if not faces:
-            raise ValueError("No face detected in the source image.")
-
-        return max(faces, key=lambda face: face.det_score)
 
 class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

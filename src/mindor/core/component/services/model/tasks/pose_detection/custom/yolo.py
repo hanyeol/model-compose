@@ -28,10 +28,7 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
         self.model: YOLO = model
 
-    async def _detect(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
-        return await loop.run_in_executor(None, self._detect_batch, images, params)
-
-    def _detect_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
 
         predictions = self.model.predict(

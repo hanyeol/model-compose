@@ -22,7 +22,7 @@ class VectorProcessorAction:
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        result = await asyncio.to_thread(self._process, self.config.method, params)
+        result = self._process(self.config.method, params)
 
         context.register_source("result", result)
 

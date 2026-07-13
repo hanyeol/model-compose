@@ -32,7 +32,7 @@ class FaceEmbeddingTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._embed(batch_images, params, loop)
+                    batch_results = self._embed(batch_images, params)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class FaceEmbeddingTaskAction:
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._embed(batch_images, params, loop)
+                batch_results = self._embed(batch_images, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -60,7 +60,7 @@ class FaceEmbeddingTaskAction:
         }
 
     @abstractmethod
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
+    def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
         pass
 
 class FaceEmbeddingTaskService(ModelTaskService):

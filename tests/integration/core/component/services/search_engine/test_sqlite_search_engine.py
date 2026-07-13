@@ -1,5 +1,6 @@
 """Integration tests for the SQLite search-engine driver against a real SQLite FTS5 database."""
 
+import asyncio
 import os
 import sqlite3
 
@@ -53,7 +54,7 @@ async def _run_action(action_config, path: str, context):
         raise FileNotFoundError(f"Search engine database does not exist: {path}. Run an 'index' action first to create the database.")
     database = _connect(path)
     try:
-        return await SQLiteSearchEngineAction(action_config).run(database, context)
+        return await SQLiteSearchEngineAction(action_config).run(context, asyncio.get_running_loop(), database)
     finally:
         database.close()
 

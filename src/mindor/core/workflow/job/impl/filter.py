@@ -1,7 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import FilterJobConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 
@@ -13,22 +16,41 @@ class FilterJob(Job):
         super().__init__(id, config, global_configs)
 
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input = await context.render_variable(None, self.config.input)
+        input     = await context.render_variable(None, self.config.input)
+        streaming = await context.render_variable(None, self.config.streaming)
 
-        if not isinstance(input, list):
-            raise TypeError(f"filter job '{self.id}' expects a list input, got {type(input).__name__}")
+        is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${output[]}"
 
-        if self.config.where is not None:
-            output: List[Any] = [ item for item in input if await self._matches(context, item) ]
+        if isinstance(input, (StreamIterator, AsyncIterator)) or (streaming and not is_single_input):
+            async def _stream_output_generator(source=input):
+                index = 0
+                async for batch_items in BatchSourceIterator(source, batch_size=1):
+                    for item in batch_items:
+                        if self.config.where is None or await self._matches(context, item, index):
+                            context.register_source(self.id, "output[]", item)
+                            yield (await context.render_variable(self.id, self.config.output)) if not is_direct_output else item
+                        index += 1
+
+            return StreamChunkIterator(_stream_output_generator(), is_fragmented=False)
         else:
-            output = list(input)
+            results: List[Any] = []
+            index = 0
+            async for batch_items in BatchSourceIterator(input, batch_size=1):
+                for item in batch_items:
+                    if self.config.where is None or await self._matches(context, item, index):
+                        context.register_source(self.id, "output[]", item)
+                        results.append((await context.render_variable(self.id, self.config.output)) if not is_direct_output else item)
+                    index += 1
 
-        context.register_source(None, "output", output)
+            output = results[0] if is_single_input else results
+            context.register_source(None, "output", output)
 
-        return (await context.render_variable(None, self.config.output)) if self.config.output else output
+            return output
 
-    async def _matches(self, context: JobContext, item: Any) -> bool:
+    async def _matches(self, context: JobContext, item: Any, index: int) -> bool:
         context.register_source(self.id, "item", item)
+        context.register_source(self.id, "index", index)
 
         input = await context.render_variable(self.id, self.config.where.input)
         value = await context.render_variable(self.id, self.config.where.value)

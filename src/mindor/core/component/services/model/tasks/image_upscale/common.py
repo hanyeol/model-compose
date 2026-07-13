@@ -37,8 +37,8 @@ class ImageUpscaleTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_images = [ self._normalize_image(img, params["color_format"]) for img in batch_images ]
-                    batch_results = await self._upscale(batch_images, params, loop)
+                    batch_images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
+                    batch_results = self._upscale(batch_images, params)
                     for result in batch_results:
                         yield result
 
@@ -46,8 +46,8 @@ class ImageUpscaleTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_images = [ self._normalize_image(img, params["color_format"]) for img in batch_images ]
-                batch_results = await self._upscale(batch_images, params, loop)
+                batch_images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
+                batch_results = self._upscale(batch_images, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -84,7 +84,7 @@ class ImageUpscaleTaskAction:
         return image.resize(downsample_size, resample)
 
     @abstractmethod
-    async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
+    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
 class ImageUpscaleTaskService(ModelTaskService):

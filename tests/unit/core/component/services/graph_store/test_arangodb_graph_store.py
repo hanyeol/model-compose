@@ -1,5 +1,7 @@
 """Unit tests for ArangoDB graph store action execution with mocked drivers."""
 
+import asyncio
+
 import pytest
 from pydantic import TypeAdapter
 
@@ -76,7 +78,7 @@ class TestArangoDBQueryAction:
             "query": "FOR p IN persons RETURN p",
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         mock_db.aql.execute.assert_called_once_with(
             "FOR p IN persons RETURN p", bind_vars={}
@@ -96,7 +98,7 @@ class TestArangoDBQueryAction:
             "params": {"name": "Alice"},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        await action.run(mock_context)
+        await action.run(mock_context, asyncio.get_running_loop())
 
         mock_db.aql.execute.assert_called_once_with(
             "FOR p IN persons FILTER p.name == @name RETURN p",
@@ -115,7 +117,7 @@ class TestArangoDBQueryAction:
             "output": "${result[0]}",
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        await action.run(mock_context)
+        await action.run(mock_context, asyncio.get_running_loop())
 
         mock_context.render_variable.assert_any_call("${result[0]}")
 
@@ -136,7 +138,7 @@ class TestArangoDBInsertAction:
             "nodes": {"label": "persons", "properties": {"name": "Alice", "age": 30}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["created_nodes"] == 1
         assert result["created_relationships"] == 0
@@ -161,7 +163,7 @@ class TestArangoDBInsertAction:
             ],
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["created_nodes"] == 2
         assert result["ids"] == ["persons/1", "persons/2"]
@@ -185,7 +187,7 @@ class TestArangoDBInsertAction:
             },
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["created_relationships"] == 1
         assert result["created_nodes"] == 0
@@ -207,7 +209,7 @@ class TestArangoDBInsertAction:
             "nodes": {"label": "persons", "id": "alice", "properties": {"name": "Alice"}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        await action.run(mock_context)
+        await action.run(mock_context, asyncio.get_running_loop())
 
         insert_call = mock_collection.insert.call_args[0][0]
         assert insert_call["_key"] == "alice"
@@ -226,7 +228,7 @@ class TestArangoDBInsertAction:
             "nodes": {"label": "new_collection", "properties": {"name": "Alice"}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        await action.run(mock_context)
+        await action.run(mock_context, asyncio.get_running_loop())
 
         mock_db.create_collection.assert_called_once_with("new_collection")
 
@@ -246,7 +248,7 @@ class TestArangoDBUpdateAction:
             "properties": {"age": 31},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 1
         mock_db.collection.assert_called_with("persons")
@@ -267,7 +269,7 @@ class TestArangoDBUpdateAction:
             "properties": {"age": 31},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 1
         mock_db.collection.assert_called_with("persons")
@@ -285,7 +287,7 @@ class TestArangoDBUpdateAction:
             "properties": {"status": "active"},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 2
         assert mock_collection.update.call_count == 2
@@ -305,7 +307,7 @@ class TestArangoDBDeleteAction:
             "node_id": "persons/12345",
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 1
         mock_db.collection.assert_called_with("persons")
@@ -323,7 +325,7 @@ class TestArangoDBDeleteAction:
             "node_id": ["12345", "67890"],
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 2
         assert mock_collection.delete.call_count == 2
@@ -339,7 +341,7 @@ class TestArangoDBDeleteAction:
             "relationship_id": "friendships/abc123",
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         assert result["affected_rows"] == 1
         mock_db.collection.assert_called_with("friendships")
@@ -370,7 +372,7 @@ class TestArangoDBTraverseAction:
             "max_depth": 2,
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         mock_db.graph.assert_called_once_with("social_graph")
         mock_graph.traverse.assert_called_once_with(
@@ -397,7 +399,7 @@ class TestArangoDBTraverseAction:
             "max_depth": 3,
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
-        result = await action.run(mock_context)
+        result = await action.run(mock_context, asyncio.get_running_loop())
 
         mock_db.aql.execute.assert_called_once()
         aql = mock_db.aql.execute.call_args[0][0]
@@ -421,7 +423,7 @@ class TestArangoDBTraverseAction:
                 "direction": input_dir,
             })
             action = ArangoDBGraphStoreAction(config, mock_db)
-            await action.run(mock_context)
+            await action.run(mock_context, asyncio.get_running_loop())
 
             call_kwargs = mock_graph.traverse.call_args[1]
             assert call_kwargs["direction"] == expected_dir, (

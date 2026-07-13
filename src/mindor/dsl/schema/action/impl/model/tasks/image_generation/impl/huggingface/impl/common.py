@@ -1,6 +1,6 @@
 from typing import Union, Optional
 from pydantic import BaseModel, Field
-from ...common import CommonImageGenerationModelActionConfig
+from ...common import CommonImageGenerationModelActionConfig, CommonImageGenerationModelInpaintActionConfig
 
 class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     num_inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps.")
@@ -9,5 +9,11 @@ class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     num_images_per_prompt: Union[int, str] = Field(default=1, description="Number of images to generate per prompt.")
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for deterministic generation.")
 
+class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
+    strength: Union[float, str] = Field(default=1.0, description="How much noise to add to the input image (0.0 keeps original, 1.0 fully replaces the masked region).")
+
 class CommonHuggingfaceImageGenerationModelActionConfig(CommonImageGenerationModelActionConfig):
     params: CommonHuggingfaceImageGenerationParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationParamsConfig, description="Image generation configuration parameters.")
+
+class CommonHuggingfaceImageGenerationModelInpaintActionConfig(CommonImageGenerationModelInpaintActionConfig):
+    params: CommonHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting configuration parameters.")

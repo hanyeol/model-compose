@@ -6,9 +6,9 @@ from abc import abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
-from mindor.dsl.schema.action import QwenTextToSpeechGenerateModelActionConfig
-from mindor.dsl.schema.action import QwenTextToSpeechCloneModelActionConfig
-from mindor.dsl.schema.action import QwenTextToSpeechDesignModelActionConfig
+from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
+from mindor.dsl.schema.action import QwenTextToSpeechModelCloneActionConfig
+from mindor.dsl.schema.action import QwenTextToSpeechModelDesignActionConfig
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -49,9 +49,9 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
-        async def _synthesize(text: str) -> StreamResource:
-            samples, sample_rate = await loop.run_in_executor(None, self._synthesize, text, params)
+    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+        def _generate(text: str) -> StreamResource:
+            samples, sample_rate = self._synthesize(text, params)
             frames, channels = self._encode_samples_to_pcm16(samples[0])
 
             return PcmStreamResource(frames, {
@@ -60,7 +60,7 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
                 "bit_depth":   "16",
             })
 
-        return [ await _synthesize(text) for text in texts ]
+        return [ _generate(text) for text in texts ]
 
     def _resolve_language(self, language: Optional[str]) -> Optional[str]:
         return _QWEN_LANGUAGE_MAP.get(language.split("-")[0])
@@ -70,9 +70,9 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         pass
 
 class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
-    config: QwenTextToSpeechGenerateModelActionConfig
+    config: QwenTextToSpeechModelGenerateActionConfig
 
-    def __init__(self, config: QwenTextToSpeechGenerateModelActionConfig, model: Any, device: Optional[torch.device]):
+    def __init__(self, config: QwenTextToSpeechModelGenerateActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -95,9 +95,9 @@ class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
         )
 
 class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
-    config: QwenTextToSpeechCloneModelActionConfig
+    config: QwenTextToSpeechModelCloneActionConfig
 
-    def __init__(self, config: QwenTextToSpeechCloneModelActionConfig, model: Any, device: Optional[torch.device]):
+    def __init__(self, config: QwenTextToSpeechModelCloneActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -120,9 +120,9 @@ class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
         )
 
 class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):
-    config: QwenTextToSpeechDesignModelActionConfig
+    config: QwenTextToSpeechModelDesignActionConfig
 
-    def __init__(self, config: QwenTextToSpeechDesignModelActionConfig, model: Any, device: Optional[torch.device]):
+    def __init__(self, config: QwenTextToSpeechModelDesignActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -179,12 +179,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
 
         return model, device
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
             return await QwenTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context, loop)
 

@@ -32,7 +32,7 @@ class TextToSpeechTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_texts, params, loop)
+                    batch_results = self._generate(batch_texts, params)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class TextToSpeechTaskAction:
         else:
             results: List[StreamResource] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_texts, params, loop)
+                batch_results = self._generate(batch_texts, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -52,7 +52,7 @@ class TextToSpeechTaskAction:
         return {}
 
     @abstractmethod
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
+    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
         pass
 
     def _encode_samples_to_pcm16(self, samples: Union[torch.Tensor, np.typing.ArrayLike]) -> Tuple[bytes, int]:

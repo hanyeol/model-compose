@@ -44,10 +44,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
-        return await loop.run_in_executor(None, self._upscale_batch, images, params)
-
-    def _upscale_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         import torch
 
         downsample_method = params["downsample_method"]
@@ -133,10 +130,5 @@ class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return params
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await LdsrImageUpscaleTaskAction(action, self.pipeline, self.device).run(context, loop)

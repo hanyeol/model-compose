@@ -28,7 +28,7 @@ class ImageProcessorAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_images, self.config.method, params, loop)
+                    batch_results = self._process_batch(batch_images, self.config.method, params)
                     for result in batch_results:
                         yield result
 
@@ -36,7 +36,7 @@ class ImageProcessorAction:
         else:
             results = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_images, self.config.method, params, loop)
+                batch_results = self._process_batch(batch_images, self.config.method, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -195,16 +195,13 @@ class ImageProcessorAction:
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
-    async def _process_batch(
+    def _process_batch(
         self,
         images: Union[List[PILImage.Image], List[List[PILImage.Image]]],
         method: ImageProcessorActionMethod,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
     ) -> List[Optional[PILImage.Image]]:
-        return await asyncio.gather(*[
-            asyncio.to_thread(self._process, image, method, params) for image in images
-        ])
+        return [ self._process(image, method, params) for image in images ]
 
     def _process(self, image: Union[PILImage.Image, List[PILImage.Image]], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
         if image is None or (isinstance(image, list) and not image):

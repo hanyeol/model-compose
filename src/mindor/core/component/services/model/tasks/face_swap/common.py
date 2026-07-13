@@ -27,12 +27,12 @@ class FaceSwapTaskAction:
         is_single_input  = not isinstance(target_image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        source_face = await self._prepare_source_face(source_image, params, loop)
+        source_face = self._prepare_source_face(source_image, params)
 
         if isinstance(target_image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(target_image, batch_size=batch_size or 1):
-                    batch_results = await self._swap(batch_images, source_face, params, loop)
+                    batch_results = self._swap(batch_images, source_face, params)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class FaceSwapTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(target_image, batch_size=batch_size or 1):
-                batch_results = await self._swap(batch_images, source_face, params, loop)
+                batch_results = self._swap(batch_images, source_face, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -61,11 +61,11 @@ class FaceSwapTaskAction:
         }
 
     @abstractmethod
-    async def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> Any:
+    def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any]) -> Any:
         pass
 
     @abstractmethod
-    async def _swap(self, images: List[PILImage.Image], source_face: Any, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
+    def _swap(self, images: List[PILImage.Image], source_face: Any, params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
 class FaceSwapTaskService(ModelTaskService):

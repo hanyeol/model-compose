@@ -121,11 +121,11 @@ class AudioFeatureExtractorAction:
 
     async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
-        return await loop.run_in_executor(None, self._compute_spectrum, samples, params)
+        return self._compute_spectrum(samples, params)
 
     async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
-        return await loop.run_in_executor(None, self._compute_waveform, samples, params)
+        return self._compute_waveform(samples, params)
 
     def _compute_spectrum(self, samples: np.ndarray, params: Dict[str, Any]) -> dict:
         import numpy as np

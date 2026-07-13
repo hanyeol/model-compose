@@ -4,13 +4,14 @@ from typing import Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import GraphStoreActionConfig, GraphStoreActionMethod
 from ..base import ComponentActionContext
+import asyncio
 
 class GraphStoreAction:
     def __init__(self, config: GraphStoreActionConfig, database: Any):
         self.config: GraphStoreActionConfig = config
         self.database: Any = database
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 

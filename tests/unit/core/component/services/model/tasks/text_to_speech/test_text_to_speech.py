@@ -29,7 +29,7 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_to_speech.common import TextToSpeechTaskAction
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
-from mindor.dsl.schema.action import QwenTextToSpeechGenerateModelActionConfig
+from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
 
 
 @pytest.fixture
@@ -44,12 +44,12 @@ class _FakeTextToSpeechAction(TextToSpeechTaskAction):
     input (so we can correlate output StreamResources with the input texts).
     """
 
-    def __init__(self, config: QwenTextToSpeechGenerateModelActionConfig):
+    def __init__(self, config: QwenTextToSpeechModelGenerateActionConfig):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
+    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         return [ BytesStreamResource(t.encode("utf-8"), content_type="audio/pcm") for t in texts ]
@@ -66,7 +66,7 @@ def _make_config(
     *,
     output: Any = None,
     batch_size: int = 2,
-) -> QwenTextToSpeechGenerateModelActionConfig:
+) -> QwenTextToSpeechModelGenerateActionConfig:
     raw: dict = {
         "method":     "generate",
         "text":       text_expr,
@@ -74,7 +74,7 @@ def _make_config(
     }
     if output is not None:
         raw["output"] = output
-    return QwenTextToSpeechGenerateModelActionConfig.model_validate(raw)
+    return QwenTextToSpeechModelGenerateActionConfig.model_validate(raw)
 
 
 async def _make_async_iter(items: List[str]) -> AsyncIterator[str]:

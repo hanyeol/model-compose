@@ -31,10 +31,7 @@ class ModelTaskService(AsyncService):
                 if not self._model_loaded:
                     await self._load_model_on_demand()
 
-        async def _run():
-            return await self._run(action, context, asyncio.get_running_loop())
-
-        return await self.run_in_thread(_run)
+        return await self.run_in_thread(self._run, action, context, asyncio.get_running_loop())
 
     async def _start(self) -> None:
         if self.config.preload:
@@ -65,12 +62,7 @@ class ModelTaskService(AsyncService):
         pass
 
     @abstractmethod
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         pass
 
     def _get_model_path(self) -> str:

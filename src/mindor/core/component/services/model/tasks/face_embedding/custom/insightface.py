@@ -32,10 +32,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         return params
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
-        return await loop.run_in_executor(None, self._embed_batch, images, params)
-
-    def _embed_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
         import cv2
 
@@ -177,10 +174,5 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _get_device_id(self) -> int:
         return 0
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context, loop)

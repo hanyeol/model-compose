@@ -63,7 +63,7 @@ class AsyncService(ABC):
         if self.daemon_task:
             await self.daemon_task
 
-    def run_in_thread(self, runner: Callable[[], Awaitable[Any]]) -> asyncio.Future:
+    def run_in_thread(self, runner: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> asyncio.Future:
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
 
@@ -73,12 +73,15 @@ class AsyncService(ABC):
 
             async def _run_and_set_result():
                 try:
-                    result = await runner()
+                    result = await runner(*args, **kwargs)
                     loop.call_soon_threadsafe(future.set_result, result)
                 except Exception as e:
                     loop.call_soon_threadsafe(future.set_exception, e)
 
-            thread_loop.run_until_complete(_run_and_set_result())
+            try:
+                thread_loop.run_until_complete(_run_and_set_result())
+            finally:
+                thread_loop.close()
 
         thread = Thread(target=_start_in_thread)
         thread.start()

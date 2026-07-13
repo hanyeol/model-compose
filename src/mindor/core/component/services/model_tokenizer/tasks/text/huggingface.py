@@ -10,7 +10,6 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
 from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext
-import asyncio
 
 class HuggingfaceTextModelTokenizerTaskAction:
     def __init__(self, config: ModelTokenizerActionConfig, tokenizer: Any):
@@ -29,7 +28,7 @@ class HuggingfaceTextModelTokenizerTaskAction:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
-                    batch_results = await self._process(self.config.method, batch_inputs, params)
+                    batch_results = self._process(self.config.method, batch_inputs, params)
                     for result in batch_results:
                         yield result
 
@@ -37,7 +36,7 @@ class HuggingfaceTextModelTokenizerTaskAction:
         else:
             results: List[Any] = []
             async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
-                batch_results = await self._process(self.config.method, batch_inputs, params)
+                batch_results = self._process(self.config.method, batch_inputs, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -95,15 +94,15 @@ class HuggingfaceTextModelTokenizerTaskAction:
 
         raise ValueError(f"Unsupported tokenizer method: {method}")
 
-    async def _process(self, method: ModelTokenizerMethod, inputs: List[Any], params: Dict[str, Any]) -> List[Any]:
+    def _process(self, method: ModelTokenizerMethod, inputs: List[Any], params: Dict[str, Any]) -> List[Any]:
         if method == ModelTokenizerMethod.ENCODE:
-            return await asyncio.to_thread(self._encode, inputs, params)
+            return self._encode(inputs, params)
 
         if method == ModelTokenizerMethod.DECODE:
-            return await asyncio.to_thread(self._decode, inputs, params)
+            return self._decode(inputs, params)
 
         if method == ModelTokenizerMethod.COUNT:
-            return await asyncio.to_thread(self._count, inputs, params)
+            return self._count(inputs, params)
 
         raise ValueError(f"Unsupported tokenizer method: {method}")
 

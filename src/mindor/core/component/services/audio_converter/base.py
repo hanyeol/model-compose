@@ -17,8 +17,7 @@ class AudioConverterService(AsyncService):
         return None
 
     async def run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        return await self._run(action, context, loop)
+        return await self._run(action, context, asyncio.get_running_loop())
 
     @abstractmethod
     async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:

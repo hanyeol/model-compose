@@ -112,7 +112,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> Tuple[List[int], float]:
         import numpy as np
 
-        predictions = await asyncio.to_thread(self._predict, input_path)
+        predictions = self._predict(input_path)
         frame_rate  = await self._get_frame_rate(input_path)
 
         start_frame = int(start_time * frame_rate) if start_time is not None else 0

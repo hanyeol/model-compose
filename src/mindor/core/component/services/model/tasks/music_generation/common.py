@@ -31,7 +31,7 @@ class MusicGenerationTaskAction:
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts, batch_lyrics in BatchSourceIterator((prompt, lyrics), batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_prompts, batch_lyrics, params, loop)
+                    batch_results = self._generate(batch_prompts, batch_lyrics, params)
                     for result in batch_results:
                         yield result
 
@@ -39,7 +39,7 @@ class MusicGenerationTaskAction:
         else:
             results: List[Any] = []
             async for batch_prompts, batch_lyrics in BatchSourceIterator((prompt, lyrics), batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_prompts, batch_lyrics, params, loop)
+                batch_results = self._generate(batch_prompts, batch_lyrics, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -59,7 +59,7 @@ class MusicGenerationTaskAction:
         }
 
     @abstractmethod
-    async def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Any]:
+    def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
         pass
 
     def _encode_samples_to_pcm16(self, samples: Union[torch.Tensor, np.typing.ArrayLike]) -> Tuple[bytes, int]:

@@ -103,12 +103,17 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             )
 
             def _run():
-                with torch.inference_mode():
-                    self.model.generate(
-                        **input_features,
-                        **params["generation"],
-                        streamer=streamer
-                    )
+                try:
+                    with torch.inference_mode():
+                        self.model.generate(
+                            **input_features,
+                            **params["generation"],
+                            streamer=streamer
+                        )
+                except BaseException:
+                    logging.exception("Whisper streaming generate failed")
+                finally:
+                    streamer.end()
 
             Thread(target=_run, daemon=True).start()
 

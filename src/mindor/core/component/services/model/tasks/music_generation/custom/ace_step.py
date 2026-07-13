@@ -31,10 +31,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         return params
 
-    async def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Any]:
-        return await loop.run_in_executor(None, self._generate_batch, prompts, lyrics, params)
-
-    def _generate_batch(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
+    def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
         from acestep.inference import generate_music, GenerationParams, GenerationConfig
 
         generation_config = GenerationConfig(
@@ -117,10 +114,5 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
 
         return handler
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await AceStepMusicGenerationTaskAction(action, self.handler).run(context, loop)

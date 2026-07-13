@@ -49,10 +49,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    async def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
-        return await loop.run_in_executor(None, self._upscale_batch, images, params)
-
-    def _upscale_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         import torch
         import numpy as np
 
@@ -195,10 +192,5 @@ class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return params
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await SwinIRImageUpscaleTaskAction(action, self.model, self.device).run(context, loop)

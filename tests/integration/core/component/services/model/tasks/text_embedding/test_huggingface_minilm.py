@@ -98,7 +98,11 @@ def _make_context(text_value: Any) -> ComponentActionContext:
             return value.model_dump()
         return value
 
+    async def render_text(value, **kwargs):
+        return text_value() if callable(text_value) and not isinstance(text_value, str) else text_value
+
     ctx.render_variable = AsyncMock(side_effect=render_variable)
+    ctx.render_text = AsyncMock(side_effect=render_text)
     return ctx
 
 

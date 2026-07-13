@@ -8,11 +8,8 @@ from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
 from .utils.chrome import VideoRecorder, PageAdapter
 from PIL import Image as PILImage
-import asyncio
-import base64
-import io
-import json
-
+import asyncio, io
+import base64, json
 
 class CdpPageAdapter(PageAdapter):
     """Reproduces the PageAdapter surface on top of a raw CDP client.
@@ -26,30 +23,29 @@ class CdpPageAdapter(PageAdapter):
       expression, so we wrap it in an IIFE with the JSON-encoded argument
       inlined.
     """
-
     def __init__(self, client: CdpClient):
-        self._client = client
+        self.client = client
+
         self._runtime_enabled = False
         self._page_enabled = False
 
     async def navigate(self, url: str) -> None:
         if not self._page_enabled:
-            await self._client.send_command("Page.enable")
+            await self.client.send_command("Page.enable")
             self._page_enabled = True
 
-        loop = asyncio.get_running_loop()
-        loaded: asyncio.Future = loop.create_future()
+        loaded: asyncio.Future = asyncio.get_running_loop().create_future()
 
         async def _on_load(_params):
             if not loaded.done():
                 loaded.set_result(True)
 
-        self._client.on_event("Page.loadEventFired", _on_load)
+        self.client.on_event("Page.loadEventFired", _on_load)
         try:
-            await self._client.send_command("Page.navigate", { "url": url })
+            await self.client.send_command("Page.navigate", { "url": url })
             await loaded
         finally:
-            self._client.remove_event_listener("Page.loadEventFired", _on_load)
+            self.client.remove_event_listener("Page.loadEventFired", _on_load)
 
     async def expose_binding(
         self,
@@ -57,10 +53,10 @@ class CdpPageAdapter(PageAdapter):
         callback: Callable[..., Awaitable[None]],
     ) -> None:
         if not self._runtime_enabled:
-            await self._client.send_command("Runtime.enable")
+            await self.client.send_command("Runtime.enable")
             self._runtime_enabled = True
 
-        await self._client.send_command("Runtime.addBinding", { "name": name })
+        await self.client.send_command("Runtime.addBinding", { "name": name })
 
         async def _on_binding(params: Dict[str, Any]) -> None:
             if params.get("name") != name:
@@ -71,7 +67,7 @@ class CdpPageAdapter(PageAdapter):
                 arg = params.get("payload")
             await callback(None, arg)
 
-        self._client.on_event("Runtime.bindingCalled", _on_binding)
+        self.client.on_event("Runtime.bindingCalled", _on_binding)
 
     async def evaluate(self, expression: str, arg: Any = None) -> Any:
         if arg is None:
@@ -79,7 +75,7 @@ class CdpPageAdapter(PageAdapter):
         else:
             wrapped = f"({expression})({json.dumps(arg)})"
 
-        result = await self._client.send_command("Runtime.evaluate", {
+        result = await self.client.send_command("Runtime.evaluate", {
             "expression": wrapped,
             "returnByValue": True,
             "awaitPromise": True,
@@ -113,8 +109,7 @@ class ChromeBrowserSession(WebBrowserSession):
         }.get(wait_until)
 
         if event:
-            loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-            nav_done: asyncio.Future = loop.create_future()
+            nav_done: asyncio.Future = asyncio.get_running_loop().create_future()
 
             async def _on_event(params):
                 if not nav_done.done():

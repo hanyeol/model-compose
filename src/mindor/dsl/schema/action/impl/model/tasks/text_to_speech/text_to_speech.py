@@ -4,9 +4,9 @@ from .impl import *
 
 TextToSpeechModelActionConfig = Annotated[
     Union[
-        QwenTextToSpeechGenerateModelActionConfig,
-        QwenTextToSpeechCloneModelActionConfig,
-        QwenTextToSpeechDesignModelActionConfig,
+        QwenTextToSpeechModelGenerateActionConfig,
+        QwenTextToSpeechModelCloneActionConfig,
+        QwenTextToSpeechModelDesignActionConfig,
     ],
     Field(discriminator="method")
 ]

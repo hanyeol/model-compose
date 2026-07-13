@@ -4,12 +4,13 @@ from typing import Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineActionMethod
 from ..base import ComponentActionContext
+import asyncio
 
 class SearchEngineAction:
     def __init__(self, config: SearchEngineActionConfig):
         self.config: SearchEngineActionConfig = config
 
-    async def run(self, database: Any, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop, database: Any) -> Any:
         result = await self._dispatch(self.config.method, database, context)
         context.register_source("result", result)
 

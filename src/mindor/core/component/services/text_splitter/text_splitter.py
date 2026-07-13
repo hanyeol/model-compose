@@ -370,5 +370,4 @@ class TextSplitterComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        return await TextSplitterAction(action).run(context, loop)
+        return await self.run_in_thread(TextSplitterAction(action).run, context, asyncio.get_running_loop())

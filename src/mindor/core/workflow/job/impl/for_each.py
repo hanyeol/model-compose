@@ -34,17 +34,16 @@ class ForEachJob(Job):
                     for result in batch_results:
                         yield result
 
-            output = _stream_output_generator()
+            return _stream_output_generator()
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
                 results.extend(await self._run_batch(batch_items, component, context))
 
             output = results[0] if is_single_input else results
+            context.register_source(None, "output", output)
 
-        context.register_source(None, "output", output)
-
-        return (await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
+            return (await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)) if self.config.output else output
 
     async def _run_batch(self, batch_items: List[Any], component: ComponentService, context: JobContext) -> List[Any]:
         return await asyncio.gather(*[ self._run(item, component, context) for item in batch_items ])

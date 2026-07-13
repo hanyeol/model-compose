@@ -9,7 +9,7 @@ from mindor.core.foundation.variable.time import parse_duration
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
-import ulid
+import asyncio, ulid
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient
@@ -225,10 +225,7 @@ class ChromaVectorStoreService(VectorStoreService):
             self.client = None
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
-        async def _run():
-            return await ChromaVectorStoreAction(action, self.client).run(context)
-
-        return await self.run_in_thread(_run)
+        return await self.run_in_thread(ChromaVectorStoreAction(action, self.client).run, context, asyncio.get_running_loop())
 
     def _create_client(self) -> ChromaClient:
         if self.config.mode == "server":

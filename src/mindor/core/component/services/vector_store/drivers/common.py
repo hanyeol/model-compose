@@ -4,13 +4,14 @@ from typing import Union, Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from ..base import ComponentActionContext
+import asyncio
 
 class VectorStoreAction:
     def __init__(self, config: VectorStoreActionConfig, client: Any):
         self.config: VectorStoreActionConfig = config
         self.client: Any = client
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 

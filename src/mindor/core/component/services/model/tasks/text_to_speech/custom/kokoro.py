@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
-from mindor.dsl.schema.action import KokoroTextToSpeechGenerateModelActionConfig
+from mindor.dsl.schema.action import KokoroTextToSpeechModelGenerateActionConfig
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from ......base import ComponentActionContext
@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     import torch
 
 class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
-    config: KokoroTextToSpeechGenerateModelActionConfig
+    config: KokoroTextToSpeechModelGenerateActionConfig
 
-    def __init__(self, config: KokoroTextToSpeechGenerateModelActionConfig, pipeline: Any, device: Optional[torch.device]):
+    def __init__(self, config: KokoroTextToSpeechModelGenerateActionConfig, pipeline: Any, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.pipeline = pipeline
@@ -33,9 +33,9 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
-        async def _synthesize(text: str) -> StreamResource:
-            samples, sample_rate = await loop.run_in_executor(None, self._synthesize, text, params["voice"], params["speed"])
+    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+        def _generate(text: str) -> StreamResource:
+            samples, sample_rate = self._synthesize(text, params["voice"], params["speed"])
             frames, channels = self._encode_samples_to_pcm16(samples)
 
             return PcmStreamResource(frames, {
@@ -44,7 +44,7 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
                 "bit_depth":   "16",
             })
 
-        return [ await _synthesize(text) for text in texts ]
+        return [ _generate(text) for text in texts ]
 
     def _synthesize(self, text: str, voice: str, speed: float) -> Tuple[Any, int]:
         import numpy as np
@@ -83,12 +83,7 @@ class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
 
         return pipeline, device
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
             return await KokoroTextToSpeechGenerateTaskAction(action, self.pipeline, self.device).run(context, loop)
 

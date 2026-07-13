@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
-from mindor.dsl.schema.action import ChatterboxTextToSpeechGenerateModelActionConfig
-from mindor.dsl.schema.action import ChatterboxTextToSpeechCloneModelActionConfig
+from mindor.dsl.schema.action import ChatterboxTextToSpeechModelGenerateActionConfig
+from mindor.dsl.schema.action import ChatterboxTextToSpeechModelCloneActionConfig
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from ......base import ComponentActionContext
@@ -43,9 +43,9 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[StreamResource]:
-        async def _synthesize(text: str) -> StreamResource:
-            samples, sample_rate = await loop.run_in_executor(None, self._synthesize, text, params["generation"])
+    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+        def _generate(text: str) -> StreamResource:
+            samples, sample_rate = self._synthesize(text, params["generation"])
             frames, channels = self._encode_samples_to_pcm16(samples)
 
             return PcmStreamResource(frames, {
@@ -54,22 +54,22 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
                 "bit_depth":   "16",
             })
 
-        return [ await _synthesize(text) for text in texts ]
+        return [ _generate(text) for text in texts ]
 
     def _synthesize(self, text: str, generation_params: dict) -> Tuple[Any, int]:
         wav = self.model.generate(text, **generation_params)
         return wav.squeeze(0).cpu(), self.model.sr
 
 class ChatterboxTextToSpeechGenerateTaskAction(ChatterboxTextToSpeechTaskAction):
-    config: ChatterboxTextToSpeechGenerateModelActionConfig
+    config: ChatterboxTextToSpeechModelGenerateActionConfig
 
-    def __init__(self, config: ChatterboxTextToSpeechGenerateModelActionConfig, model: Any, device: Optional[torch.device]):
+    def __init__(self, config: ChatterboxTextToSpeechModelGenerateActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
 class ChatterboxTextToSpeechCloneTaskAction(ChatterboxTextToSpeechTaskAction):
-    config: ChatterboxTextToSpeechCloneModelActionConfig
+    config: ChatterboxTextToSpeechModelCloneActionConfig
 
-    def __init__(self, config: ChatterboxTextToSpeechCloneModelActionConfig, model: Any, device: Optional[torch.device]):
+    def __init__(self, config: ChatterboxTextToSpeechModelCloneActionConfig, model: Any, device: Optional[torch.device]):
         super().__init__(config, model, device)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -107,12 +107,7 @@ class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
 
         return model, device
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
             return await ChatterboxTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context, loop)
 

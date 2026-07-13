@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Tuple, Any
+from typing import Type, Generic, TypeVar, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.core.logger import logging
 from ..common import ModelTaskService
@@ -10,37 +10,49 @@ if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
     import torch
 
-class HuggingfaceDiffusionPipelineTaskService(ModelTaskService):
+TMethod = TypeVar("TMethod")
+
+class HuggingfaceDiffusionPipelineTaskService(ModelTaskService, Generic[TMethod]):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.pipeline: Optional[DiffusionPipeline] = None
+        self.pipelines: Optional[Dict[TMethod, DiffusionPipeline]] = None
         self.device: Optional[torch.device] = None
 
     async def _load_model(self) -> None:
-        self.pipeline, self.device = self._load_pretrained_pipeline()
+        methods = list({ action.method for action in self.config.actions })
+        self.pipelines, self.device = self._load_pretrained_pipelines(methods)
 
     async def _unload_model(self) -> None:
-        self.pipeline = None
+        self.pipelines = None
         self.device = None
 
-    def _load_pretrained_pipeline(self) -> Tuple[DiffusionPipeline, torch.device]:
-        pipeline_cls = self._get_pipeline_class()
-
+    def _load_pretrained_pipelines(self, methods: List[TMethod]) -> Tuple[Dict[TMethod, DiffusionPipeline], torch.device]:
         device = self._resolve_device()
 
         params = self._get_pipeline_params()
         params["torch_dtype"] = self._get_pipeline_dtype(device)
 
         source = self._get_pipeline_source()
-        logging.info(f"Component '{self.id}': loading {pipeline_cls.__name__} from {source}")
 
-        pipeline = pipeline_cls.from_pretrained(source, **params)
-        pipeline = pipeline.to(device)
+        base_pipeline_cls = self._get_pipeline_class(None)
+        logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {source}")
+        base_pipeline = base_pipeline_cls.from_pretrained(source, **params).to(device)
 
-        return pipeline, device
+        pipelines: Dict[TMethod, DiffusionPipeline] = {}
 
-    def _get_pipeline_class(self) -> Type[DiffusionPipeline]:
+        for method in methods:
+            pipeline_cls = self._get_pipeline_class(method)
+
+            if pipeline_cls is base_pipeline_cls:
+                pipelines[method] = base_pipeline
+            else:
+                logging.info(f"Component '{self.id}': deriving {pipeline_cls.__name__} from {base_pipeline_cls.__name__}")
+                pipelines[method] = pipeline_cls.from_pipe(base_pipeline)
+
+        return pipelines, device
+
+    def _get_pipeline_class(self, method: Optional[TMethod]) -> Type[DiffusionPipeline]:
         raise NotImplementedError("Pipeline class loader not implemented.")
 
     def _get_pipeline_source(self) -> str:

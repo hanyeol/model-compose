@@ -48,7 +48,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         cleanup: Callable[[], None],
     ) -> Dict[str, Any]:
         try:
-            scenes = await asyncio.to_thread(self._detect_scenes, input_path, detector, threshold, start_time, end_time)
+            scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
 
             return {
                 "scenes": [
@@ -77,7 +77,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         cleanup: Callable[[], None],
     ) -> AsyncIterator[Dict[str, Any]]:
         try:
-            scenes = await asyncio.to_thread(self._detect_scenes, input_path, detector, threshold, start_time, end_time)
+            scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
 
             for i, (start, end) in enumerate(scenes):
                 yield {

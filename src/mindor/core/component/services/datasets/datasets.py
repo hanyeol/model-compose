@@ -7,6 +7,7 @@ from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, reg
 from ...context import ComponentActionContext
 from .providers import HuggingfaceDatasetsProvider, LocalDatasetsProvider
 from .utils import format_template_example
+import asyncio
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -15,7 +16,7 @@ class DatasetsAction:
     def __init__(self, config: DatasetsActionConfig):
         self.config: DatasetsActionConfig = config
 
-    async def run(self, context: ComponentActionContext) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 
@@ -133,7 +134,4 @@ class DatasetsComponent(ComponentService):
         return [ "datasets" ]
 
     async def _run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:
-        async def _run():
-            return await DatasetsAction(action).run(context)
-
-        return await self.run_in_thread(_run)
+        return await self.run_in_thread(DatasetsAction(action).run, context, asyncio.get_running_loop())

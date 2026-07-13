@@ -304,7 +304,7 @@ async def test_blob_cleanup_after_normal_dispatch(redis_available, queue_name):
         )
 
         # Subscriber consumed the blob via GETDEL — should be gone immediately.
-        remaining = await _blob_keys(dispatcher._client, queue_name)
+        remaining = await _blob_keys(dispatcher.client, queue_name)
         assert remaining == []
     finally:
         await _stop_subscriber(subscriber)
@@ -334,7 +334,7 @@ async def test_dispatcher_cleanup_on_serialize_failure(redis_available, queue_na
             )
 
         # No blob keys should be lingering in Redis.
-        remaining = await _blob_keys(dispatcher._client, queue_name)
+        remaining = await _blob_keys(dispatcher.client, queue_name)
         assert remaining == []
     finally:
         await dispatcher._stop()
@@ -359,7 +359,7 @@ async def test_dispatch_timeout_when_subscriber_absent(redis_available, queue_na
 
         # blob_ttl defaults to 3600s, so the (binary-less) message-only dispatch
         # leaves no blob keys; just verify cleanly.
-        remaining = await _blob_keys(dispatcher._client, queue_name)
+        remaining = await _blob_keys(dispatcher.client, queue_name)
         assert remaining == []
     finally:
         await dispatcher._stop()

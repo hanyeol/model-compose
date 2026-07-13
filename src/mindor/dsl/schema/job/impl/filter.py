@@ -10,5 +10,6 @@ class FilterJobConditionConfig(BaseModel):
 
 class FilterJobConfig(OutputJobConfig):
     type: Literal[JobType.FILTER]
-    input: Any = Field(..., description="Source list to filter. Each element is exposed as `${item}` while rendering `where` and `output`.")
+    input: Any = Field(..., description="Source list or async stream to filter. Each element is exposed as `${item}` and its position as `${index}` while rendering `where` and `output`.")
     where: Optional[FilterJobConditionConfig] = Field(default=None, description="Predicate evaluated per item. If omitted, every item is kept.")
+    streaming: bool = Field(default=False, description="If true, yield surviving items as they arrive instead of materializing the full list. Automatically enabled when `input` is a stream.")

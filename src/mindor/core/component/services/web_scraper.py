@@ -363,5 +363,4 @@ class WebScraperComponent(ComponentService):
         if self._rate_limiter:
             await self._rate_limiter.acquire()
 
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context, loop)
+        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context, asyncio.get_running_loop())

@@ -14,7 +14,7 @@ import asyncio
 if TYPE_CHECKING:
     import torch
 
-class ImageGenerationTaskAction:
+class ImageGenerationGenerateTaskAction:
     def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
         self.config: ImageGenerationModelActionConfig = config
         self.device: Optional[torch.device] = device
@@ -31,7 +31,7 @@ class ImageGenerationTaskAction:
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_prompts, params, loop)
+                    batch_results = self._generate(batch_prompts, params)
                     for result in batch_results:
                         yield result
 
@@ -39,7 +39,7 @@ class ImageGenerationTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_prompts, params, loop)
+                batch_results = self._generate(batch_prompts, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -51,7 +51,51 @@ class ImageGenerationTaskAction:
         return {}
 
     @abstractmethod
-    async def _generate(self, prompts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[PILImage.Image]:
+    def _generate(self, prompts: List[str], params: Dict[str, Any]) -> List[PILImage.Image]:
+        pass
+
+class ImageGenerationInpaintTaskAction:
+    def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
+        self.config: ImageGenerationModelActionConfig = config
+        self.device: Optional[torch.device] = device
+
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        prompt     = await context.render_text(self.config.prompt)
+        image      = await context.render_image(self.config.image)
+        mask_image = await context.render_image(self.config.mask_image)
+        batch_size = await context.render_variable(self.config.batch_size)
+
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        source = (prompt, image, mask_image)
+
+        if isinstance(prompt, (StreamIterator, AsyncIterator)):
+            async def _stream_output_generator():
+                async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
+                    batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params)
+                    for result in batch_results:
+                        yield result
+
+            return _stream_output_generator()
+        else:
+            results: List[PILImage.Image] = []
+            async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
+                batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params)
+                results.extend(batch_results)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
+
+    @abstractmethod
+    def _inpaint(self, prompts: List[str], images: List[PILImage.Image], mask_images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
         pass
 
 class ImageGenerationTaskService(ModelTaskService):

@@ -8,6 +8,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.logger import logging
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
@@ -53,9 +54,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         cleanup: Callable[[], None],
     ) -> List[Dict[str, Any]]:
         try:
-            return await asyncio.to_thread(
-                lambda: list(self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, None))
-            )
+            return list(self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, None))
         finally:
             cleanup()
 
@@ -69,35 +68,15 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         loop: asyncio.AbstractEventLoop,
         cleanup: Callable[[], None],
     ) -> AsyncIterator[Dict[str, Any]]:
-        queue: asyncio.Queue = asyncio.Queue(maxsize=_FRAME_QUEUE_MAXSIZE)
         cancel_event = threading.Event()
-
-        def _produce() -> None:
-            try:
-                for frame in self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, cancel_event):
-                    asyncio.run_coroutine_threadsafe(queue.put(frame), loop).result()
-            except BaseException as e:
-                asyncio.run_coroutine_threadsafe(queue.put(e), loop).result()
-            finally:
-                asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
-
-        thread = threading.Thread(target=_produce, daemon=True)
-        thread.start()
+        generator = self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, cancel_event)
+        streamer = SyncGeneratorStreamer(generator, loop, maxsize=_FRAME_QUEUE_MAXSIZE, cancel_event=cancel_event)
 
         try:
-            while True:
-                item = await queue.get()
-
-                if item is None:
-                    break
-
-                if isinstance(item, BaseException):
-                    raise item
-
-                yield item
+            async for frame in streamer:
+                yield frame
         finally:
-            cancel_event.set()
-            await asyncio.to_thread(thread.join)
+            await streamer.aclose()
             cleanup()
 
     def _extract_frames(

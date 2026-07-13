@@ -4,13 +4,13 @@ from mindor.dsl.schema.action import ActionConfig, ModelTokenizerActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import ModelTokenizerTaskService, ModelTokenizerTaskServiceRegistry
-import importlib
+import asyncio, importlib
 
 class ModelTokenizerAction:
     def __init__(self, config: ModelTokenizerActionConfig):
         self.config: ModelTokenizerActionConfig = config
 
-    async def run(self, context: ComponentActionContext, service: ModelTokenizerTaskService) -> Any:
+    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop, service: ModelTokenizerTaskService) -> Any:
         return await service.run(self.config, context)
 
 @register_component(ComponentType.MODEL_TOKENIZER)
@@ -39,7 +39,7 @@ class ModelTokenizerComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         self.service.load()
-        return await ModelTokenizerAction(action).run(context, self.service)
+        return await self.run_in_thread(ModelTokenizerAction(action).run, context, asyncio.get_running_loop(), self.service)
 
 def _load_tokenizer_task_module(task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> None:
     """Import the module that registers the given tokenizer task and driver.

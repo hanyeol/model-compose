@@ -17,16 +17,17 @@ if TYPE_CHECKING:
 
 class RedisStreamIterator:
     def __init__(self, client, stream_key: str, timeout: Optional[float]):
-        self._client = client
-        self._stream_key = stream_key
-        self._timeout = timeout
+        self.client = client
+        self.stream_key = stream_key
+        self.timeout = timeout
+
         self._last_id = "0-0"
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        async with async_timeout(self._timeout):
+        async with async_timeout(self.timeout):
             while True:
                 entry = await self._read_entry()
 
@@ -36,7 +37,7 @@ class RedisStreamIterator:
                 return self._handle_entry(entry)
 
     async def _read_entry(self):
-        entries = await self._client.xread({ self._stream_key: self._last_id }, count=1, block=5000)
+        entries = await self.client.xread({ self.stream_key: self._last_id }, count=1, block=5000)
 
         if entries:
             entry_id, fields = entries[0][1][0]

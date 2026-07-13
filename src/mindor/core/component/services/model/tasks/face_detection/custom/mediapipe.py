@@ -26,10 +26,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         self.model_path: str = model_path
 
-    async def _detect(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
-        return await loop.run_in_executor(None, self._detect_batch, images, params)
-
-    def _detect_batch(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
         from mediapipe import Image as MPImage, ImageFormat
         from mediapipe.tasks.python import vision
         from mediapipe.tasks.python.core.base_options import BaseOptions

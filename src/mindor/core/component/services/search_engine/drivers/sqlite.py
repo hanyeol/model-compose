@@ -4,7 +4,7 @@ from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineActio
 from ..base import SearchEngineService, SearchEngineDriver, register_search_engine_service
 from ..base import ComponentActionContext
 from .common import SearchEngineAction
-import sqlite3, os, json
+import asyncio, sqlite3, os, json
 
 class SQLiteSearchEngineAction(SearchEngineAction):
     async def _index(self, database: sqlite3.Connection, context: ComponentActionContext) -> Dict[str, Any]:
@@ -147,6 +147,8 @@ class SQLiteSearchEngineService(SearchEngineService):
         return None
 
     async def _run(self, action: SearchEngineActionConfig, context: ComponentActionContext) -> Any:
+        loop = asyncio.get_running_loop()
+
         async def _run():
             database_path = os.path.join(self.config.storage_dir, self.config.database)
 
@@ -160,7 +162,7 @@ class SQLiteSearchEngineService(SearchEngineService):
             database = sqlite3.connect(database_path)
             database.row_factory = sqlite3.Row
             try:
-                return await SQLiteSearchEngineAction(action).run(database, context)
+                return await SQLiteSearchEngineAction(action).run(context, loop, database)
             finally:
                 database.close()
 

@@ -1,4 +1,4 @@
-"""Tests for the ImageGenerationTaskAction's I/O matrix.
+"""Tests for the ImageGenerationGenerateTaskAction's I/O matrix.
 
 Text-to-image has no token-level streaming (each sample is a single-shot
 diffusion run), so the output-shape rule is:
@@ -22,7 +22,7 @@ import pytest
 from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationTaskAction
+from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationGenerateTaskAction
 from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationGenerateModelActionConfig
 
 
@@ -47,7 +47,7 @@ def _label(img: PILImage.Image) -> str:
     return img.info["label"]
 
 
-class _FakeImageGenerationAction(ImageGenerationTaskAction):
+class _FakeImageGenerationAction(ImageGenerationGenerateTaskAction):
     """Deterministic ``_generate`` for testing.
 
     Records batches so tests can assert on batch boundaries; returns one
@@ -58,11 +58,10 @@ class _FakeImageGenerationAction(ImageGenerationTaskAction):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
 
-    async def _generate(
+    def _generate(
         self,
         prompts: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
     ) -> List[PILImage.Image]:
         self.batches_seen.append(list(prompts))
         return [ _fake_image(p) for p in prompts ]

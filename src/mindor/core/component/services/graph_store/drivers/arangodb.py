@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-import re
+import asyncio, re
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig
@@ -230,10 +230,7 @@ class ArangoDBGraphStoreService(GraphStoreService):
             self.database = None
 
     async def _run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
-        async def _run():
-            return await ArangoDBGraphStoreAction(action, self.database).run(context)
-
-        return await self.run_in_thread(_run)
+        return await self.run_in_thread(ArangoDBGraphStoreAction(action, self.database).run, context, asyncio.get_running_loop())
 
     def _create_client(self) -> Tuple[ArangoClient, StandardDatabase]:
         from arango import ArangoClient

@@ -47,7 +47,7 @@ class LlamaCppModelTaskService(ModelTaskService):
     def _get_model_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if self.config.device != "cpu":
+        if self._resolve_device(self.config.device).type != "cpu":
             params["n_gpu_layers"] = -1
 
         options = getattr(self.config, "options", None)

@@ -23,6 +23,18 @@ class ComposeConfig(BaseModel):
     loggers: List[LoggerConfig] = Field(default_factory=list, description="Logger configs for capturing and storing execution logs.")
 
     @model_validator(mode="before")
+    def apply_component_before_validators(cls, values: Dict[str, Any]):
+        for component in values.get("components", []) or []:
+            apply_component_validators(component, mode="before")
+        return values
+
+    @model_validator(mode="after")
+    def apply_component_after_validators(self):
+        for component in self.components:
+            apply_component_validators(component, mode="after")
+        return self
+
+    @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):
         if "components" not in values:
             component_values = values.pop("component", None)
@@ -77,15 +89,3 @@ class ComposeConfig(BaseModel):
             if loggers_values:
                 values["loggers"] = [ loggers_values ]
         return values
-
-    @model_validator(mode="before")
-    def apply_component_before_validators(cls, values: Dict[str, Any]):
-        for component in values.get("components", []) or []:
-            apply_component_validators(component, mode="before")
-        return values
-
-    @model_validator(mode="after")
-    def apply_component_after_validators(self):
-        for component in self.components:
-            apply_component_validators(component, mode="after")
-        return self

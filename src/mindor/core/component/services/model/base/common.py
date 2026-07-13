@@ -112,14 +112,21 @@ class ModelTaskService(AsyncService):
 
         raise ValueError(f"Unknown model config type: {type(self.config.model)}")
 
-    def _resolve_device(self) -> torch.device:
+    def _resolve_device(self, device: str) -> torch.device:
         import torch
 
+        if device == "auto":
+            if torch.cuda.is_available():
+                return torch.device("cuda")
+            if torch.backends.mps.is_available():
+                return torch.device("mps")
+            return torch.device("cpu")
+
         try:
-            return torch.device(self.config.device)
+            return torch.device(device)
         except:
-            logging.warning(f"Invalid device '{self.config.device}', falling back to 'cpu'")
-        
+            logging.warning(f"Invalid device '{device}', falling back to 'cpu'")
+
         return torch.device("cpu")
 
     def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:

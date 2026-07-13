@@ -90,7 +90,7 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
     def _load_pretrained_model(self) -> Tuple[RealESRGAN, torch.device]:
         from RealESRGAN import RealESRGAN
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model = RealESRGAN(device=device, scale=self.config.scale)
         model.load_weights(self._get_model_path())
 

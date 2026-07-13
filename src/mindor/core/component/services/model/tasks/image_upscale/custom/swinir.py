@@ -181,7 +181,7 @@ class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
         model = SwinIR(**self._get_model_params())
         self._load_model_checkpoint(model, self._get_model_path())
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model = model.to(device)
         model.eval()
 

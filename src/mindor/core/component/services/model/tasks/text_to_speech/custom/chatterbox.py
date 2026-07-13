@@ -102,7 +102,7 @@ class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
     def _load_pretrained_model(self) -> Tuple[Any, Any]:
         from chatterbox.tts import ChatterboxTTS
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model = ChatterboxTTS.from_pretrained(str(device))
 
         return model, device

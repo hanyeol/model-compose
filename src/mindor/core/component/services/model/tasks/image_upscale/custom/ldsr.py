@@ -89,7 +89,7 @@ class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
         from diffusers import LDMSuperResolutionPipeline
         import torch
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         torch_dtype = torch.float16 if device.type in ("cuda", "mps") else torch.float32
 
         params = self._resolve_pipeline_params()

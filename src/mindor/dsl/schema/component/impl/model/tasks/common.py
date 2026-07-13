@@ -151,7 +151,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     driver: ModelDriver = Field(..., description="Model inference framework driver to use.")
     model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
-    device: str = Field(default="cpu", description="Computation device to use.")
+    device: str = Field(default="auto", description="Computation device to use ('auto' picks cuda > mps > cpu; ignored when device_mode is 'auto').")
     runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime specification hints for the model.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")

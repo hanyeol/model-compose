@@ -28,7 +28,7 @@ class HuggingfaceDiffusionPipelineTaskService(ModelTaskService, Generic[TMethod]
         self.device = None
 
     def _load_pretrained_pipelines(self, methods: List[TMethod]) -> Tuple[Dict[TMethod, DiffusionPipeline], torch.device]:
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
 
         params = self._get_pipeline_params()
         params["torch_dtype"] = self._get_pipeline_dtype(device)

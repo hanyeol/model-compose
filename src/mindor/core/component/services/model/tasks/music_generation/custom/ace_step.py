@@ -109,7 +109,7 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
         handler.initialize_service(
             project_root=self._get_model_path(),
             config_path=self.config.preset,
-            device=str(self.config.device),
+            device=str(self._resolve_device(self.config.device)),
         )
 
         return handler

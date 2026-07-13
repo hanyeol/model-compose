@@ -77,7 +77,7 @@ class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
     def _load_pretrained_model(self) -> Tuple[Any, Any]:
         from kokoro import KPipeline
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         lang_code = "a"  # American English default
         pipeline = KPipeline(lang_code=lang_code, device=str(device))
 

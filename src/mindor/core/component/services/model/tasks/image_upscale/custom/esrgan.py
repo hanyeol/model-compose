@@ -161,7 +161,7 @@ class EsrganImageUpscaleTaskService(ImageUpscaleTaskService):
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=self.config.scale)
         self._load_model_checkpoint(model, self._get_model_path())
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model = model.to(device)
         model.eval()
 

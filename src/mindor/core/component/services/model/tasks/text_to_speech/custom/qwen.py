@@ -169,7 +169,7 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         else:
             model_id = self._get_model_path()
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model = Qwen3TTSModel.from_pretrained(
             model_id,
             device_map=device,

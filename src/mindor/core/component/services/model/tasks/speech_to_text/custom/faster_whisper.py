@@ -122,7 +122,7 @@ class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
     def _load_pretrained_model(self) -> Tuple[WhisperModel, torch.device]:
         from faster_whisper import WhisperModel
 
-        device = self._resolve_device()
+        device = self._resolve_device(self.config.device)
         model_path = self._get_model_path()
         model = WhisperModel(model_path, device=str(device.type), compute_type=self.config.compute_type)
 

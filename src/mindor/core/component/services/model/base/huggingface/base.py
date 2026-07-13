@@ -22,7 +22,7 @@ class HuggingfaceModelTaskService(ModelTaskService):
             model = self._load_peft_adapters(model, self.config.peft_adapters)
 
         if self.config.device_mode == DeviceMode.SINGLE:
-            model = model.to(torch.device(self.config.device))
+            model = model.to(self._resolve_device(self.config.device))
 
         return model
 

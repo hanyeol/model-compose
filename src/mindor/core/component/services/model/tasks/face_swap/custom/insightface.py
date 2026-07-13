@@ -3,11 +3,8 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
-from urllib.parse import urlparse
-from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceSwapModelActionConfig
-from mindor.core.logger import logging
-from mindor.core.foundation.streaming.url import download_to_file
 from ..common import FaceSwapTaskService, FaceSwapTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
@@ -125,35 +122,11 @@ class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
         return get_model(swapper_path, download=False, download_zip=False)
 
     async def _resolve_swapper_path(self) -> str:
-        if isinstance(self.config.model, LocalModelConfig):
-            path = self.config.model.path
-        elif isinstance(self.config.model, str):
-            path = self.config.model
-        else:
-            raise ValueError(f"Unsupported model config type for insightface face swap: {type(self.config.model).__name__}")
-
-        if path == "__default__":
-            return await self._prepare_local_model(_DEFAULT_SWAPPER_URL)
-
-        return await self._prepare_local_model(path)
-
-    async def _prepare_local_model(self, path_or_url: str) -> str:
-        parsed_url = urlparse(path_or_url)
-
-        if parsed_url.scheme in ("", "file"):
-            local = parsed_url.path if parsed_url.scheme == "file" else path_or_url
-            if not os.path.exists(local):
-                raise FileNotFoundError(f"Face swap model not found: {local}")
-            return local
-
-        cached = _CACHE_DIR / os.path.basename(parsed_url.path)
-
-        if not cached.exists():
-            os.makedirs(_CACHE_DIR, exist_ok=True)
-            logging.info("Downloading face swap model: %s", path_or_url)
-            await download_to_file(path_or_url, cached)
-
-        return str(cached)
+        return await self._resolve_local_model(
+            cache_dir=_CACHE_DIR,
+            default_url=_DEFAULT_SWAPPER_URL,
+            label="face swap",
+        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await InsightfaceFaceSwapTaskAction(action, self.analyzer, self.swapper).run(context, loop)

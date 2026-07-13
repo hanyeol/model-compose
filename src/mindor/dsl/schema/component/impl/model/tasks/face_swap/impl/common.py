@@ -1,12 +1,7 @@
-from typing import Literal, Dict, Any
-from pydantic import model_validator
-from ...common import CommonModelComponentConfig, ModelTaskType, ModelProvider
+from typing import Literal, Optional, Union
+from pydantic import Field
+from ...common import CommonModelComponentConfig, ModelTaskType, ModelConfig
 
 class CommonFaceSwapModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.FACE_SWAP]
-
-    @model_validator(mode="before")
-    def inject_default_model(cls, values: Dict[str, Any]):
-        if values.get("model") is None:
-            values["model"] = { "provider": ModelProvider.LOCAL, "path": "__default__" }
-        return values
+    model: Optional[Union[str, ModelConfig]] = Field(default=None, description="Model source configuration. When omitted, the driver's default model is downloaded.")

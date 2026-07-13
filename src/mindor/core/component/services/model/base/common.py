@@ -6,9 +6,12 @@ from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, HuggingfaceModelConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
-import asyncio
+from pathlib import Path
+from urllib.parse import urlparse
+import asyncio, os
 
 if TYPE_CHECKING:
     import torch
@@ -64,6 +67,37 @@ class ModelTaskService(AsyncService):
     @abstractmethod
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         pass
+
+    async def _resolve_local_model(
+        self,
+        default_url: Optional[str] = None,
+        cache_dir: Optional[Path] = None,
+        label: str = "model",
+    ) -> str:
+        path: Optional[str] = None
+        url: Optional[str] = None
+
+        if not isinstance(self.config.model, (LocalModelConfig, str)):
+            raise ValueError(f"Unsupported model config type for {label}: {type(self.config.model).__name__}")
+
+        path = self.config.model if isinstance(self.config.model, str) else self.config.model.path
+
+        if path and os.path.exists(path):
+            return path
+
+        url = (self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None) or default_url
+
+        if not url:
+            raise FileNotFoundError(f"{label} model not found: {path}")
+
+        target = Path(path) if path else cache_dir / os.path.basename(urlparse(url).path)
+
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            logging.info("Downloading %s model: %s", label, url)
+            await download_to_file(url, target)
+
+        return str(target)
 
     def _get_model_path(self) -> str:
         if isinstance(self.config.model, HuggingfaceModelConfig):

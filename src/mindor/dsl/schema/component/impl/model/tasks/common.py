@@ -84,8 +84,15 @@ class HuggingfaceModelConfig(CommonModelConfig):
 
 class LocalModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.LOCAL]
-    path: str = Field(..., description="Model path.")
+    path: Optional[str] = Field(default=None, description="Local file path to the model.")
+    url: Optional[str] = Field(default=None, description="URL to download the model from when the local file is missing.")
     format: ModelFormat = Field(default=ModelFormat.PYTORCH, description="Model file format.")
+
+    @model_validator(mode="after")
+    def _require_source(self):
+        if not self.path and not self.url:
+            raise ValueError("LocalModelConfig requires 'path' or 'url'.")
+        return self
 
 ModelConfig = Annotated[
     Union[

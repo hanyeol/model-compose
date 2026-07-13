@@ -3,11 +3,8 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
 from pathlib import Path
-from urllib.parse import urlparse
-from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazePosePoseDetectionModelActionConfig
-from mindor.core.logger import logging
-from mindor.core.foundation.streaming.url import download_to_file
 from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
 from ..utils import openpose, blazepose, topology
 from ....base import ComponentActionContext
@@ -157,34 +154,11 @@ class BlazePosePoseDetectionTaskService(PoseDetectionTaskService):
         self.model_path = None
 
     async def _resolve_model_path(self) -> str:
-        if isinstance(self.config.model, LocalModelConfig):
-            path = self.config.model.path
-        elif isinstance(self.config.model, str):
-            path = self.config.model
-        else:
-            raise ValueError(f"Unsupported model config type for mediapipe pose detection: {type(self.config.model).__name__}")
-
-        if path == "__default__":
-            return await self._prepare_local_model(_DEFAULT_MODEL_URL)
-
-        return await self._prepare_local_model(path)
-
-    async def _prepare_local_model(self, path_or_url: str) -> str:
-        parsed_url = urlparse(path_or_url)
-
-        if parsed_url.scheme in ("", "file"):
-            local = parsed_url.path if parsed_url.scheme == "file" else path_or_url
-            if not os.path.exists(local):
-                raise FileNotFoundError(f"Pose detection model not found: {local}")
-            return local
-
-        cached = _CACHE_DIR / os.path.basename(parsed_url.path)
-
-        if not cached.exists():
-            logging.info("Downloading pose detection model: %s", path_or_url)
-            await download_to_file(path_or_url, cached)
-
-        return str(cached)
+        return await self._resolve_local_model(
+            cache_dir=_CACHE_DIR,
+            default_url=_DEFAULT_MODEL_URL,
+            label="pose detection",
+        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await BlazePosePoseDetectionTaskAction(action, self.model_path).run(context, loop)

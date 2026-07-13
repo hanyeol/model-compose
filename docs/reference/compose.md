@@ -91,10 +91,16 @@ components:
 All configuration sections support dynamic values through variable interpolation:
 
 - **Environment Variables**: `${env.API_KEY}`
-- **Input Data**: `${input.field}`  
+- **Input Data**: `${input.field}`
 - **Job Results**: `${job-name.output}`
 - **Type Conversion**: `${input.count as number}`
 - **Default Values**: `${input.optional | default}`
+- **Array Wildcard**: `${response.items[*].id}` — pick a field from every array element
+- **Object Array Projection**: `${response.items as object[]/id,score,metadata.text}` — restructure an array of dicts
+- **Dict / List Spread**: `"...": ${source}` in dicts, `- ...${source}` in lists — inline the contents of another value
+- **Map Expressions**: `{"*": ${source}, ...template}` with `${item}` inside the template — build a new element per source item
+
+See [Variable Binding](../user-guide/14-variable-binding.md) in the user guide for the full syntax.
 
 ### Common Properties
 

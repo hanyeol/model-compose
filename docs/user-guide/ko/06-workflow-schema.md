@@ -133,8 +133,8 @@ GET /workflows
 
 | 타입 | 설명 |
 |------|------|
-| `sse-text` | Server-Sent Events (텍스트 청크) |
-| `sse-json` | Server-Sent Events (JSON 청크) |
+| `stream/text` | Server-Sent Events (텍스트 청크) |
+| `stream/json` | Server-Sent Events (JSON 청크) |
 
 **UI 타입:**
 
@@ -191,7 +191,39 @@ workflows:
 
 ## 6.4 출력 스키마
 
-출력 스키마는 워크플로우 완료 시 반환되는 데이터를 설명합니다. **터미널 작업** — 다른 작업이 의존하지 않는 작업 — 의 output에서 추론됩니다.
+출력 스키마는 워크플로우 완료 시 반환되는 데이터를 설명합니다.
+
+- 워크플로우가 명시적인 `output` 매핑을 선언한 경우, 스키마는 **그 매핑에서 직접** 추론됩니다.
+- 그렇지 않으면 **터미널 작업** — 다른 작업이 의존하지 않는 작업 — 의 output에서 추론됩니다.
+
+### 워크플로우 수준 출력
+
+워크플로우 자체에 `output`을 정의하면 스키마는 해당 매핑에 포함된 변수를 그대로 반영합니다.
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: generate
+        component: gpt4o
+        input:
+          prompt: ${input.text as text}
+
+    output:
+      summary: ${jobs.generate.output.text as markdown}
+      tokens: ${jobs.generate.output.usage.total_tokens as integer}
+```
+
+생성되는 스키마:
+
+```json
+{
+  "output": [
+    { "name": "summary", "type": "markdown" },
+    { "name": "tokens", "type": "integer" }
+  ]
+}
+```
 
 ### 기본 출력
 
@@ -293,7 +325,8 @@ jobs:
 
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 
 workflows:
   - id: translate
@@ -426,7 +459,7 @@ workflows:
         component: gpt4o-stream
         input:
           prompt: ${input.prompt as text}
-        output: ${output as sse-text}
+        output: ${output as stream/text}
 ```
 
 **생성된 스키마:**
@@ -438,12 +471,12 @@ workflows:
     { "name": "prompt", "type": "text" }
   ],
   "output": [
-    { "name": null, "type": "sse-text" }
+    { "name": null, "type": "stream/text" }
   ]
 }
 ```
 
-`sse-text` 출력 타입은 클라이언트가 Server-Sent Events를 통한 스트리밍 응답을 기대해야 함을 나타냅니다.
+`stream/text` 출력 타입은 클라이언트가 Server-Sent Events를 통한 스트리밍 응답을 기대해야 함을 나타냅니다.
 
 ---
 

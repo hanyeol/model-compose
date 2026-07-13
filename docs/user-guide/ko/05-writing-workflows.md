@@ -393,6 +393,32 @@ workflows:
           image: ${jobs.generate.output.image_base64 as image/png;base64}
 ```
 
+### 워크플로우 출력
+
+워크플로우는 호출자에게 반환할 최종 응답의 형태를 정의하기 위해 자체적으로 `output`을 선언할 수 있습니다. 표현식은 모든 Job이 종료된 뒤 평가되며, Job에서 사용하는 것과 동일한 변수 바인딩 문법을 지원합니다.
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: fetch
+        component: data-fetcher
+        input:
+          url: ${input.source_url}
+
+      - id: summarize
+        component: summarizer
+        input:
+          text: ${jobs.fetch.output.body}
+        depends_on: [ fetch ]
+
+    output:
+      summary: ${jobs.summarize.output.text}
+      source: ${jobs.fetch.output.url}
+```
+
+`output`을 생략하면, 워크플로우 결과는 다른 Job이 의존하지 않는 **터미널 Job**들의 출력으로부터 도출됩니다. 여러 터미널 Job이 각각 딕셔너리를 반환하는 경우 해당 출력들이 병합되며, 그렇지 않은 경우 마지막 터미널 Job의 출력이 그대로 사용됩니다. 명시적으로 `output`을 정의하면 이 기본 병합 동작이 대체되어 응답 구조를 자유롭게 재구성하거나 이름을 바꿀 수 있습니다.
+
 ---
 
 ## 5.5 Job 타입
@@ -587,6 +613,7 @@ graph LR
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
+| `input` | any | `null` | 조건들과 비교할 평가 대상 값. 변수 바인딩 지원. |
 | `conditions` | `IfCondition[]` | `[]` | 순서대로 평가할 조건 목록. |
 | `otherwise` | `string` | `null` | 조건이 하나도 일치하지 않을 때 라우팅할 Job ID. |
 | `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
@@ -596,7 +623,6 @@ graph LR
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `operator` | `string` | `"eq"` | 비교 연산자 (아래 참조). |
-| `input` | any | `null` | 평가할 값. 변수 바인딩 지원. |
 | `value` | any | `null` | 비교 대상 값. 변수 바인딩 지원. |
 | `if_true` | `string` | `null` | 조건이 참일 때 라우팅할 Job ID. |
 | `if_false` | `string` | `null` | 조건이 거짓일 때 라우팅할 Job ID. |
@@ -625,8 +651,8 @@ graph LR
 jobs:
   - id: condition-check
     type: if
-    operator: eq
     input: ${input.value}
+    operator: eq
     value: "expected"
     if_true: job-when-true
     if_false: job-when-false
@@ -638,13 +664,12 @@ jobs:
 jobs:
   - id: multi-condition
     type: if
+    input: ${input.score}
     conditions:
       - operator: gt
-        input: ${input.score}
         value: 80
         if_true: excellent-handler
       - operator: gt
-        input: ${input.score}
         value: 60
         if_true: good-handler
     otherwise: need-improvement-handler
@@ -776,7 +801,7 @@ jobs:
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `target` | `string` | - | 대상 Job ID. |
+| `to` | `string` | - | 대상 Job ID. |
 | `weight` | `number` | `null` | 가중 모드에서의 상대적 가중치. uniform 모드에서는 무시됨. |
 
 #### 균등 분배
@@ -787,8 +812,8 @@ jobs:
     type: random-router
     mode: uniform
     routings:
-      - target: variant-a
-      - target: variant-b
+      - to: variant-a
+      - to: variant-b
 ```
 
 #### 가중 분배 (70:20:10)
@@ -799,11 +824,11 @@ jobs:
     type: random-router
     mode: weighted
     routings:
-      - target: primary-model
+      - to: primary-model
         weight: 70
-      - target: experimental-model
+      - to: experimental-model
         weight: 20
-      - target: fallback-model
+      - to: fallback-model
         weight: 10
 ```
 
@@ -1021,7 +1046,7 @@ components:
     model: facebook/bart-large-cnn
     streaming: true  # 스트리밍 활성화
     action:
-      text: ${input.text}
+      prompt: ${input.text}
 ```
 
 #### HTTP 컴포넌트

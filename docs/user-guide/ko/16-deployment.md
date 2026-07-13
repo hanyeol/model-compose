@@ -119,8 +119,9 @@ model-compose run my-workflow --input @input.json
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 logger:
   - type: console
@@ -137,8 +138,9 @@ logger:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime: docker                 # 문자열 형식
 ```
 
@@ -146,8 +148,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     # 기본 이미지 사용 (자동 빌드)
@@ -157,8 +160,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry/model-compose:latest
@@ -175,8 +179,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     ports:
@@ -195,8 +200,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -524,8 +530,9 @@ CMD [ "model-compose", "up" ]
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -609,8 +616,9 @@ docker push my-registry.com/model-compose:1.0
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry.com/model-compose:1.0
@@ -650,8 +658,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   max_concurrent_count: 10         # 최대 10개 워크플로우 동시 실행
   threaded: false                  # 스레드 기반 실행 (기본: false)
 ```
@@ -727,8 +736,9 @@ model-compose는 기본적으로 `/health` 엔드포인트를 제공합니다.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     healthcheck:

@@ -15,6 +15,8 @@ model-compose provides various component types for performing different tasks.
 | `agent` | Autonomous AI agent | ReAct loop with tool use via workflows |
 | `http-client` | External API calls | REST API integration for OpenAI, ElevenLabs, etc. |
 | `http-server` | Provide HTTP service | Implement custom HTTP API endpoints |
+| `websocket-client` | WebSocket client | Real-time streaming to remote WebSocket servers |
+| `websocket-server` | Provide WebSocket service | Host WebSocket endpoints for real-time apps |
 | `mcp-server` | Provide MCP service | Implement Model Context Protocol server |
 | `mcp-client` | MCP client | Communicate with MCP servers |
 | `model` | Run local AI models | Local model inference for text generation, image analysis, etc. |
@@ -30,9 +32,13 @@ model-compose provides various component types for performing different tasks.
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
-| `image-processor` | Process images | Image transformation, resizing, etc. |
+| `image-processor` | Process images | Image transformation, resizing, PNG compression, etc. |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
+| `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
+| `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
+| `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
+| `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 
@@ -44,6 +50,7 @@ model-compose provides various component types for performing different tasks.
 
 **Local AI Models**
 - Local inference → `model`
+- Vision tasks (face/pose detection on local images) → `model` with `task: face-detection` or `task: pose-detection` (see [Model Component reference](../reference/compose/components/model.md))
 - vLLM, Ollama, etc. backend usage → `http-server`
 - Training → `model-trainer`
 
@@ -58,6 +65,7 @@ model-compose provides various component types for performing different tasks.
 - Image processing → `image-processor`
 - Video scene detection → `video-scene-detector`
 - Video frame extraction → `video-frame-extractor`
+- Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Web scraping → `web-scraper`
 
 **Browser Automation**
@@ -588,12 +596,13 @@ Components can execute in different runtime environments depending on your needs
 
 ### Available Runtimes
 
-model-compose supports three runtime types:
+model-compose supports four runtime types:
 
 | Runtime | Isolation | Speed | Overhead | Best For |
 |---------|-----------|-------|----------|----------|
 | `embedded` | None | Fast | Minimal | Lightweight tasks, default choice |
 | `process` | Process-level | Medium | Medium | Heavy models, GPU isolation |
+| `virtualenv` | Process + dependencies | Medium (slow first run) | Medium | Per-component Python versions or conflicting packages |
 | `docker` | Container-level | Slow | High | Production deployments |
 
 ### Embedded Runtime (Default)
@@ -681,6 +690,49 @@ workflows:
         action: generate
 ```
 
+### Virtualenv Runtime
+
+Runs components inside an isolated Python virtual environment so each component can carry its own dependency stack without needing Docker.
+
+```yaml
+components:
+  - id: training-job
+    type: shell
+    runtime: virtualenv
+    command: [python, train.py]
+```
+
+**When to use:**
+- Components that pin to a specific Python version
+- Components whose pip dependencies conflict with the host or with each other
+- You want isolation lighter than Docker but stronger than a plain subprocess
+
+**How it works:**
+- A venv is created at `.runtime/components/<id>/venv` (configurable via `path`)
+- model-compose copies the running `mindor` source and installs `requirements.txt` into the venv
+- The worker subprocess runs on the venv's Python and communicates with the controller over a pipe
+- The first start is slow (pip install); subsequent starts skip reinjection while the host `mindor` version is unchanged
+
+**Advanced configuration:**
+
+```yaml
+components:
+  - id: training-job
+    type: shell
+    runtime:
+      type: virtualenv
+      driver: pyenv          # 'python' (current interpreter) or 'pyenv' (specific version)
+      python: "3.12.0"       # required when driver is 'pyenv'
+      path: .venv/training   # default: .runtime/components/<id>/venv
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+      start_timeout: 300s
+      stop_timeout: 30s
+    command: [python, train.py]
+```
+
+To force a clean reinstall, delete the venv directory under `.runtime/components/<id>/` (or whatever `path` points to).
+
 ### Docker Runtime
 
 Runs components in isolated Docker containers.
@@ -704,6 +756,7 @@ components:
 
 **Embedded** → Start here for most use cases
 **Process** → Upgrade when you need isolation or heavy workloads
+**Virtualenv** → Pick when components need their own Python version or pip dependencies
 **Docker** → Use for production and security requirements
 
 ---

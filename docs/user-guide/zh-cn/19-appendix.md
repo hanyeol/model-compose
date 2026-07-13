@@ -9,9 +9,10 @@
 ### 19.1.1 顶层结构
 
 ```yaml
-controller:        # 必填：HTTP 或 MCP 服务器配置
-  type: http-server | mcp-server
-  # ... 详细配置
+controller:        # 必填：控制器和适配器配置
+  adapter:         # 多个适配器请使用 `adapters:`
+    type: http-server | mcp-server | queue-subscriber
+    # ... 详细配置
 
 components:        # 可选：可重用组件列表
   - id: component-id
@@ -52,29 +53,39 @@ action:            # 替代 actions: [ ... ]（在组件内部）
 **HTTP 服务器**：
 ```yaml
 controller:
-  type: http-server
-  port: 8080                           # 默认：8080
-  host: 0.0.0.0                        # 默认：0.0.0.0
-  base_path: /api                      # 默认：/
-  max_concurrency: 10                  # 默认：无限制
+  adapter:
+    type: http-server
+    host: 127.0.0.1                      # 默认：127.0.0.1
+    port: 8080                           # 默认：8080
+    base_path: /api                      # 默认：null
+    origins: "*"                         # 默认："*"（CORS）
+    websocket:                           # 默认启用
+      path: /ws
+      ping_interval: 30s
+      ping_timeout: 10s
+  max_concurrent_count: 10             # 默认：0（无限制）
+  shutdown_timeout: 30s
+  threaded: false
 
   webui:                               # 可选：Web UI 配置
-    driver: gradio | static
+    driver: gradio | static | dynamic
+    host: 127.0.0.1
     port: 8081
-    root: ./static                     # 用于 static 驱动
+    static_dir: webui                  # 用于 static 驱动，默认："webui"
 
-  runtime:                             # 可选：Docker 运行时
+  runtime:                             # 可选：替代运行时
     type: docker
-    image: python:3.11
     # ... Docker 选项
 ```
 
 **MCP 服务器**：
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080                           # 可选
-  base_path: /mcp                      # 默认：/
+  adapter:
+    type: mcp-server
+    host: 127.0.0.1                      # 默认：127.0.0.1
+    port: 8080                           # 默认：8080
+    base_path: /mcp                      # 默认：null
 
   webui:                               # 可选
     driver: gradio
@@ -88,29 +99,37 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | translation | ...
-    model: model-name-or-path
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    driver: huggingface | unsloth | vllm | llamacpp | custom  # 默认：huggingface
+    model: model-name-or-path          # 或 `{ provider, repository/path, ... }` 对象
 
-    # 模型配置
-    device: cuda | cpu | mps
-    dtype: float32 | float16 | bfloat16 | int8 | int4
-    batch_size: 1
-    streaming: false                   # 仅适用于 text-generation / chat-completion / image-to-text
+    # 模型配置（组件级别）
+    device: cuda | cpu | mps           # 默认：cpu
+    device_mode: auto | single         # 默认：auto
+    precision: auto | float32 | float16 | bfloat16   # 可选
+    quantization: int8 | int4 | fp4 | nf4            # 可选；或完整的 ModelQuantizationConfig 对象
+    low_cpu_mem_usage: false           # 默认：false
+    preload: true                      # 默认：true
+    on_demand: false                   # 默认：false；或 `{ priority, idle_timeout }`
+    fast_tokenizer: true               # 仅语言模型任务，默认：true
+    max_seq_length: 2048               # 仅语言模型任务，默认：2048
 
-    # LoRA 适配器
+    # LoRA / PEFT 适配器
     peft_adapters:
       - type: lora
         name: adapter-name
         model: path/to/adapter
         weight: 1.0
 
-    # 单个操作
+    # 单个 action（输入/输出映射与推理参数）
     action:
       # 输入（根据任务而异）
+      prompt: ${input.prompt as text}
       text: ${input.text as text}
       messages: [ ... ]
       image: ${input.image as image}
-      # 参数
+      batch_size: 1                    # action 级别
+      streaming: false                 # action 级别（仅适用于 text-generation / chat-completion / text-to-text / image-to-text）
       params:
         max_output_length: 100
         temperature: 0.7
@@ -126,21 +145,19 @@ components:
 
     # 组件级别
     base_url: https://api.example.com
+    headers: { ... }
+    rate_limit: "10/s"                 # 可选；简写或完整 RateLimitConfig
 
-    # 单个操作
+    # 单个 action
     action:
-      endpoint: https://api.example.com/v1/resource
       method: GET | POST | PUT | DELETE | PATCH
-      path: /resource
+      path: /resource                  # 与 base_url 组合
       headers: { ... }
       params: { ... }
       body: { ... }
       stream_format: json | text
-      timeout: 30
-      max_retries: 3
-      retry_delay: 1
 
-    # 或多个操作
+    # 或多个 action
     actions:
       - id: action-id
         path: /action-path
@@ -154,23 +171,26 @@ components:
   - id: http-server-id
     type: http-server
 
-    # 服务器启动命令
-    start:
-      - vllm
-      - serve
-      - model-name
-      - --port
-      - "8000"
+    # 服务器生命周期脚本（install/build/clean/start 简写也可放在组件根级）
+    manage:
+      scripts:
+        install:
+          - [ pip, install, vllm ]
+        start:
+          - vllm
+          - serve
+          - model-name
+          - --port
+          - "8000"
+      working_dir: .
+      env: { }
 
     # 服务器配置
     port: 8000
-    healthcheck:
-      path: /health
-      interval: 5s
-      timeout: 10s
-      retries: 3
+    base_path: /                 # 可选
+    headers: { }                 # 合并到每个 action
 
-    # HTTP 客户端配置（服务器启动后）
+    # 服务器启动后调用的 action
     action:
       method: POST
       path: /v1/completions
@@ -262,10 +282,11 @@ components:
 components:
   - id: text-splitter-id
     type: text-splitter
-    text: ${input.text}
-    chunk_size: 1000
-    chunk_overlap: 200
-    separator: "\n\n"
+    action:
+      text: ${input.text}
+      chunk_size: 1000
+      chunk_overlap: 200
+      separator: "\n\n"
 ```
 
 **Shell 命令**：
@@ -273,9 +294,12 @@ components:
 components:
   - id: shell-id
     type: shell
-    command: echo
-    args:
-      - ${input.message}
+    base_dir: .                  # 可选
+    env: { }                     # 可选
+    action:
+      command:
+        - echo
+        - ${input.message}
 ```
 
 ### 19.1.4 工作流架构
@@ -286,47 +310,96 @@ workflows:
   - id: workflow-id
     title: Workflow Title
     description: Workflow description
+    default: false                  # 可选
+    private: false                  # 可选
 
-    # 单个组件
-    component: component-id
-    input: ${input}
-    output: ${output}
-
-    # 或多个作业
     jobs:
       - id: job-id
         component: component-id
-        action: action-id        # 可选：用于多操作组件
+        action: action-id           # 可选：用于多操作组件
         input: { ... }
         output: { ... }
-        depends_on: [ job-id ]   # 可选：依赖关系
-        condition: ${expression} # 可选：条件执行
+        depends_on: [ other-job ]   # 可选：依赖关系
+        repeat_count: 1             # 可选：重复次数
+
+    output: { ... }                 # 可选：工作流级输出映射
 ```
 
 **作业类型**：
 ```yaml
-# 1. 操作作业（默认 - 执行组件）
+# 1. Component 作业（默认 - 执行组件）
 - id: job1
   type: component        # 可以省略（默认）
   component: component-id
   action: action-id      # 可选：用于多操作组件
   input: ${input}
   output: ${output}
+  repeat_count: 1
+  max_run_count: 5
+  interrupt:
+    before: false        # true 或 { condition, message, metadata }
+    after: false
 
 # 2. If 作业（条件分支）
 - id: job2
   type: if
-  operator: eq
   input: ${input.status}
-  value: "active"
+  operator: eq
+  value: active
   if_true: job-success
   if_false: job-fail
+  # 或使用多个条件：
+  #   conditions:
+  #     - { operator: eq, value: a, if_true: job-a }
+  #     - { operator: eq, value: b, if_true: job-b }
+  #   otherwise: job-default
 
-# 3. 延迟作业（等待）
+# 3. Switch 作业（多路分支）
 - id: job3
+  type: switch
+  input: ${input.category}
+  cases:
+    - { value: image, then: process-image }
+    - { value: video, then: process-video }
+  otherwise: process-unknown
+
+# 4. Random router（均匀或加权）
+- id: job4
+  type: random-router
+  mode: weighted           # 或 "uniform"
+  routings:
+    - { to: variant-a, weight: 0.7 }
+    - { to: variant-b, weight: 0.3 }
+
+# 5. Delay 作业（延迟）
+- id: job5
   type: delay
-  duration: 5s           # 等待 5 秒
+  mode: time-interval      # 或 "specific-time"
+  duration: 5s             # time-interval 模式
+  # specific-time 模式：
+  #   time: "2026-01-01T09:00:00"
+  #   timezone: Asia/Seoul
+
+# 6. For-each 作业（迭代）
+- id: job6
+  type: for-each
+  input: ${input.items}
+  batch_size: 4
+  streaming: false
+  do:
+    component: item-processor
+    action: transform
+    input: { item: ${item} }
+    output: ${result}
+
+# 7. Filter 作业（仅输出重塑）
+- id: job7
+  type: filter
+  output:
+    active: ${jobs.load.output.records}
 ```
+
+If 作业支持的条件运算符：`eq`、`neq`、`gt`、`gte`、`lt`、`lte`、`in`、`not-in`、`starts-with`、`ends-with`、`match`。
 
 ### 19.1.5 监听器架构
 

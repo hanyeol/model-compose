@@ -12,10 +12,11 @@
 
 ```yaml
 controller:
-  # 워크플로우를 호스팅하고 실행하는 방법 정의
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
+  # 워크플로우를 호스팅하고 실행하는 방법 정의
 components:
   # 독립적인 실행 모듈 정의
   - id: my-component
@@ -64,9 +65,10 @@ model-compose -f base.yml -f override.yml up
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio  # 또는 static
     port: 8081
@@ -88,9 +90,10 @@ Model Context Protocol을 통해 워크플로우를 노출합니다.
 
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080
-  base_path: /mcp
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp
 ```
 
 **주요 설정:**
@@ -122,8 +125,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: native  # 또는 docker
   max_concurrent_count: 10  # 동시 실행 제한
@@ -228,14 +232,13 @@ workflow:
 ```yaml
 - id: local-llm
   type: model
-  source: huggingface
-  model_id: meta-llama/Llama-3.2-3B-Instruct
   task: chat-completion
+  model: meta-llama/Llama-3.2-3B-Instruct   # 또는 { provider: huggingface, repository: ... }
   device: cuda
-  input:
+  action:
     messages: ${input.messages}
-  output:
-    response: ${output.content}
+    output:
+      response: ${result.content}
 ```
 
 #### 3. Shell
@@ -517,8 +520,9 @@ ${input.model | gpt-4o}                  # 기본 모델 지정
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 components:
   - id: generate-quote

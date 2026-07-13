@@ -19,8 +19,7 @@
 **使用场景：**
 - 聊天机器人对话（ChatGPT风格）
 - 实时文本生成
-- 长文档摘要
-- 翻译服务
+- text-to-text 任务的使用场景（翻译、摘要）
 - 代码生成
 
 ### 13.1.2 支持的组件
@@ -31,6 +30,7 @@
 |---------------|------------------|---------------|
 | `model`（text-generation） | ✅ | `streaming: true` |
 | `model`（chat-completion） | ✅ | `streaming: true` |
+| `model`（text-to-text） | ✅ | `streaming: true` |
 | `model`（image-to-text） | ✅ | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
@@ -69,11 +69,13 @@ data: chunk3
 ```yaml
 component:
   type: model
-  task: text-generation
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
   model: facebook/bart-large-cnn
   streaming: true                  # 启用流式
   action:
-    text: ${input.text as text}
+    prompt: ${input.text as text}
     params:
       max_output_length: 150
 ```
@@ -92,7 +94,7 @@ component:
   model: gpt2
   streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 200
       do_sample: false               # 确定性生成（更快）
@@ -183,8 +185,6 @@ component:
     - --port
     - "8000"
   port: 8000
-  healthcheck:
-    path: /health
   action:
     method: POST
     path: /v1/chat/completions
@@ -206,12 +206,13 @@ component:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}    # 输出为SSE文本格式
+  output: ${output as stream/text}    # 输出为SSE文本格式
 
 component:
   type: http-client
@@ -233,14 +234,14 @@ component:
 
 **工作流输出格式：**
 
-- `as sse-text`: SSE文本流
+- `as stream/text`: SSE文本流
   ```yaml
-  output: ${output as sse-text}
+  output: ${output as stream/text}
   ```
 
-- `as sse-json`: SSE JSON流
+- `as stream/json`: SSE JSON流
   ```yaml
-  output: ${output as sse-json}
+  output: ${output as stream/json}
   ```
 
 ### 13.3.2 多步骤工作流流式
@@ -249,7 +250,7 @@ component:
 workflows:
   - id: translate-and-summarize
     title: Translate and Summarize
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
       - id: translate
         component: translator
@@ -268,19 +269,22 @@ workflows:
 components:
   - id: translator
     type: model
-    task: translation
+    task: text-to-text
+    driver: huggingface
     model: Helsinki-NLP/opus-mt-ko-en
     streaming: false
     action:
-      text: ${input.text as text}
+      prompt: ${input.text as text}
 
   - id: summarizer
     type: model
-    task: text-generation
+    task: text-to-text
+    driver: huggingface
+    architecture: bart
     model: facebook/bart-large-cnn
     streaming: true                    # 仅最后一个作业流式
     action:
-      text: ${input.text as text}
+      prompt: ${input.text as text}
       params:
         max_output_length: 150
 ```
@@ -295,7 +299,7 @@ components:
 ```yaml
 workflow:
   title: Conditional Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
@@ -303,7 +307,7 @@ component:
   model: gpt2
   streaming: ${input.stream | false}   # 流式由输入决定
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 100
 ```
@@ -490,15 +494,16 @@ asyncio.run(stream_workflow())
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
@@ -512,7 +517,7 @@ component:
 ```
 
 Gradio Web UI自动：
-- 检测`sse-text`格式
+- 检测`stream/text`格式
 - 显示实时文本累积
 - 显示打字动画效果
 
@@ -531,7 +536,7 @@ component:
   model: gpt2
   streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       # 性能优化
       do_sample: false               # 确定性生成（无束搜索）
@@ -621,31 +626,26 @@ component:
 
 ### 13.5.5 错误处理
 
-**重试逻辑：**
+model-compose 未在 `http-client` 组件上提供声明式的 `retry` / `timeout` 字段。请改用以下方式：
+
+- 在 action 的 `polling` completion 中设置 `success_when` / `fail_when` / `interval` / `timeout` 来控制重试与终止条件
+- 在组件级别使用 `rate_limit` 限制调用频率
+- 对于长耗时的服务端作业，使用 `http-callback` 监听器
+
+轮询示例：
 
 ```yaml
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  max_retries: 3                   # 最多3次重试
-  retry_delay: 1                   # 1秒等待
   action:
     path: /chat/completions
     body:
       stream: true
-```
-
-**超时处理：**
-
-```yaml
-component:
-  type: http-client
-  base_url: https://api.openai.com/v1
-  timeout: 30                      # 30秒超时
-  action:
-    path: /chat/completions
-    body:
-      stream: true
+    completion:
+      type: polling
+      interval: 1s
+      timeout: 300s
 ```
 
 **流中断处理：**
@@ -671,23 +671,25 @@ fetch(url, {
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Real-time Translation
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
-  task: translation
+  task: text-to-text
+  driver: huggingface
   model: Helsinki-NLP/opus-mt-ko-en
   streaming: true
   action:
-    text: ${input.text as text}
+    prompt: ${input.text as text}
     params:
       max_output_length: 512
 ```
@@ -698,7 +700,7 @@ component:
 workflows:
   - id: multi-model-chat
     title: Multi-Model Chat
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
       - id: openai-response
         component: openai-client
@@ -751,12 +753,13 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Local Model Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: http-server
@@ -769,9 +772,6 @@ component:
     - --gpu-memory-utilization
     - "0.9"
   port: 8000
-  healthcheck:
-    path: /health
-    interval: 5s
   action:
     method: POST
     path: /v1/chat/completions

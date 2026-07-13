@@ -1,6 +1,6 @@
 # Model Component
 
-The model component enables loading and running AI/ML models locally using HuggingFace transformers. It supports various tasks including text generation, chat completion, text embedding, classification, translation, summarization, image-to-text processing, and text-to-speech synthesis.
+The model component enables loading and running AI/ML models locally using HuggingFace transformers. It supports various tasks including text generation (causal LM), chat completion, text-to-text transforms (seq2seq for translation/summarization), text embedding, classification, image-to-text processing, and text-to-speech synthesis.
 
 ## Basic Configuration
 
@@ -23,39 +23,61 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-embedding`, `text-classification`, `translation`, `summarization`, `image-to-text`, `text-to-speech` |
-| `driver` | string | `huggingface` | Model provider (currently only HuggingFace supported) |
-| `model` | string/object | **required** | Model identifier or configuration object |
-| `cache_dir` | string | `null` | Directory to cache model files |
-| `local_files_only` | boolean | `false` | Force loading from local files only |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `text-to-speech`, `speech-to-text`, `image-generation`, `image-upscale`, `face-detection`, `pose-detection`, `face-embedding`, `music-generation` |
+| `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
+| `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
 | `device` | string | `cpu` | Computation device: `cpu`, `cuda`, `cuda:0`, etc. |
 | `precision` | string | `null` | Numerical precision: `auto`, `float32`, `float16`, `bfloat16` |
+| `quantization` | string/object | `null` | Quantization type shorthand (`int8`, `int4`, `fp4`, `nf4`) or `{ type, compute_dtype?, double_quant? }` |
 | `low_cpu_mem_usage` | boolean | `false` | Load model with minimal CPU RAM usage |
-| `fast_tokenizer` | boolean | `true` | Whether to use fast tokenizer if available |
+| `peft_adapters` | array | `null` | PEFT adapters (e.g. LoRA) to load on top of the base model |
+| `preload` | boolean | `true` | Load the model at startup |
+| `on_demand` | boolean/object | `false` | Enable on-demand loading; `true` uses defaults, or `{ priority, idle_timeout }` |
+| `runtime_spec` | object | `null` | Runtime hints — `{ vram, ram }` in MB |
+| `fast_tokenizer` | boolean | `true` | Use fast tokenizer if available (language-model tasks only) |
+| `max_seq_length` | integer | `2048` | Maximum sequence length (language-model tasks only) |
 
 ### Model Source Configuration
 
-You can specify models as a string or detailed configuration:
+You can specify models as a string or detailed configuration. A string that looks like a local path is auto-inflated to `{ provider: local, path: <string> }`; otherwise it becomes `{ provider: huggingface, repository: <string> }`.
 
 ```yaml
-# Simple string format
+# Simple string format (auto-resolved to HuggingFace)
 model: microsoft/DialoGPT-medium
 
-# Detailed configuration
+# Detailed HuggingFace configuration
 model:
-  model_id: microsoft/DialoGPT-medium
   provider: huggingface
+  repository: microsoft/DialoGPT-medium
   revision: main
   filename: pytorch_model.bin
+  cache_dir: ./models_cache
+  local_files_only: false
+  token: ${env.HUGGINGFACE_TOKEN}
+
+# Detailed local configuration
+model:
+  provider: local
+  path: ./local_models/my-model
+  format: pytorch  # pytorch | safetensors | onnx | gguf | tensorrt
 ```
 
+**HuggingFace source (`provider: huggingface`):**
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `model_id` | string | **required** | HuggingFace model identifier |
-| `provider` | string | `huggingface` | Model provider |
+| `repository` | string | **required** | HuggingFace model repository |
+| `filename` | string | `null` | Specific file within the repository |
 | `revision` | string | `null` | Model version or branch |
-| `filename` | string | `null` | Specific file in model repo |
+| `cache_dir` | string | `null` | Directory to cache the model files |
+| `local_files_only` | boolean | `false` | Force loading from local files only |
+| `token` | string | `null` | HuggingFace access token for private models |
+
+**Local source (`provider: local`):**
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | **required** | Filesystem path to the model |
+| `format` | string | `pytorch` | Model file format: `pytorch`, `safetensors`, `onnx`, `gguf`, `tensorrt` |
 
 ## Task Types and Examples
 
@@ -168,40 +190,180 @@ component:
       all_scores: ${response.scores}
 ```
 
-### Translation
+### Text Reranking
 
-Translate text between languages:
+Rerank a set of candidate documents against a query using a cross-encoder model. This is the typical second stage of a retrieval pipeline: a vector store (bi-encoder) fetches a broad candidate set with high recall, then a cross-encoder rescores each (query, document) pair for higher precision.
 
 ```yaml
 component:
   type: model
-  task: translation
+  task: text-reranking
+  model: BAAI/bge-reranker-v2-m3
+  action:
+    query: ${input.query}
+    documents: ${input.candidates}
+    top_k: 5
+    output:
+      results: ${result}
+```
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `query` | string \| list | **required** | Query text to rank documents against. A list runs one independent reranking job per query. |
+| `documents` | list | **required** | Candidate documents. Each item is a string, or an object when `document_field` is set. When `query` is a list, this must be a list-of-lists (one candidate list per query). |
+| `document_field` | string | `null` | Field name to read the text from when documents are objects. Required for object documents; ignored for strings. |
+| `top_k` | integer | `null` | Keep only the top K results per query after scoring. |
+| `score_threshold` | float | `null` | Drop any result whose score is below this threshold. |
+| `return_documents` | bool | `true` | Include the original document under `document` in each result. Set to `false` to return only `index` and `score`. |
+| `batch_size` | integer | `32` | Number of (query, document) pairs the driver scores in a single forward pass. |
+| `max_input_length` | integer | `512` | Maximum tokens per (query, document) pair; longer pairs are truncated. |
+| `params.normalize` | bool | `true` | Apply sigmoid to raw logits so scores are in `[0, 1]`. Set to `false` to return raw logits. |
+
+**Result Shape:**
+
+Each result is a list of ranked items, sorted by score descending:
+
+```yaml
+- index: 3          # position in the original documents list
+  score: 0.94       # relevance score (sigmoid-normalized by default)
+  document: { ... } # original document (string or object), omitted when return_documents is false
+```
+
+**Example — Rerank vector-store search results:**
+
+```yaml
+components:
+  - id: embedder
+    type: model
+    task: text-embedding
+    model: BAAI/bge-m3
+
+  - id: vec-store
+    type: vector-store
+    driver: qdrant
+    endpoint: http://localhost:6333
+    actions:
+      - id: search
+        method: search
+        collection: docs
+        query: ${input.vector}
+        top_k: 50
+        output_fields: [ text, source ]
+
+  - id: reranker
+    type: model
+    task: text-reranking
+    model: BAAI/bge-reranker-v2-m3
+    action:
+      query: ${input.query}
+      documents: ${input.candidates}
+      document_field: text
+      top_k: 5
+
+workflows:
+  - id: rag-search
+    jobs:
+      - id: embed
+        component: embedder
+        input: { text: ${input.query} }
+      - id: retrieve
+        component: vec-store
+        action: search
+        input: { vector: ${jobs.embed.output} }
+        depends_on: [ embed ]
+      - id: rerank
+        component: reranker
+        input:
+          query: ${input.query}
+          candidates: ${jobs.retrieve.output}
+        depends_on: [ retrieve ]
+```
+
+**Example — Batch reranking (multiple independent queries):**
+
+```yaml
+action:
+  query: ${input.queries}       # list of queries
+  documents: ${input.candidates}  # list-of-lists, one per query
+  top_k: 3
+```
+
+The output is a list of ranked-result lists, one per query.
+
+### Text to Text (Translation, Summarization, and other seq2seq tasks)
+
+Transform a source text with an encoder-decoder (seq2seq) model. This one task covers translation, summarization, and any other paraphrasing/rewriting workload that a seq2seq model can perform. Task selection with T5-family models is done by prefixing the source text (e.g. `"translate English to German: ..."`, `"summarize: ..."`); BART/MarianMT/Pegasus models are usually fine-tuned to a single task and don't need a prefix.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `text-to-text` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `custom` |
+| `architecture` | string | `auto` | HuggingFace model architecture: `auto`, `t5`, `bart`, `marian`, `pegasus`, `mbart` |
+
+**Example — Translation with MarianMT:**
+
+```yaml
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
   model: Helsinki-NLP/opus-mt-en-fr
-  source_language: en
-  target_language: fr
   action:
     text: ${input.text}
     output:
-      translated_text: ${response.translation_text}
+      translated_text: ${result}
 ```
 
-### Summarization
-
-Summarize long text into shorter versions:
+**Example — Summarization with BART:**
 
 ```yaml
 component:
   type: model
-  task: summarization
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
   model: facebook/bart-large-cnn
   action:
     text: ${input.article_text}
+    max_input_length: 1024
     params:
-      max_output_length: 150
-      min_output_length: 50
+      do_sample: false
+      num_beams: 4
     output:
-      summary: ${response.summary_text}
+      summary: ${result}
 ```
+
+**Example — T5 with a task prefix:**
+
+```yaml
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  architecture: t5
+  model: google/flan-t5-base
+  action:
+    text: "translate English to German: ${input.text}"
+```
+
+**Text-to-Text Parameters:**
+
+Same generation parameter shape as text-generation, but defaults favor deterministic beam search:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_output_length` | integer | `null` | Maximum tokens to generate |
+| `min_output_length` | integer | `1` | Minimum tokens to generate |
+| `num_beams` | integer | `4` | Beam search width |
+| `length_penalty` | float | `1.0` | Length penalty for beam search |
+| `early_stopping` | boolean | `true` | Stop when all beams finish |
+| `do_sample` | boolean | `false` | Enable sampling (turn on for creative rewriting) |
+| `temperature`/`top_k`/`top_p` | — | — | Only used when `do_sample: true` |
+| `stop_sequences` | array | `null` | Stop generation sequences |
 
 ### Image-to-Text
 
@@ -217,6 +379,174 @@ component:
     output:
       caption: ${response.generated_text}
 ```
+
+### Face Detection
+
+Detect faces in an image and return bounding boxes (with optional facial landmarks). This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `face-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `blazeface`) |
+| `model` | string | `__default__` | Path or URL of a MediaPipe `.tflite` model. `__default__` auto-downloads the official BlazeFace short-range model to `~/.cache/models/mediapipe/`. |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0) |
+| `return_landmarks` | bool | `false` | Include the 6 facial keypoints (eyes, nose, mouth, ears) in the result |
+| `batch_size` | int | `1` | Number of images to process per batch |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: face-detection
+  driver: custom
+  family: blazeface
+  action:
+    image: ${input.image as image}
+    min_confidence: 0.6
+    return_landmarks: true
+    output:
+      faces: ${result.detections}
+```
+
+**Result Shape:**
+
+```json
+{
+  "detections": [
+    {
+      "box": [x, y, width, height],
+      "score": 0.97,
+      "landmarks": [{ "x": 123, "y": 45 }, ...]
+    }
+  ],
+  "width": 1280,
+  "height": 720
+}
+```
+
+When the input is a list, the action returns a list of result dicts. When the input is an async stream, the action returns an async iterator that yields per-frame result dicts.
+
+### Pose Detection
+
+Detect human bodies in an image and return per-pose keypoints (2D, optionally 3D, optionally with segmentation mask). This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `pose-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family: `blazepose` or `yolo` |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads the family-specific default (BlazePose Lite `.task` for `blazepose`, YOLOv8n-pose `.pt` for `yolo`). |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `max_pose_count` | int | `1` | Maximum number of poses to detect per image (>= 1) |
+| `min_confidence` | float | `0.5` | Minimum pose-detection confidence threshold (0.0 - 1.0) |
+| `return_keypoints` | bool | `true` | Include 2D pose keypoints (pixel coordinates) in the result |
+| `batch_size` | int | `1` | Number of images to process per batch |
+
+**Family-Specific Fields:**
+
+| Field | `blazepose` | `yolo` | Description |
+|-------|:-----------:|:------:|-------------|
+| `min_presence_confidence` | ✓ | – | Minimum keypoint-presence confidence (0.0 - 1.0) |
+| `min_tracking_confidence` | ✓ | – | Minimum tracking confidence. Reserved for future video running mode. |
+| `return_keypoints_3d` | ✓ | – | Include real-world 3D keypoints in meters (hip-centered) |
+| `return_segmentation_mask` | ✓ | – | Include per-pose grayscale segmentation mask (PIL image) |
+
+Fields marked `–` are silently ignored by families that don't support them.
+
+**Example — BlazePose:**
+
+```yaml
+component:
+  type: model
+  task: pose-detection
+  driver: custom
+  family: blazepose
+  action:
+    image: ${input.image as image}
+    max_pose_count: 2
+    min_confidence: 0.6
+    return_keypoints_3d: true
+    output:
+      poses: ${result.poses}
+```
+
+**Example — YOLO:**
+
+```yaml
+component:
+  type: model
+  task: pose-detection
+  driver: custom
+  family: yolo
+  action:
+    image: ${input.image as image}
+    max_pose_count: 5
+    min_confidence: 0.4
+    output:
+      poses: ${result.poses}
+```
+
+**Result Shape (BlazePose):**
+
+```json
+{
+  "poses": [
+    {
+      "keypoints": [
+        { "x": 320, "y": 240, "z": -0.12, "visibility": 0.99, "presence": 0.98 },
+        ...
+      ],
+      "keypoints_3d": [
+        { "x": 0.05, "y": -0.10, "z": -0.20, "visibility": 0.99, "presence": 0.98 },
+        ...
+      ],
+      "segmentation_mask": "<PIL grayscale image>"
+    }
+  ],
+  "width": 1280,
+  "height": 720
+}
+```
+
+BlazePose returns **33 keypoints** per detected pose (see [MediaPipe pose landmark diagram](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker#pose_landmarker_model)). `keypoints_3d` and `segmentation_mask` are only present when explicitly enabled.
+
+**Result Shape (YOLO):**
+
+```json
+{
+  "poses": [
+    {
+      "keypoints": [
+        { "x": 320, "y": 240, "visibility": 0.94 },
+        ...
+      ]
+    }
+  ],
+  "width": 1280,
+  "height": 720
+}
+```
+
+YOLOv8-pose returns **17 COCO keypoints** per detected pose (nose, eyes, ears, shoulders, elbows, wrists, hips, knees, ankles). `visibility` is the per-keypoint confidence score. YOLO does not produce 3D keypoints or segmentation masks.
+
+List and async-stream inputs behave the same way as face detection.
 
 ### Text to Speech
 
@@ -406,9 +736,11 @@ component:
 component:
   type: model
   task: text-generation
-  model: HuggingFaceTB/SmolLM3-3B
-  cache_dir: ./models_cache
-  local_files_only: false
+  model:
+    provider: huggingface
+    repository: HuggingFaceTB/SmolLM3-3B
+    cache_dir: ./models_cache
+    local_files_only: false
 ```
 
 ### Offline Usage
@@ -417,15 +749,17 @@ component:
 component:
   type: model
   task: text-generation
-  model: ./local_models/my-model
-  local_files_only: true
+  model:
+    provider: huggingface
+    repository: HuggingFaceTB/SmolLM3-3B
+    local_files_only: true
 ```
 
 ## Advanced Configuration Examples
 
 ### Streaming Text Generation
 
-The `streaming` action field is only available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, and `image-to-text`. Other tasks (such as `text-embedding`, `text-classification`, `translation`, `summarization`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+The `streaming` action field is only available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, and `image-to-text`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
 
 ```yaml
 component:
@@ -433,7 +767,7 @@ component:
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   action:
-    text: ${input.prompt}
+    prompt: ${input.prompt}
     streaming: true
     params:
       max_output_length: 4096
@@ -555,11 +889,17 @@ workflow:
 
 ## Supported Models
 
-### Text Generation Models
+### Text Generation Models (causal LM)
 - **GPT Models**: GPT-2, GPT-Neo, GPT-J
 - **LLaMA Models**: LLaMA, Alpaca, Vicuna
-- **Code Models**: CodeGen, CodeT5, InCoder
-- **Instruction Models**: Flan-T5, UL2
+- **Code Models**: CodeGen, InCoder
+- **Small Instruction Models**: SmolLM3, Phi
+
+### Text-to-Text Models (seq2seq)
+- **T5 Family**: T5, Flan-T5, mT5
+- **BART Family**: BART, mBART, BARThez
+- **Translation**: MarianMT (Helsinki-NLP), NLLB
+- **Summarization**: BART-large-CNN, Pegasus
 
 ### Chat Models
 - **Conversational**: DialoGPT, BlenderBot
@@ -574,6 +914,12 @@ workflow:
 - **Sentiment**: RoBERTa-sentiment, DistilBERT
 - **Topic**: BERT-base-classification
 - **Intent**: Custom fine-tuned models
+
+### Reranking Models
+- **BGE Reranker**: BAAI/bge-reranker-v2-m3, bge-reranker-large, bge-reranker-base
+- **Jina Reranker**: jinaai/jina-reranker-v2-base-multilingual
+- **Mixedbread**: mixedbread-ai/mxbai-rerank-large-v1, mxbai-rerank-xsmall-v1
+- **Cross-Encoder**: cross-encoder/ms-marco-MiniLM-L-6-v2, ms-marco-MiniLM-L-12-v2
 
 ### Multimodal Models
 - **Image Captioning**: BLIP, ViT-GPT2

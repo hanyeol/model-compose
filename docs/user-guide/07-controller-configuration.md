@@ -12,18 +12,20 @@ The HTTP server controller exposes workflows as REST APIs.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 ```
 
 ### Example: Simple Chatbot API
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 
 workflow:
   title: Chat with AI
@@ -34,18 +36,19 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /chat/completions
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: gpt-4o
-    messages:
-      - role: user
-        content: ${input.prompt}
-  output:
-    message: ${response.choices[0].message.content}
+  action:
+    path: /chat/completions
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: gpt-4o
+      messages:
+        - role: user
+          content: ${input.prompt}
+    output:
+      message: ${response.choices[0].message.content}
 ```
 
 ### API Endpoints
@@ -390,9 +393,9 @@ Control HTTP server CORS with the `origins` field.
 
 ```yaml
 controller:
-  type: http-server
-  origins: "https://example.com,https://app.example.com"  # Allow specific domains only
-  # origins: "*"  # Allow all domains (default, for development)
+  adapter:
+    type: http-server
+    origins: "https://example.com,https://app.example.com"  # Allow specific domains only
 ```
 
 ---
@@ -405,18 +408,20 @@ The MCP (Model Context Protocol) server controller integrates with Claude Deskto
 
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080
-  base_path: /mcp  # Streamable HTTP endpoint path
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp  # Streamable HTTP endpoint path
 ```
 
 ### Example: Content Moderation Tool
 
 ```yaml
 controller:
-  type: mcp-server
-  base_path: /mcp
-  port: 8080
+  adapter:
+    type: mcp-server
+    base_path: /mcp
+    port: 8080
 
 workflows:
   - id: moderate-text
@@ -512,10 +517,11 @@ For production, it's recommended to use HTTPS when exposing the MCP server exter
 ```yaml
 # model-compose runs locally with HTTP
 controller:
-  type: mcp-server
-  host: 127.0.0.1
-  port: 8080
-  base_path: /mcp
+  adapter:
+    type: mcp-server
+    host: 127.0.0.1
+    port: 8080
+    base_path: /mcp
 ```
 
 Nginx reverse proxy configuration example:
@@ -559,21 +565,23 @@ The queue subscriber controller consumes tasks from a message queue (e.g., Redis
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
 ```
 
 ### Example: Distributed Image Processing Worker
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
-  workflow: image-processing
   max_concurrent_count: 2
 
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
+    workflow: image-processing
 workflow:
   title: Image Processing
   input: ${input}
@@ -582,16 +590,17 @@ workflow:
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  path: /images/generations
-  method: POST
-  headers:
-    Authorization: Bearer ${env.OPENAI_API_KEY}
-    Content-Type: application/json
-  body:
-    model: dall-e-3
-    prompt: ${input.prompt}
-  output:
-    image_url: ${response.data[0].url}
+  action:
+    path: /images/generations
+    method: POST
+    headers:
+      Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
+    body:
+      model: dall-e-3
+      prompt: ${input.prompt}
+    output:
+      image_url: ${response.data[0].url}
 ```
 
 ### How It Works
@@ -651,11 +660,11 @@ model-compose:tasks:image-processing:01JXYZ...    ← result notification (Redis
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Queue backend driver (`redis`) |
-| `name` | string | `model-compose:tasks` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
-| `result_ttl` | integer | `3600` | TTL in seconds for result entries. `0` = no expiry |
-| `max_concurrent` | integer | `1` | Maximum concurrent task processing |
+| `name` | string | `controller-queue` | Base name for task queues. Queue key: `{name}:{workflow_id}`. Result key: `{name}:{workflow_id}:{run_id}` |
+| `result_ttl` | string | `1h` | TTL for result entries (e.g., `"1h"`, `"30m"`). `"0s"` = no expiry |
+| `max_concurrent_count` | integer | `1` | Maximum concurrent task processing (must be >= 1) |
 | `worker_id` | string | auto | Unique worker identifier (auto-generated ULID) |
-| `workflows` | list | `["__default__"]` | Workflow IDs to handle |
+| `workflows` | list | `null` | Workflow IDs this worker handles. If unset, all non-private workflows are used. Use `workflow:` (singular) for a single ID. |
 
 #### Redis Driver Settings
 
@@ -669,7 +678,7 @@ Connection can be configured using either `url` or `host`/`port`/`secure`. Both 
 | `secure` | boolean | `false` | Use TLS/SSL for connections |
 | `database` | integer | `0` | Redis database number (0-15) |
 | `password` | string | `null` | Redis password |
-| `pop_timeout` | integer | `1` | BRPOP timeout in seconds |
+| `pop_timeout` | string/number | `1s` | BRPOP timeout before retrying (e.g. `"1s"`, `"500ms"`) |
 
 ### Distributed Worker Scenarios
 
@@ -679,11 +688,12 @@ The simplest setup — one worker type processes one workflow:
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
-  workflow: text-summary
   max_concurrent_count: 3
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
+    workflow: text-summary
 ```
 
 Push tasks:
@@ -698,13 +708,14 @@ A single worker handles multiple workflows:
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
-  workflows:
-    - text-summary
-    - translation
   max_concurrent_count: 5
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
+    workflows:
+      - text-summary
+      - translation
 ```
 
 #### Scenario 3: Specialized Workers
@@ -714,21 +725,23 @@ Deploy different workers for different workloads:
 ```yaml
 # GPU server — image generation only
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://shared-redis:6379
-  workflow: image-generation
   max_concurrent_count: 2
 
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://shared-redis:6379
+    workflow: image-generation
 # CPU server — text processing
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://shared-redis:6379
-  workflows:
-    - text-summary
-    - translation
   max_concurrent_count: 10
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://shared-redis:6379
+    workflows:
+      - text-summary
+      - translation
 ```
 
 ### Consuming Results
@@ -759,29 +772,31 @@ redis-cli GET model-compose:tasks:my-workflow:run-001
 Using host/port:
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  host: redis.internal
-  port: 6379
-  password: ${env.REDIS_PASSWORD}
-  database: 2
-  name: myapp:tasks
-  result_ttl: 7200
-  worker_id: gpu-worker-01
-  workflows:
-    - image-generation
   max_concurrent_count: 2
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: redis.internal
+    port: 6379
+    password: ${env.REDIS_PASSWORD}
+    database: 2
+    name: myapp:tasks
+    result_ttl: 7200
+    worker_id: gpu-worker-01
+    workflows:
+      - image-generation
 ```
 
 Using URL (with TLS):
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
-  workflows:
-    - image-generation
   max_concurrent_count: 2
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+    workflows:
+      - image-generation
 ```
 
 > **Note**: The `redis` Python package (`redis>=5.0.0`) must be installed. It is included as a dependency of model-compose.
@@ -950,7 +965,7 @@ component:
     workflow: chat
     input:
       prompt: ${input.prompt as text}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 ```
 
 **Worker** (`subscriber/model-compose.yml`):
@@ -972,7 +987,7 @@ workflow:
     component: openai
     input:
       prompt: ${input.prompt}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 
 component:
   id: openai
@@ -1044,8 +1059,9 @@ The `max_concurrent_count` setting is available for both HTTP and MCP servers, l
 
 ```yaml
 controller:
-  type: http-server  # or mcp-server
   max_concurrent_count: 5  # Limit to maximum 5 concurrent executions
+  adapter:
+    type: http-server  # or mcp-server
 ```
 
 ### How It Works
@@ -1064,13 +1080,15 @@ When task queue is activated (`max_concurrent_count > 0`):
 ```yaml
 # Default: Unlimited
 controller:
-  type: http-server
   max_concurrent_count: 0
 
+  adapter:
+    type: http-server
 # When GPU resources need to be limited
 controller:
-  type: http-server
   max_concurrent_count: 3  # Limit total workflow execution to 3
+  adapter:
+    type: http-server
 ```
 
 ### Controller vs Component Level Control
@@ -1090,15 +1108,16 @@ Concurrency control is possible at two levels:
 Example:
 ```yaml
 controller:
-  type: http-server
   max_concurrent_count: 0  # Unlimited workflow execution
 
+  adapter:
+    type: http-server
 components:
   - id: image-model
     type: model
     max_concurrent_count: 2  # Limit to 2 concurrent executions due to GPU memory
     model: stabilityai/stable-diffusion-2-1
-    task: text-to-image
+    task: image-generation
 
   - id: openai-api
     type: http-client
@@ -1123,9 +1142,10 @@ Specifies the network interface the controller binds to.
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1  # Default
-  port: 8080       # Default
+  adapter:
+    type: http-server
+    host: 127.0.0.1  # Default
+    port: 8080       # Default
 ```
 
 - Accessible only from the same machine
@@ -1135,9 +1155,10 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 8080
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 8080
 ```
 
 - Accessible from external sources
@@ -1149,8 +1170,9 @@ Specifies the port the controller API server uses.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080  # Default
+  adapter:
+    type: http-server
+    port: 8080  # Default
 ```
 
 ### Base Path
@@ -1161,9 +1183,9 @@ Sets a prefix for all API endpoints.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  # No base_path
+  adapter:
+    type: http-server
+    port: 8080
 ```
 
 Endpoints:
@@ -1175,9 +1197,10 @@ Endpoints:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 ```
 
 Endpoints:
@@ -1193,10 +1216,11 @@ When running behind a reverse proxy like Nginx or Caddy.
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1  # Accessible from proxy only
-  port: 8080
-  base_path: /ai   # Match proxy path
+  adapter:
+    type: http-server
+    host: 127.0.0.1  # Accessible from proxy only
+    port: 8080
+    base_path: /ai   # Match proxy path
 ```
 
 #### Nginx Configuration Example
@@ -1228,9 +1252,10 @@ Use different ports for development, staging, and production:
 
 ```yaml
 controller:
-  type: http-server
-  port: ${env.PORT | 8080}  # Environment variable or default 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: ${env.PORT | 8080}  # Environment variable or default 8080
+    base_path: /api
 ```
 
 ### 2. Proper CORS Configuration
@@ -1240,13 +1265,15 @@ In production, allow only specific domains:
 ```yaml
 # Development environment
 controller:
-  type: http-server
-  origins: "*"
+  adapter:
+    type: http-server
+    origins: "*"
 
 # Production environment
 controller:
-  type: http-server
-  origins: "https://app.example.com,https://admin.example.com"
+  adapter:
+    type: http-server
+    origins: "https://app.example.com,https://admin.example.com"
 ```
 
 ### 3. Concurrency Limit Configuration
@@ -1256,15 +1283,17 @@ Set appropriate `max_concurrent_count` based on resource usage:
 ```yaml
 # GPU-using workflows - Limited concurrency
 controller:
-  type: http-server
-  port: 8080
   max_concurrent_count: 2  # Consider GPU memory limits
 
+  adapter:
+    type: http-server
+    port: 8080
 # Lightweight API call workflows - High concurrency
 controller:
-  type: http-server
-  port: 8080
   max_concurrent_count: 20
+  adapter:
+    type: http-server
+    port: 8080
 ```
 
 ### 4. Utilize Asynchronous Execution
@@ -1309,10 +1338,11 @@ Set base_path consistently when running behind a reverse proxy:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-  base_path: /ai-service  # Exactly match proxy path
+  adapter:
+    type: http-server
+    host: 127.0.0.1
+    port: 8080
+    base_path: /ai-service  # Exactly match proxy path
 ```
 
 ### 6. Utilize output_only

@@ -245,13 +245,19 @@ model-compose 支持以下任务类型：
 |------|-------------|-------------------|
 | `text-generation` | 文本生成 | 故事写作、代码生成 |
 | `chat-completion` | 对话补全 | 聊天机器人、助手 |
-| `text-classification` | 文本分类 | 情感分析、主题分类 |
+| `text-to-text` | seq2seq 变换（翻译、摘要、改写） | 翻译、摘要、改写 |
 | `text-embedding` | 文本嵌入 | 语义搜索、RAG |
+| `text-classification` | 文本分类 | 情感分析、主题分类 |
 | `image-to-text` | 图像描述 | 图像描述、VQA |
-| `text-to-image` | 图像生成 | 文本到图像转换 |
-| `image-upscale` | 图像放大 | 分辨率增强 |
+| `image-text-to-text` | 视觉语言生成 | 多模态推理、视觉问答 |
 | `text-to-speech` | 文本转语音 | 语音生成、克隆、设计 |
+| `speech-to-text` | 语音转文本 | 语音识别、转录 |
+| `image-generation` | 图像生成 | 文本到图像转换 |
+| `image-upscale` | 图像放大 | 分辨率增强 |
+| `face-detection` | 人脸检测 | 人脸定位、边界框 |
+| `pose-detection` | 姿态检测 | 关键点检测、动作分析 |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
+| `music-generation` | 音乐生成 | 音乐创作、配乐 |
 
 ### 10.3.1 text-generation
 
@@ -263,7 +269,7 @@ component:
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 32768
       temperature: 0.7
@@ -301,7 +307,46 @@ component:
 - `role`：`system`、`user`、`assistant`
 - `content`：消息内容
 
-### 10.3.3 text-classification
+### 10.3.3 text-to-text
+
+基于 seq2seq（encoder-decoder）模型的文本变换任务，覆盖翻译、摘要、改写等使用场景。
+
+```yaml
+# 翻译（英文 -> 法文）
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  model: Helsinki-NLP/opus-mt-en-fr
+  action:
+    prompt: ${input.text as text}
+```
+
+```yaml
+# 摘要（BART）
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
+  model: facebook/bart-large-cnn
+  action:
+    prompt: ${input.document as text}
+```
+
+```yaml
+# T5 系列（通过提示前缀选择子任务）
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  architecture: t5
+  model: t5-base
+  action:
+    prompt: "summarize: ${input.document}"
+```
+
+### 10.3.4 text-classification
 
 将文本分类到类别中。
 
@@ -317,7 +362,7 @@ component:
       score: ${result.score}
 ```
 
-### 10.3.4 text-embedding
+### 10.3.5 text-embedding
 
 将文本转换为高维向量。
 
@@ -352,7 +397,7 @@ workflow:
         top_k: 5
 ```
 
-### 10.3.5 image-to-text
+### 10.3.6 image-to-text
 
 分析图像并生成文本。
 
@@ -372,14 +417,14 @@ component:
 - `git`：生成式图像到文本
 - `vit-gpt2`：视觉转换器 + GPT-2
 
-### 10.3.6 text-to-image
+### 10.3.7 image-generation
 
 从文本提示生成图像。
 
 ```yaml
 component:
   type: model
-  task: text-to-image
+  task: image-generation
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:
@@ -395,7 +440,7 @@ component:
 - `sdxl`：Stable Diffusion XL
 - `hunyuan`：HunyuanDiT
 
-### 10.3.7 image-upscale
+### 10.3.8 image-upscale
 
 增强图像分辨率。
 
@@ -417,7 +462,7 @@ component:
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
 
-### 10.3.8 text-to-speech
+### 10.3.9 text-to-speech
 
 从文本合成语音音频。此任务使用 `driver: custom` 和 `family` 字段选择模型系列，使用 `method` 字段选择生成方式。
 
@@ -515,7 +560,7 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 从参考音频克隆语音 |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 从文本描述设计语音 |
 
-### 10.3.9 face-embedding
+### 10.3.10 face-embedding
 
 从人脸图像中提取特征向量。
 
@@ -649,7 +694,7 @@ component:
       model: tloen/alpaca-lora-7b
       weight: 1.0
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### 多个 LoRA 适配器
@@ -674,7 +719,7 @@ component:
       model: plncmm/guanaco-lora-7b
       weight: 0.8
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### 适配器权重

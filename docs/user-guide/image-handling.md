@@ -264,8 +264,9 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     port: 8081
 

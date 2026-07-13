@@ -245,13 +245,19 @@ model-compose는 다음 태스크 타입을 지원합니다:
 |--------|------|---------------|
 | `text-generation` | 텍스트 생성 | 스토리 작성, 코드 생성 |
 | `chat-completion` | 대화형 완성 | 챗봇, 어시스턴트 |
-| `text-classification` | 텍스트 분류 | 감정 분석, 주제 분류 |
+| `text-to-text` | seq2seq 변환 | 번역, 요약, 재작성 |
 | `text-embedding` | 텍스트 임베딩 | 시맨틱 검색, RAG |
+| `text-classification` | 텍스트 분류 | 감정 분석, 주제 분류 |
 | `image-to-text` | 이미지 캡셔닝 | 이미지 설명 생성, VQA |
-| `text-to-image` | 이미지 생성 | 텍스트→이미지 변환 |
-| `image-upscale` | 이미지 업스케일 | 해상도 향상 |
+| `image-text-to-text` | 멀티모달 대화 | 이미지 기반 QA, 비전-언어 대화 |
 | `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
+| `speech-to-text` | 음성 인식 | 자막 생성, 받아쓰기 |
+| `image-generation` | 이미지 생성 | 텍스트→이미지 변환 |
+| `image-upscale` | 이미지 업스케일 | 해상도 향상 |
+| `face-detection` | 얼굴 검출 | 얼굴 위치/랜드마크 |
+| `pose-detection` | 자세 검출 | 인체 관절 추정 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
+| `music-generation` | 음악 생성 | 텍스트→음악 변환 |
 
 ### 10.3.1 text-generation
 
@@ -263,7 +269,7 @@ component:
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 32768
       temperature: 0.7
@@ -372,14 +378,14 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.6 text-to-image
+### 10.3.6 image-generation
 
 텍스트 프롬프트에서 이미지를 생성합니다.
 
 ```yaml
 component:
   type: model
-  task: text-to-image
+  task: image-generation
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:
@@ -649,7 +655,7 @@ component:
       model: tloen/alpaca-lora-7b
       weight: 1.0
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### 다중 LoRA 어댑터
@@ -674,7 +680,7 @@ component:
       model: plncmm/guanaco-lora-7b
       weight: 0.8
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### 어댑터 가중치

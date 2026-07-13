@@ -52,7 +52,7 @@ component:
 
 #### Playwright Driver
 
-Launches a browser instance using Playwright.
+Launches a browser instance using Playwright, or attaches to a browser you already started.
 
 ```yaml
 component:
@@ -66,8 +66,36 @@ component:
 |-------|------|---------|-------------|
 | `driver` | string | **required** | Must be `playwright` |
 | `browser` | string | `chromium` | Browser engine: `chromium`, `firefox`, `webkit` |
-| `headless` | boolean | `true` | Whether to run the browser in headless mode |
+| `channel` | string | `null` | Use a system-installed browser channel instead of the bundled Chromium: `chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`, `msedge-beta`, `msedge-dev`. Only valid when `browser=chromium` |
+| `headless` | boolean | `true` | Whether to run the browser in headless mode. Ignored when `cdp_url` is set |
 | `args` | array | `[]` | Additional command-line arguments passed to the browser process |
+| `persistent_dir` | string | `null` | Reuse a persistent browser profile at this path (cookies, extensions, settings). Ignored when `cdp_url` is set |
+| `cdp_url` | string | `null` | Attach to an already-running Chromium via CDP (e.g. `http://localhost:9222`). When set, `browser`, `channel`, `headless`, `args`, and `persistent_dir` must be left at their defaults |
+
+**Launch modes.** The three fields above select between three launch strategies:
+
+- **Fresh launch (default).** Playwright starts its bundled Chromium (or the system channel if `channel` is set). Each session is isolated.
+- **Persistent profile (`persistent_dir`).** Playwright launches a browser that stores cookies, local storage, and extensions in the given directory, so state persists across runs. Useful for sites where you want to keep browser-level settings but not for Google login (see below).
+- **Attach over CDP (`cdp_url`).** Playwright connects to a Chromium that you started yourself with `--remote-debugging-port=<n>`. This is the recommended path for sites that block automated logins (notably Google/YouTube), because the login itself happens in an ordinary Chrome session where you sign in by hand; Playwright only takes over afterwards. Since the browser was not launched by Playwright, all `launch`-related options are rejected in this mode.
+
+**Bypassing Google's login block.** Google detects Playwright-launched browsers and shows "This browser or app may not be secure." The reliable workaround is `cdp_url`:
+
+```bash
+# 1. Start Chrome yourself with a dedicated profile and remote debugging.
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 \
+  --user-data-dir=$HOME/.model-compose/chrome-profile
+
+# 2. Sign in to the target site by hand in that Chrome window.
+# 3. Leave the window open and run model-compose against it:
+```
+
+```yaml
+component:
+  type: web-browser
+  driver: playwright
+  cdp_url: http://localhost:9222
+```
 
 ### Common Action Configuration
 
@@ -75,7 +103,7 @@ All web browser actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Action method: `navigate`, `click`, `input-text`, `screenshot`, `evaluate`, `wait-for`, `extract`, `get-cookies`, `set-cookies`, `scroll` |
+| `method` | string | **required** | Action method: `navigate`, `click`, `input-text`, `screenshot`, `evaluate`, `wait-for`, `extract`, `get-cookies`, `set-cookies`, `scroll`, `capture-video` |
 | `timeout` | string | `null` | Per-action timeout override. Falls back to component-level timeout |
 | `output` | string | `null` | Output variable mapping |
 
@@ -345,6 +373,57 @@ component:
 > Only one of `selector` or `xpath` can be provided.
 
 **Returns:** `{ "scrolled_x": 0, "scrolled_y": 500 }`
+
+### Capture Video
+
+Capture video (and audio) from a `<video>` element on the page and stream it out as encoded chunks. Uses `HTMLMediaElement.captureStream()` + `MediaRecorder` inside the browser, so no OS-level screen-recording permission is needed.
+
+```yaml
+component:
+  type: web-browser
+  driver: playwright
+  cdp_url: http://localhost:9222
+  action:
+    method: capture-video
+    url: https://www.youtube.com/watch?v=...
+    duration: 30s
+    encoding:
+      format: webm
+      video: { codec: vp9, bitrate: 3M }
+      audio: { codec: opus, bitrate: 128k }
+```
+
+**Capture Video Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | `null` | URL to navigate to before capturing. If omitted, captures the current page |
+| `selector` | string | `null` | CSS selector for the `<video>` element to capture. If omitted, the first `<video>` on the page is used |
+| `include_video_track` | boolean | `true` | Include the video track in the capture |
+| `include_audio_track` | boolean | `true` | Include the audio track in the capture |
+| `encoding` | object | `null` | Video/audio encoding settings (see below). If omitted, the browser picks defaults (typically VP8+Opus in WebM) |
+| `duration` | string | `null` | Total capture duration (e.g. `30s`). If omitted, capture runs until the workflow tears the action down |
+
+**Encoding Configuration (`encoding`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `format` | string | `null` | Container format: `webm`, `mp4` |
+| `video.codec` | string | `null` | Video codec (e.g. `vp9`, `vp8`, `h264`) |
+| `video.bitrate` | string | `null` | Video bitrate (e.g. `3M`, `500k`) |
+| `audio.codec` | string | `null` | Audio codec (e.g. `opus`) |
+| `audio.bitrate` | string | `null` | Audio bitrate (e.g. `128k`) |
+
+The `format` + codecs are combined into a `MediaRecorder` `mimeType` (e.g. `video/webm;codecs=vp9,opus`), and bitrates map to `videoBitsPerSecond` / `audioBitsPerSecond`. If a codec is omitted, the browser's default for that container is used, which typically lets it pick a hardware-accelerated path.
+
+**Returns:** an async stream of encoded chunks (`bytes`). Chunks are self-contained WebM/MP4 fragments in emission order; consume them sequentially and concatenate to reconstruct the media. Downstream jobs can pipe the stream into `video-converter` for remuxing or transcoding.
+
+**Notes and caveats:**
+
+- **Login-gated sources.** For sites that block automated logins (YouTube, Gmail, etc.), use the Playwright `cdp_url` mode described above. Attempting to log in from a Playwright-launched browser will fail.
+- **Playback must be running.** Capture starts from the moment `MediaRecorder.start()` is called; the `<video>` element must actually be playing. Sites with autoplay restrictions may need a `click` action first to start playback.
+- **Ads and interstitials cause gaps.** Non-logged-in captures often include ad breaks that interrupt the media stream. Capturing while signed in via `cdp_url` avoids most of this.
+- **Container/codec pairing.** `MediaRecorder` only accepts combinations the browser knows how to produce (e.g. WebM with VP8/VP9/Opus). Requesting an unsupported combination raises an error inside the page.
 
 ## Multiple Actions Configuration
 
@@ -790,3 +869,4 @@ component:
 - **Cookie Management**: Inject or export cookies for authenticated sessions
 - **Page Monitoring**: Periodically check page content for changes
 - **Data Extraction**: Extract structured data from web pages using CSS/XPath
+- **Media Capture**: Record live video streams (e.g. YouTube live) to WebM/MP4 for downstream transcoding

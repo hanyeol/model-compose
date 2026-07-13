@@ -8,10 +8,10 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-frame-extractor | web-scraper | web-browser
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-frame-extractor | audio-extractor | audio-converter | audio-feature-extractor | web-scraper | web-browser
   id: component-id
-  runtime: embedded | docker  # default: embedded
-  max_concurrent_count: 1
+  runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
+  max_concurrent_count: 0
   default: false
   # ... type-specific configuration
 ```
@@ -42,6 +42,8 @@ Model-compose supports the following component types:
 | `agent` | Autonomous AI agent with tool use | [agent.md](components/agent.md) |
 | `http-client` | HTTP client for making API requests | [http-client.md](components/http-client.md) |
 | `http-server` | HTTP server for hosting services | [http-server.md](components/http-server.md) |
+| `websocket-client` | WebSocket client for real-time connections | [websocket-client.md](components/websocket-client.md) |
+| `websocket-server` | WebSocket server for real-time services | [websocket-server.md](components/websocket-server.md) |
 | `mcp-server` | MCP server for protocol support | [mcp-server.md](components/mcp-server.md) |
 | `mcp-client` | MCP (Model Context Protocol) client | [mcp-client.md](components/mcp-client.md) |
 | `model` | AI model inference (local/remote) | [model.md](components/model.md) |
@@ -59,7 +61,11 @@ Model-compose supports the following component types:
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
+| `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
 | `video-frame-extractor` | Decode video and extract frames as images | [video-frame-extractor.md](components/video-frame-extractor.md) |
+| `audio-extractor` | Extract audio streams from media | [audio-extractor.md](components/audio-extractor.md) |
+| `audio-converter` | Audio format/codec conversion | [audio-converter.md](components/audio-converter.md) |
+| `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 
@@ -71,10 +77,10 @@ All components inherit these common properties from `CommonComponentConfig`:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `id` | string | `__default__` | Unique identifier for the component |
+| `id` | string | `__component__` | Unique identifier for the component |
 | `type` | string | **required** | Component type (see table above) |
-| `runtime` | string | `embedded` | Runtime environment: `embedded`, `process`, or `docker` |
-| `max_concurrent_count` | integer | `1` | Maximum concurrent actions this component can handle |
+| `runtime` | string | `native` | Runtime environment: `native`, `embedded`, `process`, `virtualenv`, `docker`, or `apple-container` |
+| `max_concurrent_count` | integer | `0` | Maximum concurrent actions this component can handle (`0` = unlimited) |
 | `default` | boolean | `false` | Whether to use this component when none is explicitly specified |
 
 ### Actions
@@ -212,6 +218,58 @@ component:
   model: stabilityai/stable-diffusion-xl-base-1.0
 ```
 
+### Virtualenv Runtime
+
+Runs components inside an isolated Python virtual environment, giving each component its own dependency stack without containerization.
+
+```yaml
+component:
+  type: shell
+  runtime: virtualenv
+  command: [python, train.py]
+```
+
+**Characteristics:**
+- Creates a per-component venv at `.runtime/components/<id>/venv` (configurable)
+- Injects the host's `mindor` source and installs `requirements.txt` into the venv
+- Reinjection is skipped automatically when the host `mindor` version is unchanged
+- Worker runs on the venv's Python interpreter and communicates with the parent over a pipe-based JSON channel
+
+**Use Cases:**
+- Components that need a specific Python version (via `pyenv`)
+- Components with conflicting Python package requirements
+- Lighter-weight isolation than Docker, with dependency separation
+
+**Advanced Configuration:**
+
+```yaml
+component:
+  type: shell
+  runtime:
+    type: virtualenv
+    driver: pyenv          # 'python' (current interpreter) or 'pyenv' (specific version)
+    python: "3.12.0"       # required when driver is 'pyenv'
+    path: .venv/training   # custom venv directory (default: .runtime/components/<id>/venv)
+    env:
+      CUDA_VISIBLE_DEVICES: "0"
+    start_timeout: 300s
+    stop_timeout: 30s
+  command: [python, train.py]
+```
+
+**Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `driver` | string | `python` | `python` uses the current interpreter; `pyenv` uses a pyenv-managed version |
+| `python` | string | - | Python version (pyenv driver only, e.g. `3.12.0`) |
+| `path` | string | - | Virtualenv directory (relative to CWD); defaults to `.runtime/components/<id>/venv` |
+| `env` | object | `{}` | Environment variables for the worker subprocess |
+| `start_timeout` | string \| number | `60s` | Worker start timeout |
+| `stop_timeout` | string \| number | `30s` | Worker stop timeout |
+
+The venv directory contains a `mindor/.version` marker recording the injected mindor version; matching versions skip reinjection on subsequent starts. To force a clean reinstall, delete the venv directory.
+
 ### Docker Runtime
 
 Runs components in isolated Docker containers for enhanced security and reproducibility.
@@ -241,6 +299,7 @@ component:
 |---------|--------------|-----------|----------|----------|
 | **embedded** | Fast | None | Minimal | Default choice, lightweight tasks |
 | **process** | Medium | Process | Medium | Heavy models, GPU isolation, crash isolation |
+| **virtualenv** | Medium (slow first run) | Process + dependencies | Medium | Per-component Python versions or conflicting packages |
 | **docker** | Slow | High | High | Production, security-critical workloads |
 
 ## Concurrency Control

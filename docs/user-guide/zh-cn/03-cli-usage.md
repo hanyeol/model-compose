@@ -177,8 +177,9 @@ model-compose up -f base.yml -f production.yml
 **base.yml:**
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 components:
   - id: my-model
@@ -274,8 +275,9 @@ components:
 # 1. 创建配置文件
 cat > model-compose.yml <<EOF
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -329,8 +331,9 @@ model-compose run default --input '{"prompt": "Write a poem"}'
 # 1. 创建生产配置
 cat > production.yml <<EOF
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     mem_limit: 4g
@@ -398,8 +401,9 @@ print(yaml.dump(config, default_flow_style=False))
 ```yaml
 # test-component.yml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   component: test-comp

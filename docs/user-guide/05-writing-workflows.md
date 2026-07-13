@@ -393,6 +393,32 @@ workflows:
           image: ${jobs.generate.output.image_base64 as image/png;base64}
 ```
 
+### Workflow Output
+
+A workflow can declare its own `output` to shape the final response returned to the caller. The expression is evaluated after all jobs finish and supports the same variable binding syntax used by jobs.
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: fetch
+        component: data-fetcher
+        input:
+          url: ${input.source_url}
+
+      - id: summarize
+        component: summarizer
+        input:
+          text: ${jobs.fetch.output.body}
+        depends_on: [ fetch ]
+
+    output:
+      summary: ${jobs.summarize.output.text}
+      source: ${jobs.fetch.output.url}
+```
+
+If `output` is omitted, the workflow's result falls back to the outputs of its **terminal jobs** (jobs that no other job depends on). When multiple terminal jobs each return a dictionary, their outputs are merged; otherwise the last terminal job's output is used directly. Defining `output` explicitly overrides this default and lets you reshape or rename the response.
+
 ---
 
 ## 5.5 Job Types
@@ -406,9 +432,10 @@ model-compose provides various job types to support different task patterns.
 | `component` | Component execution | Invoke a component to perform a task (default type) |
 | `if` | Conditional branching | Route to different jobs based on a condition |
 | `switch` | Multi-way branching | Route to one of many paths based on a value |
-| `delay` | Wait | Wait for a specified duration |
+| `delay` | Wait | Wait for a duration or until a specific time |
 | `filter` | Data restructuring | Extract and restructure data into a new shape |
 | `random-router` | Random routing | Randomly select one job |
+| `for-each` | Iteration | Run a component once per item in a collection |
 
 > **Note**: If `type` is not specified, it defaults to `component`.
 
@@ -587,6 +614,7 @@ Branch to different jobs based on a condition. Conditions are evaluated in order
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `input` | any | `null` | Value to evaluate against the conditions. Supports variable binding. |
 | `conditions` | `IfCondition[]` | `[]` | List of conditions to evaluate in order. |
 | `otherwise` | `string` | `null` | Job ID to route to if no conditions matched. |
 | `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
@@ -596,7 +624,6 @@ Branch to different jobs based on a condition. Conditions are evaluated in order
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `operator` | `string` | `"eq"` | Comparison operator (see below). |
-| `input` | any | `null` | Value to evaluate. Supports variable binding. |
 | `value` | any | `null` | Value to compare against. Supports variable binding. |
 | `if_true` | `string` | `null` | Job ID to route to when the condition is true. |
 | `if_false` | `string` | `null` | Job ID to route to when the condition is false. |
@@ -625,8 +652,8 @@ When there is only one condition, you can write the condition fields directly on
 jobs:
   - id: condition-check
     type: if
-    operator: eq
     input: ${input.value}
+    operator: eq
     value: "expected"
     if_true: job-when-true
     if_false: job-when-false
@@ -638,13 +665,12 @@ jobs:
 jobs:
   - id: multi-condition
     type: if
+    input: ${input.score}
     conditions:
       - operator: gt
-        input: ${input.score}
         value: 80
         if_true: excellent-handler
       - operator: gt
-        input: ${input.score}
         value: 60
         if_true: good-handler
     otherwise: need-improvement-handler
@@ -708,7 +734,7 @@ Wait for a specified duration or until a specific time. Has two modes selected b
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mode` | `"time-interval"` | - | Wait for a duration. |
-| `duration` | `number` or `string` | - | Time to wait in milliseconds. Supports variable binding. |
+| `duration` | `number` or `string` | - | Time to wait — seconds as a number, or a duration string like `"5s"`, `"2m"`, `"1h"`. Supports variable binding. |
 | `output` | any | `null` | Optional output mapping. |
 | `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
 
@@ -717,7 +743,7 @@ jobs:
   - id: wait
     type: delay
     mode: time-interval
-    duration: 5000  # 5 seconds
+    duration: 5s  # or 5 (numeric seconds)
 ```
 
 #### Fields (specific-time)
@@ -776,7 +802,7 @@ Randomly select one of multiple jobs. Supports uniform (equal probability) and w
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `target` | `string` | - | Destination job ID. |
+| `to` | `string` | - | Destination job ID. |
 | `weight` | `number` | `null` | Relative weight for weighted mode. Ignored in uniform mode. |
 
 #### Uniform Distribution
@@ -787,8 +813,8 @@ jobs:
     type: random-router
     mode: uniform
     routings:
-      - target: variant-a
-      - target: variant-b
+      - to: variant-a
+      - to: variant-b
 ```
 
 #### Weighted Distribution (70:20:10)
@@ -799,15 +825,46 @@ jobs:
     type: random-router
     mode: weighted
     routings:
-      - target: primary-model
+      - to: primary-model
         weight: 70
-      - target: experimental-model
+      - to: experimental-model
         weight: 20
-      - target: fallback-model
+      - to: fallback-model
         weight: 10
 ```
 
 > **Note**: Weight values don't need to sum to 100. They work as relative ratios.
+
+### For-Each Job
+
+Run a component once per item in an input collection. Items are drawn from a list, an async stream, or any iterable, and processed in batches.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input` | any | - | Source of items to iterate over. Supports lists, async streams, and iterables. Supports variable binding. |
+| `batch_size` | `integer` | `null` (=1) | Number of items processed concurrently per batch. |
+| `streaming` | `boolean` | `false` | Yield results as they complete instead of accumulating into a list. |
+| `do.component` | `string` or object | `"__default__"` | Component to invoke for each item. |
+| `do.action` | `string` | `"__default__"` | Action to invoke on the component. |
+| `do.input` | any | `null` | Input for each iteration; `${item}` refers to the current element. |
+| `do.output` | any | `null` | Output mapping applied to each iteration's result. |
+| `output` | any | `null` | Job-level output mapping applied to the aggregated result. |
+| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+
+```yaml
+jobs:
+  - id: process-each
+    type: for-each
+    input: ${input.items}
+    batch_size: 4
+    do:
+      component: item-processor
+      action: transform
+      input:
+        item: ${item}
+```
 
 ---
 
@@ -1026,7 +1083,7 @@ components:
       token: ${env.HUGGINGFACE_TOKEN}
     streaming: true  # Enable streaming
     action:
-      text: ${input.prompt}
+      prompt: ${input.prompt}
 ```
 
 #### HTTP Components
@@ -1087,130 +1144,76 @@ curl -X POST http://localhost:8080/api/workflows/runs \
 
 ## 5.8 Error Handling
 
-Handle errors that may occur during workflow execution.
+model-compose does not currently provide a declarative `retry`, `on_error`, or per-job `condition` field. Errors from a component action propagate up and abort the workflow run unless you handle them at a lower layer (for example, an HTTP action's [`polling` completion](#) `success_when`/`fail_when` rules, an `http-client` action's own retry logic, or an `agent` component's ReAct loop).
 
-### Retry Configuration
+If you need retry or fallback semantics today, wire them explicitly in the workflow graph:
 
-```yaml
-workflows:
-  - id: resilient-workflow
-    jobs:
-      - id: api-call
-        component: external-api
-        retry:
-          max_retry_count: 3
-          delay: 1000  # milliseconds
-          backoff: exponential
-        input: ${input}
-```
+- Put the risky call in one job, and use an [If Job](#if-job) to inspect its output and route to either the "success" branch or a "fallback" branch based on a status/error signal that the component itself surfaces.
+- For HTTP polling, use `success_when` / `fail_when` inside the action's `completion:` block so the transport layer decides when a response is terminal.
+- For long-running agent behavior (retry-until-goal), use the `agent` component with `max_iteration_count`.
 
-### Fallback Handling
-
-```yaml
-workflows:
-  - id: fallback-workflow
-    jobs:
-      - id: primary
-        component: primary-service
-        input: ${input}
-        on_error: continue
-
-      - id: fallback
-        component: fallback-service
-        condition: ${jobs.primary.error}
-        input: ${input}
-```
-
-### Example: Multi-Model Fallback
+### Example: Explicit Fallback Between Two Providers
 
 ```yaml
 components:
   - id: gpt4o
     type: http-client
+    base_url: https://api.openai.com
     action:
-      endpoint: https://api.openai.com/v1/chat/completions
+      path: /v1/chat/completions
+      method: POST
       headers:
         Authorization: Bearer ${env.OPENAI_API_KEY}
         Content-Type: application/json
       body:
         model: gpt-4o
         messages: ${input.messages}
-      output:
-        text: ${response.choices[0].message.content}
 
   - id: claude
     type: http-client
+    base_url: https://api.anthropic.com
     action:
-      endpoint: https://api.anthropic.com/v1/messages
+      path: /v1/messages
+      method: POST
       headers:
         x-api-key: ${env.ANTHROPIC_API_KEY}
         anthropic-version: "2023-06-01"
         Content-Type: application/json
       body:
         model: claude-3-5-sonnet-20241022
-        messages: ${input.messages}
         max_tokens: 1024
-      output:
-        text: ${response.content[0].text}
+        messages: ${input.messages}
 
 workflows:
   - id: robust-chat
     jobs:
       - id: try-gpt4o
         component: gpt4o
-        retry:
-          max_retry_count: 2
-          delay: 500
         input:
           messages: ${input.messages}
-        output:
-          result: ${output.text}
-        on_error: continue
+
+      - id: pick
+        type: if
+        input: ${jobs.try-gpt4o.output.choices[0].message.content}
+        operator: neq
+        value: null
+        if_true: use-gpt4o
+        if_false: fallback-claude
+
+      - id: use-gpt4o
+        type: filter
+        output: ${jobs.try-gpt4o.output.choices[0].message.content}
 
       - id: fallback-claude
         component: claude
-        condition: ${jobs.try-gpt4o.error}
         input:
           messages: ${input.messages}
-        output:
-          result: ${output.text}
-        depends_on: [ try-gpt4o ]
+
+    output:
+      answer: ${jobs.use-gpt4o.output || jobs.fallback-claude.output.content[0].text}
 ```
 
-Structure diagram:
-```mermaid
-graph TB
-    try["Job: try-gpt4o<br/>(retry: 2)"]
-    fallback["Job: fallback-claude"]
-
-    try -->|success| output[Output]
-    try -->|error| fallback
-    fallback --> output
-
-    try -.-> comp1[[Component:<br/>gpt4o]]
-    fallback -.-> comp2[[Component:<br/>claude]]
-```
-
-### Accessing Error Information
-
-```yaml
-workflows:
-  - id: error-logging
-    jobs:
-      - id: risky-operation
-        component: risky-api
-        input: ${input}
-        on_error: continue
-
-      - id: log-error
-        component: error-logger
-        condition: ${jobs.risky-operation.error}
-        input:
-          error_message: ${jobs.risky-operation.error.message}
-          error_code: ${jobs.risky-operation.error.code}
-          timestamp: ${jobs.risky-operation.error.timestamp}
-        depends_on: [ risky-operation ]
-```
+The pattern is: run the primary job, use an `if` job to inspect its output, and route to either a "keep this result" branch or a "call the fallback" branch. The workflow's terminal-job merging (see [output configuration](#output-configuration)) then produces the final response.
 
 ---
 
@@ -1311,7 +1314,7 @@ workflows:
 
 ### 5. Consider Error Handling
 
-Always add retry or fallback logic for critical jobs:
+Because model-compose does not have a declarative retry/on-error field, wire fallback behavior into the workflow graph — run the primary call, then use an `if` job to route to the fallback based on the observed output:
 
 ```yaml
 workflows:
@@ -1319,15 +1322,23 @@ workflows:
     jobs:
       - id: important-task
         component: critical-service
-        retry:
-          max_retry_count: 3
-          delay: 1000
-        on_error: continue
+        input: ${input}
+
+      - id: check
+        type: if
+        input: ${jobs.important-task.output.status}
+        operator: eq
+        value: ok
+        if_true: done
+        if_false: fallback-task
 
       - id: fallback-task
         component: backup-service
-        condition: ${jobs.important-task.error}
-        depends_on: [ important-task ]
+        input: ${input}
+
+      - id: done
+        type: filter
+        output: ${jobs.important-task.output}
 ```
 
 ---
@@ -1337,7 +1348,7 @@ workflows:
 Try it out:
 - Start with simple single-job workflows
 - Gradually expand to complex multi-step workflows
-- Add error handling and retry logic
+- Use `if`/`switch` jobs to wire in fallback branches
 - Build reusable workflow components
 
 ---

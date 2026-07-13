@@ -114,7 +114,7 @@
 
 ### 7.2 Gradio 드라이버
 - [ ] **UI 컴포넌트 매핑 테이블 추가** - 모든 input/output 타입을 Gradio 컴포넌트로 매핑 표시
-- [ ] **Gradio에서 스트리밍 설명** - `sse-text` vs `sse-json`이 어떻게 다르게 렌더링되는가?
+- [ ] **Gradio에서 스트리밍 설명** - `stream/text` vs `stream/json`이 어떻게 다르게 렌더링되는가?
 
 ---
 

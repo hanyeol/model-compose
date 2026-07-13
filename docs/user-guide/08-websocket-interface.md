@@ -75,8 +75,9 @@ WebSocket is enabled by default when using the HTTP server controller. No additi
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 ```
 
 The WebSocket endpoint is available at `ws://localhost:8080/ws`.
@@ -91,12 +92,13 @@ The `websocket` field accepts either a boolean or a configuration object:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  origins: "*"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    port: 8080
+    origins: "*"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 **Configuration Fields:**
@@ -114,10 +116,11 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 8080
-  origins: "*"
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 8080
+    origins: "*"
   # WebSocket enabled by default, no extra config needed
 ```
 
@@ -125,22 +128,24 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-  origins: "https://app.example.com"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    host: 127.0.0.1
+    port: 8080
+    origins: "https://app.example.com"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 #### Disable WebSocket
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  websocket: false
+  adapter:
+    type: http-server
+    port: 8080
+    websocket: false
 ```
 
 ---
@@ -875,9 +880,10 @@ When `max_connection_count` is configured and the limit is reached, new connecti
 
 ```yaml
 controller:
-  type: http-server
-  websocket:
-    max_connection_count: 50  # Reject connections beyond 50
+  adapter:
+    type: http-server
+    websocket:
+      max_connection_count: 50  # Reject connections beyond 50
 ```
 
 ### 8.7.4 Keep-Alive with Ping
@@ -909,8 +915,9 @@ The `origins` setting in controller configuration applies to WebSocket connectio
 
 ```yaml
 controller:
-  type: http-server
-  origins: "https://app.example.com"  # Restrict browser origins
+  adapter:
+    type: http-server
+    origins: "https://app.example.com"  # Restrict browser origins
 ```
 
 Note: This only applies to browser-initiated connections. Server-to-server WebSocket connections are not restricted by CORS.

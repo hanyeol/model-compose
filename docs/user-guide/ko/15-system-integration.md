@@ -1287,11 +1287,11 @@ listener:
 # gateway 설정 제거 (공인 IP/도메인 사용)
 
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 443  # HTTPS
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 443  # HTTPS
   # SSL 설정 추가
-
 listener:
   host: 0.0.0.0
   port: 8090

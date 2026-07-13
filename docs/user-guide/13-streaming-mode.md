@@ -19,8 +19,8 @@ Streaming mode delivers partial results as they are generated, rather than waiti
 **Use Cases:**
 - Chatbot conversations (ChatGPT-style)
 - Real-time text generation
-- Long document summarization
-- Translation services
+- Long document summarization (a use case of the `text-to-text` task)
+- Translation services (a use case of the `text-to-text` task)
 - Code generation
 
 ### 13.1.2 Supported Components
@@ -31,6 +31,7 @@ Components that support streaming:
 |---------------|------------------|---------------|
 | `model` (text-generation) | ✅ | `streaming: true` |
 | `model` (chat-completion) | ✅ | `streaming: true` |
+| `model` (text-to-text) | ✅ | `streaming: true` |
 | `model` (image-to-text) | ✅ | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
@@ -69,11 +70,13 @@ Each chunk is sent with a `data:` prefix and separated by blank lines.
 ```yaml
 component:
   type: model
-  task: text-generation
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
   model: facebook/bart-large-cnn
-  streaming: true                  # Enable streaming
   action:
     text: ${input.text as text}
+    streaming: true                # Enable streaming (action field)
     params:
       max_output_length: 150
 ```
@@ -90,9 +93,9 @@ component:
   type: model
   task: text-generation
   model: gpt2
-  streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
+    streaming: true
     params:
       max_output_length: 200
       do_sample: false               # Deterministic generation (faster)
@@ -110,11 +113,11 @@ component:
   type: model
   task: chat-completion
   model: microsoft/DialoGPT-medium
-  streaming: true
   action:
     messages:
       - role: user
         content: ${input.message as text}
+    streaming: true
     params:
       max_output_length: 100
 ```
@@ -183,8 +186,6 @@ component:
     - --port
     - "8000"
   port: 8000
-  healthcheck:
-    path: /health
   action:
     method: POST
     path: /v1/chat/completions
@@ -206,12 +207,13 @@ component:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}    # Output as SSE text format
+  output: ${output as stream/text}    # Output as SSE text format
 
 component:
   type: http-client
@@ -233,14 +235,14 @@ component:
 
 **Workflow Output Formats:**
 
-- `as sse-text`: SSE text stream
+- `as stream/text`: SSE text stream
   ```yaml
-  output: ${output as sse-text}
+  output: ${output as stream/text}
   ```
 
-- `as sse-json`: SSE JSON stream
+- `as stream/json`: SSE JSON stream
   ```yaml
-  output: ${output as sse-json}
+  output: ${output as stream/json}
   ```
 
 ### 13.3.2 Multi-Step Workflow Streaming
@@ -249,7 +251,7 @@ component:
 workflows:
   - id: translate-and-summarize
     title: Translate and Summarize
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
       - id: translate
         component: translator
@@ -268,19 +270,22 @@ workflows:
 components:
   - id: translator
     type: model
-    task: translation
+    task: text-to-text
+    driver: huggingface
     model: Helsinki-NLP/opus-mt-ko-en
-    streaming: false
     action:
       text: ${input.text as text}
+      streaming: false
 
   - id: summarizer
     type: model
-    task: text-generation
+    task: text-to-text
+    driver: huggingface
+    architecture: bart
     model: facebook/bart-large-cnn
-    streaming: true                    # Only last job streams
     action:
       text: ${input.text as text}
+      streaming: true                  # Only last job streams
       params:
         max_output_length: 150
 ```
@@ -295,15 +300,15 @@ components:
 ```yaml
 workflow:
   title: Conditional Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
   task: text-generation
   model: gpt2
-  streaming: ${input.stream | false}   # Streaming determined by input
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
+    streaming: ${input.stream | false} # Streaming determined by input
     params:
       max_output_length: 100
 ```
@@ -490,29 +495,30 @@ asyncio.run(stream_workflow())
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
   task: chat-completion
   model: gpt2
-  streaming: true
   action:
     messages:
       - role: user
         content: ${input.prompt as text}
+    streaming: true
 ```
 
 Gradio Web UI automatically:
-- Detects `sse-text` format
+- Detects `stream/text` format
 - Displays real-time text accumulation
 - Shows typing animation effect
 
@@ -529,9 +535,9 @@ component:
   type: model
   task: text-generation
   model: gpt2
-  streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
+    streaming: true
     params:
       # Performance optimization
       do_sample: false               # Deterministic generation (no beam search)
@@ -671,23 +677,25 @@ fetch(url, {
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Real-time Translation
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
-  task: translation
+  task: text-to-text
+  driver: huggingface
   model: Helsinki-NLP/opus-mt-ko-en
-  streaming: true
   action:
     text: ${input.text as text}
+    streaming: true
     params:
       max_output_length: 512
 ```
@@ -698,19 +706,27 @@ component:
 workflows:
   - id: multi-model-chat
     title: Multi-Model Chat
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
+      - id: route
+        type: switch
+        input: ${input.model}
+        cases:
+          - value: openai
+            then: openai-response
+          - value: claude
+            then: claude-response
+        otherwise: openai-response
+
       - id: openai-response
         component: openai-client
         input:
           prompt: ${input.prompt}
-        condition: ${input.model == 'openai'}
 
       - id: claude-response
         component: claude-client
         input:
           prompt: ${input.prompt}
-        condition: ${input.model == 'claude'}
 
 components:
   - id: openai-client
@@ -751,12 +767,13 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Local Model Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: http-server
@@ -769,9 +786,6 @@ component:
     - --gpu-memory-utilization
     - "0.9"
   port: 8000
-  healthcheck:
-    path: /health
-    interval: 5s
   action:
     method: POST
     path: /v1/chat/completions

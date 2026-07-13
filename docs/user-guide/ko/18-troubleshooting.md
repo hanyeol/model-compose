@@ -65,15 +65,7 @@ component:
 
 **Q: HTTP 클라이언트에서 타임아웃 오류가 발생합니다.**
 
-A: 타임아웃 시간을 늘리거나 재시도 설정을 추가하세요:
-
-```yaml
-component:
-  type: http-client
-  timeout: 120  # 초 단위
-  max_retries: 5
-  retry_delay: 2
-```
+A: model-compose는 `http-client` 컴포넌트에 대해 선언적 `timeout` / `retry` 필드를 제공하지 않습니다. action의 `polling` completion으로 대기 시간을 제한하거나, 컴포넌트 레벨의 `rate_limit`을 적용하거나, OS 수준의 소켓 타임아웃을 리버스 프록시에서 설정하세요. 오래 걸리는 서버 사이드 작업은 [`http-callback` 리스너](../reference/compose/listener.md)를 사용하는 것도 좋은 방법입니다.
 
 **Q: 벡터 스토어 연결이 실패합니다.**
 
@@ -146,7 +138,7 @@ workflow:
 3. 컨트롤러에서 응답 형식 지정:
 ```yaml
 workflow:
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 ```
 
 ### 18.1.4 Web UI

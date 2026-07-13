@@ -119,8 +119,9 @@ model-compose run my-workflow --input @input.json
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 logger:
   - type: console
@@ -137,8 +138,9 @@ logger:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime: docker                 # 字符串格式
 ```
 
@@ -146,8 +148,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     # 使用默认镜像（自动构建）
@@ -157,8 +160,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry/model-compose:latest
@@ -175,8 +179,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     ports:
@@ -195,8 +200,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -522,8 +528,9 @@ CMD [ "model-compose", "up" ]
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -607,8 +614,9 @@ docker push my-registry.com/model-compose:1.0
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry.com/model-compose:1.0
@@ -648,8 +656,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   max_concurrent_count: 10         # 最多 10 个并发工作流
   threaded: false                  # 基于线程的执行（默认：false）
 ```
@@ -725,8 +734,9 @@ model-compose 默认提供 `/health` 端点。
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     healthcheck:

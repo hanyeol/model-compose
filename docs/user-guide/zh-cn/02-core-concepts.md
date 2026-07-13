@@ -24,9 +24,10 @@ Controller 是 model-compose 的核心组件,管理整个系统的运行。
 
 ```yaml
 controller:
-  type: http-server    # 或 mcp-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server    # 或 mcp-server
+    port: 8080
+    base_path: /api
 ```
 
 ---
@@ -301,7 +302,8 @@ Runtime 决定了代码的执行位置。
 
 ```yaml
 controller:
-  type: http-server
+  adapter:
+    type: http-server
   # runtime: native (默认,可省略)
 ```
 
@@ -312,7 +314,8 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
+  adapter:
+    type: http-server
   runtime: docker
   # 或
   runtime:

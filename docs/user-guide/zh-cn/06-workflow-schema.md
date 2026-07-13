@@ -133,8 +133,8 @@ GET /workflows
 
 | 类型 | 说明 |
 |------|------|
-| `sse-text` | Server-Sent Events（文本块） |
-| `sse-json` | Server-Sent Events（JSON 块） |
+| `stream/text` | Server-Sent Events（文本块） |
+| `stream/json` | Server-Sent Events（JSON 块） |
 
 **UI 类型：**
 
@@ -191,7 +191,39 @@ workflows:
 
 ## 6.4 输出 Schema
 
-输出 Schema 描述工作流完成后返回的数据。它从 **终端作业** — 没有其他作业依赖的作业 — 的 output 中推断。
+输出 Schema 描述工作流完成后返回的数据。
+
+- 如果工作流声明了显式的 `output` 映射，Schema 将**直接从该映射**推断。
+- 否则，将从 **终端作业**（没有其他作业依赖的作业）的 output 中推断。
+
+### 工作流级输出
+
+当您在工作流本身定义 `output` 时，Schema 将精确反映该映射中包含的变量：
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: generate
+        component: gpt4o
+        input:
+          prompt: ${input.text as text}
+
+    output:
+      summary: ${jobs.generate.output.text as markdown}
+      tokens: ${jobs.generate.output.usage.total_tokens as integer}
+```
+
+生成的结果：
+
+```json
+{
+  "output": [
+    { "name": "summary", "type": "markdown" },
+    { "name": "tokens", "type": "integer" }
+  ]
+}
+```
 
 ### 基本输出
 
@@ -293,7 +325,8 @@ jobs:
 
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 
 workflows:
   - id: translate
@@ -426,7 +459,7 @@ workflows:
         component: gpt4o-stream
         input:
           prompt: ${input.prompt as text}
-        output: ${output as sse-text}
+        output: ${output as stream/text}
 ```
 
 **生成的 Schema：**
@@ -438,12 +471,12 @@ workflows:
     { "name": "prompt", "type": "text" }
   ],
   "output": [
-    { "name": null, "type": "sse-text" }
+    { "name": null, "type": "stream/text" }
   ]
 }
 ```
 
-`sse-text` 输出类型表示客户端应期望通过 Server-Sent Events 接收流式响应。
+`stream/text` 输出类型表示客户端应期望通过 Server-Sent Events 接收流式响应。
 
 ---
 

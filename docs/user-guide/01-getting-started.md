@@ -136,9 +136,10 @@ Create a `model-compose.yml` file:
 ```yaml
 # model-compose.yml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     port: 8081
 
@@ -175,9 +176,10 @@ Let's break down what each section does:
 **Controller**
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     port: 8081
 ```

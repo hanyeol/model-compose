@@ -136,9 +136,10 @@ OPENAI_API_KEY=your-api-key
 ```yaml
 # model-compose.yml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     port: 8081
 
@@ -175,9 +176,10 @@ workflows:
 **控制器**
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     port: 8081
 ```

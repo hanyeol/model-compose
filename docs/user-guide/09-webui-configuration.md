@@ -14,9 +14,10 @@ Running only the controller without Web UI. Suitable for production environments
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   # No webui configuration
 ```
 
@@ -28,9 +29,10 @@ Run Web UI together to test and execute workflows from a browser.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080       # Controller API port
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080       # Controller API port
+    base_path: /api
   webui:
     driver: gradio # or static
     port: 8081     # Web UI port (must differ from controller)
@@ -50,9 +52,10 @@ Gradio is an interactive web UI automatically generated based on workflow schema
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio  # Default (can be omitted)
     host: 127.0.0.1 # Default
@@ -91,24 +94,27 @@ Gradio automatically generates UI based on workflow `input` and `output` definit
 
 ### Streaming Output Support
 
-When workflow output is specified as `as sse-text` or `as sse-json`, it's displayed in real-time streaming.
+When workflow output is specified as `as stream/text` or `as stream/json`, it's displayed in real-time streaming.
 
 ```yaml
 workflow:
   title: Summarize Text
   input: ${input}
-  output: ${output as sse-text}  # Streaming output
+  output: ${output as stream/text}  # Streaming output
 
 component:
   type: model
-  task: text-generation
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
   model: facebook/bart-large-cnn
-  text: ${input.text}
-  streaming: true  # Enable streaming in component
+  action:
+    text: ${input.text}
+    streaming: true  # Enable streaming in the action
 ```
 
-- **Text Streaming** (`sse-text`): Accumulates and displays chunks as they arrive (e.g., AI text generation)
-- **JSON Streaming** (`sse-json`): Adds each chunk to a list and displays (e.g., sequential generation of multiple results)
+- **Text Streaming** (`stream/text`): Accumulates and displays chunks as they arrive (e.g., AI text generation)
+- **JSON Streaming** (`stream/json`): Adds each chunk to a list and displays (e.g., sequential generation of multiple results)
 
 In Gradio UI, output updates in real-time so you can see the generation process.
 
@@ -139,9 +145,10 @@ Serves custom HTML/CSS/JavaScript files. Uses FastAPI's `StaticFiles` to serve s
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: static     # Required
     host: 127.0.0.1    # Default
@@ -235,10 +242,11 @@ In production environments, you can deploy both the controller API and Web UI to
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1  # Accessible from proxy only
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    host: 127.0.0.1  # Accessible from proxy only
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     host: 127.0.0.1

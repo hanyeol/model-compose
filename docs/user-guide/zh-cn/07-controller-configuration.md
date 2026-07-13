@@ -12,18 +12,20 @@ HTTP 服务器控制器将工作流公开为 REST API。
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 ```
 
 ### 示例：简单聊天机器人 API
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 
 workflow:
   title: Chat with AI
@@ -390,8 +392,9 @@ GET /api/health
 
 ```yaml
 controller:
-  type: http-server
-  origins: "https://example.com,https://app.example.com"  # 仅允许特定域
+  adapter:
+    type: http-server
+    origins: "https://example.com,https://app.example.com"  # 仅允许特定域
   # origins: "*"  # 允许所有域（默认，用于开发）
 ```
 
@@ -405,18 +408,20 @@ MCP（模型上下文协议）服务器控制器使用 Streamable HTTP 协议与
 
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080
-  base_path: /mcp  # Streamable HTTP 端点路径
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp  # Streamable HTTP 端点路径
 ```
 
 ### 示例：内容审核工具
 
 ```yaml
 controller:
-  type: mcp-server
-  base_path: /mcp
-  port: 8080
+  adapter:
+    type: mcp-server
+    base_path: /mcp
+    port: 8080
 
 workflows:
   - id: moderate-text
@@ -512,10 +517,11 @@ http://localhost:8080/mcp
 ```yaml
 # model-compose 使用 HTTP 在本地运行
 controller:
-  type: mcp-server
-  host: 127.0.0.1
-  port: 8080
-  base_path: /mcp
+  adapter:
+    type: mcp-server
+    host: 127.0.0.1
+    port: 8080
+    base_path: /mcp
 ```
 
 Nginx 反向代理配置示例：
@@ -559,18 +565,20 @@ https://mcp.example.com/mcp
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
 ```
 
 ### 示例：分布式图像处理工作者
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
   workflow: image-processing
   max_concurrent_count: 2
 
@@ -651,11 +659,11 @@ model-compose:tasks:image-processing:01JXYZ...    ← 结果通知 (Redis Pub/Su
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `driver` | string | **必填** | 队列后端驱动程序（`redis`） |
-| `name` | string | `model-compose:tasks` | 任务队列基本名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
-| `result_ttl` | integer | `3600` | 结果条目 TTL（秒）。`0` = 不过期 |
-| `max_concurrent` | integer | `1` | 最大并发任务处理数 |
+| `name` | string | `controller-queue` | 任务队列基本名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
+| `result_ttl` | string | `1h` | 结果条目 TTL（例如 `"1h"`, `"30m"`）。`"0s"` = 不过期 |
+| `max_concurrent_count` | integer | `1` | 最大并发任务处理数（>= 1） |
 | `worker_id` | string | 自动 | 工作者唯一标识符（自动生成 ULID） |
-| `workflows` | list | `["__default__"]` | 要处理的工作流 ID 列表 |
+| `workflows` | list | `null` | 该工作者处理的工作流 ID。未指定时使用所有非私有工作流。单个 ID 请使用 `workflow:` 简写。 |
 
 #### Redis 驱动设置
 
@@ -669,7 +677,7 @@ model-compose:tasks:image-processing:01JXYZ...    ← 结果通知 (Redis Pub/Su
 | `secure` | boolean | `false` | 使用 TLS/SSL 连接 |
 | `database` | integer | `0` | Redis 数据库编号 (0-15) |
 | `password` | string | `null` | Redis 密码 |
-| `pop_timeout` | integer | `1` | BRPOP 超时时间（秒） |
+| `pop_timeout` | string/number | `1s` | BRPOP 超时时间（例如 `"1s"`, `"500ms"`） |
 
 ### 分布式工作者场景
 
@@ -679,9 +687,10 @@ model-compose:tasks:image-processing:01JXYZ...    ← 结果通知 (Redis Pub/Su
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
   workflow: text-summary
   max_concurrent_count: 3
 ```
@@ -698,9 +707,10 @@ redis-cli LPUSH model-compose:tasks:text-summary \
 
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://localhost:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://localhost:6379
   workflows:
     - text-summary
     - translation
@@ -714,17 +724,19 @@ controller:
 ```yaml
 # GPU 服务器 — 仅处理图像生成
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://shared-redis:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://shared-redis:6379
   workflow: image-generation
   max_concurrent_count: 2
 
 # CPU 服务器 — 文本处理
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: redis://shared-redis:6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: redis://shared-redis:6379
   workflows:
     - text-summary
     - translation
@@ -759,10 +771,11 @@ redis-cli GET model-compose:tasks:my-workflow:run-001
 使用 host/port：
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  host: redis.internal
-  port: 6379
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    host: redis.internal
+    port: 6379
   password: ${env.REDIS_PASSWORD}
   database: 2
   name: myapp:tasks
@@ -776,9 +789,10 @@ controller:
 使用 URL（带 TLS）：
 ```yaml
 controller:
-  type: queue-subscriber
-  driver: redis
-  url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
+  adapter:
+    type: queue-subscriber
+    driver: redis
+    url: rediss://:${env.REDIS_PASSWORD}@redis.internal:6380/2
   workflows:
     - image-generation
   max_concurrent_count: 2
@@ -837,8 +851,9 @@ controller:
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `driver` | string | **必需** | 队列后端驱动（`redis`） |
-| `name` | string | `model-compose:tasks` | 任务队列基础名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
-| `timeout` | integer | `0` | 等待结果的最大时间（秒）。`0` = 无限制 |
+| `name` | string | `controller-queue` | 任务队列基础名称。队列键: `{name}:{workflow_id}`。结果键: `{name}:{workflow_id}:{run_id}` |
+| `timeout` | string/number | `0s` | 等待结果的最大时间（例如 `"30s"`）。`"0s"` = 无限制 |
+| `max_blob_size` | string/number | `50M` | 队列中每个 blob 的最大大小（例如 `"512K"`、`"2G"`） |
 
 Redis 驱动设置（`url` 或 `host`/`port`/`secure`）与[队列订阅者](#73-队列订阅者)相同。
 
@@ -950,7 +965,7 @@ component:
     workflow: chat
     input:
       prompt: ${input.prompt as text}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 ```
 
 **工作节点** (`subscriber/model-compose.yml`):
@@ -972,7 +987,7 @@ workflow:
     component: openai
     input:
       prompt: ${input.prompt}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 
 component:
   id: openai
@@ -1042,7 +1057,8 @@ Redis Stream 中的每个条目包含一个 `event` 字段：
 
 ```yaml
 controller:
-  type: http-server  # 或 mcp-server
+  adapter:
+    type: http-server  # 或 mcp-server
   max_concurrent_count: 5  # 限制最多 5 个并发执行
 ```
 
@@ -1062,12 +1078,14 @@ controller:
 ```yaml
 # 默认: 无限制
 controller:
-  type: http-server
+  adapter:
+    type: http-server
   max_concurrent_count: 0
 
 # 当需要限制 GPU 资源时
 controller:
-  type: http-server
+  adapter:
+    type: http-server
   max_concurrent_count: 3  # 将总工作流执行限制为 3 个
 ```
 
@@ -1088,7 +1106,8 @@ controller:
 示例：
 ```yaml
 controller:
-  type: http-server
+  adapter:
+    type: http-server
   max_concurrent_count: 0  # 无限制工作流执行
 
 components:
@@ -1096,7 +1115,7 @@ components:
     type: model
     max_concurrent_count: 2  # 由于 GPU 内存限制为 2 个并发执行
     model: stabilityai/stable-diffusion-2-1
-    task: text-to-image
+    task: image-generation
 
   - id: openai-api
     type: http-client
@@ -1121,9 +1140,10 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1  # 默认
-  port: 8080       # 默认
+  adapter:
+    type: http-server
+    host: 127.0.0.1  # 默认
+    port: 8080       # 默认
 ```
 
 - 仅可从同一台机器访问
@@ -1133,9 +1153,10 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 8080
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 8080
 ```
 
 - 可从外部源访问
@@ -1147,8 +1168,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080  # 默认
+  adapter:
+    type: http-server
+    port: 8080  # 默认
 ```
 
 ### Base Path
@@ -1159,8 +1181,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   # 无 base_path
 ```
 
@@ -1173,9 +1196,10 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
 ```
 
 端点：
@@ -1191,10 +1215,11 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1  # 仅可从代理访问
-  port: 8080
-  base_path: /ai   # 匹配代理路径
+  adapter:
+    type: http-server
+    host: 127.0.0.1  # 仅可从代理访问
+    port: 8080
+    base_path: /ai   # 匹配代理路径
 ```
 
 #### Nginx 配置示例
@@ -1226,9 +1251,10 @@ server {
 
 ```yaml
 controller:
-  type: http-server
-  port: ${env.PORT | 8080}  # 环境变量或默认 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: ${env.PORT | 8080}  # 环境变量或默认 8080
+    base_path: /api
 ```
 
 ### 2. 适当的 CORS 配置
@@ -1238,13 +1264,15 @@ controller:
 ```yaml
 # 开发环境
 controller:
-  type: http-server
-  origins: "*"
+  adapter:
+    type: http-server
+    origins: "*"
 
 # 生产环境
 controller:
-  type: http-server
-  origins: "https://app.example.com,https://admin.example.com"
+  adapter:
+    type: http-server
+    origins: "https://app.example.com,https://admin.example.com"
 ```
 
 ### 3. 并发限制配置
@@ -1254,14 +1282,16 @@ controller:
 ```yaml
 # 使用 GPU 的工作流 - 有限并发
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   max_concurrent_count: 2  # 考虑 GPU 内存限制
 
 # 轻量级 API 调用工作流 - 高并发
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   max_concurrent_count: 20
 ```
 
@@ -1307,10 +1337,11 @@ async function runLongWorkflow(input) {
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-  base_path: /ai-service  # 精确匹配代理路径
+  adapter:
+    type: http-server
+    host: 127.0.0.1
+    port: 8080
+    base_path: /ai-service  # 精确匹配代理路径
 ```
 
 ### 6. 利用 output_only

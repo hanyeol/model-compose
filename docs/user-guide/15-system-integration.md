@@ -1287,11 +1287,11 @@ listener:
 # Remove gateway configuration (use public IP/domain)
 
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 443  # HTTPS
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 443  # HTTPS
   # Add SSL configuration
-
 listener:
   host: 0.0.0.0
   port: 8090

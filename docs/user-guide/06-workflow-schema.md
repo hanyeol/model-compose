@@ -110,8 +110,10 @@ Each input variable has the following fields:
 | `number` | Floating-point number | Temperature, scores |
 | `boolean` | True/false | Feature flags |
 | `list` | Array of values | Tags, keywords |
+| `object` | Structured object | Nested records |
 | `json` | Arbitrary JSON object | Complex structured data |
-| `object[]` | Array of objects with projected fields | Table data |
+
+Any primitive can be marked as a list by appending `[]` to the type (e.g. `string[]`, `object[]`). Internally this sets the variable's `is_list` flag.
 
 **Encoded Types:**
 
@@ -133,8 +135,8 @@ Each input variable has the following fields:
 
 | Type | Description |
 |------|-------------|
-| `sse-text` | Server-Sent Events (text chunks) |
-| `sse-json` | Server-Sent Events (JSON chunks) |
+| `stream/text` | Server-Sent Events (text chunks) |
+| `stream/json` | Server-Sent Events (JSON chunks) |
 
 **UI Types:**
 
@@ -149,9 +151,9 @@ The `format` field specifies how data is transferred:
 | Format | Description |
 |--------|-------------|
 | `base64` | Data is base64-encoded in the request body |
+| `data-uri` | Data is embedded as a data URI (e.g. `data:image/png;base64,...`) |
 | `url` | Data is referenced by URL |
 | `path` | Data is referenced by file path |
-| `stream` | Data is delivered as a stream |
 
 ### How Input Schema is Inferred
 
@@ -191,7 +193,39 @@ This produces the following input schema:
 
 ## 6.4 Output Schema
 
-The output schema describes the data returned when the workflow completes. It is inferred from the **terminal jobs** — jobs that no other job depends on.
+The output schema describes the data returned when the workflow completes.
+
+- If the workflow declares an explicit `output` mapping, the schema is derived **directly from that mapping**.
+- Otherwise, it is inferred from the **terminal jobs** — jobs that no other job depends on.
+
+### Workflow-Level Output
+
+When you define `output` on the workflow itself, the schema reflects exactly the variables in that mapping:
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: generate
+        component: gpt4o
+        input:
+          prompt: ${input.text as text}
+
+    output:
+      summary: ${jobs.generate.output.text as markdown}
+      tokens: ${jobs.generate.output.usage.total_tokens as integer}
+```
+
+Produces:
+
+```json
+{
+  "output": [
+    { "name": "summary", "type": "markdown" },
+    { "name": "tokens", "type": "integer" }
+  ]
+}
+```
 
 ### Basic Output
 
@@ -293,7 +327,8 @@ When the controller type is `mcp-server`, workflow input variables become tool p
 
 ```yaml
 controller:
-  type: mcp-server
+  adapter:
+    type: mcp-server
 
 workflows:
   - id: translate
@@ -426,7 +461,7 @@ workflows:
         component: gpt4o-stream
         input:
           prompt: ${input.prompt as text}
-        output: ${output as sse-text}
+        output: ${output as stream/text}
 ```
 
 **Generated Schema:**
@@ -438,12 +473,12 @@ workflows:
     { "name": "prompt", "type": "text" }
   ],
   "output": [
-    { "name": null, "type": "sse-text" }
+    { "name": null, "type": "stream/text" }
   ]
 }
 ```
 
-The `sse-text` output type indicates the client should expect a streaming response via Server-Sent Events.
+The `stream/text` output type indicates the client should expect a streaming response via Server-Sent Events.
 
 ---
 

@@ -12,10 +12,11 @@ This chapter provides an in-depth look at model-compose's core concepts and the 
 
 ```yaml
 controller:
-  # Defines how workflows are hosted and executed
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
+  # Defines how workflows are hosted and executed
 components:
   # Defines executable modules
   - id: my-component
@@ -64,9 +65,10 @@ Exposes workflows as REST API endpoints.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio  # or static
     port: 8081
@@ -88,9 +90,10 @@ Exposes workflows through Model Context Protocol.
 
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080
-  base_path: /mcp
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp
 ```
 
 **Main Settings:**
@@ -122,8 +125,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: native  # or docker
   max_concurrent_count: 10  # Concurrent execution limit
@@ -229,14 +233,13 @@ Runs local AI models.
 ```yaml
 - id: local-llm
   type: model
-  source: huggingface
-  model_id: meta-llama/Llama-3.2-3B-Instruct
   task: chat-completion
+  model: meta-llama/Llama-3.2-3B-Instruct   # or { provider: huggingface, repository: ... }
   device: cuda
-  input:
+  action:
     messages: ${input.messages}
-  output:
-    response: ${output.content}
+    output:
+      response: ${result.content}
 ```
 
 #### 3. Shell
@@ -519,8 +522,9 @@ ${input.model | gpt-4o}                  # Specify default model
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 components:
   - id: generate-quote

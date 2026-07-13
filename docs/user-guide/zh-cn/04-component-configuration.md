@@ -15,6 +15,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `agent` | 自主 AI 代理 | 通过工作流作为工具的 ReAct 循环 |
 | `http-client` | 外部 API 调用 | 集成 OpenAI、ElevenLabs 等 REST API |
 | `http-server` | 提供 HTTP 服务 | 实现自定义 HTTP API 端点 |
+| `websocket-client` | WebSocket 客户端 | 连接远程 WebSocket 服务器进行实时通信 |
+| `websocket-server` | 提供 WebSocket 服务 | 为实时应用托管 WebSocket 端点 |
 | `mcp-server` | 提供 MCP 服务 | 实现模型上下文协议服务器 |
 | `mcp-client` | MCP 客户端 | 与 MCP 服务器通信 |
 | `model` | 运行本地 AI 模型 | 本地模型推理，如文本生成、图像分析等 |
@@ -26,12 +28,17 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `graph-store` | 图数据库集成 | 使用 Neo4j、ArangoDB 的知识图谱、社交网络 |
 | `search-engine` | 全文搜索 | 基于 SQLite FTS5 的 BM25 关键词搜索 |
 | `key-value-store` | 键值存储 | 使用 Redis 进行缓存、会话管理 |
+| `file-store` | 文件/对象存储 | 本地文件系统、AWS S3、GCP Storage、Azure Blob 流式 I/O |
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
-| `image-processor` | 处理图像 | 图像转换、调整大小等 |
+| `image-processor` | 处理图像 | 图像转换、调整大小、PNG 压缩等 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
+| `video-converter` | 视频转换 | 视频转码/格式转换（容器、编解码器、分辨率等） |
 | `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
+| `audio-extractor` | 音频提取 | 从视频/媒体中提取音频流 |
+| `audio-converter` | 音频转换 | 音频转码/格式转换（编解码器、采样率、声道等） |
+| `audio-feature-extractor` | 音频特征提取 | 用于可视化的每帧频谱带 / 波形点 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
 
@@ -43,6 +50,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 **本地 AI 模型**
 - 本地推理 → `model`
+- 视觉任务（本地图像的人脸/姿态检测）→ `model` 配合 `task: face-detection` 或 `task: pose-detection`（详见 [Model Component 参考](../../reference/compose/components/model.md)）
 - 使用 vLLM、Ollama 等后端 → `http-server`
 - 训练 → `model-trainer`
 
@@ -56,6 +64,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 图像处理 → `image-processor`
 - 视频场景检测 → `video-scene-detector`
 - 视频帧提取 → `video-frame-extractor`
+- 音频特征提取（可视化用频谱 / 波形）→ `audio-feature-extractor`
 - 网页抓取 → `web-scraper`
 
 **浏览器自动化**
@@ -586,12 +595,13 @@ graph LR
 
 ### 可用的运行时
 
-model-compose 支持三种运行时类型：
+model-compose 支持四种运行时类型：
 
 | 运行时 | 隔离级别 | 速度 | 开销 | 适用场景 |
 |--------|---------|------|------|---------|
 | `embedded` | 无 | 快 | 最小 | 轻量级任务，默认选择 |
 | `process` | 进程级 | 中等 | 中等 | 重型模型，GPU 隔离 |
+| `virtualenv` | 进程 + 依赖 | 中等（首次较慢） | 中等 | 各组件独立的 Python 版本或依赖冲突 |
 | `docker` | 容器级 | 慢 | 高 | 生产部署 |
 
 ### Embedded 运行时（默认）
@@ -679,6 +689,49 @@ workflows:
         action: generate
 ```
 
+### Virtualenv 运行时
+
+在隔离的 Python 虚拟环境中运行组件，使每个组件可以拥有独立的依赖栈，而无需使用 Docker。
+
+```yaml
+components:
+  - id: training-job
+    type: shell
+    runtime: virtualenv
+    command: [python, train.py]
+```
+
+**使用场景：**
+- 需要固定特定 Python 版本的组件
+- pip 依赖与主机或其他组件冲突
+- 需要比 Docker 更轻量但比普通子进程更强的隔离
+
+**工作原理：**
+- 在 `.runtime/components/<id>/venv` 路径下创建 venv（可通过 `path` 配置）
+- model-compose 会复制主机的 `mindor` 源码，并将 `requirements.txt` 安装到 venv 中
+- 工作进程在 venv 的 Python 上运行，并通过管道通道与控制器通信
+- 首次启动较慢（pip install），后续启动在主机 `mindor` 版本未变化时跳过重新注入
+
+**高级配置：**
+
+```yaml
+components:
+  - id: training-job
+    type: shell
+    runtime:
+      type: virtualenv
+      driver: pyenv          # 'python'（当前解释器）或 'pyenv'（指定版本）
+      python: "3.12.0"       # 当 driver 为 'pyenv' 时必填
+      path: .venv/training   # 默认值：.runtime/components/<id>/venv
+      env:
+        CUDA_VISIBLE_DEVICES: "0"
+      start_timeout: 300s
+      stop_timeout: 30s
+    command: [python, train.py]
+```
+
+如需强制重新安装，请删除 `.runtime/components/<id>/`（或 `path` 指定路径）下的 venv 目录。
+
 ### Docker 运行时
 
 在隔离的 Docker 容器中运行组件。
@@ -702,6 +755,7 @@ components:
 
 **Embedded** → 大多数用例从这里开始
 **Process** → 当需要隔离或重型工作负载时升级
+**Virtualenv** → 当组件需要独立的 Python 版本或 pip 依赖时选择
 **Docker** → 用于生产和安全要求
 
 ---

@@ -9,9 +9,10 @@ This chapter provides advanced reference materials for model-compose.
 ### 19.1.1 Top-Level Structure
 
 ```yaml
-controller:        # Required: HTTP or MCP server configuration
-  type: http-server | mcp-server
-  # ... detailed configuration
+controller:        # Required: controller and adapter configuration
+  adapter:         # or `adapters:` for multiple adapter types
+    type: http-server | mcp-server | queue-subscriber
+    # ... detailed configuration
 
 components:        # Optional: Reusable component list
   - id: component-id
@@ -52,29 +53,39 @@ action:            # Instead of actions: [ ... ] (within a component)
 **HTTP Server**:
 ```yaml
 controller:
-  type: http-server
-  port: 8080                           # Default: 8080
-  host: 0.0.0.0                        # Default: 0.0.0.0
-  base_path: /api                      # Default: /
-  max_concurrency: 10                  # Default: unlimited
+  adapter:
+    type: http-server
+    host: 127.0.0.1                      # Default: 127.0.0.1
+    port: 8080                           # Default: 8080
+    base_path: /api                      # Default: null
+    origins: "*"                         # Default: "*" (CORS)
+    websocket:                           # Default: enabled with defaults
+      path: /ws                          # Default: /ws
+      ping_interval: 30s                 # Default: 30s
+      ping_timeout: 10s                  # Default: 10s
+  max_concurrent_count: 10             # Default: 0 (unlimited)
+  shutdown_timeout: 30s                # Default: 30s
+  threaded: false                      # Default: false
 
   webui:                               # Optional: Web UI configuration
-    driver: gradio | static
-    port: 8081
-    root: ./static                     # For static driver
+    driver: gradio | static | dynamic
+    host: 127.0.0.1                    # Default: 127.0.0.1
+    port: 8081                         # Default: 8081
+    static_dir: webui                  # For static driver, default: "webui"
 
-  runtime:                             # Optional: Docker runtime
+  runtime:                             # Optional: alternate runtime
     type: docker
-    image: python:3.11
     # ... Docker options
 ```
 
 **MCP Server**:
 ```yaml
 controller:
-  type: mcp-server
-  port: 8080                           # Optional
-  base_path: /mcp                      # Default: /
+  adapter:
+    type: mcp-server
+    host: 127.0.0.1                      # Default: 127.0.0.1
+    port: 8080                           # Default: 8080
+    base_path: /mcp                      # Default: null
 
   webui:                               # Optional
     driver: gradio
@@ -88,34 +99,41 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | translation | ...
-    model: model-name-or-path
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    driver: huggingface | unsloth | vllm | llamacpp | custom  # Default: huggingface
+    model: model-name-or-path          # Or a `{ provider, repository/path, ... }` object
 
-    # Model configuration
-    device: cuda | cpu | mps
-    dtype: float32 | float16 | bfloat16 | int8 | int4
-    batch_size: 1
-    streaming: false                   # text-generation / chat-completion / image-to-text only
+    # Model configuration (component level)
+    device: cuda | cpu | mps           # Default: cpu
+    device_mode: auto | single         # Default: auto
+    precision: auto | float32 | float16 | bfloat16   # Optional
+    quantization: int8 | int4 | fp4 | nf4            # Optional; or a full ModelQuantizationConfig object
+    low_cpu_mem_usage: false           # Default: false
+    preload: true                      # Default: true
+    on_demand: false                   # Default: false; or `{ priority, idle_timeout }`
+    fast_tokenizer: true               # Language-model tasks only, default: true
+    max_seq_length: 2048               # Language-model tasks only, default: 2048
 
-    # Parameters
-    params:
-      max_output_length: 100
-      temperature: 0.7
-      top_p: 0.9
-      do_sample: true
-
-    # LoRA adapters
+    # LoRA / PEFT adapters
     peft_adapters:
       - type: lora
         name: adapter-name
         model: path/to/adapter
         weight: 1.0
 
-    # Single action (action:) - input/output mapping
+    # Single action (action:) - input/output mapping and inference options
     action:
-      text: ${input.text as text}
-      messages: [ ... ]
-      image: ${input.image as image}
+      prompt: ${input.prompt as text}  # text-generation, image-to-text, image-generation, ...
+      text: ${input.text as text}      # text-to-text, text-embedding, text-classification, text-to-speech
+      messages: [ ... ]                # chat-completion
+      image: ${input.image as image}   # image-to-text, image-upscale, face-detection, ...
+      batch_size: 1                    # Action-level
+      streaming: false                 # Action-level (text-generation / chat-completion / text-to-text / image-to-text only)
+      params:
+        max_output_length: 100
+        temperature: 0.7
+        top_p: 0.9
+        do_sample: true
 ```
 
 **HTTP Client**:
@@ -126,17 +144,15 @@ components:
 
     # Endpoint
     base_url: https://api.example.com
+    headers: { ... }                   # Default headers included in all requests
 
-    # Advanced configuration
-    timeout: 30
-    max_retries: 3
-    retry_delay: 1
+    # Optional rate limiting
+    rate_limit: "10/s"                 # Shorthand, or a full RateLimitConfig
 
     # Single action (action:)
     action:
-      endpoint: https://api.example.com/v1/resource
       method: GET | POST | PUT | DELETE | PATCH
-      path: /resource
+      path: /resource                  # Combined with base_url
       headers: { ... }
       params: { ... }
       body: { ... }
@@ -156,27 +172,31 @@ components:
   - id: http-server-id
     type: http-server
 
-    # Server start command
-    start:
-      - vllm
-      - serve
-      - model-name
-      - --port
-      - "8000"
+    # Server lifecycle scripts (also accessible as install/build/clean/start shorthand at the component root)
+    manage:
+      scripts:
+        install:
+          - [ pip, install, vllm ]
+        start:
+          - vllm
+          - serve
+          - model-name
+          - --port
+          - "8000"
+      working_dir: .
+      env: { }
 
     # Server configuration
     port: 8000
-    healthcheck:
-      path: /health
-      interval: 5s
-      timeout: 10s
-      retries: 3
+    base_path: /                 # Optional
+    headers: { }                 # Default headers merged into each action
 
-    # HTTP client configuration (after server starts)
-    method: POST
-    path: /v1/completions
-    body: { ... }
-    stream_format: json
+    # Action(s) called against the managed server after it starts
+    action:
+      method: POST
+      path: /v1/completions
+      body: { ... }
+      stream_format: json
 ```
 
 **Vector Store**:
@@ -310,10 +330,11 @@ components:
 components:
   - id: text-splitter-id
     type: text-splitter
-    text: ${input.text}
-    chunk_size: 1000
-    chunk_overlap: 200
-    separator: "\n\n"
+    action:
+      text: ${input.text}
+      chunk_size: 1000
+      chunk_overlap: 200
+      separator: "\n\n"
 ```
 
 **Shell Command**:
@@ -321,9 +342,12 @@ components:
 components:
   - id: shell-id
     type: shell
-    command: echo
-    args:
-      - ${input.message}
+    base_dir: .                  # Optional
+    env: { }                     # Optional
+    action:
+      command:
+        - echo
+        - ${input.message}
 ```
 
 ### 19.1.4 Workflow Schema
@@ -334,21 +358,19 @@ workflows:
   - id: workflow-id
     title: Workflow Title
     description: Workflow description
+    default: false                  # Optional
+    private: false                  # Optional
 
-    # Single component
-    component: component-id
-    input: ${input}
-    output: ${output}
-
-    # Or multiple jobs
     jobs:
       - id: job-id
         component: component-id
-        action: action-id        # Optional: for multi-action components
+        action: action-id           # Optional: for multi-action components
         input: { ... }
         output: { ... }
-        depends_on: [ job-id ]   # Optional: dependencies
-        condition: ${expression} # Optional: conditional execution
+        depends_on: [ other-job ]   # Optional: dependencies
+        repeat_count: 1             # Optional: run N times
+
+    output: { ... }                 # Optional: workflow-level output mapping
 ```
 
 **Job Types**:
@@ -360,21 +382,72 @@ workflows:
   action: action-id      # Optional: for multi-action components
   input: ${input}
   output: ${output}
+  repeat_count: 1
+  max_run_count: 5
+  interrupt:
+    before: false        # true or { condition, message, metadata }
+    after: false
 
 # 2. If job (conditional branching)
 - id: job2
   type: if
-  operator: eq
   input: ${input.status}
-  value: "active"
+  operator: eq
+  value: active
   if_true: job-success
   if_false: job-fail
+  # Or with multiple conditions:
+  #   conditions:
+  #     - { operator: eq, value: a, if_true: job-a }
+  #     - { operator: eq, value: b, if_true: job-b }
+  #   otherwise: job-default
 
-# 3. Delay job (wait)
+# 3. Switch job (multi-way branching)
 - id: job3
+  type: switch
+  input: ${input.category}
+  cases:
+    - { value: image, then: process-image }
+    - { value: video, then: process-video }
+  otherwise: process-unknown
+
+# 4. Random router (uniform or weighted)
+- id: job4
+  type: random-router
+  mode: weighted           # or "uniform"
+  routings:
+    - { to: variant-a, weight: 0.7 }
+    - { to: variant-b, weight: 0.3 }
+
+# 5. Delay job (wait)
+- id: job5
   type: delay
-  duration: 5s           # Wait 5 seconds
+  mode: time-interval      # or "specific-time"
+  duration: 5s             # For time-interval mode
+  # For specific-time mode:
+  #   time: "2026-01-01T09:00:00"
+  #   timezone: Asia/Seoul
+
+# 6. For-each job (iterate over items)
+- id: job6
+  type: for-each
+  input: ${input.items}
+  batch_size: 4
+  streaming: false
+  do:
+    component: item-processor
+    action: transform
+    input: { item: ${item} }
+    output: ${result}
+
+# 7. Filter job (output-only reshaping)
+- id: job7
+  type: filter
+  output:
+    active: ${jobs.load.output.records}
 ```
+
+Supported condition operators (for `if` jobs): `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not-in`, `starts-with`, `ends-with`, `match`.
 
 ### 19.1.5 Listener Schema
 

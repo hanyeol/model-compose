@@ -245,13 +245,20 @@ model-compose supports the following task types:
 |------|-------------|-------------------|
 | `text-generation` | Text generation | Story writing, code generation |
 | `chat-completion` | Conversational completion | Chatbots, assistants |
+| `text-to-text` | Seq2seq text transforms | Translation, summarization, paraphrasing |
 | `text-classification` | Text classification | Sentiment analysis, topic classification |
 | `text-embedding` | Text embedding | Semantic search, RAG |
+| `text-reranking` | Query-document scoring | Rerank retrieval results in RAG pipelines |
 | `image-to-text` | Image captioning | Image description, VQA |
-| `text-to-image` | Image generation | Text-to-image conversion |
+| `image-text-to-text` | Multimodal image + text generation | Visual reasoning, multimodal chat |
+| `image-generation` | Image generation | Text-to-image conversion |
 | `image-upscale` | Image upscaling | Resolution enhancement |
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
+| `speech-to-text` | Speech recognition | Transcription, subtitles |
+| `face-detection` | Face detection | Locate faces in images |
+| `pose-detection` | Pose detection | Keypoint estimation |
 | `face-embedding` | Face embedding | Face recognition, comparison |
+| `music-generation` | Music generation | Audio/music synthesis |
 
 ### 10.3.1 text-generation
 
@@ -263,7 +270,7 @@ component:
   task: text-generation
   model: HuggingFaceTB/SmolLM3-3B
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 32768
       temperature: 0.7
@@ -301,7 +308,53 @@ component:
 - `role`: `system`, `user`, `assistant`
 - `content`: Message content
 
-### 10.3.3 text-classification
+### 10.3.3 text-to-text
+
+Runs seq2seq (encoder-decoder) transforms such as translation, summarization, and paraphrasing.
+
+```yaml
+# Translation (Helsinki-NLP)
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  model: Helsinki-NLP/opus-mt-en-fr
+  action:
+    text: ${input.text as text}
+```
+
+```yaml
+# Summarization (BART)
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
+  model: facebook/bart-large-cnn
+  action:
+    text: ${input.document as text}
+    params:
+      max_output_length: 150
+```
+
+```yaml
+# T5-family (requires task prefix in the input text)
+component:
+  type: model
+  task: text-to-text
+  driver: huggingface
+  architecture: t5
+  model: t5-base
+  action:
+    text: "summarize: ${input.document}"
+```
+
+**Supported architectures:**
+- `auto` (default): Automatically inferred from the model
+- `bart`: BART-family encoder-decoder models
+- `t5`: T5-family models (require task prefixes in the input text)
+
+### 10.3.4 text-classification
 
 Classifies text into categories.
 
@@ -317,7 +370,7 @@ component:
       score: ${result.score}
 ```
 
-### 10.3.4 text-embedding
+### 10.3.5 text-embedding
 
 Converts text into high-dimensional vectors.
 
@@ -352,7 +405,55 @@ workflow:
         top_k: 5
 ```
 
-### 10.3.5 image-to-text
+### 10.3.6 text-reranking
+
+Scores each (query, document) pair with a cross-encoder and returns the documents ordered by relevance. This is the second stage of a typical retrieval pipeline: a vector store fetches a broad candidate set, then a reranker refines the top results.
+
+```yaml
+component:
+  type: model
+  task: text-reranking
+  model: BAAI/bge-reranker-v2-m3
+  action:
+    query: ${input.query}
+    documents: ${input.candidates}
+    top_k: 5
+```
+
+**Key parameters:**
+- `query`: Query string. Pass a list to run several independent reranking jobs at once.
+- `documents`: Candidate documents. Strings, or objects paired with `document_field: <field>`.
+- `top_k`: Keep only the top K results per query.
+- `score_threshold`: Drop results below this score.
+- `return_documents`: When `false`, results contain only `index` and `score`.
+
+Usage example (RAG rerank stage):
+```yaml
+workflow:
+  title: Reranked Document Search
+  jobs:
+    - id: embed-query
+      component: embedder
+      input:
+        text: ${input.query}
+
+    - id: retrieve
+      component: vector-store
+      action: search
+      input:
+        vector: ${jobs.embed-query.output}
+        top_k: 50
+
+    - id: rerank
+      component: reranker
+      input:
+        query: ${input.query}
+        candidates: ${jobs.retrieve.output}
+        document_field: text
+        top_k: 5
+```
+
+### 10.3.7 image-to-text
 
 Analyzes images and generates text.
 
@@ -372,14 +473,14 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.6 text-to-image
+### 10.3.8 image-generation
 
 Generates images from text prompts.
 
 ```yaml
 component:
   type: model
-  task: text-to-image
+  task: image-generation
   architecture: flux
   model: black-forest-labs/FLUX.1-dev
   action:
@@ -395,7 +496,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.7 image-upscale
+### 10.3.9 image-upscale
 
 Enhances image resolution.
 
@@ -417,7 +518,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 10.3.8 text-to-speech
+### 10.3.10 text-to-speech
 
 Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to choose the generation method.
 
@@ -515,7 +616,7 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
-### 10.3.9 face-embedding
+### 10.3.11 face-embedding
 
 Extracts feature vectors from face images.
 
@@ -595,14 +696,24 @@ component:
   type: model
   task: text-generation
   model: meta-llama/Llama-2-7b-hf
-  quantization: int8  # 'none', 'int8', 'int4', 'nf4'
+  quantization: int8  # 'int8', 'int4', 'fp4', 'nf4' (omit for no quantization)
 ```
 
 **Quantization options:**
-- `none`: No quantization (default)
+- (omit `quantization:`): No quantization (default)
 - `int8`: 8-bit integer (requires bitsandbytes)
 - `int4`: 4-bit integer (requires bitsandbytes)
+- `fp4`: 4-bit floating-point (requires bitsandbytes)
 - `nf4`: 4-bit NormalFloat (for QLoRA)
+
+You can also expand `quantization` into a full config:
+
+```yaml
+quantization:
+  type: nf4
+  compute_dtype: bfloat16
+  double_quant: true
+```
 
 ### Batch Size
 
@@ -611,7 +722,8 @@ component:
   type: model
   task: text-classification
   model: distilbert-base-uncased
-  batch_size: 32  # Number of inputs to process at once
+  action:
+    batch_size: 32  # Number of inputs to process at once
 ```
 
 Batch size selection guide:
@@ -649,7 +761,7 @@ component:
       model: tloen/alpaca-lora-7b
       weight: 1.0
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### Multiple LoRA Adapters
@@ -674,7 +786,7 @@ component:
       model: plncmm/guanaco-lora-7b
       weight: 0.8
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
 ```
 
 ### Adapter Weights
@@ -788,20 +900,21 @@ component:
           --served-model-name qwen2-7b-instruct
           --max-model-len 2048
   port: 8000
-  method: POST
-  path: /v1/chat/completions
-  headers:
-    Content-Type: application/json
-  body:
-    model: qwen2-7b-instruct
-    messages:
-      - role: user
-        content: ${input.prompt as text}
-    max_tokens: 512
-    temperature: ${input.temperature as number | 0.7}
-    streaming: true
-  stream_format: json
-  output: ${response[].choices[0].delta.content}
+  action:
+    method: POST
+    path: /v1/chat/completions
+    headers:
+      Content-Type: application/json
+    body:
+      model: qwen2-7b-instruct
+      messages:
+        - role: user
+          content: ${input.prompt as text}
+      max_tokens: 512
+      temperature: ${input.temperature as number | 0.7}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 #### vLLM Parameters
@@ -984,7 +1097,8 @@ component:
   type: model
   task: text-classification
   model: bert-base
-  batch_size: 32  # Adjust to GPU memory
+  action:
+    batch_size: 32  # Adjust to GPU memory
 ```
 
 ### 4. Model Caching

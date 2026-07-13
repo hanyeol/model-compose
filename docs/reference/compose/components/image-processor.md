@@ -22,6 +22,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `image-processor` |
+| `driver` | string | `native` | Image processing backend. Currently only `native` (Pillow) is supported. |
 | `actions` | array | `[]` | List of image processing actions |
 
 ### Common Action Configuration
@@ -30,9 +31,10 @@ All image processor actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation` |
-| `image` | string | **required** | Input image (file path, base64 string, or variable reference) |
-| `output` | string | `null` | Output variable mapping |
+| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `compress` |
+| `image` | string / array | **required** | Input image(s) — a single image (file path, base64 string, or variable reference) or a list of images |
+| `batch_size` | integer / string | `null` | Number of input images to process in a single batch |
+| `output` | any | `null` | Output variable mapping |
 
 ## Image Processing Methods
 
@@ -112,7 +114,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `angle` | number | **required** | Rotation angle in degrees (positive = counter-clockwise) |
-| `expand` | boolean | `false` | Expand canvas to fit rotated image (prevents cropping) |
+| `expand` | boolean | `true` | Expand canvas to fit rotated image (prevents cropping) |
 
 ### Flip
 
@@ -246,6 +248,114 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `factor` | number | **required** | Saturation factor (0.0 = grayscale, 1.0 = original, >1.0 = more saturated) |
+
+### Concat
+
+Concatenate multiple images side-by-side, stacked, or in a grid. This method requires the `image` field to be a **list of images**.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: concat
+    image:
+      - ${input.image_a}
+      - ${input.image_b}
+      - ${input.image_c}
+    mode: horizontal
+    spacing: 10
+    background: "#ffffffff"
+    output: ${output}
+```
+
+**Concat Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | string | `horizontal` | Concat layout: `horizontal`, `vertical`, or `grid` |
+| `columns` | integer | `null` | Number of columns for `grid` mode |
+| `rows` | integer | `null` | Number of rows for `grid` mode |
+| `spacing` | integer | `0` | Pixel spacing between images (applies to `horizontal`, `vertical`, and `grid` modes) |
+| `background` | string / RGBA | `"#00000000"` | Background color as a hex string (e.g. `"#ffffffff"`) or `[r, g, b, a]` tuple |
+
+Use `grid` mode with `columns` and/or `rows` to lay images out in a matrix. When only one dimension is specified, the other is derived from the input list length.
+
+### Merge
+
+Compose multiple images onto a shared canvas by overlaying them at their native positions (alpha channels are preserved). Like `concat`, this method requires the `image` field to be a **list of images**.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: merge
+    image:
+      - ${input.base}
+      - ${input.overlay_a}
+      - ${input.overlay_b}
+    background: "#00000000"
+    output: ${output}
+```
+
+**Merge Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `background` | string / RGBA | `"#00000000"` | Background color of the output canvas (hex string or `[r, g, b, a]` tuple) |
+
+`merge` alpha-composites each input in order onto a canvas sized to fit the union of all inputs, whereas `concat` tiles inputs edge-to-edge without overlap.
+
+### Compress
+
+Encode an image as a compressed PNG and return the resulting **bytes** (not a PIL image). Three strategies trade off size, speed, and dependency footprint:
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: compress
+    image: ${input.image}
+    strategy: optimized
+    level: 6
+    strip_metadata: true
+    output: ${output}
+```
+
+**Compress Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `strategy` | string | `lossless` | Compression strategy: `lossless`, `optimized`, or `quantized` |
+| `compress_level` | integer | `9` | DEFLATE compression level (0-9). Higher is smaller and slower. Applies to all strategies. |
+| `level` | integer | `4` | `optimized` strategy oxipng level (0-6). Higher is smaller and slower. |
+| `min_quality` | integer | `null` | `quantized` strategy minimum quality (0-100). If output quality would fall below this, encoding fails. |
+| `max_quality` | integer | `null` | `quantized` strategy maximum quality (0-100). The compressor tries to stay at or below this. |
+| `speed` | integer | `3` | `quantized` strategy speed (1 = slowest/best, 11 = fastest). |
+| `strip_metadata` | boolean | `true` | Strip ancillary metadata chunks (tEXt, eXIf, iCCP, tIME, etc.). |
+
+**Strategies:**
+
+- **`lossless`** — Pure Pillow encode with `optimize=True` and `compress_level`. No extra dependencies. Small, predictable gains.
+- **`optimized`** — Lossless. Encodes with Pillow, then reruns oxipng's DEFLATE filter search for extra 10-30% size reduction. Requires the `pyoxipng` package.
+- **`quantized`** — Lossy. Runs the encoded PNG through `pngquant`, which builds an adaptive 256-color palette. Typically 50-70% smaller than lossless at visually similar quality. Requires the `pngquant` executable in `PATH` (install via `brew install pngquant` / `apt install pngquant`).
+
+**Return Value:**
+
+Unlike other image processor methods that return PIL images, `compress` returns raw PNG `bytes`. This preserves the compression that PIL's re-encoding would otherwise undo. Feed the result into a `file-store` write, an HTTP upload, or anywhere raw bytes are accepted.
+
+**Quality Range Examples (quantized):**
+
+```yaml
+# Balanced — pngquant chooses colors so output stays at ≤85 quality, fails if it can't reach 65
+min_quality: 65
+max_quality: 85
+
+# Cap only — allow any quality up to 80
+max_quality: 80
+
+# Floor only — never fall below quality 60
+min_quality: 60
+```
 
 ## Multiple Actions Configuration
 

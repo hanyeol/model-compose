@@ -31,6 +31,7 @@
 |-------------|------------|---------|
 | `model` (text-generation) | ✅ | `streaming: true` |
 | `model` (chat-completion) | ✅ | `streaming: true` |
+| `model` (text-to-text) | ✅ | `streaming: true` |
 | `model` (image-to-text) | ✅ | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
@@ -73,7 +74,7 @@ component:
   model: facebook/bart-large-cnn
   streaming: true                  # 스트리밍 활성화
   action:
-    text: ${input.text as text}
+    prompt: ${input.text as text}
     params:
       max_output_length: 150
 ```
@@ -92,7 +93,7 @@ component:
   model: gpt2
   streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 200
       do_sample: false               # 결정적 생성 (빠름)
@@ -183,8 +184,6 @@ component:
     - --port
     - "8000"
   port: 8000
-  healthcheck:
-    path: /health
   action:
     method: POST
     path: /v1/chat/completions
@@ -206,12 +205,13 @@ component:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}    # SSE 텍스트 형식으로 출력
+  output: ${output as stream/text}    # SSE 텍스트 형식으로 출력
 
 component:
   type: http-client
@@ -233,14 +233,14 @@ component:
 
 **워크플로우 출력 형식:**
 
-- `as sse-text`: SSE 텍스트 스트림
+- `as stream/text`: SSE 텍스트 스트림
   ```yaml
-  output: ${output as sse-text}
+  output: ${output as stream/text}
   ```
 
-- `as sse-json`: SSE JSON 스트림
+- `as stream/json`: SSE JSON 스트림
   ```yaml
-  output: ${output as sse-json}
+  output: ${output as stream/json}
   ```
 
 ### 13.3.2 여러 단계 워크플로우 스트리밍
@@ -249,7 +249,7 @@ component:
 workflows:
   - id: translate-and-summarize
     title: Translate and Summarize
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
       - id: translate
         component: translator
@@ -268,7 +268,8 @@ workflows:
 components:
   - id: translator
     type: model
-    task: translation
+    task: text-to-text
+    driver: huggingface
     model: Helsinki-NLP/opus-mt-ko-en
     streaming: false
     action:
@@ -276,7 +277,9 @@ components:
 
   - id: summarizer
     type: model
-    task: text-generation
+    task: text-to-text
+    driver: huggingface
+    architecture: bart
     model: facebook/bart-large-cnn
     streaming: true                    # 마지막 작업만 스트리밍
     action:
@@ -295,7 +298,7 @@ components:
 ```yaml
 workflow:
   title: Conditional Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
@@ -303,7 +306,7 @@ component:
   model: gpt2
   streaming: ${input.stream | false}   # 입력에 따라 스트리밍 결정
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       max_output_length: 100
 ```
@@ -490,15 +493,16 @@ asyncio.run(stream_workflow())
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
@@ -512,7 +516,7 @@ component:
 ```
 
 Gradio Web UI는 자동으로:
-- `sse-text` 형식 감지
+- `stream/text` 형식 감지
 - 실시간 텍스트 누적 표시
 - 타이핑 애니메이션 효과
 
@@ -531,7 +535,7 @@ component:
   model: gpt2
   streaming: true
   action:
-    text: ${input.prompt as text}
+    prompt: ${input.prompt as text}
     params:
       # 성능 최적화
       do_sample: false               # 결정적 생성 (빔 서치 없음)
@@ -621,31 +625,26 @@ component:
 
 ### 13.5.5 에러 처리
 
-**재시도 로직:**
+model-compose는 `http-client` 컴포넌트에 대해 선언적인 `retry` / `timeout` 필드를 제공하지 않습니다. 대신 다음을 사용하세요:
+
+- action의 `polling` completion에서 `success_when` / `fail_when` / `interval` / `timeout`을 설정하여 재시도와 종료 조건을 지정
+- 컴포넌트 레벨의 `rate_limit`으로 호출 빈도를 제한
+- 오래 걸리는 서버 사이드 작업은 `http-callback` 리스너를 사용
+
+폴링 예시:
 
 ```yaml
 component:
   type: http-client
   base_url: https://api.openai.com/v1
-  max_retries: 3                   # 최대 3회 재시도
-  retry_delay: 1                   # 1초 대기
   action:
     path: /chat/completions
     body:
       stream: true
-```
-
-**타임아웃 처리:**
-
-```yaml
-component:
-  type: http-client
-  base_url: https://api.openai.com/v1
-  timeout: 30                      # 30초 타임아웃
-  action:
-    path: /chat/completions
-    body:
-      stream: true
+    completion:
+      type: polling
+      interval: 1s
+      timeout: 300s
 ```
 
 **스트림 중단 처리:**
@@ -671,19 +670,21 @@ fetch(url, {
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Real-time Translation
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: model
-  task: translation
+  task: text-to-text
+  driver: huggingface
   model: Helsinki-NLP/opus-mt-ko-en
   streaming: true
   action:
@@ -698,7 +699,7 @@ component:
 workflows:
   - id: multi-model-chat
     title: Multi-Model Chat
-    output: ${output as sse-text}
+    output: ${output as stream/text}
     jobs:
       - id: openai-response
         component: openai-client
@@ -751,12 +752,13 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflow:
   title: Local Model Streaming
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: http-server
@@ -769,9 +771,6 @@ component:
     - --gpu-memory-utilization
     - "0.9"
   port: 8000
-  healthcheck:
-    path: /health
-    interval: 5s
   action:
     method: POST
     path: /v1/chat/completions

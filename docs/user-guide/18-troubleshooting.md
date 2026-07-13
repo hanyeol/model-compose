@@ -48,32 +48,29 @@ A: Try these approaches:
 component:
   type: model
   model: meta-llama/Llama-2-7b-hf
-  quantization: int8  # or int4, nf4
+  quantization: int8  # or int4, fp4, nf4
 ```
 
-2. **Reduce batch size**:
+2. **Reduce batch size** (action-level, on tasks that support it):
 ```yaml
 component:
-  batch_size: 1
+  type: model
+  # ...
+  action:
+    batch_size: 1
 ```
 
 3. **Use CPU**:
 ```yaml
 component:
+  type: model
+  # ...
   device: cpu
 ```
 
 **Q: I'm getting timeout errors with HTTP client.**
 
-A: Increase timeout or add retry settings:
-
-```yaml
-component:
-  type: http-client
-  timeout: 120  # seconds
-  max_retries: 5
-  retry_delay: 2
-```
+A: model-compose does not expose a declarative `timeout`/`retry` on the `http-client` component itself. Use `polling` completion on the action to bound wait time, apply a `rate_limit` at the component level, or set an OS-level socket timeout via your reverse proxy. For long-lived server-side jobs, consider using an [`http-callback` listener](../reference/compose/listener.md) instead of polling.
 
 **Q: Vector store connection fails.**
 
@@ -146,7 +143,7 @@ workflow:
 3. Specify response format in controller:
 ```yaml
 workflow:
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 ```
 
 ### 18.1.4 Web UI
@@ -213,8 +210,8 @@ ngrok version
 
 **Solution**:
 1. Use a smaller model
-2. Apply quantization (`quantization: int8` or `int4`, `nf4`)
-3. Reduce batch size
+2. Apply quantization (`quantization: int8`, `int4`, `fp4`, or `nf4`)
+3. Reduce batch size (action-level, on tasks that support it)
 4. Use CPU (`device: cpu`)
 
 ```yaml
@@ -223,7 +220,8 @@ component:
   model: smaller-model
   device: cuda
   quantization: int8
-  batch_size: 1
+  action:
+    batch_size: 1
 ```
 
 ---

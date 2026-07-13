@@ -75,8 +75,9 @@ HTTP 서버 컨트롤러 사용 시 WebSocket은 기본적으로 활성화됩니
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 ```
 
 WebSocket 엔드포인트: `ws://localhost:8080/ws`
@@ -91,12 +92,13 @@ WebSocket 엔드포인트: `ws://localhost:8080/ws`
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  origins: "*"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    port: 8080
+    origins: "*"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 **설정 필드:**
@@ -114,10 +116,11 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 8080
-  origins: "*"
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 8080
+    origins: "*"
   # WebSocket은 기본 활성화, 추가 설정 불필요
 ```
 
@@ -125,22 +128,24 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-  origins: "https://app.example.com"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    host: 127.0.0.1
+    port: 8080
+    origins: "https://app.example.com"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 #### WebSocket 비활성화
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  websocket: false
+  adapter:
+    type: http-server
+    port: 8080
+    websocket: false
 ```
 
 ---
@@ -875,9 +880,10 @@ WebSocket 연결이 종료되면:
 
 ```yaml
 controller:
-  type: http-server
-  websocket:
-    max_connection_count: 50  # 50개 초과 연결 거부
+  adapter:
+    type: http-server
+    websocket:
+      max_connection_count: 50  # 50개 초과 연결 거부
 ```
 
 ### 8.7.4 Ping을 통한 연결 유지
@@ -909,8 +915,9 @@ setInterval(() => {
 
 ```yaml
 controller:
-  type: http-server
-  origins: "https://app.example.com"  # 브라우저 origins 제한
+  adapter:
+    type: http-server
+    origins: "https://app.example.com"  # 브라우저 origins 제한
 ```
 
 참고: 이는 브라우저에서 시작된 연결에만 적용됩니다. 서버 간 WebSocket 연결은 CORS 제한을 받지 않습니다.

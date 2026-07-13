@@ -75,8 +75,9 @@ WebSocket 接口在 HTTP 服务器控制器上添加 `/ws` 端点，实现客户
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 ```
 
 WebSocket 端点可通过 `ws://localhost:8080/ws` 访问。
@@ -91,12 +92,13 @@ WebSocket 端点可通过 `ws://localhost:8080/ws` 访问。
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  origins: "*"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    port: 8080
+    origins: "*"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 **配置字段：**
@@ -114,10 +116,11 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 8080
-  origins: "*"
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 8080
+    origins: "*"
   # WebSocket 默认启用，无需额外配置
 ```
 
@@ -125,22 +128,24 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  host: 127.0.0.1
-  port: 8080
-  origins: "https://app.example.com"
-  websocket:
-    path: /ws
-    max_connection_count: 100
+  adapter:
+    type: http-server
+    host: 127.0.0.1
+    port: 8080
+    origins: "https://app.example.com"
+    websocket:
+      path: /ws
+      max_connection_count: 100
 ```
 
 #### 禁用 WebSocket
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  websocket: false
+  adapter:
+    type: http-server
+    port: 8080
+    websocket: false
 ```
 
 ---
@@ -875,9 +880,10 @@ WebSocket 连接关闭时：
 
 ```yaml
 controller:
-  type: http-server
-  websocket:
-    max_connection_count: 50  # 超过 50 个连接将被拒绝
+  adapter:
+    type: http-server
+    websocket:
+      max_connection_count: 50  # 超过 50 个连接将被拒绝
 ```
 
 ### 8.7.4 Ping 保活
@@ -909,8 +915,9 @@ setInterval(() => {
 
 ```yaml
 controller:
-  type: http-server
-  origins: "https://app.example.com"  # 限制浏览器来源
+  adapter:
+    type: http-server
+    origins: "https://app.example.com"  # 限制浏览器来源
 ```
 
 注意：这仅适用于浏览器发起的连接。服务器到服务器的 WebSocket 连接不受 CORS 限制。

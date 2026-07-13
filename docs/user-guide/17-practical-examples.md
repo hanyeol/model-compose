@@ -14,9 +14,10 @@ This chapter provides step-by-step explanations of real-world use cases using mo
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -89,15 +90,16 @@ graph TD
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
 
 workflow:
   title: Streaming Chat
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 
 component:
   type: http-client
@@ -172,9 +174,10 @@ sequenceDiagram
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -280,8 +283,9 @@ curl -X POST http://localhost:8080/api/workflows/delete-sentence-embedding/runs 
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 workflows:
   - id: rag-query
@@ -712,8 +716,9 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -813,8 +818,9 @@ graph TD
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -863,7 +869,8 @@ components:
 
   - id: translator
     type: model
-    task: translation
+    task: text-to-text
+    driver: huggingface
     model: Helsinki-NLP/opus-mt-en-ko
     action:
       text: ${input.text as text}
@@ -916,9 +923,10 @@ graph TD
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -966,9 +974,10 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -1066,9 +1075,10 @@ graph TD
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -1110,8 +1120,9 @@ model-compose run default --input '{"image": "path/to/image.jpg", "prompt": "Des
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -1166,8 +1177,9 @@ docker run -d -p 9222:9222 -p 6080:6080 \
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -1264,8 +1276,9 @@ graph TD
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -1373,8 +1386,9 @@ components:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -1477,9 +1491,10 @@ graph TD
 
 ```yaml
 controller:
-  type: mcp-server
-  base_path: /mcp
-  port: 8080
+  adapter:
+    type: mcp-server
+    base_path: /mcp
+    port: 8080
   webui:
     driver: gradio
     port: 8081
@@ -1581,8 +1596,9 @@ DEFAULT_SLACK_CHANNEL_ID=C...
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 listeners:
   - id: slack-events
@@ -1648,9 +1664,10 @@ component:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
-  base_path: /api
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
   webui:
     driver: gradio
     port: 8081
@@ -1758,8 +1775,9 @@ model-compose run chat --input '{"session_id": "user-1", "message": "What is my 
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 components:
   - id: gpt-4o

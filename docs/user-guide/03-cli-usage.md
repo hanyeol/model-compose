@@ -431,8 +431,9 @@ model-compose -f base.yml -f override.yml up
 `base.yml`:
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 components:
   - id: chatgpt

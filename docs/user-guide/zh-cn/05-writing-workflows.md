@@ -393,6 +393,32 @@ workflows:
           image: ${jobs.generate.output.image_base64 as image/png;base64}
 ```
 
+### 工作流输出
+
+工作流可以声明自己的 `output`，用于定义返回给调用方的最终响应结构。该表达式会在所有作业完成后求值，并支持与作业相同的变量绑定语法。
+
+```yaml
+workflows:
+  - id: summarize
+    jobs:
+      - id: fetch
+        component: data-fetcher
+        input:
+          url: ${input.source_url}
+
+      - id: summarize
+        component: summarizer
+        input:
+          text: ${jobs.fetch.output.body}
+        depends_on: [ fetch ]
+
+    output:
+      summary: ${jobs.summarize.output.text}
+      source: ${jobs.fetch.output.url}
+```
+
+如果省略 `output`，工作流的结果将回退为其**终端作业**（没有其他作业依赖的作业）的输出。当多个终端作业各自返回字典时，它们的输出会被合并；否则将直接使用最后一个终端作业的输出。显式定义 `output` 会覆盖此默认合并行为，使您能够自由地重塑或重命名响应字段。
+
 ---
 
 ## 5.5 作业类型
@@ -587,6 +613,7 @@ graph LR
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| `input` | any | `null` | 用于与条件比较的评估值。支持变量绑定。 |
 | `conditions` | `IfCondition[]` | `[]` | 按顺序评估的条件列表。 |
 | `otherwise` | `string` | `null` | 没有条件匹配时路由到的作业 ID。 |
 | `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
@@ -596,7 +623,6 @@ graph LR
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `operator` | `string` | `"eq"` | 比较运算符（见下方）。 |
-| `input` | any | `null` | 要评估的值。支持变量绑定。 |
 | `value` | any | `null` | 要比较的值。支持变量绑定。 |
 | `if_true` | `string` | `null` | 条件为真时路由到的作业 ID。 |
 | `if_false` | `string` | `null` | 条件为假时路由到的作业 ID。 |
@@ -625,8 +651,8 @@ graph LR
 jobs:
   - id: condition-check
     type: if
-    operator: eq
     input: ${input.value}
+    operator: eq
     value: "expected"
     if_true: job-when-true
     if_false: job-when-false
@@ -638,13 +664,12 @@ jobs:
 jobs:
   - id: multi-condition
     type: if
+    input: ${input.score}
     conditions:
       - operator: gt
-        input: ${input.score}
         value: 80
         if_true: excellent-handler
       - operator: gt
-        input: ${input.score}
         value: 60
         if_true: good-handler
     otherwise: need-improvement-handler
@@ -776,7 +801,7 @@ jobs:
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `target` | `string` | - | 目标作业 ID。 |
+| `to` | `string` | - | 目标作业 ID。 |
 | `weight` | `number` | `null` | 加权模式中的相对权重。均匀模式下忽略。 |
 
 #### 均匀分布
@@ -787,8 +812,8 @@ jobs:
     type: random-router
     mode: uniform
     routings:
-      - target: variant-a
-      - target: variant-b
+      - to: variant-a
+      - to: variant-b
 ```
 
 #### 加权分布 (70:20:10)
@@ -799,11 +824,11 @@ jobs:
     type: random-router
     mode: weighted
     routings:
-      - target: primary-model
+      - to: primary-model
         weight: 70
-      - target: experimental-model
+      - to: experimental-model
         weight: 20
-      - target: fallback-model
+      - to: fallback-model
         weight: 10
 ```
 
@@ -1026,7 +1051,7 @@ components:
       token: ${env.HUGGINGFACE_TOKEN}
     streaming: true  # 启用流式传输
     action:
-      text: ${input.prompt}
+      prompt: ${input.prompt}
 ```
 
 #### HTTP 组件

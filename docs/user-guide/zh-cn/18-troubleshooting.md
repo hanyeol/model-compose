@@ -48,32 +48,29 @@ docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 component:
   type: model
   model: meta-llama/Llama-2-7b-hf
-  quantization: int8  # 或 int4, nf4
+  quantization: int8  # 或 int4、fp4、nf4
 ```
 
-2. **减少批次大小**：
+2. **减小批次大小**（action 级别，仅支持批次的任务）：
 ```yaml
 component:
-  batch_size: 1
+  type: model
+  # ...
+  action:
+    batch_size: 1
 ```
 
 3. **使用 CPU**：
 ```yaml
 component:
+  type: model
+  # ...
   device: cpu
 ```
 
 **问：HTTP 客户端出现超时错误。**
 
-答：增加超时时间或添加重试设置：
-
-```yaml
-component:
-  type: http-client
-  timeout: 120  # 秒
-  max_retries: 5
-  retry_delay: 2
-```
+答：model-compose 未在 `http-client` 组件上提供声明式 `timeout` / `retry` 字段。请使用 action 的 `polling` completion 限制等待时间，或在组件级别应用 `rate_limit`，或在反向代理层设置操作系统级套接字超时。对于长耗时的服务端作业，可考虑使用 [`http-callback` 监听器](../reference/compose/listener.md)。
 
 **问：向量存储连接失败。**
 
@@ -146,7 +143,7 @@ workflow:
 3. 在控制器中指定响应格式：
 ```yaml
 workflow:
-  output: ${output as sse-text}
+  output: ${output as stream/text}
 ```
 
 ### 18.1.4 Web UI
@@ -213,8 +210,8 @@ ngrok version
 
 **解决方案**：
 1. 使用较小的模型
-2. 应用量化（`quantization: int8` 或 `int4`、`nf4`）
-3. 减少批次大小
+2. 应用量化（`quantization: int8`、`int4`、`fp4` 或 `nf4`）
+3. 减小批次大小（action 级别，仅支持批次的任务）
 4. 使用 CPU（`device: cpu`）
 
 ```yaml
@@ -223,7 +220,8 @@ component:
   model: smaller-model
   device: cuda
   quantization: int8
-  batch_size: 1
+  action:
+    batch_size: 1
 ```
 
 ---

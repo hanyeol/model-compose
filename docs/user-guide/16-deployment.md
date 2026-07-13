@@ -119,8 +119,9 @@ Specify logger level in configuration file:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
 
 logger:
   - type: console
@@ -137,8 +138,9 @@ logger:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime: docker                 # String format
 ```
 
@@ -146,8 +148,9 @@ This configuration expands to:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     # Uses default image (auto-build)
@@ -157,8 +160,9 @@ controller:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry/model-compose:latest
@@ -175,8 +179,9 @@ Execution flow:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     ports:
@@ -195,8 +200,9 @@ Port formats:
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -522,8 +528,9 @@ CMD [ "model-compose", "up" ]
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     build:
@@ -607,8 +614,9 @@ docker push my-registry.com/model-compose:1.0
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     image: my-registry.com/model-compose:1.0
@@ -648,8 +656,9 @@ docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD my-registry.com
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   max_concurrent_count: 10         # Maximum 10 concurrent workflows
   threaded: false                  # Thread-based execution (default: false)
 ```
@@ -725,8 +734,9 @@ model-compose provides `/health` endpoint by default.
 
 ```yaml
 controller:
-  type: http-server
-  port: 8080
+  adapter:
+    type: http-server
+    port: 8080
   runtime:
     type: docker
     healthcheck:

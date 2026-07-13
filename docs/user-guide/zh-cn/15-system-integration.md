@@ -1287,11 +1287,11 @@ listener:
 # 移除网关配置（使用公共 IP/域名）
 
 controller:
-  type: http-server
-  host: 0.0.0.0
-  port: 443  # HTTPS
+  adapter:
+    type: http-server
+    host: 0.0.0.0
+    port: 443  # HTTPS
   # 添加 SSL 配置
-
 listener:
   host: 0.0.0.0
   port: 8090

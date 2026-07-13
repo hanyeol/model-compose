@@ -26,14 +26,18 @@ class VectorValueRenderer:
                     yield self._render_element_list(chunk)
             return _iterate()
 
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
-            return [ self._render_element(item) for item in value ]
+        if isinstance(value, (list, tuple)):
+            if value and isinstance(value[0], (list, tuple)):
+                return [ self._render_element(item) for item in value ]
+            return []
 
         return [ self._render_element(value) ]
 
     def _render_element_list(self, value: Any) -> List[VectorValue]:
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
-            return [ self._render_element(item) for item in value ]
+        if isinstance(value, (list, tuple)):
+            if value and isinstance(value[0], (list, tuple)):
+                return [ self._render_element(item) for item in value ]
+            return []
 
         return [ self._render_element(value) ]
 

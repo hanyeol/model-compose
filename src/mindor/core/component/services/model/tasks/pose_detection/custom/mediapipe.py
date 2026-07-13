@@ -49,7 +49,6 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
                 height, width = rgb_frame.shape[:2]
 
                 prediction = landmarker.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
-
                 results.append(self._serialize(prediction, width, height, params))
 
         return results

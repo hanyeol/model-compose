@@ -9,6 +9,7 @@ from .image_generation import *
 from .image_to_text import *
 from .image_text_to_text import *
 from .image_upscale import *
+from .image_background_removal import *
 from .face_detection import *
 from .pose_detection import *
 from .face_embedding import *

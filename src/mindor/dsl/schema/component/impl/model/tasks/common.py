@@ -16,6 +16,7 @@ class ModelTaskType(str, Enum):
     IMAGE_TEXT_TO_TEXT  = "image-text-to-text"
     IMAGE_GENERATION    = "image-generation"
     IMAGE_UPSCALE       = "image-upscale"
+    IMAGE_BACKGROUND_REMOVAL = "image-background-removal"
     FACE_DETECTION      = "face-detection"
     FACE_EMBEDDING      = "face-embedding"
     FACE_SWAP           = "face-swap"

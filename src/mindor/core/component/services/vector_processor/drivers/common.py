@@ -211,7 +211,7 @@ class VectorProcessorAction:
             candidates = params.pop("candidates")
 
             if isinstance(query, list):
-                return [ self._top_k(q, candidates, params) for q in query ]
+                return [ self._top_k(q, candidates, params) if candidates else [] for q in query ]
 
             return self._top_k(query, candidates, params)
 
@@ -220,7 +220,7 @@ class VectorProcessorAction:
             candidates = params.pop("candidates")
 
             if isinstance(query, list):
-                return [ self._threshold_filter(q, candidates, params) for q in query ]
+                return [ self._threshold_filter(q, candidates, params) if candidates else [] for q in query ]
 
             return self._threshold_filter(query, candidates, params)
 

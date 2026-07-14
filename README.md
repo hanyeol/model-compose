@@ -52,14 +52,15 @@ The goal of model-compose is not to build another closed platform, but to restor
 
 ## Why model-compose?
 
-| Feature | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) | **model-compose** |
+| Feature | **model-compose** | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) |
 |---|---|---|---|
-| **Provider Coupling** | Single provider per SDK | Multi-provider via abstractions | **Multi-provider via config** |
-| **Code Coupling** | Application code required | Framework-specific code required | **Declarative YAML — no application code** |
-| **Infrastructure Control** | Provider-controlled | Heavy Abstraction | **Full Sovereignty** |
-| **Runtime Flexibility** | Cloud Only | Complex to customize | **Hybrid-First (Local + Cloud)** |
-| **Protocol Support** | Provider-specific | Limited | **HTTP / WebSocket / MCP** |
-| **Deployment** | Provider-managed | Manual integration | **Docker / Native / Process** |
+| **Provider Coupling** | **Multi-provider via config** | Single provider per SDK | Multi-provider via abstractions |
+| **Code Coupling** | **Declarative YAML — no application code** | Application code required | Framework-specific code required |
+| **Infrastructure Control** | **Full Sovereignty** | Provider-controlled | Heavy Abstraction |
+| **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
+| **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
+| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
 
 ---
 

@@ -52,14 +52,15 @@ model-compose 的目标不是构建另一个封闭平台，而是将架构自主
 
 ## Why model-compose?
 
-| Feature | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) | **model-compose** |
+| Feature | **model-compose** | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) |
 |---|---|---|---|
-| **Provider Coupling** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 | **仅通过配置实现多提供商** |
-| **Code Coupling** | 需要应用代码 | 需要框架专用代码 | **声明式 YAML — 无需应用代码** |
-| **Infrastructure Control** | 提供商控制 | 重度抽象 | **完全自主权** |
-| **Runtime Flexibility** | 仅限云端 | 定制复杂 | **Hybrid-First（本地 + 云端）** |
-| **Protocol Support** | 提供商限定 | 有限 | **HTTP / WebSocket / MCP** |
-| **Deployment** | 提供商管理 | 手动集成 | **Docker / Native / Process** |
+| **Provider Coupling** | **仅通过配置实现多提供商** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 |
+| **Code Coupling** | **声明式 YAML — 无需应用代码** | 需要应用代码 | 需要框架专用代码 |
+| **Infrastructure Control** | **完全自主权** | 提供商控制 | 重度抽象 |
+| **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
+| **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
+| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
 
 ---
 

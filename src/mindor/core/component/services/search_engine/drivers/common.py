@@ -11,10 +11,12 @@ class SearchEngineAction:
         self.config: SearchEngineActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop, database: Any) -> Any:
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         result = await self._dispatch(self.config.method, database, context)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(self, method: SearchEngineActionMethod, database: Any, context: ComponentActionContext) -> Any:
         if method == SearchEngineActionMethod.INDEX:

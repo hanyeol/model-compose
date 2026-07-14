@@ -31,10 +31,12 @@ class ModelMemoryAction:
         if not session_id:
             raise ValueError(f"'session_id' is required for '{self.config.method.value}' method")
 
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         result = await self._dispatch(context, self.config.method, session_id, buffer, storage)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(
         self,

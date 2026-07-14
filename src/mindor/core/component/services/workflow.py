@@ -9,11 +9,13 @@ class WorkflowAction:
         self.config: WorkflowActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
+        is_direct_output = not self.config.output or self.config.output == "${output}"
+
         input = (await context.render_variable(self.config.input)) if self.config.input else context.input
         output = await context.workflow.workflow_delegate(self.config.workflow, input, context.workflow.interrupt_handler)
         context.register_source("output", output)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else output
+        return (await context.render_variable(self.config.output)) if not is_direct_output else output
 
 @register_component(ComponentType.WORKFLOW)
 class WorkflowComponent(ComponentService):

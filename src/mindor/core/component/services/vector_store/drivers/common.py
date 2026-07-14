@@ -12,10 +12,12 @@ class VectorStoreAction:
         self.client: Any = client
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Any:
         if method == VectorStoreActionMethod.INSERT:

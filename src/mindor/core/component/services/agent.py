@@ -33,6 +33,8 @@ class AgentAction:
         max_iteration_count = max_iteration_count or self.component_config.max_iteration_count
         tools = self.tool_schemas if self.tool_schemas else None
 
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         initial_messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
         messages: List[Dict[str, Any]] = []
 
@@ -80,7 +82,7 @@ class AgentAction:
 
             context.register_source("result", messages)
 
-            return (await context.render_variable(self.config.output)) if self.config.output else messages
+            return (await context.render_variable(self.config.output)) if not is_direct_output else messages
 
     async def _build_initial_messages(self, context: ComponentActionContext) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []

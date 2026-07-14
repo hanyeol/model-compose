@@ -10,10 +10,12 @@ class FileStoreAction:
         self.config: FileStoreActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
         result = await self._dispatch(self.config.method, context)
         context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else result
+        return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(self, method: FileStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == FileStoreActionMethod.PUT:

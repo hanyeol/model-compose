@@ -1,0 +1,53 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text to Speech to Text
+  description: Convert text to speech using Qwen3-TTS, then transcribe back to text using Whisper.
+  jobs:
+    - id: tts
+      component: tts-model
+      input: ${input}
+      output: ${output as audio/pcm}
+
+    - id: stt
+      component: stt-model
+      input: ${input}
+      output:
+        transcription: ${output}
+
+  input: ${input}
+  output:
+    transcription: ${stt.output.transcription}
+
+components:
+  - id: tts-model
+    type: model
+    task: text-to-speech
+    driver: custom
+    family: qwen
+    model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+    device: cuda:0
+    max_concurrent_count: 1
+    action:
+      method: generate
+      text: ${input.text as text}
+      voice: ${input.voice | vivian}
+
+  - id: stt-model
+    type: model
+    task: speech-to-text
+    architecture: whisper
+    model: openai/whisper-large-v3-turbo
+    device: cuda:0
+    max_concurrent_count: 1
+    action:
+      audio: ${tts.output as audio}
+      language: ${input.language}
+      task: transcribe

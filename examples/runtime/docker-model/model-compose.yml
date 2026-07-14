@@ -1,0 +1,42 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Docker Runtime (local model, derived image)
+  description: |
+    Runs a HuggingFace text-classification model inside a Docker container.
+    The presence of requirements.txt in this dir causes model-compose to
+    build a DERIVED image on top of the standard runtime image, installing
+    the extra deps.
+  job:
+    input: ${input}
+    output:
+      predicted: ${output}
+
+component:
+  id: classifier
+  type: model
+  task: text-classification
+  driver: huggingface
+  model: martin-ha/toxic-comment-model
+  labels: [ non-toxic, toxic ]
+  max_concurrent_count: 1
+  runtime:
+    type: docker
+    start_timeout: 5m       # first cold start pulls the model too
+    stop_timeout: 30s
+    environment:
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      # Persist HuggingFace cache across container restarts.
+      - ./.hf-cache:/root/.cache/huggingface
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true

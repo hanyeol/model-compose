@@ -1,0 +1,39 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Detect Human Pose from Image
+  description: Detect human body keypoints from an input image using MediaPipe BlazePose.
+  job:
+    input: ${input}
+    output:
+      bounding_box: ${output.poses[0].bounding_box as json}
+      keypoints: ${output.poses[0].keypoints as json}
+      keypoints_3d: ${output.poses[0].keypoints_3d as json}
+      segementation_mask: ${output.poses[0].segmentation_mask as image/png}
+      skeleton_image: ${output.poses[0].skeleton_image as image/png}
+
+component:
+  type: model
+  task: pose-detection
+  driver: custom
+  family: blazepose
+  model:
+    provider: local
+    url: https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    max_pose_count: ${input.max_pose_count | 1}
+    min_confidence: ${input.min_confidence | 0.5}
+    skeleton_format: ${input.skeleton_format | natural}
+    return_keypoints: true
+    return_keypoints_3d: ${input.return_keypoints_3d as boolean | false}
+    return_segmentation_mask: ${input.return_segmentation_mask as boolean | false}
+    return_skeleton_image: ${input.return_skeleton_image as boolean | false}

@@ -1,0 +1,27 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+
+workflow:
+  title: VirtualEnv Runtime (pyenv)
+  description: |
+    Runs the worker in a virtualenv backed by a specific Python version
+    installed via pyenv. Use when a component needs Python != the controller's.
+  job:
+    input: ${input}
+    output:
+      python_version: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: virtualenv
+    driver: pyenv
+    python: "3.11.9"        # must already be installed via `pyenv install`
+    path: .venv/py311
+    start_timeout: 300s
+    stop_timeout: 15s
+  action:
+    command: [ "python", "--version" ]

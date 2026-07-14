@@ -12,7 +12,7 @@ workflow:
   description: Generate streaming text responses using Anthropic's Claude
   job:
     input: ${input}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 
 component:
   type: http-client

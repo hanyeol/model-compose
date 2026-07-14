@@ -21,7 +21,7 @@ component:
   driver: llamacpp
   model:
     provider: local
-    path: ./models/llama-3.2-1b-instruct-q4_k_m.gguf
+    path: ./.models/llama-3.2-1b-instruct-q4_k_m.gguf
     format: gguf
   device: cpu
   context_length: 4096

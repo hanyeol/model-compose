@@ -120,7 +120,7 @@ graph TD
 
 | 필드 | 유형 | 설명 |
 |-----|------|------|
-| - | text (sse-text) | Server-Sent Events 스트림으로 전달되는 AI 생성 응답 텍스트 |
+| - | text (stream/text) | Server-Sent Events 스트림으로 전달되는 AI 생성 응답 텍스트 |
 
 ## 스트리밍 기능
 
@@ -137,7 +137,7 @@ graph TD
 - **스트림 형식**: 다양한 응답 처리를 위해 `stream_format` 및 출력 추출 로직 수정
 - **System Prompt**: AI의 동작 및 성격을 정의하기 위한 system 매개변수 추가
 - **추가 매개변수**: `temperature`, `top_p`, `top_k` 등의 다른 Anthropic 매개변수 포함
-- **출력 형식**: 구조화된 스트리밍 데이터를 위해 `sse-text`를 `sse-json`으로 변경
+- **출력 형식**: 구조화된 스트리밍 데이터를 위해 `stream/text`를 `stream/json`으로 변경
 
 ## 고급 구성
 

@@ -1,0 +1,43 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Shell Command Executor with Hooks
+  description: Executes a shell command with inline Python hooks that transform the input and post-process the output.
+  job:
+    component: shell-executor
+    input:
+      command: ls -la "${input.path | .}"
+    hook:
+      before:
+        script: |
+          def hook(input, *, task_id, job_id, run_id, phase):
+              print(f"[{phase}] job={job_id} run={run_id} command={input['command']!r}")
+              input["command"] = f"{input['command']} 2>&1"
+              return input
+      after:
+        script: |
+          def hook(input, output, *, task_id, job_id, run_id, phase):
+              lines = output.splitlines()
+              print(f"[{phase}] job={job_id} run={run_id} produced {len(lines)} lines")
+              return {
+                  "line_count": len(lines),
+                  "preview": lines[:5],
+              }
+  output:
+    line_count: ${jobs.__job__.output.line_count as integer}
+    preview: ${jobs.__job__.output.preview as json}
+
+component:
+  id: shell-executor
+  type: shell
+  action:
+    command: [ "sh", "-c", "${input.command}" ]
+    timeout: 10.0
+    output: ${result.stdout}

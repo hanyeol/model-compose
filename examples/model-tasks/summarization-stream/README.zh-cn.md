@@ -217,7 +217,7 @@ component:
 workflow:
   title: Custom Streaming Summary
   input: ${input}
-  output: ${output as sse-json}    # JSON 格式流式
+  output: ${output as stream/json}    # JSON 格式流式
 
 component:
   type: model
@@ -285,7 +285,7 @@ workflow:
       repeat_count: ${input.document_count}
       input:
         text: ${input.documents[${index}]}
-      output: ${output as sse-text}
+      output: ${output as stream/text}
 ```
 
 ### 渐进式增强

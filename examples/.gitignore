@@ -4,3 +4,4 @@ logs
 __pycache__/
 *.pyc
 .docker
+.DS_Store

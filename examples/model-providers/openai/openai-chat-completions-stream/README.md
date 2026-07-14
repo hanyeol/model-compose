@@ -119,7 +119,7 @@ graph TD
 
 | Field | Type | Description |
 |-------|------|-------------|
-| - | text (sse-text) | The AI-generated response text delivered as Server-Sent Events stream |
+| - | text (stream/text) | The AI-generated response text delivered as Server-Sent Events stream |
 
 ## Streaming Features
 
@@ -136,7 +136,7 @@ This example differs from the standard chat completions by providing:
 - **Stream Format**: Modify `stream_format` and output extraction logic for different response processing
 - **System Prompt**: Add a system message to define the AI's behavior and personality
 - **Additional Parameters**: Include other OpenAI parameters like `max_tokens`, `presence_penalty`, etc.
-- **Output Format**: Change from `sse-text` to `sse-json` for structured streaming data
+- **Output Format**: Change from `stream/text` to `stream/json` for structured streaming data
 
 ## Advanced Configuration
 

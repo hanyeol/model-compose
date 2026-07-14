@@ -1,0 +1,56 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Video → Frames → Local Files
+  description: |
+    Stream frames from a video and save each one to the local file store
+    as it is produced. Exercises the spec for: single input → many outputs
+    via `streaming: true`, and consuming that stream in the next job.
+  jobs:
+    - id: extract-frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval as integer | 30}
+
+    - id: save-frames
+      type: for-each
+      input: ${jobs.extract-frames.output}
+      do:
+        component: storage
+        input:
+          path: frame-${item.timestamp}.png
+          source: ${item.image as image/png}
+      # output: ${output as stream/json}
+      depends_on: [ extract-frames ]
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    # runtime:
+    #   type: docker
+    #   # `setup.sh` in this directory installs ffmpeg into the derived
+    #   # container image on first `up` (see the file for details).
+    #   start_timeout: 3m   # first cold start pays for the ffmpeg apt install
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./output/frames
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+    output: ${result.path}

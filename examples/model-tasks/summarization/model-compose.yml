@@ -9,7 +9,7 @@ controller:
 
 workflow:
   title: Summarize Text
-  description: Generate a concise and informative summary from a longer input text using a pretrained language model.
+  description: Generate a concise and informative summary from a longer input text using a pretrained seq2seq model.
   job:
     input: ${input}
     output:
@@ -17,12 +17,13 @@ workflow:
 
 component:
   type: model
-  task: text-generation
+  task: text-to-text
+  driver: huggingface
+  architecture: bart
   model: facebook/bart-large-cnn
-  architecture: seq2seq
   max_concurrent_count: 1
   action:
     text: ${input.text as text}
+    max_input_length: 1024
     params:
-      max_input_length: 1024
-      top_p: 1.0
+      do_sample: false

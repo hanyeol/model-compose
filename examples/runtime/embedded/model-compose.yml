@@ -1,0 +1,26 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Embedded Runtime (baseline)
+  description: |
+    Runs the shell component in the SAME process as the controller.
+    No IPC, no subprocess — the fastest path but zero isolation.
+    Use this as a baseline to compare against process / venv / docker examples.
+  job:
+    input: ${input}
+    output:
+      greeting: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: embedded
+  action:
+    command: [ "echo", "hello from ${input.name | world}" ]

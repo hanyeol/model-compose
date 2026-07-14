@@ -44,18 +44,18 @@ workflows:
 components:
   - id: research-agent
     type: agent
+    instructions: You are a web research assistant. Search the web and fetch pages to thoroughly research the given topic, then provide a comprehensive, well-organized answer.
+    model:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - search-web
       - fetch-page
     max_iteration_count: 10
     action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: You are a web research assistant. Search the web and fetch pages to thoroughly research the given topic, then provide a comprehensive, well-organized answer.
-      user_prompt: ${input.question}
+      prompt: ${input.question}
 
   - id: gpt-4o
     type: http-client

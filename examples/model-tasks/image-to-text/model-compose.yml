@@ -19,8 +19,9 @@ component:
   type: model
   task: image-to-text
   model: Salesforce/blip-image-captioning-large
+  driver: huggingface
   architecture: blip
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    text: ${input.text as text}
+    prompt: ${input.prompt as text}

@@ -1,0 +1,200 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # ---------------- Main workflow ----------------
+  - id: find-person-scenes
+    title: Find Person Scenes
+    description: |
+      Given a target face image and a video, return the list of scenes
+      (start/end timecodes) in which that person appears — with the
+      matching frame timestamp and face bounding box for each hit.
+
+      Strategy:
+        1. Embed the target face.
+        2. Split the video into scenes.
+        3. For each scene, sample frames at a fixed interval, run face
+           embedding on each frame, and rank every (frame, face) pair
+           against the target by cosine similarity. A scene is a match
+           if the top pair's score meets the threshold.
+    jobs:
+      - id: target-embed
+        component: face-embed
+        input:
+          image: ${input.target_face as image}
+        # face-embed returns { faces:[{embedding,bounding_box,score,...}], width, height }.
+        # For the target we assume a single face and unpack its embedding.
+        output: ${output.faces[0].embedding as json}
+
+      - id: scenes
+        component: scene-detector
+        input:
+          video: ${input.video as file}
+
+      - id: per-scene
+        type: for-each
+        depends_on: [ target-embed, scenes ]
+        input: ${jobs.scenes.output.scenes as list}
+        do:
+          component: match-scene-ref
+          input:
+            video: ${input.video as file}
+            scene: ${item}
+            target_embedding: ${jobs.target-embed.output as json}
+            threshold: ${input.similarity_threshold as number | 0.4}
+            frame_interval: ${input.frame_interval as number | 15}
+
+      # Keep only scenes whose top hit meets the similarity threshold, and
+      # project each surviving element into the final result shape.
+      - id: collect
+        type: filter
+        depends_on: [ per-scene ]
+        input: ${jobs.per-scene.output}
+        where:
+          # `| 0` covers scenes with zero detected faces (empty hits list).
+          input: ${item.hits[0].score as number | 0}
+          operator: gte
+          value: ${item.threshold as number}
+        output:
+          "*": ${output}
+          scene:        ${item.scene}
+          score:        ${item.hits[0].score}
+          timestamp:    ${item.faces[item.hits[0].index].timestamp}
+          bounding_box: ${item.faces[item.hits[0].index].bounding_box}
+
+    output:
+      matched_scenes: ${jobs.collect.output as json}
+      all_scenes: ${jobs.scenes.output.scenes as json}
+
+  # ---------------- Sub-workflow: process one scene ----------------
+  - id: match-one-scene
+    private: true
+    jobs:
+      - id: frames
+        component: frame-extractor
+        input:
+          video: ${input.video}
+          start_time: ${input.scene.start}
+          end_time: ${input.scene.end}
+          frame_interval: ${input.frame_interval}
+
+      # Each iteration produces { faces:[{embedding,bounding_box,score,...}], width, height }.
+      # The after hook flattens (frame × face) into one linear list, carrying frame
+      # timestamp and face bounding_box on each item. vector-processor works on flat
+      # candidate lists, so this step provides the mapping we need after ranking.
+      # `input` here is the for-each input (the frames list), `output` is the
+      # per-frame face-embed results.
+      - id: embed-frames
+        type: for-each
+        input: ${jobs.frames.output as list}
+        depends_on: [ frames ]
+        do:
+          component: face-embed
+          input:
+            image: ${item.image}
+        hook:
+          after:
+            script: |
+              def hook(input, output, **kwargs):
+                  out = []
+                  for i, frame_result in enumerate(output):
+                      timestamp = input[i].get("timestamp") if i < len(input) else None
+                      for j, face in enumerate(frame_result.get("faces") or []):
+                          out.append({
+                              "embedding":    face.get("embedding"),
+                              "bounding_box": face.get("bounding_box"),
+                              "score":        face.get("score"),
+                              "timestamp":    timestamp,
+                              "frame_index":  i,
+                              "face_index":   j,
+                          })
+                  return out
+
+      # Rank every (frame, face) embedding against the target using cosine similarity.
+      - id: rank
+        component: vector-processor
+        action: top-k
+        depends_on: [ embed-frames ]
+        input:
+          query: ${input.target_embedding}
+          candidates: ${jobs.embed-frames.output[*].embedding as json}
+
+    output:
+      scene: ${input.scene as json}
+      # Linear (frame, face) records — index-aligned with `rank` provenance.
+      faces: ${jobs.embed-frames.output as json}
+      # Top ranked hit — list of 0 or 1 items (k=1).
+      hits: ${jobs.rank.output as json}
+      threshold: ${input.threshold}
+
+components:
+  # ---- Face embedding ----
+  - id: face-embed
+    type: model
+    task: face-embedding
+    driver: custom
+    family: insightface
+    max_concurrent_count: 1
+    model: ./models/antelopev2
+    action:
+      image: ${input.image}
+      face_detection: true
+      alignment: true
+      normalize_embeddings: true
+      max_num_faces: 5
+
+  # ---- Scene detection ----
+  - id: scene-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    action:
+      video: ${input.video}
+      detector: adaptive
+      threshold: 27.0
+
+  # ---- Frame extraction (non-streaming so for-each can iterate) ----
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      start_time: ${input.start_time}
+      end_time: ${input.end_time}
+      frame_interval: ${input.frame_interval}
+      streaming: false
+
+  # ---- Wrapper so main workflow can call the sub-workflow per scene ----
+  - id: match-scene-ref
+    type: workflow
+    action:
+      workflow: match-one-scene
+      input:
+        video: ${input.video}
+        scene: ${input.scene}
+        target_embedding: ${input.target_embedding}
+        threshold: ${input.threshold}
+        frame_interval: ${input.frame_interval}
+
+  # ---- Vector processing (similarity, top-k, etc.) ----
+  - id: vector-processor
+    type: vector-processor
+    driver: native
+    actions:
+      - id: top-k
+        method: top-k
+        query: ${input.query}
+        candidates: ${input.candidates}
+        k: 1
+        metric: cosine
+
+      - id: similarity
+        method: similarity
+        vector: ${input.vector}
+        other: ${input.other}
+        metric: cosine

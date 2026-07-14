@@ -1,0 +1,65 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: spectrum
+    default: true
+    title: Spectrum Feature Extractor
+    description: Extract a frequency-band spectrum per frame from an audio file (for equalizer visualizations).
+    job:
+      component: spectrum-extractor
+      input:
+        audio: ${input.audio as file}
+        fps: ${input.fps as integer | 30}
+        band_count: ${input.band_count as integer | 32}
+        min_frequency: ${input.min_frequency as number | 40.0}
+        window_size: ${input.window_size as select/512,1024,2048,4096 | 2048}
+        window_type: ${input.window_type as select/hann,hamming,blackman | hann}
+        frequency_scale: ${input.frequency_scale as select/log,linear | log}
+        normalize_mode: ${input.normalize_mode as select/peak-percentile,none | peak-percentile}
+      output: ${output as json}
+
+  - id: waveform
+    title: Waveform Feature Extractor
+    description: Extract a time-domain amplitude waveform per frame from an audio file (for waveform visualizations).
+    job:
+      component: waveform-extractor
+      input:
+        audio: ${input.audio as file}
+        fps: ${input.fps as integer | 30}
+        point_count: ${input.point_count as integer | 100}
+        window_duration: ${input.window_duration as string | 40ms}
+        summary_mode: ${input.summary_mode as select/peak,rms | peak}
+        rectify: ${input.rectify as boolean | true}
+      output: ${output as json}
+
+components:
+  - id: spectrum-extractor
+    type: audio-feature-extractor
+    action:
+      feature: spectrum
+      audio: ${input.audio}
+      fps: ${input.fps}
+      band_count: ${input.band_count}
+      min_frequency: ${input.min_frequency}
+      window_size: ${input.window_size}
+      window_type: ${input.window_type}
+      frequency_scale: ${input.frequency_scale}
+      normalize_mode: ${input.normalize_mode}
+
+  - id: waveform-extractor
+    type: audio-feature-extractor
+    action:
+      feature: waveform
+      audio: ${input.audio}
+      fps: ${input.fps}
+      point_count: ${input.point_count}
+      window_duration: ${input.window_duration}
+      summary_mode: ${input.summary_mode}
+      rectify: ${input.rectify}

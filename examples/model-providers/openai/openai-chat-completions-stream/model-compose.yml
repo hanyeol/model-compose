@@ -12,7 +12,7 @@ workflow:
   description: Generate text responses using OpenAI’s GPT-4o
   job:
     input: ${input}
-    output: ${output as sse-text}
+    output: ${output as stream/text}
 
 component:
   type: http-client

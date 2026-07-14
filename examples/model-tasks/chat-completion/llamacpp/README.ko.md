@@ -17,7 +17,7 @@
 
 - model-compose가 설치되어 PATH에서 사용 가능
 - `llama-cpp-python` 설치 (아래 설치 방법 참조)
-- `./models/llama-3.2-1b-instruct-q4_k_m.gguf` 경로에 GGUF instruct 모델 파일 배치
+- `./.models/llama-3.2-1b-instruct-q4_k_m.gguf` 경로에 GGUF instruct 모델 파일 배치
 
 ### llama-cpp-python 설치
 
@@ -38,7 +38,7 @@ CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python
 mkdir -p models
 
 # HuggingFace에서 Llama-3.2-1B-Instruct Q4_K_M 다운로드
-curl -L -o models/llama-3.2-1b-instruct-q4_k_m.gguf \
+curl -L -o .models/llama-3.2-1b-instruct-q4_k_m.gguf \
   https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
 ```
 
@@ -49,7 +49,7 @@ curl -L -o models/llama-3.2-1b-instruct-q4_k_m.gguf \
    cd examples/model-tasks/chat-completion-llamacpp
    ```
 
-2. GGUF instruct 모델 파일을 `./models/` 아래에 배치합니다.
+2. GGUF instruct 모델 파일을 `./.models/` 아래에 배치합니다.
 
 ## 실행 방법
 
@@ -124,7 +124,7 @@ component:
   driver: llamacpp
   model:
     provider: local
-    path: ./models/llama-3.2-1b-instruct-q4_k_m.gguf
+    path: ./.models/llama-3.2-1b-instruct-q4_k_m.gguf
     format: gguf
   device: cuda        # macOS는 "metal"
   n_gpu_layers: -1    # -1 = 전체 레이어 오프로딩

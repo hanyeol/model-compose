@@ -1,0 +1,30 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Image + Text to Text
+  description: Ask a vision-language model to describe an image with a custom prompt.
+  job:
+    input: ${input}
+    output:
+      generated: ${output as text}
+
+component:
+  type: model
+  task: image-text-to-text
+  driver: huggingface
+  architecture: qwen2.5-vl
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}
+    params:
+      max_output_length: 512
+      do_sample: false

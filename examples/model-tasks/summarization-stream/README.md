@@ -217,7 +217,7 @@ Modify output format:
 workflow:
   title: Custom Streaming Summary
   input: ${input}
-  output: ${output as sse-json}    # JSON format streaming
+  output: ${output as stream/json}    # JSON format streaming
 
 component:
   type: model
@@ -285,7 +285,7 @@ workflow:
       repeat_count: ${input.document_count}
       input:
         text: ${input.documents[${index}]}
-      output: ${output as sse-text}
+      output: ${output as stream/text}
 ```
 
 ### Progressive Enhancement

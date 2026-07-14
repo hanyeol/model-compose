@@ -1,0 +1,50 @@
+controller:
+  adapter:
+    type: http-server
+    base_path: /api
+    port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: capture
+    title: Capture YouTube Video
+    description: >
+      Launch a Chrome window, navigate to a YouTube URL, and record the
+      currently-playing `<video>` element to a WebM/MP4 file. Recording uses
+      HTMLMediaElement.captureStream() + MediaRecorder inside the page, so no
+      OS-level screen-recording permission is required.
+    job:
+      component: browser
+      action: capture-video
+      input:
+        url: ${input.url @(description YouTube video URL, e.g. https://www.youtube.com/watch?v=...)}
+        duration: ${input.duration | 30s @(description How long to record, e.g. 10s, 30s, 2m)}
+        format: ${input.format as select/webm,mp4 | webm @(description Container format)}
+        video_codec: ${input.video_codec as select/vp9,vp8,h264 | vp9 @(description Video codec for MediaRecorder)}
+        audio_codec: ${input.audio_codec as select/opus | opus @(description Audio codec for MediaRecorder)}
+        video_bitrate: ${input.video_bitrate as select/500k,1M,2M,3M,5M | 3M @(description Video bitrate)}
+        audio_bitrate: ${input.audio_bitrate as select/64k,96k,128k,192k | 128k @(description Audio bitrate)}
+      output: ${output as video}
+
+components:
+  - id: browser
+    type: web-browser
+    driver: playwright
+    channel: chrome
+    headless: false
+    persistent_dir: .chrome-profile
+    actions:
+      - id: capture-video
+        method: capture-video
+        url: ${input.url}
+        duration: ${input.duration}
+        encoding:
+          format: ${input.format}
+          video:
+            codec: ${input.video_codec}
+            bitrate: ${input.video_bitrate}
+          audio:
+            codec: ${input.audio_codec}
+            bitrate: ${input.audio_bitrate}

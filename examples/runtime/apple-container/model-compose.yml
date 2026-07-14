@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Apple Container Runtime
+  description: |
+    macOS-only backend. Uses Apple's `container` CLI (not Docker Desktop)
+    to run the shell component in a native macOS container. IPC travels
+    over `container start -a -i <name>` subprocess stdin/stdout.
+  job:
+    input: ${input}
+    output:
+      uname: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: apple-container
+    start_timeout: 120s
+    stop_timeout: 30s
+  action:
+    command: [ "uname", "-a" ]

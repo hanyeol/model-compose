@@ -191,18 +191,6 @@ component:
   model: openai/whisper-large-v3   # Highest accuracy
 ```
 
-### Using Whisper Large Architecture
-
-For the full Whisper Large model:
-
-```yaml
-component:
-  type: model
-  task: speech-to-text
-  architecture: whisper-large
-  model: openai/whisper-large-v3
-```
-
 ### Adjusting Generation Parameters
 
 Fine-tune transcription quality:

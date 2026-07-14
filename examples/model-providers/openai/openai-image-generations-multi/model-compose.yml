@@ -1,0 +1,55 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: dall-e-multi
+    title: Generate Multiple Images with OpenAI DALL·E
+    description: Generate multiple image variations from a single prompt using OpenAI's DALL·E 2 model.
+    default: true
+    job:
+      action: dall-e-multi
+      input: ${input}
+      output: ${output.image_urls as image[];url}
+
+  - id: gpt-image-1-multi
+    title: Generate Multiple Images with OpenAI GPT
+    description: Generate multiple image variations from a single prompt using OpenAI's GPT image model.
+    job:
+      action: gpt-image-1-multi
+      input: ${input}
+      output: ${output.image_data as image[];base64}
+
+component:
+  type: http-client
+  base_url: https://api.openai.com/v1
+  headers:
+    Authorization: Bearer ${env.OPENAI_API_KEY}
+    Content-Type: application/json
+  actions:
+    - id: dall-e-multi
+      path: /images/generations
+      method: POST
+      body:
+        model: dall-e-2
+        prompt: ${input.prompt}
+        n: ${input.count as integer | 4}
+        size: ${input.size as select/256x256,512x512,1024x1024 | 1024x1024}
+      output:
+        image_urls: ${response.data[*].url}
+
+    - id: gpt-image-1-multi
+      path: /images/generations
+      method: POST
+      body:
+        model: gpt-image-1
+        prompt: ${input.prompt}
+        n: ${input.count as integer | 4}
+        size: ${input.size as select/1024x1024,1024x1536,1536x1024 | 1024x1024}
+      output:
+        image_data: ${response.data[*].b64_json}

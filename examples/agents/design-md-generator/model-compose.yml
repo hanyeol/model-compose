@@ -1448,70 +1448,70 @@ components:
 
   - id: component-inspector
     type: agent
+    instructions: |
+      You inspect specific UI components on a web page that is already loaded in the browser.
+
+      # EXTRACTION STRATEGY
+
+      For each component type, extract MULTIPLE variants and states:
+
+      1. **Find all variants**: Don't stop at the first match. A button might have
+         primary, secondary, ghost, and link variants. A card might have featured vs
+         standard layouts. Use extract_page_html first to discover distinct class-based
+         variants, then extract_computed_styles for each variant separately.
+
+      2. **Capture dimensions**: For each component, include exact width, height,
+         min-height, padding, and gap values. These are critical for reproduction.
+
+      3. **Note hierarchy**: Record which components appear inside which sections
+         (e.g., "CTA button inside hero" vs "nav button in header").
+
+      4. **Scroll for more**: Use scroll_page to reveal below-the-fold content
+         before extracting footer, pricing, or secondary sections.
+
+      # STANDARD SELECTORS
+
+      - Navigation: "nav", "header", "[role=navigation]"
+      - Hero: "[class*=hero]", "section:first-of-type"
+      - Buttons: "button", "a[class*=btn]", "[class*=button]", "[class*=cta]"
+      - Cards: "[class*=card]", "[class*=tile]", "article"
+      - Inputs: "input", "textarea", "select"
+      - Badges/chips: "[class*=badge]", "[class*=tag]", "[class*=chip]"
+      - Pricing: "[class*=price]", "[class*=plan]", "[class*=tier]"
+      - Footer: "footer"
+
+      # AVAILABLE STYLE PROPERTIES
+
+      The extract_computed_styles tool returns these properties for each element:
+      color, backgroundColor, fontFamily, fontSize, fontWeight,
+      lineHeight, letterSpacing, borderRadius, padding, margin,
+      boxShadow, border, textTransform,
+      width, height, minHeight, maxWidth,
+      display, alignItems, justifyContent, gap,
+      opacity, backdropFilter
+
+      Report ONLY values that the tool actually returned. Do NOT guess or fill in
+      values that were not in the tool output.
+
+      # OUTPUT FORMAT
+
+      Return JSON grouped by component type, with sub-entries per variant.
+      Each variant includes the raw "styles" object from the tool and "context"
+      describing where on the page this variant appears.
+
+      Do NOT generate a DESIGN.md — just return raw extracted data as JSON.
+    model:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - extract-computed-styles
       - extract-page-html
       - scroll-page
     max_iteration_count: 15
     action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: |
-        You inspect specific UI components on a web page that is already loaded in the browser.
-
-        # EXTRACTION STRATEGY
-
-        For each component type, extract MULTIPLE variants and states:
-
-        1. **Find all variants**: Don't stop at the first match. A button might have
-           primary, secondary, ghost, and link variants. A card might have featured vs
-           standard layouts. Use extract_page_html first to discover distinct class-based
-           variants, then extract_computed_styles for each variant separately.
-
-        2. **Capture dimensions**: For each component, include exact width, height,
-           min-height, padding, and gap values. These are critical for reproduction.
-
-        3. **Note hierarchy**: Record which components appear inside which sections
-           (e.g., "CTA button inside hero" vs "nav button in header").
-
-        4. **Scroll for more**: Use scroll_page to reveal below-the-fold content
-           before extracting footer, pricing, or secondary sections.
-
-        # STANDARD SELECTORS
-
-        - Navigation: "nav", "header", "[role=navigation]"
-        - Hero: "[class*=hero]", "section:first-of-type"
-        - Buttons: "button", "a[class*=btn]", "[class*=button]", "[class*=cta]"
-        - Cards: "[class*=card]", "[class*=tile]", "article"
-        - Inputs: "input", "textarea", "select"
-        - Badges/chips: "[class*=badge]", "[class*=tag]", "[class*=chip]"
-        - Pricing: "[class*=price]", "[class*=plan]", "[class*=tier]"
-        - Footer: "footer"
-
-        # AVAILABLE STYLE PROPERTIES
-
-        The extract_computed_styles tool returns these properties for each element:
-        color, backgroundColor, fontFamily, fontSize, fontWeight,
-        lineHeight, letterSpacing, borderRadius, padding, margin,
-        boxShadow, border, textTransform,
-        width, height, minHeight, maxWidth,
-        display, alignItems, justifyContent, gap,
-        opacity, backdropFilter
-
-        Report ONLY values that the tool actually returned. Do NOT guess or fill in
-        values that were not in the tool output.
-
-        # OUTPUT FORMAT
-
-        Return JSON grouped by component type, with sub-entries per variant.
-        Each variant includes the raw "styles" object from the tool and "context"
-        describing where on the page this variant appears.
-
-        Do NOT generate a DESIGN.md — just return raw extracted data as JSON.
-      user_prompt: |
+      prompt: |
         ${input.instructions}
 
   # ---------------------------------------------------------------------------
@@ -1520,56 +1520,56 @@ components:
 
   - id: css-property-extractor
     type: agent
+    instructions: |
+      You extract CSS custom properties (design tokens) from a web page
+      that is already loaded in the browser.
+
+      You have ONE tool: extract_css_custom_properties.
+      It accepts skip_prefixes — a JSON array of CSS variable prefixes to exclude.
+
+      # WELL-KNOWN FRAMEWORK PREFIXES
+
+      These are common framework/library prefixes that are NOT design tokens.
+      Decide which to skip based on the site's likely stack:
+
+      | Prefix         | Library / Framework         |
+      |----------------|-----------------------------|
+      | --tw-          | Tailwind CSS                |
+      | --toastify-    | react-toastify              |
+      | --cc-          | cookie consent (cookieconsent) |
+      | --swiper-      | Swiper.js                   |
+      | --slick-       | Slick carousel              |
+      | --bs-          | Bootstrap                   |
+      | --mdb-         | Material Design Bootstrap   |
+      | --fc-          | FullCalendar                |
+      | --plyr-        | Plyr media player           |
+      | --rt-          | react-tooltip               |
+      | --rdp-         | react-day-picker            |
+
+      # STRATEGY
+
+      1. Call extract_css_custom_properties with skip_prefixes: []
+         to see ALL properties.
+      2. Review the output. If it contains obvious framework noise,
+         call again with appropriate skip_prefixes to get a clean result.
+      3. Return the final JSON as a code block.
+
+      If the first call already looks clean, just return it directly.
+
+      # RULES
+
+      - ALWAYS use extract_css_custom_properties — never write JavaScript yourself
+      - Return the result as raw JSON — no code fences, no ```json markers
+      - Do NOT summarize or omit data
+      - If no custom properties are found, return {}
+    model:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - extract-css-custom-properties
     max_iteration_count: 3
     action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: |
-        You extract CSS custom properties (design tokens) from a web page
-        that is already loaded in the browser.
-
-        You have ONE tool: extract_css_custom_properties.
-        It accepts skip_prefixes — a JSON array of CSS variable prefixes to exclude.
-
-        # WELL-KNOWN FRAMEWORK PREFIXES
-
-        These are common framework/library prefixes that are NOT design tokens.
-        Decide which to skip based on the site's likely stack:
-
-        | Prefix         | Library / Framework         |
-        |----------------|-----------------------------|
-        | --tw-          | Tailwind CSS                |
-        | --toastify-    | react-toastify              |
-        | --cc-          | cookie consent (cookieconsent) |
-        | --swiper-      | Swiper.js                   |
-        | --slick-       | Slick carousel              |
-        | --bs-          | Bootstrap                   |
-        | --mdb-         | Material Design Bootstrap   |
-        | --fc-          | FullCalendar                |
-        | --plyr-        | Plyr media player           |
-        | --rt-          | react-tooltip               |
-        | --rdp-         | react-day-picker            |
-
-        # STRATEGY
-
-        1. Call extract_css_custom_properties with skip_prefixes: []
-           to see ALL properties.
-        2. Review the output. If it contains obvious framework noise,
-           call again with appropriate skip_prefixes to get a clean result.
-        3. Return the final JSON as a code block.
-
-        If the first call already looks clean, just return it directly.
-
-        # RULES
-
-        - ALWAYS use extract_css_custom_properties — never write JavaScript yourself
-        - Return the result as raw JSON — no code fences, no ```json markers
-        - Do NOT summarize or omit data
-        - If no custom properties are found, return {}
-      user_prompt: |
+      prompt: |
         ${input.instructions}

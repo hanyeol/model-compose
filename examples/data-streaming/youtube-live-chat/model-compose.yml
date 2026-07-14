@@ -1,0 +1,290 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+# === Discovery workflow ===========================================
+# Run once when a stream starts. Fetches a rendered snapshot of the
+# live chat page, asks GPT to identify the message container and the
+# author/message selectors inside it, and returns a selector spec.
+# The spec is stored in Redis under the video_id so the polling
+# workflow can reuse it without re-querying GPT.
+workflows:
+  - id: discover-selectors
+    title: Discover Live Chat Selectors via GPT
+    description: |
+      Crawl the live chat page once, ask GPT-4o which selectors target
+      the message list, author name, and message body, and cache the
+      result keyed by video_id.
+    jobs:
+      # Pull a rendered HTML sample. We intentionally scope to the
+      # chat container tag rather than the whole page — keeps the
+      # payload to GPT small and focused.
+      - id: snapshot
+        component: chat-html-snapshot
+        input:
+          video_id: ${input.video_id}
+        output:
+          html: ${output as text}
+
+      # Ask GPT to find the selectors. The prompt requires a strict
+      # JSON object back so the next job can consume it directly.
+      - id: detect
+        component: selector-detector
+        input:
+          html: ${jobs.snapshot.output.html}
+        output:
+          item_selector: ${output.item_selector}
+          id_selector: ${output.id_selector}
+          author_selector: ${output.author_selector}
+          message_selector: ${output.message_selector}
+        depends_on: [ snapshot ]
+
+      # Cache the discovered selectors. The polling workflow reads
+      # this back on every tick instead of re-asking GPT.
+      - id: cache
+        component: kv
+        action: set
+        input:
+          key: yt:selectors:${input.video_id}
+          value: ${jobs.detect.output as json}
+          ttl: 21600           # 6 hours — re-discover for long streams
+        depends_on: [ detect ]
+
+    output:
+      selectors: ${jobs.detect.output}
+
+  # === Polling workflow ===========================================
+  # Drains new chat messages on a loop using the cached selector spec.
+  # Watermark dedup via Redis: last seen message id is stored per
+  # video_id so each tick only emits new arrivals.
+  - id: poll-chat
+    title: Poll Live Chat Using Discovered Selectors
+    jobs:
+      - id: load-selectors
+        component: kv
+        action: get
+        input:
+          key: yt:selectors:${input.video_id}
+        output:
+          selectors: ${output.value as json}
+
+      - id: load-watermark
+        component: kv
+        action: get
+        input:
+          key: yt:lastid:${input.video_id}
+        output:
+          last_id: ${output.value}
+
+      # Re-scrape using the discovered selectors. The selector dict
+      # form lets a single web-scraper call pull id/author/message
+      # in parallel from the same DOM parse.
+      - id: scrape
+        component: dynamic-chat-scraper
+        input:
+          video_id: ${input.video_id}
+          item_selector: ${jobs.load-selectors.output.selectors.item_selector}
+          id_selector: ${jobs.load-selectors.output.selectors.id_selector}
+          author_selector: ${jobs.load-selectors.output.selectors.author_selector}
+          message_selector: ${jobs.load-selectors.output.selectors.message_selector}
+        output:
+          messages: ${output as json}
+        depends_on: [ load-selectors, load-watermark ]
+
+      # Keep only entries newer than the stored watermark, then
+      # advance the watermark to the last seen id.
+      - id: incremental
+        type: filter
+        input: ${jobs.scrape.output.messages}
+        when: ${jobs.load-watermark.output.last_id == null
+               || item.id != jobs.load-watermark.output.last_id}
+        depends_on: [ scrape ]
+
+      - id: ship
+        component: chat-sink
+        input:
+          video_id: ${input.video_id}
+          messages: ${jobs.incremental.output}
+        depends_on: [ incremental ]
+
+      - id: advance-watermark
+        component: kv
+        action: set
+        input:
+          key: yt:lastid:${input.video_id}
+          value: ${jobs.scrape.output.messages[-1].id}
+          ttl: 86400
+        depends_on: [ ship ]
+
+      - id: wait
+        type: delay
+        mode: time-interval
+        duration: ${input.poll_interval | 3s}
+        depends_on: [ advance-watermark ]
+
+      # Tail-recurse into self for an indefinite poll loop.
+      - id: loop
+        component: self-poll
+        input:
+          video_id: ${input.video_id}
+          poll_interval: ${input.poll_interval}
+        depends_on: [ wait ]
+
+  # === Orchestrator (default) =====================================
+  # User-facing entry. Discovers selectors once, then enters the
+  # poll loop. Re-running for the same video_id will re-discover
+  # (cheap if HTML hasn't drifted; GPT call cost applies).
+  - id: __workflow__
+    default: true
+    title: YouTube Live Chat (AI-discovered selectors)
+    jobs:
+      - id: discover
+        component: self-discover
+        input:
+          video_id: ${input.video_id}
+
+      - id: start-polling
+        component: self-poll
+        input:
+          video_id: ${input.video_id}
+          poll_interval: ${input.poll_interval}
+        depends_on: [ discover ]
+
+components:
+  # --- Stage 1: HTML snapshot --------------------------------------
+  # Render the live chat popout page and return the chat container's
+  # HTML. Scoping to yt-live-chat-item-list-renderer keeps the GPT
+  # payload manageable (~10-30 KB instead of hundreds).
+  - id: chat-html-snapshot
+    type: web-scraper
+    # Pose as a real desktop browser. YouTube's headless detection is
+    # aggressive — a default playwright UA frequently lands you on the
+    # cookie-consent interstitial or an empty shell instead of the chat
+    # page. Cookies pre-accept the EU consent prompt so the chat actually
+    # renders.
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+      Accept-Language: en-US,en;q=0.9
+    cookies:
+      CONSENT: "YES+cb"
+      SOCS: "CAISEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg"
+    action:
+      # Use the popout chat URL, not /watch. The /watch page runs the
+      # video player which never reaches networkidle (continuous HLS +
+      # analytics traffic), so Playwright times out. The popout chat
+      # page is lighter but still streams chat over a long-poll, so we
+      # also override wait_until to 'domcontentloaded' instead of the
+      # default 'networkidle'.
+      url: https://www.youtube.com/live_chat?v=${input.video_id}&is_popout=1
+      enable_javascript: true
+      wait_until: domcontentloaded
+      # Don't wait on a specific chat element — the page may be stuck on
+      # consent, a "chat is disabled" notice, or "live chat replay" mode.
+      # Grab whatever rendered so the diagnostic step below can surface
+      # the real failure mode.
+      selector: body
+      extract_mode: html
+      timeout: 45s
+
+  # --- Stage 2: GPT selector detection -----------------------------
+  # System prompt anchors GPT to a strict JSON contract. We pass the
+  # raw HTML and demand back four selectors keyed predictably so the
+  # downstream scrape job can plug them into a selector dict.
+  - id: selector-detector
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        response_format:
+          type: json_object
+        messages:
+          - role: system
+            content: |
+              You receive an HTML fragment from YouTube's live chat container.
+              Identify the CSS selectors needed to extract individual chat
+              messages. Respond with ONLY a JSON object of this exact shape:
+
+                {
+                  "item_selector": "<selector matching each message element>",
+                  "id_selector":   "<selector or attribute path for a stable per-message id>",
+                  "author_selector":  "<selector for the author name, relative to item>",
+                  "message_selector": "<selector for the message body, relative to item>"
+                }
+
+              Use tag names, ids, and attribute selectors — avoid relying on
+              auto-generated class hashes that may rotate. For id_selector,
+              prefer the element's own id attribute (use the literal string
+              "@id" if the message element itself carries a stable id).
+          - role: user
+            content: |
+              ${input.html as text}
+      output:
+        item_selector: ${response.choices[0].message.content as json | $.item_selector}
+        id_selector: ${response.choices[0].message.content as json | $.id_selector}
+        author_selector: ${response.choices[0].message.content as json | $.author_selector}
+        message_selector: ${response.choices[0].message.content as json | $.message_selector}
+
+  # --- Stage 3: Dynamic scraping using discovered selectors --------
+  # Same target page, but selectors are now driven by GPT's output.
+  # The selector dict form ({id, author, message}) returns one parsed
+  # object per matched item, which `multiple: true` collects as a list.
+  - id: dynamic-chat-scraper
+    type: web-scraper
+    headers:
+      User-Agent: Mozilla/5.0
+    action:
+      url: https://www.youtube.com/watch?v=${input.video_id}
+      enable_javascript: true
+      wait_for: ${input.item_selector}
+      selector:
+        id: ${input.item_selector}${input.id_selector}
+        author: ${input.item_selector} ${input.author_selector}
+        message: ${input.item_selector} ${input.message_selector}
+      multiple: true
+      timeout: 30s
+
+  # --- Storage / sink ---------------------------------------------
+  - id: kv
+    type: key-value-store
+    driver: redis
+    host: localhost
+    port: 6379
+    actions:
+      - id: get
+        method: get
+        key: ${input.key}
+      - id: set
+        method: set
+        key: ${input.key}
+        value: ${input.value}
+        ttl: ${input.ttl}
+
+  - id: chat-sink
+    type: http-client
+    base_url: ${env.SINK_URL | http://localhost:9999}
+    action:
+      path: /ingest
+      method: POST
+      body:
+        video_id: ${input.video_id}
+        messages: ${input.messages}
+
+  # --- Self-references for workflow composition --------------------
+  - id: self-discover
+    type: workflow
+    workflow: discover-selectors
+
+  - id: self-poll
+    type: workflow
+    workflow: poll-chat

@@ -17,7 +17,7 @@ This workflow provides local chat completion that:
 
 - model-compose installed and available in your PATH
 - `llama-cpp-python` installed (see installation below)
-- A GGUF instruct model placed at `./models/llama-3.2-1b-instruct-q4_k_m.gguf`
+- A GGUF instruct model placed at `./.models/llama-3.2-1b-instruct-q4_k_m.gguf`
 
 ### Install llama-cpp-python
 
@@ -38,7 +38,7 @@ CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python
 mkdir -p models
 
 # Download Llama-3.2-1B-Instruct Q4_K_M from HuggingFace
-curl -L -o models/llama-3.2-1b-instruct-q4_k_m.gguf \
+curl -L -o .models/llama-3.2-1b-instruct-q4_k_m.gguf \
   https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
 ```
 
@@ -49,7 +49,7 @@ curl -L -o models/llama-3.2-1b-instruct-q4_k_m.gguf \
    cd examples/model-tasks/chat-completion-llamacpp
    ```
 
-2. Place your GGUF instruct model file under `./models/`.
+2. Place your GGUF instruct model file under `./.models/`.
 
 ## How to Run
 
@@ -124,7 +124,7 @@ component:
   driver: llamacpp
   model:
     provider: local
-    path: ./models/llama-3.2-1b-instruct-q4_k_m.gguf
+    path: ./.models/llama-3.2-1b-instruct-q4_k_m.gguf
     format: gguf
   device: cuda        # or "metal" on macOS
   n_gpu_layers: -1    # -1 = offload all layers

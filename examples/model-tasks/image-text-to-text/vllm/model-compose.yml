@@ -1,0 +1,46 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Document OCR with olmOCR (vLLM)
+  description: >-
+    Render a single PDF page (or accept an image) and convert it to markdown
+    using AllenAI's olmOCR-2 vision-language model via vLLM.
+  job:
+    input: ${input}
+    output:
+      markdown: ${output as text}
+
+component:
+  type: model
+  task: image-text-to-text
+  driver: vllm
+  model: allenai/olmOCR-2-7B-1025-FP8
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/vllm
+    start_timeout: 600s
+    stop_timeout: 30s
+  options:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.9
+  action:
+    image: ${input.image as image}
+    prompt: |-
+      Attached is one page of a document that you must process. Just return the
+      plain text representation of this document as if you were reading it
+      naturally. Convert equations to LaTeX and tables to markdown. Return your
+      output as markdown, with a front matter section on top specifying the
+      values for the primary_language, is_rotation_valid, rotation_correction,
+      is_table, and is_diagram parameters.
+    params:
+      max_output_length: 8000
+      do_sample: false

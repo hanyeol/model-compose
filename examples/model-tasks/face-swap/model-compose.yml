@@ -1,0 +1,32 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Swap Faces in an Image
+  description: Replace faces in a target image with the identity from a source image using InsightFace inswapper.
+  job:
+    input: ${input}
+    output: ${output as image/png}
+
+component:
+  type: model
+  task: face-swap
+  driver: custom
+  family: insightface
+  model:
+    provider: local
+    url: https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx
+  detector_model: buffalo_l
+  max_concurrent_count: 1
+  action:
+    source_image: ${input.source_image as image}
+    target_image: ${input.target_image as image}
+    swap_all_faces: ${input.swap_all_faces as boolean | true}
+    face_index: ${input.face_index as integer | 0}
+    detection_threshold: ${input.detection_threshold | 0.5}

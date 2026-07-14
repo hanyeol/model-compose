@@ -55,19 +55,19 @@ workflows:
 components:
   - id: code-reviewer
     type: agent
+    instructions: You are a code review assistant. Explore the codebase by reading files, listing directories, and searching code, then provide a detailed review with improvement suggestions.
+    model:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - read-file
       - list-directory
       - search-code
     max_iteration_count: 15
     action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: You are a code review assistant. Explore the codebase by reading files, listing directories, and searching code, then provide a detailed review with improvement suggestions.
-      user_prompt: |
+      prompt: |
         Target path: ${input.target_path}
         Request: ${input.request}
 

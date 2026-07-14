@@ -1,0 +1,30 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Docker Runtime (shell component)
+  description: |
+    Runs the shell component inside the standard mindor Docker image.
+    IPC travels over the docker daemon's attach stdin/stdout stream —
+    no bind-mounted socket, no host UID mapping.
+  job:
+    input: ${input}
+    output:
+      uname: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: docker
+    # No image / build specified → the standard mindor/component:<version>
+    # image is used. First `up` builds or pulls it once, then caches.
+    start_timeout: 90s
+    stop_timeout: 30s
+  action:
+    command: [ "uname", "-a" ]

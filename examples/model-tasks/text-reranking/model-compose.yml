@@ -1,0 +1,27 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Rerank Documents
+  description: Rerank a list of candidate documents against a query using a cross-encoder model.
+  job:
+    input: ${input}
+    output:
+      ranked: ${output}
+
+component:
+  type: model
+  task: text-reranking
+  driver: huggingface
+  model: BAAI/bge-reranker-v2-m3
+  max_concurrent_count: 1
+  action:
+    query: ${input.query}
+    documents: ${input.documents}
+    top_k: ${input.top_k as int | 5}

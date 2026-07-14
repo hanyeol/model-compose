@@ -1,0 +1,112 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Directory → Videos → Frames → Local Files
+  description: |
+    Stream a directory of videos through the frame extractor and save every
+    frame to local files as it is produced.
+  jobs:
+    # 1) Enumerate videos in the input directory as a stream.
+    #
+    # Q1: file-store `list` needs a `streaming: true` mode that yields one item
+    #     at a time (AsyncIterator[item_dict]) instead of the paged dict shape
+    #     it currently returns.
+    - id: list-videos
+      component: source-store
+      output: ${output.items[*].path}
+
+      # Q2: what should `output` of a streaming list look like in expressions?
+      #     - ${result}        the whole AsyncIterator (current "is_direct_output")
+      #     - ${result[]}      same iterator but flagged "this is a stream"
+      #     We assume `${result}` is sufficient — `streaming: true` already
+      #     declares the intent. Each yielded item has shape
+      #     { path, url, size, content_type, modified_at }.
+
+    # 2) Extract frames from every video as a nested stream.
+    #
+    # Q3: `${... as video[]}` — does the existing `as video` coercion handle
+    #     "an iterator of items where each item should be coerced to a video
+    #     MediaSource"? If not, we either:
+    #       a) extend the coercion DSL with a `[]` suffix that means
+    #          "apply per element of an iterable"
+    #       b) accept an iterator of file_dicts and let frame-extractor do
+    #          the per-item MediaSource conversion internally.
+    #     Sketch below assumes (a).
+    - id: extract-frames-per-video
+      component: frame-extractor
+      input:
+        video: ${jobs.list-videos.output as video[];path}
+        frame_interval: 30
+      depends_on: [ list-videos ]
+      # Expected output shape (per finalized table):
+      #   AsyncIterator[AsyncIterator[F]]
+      # where each outer item corresponds to one input video.
+
+    # 3) Save every frame to a per-video subdirectory.
+    #
+    # Q4: nested for-each needs a way to reference the OUTER loop's item from
+    #     the inner loop body. Today `${item}` is overwritten by the inner
+    #     for-each. Options:
+    #       a) `${parent.item}` / `${outer.item}`
+    #       b) named loops: `for-each` accepts an `as:` field
+    #          (e.g. `as: video`, then `${video.path}` inside)
+    #       c) bind the outer item into the inner input explicitly:
+    #          `input: { video: ${item}, frames: ${item} }` — won't work because
+    #          inner input must be the inner iterable, not a dict mixing both.
+    #     Sketch below assumes (b) — named loop variables.
+    - id: save-all
+      type: for-each
+      input: ${jobs.extract-frames-per-video.output}
+      do:
+        type: for-each
+        input: ${video}   # the inner AsyncIterator[F] for this video
+        as: frame
+        do:
+          component: storage
+          input:
+            # Q5: where does the video name come from? `list-videos` yields a
+            #     dict with `path`, but here we only have the iterator the
+            #     extractor produced, not the original list item. Two designs:
+            #       a) pair extractor output with its input: extractor yields
+            #          tuples (video_meta, AsyncIterator[F]) — heavy
+            #       b) require user to pre-join: drive everything from
+            #          `list-videos` instead, calling extractor inside for-each
+            #     Sketch below uses (b) ⇒ this whole jobs[] section is wrong.
+            #     A reorganized version follows in jobs[].
+            path: ${video.path}/frame-${frame.timestamp}.png
+            source: ${frame.image as image/png}
+      depends_on: [ extract-frames-per-video ]
+
+components:
+  - id: source-store
+    type: file-store
+    driver: local
+    base_path: ./input/videos
+    action:
+      method: list
+      pattern: "*.mov"
+
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./output/frames
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+    output: ${result.path}

@@ -1,0 +1,25 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Remove Image Background
+  description: Remove the background from input images using a pretrained segmentation model.
+  job:
+    input: ${input}
+    output: ${output as image}
+
+component:
+  type: model
+  task: image-background-removal
+  model:
+    provider: huggingface
+    repository: ZhengPeng7/BiRefNet
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}

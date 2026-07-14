@@ -54,31 +54,31 @@ workflows:
 components:
   - id: analyzer-agent
     type: agent
+    instructions: |
+      You are a web page analysis assistant. You have tools to scrape and analyze web pages:
+      - fetch_page: Get the full text content of a page
+      - extract_links: Get all links from a page
+      - extract_elements: Extract specific elements using CSS selectors (e.g. "h2", "article p", ".summary")
+
+      Strategy:
+      1. Always start with fetch_page to get the full text content and understand the page structure.
+      2. If you need to extract specific elements with extract_elements but don't know the exact CSS selector, DO NOT guess class names. Instead, use simple tag-based selectors first (e.g. "h1", "h2", "p", "li") or broad selectors (e.g. "a", "table tr").
+      3. If a selector returns empty results, try a simpler/broader selector rather than guessing another class name.
+      4. Use extract_links to get all URLs from a page when needed.
+
+      Provide your analysis in a clear, well-organized format.
+    model:
+      component: gpt-4o
+      input:
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - fetch-page
       - extract-links
       - extract-elements
     max_iteration_count: 10
     action:
-      model:
-        component: gpt-4o
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: |
-        You are a web page analysis assistant. You have tools to scrape and analyze web pages:
-        - fetch_page: Get the full text content of a page
-        - extract_links: Get all links from a page
-        - extract_elements: Extract specific elements using CSS selectors (e.g. "h2", "article p", ".summary")
-
-        Strategy:
-        1. Always start with fetch_page to get the full text content and understand the page structure.
-        2. If you need to extract specific elements with extract_elements but don't know the exact CSS selector, DO NOT guess class names. Instead, use simple tag-based selectors first (e.g. "h1", "h2", "p", "li") or broad selectors (e.g. "a", "table tr").
-        3. If a selector returns empty results, try a simpler/broader selector rather than guessing another class name.
-        4. Use extract_links to get all URLs from a page when needed.
-
-        Provide your analysis in a clear, well-organized format.
-      user_prompt: ${input.question}
+      prompt: ${input.question}
 
   - id: gpt-4o
     type: http-client

@@ -191,18 +191,6 @@ component:
   model: openai/whisper-large-v3   # 최고 정확도
 ```
 
-### Whisper Large 아키텍처 사용
-
-전체 Whisper Large 모델의 경우:
-
-```yaml
-component:
-  type: model
-  task: speech-to-text
-  architecture: whisper-large
-  model: openai/whisper-large-v3
-```
-
 ### 생성 매개변수 조정
 
 전사 품질 세부 조정:

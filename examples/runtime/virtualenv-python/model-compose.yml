@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: VirtualEnv Runtime (system Python)
+  description: |
+    Runs the model worker in a dedicated Python virtualenv, created from the
+    system Python. Any packages listed in this directory's requirements.txt
+    are installed into that venv, isolated from the controller's site-packages.
+  job:
+    input: ${input}
+    output:
+      predicted: ${output}
+
+component:
+  type: model
+  task: text-classification
+  driver: huggingface
+  model: martin-ha/toxic-comment-model
+  labels: [ non-toxic, toxic ]
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python           # default; uses `python -m venv`
+    path: .venv/classifier   # relative to cwd; will be created if missing
+    start_timeout: 300s      # first run installs deps into the venv
+    stop_timeout: 15s
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true

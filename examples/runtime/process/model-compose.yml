@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Process Runtime
+  description: |
+    Runs the text-classification model in a separate OS process.
+    Model load + inference happen in the child; the controller stays responsive
+    and a model crash cannot take down the controller.
+  job:
+    input: ${input}
+    output:
+      predicted: ${output}
+
+component:
+  type: model
+  task: text-classification
+  driver: huggingface
+  model: martin-ha/toxic-comment-model
+  labels: [ non-toxic, toxic ]
+  max_concurrent_count: 1
+  runtime:
+    type: process
+    start_timeout: 120s   # model download + load on first run
+    stop_timeout: 15s
+    env:
+      TOKENIZERS_PARALLELISM: "false"
+  action:
+    text: ${input.text}
+    params:
+      return_probabilities: true

@@ -1,0 +1,54 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Workflow 1: 이미지가 URL로 들어온다.
+  # `as image;url`로 선언하면 URL을 가리키는 원격 리소스가 image임을 알린다.
+  # 컴포넌트 액션이 `render_image`로 받을 때 다운로드가 일어난다.
+  - id: resize-from-url
+    title: Resize Image (URL input)
+    description: Resize image given a remote URL
+    job:
+      component: image-processor
+      action: resize
+      input:
+        image: ${input.image_url as image;url}
+        width: ${input.width}
+        height: ${input.height}
+      output: ${output as image}
+
+  # Workflow 2: 이미지가 multipart 업로드로 들어온다 (UploadFile).
+  # `as image`만 선언하면 이미 image 객체(UploadFile)이므로 그대로 흐른다.
+  - id: resize-from-upload
+    title: Resize Image (file upload)
+    description: Resize image uploaded as a multipart file
+    job:
+      component: image-processor
+      action: resize
+      input:
+        image: ${input.image as image}
+        width: ${input.width}
+        height: ${input.height}
+      output: ${output as image}
+
+components:
+  - id: image-processor
+    type: image-processor
+    actions:
+      - id: resize
+        method: resize
+        # 컴포넌트 액션 내부에서는 두 경로 모두 `${input.image as image}`로 받는다.
+        # render_image가 호출되어 다음과 같이 정규화된다:
+        #   - URL이 들어왔다면(format=url) 다운로드 후 PIL.Image로 로드
+        #   - UploadFile이 들어왔다면 그 스트림을 읽어 PIL.Image로 로드
+        image: ${input.image as image}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+        scale_mode: ${input.scale_mode as select/fit,fill,stretch | fit}
+        output: ${result}

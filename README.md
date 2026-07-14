@@ -246,9 +246,9 @@ No shared filesystem. No code changes. Just add more subscribers to scale.
 
 ---
 
-## Real-World Examples
+## Examples
 
-Over 100 ready-to-run examples organized by category:
+Browse examples by category:
 
 | Category | What's inside |
 |---|---|

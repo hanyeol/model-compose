@@ -16,97 +16,40 @@
 
 # model-compose
 
-**Compose AI Systems, Deploy Anywhere.**
+**Deploy production-ready AI services in minutes.**
 
-Build AI agents, RAG pipelines, MCP servers, and multi-model workflows in a single YAML file. Run the same system locally, in containers, or in production without rewriting your stack.
+One YAML file. Any model. Any protocol. Any runtime. Build chat APIs, RAG pipelines, autonomous agents, and MCP servers without writing application code — then deploy the same file anywhere.
 
-Inspired by `docker-compose`, model-compose provides a portable runtime for AI systems — combining cloud APIs and local models without vendor lock-in.
+AI systems should not be locked into a single provider, runtime, or cloud. model-compose is built on four principles:
+
+- **Composable** — Models, agents, workflows, tools, memory, and protocols are interchangeable building blocks.
+- **Portable** — Define your AI system once, deploy anywhere without re-engineering.
+- **Hybrid-First** — Bridge cloud APIs and local models on your own terms.
+- **Stream-Native** — Data flows through workflows as it arrives — tokens, audio, frames, and events as first-class values.
 
 <div align="center">
 
-[Documentation](docs/user-guide/README.md) · [Quick Start](#quick-start) · [Examples](examples/README.md) · [Contributing](#contributing)
+[Quick Start](#quick-start) · [What You Can Build](#what-you-can-build) · [Documentation](docs/user-guide/README.md) · [Examples](examples/README.md)
 
 </div>
 
 ---
 
-## Philosophy
+## Quick Start
 
-AI systems should not be locked into a single provider, runtime, or cloud. They should remain portable, inspectable, and able to run anywhere.
+Install with pip:
 
-Today, many AI applications are tightly coupled to provider-specific APIs, managed runtimes, and closed ecosystems. While convenient at first, this coupling introduces vendor lock-in — components can't be swapped without rewriting, systems can't move between environments, and teams are forced to choose between cloud convenience and local control.
-
-**model-compose** takes a fundamentally different approach based on four core principles:
-
-* **Composable** — Models, agents, workflows, tools, memory, and protocols are treated as modular, interchangeable building blocks.
-
-* **Portable** — Define your AI system once, then deploy it locally, in containers, or across distributed production environments without re-engineering the core architecture.
-
-* **Hybrid-First** — Bridge cloud APIs and local models on your own terms. Swap infrastructure layers seamlessly to optimize for privacy, latency, or cost without changing how your system behaves.
-
-* **Stream-Native** — Data flows through workflows as it arrives. Tokens, audio chunks, video frames, and live events are first-class values — no buffering an entire response before the next stage begins.
-
-The goal of model-compose is not to build another closed platform, but to restore architectural autonomy to developers.
-
----
-
-## Why model-compose?
-
-| Feature | **model-compose** | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) |
-|---|---|---|---|
-| **Provider Coupling** | **Multi-provider via config** | Single provider per SDK | Multi-provider via abstractions |
-| **Code Coupling** | **Declarative YAML — no application code** | Application code required | Framework-specific code required |
-| **Infrastructure Control** | **Full Sovereignty** | Provider-controlled | Heavy Abstraction |
-| **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
-| **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
-| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
-
----
-
-## Highlights
-
-- **Any model, anywhere** — run models locally via HuggingFace, vLLM, or llama.cpp for privacy, offline use, or zero API cost — or connect to OpenAI, Anthropic, Google, and more
-- **AI agents in YAML** — build autonomous agents with tool use, planning, and multi-step reasoning — all declarative
-- **Human-in-the-loop** — workflows can pause for approval gates, user input, or manual review before continuing
-- **Real-time streaming** — built-in SSE streaming for live AI responses from any provider or local model
-- **20+ components ready** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell commands, and more
-- **Deploy as container** — same YAML runs as a Docker container, native process, or standalone service — switch runtime with one line
-- **Serve any protocol** — HTTP REST, WebSocket, or MCP with one line change
-- **Distributed execution** — dispatch workflows to remote workers via Redis queues — scale horizontally by adding servers
-- **Instant Web UI** — add a Gradio-powered interface with 2 lines of YAML
-
----
-
-## Installation
-
-Using pip:
-
-```
+```bash
 pip install model-compose
 ```
 
-Or using [uv](https://docs.astral.sh/uv/):
+Or with [uv](https://docs.astral.sh/uv/):
 
-```
+```bash
 uv pip install model-compose
 ```
 
-Or install from source:
-
-```
-git clone https://github.com/hanyeol/model-compose.git
-cd model-compose
-pip install -e .   # or: uv pip install -e .
-```
-
-> Requires: Python 3.10 or higher
-
----
-
-## Quick Start
-
-Define your AI runtime in a `model-compose.yml`:
+Create `model-compose.yml`:
 
 ```yaml
 controller:
@@ -116,16 +59,17 @@ controller:
   webui:
     port: 8081
 
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
+workflow:
+  job:
+    component: chatgpt
+    input:
+      prompt: ${input.prompt}
 
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
+component:
+  id: chatgpt
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
     path: /chat/completions
     method: POST
     headers:
@@ -137,305 +81,187 @@ components:
           content: ${input.prompt}
 ```
 
-Create a `.env` file:
+Run it:
 
 ```bash
-OPENAI_API_KEY=your-key
+export OPENAI_API_KEY=your-key
+model-compose up
 ```
 
-Run it:
+**That's it.** You're serving GPT-4o at `http://localhost:8080` with a web UI at `http://localhost:8081`. No application code. No framework boilerplate. Same file runs locally, in Docker, or in production.
+
+---
+
+## What You Can Build
+
+Here's what a single YAML file can serve today — just a few examples.
+
+### 🤖 Autonomous Agents
+
+Build a ReAct agent that plans, uses tools, and completes multi-step tasks — declaratively.
+
+```yaml
+component:
+  id: research-agent
+  type: agent
+  tools: [search-web, fetch-page]
+  max_iteration_count: 10
+  action:
+    model:
+      component: chatgpt
+    system_prompt: You are a web research assistant.
+    user_prompt: ${input.question}
+```
+
+Ten working agents live under [agents/](examples/agents/), including a code reviewer, a RAG assistant, and a Web3 airdrop hunter.
+
+### 🔍 RAG Pipelines
+
+Compose embedding, vector search, and generation into a single workflow — no glue code.
+
+```yaml
+workflow:
+  jobs:
+    - id: embed
+      component: embedder
+      input: { text: ${input.query} }
+
+    - id: retrieve
+      component: knowledge
+      action: search
+      input: { vector: ${jobs.embed.output} }
+
+    - id: answer
+      component: chatgpt
+      input:
+        context: ${jobs.retrieve.output}
+        question: ${input.query}
+```
+
+Native drivers ship for Chroma, Milvus, Qdrant, FAISS, Neo4j, ArangoDB, and Redis.
+
+### 🌐 MCP Servers
+
+Turn any workflow into an MCP server that Claude, ChatGPT, or Cursor can use — one line change.
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← was: http-server
+    port: 8080
+```
+
+Full examples live in [mcp-servers/](examples/mcp-servers/), including a Korea DART MCP and a Slack bot MCP.
+
+### ⚡ Streaming Multi-Modal Workflows
+
+Stream tokens, audio chunks, and video frames end-to-end — first-class across every stage.
+
+```yaml
+workflow:
+  job:
+    component: chatgpt
+    output: ${output as sse-text}
+
+component:
+  id: chatgpt
+  type: http-client
+  action:
+    body: { stream: true, ... }
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+Real-time TTS, video-to-frames, and live chat examples live under [data-streaming/](examples/data-streaming/) and [showcase/](examples/showcase/).
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) |
+|---|---|---|---|
+| **Time to first API** | **Minutes** (one YAML) | Hours (SDK + server code) | Days (framework + integration) |
+| **Provider Coupling** | **Multi-provider via config** | Single provider per SDK | Multi-provider via abstractions |
+| **Code Coupling** | **Declarative YAML — no application code** | Application code required | Framework-specific code required |
+| **Infrastructure Control** | **Full Sovereignty** | Provider-controlled | Heavy Abstraction |
+| **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
+| **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
+| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
+
+---
+
+## From Development to Production
+
+The same YAML that runs on your laptop scales without a rewrite.
+
+### 1. Develop locally
 
 ```bash
 model-compose up
 ```
 
-Your AI runtime is now serving at `http://localhost:8080` with Web UI at `http://localhost:8081`.
+Runs on your machine with a Gradio web UI at `:8081` — perfect for iteration.
 
-> Explore [examples](examples/README.md) for more workflows or read the [Documentation](docs/user-guide/README.md).
+### 2. Deploy as a container
 
----
-
-## Core Capabilities
-
-### Declarative YAML Configuration
-Define your entire AI system in a single YAML file. Workflows, agents, models, APIs, vector/graph stores, and runtimes — all composed and deployed together without custom code.
-
-```yaml
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-```
-
-### Flexible Component System
-20+ reusable component types. Mix HTTP clients, local models, vector stores, shell commands, and workflows in any combination. Define once, use everywhere.
-
-```yaml
-components:
-  - id: chatgpt
-    type: http-client
-
-  - id: local-llm
-    type: model
-
-  - id: assistant
-    type: agent
-
-  - id: knowledge
-    type: vector-store
-
-  - id: cache
-    type: key-value-store
-
-  - id: runner
-    type: shell
-```
-
-### Advanced Workflow Composition
-Chain jobs with conditional logic, parallel execution, and data transformation. Pass data between jobs with variable binding — `${input}`, `${response}`, `${env}` — with type conversion and defaults.
-
-```yaml
-workflows:
-  - id: rag-pipeline
-    jobs:
-      - id: embed
-        component: embedder
-        input:
-          text: ${input.query}
-
-      - id: search
-        component: vector-store
-        action: search
-        input:
-          vector: ${jobs.embed.output}
-        depends_on: [embed]
-
-      - id: answer
-        component: chatgpt
-        input:
-          context: ${jobs.search.output}
-          question: ${input.query}
-        depends_on: [search]
-```
-
-### AI Agent Components
-Build autonomous AI agents that use workflows as tools. Agents reason, plan, and execute multi-step tasks by dynamically invoking other workflows — all defined declaratively in YAML.
-
-```yaml
-components:
-  - id: research-agent
-    type: agent
-    tools:
-      - search-web
-      - fetch-page
-    max_iteration_count: 10
-    action:
-      model:
-        component: chatgpt
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: You are a web research assistant.
-      user_prompt: ${input.question}
-```
-
-### Human-in-the-Loop
-Add approval gates and user input steps to any workflow. Workflows pause, prompt for human input via CLI, Web UI, or API, and resume seamlessly.
-
-```yaml
-workflows:
-  - id: write-with-approval
-    jobs:
-      - id: write-file
-        component: file-writer
-        input:
-          path: ${input.path}
-          content: ${input.content}
-        interrupt:
-          before:
-            message: "Approve file write to ${job.input.path}?"
-```
-
-### Local Model Execution
-Run models from HuggingFace and other sources locally with native support for transformers, vLLM, and PyTorch. Fine-tune models with LoRA/PEFT through YAML configuration.
-
-```yaml
-components:
-  - id: local-llm
-    type: model
-    task: chat-completion
-    model: HuggingFaceTB/SmolLM3-3B
-    action:
-      messages:
-        - role: user
-          content: ${input.prompt}
-```
-
-### Universal AI Service Integration
-Connect to OpenAI, Anthropic, Google, xAI, ElevenLabs, and any custom HTTP API. Mix and match providers in a single workflow.
-
-```yaml
-components:
-  - id: claude
-    type: http-client
-    base_url: https://api.anthropic.com/v1
-    action:
-      path: /messages
-      method: POST
-      headers:
-        x-api-key: ${env.ANTHROPIC_API_KEY}
-        anthropic-version: "2023-06-01"
-      body:
-        model: claude-opus-4-20250514
-        max_tokens: 1024
-        messages:
-          - role: user
-            content: ${input.prompt}
-```
-
-### Real-Time Streaming
-Built-in SSE (Server-Sent Events) streaming for real-time AI responses. Stream from any provider or local model with automatic chunking and connection management.
-
-```yaml
-workflows:
-  - id: chat
-    jobs:
-      - component: chatgpt
-        output: ${output as sse-text}
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      body:
-        model: gpt-4o
-        messages: ${input.messages}
-        stream: true
-      stream_format: json
-      output: ${response[].choices[0].delta.content}
-```
-
-### Built-in Data Store Integration
-Native integration with Chroma, FAISS, Milvus, Qdrant for vector search. Neo4j and ArangoDB for graph stores. Redis for key-value storage. Build RAG systems with embedding search and semantic retrieval.
-
-```yaml
-components:
-  - id: knowledge
-    type: vector-store
-    driver: chroma
-    actions:
-      - id: insert
-        collection: docs
-        method: insert
-        vector: ${input.vector}
-        metadata:
-          text: ${input.text}
-
-      - id: search
-        collection: docs
-        method: search
-        query: ${input.vector}
-```
-
-### Deploy in Any Runtime
-Run in native, process, Docker, or native container mode. The same configuration works across all runtimes — switch with one line.
+Add a `runtime:` block. Same file, same behavior:
 
 ```yaml
 controller:
   runtime:
     type: docker
     image: my-ai-service:latest
-    ports:
-      - "8080:8080"
-  adapter:
-    type: http-server
-    port: 8080
+    ports: [ "8080:8080" ]
 ```
 
-### Protocol Adapters
-Serve over HTTP REST, WebSocket, or MCP (Model Context Protocol) by changing a single line. Includes concurrency control, health checks, and automatic API documentation.
+### 3. Scale horizontally
 
-```yaml
-# HTTP REST
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-# MCP (Model Context Protocol)
-controller:
-  adapter:
-    type: mcp-server
-    port: 8080
-```
-
-### Distributed Workflow Execution
-Scale AI workloads across multiple machines using Redis-backed queue dispatch. Add workers to scale horizontally without shared filesystem or code changes.
+Add a queue. Dispatchers accept jobs, subscribers process them across N machines:
 
 ```yaml
 controller:
-  adapter:
-    type: http-server
-    port: 8080
+  adapter: { type: http-server, port: 8080 }
   queue:
     driver: redis
-    host: localhost
-    port: 6379
+    host: redis.internal
     name: my-queue
 ```
 
-### Webhook and Callback Listeners
-HTTP callback listeners for async workflows and HTTP trigger listeners for webhooks. Build reactive AI systems that respond to real-world events.
+No shared filesystem. No code changes. Just add more subscribers to scale.
 
-```yaml
-listener:
-  type: http-trigger
-  port: 8091
-  triggers:
-    - path: /webhook
-      method: POST
-      workflow: handle-message
-      input:
-        text: ${body.message.text}
-```
+---
 
-### Gateway and Tunnel Support
-Expose local services to the internet with ngrok, Cloudflare, or SSH tunnels. Integrate webhooks and deploy public APIs without complex networking.
+## Highlights
 
-```yaml
-gateway:
-  type: http-tunnel
-  driver: ngrok
-  port:
-    - 8090
-```
+- **Any model, anywhere** — HuggingFace, vLLM, llama.cpp locally, or OpenAI/Anthropic/Google/xAI via HTTP
+- **Agents in YAML** — ReAct loops, tool use, multi-step reasoning — no code
+- **Human-in-the-loop** — pause workflows for approval, resume from CLI/UI/API
+- **20+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
+- **Any protocol** — HTTP REST, WebSocket, or MCP with one line
+- **Any runtime** — Docker, native, process, embedded — switch in one line
+- **Distributed** — Redis queue dispatch for horizontal scaling
+- **Instant Web UI** — Gradio-powered UI in 2 lines of YAML
+- **Streaming everywhere** — SSE, WebSocket, and inter-job streams as first-class values
 
-### Instant Web UI
-Add a visual interface with 2 lines of YAML. Get a Gradio-powered chat UI or serve custom static frontends for testing and debugging.
+---
 
-```yaml
-controller:
-  webui:
-    driver: gradio
-    port: 8081
-```
+## Real-World Examples
+
+Over 100 ready-to-run examples organized by category:
+
+| Category | What's inside |
+|---|---|
+| [`agents/`](examples/agents/) | Code reviewer, RAG assistant, Web researcher, Web3 airdrop hunter, ... |
+| [`showcase/`](examples/showcase/) | End-to-end pipelines: disk analysis, face-based scene search, real-time TTS |
+| [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
+| [`model-tasks/`](examples/model-tasks/) | Local chat, embedding, TTS, VLM, face embedding, ... |
+| [`mcp-servers/`](examples/mcp-servers/) | Build MCP servers exposed to Claude, Cursor, ChatGPT |
+| [`workflow-queue/`](examples/workflow-queue/) | Redis-backed distributed dispatch (streaming + non-streaming) |
+| [`data-streaming/`](examples/data-streaming/) | Video-to-frames, YouTube live chat, streaming inputs |
+| [`integrations/`](examples/integrations/) | Vector/graph/KV stores, search engines, channels, tunnels |
+
+Browse the full catalog in [examples/README.md](examples/README.md).
 
 ---
 
@@ -449,15 +275,15 @@ Protocol adapters → Composition engine → Runtime executors
 
 ## Contributing
 
-We welcome all contributions!
-Whether it's fixing bugs, improving docs, or adding examples — every bit helps.
+We welcome all contributions — bug fixes, docs improvements, new examples.
 
-```
-# Setup for development
+```bash
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
 pip install -e .
 ```
+
+See [CONTRIBUTING](CONTRIBUTING.md) if available, or open a PR directly.
 
 ---
 

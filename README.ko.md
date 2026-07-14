@@ -16,97 +16,40 @@
 
 # model-compose
 
-**AI 시스템을 조합하고, 어디서나 배포하세요.**
+**프로덕션급 AI 서비스를 몇 분 안에 배포하세요.**
 
-AI 에이전트, RAG 파이프라인, MCP 서버, 멀티 모델 워크플로우를 하나의 YAML 파일로 구축하세요. 스택을 다시 작성하지 않고도 동일한 시스템을 로컬, 컨테이너, 프로덕션에서 그대로 실행할 수 있습니다.
+YAML 파일 하나. 어떤 모델이든, 어떤 프로토콜이든, 어떤 런타임이든. 챗 API, RAG 파이프라인, 자율 에이전트, MCP 서버를 애플리케이션 코드 없이 만들고 — 같은 파일을 어디에나 배포하세요.
 
-`docker-compose`에서 영감을 받은 model-compose는 클라우드 API와 로컬 모델을 결합하면서도 벤더 종속 없이 사용할 수 있는, AI 시스템을 위한 이식 가능한 런타임을 제공합니다.
+AI 시스템은 단일 프로바이더, 런타임, 클라우드에 종속되어서는 안 됩니다. model-compose는 네 가지 원칙 위에 세워져 있습니다:
+
+- **Composable** — 모델, 에이전트, 워크플로우, 도구, 메모리, 프로토콜이 교체 가능한 구성 요소입니다.
+- **Portable** — AI 시스템을 한 번 정의하고, 재설계 없이 어디에나 배포합니다.
+- **Hybrid-First** — 클라우드 API와 로컬 모델을 자신의 조건에 맞게 연결합니다.
+- **Stream-Native** — 데이터가 도착하는 즉시 워크플로우를 따라 흐릅니다 — 토큰, 오디오, 프레임, 이벤트가 1급 값.
 
 <div align="center">
 
-[사용자 가이드](docs/user-guide/ko/README.md) · [빠른 시작](#빠른-시작) · [예제](examples/README.ko.md) · [기여하기](#기여하기)
+[Quick Start](#quick-start) · [What You Can Build](#what-you-can-build) · [Documentation](docs/user-guide/README.md) · [Examples](examples/README.md)
 
 </div>
 
 ---
 
-## Philosophy
+## Quick Start
 
-AI 시스템은 단일 제공자, 런타임, 또는 클라우드에 종속되어서는 안 됩니다. AI 시스템은 이식 가능하고, 검토 가능하며, 어디서나 실행될 수 있어야 합니다.
+pip로 설치:
 
-오늘날 많은 AI 애플리케이션은 제공자별 API, 관리형 런타임, 닫힌 생태계에 강하게 결합되어 있습니다. 처음에는 편리할 수 있지만, 이런 결합은 벤더 종속을 만듭니다 — 컴포넌트를 다시 작성하지 않고는 교체할 수 없고, 시스템을 다른 환경으로 옮길 수 없으며, 팀은 클라우드의 편리함과 로컬 제어 사이에서 양자택일을 강요받습니다.
-
-**model-compose**는 네 가지 핵심 원칙을 바탕으로 근본적으로 다른 접근 방식을 취합니다:
-
-* **Composable** — 모델, 에이전트, 워크플로우, 도구, 메모리, 프로토콜을 모듈식의 교체 가능한 구성 요소로 다룹니다.
-
-* **Portable** — AI 시스템을 한 번 정의한 뒤, 핵심 아키텍처를 재설계하지 않고 로컬, 컨테이너, 또는 분산 프로덕션 환경에 배포할 수 있습니다.
-
-* **Hybrid-First** — 클라우드 API와 로컬 모델을 자신의 조건에 맞게 연결합니다. 시스템의 동작을 변경하지 않고 인프라 레이어를 자유롭게 교체하여 프라이버시, 지연 시간, 비용을 최적화합니다.
-
-* **Stream-Native** — 데이터가 도착하는 즉시 워크플로우를 따라 흐릅니다. 토큰, 오디오 청크, 비디오 프레임, 실시간 이벤트가 1급 값으로 취급되며, 다음 단계가 시작되기 전에 전체 응답을 버퍼링할 필요가 없습니다.
-
-model-compose의 목표는 또 다른 폐쇄형 플랫폼을 만드는 것이 아니라, 개발자에게 아키텍처의 자율성을 돌려주는 것입니다.
-
----
-
-## Why model-compose?
-
-| Feature | **model-compose** | Managed APIs (OpenAI 등) | Code Frameworks (LangChain 등) |
-|---|---|---|---|
-| **Provider Coupling** | **설정만으로 멀티 프로바이더** | SDK당 단일 프로바이더 | 추상화를 통한 멀티 프로바이더 |
-| **Code Coupling** | **선언적 YAML — 애플리케이션 코드 불필요** | 애플리케이션 코드 필요 | 프레임워크 전용 코드 필요 |
-| **Infrastructure Control** | **완전한 주권** | 프로바이더 관리 | 높은 추상화 |
-| **Runtime Flexibility** | **Hybrid-First (로컬 + 클라우드)** | 클라우드 전용 | 커스터마이즈 복잡 |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | 프로바이더 한정 | 제한적 |
-| **Data Streaming** | **모든 단계에서 1급 지원** | 응답 전용 (SSE 토큰) | 프레임워크가 감싼 제너레이터 |
-| **Deployment** | **Docker / Native / Process** | 프로바이더 관리 | 수동 통합 |
-
----
-
-## Highlights
-
-- **Any model, anywhere** — HuggingFace, vLLM, llama.cpp로 프라이버시, 오프라인, API 비용 제로를 위해 모델을 로컬 실행하거나, OpenAI, Anthropic, Google 등에 연결
-- **AI agents in YAML** — 도구 사용, 계획, 다단계 추론이 가능한 자율 에이전트를 선언적으로 구축
-- **Human-in-the-loop** — 워크플로우가 승인 게이트, 사용자 입력, 수동 검토를 위해 일시 중지한 뒤 재개 가능
-- **Real-time streaming** — 모든 프로바이더 및 로컬 모델에서 실시간 AI 응답을 위한 내장 SSE 스트리밍
-- **20+ components ready** — 모델, 에이전트, HTTP/WebSocket 클라이언트, 벡터/그래프 스토어, 쉘 명령 등
-- **Deploy as container** — 동일한 YAML이 Docker 컨테이너, 네이티브 프로세스, 또는 단독 서비스로 실행 — 한 줄로 런타임 전환
-- **Serve any protocol** — HTTP REST, WebSocket, 또는 MCP를 한 줄 변경으로
-- **Distributed execution** — Redis 큐를 통해 워크플로우를 원격 워커에 디스패치 — 서버 추가로 수평 확장
-- **Instant Web UI** — 2줄의 YAML로 Gradio 기반 인터페이스 추가
-
----
-
-## 설치
-
-pip 사용:
-
-```
+```bash
 pip install model-compose
 ```
 
-또는 [uv](https://docs.astral.sh/uv/) 사용:
+또는 [uv](https://docs.astral.sh/uv/)로 설치:
 
-```
+```bash
 uv pip install model-compose
 ```
 
-또는 소스에서 설치:
-
-```
-git clone https://github.com/hanyeol/model-compose.git
-cd model-compose
-pip install -e .   # 또는: uv pip install -e .
-```
-
-> 요구사항: Python 3.10 이상
-
----
-
-## 빠른 시작
-
-`model-compose.yml` 파일로 AI 런타임을 정의하세요:
+`model-compose.yml` 작성:
 
 ```yaml
 controller:
@@ -116,16 +59,17 @@ controller:
   webui:
     port: 8081
 
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
+workflow:
+  job:
+    component: chatgpt
+    input:
+      prompt: ${input.prompt}
 
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
+component:
+  id: chatgpt
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
     path: /chat/completions
     method: POST
     headers:
@@ -137,336 +81,218 @@ components:
           content: ${input.prompt}
 ```
 
-`.env` 파일 생성:
+실행:
 
 ```bash
-OPENAI_API_KEY=your-key
+export OPENAI_API_KEY=your-key
+model-compose up
 ```
 
-실행:
+**끝입니다.** `http://localhost:8080`에서 GPT-4o를 서비스하고 `http://localhost:8081`에서 웹 UI가 실행됩니다. 애플리케이션 코드 없음. 프레임워크 보일러플레이트 없음. 같은 파일이 로컬, Docker, 프로덕션에서 그대로 돌아갑니다.
+
+---
+
+## What You Can Build
+
+YAML 파일 하나로 오늘 바로 서비스할 수 있는 것들 — 몇 가지 예시일 뿐입니다.
+
+### 🤖 자율 에이전트
+
+계획하고, 도구를 사용하고, 다단계 작업을 수행하는 ReAct 에이전트를 선언적으로 구축하세요.
+
+```yaml
+component:
+  id: research-agent
+  type: agent
+  tools: [search-web, fetch-page]
+  max_iteration_count: 10
+  action:
+    model:
+      component: chatgpt
+    system_prompt: You are a web research assistant.
+    user_prompt: ${input.question}
+```
+
+[agents/](examples/agents/) 아래에 코드 리뷰어, RAG 어시스턴트, Web3 에어드랍 헌터를 포함한 10개의 실전 에이전트가 있습니다.
+
+### 🔍 RAG 파이프라인
+
+임베딩, 벡터 검색, 생성을 하나의 워크플로우로 조합하세요 — 접착 코드 없이.
+
+```yaml
+workflow:
+  jobs:
+    - id: embed
+      component: embedder
+      input: { text: ${input.query} }
+
+    - id: retrieve
+      component: knowledge
+      action: search
+      input: { vector: ${jobs.embed.output} }
+
+    - id: answer
+      component: chatgpt
+      input:
+        context: ${jobs.retrieve.output}
+        question: ${input.query}
+```
+
+Chroma, Milvus, Qdrant, FAISS, Neo4j, ArangoDB, Redis 네이티브 드라이버가 기본 제공됩니다.
+
+### 🌐 MCP 서버
+
+어떤 워크플로우든 Claude, ChatGPT, Cursor가 사용할 수 있는 MCP 서버로 만드세요 — 한 줄 변경으로.
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← 이전: http-server
+    port: 8080
+```
+
+Korea DART MCP와 Slack 봇 MCP 등 전체 예제는 [mcp-servers/](examples/mcp-servers/)에서 확인할 수 있습니다.
+
+### ⚡ 스트리밍 멀티모달 워크플로우
+
+토큰, 오디오 청크, 비디오 프레임을 end-to-end로 스트리밍하세요 — 모든 단계에서 1급 지원.
+
+```yaml
+workflow:
+  job:
+    component: chatgpt
+    output: ${output as sse-text}
+
+component:
+  id: chatgpt
+  type: http-client
+  action:
+    body: { stream: true, ... }
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+실시간 TTS, video-to-frames, 라이브 채팅 예제는 [data-streaming/](examples/data-streaming/)과 [showcase/](examples/showcase/)에 있습니다.
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI 등) | Code Frameworks (LangChain 등) |
+|---|---|---|---|
+| **첫 API까지의 시간** | **몇 분** (YAML 하나) | 몇 시간 (SDK + 서버 코드) | 며칠 (프레임워크 + 통합) |
+| **Provider Coupling** | **설정만으로 멀티 프로바이더** | SDK당 단일 프로바이더 | 추상화를 통한 멀티 프로바이더 |
+| **Code Coupling** | **선언적 YAML — 애플리케이션 코드 불필요** | 애플리케이션 코드 필요 | 프레임워크 전용 코드 필요 |
+| **Infrastructure Control** | **완전한 주권** | 프로바이더 관리 | 높은 추상화 |
+| **Runtime Flexibility** | **Hybrid-First (로컬 + 클라우드)** | 클라우드 전용 | 커스터마이즈 복잡 |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | 프로바이더 한정 | 제한적 |
+| **Data Streaming** | **모든 단계에서 1급 지원** | 응답 전용 (SSE 토큰) | 프레임워크가 감싼 제너레이터 |
+| **Deployment** | **Docker / Native / Process** | 프로바이더 관리 | 수동 통합 |
+
+---
+
+## 개발에서 프로덕션까지
+
+노트북에서 돌아가던 같은 YAML이 재작성 없이 확장됩니다.
+
+### 1. 로컬에서 개발
 
 ```bash
 model-compose up
 ```
 
-AI 런타임이 `http://localhost:8080`에서, Web UI가 `http://localhost:8081`에서 서비스됩니다.
+Gradio 웹 UI가 `:8081`에 함께 실행되어 반복 개발에 최적.
 
-> 더 많은 워크플로우는 [예제](examples/README.ko.md)를, 자세한 내용은 [사용자 가이드](docs/user-guide/ko/README.md)를 참조하세요.
+### 2. 컨테이너로 배포
 
----
-
-## Core Capabilities
-
-### 선언적 YAML 설정
-단일 YAML 파일로 전체 AI 시스템을 정의합니다. 워크플로우, 에이전트, 모델, API, 벡터/그래프 스토어, 런타임을 커스텀 코드 없이 함께 조합하고 배포합니다.
-
-```yaml
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-```
-
-### 유연한 컴포넌트 시스템
-20개 이상의 재사용 가능한 컴포넌트 타입. HTTP 클라이언트, 로컬 모델, 벡터 스토어, 쉘 명령, 워크플로우를 자유롭게 조합합니다. 한 번 정의하면 어디서나 사용.
-
-```yaml
-components:
-  - id: chatgpt
-    type: http-client
-
-  - id: local-llm
-    type: model
-
-  - id: assistant
-    type: agent
-
-  - id: knowledge
-    type: vector-store
-
-  - id: cache
-    type: key-value-store
-
-  - id: runner
-    type: shell
-```
-
-### 고급 워크플로우 구성
-조건부 로직, 병렬 실행, 데이터 변환으로 작업을 연결합니다. 변수 바인딩 — `${input}`, `${response}`, `${env}` — 으로 작업 간 데이터를 전달하며, 타입 변환과 기본값을 지원합니다.
-
-```yaml
-workflows:
-  - id: rag-pipeline
-    jobs:
-      - id: embed
-        component: embedder
-        input:
-          text: ${input.query}
-
-      - id: search
-        component: vector-store
-        action: search
-        input:
-          vector: ${jobs.embed.output}
-        depends_on: [embed]
-
-      - id: answer
-        component: chatgpt
-        input:
-          context: ${jobs.search.output}
-          question: ${input.query}
-        depends_on: [search]
-```
-
-### AI 에이전트 컴포넌트
-워크플로우를 도구로 활용하는 자율 AI 에이전트를 구축합니다. 에이전트가 추론, 계획하고, 다른 워크플로우를 동적으로 호출하여 다단계 작업을 수행합니다 — 모두 YAML로 선언적 정의.
-
-```yaml
-components:
-  - id: research-agent
-    type: agent
-    tools:
-      - search-web
-      - fetch-page
-    max_iteration_count: 10
-    action:
-      model:
-        component: chatgpt
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: You are a web research assistant.
-      user_prompt: ${input.question}
-```
-
-### Human-in-the-Loop
-모든 워크플로우에 승인 게이트와 사용자 입력 단계를 추가합니다. 워크플로우가 일시 중지되고, CLI, Web UI, API를 통해 사용자 입력을 요청한 후 원활하게 재개됩니다.
-
-```yaml
-workflows:
-  - id: write-with-approval
-    jobs:
-      - id: write-file
-        component: file-writer
-        input:
-          path: ${input.path}
-          content: ${input.content}
-        interrupt:
-          before:
-            message: "Approve file write to ${job.input.path}?"
-```
-
-### 로컬 모델 실행
-HuggingFace 등에서 제공하는 모델을 로컬에서 실행하며 transformers, vLLM, PyTorch를 네이티브 지원합니다. LoRA/PEFT를 통한 파인튜닝도 YAML 설정으로.
-
-```yaml
-components:
-  - id: local-llm
-    type: model
-    task: chat-completion
-    model: HuggingFaceTB/SmolLM3-3B
-    action:
-      messages:
-        - role: user
-          content: ${input.prompt}
-```
-
-### 범용 AI 서비스 통합
-OpenAI, Anthropic, Google, xAI, ElevenLabs, 그리고 모든 커스텀 HTTP API에 연결합니다. 단일 워크플로우에서 서비스를 자유롭게 조합.
-
-```yaml
-components:
-  - id: claude
-    type: http-client
-    base_url: https://api.anthropic.com/v1
-    action:
-      path: /messages
-      method: POST
-      headers:
-        x-api-key: ${env.ANTHROPIC_API_KEY}
-        anthropic-version: "2023-06-01"
-      body:
-        model: claude-opus-4-20250514
-        max_tokens: 1024
-        messages:
-          - role: user
-            content: ${input.prompt}
-```
-
-### 실시간 스트리밍
-실시간 AI 응답을 위한 내장 SSE(Server-Sent Events) 스트리밍. 모든 프로바이더 또는 로컬 모델에서 자동 청킹 및 연결 관리.
-
-```yaml
-workflows:
-  - id: chat
-    jobs:
-      - component: chatgpt
-        output: ${output as sse-text}
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      body:
-        model: gpt-4o
-        messages: ${input.messages}
-        stream: true
-      stream_format: json
-      output: ${response[].choices[0].delta.content}
-```
-
-### 내장 데이터 스토어 통합
-벡터 검색을 위한 Chroma, FAISS, Milvus, Qdrant 네이티브 통합. 그래프 스토어를 위한 Neo4j, ArangoDB. 키-값 저장을 위한 Redis. 임베딩 검색과 시맨틱 검색으로 RAG 시스템 구축.
-
-```yaml
-components:
-  - id: knowledge
-    type: vector-store
-    driver: chroma
-    actions:
-      - id: insert
-        collection: docs
-        method: insert
-        vector: ${input.vector}
-        metadata:
-          text: ${input.text}
-
-      - id: search
-        collection: docs
-        method: search
-        query: ${input.vector}
-```
-
-### Deploy in Any Runtime
-네이티브, 프로세스, Docker, 또는 네이티브 컨테이너 모드로 실행합니다. 동일한 설정이 모든 런타임에서 동작합니다 — 한 줄만 변경.
+`runtime:` 블록만 추가. 같은 파일, 같은 동작:
 
 ```yaml
 controller:
   runtime:
     type: docker
     image: my-ai-service:latest
-    ports:
-      - "8080:8080"
-  adapter:
-    type: http-server
-    port: 8080
+    ports: [ "8080:8080" ]
 ```
 
-### 프로토콜 어댑터
-HTTP REST, WebSocket, 또는 MCP(Model Context Protocol)로 한 줄만 변경하면 서빙합니다. 동시성 제어, 헬스 체크, 자동 API 문서화 포함.
+### 3. 수평 확장
 
-```yaml
-# HTTP REST
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-# MCP (Model Context Protocol)
-controller:
-  adapter:
-    type: mcp-server
-    port: 8080
-```
-
-### 분산 워크플로우 실행
-Redis 기반 큐 디스패치로 AI 워크로드를 여러 머신에 분산합니다. 공유 파일시스템이나 코드 변경 없이 워커를 추가하여 수평 확장.
+큐를 추가하세요. 디스패처가 작업을 받고, N대의 머신에서 서브스크라이버가 처리:
 
 ```yaml
 controller:
-  adapter:
-    type: http-server
-    port: 8080
+  adapter: { type: http-server, port: 8080 }
   queue:
     driver: redis
-    host: localhost
-    port: 6379
+    host: redis.internal
     name: my-queue
 ```
 
-### Webhook 및 Callback 리스너
-비동기 워크플로우를 위한 HTTP Callback 리스너와 웹훅을 위한 HTTP Trigger 리스너. 실세계 이벤트에 반응하는 AI 시스템 구축.
-
-```yaml
-listener:
-  type: http-trigger
-  port: 8091
-  triggers:
-    - path: /webhook
-      method: POST
-      workflow: handle-message
-      input:
-        text: ${body.message.text}
-```
-
-### 게이트웨이 및 터널 지원
-ngrok, Cloudflare, SSH 터널로 로컬 서비스를 인터넷에 노출합니다. 복잡한 네트워킹 없이 웹훅 통합과 퍼블릭 API 배포.
-
-```yaml
-gateway:
-  type: http-tunnel
-  driver: ngrok
-  port:
-    - 8090
-```
-
-### Instant Web UI
-2줄의 YAML로 비주얼 인터페이스를 추가합니다. Gradio 기반 채팅 UI 또는 커스텀 정적 프론트엔드로 테스트와 디버깅.
-
-```yaml
-controller:
-  webui:
-    driver: gradio
-    port: 8081
-```
+공유 파일시스템 없음. 코드 변경 없음. 서브스크라이버만 더 붙이면 확장.
 
 ---
 
-## 아키텍처
+## Highlights
 
-프로토콜 어댑터 → 컴포지션 엔진 → 런타임 실행기
-
-![아키텍처 다이어그램](docs/images/architecture-diagram.png)
+- **어떤 모델이든, 어디서든** — 로컬은 HuggingFace, vLLM, llama.cpp, 클라우드는 OpenAI/Anthropic/Google/xAI를 HTTP로
+- **YAML로 만드는 에이전트** — ReAct 루프, 도구 사용, 다단계 추론 — 코드 없이
+- **Human-in-the-loop** — 승인을 위해 워크플로우 일시 정지, CLI/UI/API로 재개
+- **20+ 컴포넌트** — 모델, 에이전트, HTTP/WebSocket 클라이언트, 벡터/그래프 스토어, 셸, 브라우저 등
+- **어떤 프로토콜이든** — HTTP REST, WebSocket, MCP를 한 줄로
+- **어떤 런타임이든** — Docker, 네이티브, 프로세스, 임베디드 — 한 줄로 전환
+- **분산 실행** — Redis 큐 디스패치로 수평 확장
+- **즉시 웹 UI** — Gradio UI를 YAML 2줄로
+- **모든 곳에서 스트리밍** — SSE, WebSocket, 잡 간 스트림이 1급 값
 
 ---
 
-## 기여하기
+## Real-World Examples
 
-모든 기여를 환영합니다!
-버그 수정, 문서 개선, 예제 추가 등 — 모든 도움이 소중합니다.
+100개 이상의 실행 가능한 예제가 카테고리별로 정리되어 있습니다:
 
-```
-# 개발 환경 설정
+| 카테고리 | 담긴 내용 |
+|---|---|
+| [`agents/`](examples/agents/) | 코드 리뷰어, RAG 어시스턴트, 웹 리서처, Web3 에어드랍 헌터, ... |
+| [`showcase/`](examples/showcase/) | end-to-end 파이프라인: 디스크 분석, 얼굴 기반 장면 검색, 실시간 TTS |
+| [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
+| [`model-tasks/`](examples/model-tasks/) | 로컬 챗, 임베딩, TTS, VLM, 얼굴 임베딩, ... |
+| [`mcp-servers/`](examples/mcp-servers/) | Claude, Cursor, ChatGPT에 노출할 MCP 서버 구축 |
+| [`workflow-queue/`](examples/workflow-queue/) | Redis 기반 분산 디스패치 (스트리밍 + 논-스트리밍) |
+| [`data-streaming/`](examples/data-streaming/) | video-to-frames, YouTube 라이브 채팅, 스트리밍 입력 |
+| [`integrations/`](examples/integrations/) | 벡터/그래프/KV 스토어, 검색 엔진, 채널, 터널 |
+
+전체 목록은 [examples/README.md](examples/README.ko.md)에서 확인할 수 있습니다.
+
+---
+
+## Architecture
+
+Protocol adapters → Composition engine → Runtime executors
+
+![Architecture Diagram](docs/images/architecture-diagram.png)
+
+---
+
+## Contributing
+
+모든 기여를 환영합니다 — 버그 수정, 문서 개선, 새 예제.
+
+```bash
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
 pip install -e .
 ```
 
+CONTRIBUTING 가이드가 있다면 참고하시거나, 바로 PR을 열어주세요.
+
 ---
 
-## 라이선스
+## License
 
 MIT License © 2025-2026 Hanyeol Cho.
 
 ---
 
-## 문의
+## Contact
 
-질문, 아이디어, 피드백이 있으신가요? [이슈를 열거나](https://github.com/hanyeol/model-compose/issues) [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions)에서 토론을 시작하세요.
+질문, 아이디어, 피드백이 있으신가요? [이슈를 열거나](https://github.com/hanyeol/model-compose/issues) [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions)에서 대화를 시작해주세요.

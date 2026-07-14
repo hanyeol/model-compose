@@ -16,97 +16,40 @@
 
 # model-compose
 
-**组合 AI 系统，部署到任何地方。**
+**在几分钟内部署生产级 AI 服务。**
 
-在单个 YAML 文件中构建 AI 智能体、RAG 流水线、MCP 服务器以及多模型工作流。无需重写技术栈，即可在本地、容器或生产环境中运行同一套系统。
+一个 YAML 文件。任意模型、任意协议、任意运行时。无需编写应用代码即可构建聊天 API、RAG 管道、自主智能体和 MCP 服务器 —— 然后将同一份文件部署到任何地方。
 
-受 `docker-compose` 启发，model-compose 为 AI 系统提供了可移植的运行时 — 在不被厂商锁定的前提下，将云端 API 与本地模型结合起来。
+AI 系统不应被锁定在单一提供商、运行时或云平台中。model-compose 建立在四个原则之上：
+
+- **Composable** —— 模型、智能体、工作流、工具、记忆和协议都是可互换的构建块。
+- **Portable** —— 只需定义一次 AI 系统，无需重新设计即可部署到任何地方。
+- **Hybrid-First** —— 按照您自己的条件连接云端 API 和本地模型。
+- **Stream-Native** —— 数据一到达就沿着工作流流动 —— 令牌、音频、帧和事件都是一等值。
 
 <div align="center">
 
-[用户指南](docs/user-guide/zh-cn/README.md) · [快速开始](#快速开始) · [示例](examples/README.md) · [贡献](#贡献)
+[Quick Start](#quick-start) · [What You Can Build](#what-you-can-build) · [Documentation](docs/user-guide/README.md) · [Examples](examples/README.md)
 
 </div>
 
 ---
 
-## Philosophy
+## Quick Start
 
-AI 系统不应被锁定在单一提供商、运行时或云平台中。AI 系统应当保持可移植、可检查，并能够在任何地方运行。
+使用 pip 安装：
 
-如今，许多 AI 应用都与特定提供商的 API、托管运行时和封闭生态系统紧密耦合。起初这可能很方便，但这种耦合会带来供应商锁定 — 组件无法在不重写的情况下替换，系统无法在不同环境间迁移，团队被迫在云端便利性和本地控制之间做出取舍。
-
-**model-compose** 基于四个核心原则，采用一种根本不同的方式：
-
-* **Composable** — 模型、智能体、工作流、工具、记忆和协议都被视为模块化、可互换的构建块。
-
-* **Portable** — 只需定义一次 AI 系统，即可部署到本地、容器或分布式生产环境，无需重新设计核心架构。
-
-* **Hybrid-First** — 按照你自己的条件连接云端 API 和本地模型。无缝切换基础设施层，在不改变系统行为的前提下优化隐私、延迟或成本。
-
-* **Stream-Native** — 数据一到达就沿着工作流流动。令牌、音频块、视频帧和实时事件都是一等值 —— 无需在下一阶段开始之前缓冲整个响应。
-
-model-compose 的目标不是构建另一个封闭平台，而是将架构自主权归还给开发者。
-
----
-
-## Why model-compose?
-
-| Feature | **model-compose** | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) |
-|---|---|---|---|
-| **Provider Coupling** | **仅通过配置实现多提供商** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 |
-| **Code Coupling** | **声明式 YAML — 无需应用代码** | 需要应用代码 | 需要框架专用代码 |
-| **Infrastructure Control** | **完全自主权** | 提供商控制 | 重度抽象 |
-| **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
-| **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
-| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
-
----
-
-## Highlights
-
-- **Any model, anywhere** — 通过 HuggingFace、vLLM 或 llama.cpp 为隐私、离线使用或零 API 成本在本地运行模型 — 或连接 OpenAI、Anthropic、Google 等
-- **AI agents in YAML** — 构建支持工具调用、规划和多步推理的自主智能体 — 全部声明式定义
-- **Human-in-the-loop** — 工作流可在审批关卡、用户输入或人工审核时暂停，完成后继续执行
-- **Real-time streaming** — 内置 SSE 流式传输，支持任何提供商或本地模型的实时 AI 响应
-- **20+ components ready** — 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、Shell 命令等
-- **Deploy as container** — 同一份 YAML 即可作为 Docker 容器、原生进程或独立服务运行 — 一行切换运行时
-- **Serve any protocol** — HTTP REST、WebSocket 或 MCP，一行即可切换
-- **Distributed execution** — 通过 Redis 队列将工作流分发到远程工作节点 — 添加服务器即可水平扩展
-- **Instant Web UI** — 2 行 YAML 添加 Gradio 驱动的界面
-
----
-
-## 安装
-
-使用 pip：
-
-```
+```bash
 pip install model-compose
 ```
 
 或使用 [uv](https://docs.astral.sh/uv/)：
 
-```
+```bash
 uv pip install model-compose
 ```
 
-或从源代码安装：
-
-```
-git clone https://github.com/hanyeol/model-compose.git
-cd model-compose
-pip install -e .   # 或：uv pip install -e .
-```
-
-> 要求：Python 3.10 或更高版本
-
----
-
-## 快速开始
-
-在 `model-compose.yml` 中定义 AI 运行时：
+创建 `model-compose.yml`：
 
 ```yaml
 controller:
@@ -116,16 +59,17 @@ controller:
   webui:
     port: 8081
 
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
+workflow:
+  job:
+    component: chatgpt
+    input:
+      prompt: ${input.prompt}
 
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
+component:
+  id: chatgpt
+  type: http-client
+  base_url: https://api.openai.com/v1
+  action:
     path: /chat/completions
     method: POST
     headers:
@@ -137,336 +81,218 @@ components:
           content: ${input.prompt}
 ```
 
-创建 `.env` 文件：
+运行：
 
 ```bash
-OPENAI_API_KEY=your-key
+export OPENAI_API_KEY=your-key
+model-compose up
 ```
 
-运行：
+**就这样。** 您在 `http://localhost:8080` 上提供 GPT-4o 服务，并在 `http://localhost:8081` 上运行 Web UI。无需应用代码，无需框架样板。同一份文件可在本地、Docker 或生产环境中运行。
+
+---
+
+## What You Can Build
+
+一个 YAML 文件今天就能提供的服务 —— 这只是几个示例。
+
+### 🤖 自主智能体
+
+以声明式方式构建能够规划、使用工具并完成多步骤任务的 ReAct 智能体。
+
+```yaml
+component:
+  id: research-agent
+  type: agent
+  tools: [search-web, fetch-page]
+  max_iteration_count: 10
+  action:
+    model:
+      component: chatgpt
+    system_prompt: You are a web research assistant.
+    user_prompt: ${input.question}
+```
+
+[agents/](examples/agents/) 下有 10 个可运行的智能体，包括代码审查、RAG 助手、Web3 空投猎手等。
+
+### 🔍 RAG 管道
+
+将嵌入、向量搜索和生成组合到一个工作流中 —— 无需胶水代码。
+
+```yaml
+workflow:
+  jobs:
+    - id: embed
+      component: embedder
+      input: { text: ${input.query} }
+
+    - id: retrieve
+      component: knowledge
+      action: search
+      input: { vector: ${jobs.embed.output} }
+
+    - id: answer
+      component: chatgpt
+      input:
+        context: ${jobs.retrieve.output}
+        question: ${input.query}
+```
+
+Chroma、Milvus、Qdrant、FAISS、Neo4j、ArangoDB、Redis 的原生驱动开箱即用。
+
+### 🌐 MCP 服务器
+
+将任何工作流变成 Claude、ChatGPT 或 Cursor 可以使用的 MCP 服务器 —— 只需一行更改。
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← 之前是: http-server
+    port: 8080
+```
+
+完整示例位于 [mcp-servers/](examples/mcp-servers/)，包括 Korea DART MCP 和 Slack 机器人 MCP。
+
+### ⚡ 流式多模态工作流
+
+端到端流式传输令牌、音频块、视频帧 —— 所有阶段一等支持。
+
+```yaml
+workflow:
+  job:
+    component: chatgpt
+    output: ${output as sse-text}
+
+component:
+  id: chatgpt
+  type: http-client
+  action:
+    body: { stream: true, ... }
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
+```
+
+实时 TTS、video-to-frames、实时聊天等示例位于 [data-streaming/](examples/data-streaming/) 和 [showcase/](examples/showcase/)。
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) |
+|---|---|---|---|
+| **首个 API 上线时间** | **几分钟**（一个 YAML） | 几小时（SDK + 服务器代码） | 几天（框架 + 集成） |
+| **Provider Coupling** | **仅通过配置实现多提供商** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 |
+| **Code Coupling** | **声明式 YAML —— 无需应用代码** | 需要应用代码 | 需要框架专用代码 |
+| **Infrastructure Control** | **完全自主权** | 提供商控制 | 重度抽象 |
+| **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
+| **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
+| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
+
+---
+
+## 从开发到生产
+
+在您笔记本上运行的同一份 YAML 无需重写即可扩展。
+
+### 1. 本地开发
 
 ```bash
 model-compose up
 ```
 
-AI 运行时在 `http://localhost:8080` 提供服务，Web UI 在 `http://localhost:8081`。
+在您的机器上运行，`:8081` 端口自带 Gradio Web UI —— 完美支持迭代开发。
 
-> 更多工作流请访问[示例](examples/README.md)，详细内容请阅读[用户指南](docs/user-guide/zh-cn/README.md)。
+### 2. 以容器方式部署
 
----
-
-## Core Capabilities
-
-### 声明式 YAML 配置
-在单个 YAML 文件中定义整个 AI 系统。工作流、智能体、模型、API、向量/图存储和运行时 — 无需自定义代码，一起组合和部署。
-
-```yaml
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-workflows:
-  - id: chat
-    default: true
-    jobs:
-      - component: chatgpt
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-```
-
-### 灵活的组件系统
-20+ 种可复用组件类型。自由组合 HTTP 客户端、本地模型、向量存储、Shell 命令和工作流。定义一次，随处使用。
-
-```yaml
-components:
-  - id: chatgpt
-    type: http-client
-
-  - id: local-llm
-    type: model
-
-  - id: assistant
-    type: agent
-
-  - id: knowledge
-    type: vector-store
-
-  - id: cache
-    type: key-value-store
-
-  - id: runner
-    type: shell
-```
-
-### 高级工作流组合
-通过条件逻辑、并行执行和数据转换链接作业。通过变量绑定 — `${input}`、`${response}`、`${env}` — 在作业间传递数据，支持类型转换和默认值。
-
-```yaml
-workflows:
-  - id: rag-pipeline
-    jobs:
-      - id: embed
-        component: embedder
-        input:
-          text: ${input.query}
-
-      - id: search
-        component: vector-store
-        action: search
-        input:
-          vector: ${jobs.embed.output}
-        depends_on: [embed]
-
-      - id: answer
-        component: chatgpt
-        input:
-          context: ${jobs.search.output}
-          question: ${input.query}
-        depends_on: [search]
-```
-
-### AI 智能体组件
-构建将工作流作为工具使用的自主 AI 智能体。智能体推理、规划并通过动态调用其他工作流执行多步骤任务 — 全部通过 YAML 声明式定义。
-
-```yaml
-components:
-  - id: research-agent
-    type: agent
-    tools:
-      - search-web
-      - fetch-page
-    max_iteration_count: 10
-    action:
-      model:
-        component: chatgpt
-        input:
-          messages: ${messages}
-          tools: ${tools}
-      system_prompt: You are a web research assistant.
-      user_prompt: ${input.question}
-```
-
-### Human-in-the-Loop
-为任何工作流添加审批关卡和用户输入步骤。工作流暂停，通过 CLI、Web UI 或 API 提示用户输入，然后无缝恢复。
-
-```yaml
-workflows:
-  - id: write-with-approval
-    jobs:
-      - id: write-file
-        component: file-writer
-        input:
-          path: ${input.path}
-          content: ${input.content}
-        interrupt:
-          before:
-            message: "Approve file write to ${job.input.path}?"
-```
-
-### 本地模型执行
-在本地运行 HuggingFace 等来源的模型，原生支持 transformers、vLLM 和 PyTorch。通过 YAML 配置使用 LoRA/PEFT 微调模型。
-
-```yaml
-components:
-  - id: local-llm
-    type: model
-    task: chat-completion
-    model: HuggingFaceTB/SmolLM3-3B
-    action:
-      messages:
-        - role: user
-          content: ${input.prompt}
-```
-
-### 通用 AI 服务集成
-连接 OpenAI、Anthropic、Google、xAI、ElevenLabs 和任何自定义 HTTP API。在单个工作流中自由组合服务。
-
-```yaml
-components:
-  - id: claude
-    type: http-client
-    base_url: https://api.anthropic.com/v1
-    action:
-      path: /messages
-      method: POST
-      headers:
-        x-api-key: ${env.ANTHROPIC_API_KEY}
-        anthropic-version: "2023-06-01"
-      body:
-        model: claude-opus-4-20250514
-        max_tokens: 1024
-        messages:
-          - role: user
-            content: ${input.prompt}
-```
-
-### 实时流式传输
-内置 SSE（服务器发送事件）流式传输，实现实时 AI 响应。支持任何提供商或本地模型的自动分块和连接管理。
-
-```yaml
-workflows:
-  - id: chat
-    jobs:
-      - component: chatgpt
-        output: ${output as sse-text}
-
-components:
-  - id: chatgpt
-    type: http-client
-    base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      body:
-        model: gpt-4o
-        messages: ${input.messages}
-        stream: true
-      stream_format: json
-      output: ${response[].choices[0].delta.content}
-```
-
-### 内置数据存储集成
-Chroma、FAISS、Milvus、Qdrant 向量搜索原生集成。Neo4j、ArangoDB 图存储。Redis 键值存储。通过嵌入搜索和语义检索构建 RAG 系统。
-
-```yaml
-components:
-  - id: knowledge
-    type: vector-store
-    driver: chroma
-    actions:
-      - id: insert
-        collection: docs
-        method: insert
-        vector: ${input.vector}
-        metadata:
-          text: ${input.text}
-
-      - id: search
-        collection: docs
-        method: search
-        query: ${input.vector}
-```
-
-### Deploy in Any Runtime
-在原生、进程、Docker 或原生容器模式下运行。相同的配置在所有运行时中通用 — 只需更改一行。
+添加 `runtime:` 块。同一份文件，同样的行为：
 
 ```yaml
 controller:
   runtime:
     type: docker
     image: my-ai-service:latest
-    ports:
-      - "8080:8080"
-  adapter:
-    type: http-server
-    port: 8080
+    ports: [ "8080:8080" ]
 ```
 
-### 协议适配器
-通过更改一行即可切换 HTTP REST、WebSocket 或 MCP（模型上下文协议）。包括并发控制、健康检查和自动 API 文档。
+### 3. 水平扩展
 
-```yaml
-# HTTP REST
-controller:
-  adapter:
-    type: http-server
-    port: 8080
-
-# MCP (Model Context Protocol)
-controller:
-  adapter:
-    type: mcp-server
-    port: 8080
-```
-
-### 分布式工作流执行
-通过 Redis 队列分发将 AI 工作负载扩展到多台机器。无需共享文件系统或代码更改，添加工作节点即可水平扩展。
+添加一个队列。分发器接收任务，订阅者在 N 台机器上处理：
 
 ```yaml
 controller:
-  adapter:
-    type: http-server
-    port: 8080
+  adapter: { type: http-server, port: 8080 }
   queue:
     driver: redis
-    host: localhost
-    port: 6379
+    host: redis.internal
     name: my-queue
 ```
 
-### Webhook 和 Callback 监听器
-用于异步工作流的 HTTP Callback 监听器和用于 Webhook 的 HTTP Trigger 监听器。构建响应真实世界事件的反应式 AI 系统。
-
-```yaml
-listener:
-  type: http-trigger
-  port: 8091
-  triggers:
-    - path: /webhook
-      method: POST
-      workflow: handle-message
-      input:
-        text: ${body.message.text}
-```
-
-### 网关和隧道支持
-通过 ngrok、Cloudflare 或 SSH 隧道将本地服务暴露到互联网。无需复杂网络配置即可集成 Webhook 和部署公共 API。
-
-```yaml
-gateway:
-  type: http-tunnel
-  driver: ngrok
-  port:
-    - 8090
-```
-
-### Instant Web UI
-2 行 YAML 添加可视化界面。Gradio 驱动的聊天 UI 或自定义静态前端，用于测试和调试。
-
-```yaml
-controller:
-  webui:
-    driver: gradio
-    port: 8081
-```
+无需共享文件系统。无需代码变更。只需添加更多订阅者即可扩展。
 
 ---
 
-## 架构
+## Highlights
 
-协议适配器 → 组合引擎 → 运行时执行器
-
-![架构图](docs/images/architecture-diagram.png)
+- **任意模型，任意地方** —— 本地使用 HuggingFace、vLLM、llama.cpp，或通过 HTTP 连接 OpenAI/Anthropic/Google/xAI
+- **YAML 中的智能体** —— ReAct 循环、工具使用、多步推理 —— 无需代码
+- **Human-in-the-loop** —— 暂停工作流以获得审批，通过 CLI/UI/API 恢复
+- **20+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
+- **任意协议** —— HTTP REST、WebSocket 或 MCP 只需一行
+- **任意运行时** —— Docker、原生、进程、嵌入式 —— 一行切换
+- **分布式** —— 基于 Redis 队列的分发实现水平扩展
+- **即时 Web UI** —— 2 行 YAML 即可获得 Gradio UI
+- **随处流式传输** —— SSE、WebSocket 和作业间流作为一等值
 
 ---
 
-## 贡献
+## Real-World Examples
 
-欢迎所有贡献！
-无论是修复错误、改进文档还是添加示例 — 每一点帮助都很重要。
+超过 100 个可直接运行的示例，按分类组织：
 
-```
-# 设置开发环境
+| 分类 | 内容 |
+|---|---|
+| [`agents/`](examples/agents/) | 代码审查、RAG 助手、网络研究员、Web3 空投猎手等 |
+| [`showcase/`](examples/showcase/) | 端到端管道：磁盘分析、基于人脸的场景搜索、实时 TTS |
+| [`model-providers/`](examples/model-providers/) | OpenAI、Anthropic、xAI、Google、ElevenLabs、vLLM |
+| [`model-tasks/`](examples/model-tasks/) | 本地聊天、嵌入、TTS、VLM、人脸嵌入等 |
+| [`mcp-servers/`](examples/mcp-servers/) | 构建暴露给 Claude、Cursor、ChatGPT 的 MCP 服务器 |
+| [`workflow-queue/`](examples/workflow-queue/) | 基于 Redis 的分布式分发（流式 + 非流式） |
+| [`data-streaming/`](examples/data-streaming/) | video-to-frames、YouTube 实时聊天、流式输入 |
+| [`integrations/`](examples/integrations/) | 向量/图/KV 存储、搜索引擎、通道、隧道 |
+
+完整目录位于 [examples/README.md](examples/README.zh-cn.md)。
+
+---
+
+## Architecture
+
+Protocol adapters → Composition engine → Runtime executors
+
+![Architecture Diagram](docs/images/architecture-diagram.png)
+
+---
+
+## Contributing
+
+我们欢迎所有贡献 —— bug 修复、文档改进、新示例。
+
+```bash
 git clone https://github.com/hanyeol/model-compose.git
 cd model-compose
 pip install -e .
 ```
 
+如果有 CONTRIBUTING 指南请参考，或直接提交 PR。
+
 ---
 
-## 许可证
+## License
 
 MIT License © 2025-2026 Hanyeol Cho.
 
 ---
 
-## 联系
+## Contact
 
-有问题、想法或反馈？[提交 Issue](https://github.com/hanyeol/model-compose/issues) 或在 [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions) 开始讨论。
+有问题、想法或反馈？[打开一个 issue](https://github.com/hanyeol/model-compose/issues) 或在 [GitHub Discussions](https://github.com/hanyeol/model-compose/discussions) 上发起讨论。

@@ -18,7 +18,7 @@
 
 **Deploy production-ready AI services in minutes.**
 
-One YAML file. Any model. Any protocol. Any runtime. Build chat APIs, RAG pipelines, autonomous agents, and MCP servers without writing application code — then deploy the same file anywhere.
+One YAML file. Any model. Any protocol. Any runtime. Build chat APIs, RAG pipelines, autonomous agents, and MCP servers without writing application code — then deploy the same file anywhere, like `docker-compose`.
 
 AI systems should not be locked into a single provider, runtime, or cloud. model-compose is built on four principles:
 

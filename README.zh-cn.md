@@ -176,21 +176,6 @@ component:
 
 ---
 
-## Why model-compose?
-
-| | **model-compose** | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) |
-|---|---|---|---|
-| **首个 API 上线时间** | **几分钟**（一个 YAML） | 几小时（SDK + 服务器代码） | 几天（框架 + 集成） |
-| **Provider Coupling** | **仅通过配置实现多提供商** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 |
-| **Code Coupling** | **声明式 YAML —— 无需应用代码** | 需要应用代码 | 需要框架专用代码 |
-| **Infrastructure Control** | **完全自主权** | 提供商控制 | 重度抽象 |
-| **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
-| **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
-| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
-
----
-
 ## 从开发到生产
 
 在您笔记本上运行的同一份 YAML 无需重写即可扩展。
@@ -229,6 +214,21 @@ controller:
 ```
 
 无需共享文件系统。无需代码变更。只需添加更多订阅者即可扩展。
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI 等) | Code Frameworks (LangChain 等) |
+|---|---|---|---|
+| **首个 API 上线时间** | **几分钟**（一个 YAML） | 几小时（SDK + 服务器代码） | 几天（框架 + 集成） |
+| **Provider Coupling** | **仅通过配置实现多提供商** | 每个 SDK 绑定单一提供商 | 通过抽象支持多提供商 |
+| **Code Coupling** | **声明式 YAML —— 无需应用代码** | 需要应用代码 | 需要框架专用代码 |
+| **Infrastructure Control** | **完全自主权** | 提供商控制 | 重度抽象 |
+| **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
+| **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
+| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
 
 ---
 

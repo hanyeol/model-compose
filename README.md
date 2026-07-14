@@ -176,21 +176,6 @@ Real-time TTS, video-to-frames, and live chat examples live under [data-streamin
 
 ---
 
-## Why model-compose?
-
-| | **model-compose** | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) |
-|---|---|---|---|
-| **Time to first API** | **Minutes** (one YAML) | Hours (SDK + server code) | Days (framework + integration) |
-| **Provider Coupling** | **Multi-provider via config** | Single provider per SDK | Multi-provider via abstractions |
-| **Code Coupling** | **Declarative YAML — no application code** | Application code required | Framework-specific code required |
-| **Infrastructure Control** | **Full Sovereignty** | Provider-controlled | Heavy Abstraction |
-| **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
-| **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
-| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
-
----
-
 ## From Development to Production
 
 The same YAML that runs on your laptop scales without a rewrite.
@@ -229,6 +214,21 @@ controller:
 ```
 
 No shared filesystem. No code changes. Just add more subscribers to scale.
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI, etc.) | Code Frameworks (LangChain, etc.) |
+|---|---|---|---|
+| **Time to first API** | **Minutes** (one YAML) | Hours (SDK + server code) | Days (framework + integration) |
+| **Provider Coupling** | **Multi-provider via config** | Single provider per SDK | Multi-provider via abstractions |
+| **Code Coupling** | **Declarative YAML — no application code** | Application code required | Framework-specific code required |
+| **Infrastructure Control** | **Full Sovereignty** | Provider-controlled | Heavy Abstraction |
+| **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
+| **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
+| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
 
 ---
 

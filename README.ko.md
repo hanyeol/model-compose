@@ -176,21 +176,6 @@ component:
 
 ---
 
-## Why model-compose?
-
-| | **model-compose** | Managed APIs (OpenAI 등) | Code Frameworks (LangChain 등) |
-|---|---|---|---|
-| **첫 API까지의 시간** | **몇 분** (YAML 하나) | 몇 시간 (SDK + 서버 코드) | 며칠 (프레임워크 + 통합) |
-| **Provider Coupling** | **설정만으로 멀티 프로바이더** | SDK당 단일 프로바이더 | 추상화를 통한 멀티 프로바이더 |
-| **Code Coupling** | **선언적 YAML — 애플리케이션 코드 불필요** | 애플리케이션 코드 필요 | 프레임워크 전용 코드 필요 |
-| **Infrastructure Control** | **완전한 주권** | 프로바이더 관리 | 높은 추상화 |
-| **Runtime Flexibility** | **Hybrid-First (로컬 + 클라우드)** | 클라우드 전용 | 커스터마이즈 복잡 |
-| **Protocol Support** | **HTTP / WebSocket / MCP** | 프로바이더 한정 | 제한적 |
-| **Data Streaming** | **모든 단계에서 1급 지원** | 응답 전용 (SSE 토큰) | 프레임워크가 감싼 제너레이터 |
-| **Deployment** | **Docker / Native / Process** | 프로바이더 관리 | 수동 통합 |
-
----
-
 ## 개발에서 프로덕션까지
 
 노트북에서 돌아가던 같은 YAML이 재작성 없이 확장됩니다.
@@ -229,6 +214,21 @@ controller:
 ```
 
 공유 파일시스템 없음. 코드 변경 없음. 서브스크라이버만 더 붙이면 확장.
+
+---
+
+## Why model-compose?
+
+| | **model-compose** | Managed APIs (OpenAI 등) | Code Frameworks (LangChain 등) |
+|---|---|---|---|
+| **첫 API까지의 시간** | **몇 분** (YAML 하나) | 몇 시간 (SDK + 서버 코드) | 며칠 (프레임워크 + 통합) |
+| **Provider Coupling** | **설정만으로 멀티 프로바이더** | SDK당 단일 프로바이더 | 추상화를 통한 멀티 프로바이더 |
+| **Code Coupling** | **선언적 YAML — 애플리케이션 코드 불필요** | 애플리케이션 코드 필요 | 프레임워크 전용 코드 필요 |
+| **Infrastructure Control** | **완전한 주권** | 프로바이더 관리 | 높은 추상화 |
+| **Runtime Flexibility** | **Hybrid-First (로컬 + 클라우드)** | 클라우드 전용 | 커스터마이즈 복잡 |
+| **Protocol Support** | **HTTP / WebSocket / MCP** | 프로바이더 한정 | 제한적 |
+| **Data Streaming** | **모든 단계에서 1급 지원** | 응답 전용 (SSE 토큰) | 프레임워크가 감싼 제너레이터 |
+| **Deployment** | **Docker / Native / Process** | 프로바이더 관리 | 수동 통합 |
 
 ---
 

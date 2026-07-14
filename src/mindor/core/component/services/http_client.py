@@ -101,10 +101,10 @@ class HttpClientAction:
         response = await client.request(url_or_path, method, params, body, headers)
 
         if isinstance(response, HttpEventStreamResource):
-            async def _stream_chunk_generator():
+            async def _stream_chunk_generator(response=response, scope=f"stream:{id(response)}"):
                 async for chunk in response:
-                    context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                    yield (await context.render_variable(self.config.output)) if not is_direct_output else chunk
+                    context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
+                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
             return _stream_chunk_generator()
 
@@ -116,16 +116,16 @@ class HttpClientAction:
             result = await self.completion.run(context, client)
 
             if isinstance(result, HttpEventStreamResource):
-                async def _stream_chunk_generator():
+                async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                     async for chunk in result:
-                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format))
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else chunk
+                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
+                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                 return _stream_chunk_generator()
 
             context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if self.config.output else (result or response)
+        return (await context.render_variable(self.config.output)) if not is_direct_output else (result or response)
 
     async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
         if self.config.path:

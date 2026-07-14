@@ -5,15 +5,15 @@ also no chunk-level streaming inside a single reranking job — each tick emits
 one completed ranked list. The output-shape rule mirrors the other atomic
 model tasks:
 
-    is_stream_input  = isinstance(query, list, StreamIterator, AsyncIterator)  # actually list is not-stream
-    is_stream_input  = isinstance(query, (StreamIterator, AsyncIterator))
     is_single_input  = not isinstance(query, (list, StreamIterator, AsyncIterator))
     is_direct_output = output is empty or output == "${result}"
 
-Stream mode (query is AsyncIterator) → AsyncIterator yielding one StreamChunkIterator per query.
-Collect mode                          → single value (single query) or list (list of queries),
-                                         each entry a StreamChunkIterator that resolves to the
-                                         ranked-result list.
+Stream mode (query is AsyncIterator) → AsyncIterator yielding one raw
+ranked-list per query. Chunks are NOT wrapped in StreamChunkIterator.
+
+Collect mode → single ranked-list (single query) or list of ranked-lists
+(list of queries). Each ranked-list is the raw `_build_ranked_result` return
+value (a list of dicts).
 
 Tests cover:
 - Query shapes: single str / List[str] / AsyncIterator[str]
@@ -93,50 +93,32 @@ async def _make_async_iter(items: List[Any]) -> AsyncIterator[Any]:
         yield item
 
 
-async def _collect_stream(chunk: Any) -> List[Any]:
-    """Drain a StreamChunkIterator/AsyncIterator to its list of yielded values."""
-    if isinstance(chunk, (StreamIterator, AsyncIterator)):
-        return [ item async for item in chunk ]
-    return chunk
-
-
-async def _drain_result(result: Any) -> Any:
-    """Fully drain the run() return value into plain Python values.
-
-    Collect-mode single query → StreamChunkIterator → drain once.
-    Collect-mode list queries → list of StreamChunkIterator → drain each.
-    Stream-mode                → AsyncIterator of StreamChunkIterator → drain outer, then each.
-    """
-    if isinstance(result, list):
-        return [ await _collect_stream(item) for item in result ]
-    if isinstance(result, (StreamIterator, AsyncIterator)):
-        collected = []
-        async for chunk in result:
-            collected.append(await _collect_stream(chunk))
-        return collected
-    return await _collect_stream(result)
+async def _collect(stream: AsyncIterator) -> list:
+    return [ item async for item in stream ]
 
 
 class TestSingleQuerySingleStringDocs:
-    """Single query str + List[str] documents → single ranked list."""
+    """Single query str + List[str] documents → single raw ranked list."""
 
     @pytest.mark.anyio
-    async def test_no_output_returns_ranked_list(self):
+    async def test_single_query_returns_single_result(self):
         # query "hello" (len 5) vs docs with lengths [2, 11, 7, 5] → scores [-3, -6, -2, 0].
         # After sort desc: hey!! (0), goodbye (-2), hi (-3), hello world (-6).
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}"))
         ctx    = ComponentActionContext("r-1", { "query": "hello", "docs": [ "hi", "hello world", "goodbye", "hey!!" ] })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        # Wrapped once by _stream_chunk_generator; drain yields [ranked_list].
-        assert drained == [[
+        # Result is the raw ranked list (not wrapped in StreamChunkIterator, not
+        # wrapped in an outer list).
+        assert isinstance(result, list)
+        assert not isinstance(result, StreamChunkIterator)
+        assert result == [
             { "index": 3, "score": -0.0, "document": "hey!!" },
             { "index": 2, "score": -2.0, "document": "goodbye" },
             { "index": 0, "score": -3.0, "document": "hi" },
             { "index": 1, "score": -6.0, "document": "hello world" },
-        ]]
+        ]
 
     @pytest.mark.anyio
     async def test_passthrough_output_returns_ranked_list(self):
@@ -144,11 +126,9 @@ class TestSingleQuerySingleStringDocs:
         ctx    = ComponentActionContext("r-2", { "query": "hi", "docs": [ "a", "hi", "bcd" ] })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        assert isinstance(drained, list) and len(drained) == 1
-        ranked = drained[0]
-        assert ranked[0] == { "index": 1, "score": -0.0, "document": "hi" }
+        assert isinstance(result, list)
+        assert result[0] == { "index": 1, "score": -0.0, "document": "hi" }
 
 
 class TestSingleQueryDictDocs:
@@ -165,11 +145,9 @@ class TestSingleQueryDictDocs:
         ctx    = ComponentActionContext("r-3", { "query": "hello", "docs": docs })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
         # Each result "document" field must be the original dict, not the extracted text.
-        ranked = drained[0]
-        for item in ranked:
+        for item in result:
             assert isinstance(item["document"], dict)
             assert "id" in item["document"] and "text" in item["document"]
 
@@ -196,9 +174,8 @@ class TestTopKAndThreshold:
         ctx    = ComponentActionContext("r-5", { "query": "hello", "docs": [ "hi", "hello!", "x", "hello world", "hey!!" ] })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        assert len(drained[0]) == 2
+        assert len(result) == 2
 
     @pytest.mark.anyio
     async def test_score_threshold_filters(self):
@@ -207,10 +184,8 @@ class TestTopKAndThreshold:
         ctx    = ComponentActionContext("r-6", { "query": "hi", "docs": [ "a", "bc", "def", "wxyz", "verylong" ] })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        ranked = drained[0]
-        for item in ranked:
+        for item in result:
             assert item["score"] >= -1.5
 
     @pytest.mark.anyio
@@ -219,10 +194,8 @@ class TestTopKAndThreshold:
         ctx    = ComponentActionContext("r-7", { "query": "hi", "docs": [ "a", "hi", "bc" ] })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        ranked = drained[0]
-        for item in ranked:
+        for item in result:
             assert set(item.keys()) == { "index", "score" }
 
 
@@ -230,7 +203,7 @@ class TestListQueries:
     """List[str] queries with list-of-lists documents → one ranked list per query."""
 
     @pytest.mark.anyio
-    async def test_list_queries_returns_list_of_ranked_lists(self):
+    async def test_non_streaming_returns_list_of_results(self):
         queries = [ "hi", "hello world" ]
         docs = [
             [ "a", "bc", "hi" ],
@@ -240,13 +213,20 @@ class TestListQueries:
         ctx    = ComponentActionContext("r-8", { "queries": queries, "docs": docs })
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
-        drained = await _drain_result(result)
 
-        # drained is [[ranked_for_q1], [ranked_for_q2]]: each entry drained once by
-        # _stream_chunk_generator wraps a single yield.
-        assert len(drained) == 2
-        ranked_q1 = drained[0][0]
-        ranked_q2 = drained[1][0]
+        # Non-streaming, list-of-queries branch: result is a plain list of ranked lists.
+        assert isinstance(result, list)
+        assert len(result) == 2
+        # Each entry is the raw `_build_ranked_result` return (list of dicts), not
+        # wrapped in a StreamChunkIterator/StreamIterator/AsyncIterator.
+        for ranked in result:
+            assert isinstance(ranked, list)
+            assert not isinstance(ranked, (StreamChunkIterator, StreamIterator))
+            for item in ranked:
+                assert isinstance(item, dict)
+                assert set(item.keys()) >= { "index", "score" }
+
+        ranked_q1, ranked_q2 = result
         # Best doc for "hi" (len 2) is "bc" or "hi" (both len 2), first result score = -0.0.
         assert ranked_q1[0]["score"] == -0.0
         # Best doc for "hello world" (len 11) is "hello world!" (len 12), score = -1.0.
@@ -255,10 +235,10 @@ class TestListQueries:
 
 
 class TestStreamQueries:
-    """AsyncIterator queries → stream output; each chunk is a StreamChunkIterator."""
+    """AsyncIterator queries → async-gen output; each chunk is a raw ranked list."""
 
     @pytest.mark.anyio
-    async def test_stream_queries_returns_async_iterator(self):
+    async def test_streaming_input_yields_raw_results(self):
         async def _query_stream():
             for q in [ "hi", "hello" ]:
                 yield q
@@ -272,13 +252,22 @@ class TestStreamQueries:
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx, loop)
 
+        # Streaming branch returns an async generator (matches AsyncIterator ABC).
         assert isinstance(result, AsyncIterator)
-        drained = await _drain_result(result)
-        assert len(drained) == 2
-        # drained[i] == [ranked_for_query_i]: each chunk drained once from a
-        # single-yield _stream_chunk_generator.
-        ranked_hi = drained[0][0]
-        ranked_hello = drained[1][0]
+
+        chunks = await _collect(result)
+        assert len(chunks) == 2
+
+        # Each yielded chunk is a raw ranked list (list of dicts) — no
+        # StreamChunkIterator/StreamIterator wrapping.
+        for chunk in chunks:
+            assert isinstance(chunk, list)
+            assert not isinstance(chunk, (StreamChunkIterator, StreamIterator))
+            for item in chunk:
+                assert isinstance(item, dict)
+                assert set(item.keys()) >= { "index", "score" }
+
+        ranked_hi, ranked_hello = chunks
         # Best "hi" (len 2) match: "hi" (len 2), score 0.
         assert ranked_hi[0]["document"] == "hi"
         # Best "hello" (len 5) match: "world" (len 5), score 0.

@@ -29,3 +29,4 @@ RankingMetric = Union[ SimilarityMetric, DistanceMetric ]
 
 class CommonVectorProcessorActionConfig(CommonActionConfig):
     method: VectorProcessorActionMethod = Field(..., description="Vector processor method.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input vectors per batch.")

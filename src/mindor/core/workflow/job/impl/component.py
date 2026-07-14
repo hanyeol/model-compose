@@ -36,15 +36,16 @@ class ComponentJob(Job):
         job_time_tracker = TimeTracker()
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
 
+        is_direct_output = not self.config.output or self.config.output == "${output}"
+
         input = await self._before_run(context, run_id, input)
 
         output = await component.run(self.config.action, run_id, input, workflow=context.workflow, job_id=self.id)
+        output = await self._after_run(context, run_id, input, output)
 
-        if self.config.output:
+        if not is_direct_output:
             context.register_source(run_id, "output", output)
             output = await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)
-
-        output = await self._after_run(context, run_id, input, output)
 
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
 

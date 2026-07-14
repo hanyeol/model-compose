@@ -66,7 +66,6 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
             bos_token=bos_token,
         )
 
-
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.LLAMACPP)
 class LlamaCppChatCompletionTaskService(LlamaCppModelTaskService):
     config: LlamaCppChatCompletionModelComponentConfig

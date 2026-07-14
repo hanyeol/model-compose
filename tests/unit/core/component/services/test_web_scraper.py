@@ -36,12 +36,6 @@ def _make_context(url_value: Any) -> ComponentActionContext:
         sources[key] = value
     ctx.register_source = MagicMock(side_effect=register_source)
 
-    def contains_ref(key: str, value: Any) -> bool:
-        if key == "result[]" and isinstance(value, str):
-            return "${result[]" in value
-        return False
-    ctx.contains_variable_reference = MagicMock(side_effect=contains_ref)
-
     async def render_variable(value, **kwargs):
         if isinstance(value, str):
             if value == "${result[]}":

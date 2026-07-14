@@ -57,7 +57,6 @@ def make_context(input_data=None, output=None):
     """Create a mock ComponentActionContext."""
     ctx = AsyncMock()
     ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-    ctx.contains_variable_reference = MagicMock(return_value=False)
     ctx.register_source = MagicMock()
     return ctx
 
@@ -69,6 +68,7 @@ def make_action_config(
     message=None,
     receive_format=WebSocketReceiveFormat.JSON,
     collect=False,
+    streaming=False,
     timeout=None,
     output=None,
 ):
@@ -78,7 +78,9 @@ def make_action_config(
         params=params or {},
         headers=headers or {},
         message=message,
-        receive=WebSocketReceiveConfig(format=receive_format, collect=collect, timeout=timeout),
+        receive=WebSocketReceiveConfig(
+            format=receive_format, collect=collect, streaming=streaming, timeout=timeout
+        ),
         output=output,
     )
 
@@ -260,11 +262,10 @@ class TestWebSocketClientActionReceiveStream:
         """Streaming mode yields each decoded JSON frame."""
         conn = make_connection(frames=['{"n":1}', '{"n":2}'])
         action = WebSocketClientAction(make_action_config(
-            receive_format=WebSocketReceiveFormat.JSON, output="${response[]}"
+            receive_format=WebSocketReceiveFormat.JSON, streaming=True, output="${response[]}"
         ))
 
         ctx = make_context()
-        ctx.contains_variable_reference = MagicMock(return_value=True)
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
         client = make_client(conn)
 
@@ -273,6 +274,60 @@ class TestWebSocketClientActionReceiveStream:
 
         assert len(items) == 2
         assert ctx.register_source.call_count == 2
+
+    @pytest.mark.anyio
+    async def test_streaming_true_returns_stream_generator(self):
+        """streaming=True returns an async generator that yields decoded frames."""
+        conn = make_connection(frames=['{"n":1}', '{"n":2}', '{"n":3}'])
+        action = WebSocketClientAction(make_action_config(
+            receive_format=WebSocketReceiveFormat.JSON, streaming=True
+        ))
+
+        ctx = make_context()
+        ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
+        client = make_client(conn)
+
+        stream = await action.run(ctx, client)
+        assert hasattr(stream, "__aiter__")
+
+        items = [item async for item in stream]
+        assert items == [{"n": 1}, {"n": 2}, {"n": 3}]
+
+        # register_source should be called per frame with a stream: scope.
+        assert ctx.register_source.call_count == 3
+        for call in ctx.register_source.call_args_list:
+            assert call.args[0] == "response[]"
+            assert call.kwargs.get("scope", "").startswith("stream:")
+
+    @pytest.mark.anyio
+    async def test_streaming_and_collect_conflict_raises(self):
+        """Setting both streaming=True and collect=True raises ValueError."""
+        conn = make_connection(frames=['{"n":1}'])
+        action = WebSocketClientAction(make_action_config(
+            receive_format=WebSocketReceiveFormat.JSON, streaming=True, collect=True
+        ))
+
+        ctx = make_context()
+        client = make_client(conn)
+
+        with pytest.raises(ValueError, match="'collect' and 'streaming' cannot both be set"):
+            await action.run(ctx, client)
+
+    @pytest.mark.anyio
+    async def test_streaming_false_uses_single(self):
+        """streaming=False and collect=False takes the _receive_single path."""
+        conn = make_connection(frames=['{"first": true}', '{"second": true}'])
+        action = WebSocketClientAction(make_action_config(
+            receive_format=WebSocketReceiveFormat.JSON, streaming=False, collect=False
+        ))
+
+        ctx = make_context()
+        client = make_client(conn)
+
+        result = await action.run(ctx, client)
+
+        # _receive_single returns only the first decoded frame.
+        assert result == {"first": True}
 
 
 # ---- Connection Lifecycle Tests ----

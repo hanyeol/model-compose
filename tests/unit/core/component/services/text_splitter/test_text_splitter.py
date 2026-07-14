@@ -31,7 +31,6 @@ def mock_context():
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
     context.render_text = AsyncMock(side_effect=render_text)
-    context.contains_variable_reference = MagicMock(return_value=False)
     context.register_source = MagicMock()
     return context
 
@@ -471,7 +470,6 @@ class TestTextSplitterStreamingInput:
             return await render_variable(value)
         stream_mock.render_variable = AsyncMock(side_effect=render_variable)
         stream_mock.render_text = AsyncMock(side_effect=render_text)
-        stream_mock.contains_variable_reference = MagicMock(return_value=False)
         stream_mock.register_source = MagicMock()
 
         stream_result = await stream_action.run(stream_mock, asyncio.get_running_loop())

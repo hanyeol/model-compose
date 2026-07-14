@@ -184,7 +184,7 @@ class TestSimilarity:
     @pytest.mark.anyio
     async def test_2d_vs_2d_length_mismatch_raises(self):
         cfg = _cfg({"method": "similarity", "vector": "${input.a}", "other": "${input.b}"})
-        with pytest.raises(ValueError, match="length mismatch"):
+        with pytest.raises(ValueError, match="different lengths"):
             await _run(cfg, {"a": [[1, 0]], "b": [[1, 0], [0, 1]]})
 
     @pytest.mark.anyio

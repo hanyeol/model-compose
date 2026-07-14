@@ -268,3 +268,238 @@ async def test_after_hook_observes_none_output_for_routing_jobs():
     result = await job._apply_after_hooks(_FakeJobContext(), None, {"route": "on"}, None)
 
     assert result == "ignored"
+
+
+@pytest.mark.anyio
+async def test_after_hook_runs_before_output_render():
+    # The after-hook is applied to the raw job output BEFORE the ``output``
+    # template is rendered, so the template can reference values produced by
+    # the hook. Here the filter job's raw output is a list; the after hook
+    # converts it into ``{"summary": <len>}``; the output template then
+    # projects that transformed dict through ``${output.summary}``.
+    from pydantic import TypeAdapter
+    from mindor.core.foundation.variable.renderer import VariableRenderer
+    from mindor.core.workflow.job.impl.filter import FilterJob
+    from mindor.dsl.schema.job import JobConfig
+
+    class _Ctx:
+        def __init__(self):
+            self._sources = {"__global__": {"source": [10, 20, 30]}}
+            self.renderer = VariableRenderer(self._resolve_source)
+            self.workflow = _FakeWorkflowContext()
+
+        def register_source(self, scope, key, value):
+            self._sources.setdefault(scope or "__global__", {})[key] = value
+
+        async def render_variable(self, scope, value, skip_decode=False):
+            return await self.renderer.render(value, scope, skip_decode=skip_decode)
+
+        async def _resolve_source(self, key, index, scope):
+            sources = self._sources.get(scope or "__global__", {})
+            if key in sources:
+                v = sources[key]
+                return v[index] if index is not None and isinstance(v, list) else v
+            return None
+
+    cfg = TypeAdapter(JobConfig).validate_python({
+        "type": "filter",
+        "input": "${source}",
+        "output": {"result": "${output.summary}"},
+        "hook": {
+            "after": {
+                "script": (
+                    "async def hook(input, output, **kwargs):\n"
+                    "    return {'summary': len(output)}\n"
+                )
+            }
+        },
+    })
+    job = FilterJob.__new__(FilterJob)
+    job.id = "j"
+    job.config = cfg
+    job.global_configs = None
+
+    result = await job.run(_Ctx())
+
+    # after hook transformed [10,20,30] -> {"summary": 3}
+    # then output template rendered {"result": "${output.summary}"} -> {"result": 3}
+    assert result == {"result": 3}
+
+
+# ------------------------------------------------------------------ #
+# Cross-job "after hook precedes output render" scenarios            #
+# ------------------------------------------------------------------ #
+
+
+class _FakeWorkflowForOutput:
+    def __init__(self, task_id: str = "task-1"):
+        self.task_id = task_id
+        self.workflow_id = "wf-1"
+        self.input = None
+        self.run_ids = []
+
+    def record_run_id(self, job_id, run_id):
+        self.run_ids.append((job_id, run_id))
+
+
+class _FakeCtx:
+    """Reusable JobContext stand-in with a real VariableRenderer."""
+
+    def __init__(self, workflow_input=None):
+        from mindor.core.foundation.variable.renderer import VariableRenderer
+
+        self._sources = {"__global__": {}}
+        self.workflow = _FakeWorkflowForOutput()
+        self.workflow.input = workflow_input
+        self.is_terminal = False
+        self.renderer = VariableRenderer(self._resolve_source)
+
+    def register_source(self, scope, key, value):
+        self._sources.setdefault(scope or "__global__", {})[key] = value
+
+    async def render_variable(self, scope, value, skip_decode=False):
+        return await self.renderer.render(value, scope, skip_decode=skip_decode)
+
+    async def _resolve_source(self, key, index, scope):
+        sources = self._sources.get(scope or "__global__", {})
+        if key in sources:
+            v = sources[key]
+            return v[index] if index is not None and isinstance(v, list) else v
+        return None
+
+
+@pytest.mark.anyio
+async def test_component_after_hook_runs_before_output_render():
+    # ComponentJob._run should apply the after hook to the raw component
+    # output BEFORE rendering the `output` template, so the template can
+    # reference the transformed dict.
+    from pydantic import TypeAdapter
+    from mindor.core.workflow.job.impl.component import ComponentJob
+    from mindor.dsl.schema.job import JobConfig
+
+    class _FakeComponent:
+        def __init__(self, result):
+            self.id = "fake"
+            self.started = True
+            self._result = result
+
+        async def start(self):
+            self.started = True
+
+        async def run(self, action, run_id, input, workflow, job_id):
+            return self._result
+
+    cfg = TypeAdapter(JobConfig).validate_python({
+        "type": "component",
+        "component": "c",
+        "action": "a",
+        "output": {"result": "${output.transformed.value}"},
+        "hook": {
+            "after": {
+                "script": (
+                    "async def hook(input, output, **kwargs):\n"
+                    "    return {'transformed': {'value': output['n'] * 10}}\n"
+                )
+            }
+        },
+    })
+
+    component = _FakeComponent(result={"n": 4})
+    job = ComponentJob.__new__(ComponentJob)
+    job.id = "cj"
+    job.config = cfg
+    job.global_configs = None
+    job._create_component = lambda _id, _c: component  # type: ignore[assignment]
+
+    result = await job.run(_FakeCtx(workflow_input={"q": "hi"}))
+
+    # after hook wrapped {"n": 4} -> {"transformed": {"value": 40}}
+    # output template rendered against it -> {"result": 40}
+    assert result == {"result": 40}
+
+
+@pytest.mark.anyio
+async def test_for_each_after_hook_runs_before_output_render():
+    # ForEachJob.run should apply the after hook to the aggregated batch
+    # results BEFORE rendering the top-level `output` template.
+    from pydantic import TypeAdapter
+    from mindor.core.workflow.job.impl.for_each import ForEachJob
+    from mindor.dsl.schema.job import JobConfig
+
+    class _FakeComponent:
+        def __init__(self):
+            self.id = "fake"
+            self.started = True
+
+        async def start(self):
+            self.started = True
+
+        async def run(self, action, run_id, input, workflow, job_id):
+            # Echo input times two.
+            return input * 2
+
+    cfg = TypeAdapter(JobConfig).validate_python({
+        "type": "for-each",
+        "input": [1, 2, 3],
+        "do": {"component": "c", "action": "a"},
+        "output": {"summary": "${output.total}", "count": "${output.count}"},
+        "hook": {
+            "after": {
+                "script": (
+                    "async def hook(input, output, **kwargs):\n"
+                    "    return {'total': sum(output), 'count': len(output)}\n"
+                )
+            }
+        },
+    })
+
+    component = _FakeComponent()
+    job = ForEachJob.__new__(ForEachJob)
+    job.id = "fej"
+    job.config = cfg
+    job.global_configs = None
+    job._create_component = lambda _id, _c: component  # type: ignore[assignment]
+
+    result = await job.run(_FakeCtx())
+
+    # Component doubles each item -> [2, 4, 6]
+    # after hook -> {"total": 12, "count": 3}
+    # output template -> {"summary": 12, "count": 3}
+    assert result == {"summary": 12, "count": 3}
+
+
+@pytest.mark.anyio
+async def test_delay_after_hook_runs_before_output_render():
+    # DelayJob.run should apply the after hook to the raw delay output
+    # (None) BEFORE rendering the `output` template. The hook replaces
+    # None with a dict that the template then references.
+    from pydantic import TypeAdapter
+    from mindor.core.workflow.job.impl.delay import DelayJob
+    from mindor.dsl.schema.job import JobConfig
+
+    cfg = TypeAdapter(JobConfig).validate_python({
+        "type": "delay",
+        "mode": "time-interval",
+        "duration": 0,
+        "output": {"status": "${output.state}"},
+        "hook": {
+            "after": {
+                "script": (
+                    "async def hook(input, output, **kwargs):\n"
+                    "    assert output is None\n"
+                    "    return {'state': 'done'}\n"
+                )
+            }
+        },
+    })
+
+    job = DelayJob.__new__(DelayJob)
+    job.id = "dj"
+    job.config = cfg
+    job.global_configs = None
+
+    result = await job.run(_FakeCtx())
+
+    # after hook replaced None with {"state": "done"}
+    # output template rendered against it -> {"status": "done"}
+    assert result == {"status": "done"}

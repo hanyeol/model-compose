@@ -10,7 +10,8 @@ class WebSocketReceiveFormat(str, Enum):
 
 class WebSocketReceiveConfig(BaseModel):
     format: WebSocketReceiveFormat = Field(default=WebSocketReceiveFormat.JSON, description="Expected format of received WebSocket frames.")
-    collect: bool = Field(default=False, description="Collect all frames into a single response.")
+    collect: Union[bool, str] = Field(default=False, description="Collect all frames into a single response.")
+    streaming: Union[bool, str] = Field(default=False, description="Hand received frames to subsequent jobs as a chunked stream.")
     timeout: Optional[Union[str, int, float]] = Field(default=None, description="Receive timeout per frame (e.g. '5s', '1m').")
 
 class WebSocketServerActionConfig(CommonActionConfig):

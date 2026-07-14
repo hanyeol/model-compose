@@ -115,9 +115,6 @@ class ComponentActionContext:
     async def render_color(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
         return await ColorValueRenderer().render(await self.render_variable(value), default)
 
-    def contains_variable_reference(self, key: str, value: Any) -> bool:
-        return self.renderer.contains_reference(key, value)
-
     async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         sources = self.sources.get(scope or "__global__", {})
 

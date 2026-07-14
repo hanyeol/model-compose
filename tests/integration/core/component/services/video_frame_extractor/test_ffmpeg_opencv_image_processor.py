@@ -88,7 +88,6 @@ DRIVERS.append(pytest.param(FFmpegVideoFrameExtractorAction, id="ffmpeg"))
 def make_extractor_context(video_path: str):
     """Mock context that resolves render_video to a FileStreamResource MediaSource."""
     ctx = MagicMock(spec=ComponentActionContext)
-    ctx.contains_variable_reference = MagicMock(return_value=False)
     ctx.register_source = MagicMock()
 
     async def render_variable(value, **kwargs):
@@ -111,10 +110,6 @@ def make_processor_context(input_payload: Any, stream_output: bool = False):
     sources: dict[str, Any] = {}
 
     ctx = MagicMock(spec=ComponentActionContext)
-
-    def contains_variable_reference(key: str, value: Any) -> bool:
-        return stream_output and key == "result[]" and value == "${result[]}"
-    ctx.contains_variable_reference = MagicMock(side_effect=contains_variable_reference)
 
     def register_source(key: str, value: Any) -> None:
         sources[key] = value

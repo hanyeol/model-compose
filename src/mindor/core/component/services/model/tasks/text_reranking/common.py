@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextRerankingModelActionConfig
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 
@@ -40,12 +40,7 @@ class TextRerankingTaskAction:
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
                     batch_scores = await self._rerank(batch_queries, batch_texts, params, loop)
                     for scores, original_documents in zip(batch_scores, batch_documents):
-                        result = self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
-                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                            context.register_source("result[]", result, scope=scope)
-                            yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else result
-
-                        yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
+                        yield self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
 
             return _stream_output_generator()
         else:
@@ -54,12 +49,7 @@ class TextRerankingTaskAction:
                 batch_texts = self._extract_document_texts(batch_documents, document_field)
                 batch_scores = await self._rerank(batch_queries, batch_texts, params, loop)
                 for scores, original_documents in zip(batch_scores, batch_documents):
-                    result = self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
-                    async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                        context.register_source("result[]", result, scope=scope)
-                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else result
-
-                    results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False))
+                    results.append(self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

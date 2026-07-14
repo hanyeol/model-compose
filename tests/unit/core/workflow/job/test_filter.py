@@ -32,9 +32,11 @@ class FakeJobContext:
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self._workflow_input = workflow_input or {}
         self.renderer = VariableRenderer(self._resolve_source)
+        self.register_calls: list[tuple[Optional[str], str, Any]] = []
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(scope or "__global__", {})[key] = source
+        self.register_calls.append((scope, key, source))
 
     async def render_variable(self, scope: Optional[str], value: Any, skip_decode: bool = False) -> Any:
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
@@ -67,6 +69,17 @@ async def _run(cfg_dict: dict, sources: Optional[Dict[str, Any]] = None) -> Any:
         context.register_source(None, k, v)
     job = _make_job(_cfg(cfg_dict))
     return await job.run(context)
+
+
+async def _run_with_context(
+    cfg_dict: dict, sources: Optional[Dict[str, Any]] = None
+) -> tuple[Any, FakeJobContext]:
+    context = FakeJobContext()
+    for k, v in (sources or {}).items():
+        context.register_source(None, k, v)
+    job = _make_job(_cfg(cfg_dict))
+    result = await job.run(context)
+    return result, context
 
 
 # ------------------------------------------------------------------ #
@@ -223,50 +236,64 @@ class TestOutputTemplate:
 
     @pytest.mark.anyio
     async def test_output_string_expression_renders_against_result(self):
-        # FilterJob renders `output` per kept item; `${output[]}` refers to the
-        # current item during that per-item render pass.
+        # Under the new convention, `${output}` refers to the whole filtered
+        # result, not per-item. The rendered output is identical to the raw
+        # filtered list.
         result = await _run(
             {
                 "input": "${source}",
                 "where": {"input": "${item}", "operator": "gt", "value": 1},
-                "output": "${output[]}",
+                "output": "${output}",
             },
             {"source": [1, 2, 3]},
         )
         assert result == [2, 3]
 
     @pytest.mark.anyio
-    async def test_output_dict_projection_per_item(self):
-        """Each kept item is projected through the dict template, receiving `${output[]}` as itself."""
+    async def test_output_dict_wraps_whole_result(self):
+        # Dict output template now runs once against the final filtered list,
+        # producing a single wrapper dict rather than one per item.
         result = await _run(
             {
                 "input": "${source}",
-                "where": {"input": "${item.score}", "operator": "gte", "value": 0.5},
-                "output": {
-                    "id": "${output[].id}",
-                    "score": "${output[].score}",
-                },
-            },
-            {"source": [
-                {"score": 0.1, "id": "a"},
-                {"score": 0.7, "id": "b"},
-                {"score": 0.5, "id": "c"},
-            ]},
-        )
-        assert result == [
-            {"id": "b", "score": 0.7},
-            {"id": "c", "score": 0.5},
-        ]
-
-    @pytest.mark.anyio
-    async def test_output_dict_wraps_each_item(self):
-        # Dict output template runs per kept item, so a 3-element source produces
-        # 3 dicts each wrapping the item under `value`.
-        result = await _run(
-            {
-                "input": "${source}",
-                "output": {"value": "${output[]}"},
+                "output": {"value": "${output}"},
             },
             {"source": [1, 2, 3]},
         )
-        assert result == [{"value": 1}, {"value": 2}, {"value": 3}]
+        assert result == {"value": [1, 2, 3]}
+
+    @pytest.mark.anyio
+    async def test_output_direct_fast_path(self):
+        # No `output` specified -> fast path: raw filtered list is returned
+        # without an extra render pass, and no `output` source gets registered.
+        result, context = await _run_with_context(
+            {
+                "input": "${source}",
+                "where": {"input": "${item}", "operator": "gt", "value": 1},
+            },
+            {"source": [1, 2, 3]},
+        )
+        assert result == [2, 3]
+        # Fast path: nobody registered `output` on the global scope.
+        assert not any(
+            key == "output" and (scope is None or scope == "__global__")
+            for scope, key, _ in context.register_calls
+        )
+
+    @pytest.mark.anyio
+    async def test_output_explicit_dollar_output_is_direct(self):
+        # `output: "${output}"` should also take the fast path, so the returned
+        # value is exactly the raw filtered list and no extra render happens.
+        result, context = await _run_with_context(
+            {
+                "input": "${source}",
+                "where": {"input": "${item}", "operator": "gt", "value": 1},
+                "output": "${output}",
+            },
+            {"source": [1, 2, 3]},
+        )
+        assert result == [2, 3]
+        assert not any(
+            key == "output" and (scope is None or scope == "__global__")
+            for scope, key, _ in context.register_calls
+        )

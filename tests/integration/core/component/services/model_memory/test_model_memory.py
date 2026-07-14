@@ -423,7 +423,6 @@ def mock_context():
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
     context.register_source = MagicMock()
-    context.contains_variable_reference = MagicMock(return_value=False)
     return context
 
 
@@ -1544,7 +1543,6 @@ class TestSummaryExplicitInputMode:
             return value
         context.render_variable = AsyncMock(side_effect=render_variable)
         context.register_source = MagicMock(side_effect=lambda key, value: recorded_sources.update({key: value}))
-        context.contains_variable_reference = MagicMock(return_value=False)
 
         # Load
         await make_action(

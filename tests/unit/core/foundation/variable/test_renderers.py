@@ -1885,54 +1885,6 @@ class TestUnknownFormatRaisesInLoader:
 
 
 # ============================
-# contains_reference
-# ============================
-
-class TestContainsReference:
-    """Public contains_reference: checks whether a value (str/dict/list) references a key."""
-
-    def _r(self):
-        return VariableRenderer(make_source_resolver({}))
-
-    def test_str_with_matching_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", "hello ${input.name}") is True
-
-    def test_str_with_other_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", "${other.x}") is False
-
-    def test_str_with_no_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", "plain text") is False
-
-    def test_dict_value_with_matching_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", {"k": "${input.x}"}) is True
-
-    def test_dict_value_with_no_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", {"k": "plain", "j": 42}) is False
-
-    def test_list_value_with_matching_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", ["a", "${input.b}", 3]) is True
-
-    def test_list_value_with_no_reference(self):
-        r = self._r()
-        assert r.contains_reference("input", ["a", 1, {"nested": "x"}]) is False
-
-    def test_nested_dict_in_list(self):
-        r = self._r()
-        assert r.contains_reference("input", [{"k": "${input.x}"}]) is True
-
-    def test_scalar_value_returns_false(self):
-        r = self._r()
-        assert r.contains_reference("input", 42) is False
-        assert r.contains_reference("input", None) is False
-
-
-# ============================
 # ImageValueRenderer
 # ============================
 

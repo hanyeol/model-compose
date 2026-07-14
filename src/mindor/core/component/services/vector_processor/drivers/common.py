@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import (
     VectorProcessorActionConfig,
@@ -10,6 +11,8 @@ from mindor.dsl.schema.action import (
     RankingMetric,
 )
 from mindor.core.foundation.variable.vector import VectorValue
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
 import asyncio
 
@@ -18,17 +21,33 @@ class VectorProcessorAction:
         self.config: VectorProcessorActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        params = await self._resolve_params(self.config.method, context)
+        batch_size = await context.render_variable(self.config.batch_size)
 
+        input, is_single_input, streaming, params = await self._prepare_input(self.config.method, context)
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        result = self._process(self.config.method, params)
+        if streaming:
+            async def _stream_output_generator(source=input):
+                async for batch in BatchSourceIterator(source, batch_size=batch_size or 1):
+                    for result in self._process(self.config.method, batch, params):
+                        yield result
 
-        context.register_source("result", result)
+            return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch in BatchSourceIterator(input, batch_size=batch_size or 1):
+                results.extend(self._process(self.config.method, batch, params))
 
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-    async def _resolve_params(self, method: VectorProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _prepare_input(
+        self,
+        method: VectorProcessorActionMethod,
+        context: ComponentActionContext,
+    ) -> Tuple[Any, bool, bool, Dict[str, Any]]:
         if method == VectorProcessorActionMethod.SIMILARITY:
             vector = await context.render_vector(self.config.vector)
             other  = await context.render_vector(self.config.other)
@@ -40,7 +59,10 @@ class VectorProcessorAction:
             if other is None:
                 raise ValueError("'other' must be specified for 'similarity' method")
 
-            return { "vector": vector, "other": other, "metric": metric }
+            is_single_input = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
+            streaming = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
+
+            return (vector, other), is_single_input, streaming, { "metric": metric }
 
         if method == VectorProcessorActionMethod.DISTANCE:
             vector = await context.render_vector(self.config.vector)
@@ -53,7 +75,10 @@ class VectorProcessorAction:
             if other is None:
                 raise ValueError("'other' must be specified for 'distance' method")
 
-            return { "vector": vector, "other": other, "metric": metric }
+            is_single_input = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
+            streaming = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
+
+            return (vector, other), is_single_input, streaming, { "metric": metric }
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
             vector = await context.render_vector(self.config.vector)
@@ -65,7 +90,10 @@ class VectorProcessorAction:
             if other is None:
                 raise ValueError("'other' must be specified for 'dot-product' method")
 
-            return { "vector": vector, "other": other }
+            is_single_input = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
+            streaming = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
+
+            return (vector, other), is_single_input, streaming, {}
 
         if method == VectorProcessorActionMethod.NORMALIZE:
             vector = await context.render_vector(self.config.vector)
@@ -73,7 +101,10 @@ class VectorProcessorAction:
             if vector is None:
                 raise ValueError("'vector' must be specified for 'normalize' method")
 
-            return { "vector": vector }
+            is_single_input = isinstance(vector, VectorValue)
+            streaming = isinstance(vector, (StreamIterator, AsyncIterator))
+
+            return (vector,), is_single_input, streaming, {}
 
         if method == VectorProcessorActionMethod.MEAN:
             vectors = await context.render_vector_list(self.config.vectors)
@@ -82,7 +113,11 @@ class VectorProcessorAction:
             if vectors is None:
                 raise ValueError("'vectors' must be specified for 'mean' method")
 
-            return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
+            is_single_input = not isinstance(vectors, (StreamIterator, AsyncIterator))
+            streaming       = isinstance(vectors, (StreamIterator, AsyncIterator))
+            batches         = vectors if streaming else [ vectors ]
+
+            return (batches,), is_single_input, streaming, { "axis": int(axis) if axis is not None else 0 }
 
         if method == VectorProcessorActionMethod.SUM:
             vectors = await context.render_vector_list(self.config.vectors)
@@ -91,7 +126,11 @@ class VectorProcessorAction:
             if vectors is None:
                 raise ValueError("'vectors' must be specified for 'sum' method")
 
-            return { "vectors": vectors, "axis": int(axis) if axis is not None else 0 }
+            is_single_input = not isinstance(vectors, (StreamIterator, AsyncIterator))
+            streaming       = isinstance(vectors, (StreamIterator, AsyncIterator))
+            batches         = vectors if streaming else [ vectors ]
+
+            return (batches,), is_single_input, streaming, { "axis": int(axis) if axis is not None else 0 }
 
         if method == VectorProcessorActionMethod.TOP_K:
             query      = await context.render_vector(self.config.query)
@@ -105,11 +144,13 @@ class VectorProcessorAction:
             if candidates is None:
                 raise ValueError("'candidates' must be specified for 'top-k' method")
 
-            return {
-                "query": query,
+            is_single_input = isinstance(query, VectorValue)
+            streaming = isinstance(query, (StreamIterator, AsyncIterator))
+
+            return (query,), is_single_input, streaming, {
                 "candidates": candidates,
-                "k": int(k) if k is not None else 1,
-                "metric": metric,
+                "k":          int(k) if k is not None else 1,
+                "metric":     metric,
             }
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
@@ -127,135 +168,75 @@ class VectorProcessorAction:
             if threshold is None:
                 raise ValueError("'threshold' must be specified for 'threshold-filter' method")
 
-            return {
-                "query": query,
+            is_single_input = isinstance(query, VectorValue)
+            streaming = isinstance(query, (StreamIterator, AsyncIterator))
+
+            return (query,), is_single_input, streaming, {
                 "candidates": candidates,
-                "threshold": float(threshold),
-                "metric": metric,
+                "threshold":  float(threshold),
+                "metric":     metric,
             }
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
-    def _process(self, method: VectorProcessorActionMethod, params: Dict[str, Any]) -> Any:
+    def _process(self, method: VectorProcessorActionMethod, batch: Tuple[Any, ...], params: Dict[str, Any]) -> List[Any]:
         if method == VectorProcessorActionMethod.SIMILARITY:
-            vector = params.pop("vector")
-            other  = params.pop("other")
-
-            if isinstance(vector, list) and isinstance(other, list):
-                if len(vector) != len(other):
-                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
-                return [ self._similarity(v, o, params) for v, o in zip(vector, other) ]
-
-            if isinstance(vector, list):
-                return [ self._similarity(v, other, params) for v in vector ]
-
-            if isinstance(other, list):
-                return [ self._similarity(vector, o, params) for o in other ]
-
-            return self._similarity(vector, other, params)
+            return self._similarity(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.DISTANCE:
-            vector = params.pop("vector")
-            other  = params.pop("other")
-
-            if isinstance(vector, list) and isinstance(other, list):
-                if len(vector) != len(other):
-                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
-                return [ self._distance(v, o, params) for v, o in zip(vector, other) ]
-
-            if isinstance(vector, list):
-                return [ self._distance(v, other, params) for v in vector ]
-
-            if isinstance(other, list):
-                return [ self._distance(vector, o, params) for o in other ]
-
-            return self._distance(vector, other, params)
+            return self._distance(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
-            vector = params.pop("vector")
-            other  = params.pop("other")
-
-            if isinstance(vector, list) and isinstance(other, list):
-                if len(vector) != len(other):
-                    raise ValueError(f"'vector' and 'other' length mismatch: {len(vector)} vs {len(other)}")
-                return [ self._dot_product(v, o, params) for v, o in zip(vector, other) ]
-
-            if isinstance(vector, list):
-                return [ self._dot_product(v, other, params) for v in vector ]
-
-            if isinstance(other, list):
-                return [ self._dot_product(vector, o, params) for o in other ]
-
-            return self._dot_product(vector, other, params)
+            return self._dot_product(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.NORMALIZE:
-            vector = params.pop("vector")
-
-            if isinstance(vector, list):
-                return [ self._normalize(v, params) for v in vector ]
-
-            return self._normalize(vector, params)
+            return self._normalize(batch[0], params)
 
         if method == VectorProcessorActionMethod.MEAN:
-            vectors = params.pop("vectors")
-
-            return self._mean(vectors, params)
+            return self._mean(batch[0], params)
 
         if method == VectorProcessorActionMethod.SUM:
-            vectors = params.pop("vectors")
-
-            return self._sum(vectors, params)
+            return self._sum(batch[0], params)
 
         if method == VectorProcessorActionMethod.TOP_K:
-            query      = params.pop("query")
-            candidates = params.pop("candidates")
-
-            if isinstance(query, list):
-                return [ self._top_k(q, candidates, params) if candidates else [] for q in query ]
-
-            return self._top_k(query, candidates, params) if candidates else []
+            return self._top_k(batch[0], params["candidates"], params)
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
-            query      = params.pop("query")
-            candidates = params.pop("candidates")
-
-            if isinstance(query, list):
-                return [ self._threshold_filter(q, candidates, params) if candidates else [] for q in query ]
-
-            return self._threshold_filter(query, candidates, params) if candidates else []
+            return self._threshold_filter(batch[0], params["candidates"], params)
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
+
     @abstractmethod
-    def _similarity(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
+    def _similarity(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _distance(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
+    def _distance(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _dot_product(self, vector: VectorValue, other: VectorValue, params: Dict[str, Any]) -> Any:
+    def _dot_product(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _normalize(self, vector: VectorValue, params: Dict[str, Any]) -> Any:
+    def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _mean(self, vectors: List[VectorValue], params: Dict[str, Any]) -> Any:
+    def _mean(self, batches: List[List[VectorValue]], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _sum(self, vectors: List[VectorValue], params: Dict[str, Any]) -> Any:
+    def _sum(self, batches: List[List[VectorValue]], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _top_k(self, query: VectorValue, candidates: List[VectorValue], params: Dict[str, Any]) -> Any:
+    def _top_k(self, queries: List[VectorValue], candidates: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _threshold_filter(self, query: VectorValue, candidates: List[VectorValue], params: Dict[str, Any]) -> Any:
+    def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @staticmethod

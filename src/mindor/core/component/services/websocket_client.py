@@ -19,9 +19,15 @@ class WebSocketClientAction:
         headers = await context.render_variable(self.config.headers)
         message = await context.render_variable(self.config.message)
 
-        format  = await context.render_variable(self.config.receive.format)
-        collect = await context.render_variable(self.config.receive.collect)
-        timeout = parse_duration(await context.render_variable(self.config.receive.timeout)) if self.config.receive.timeout else None
+        format    = await context.render_variable(self.config.receive.format)
+        collect   = await context.render_variable(self.config.receive.collect)
+        streaming = await context.render_variable(self.config.receive.streaming)
+        timeout   = parse_duration(await context.render_variable(self.config.receive.timeout)) if self.config.receive.timeout else None
+
+        if collect and streaming:
+            raise ValueError("'collect' and 'streaming' cannot both be set.")
+
+        is_direct_output = not self.config.output or self.config.output == "${response}"
 
         connection, owned = await client.connect(
             path=path,
@@ -34,7 +40,7 @@ class WebSocketClientAction:
             if message:
                 await self._send(connection, message)
 
-            if context.contains_variable_reference("response[]", self.config.output):
+            if streaming:
                 return self._receive_stream(connection, format, context, owned)
 
             if collect:
@@ -53,7 +59,7 @@ class WebSocketClientAction:
             response = BytesStreamResource(bytes(response), "application/octet-stream")
 
         context.register_source("response", response)
-        return (await context.render_variable(self.config.output)) if self.config.output else response
+        return (await context.render_variable(self.config.output)) if not is_direct_output else response
 
     async def _send(self, connection: WebSocketConnection, message: Any) -> None:
         if isinstance(message, (dict, list)):
@@ -90,12 +96,15 @@ class WebSocketClientAction:
         return None
 
     async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned: bool = False):
+        is_direct_output = not self.config.output or self.config.output == "${response[]}"
+        scope = f"stream:{id(connection)}"
+
         try:
             async for frame in connection.receive_frames():
                 frame = self._decode_frame(frame, format)
                 if frame is not None:
-                    context.register_source("response[]", frame)
-                    yield await context.render_variable(self.config.output)
+                    context.register_source("response[]", frame, scope=scope)
+                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else frame
         finally:
             if owned:
                 await connection.close()

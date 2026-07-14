@@ -27,7 +27,8 @@ class ForEachJob(Job):
 
         input = await self._before_run(context, None, input)
 
-        is_single_input = not isinstance(input, (list, StreamIterator, AsyncIterator))
+        is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${output}"
 
         if isinstance(input, (StreamIterator, AsyncIterator)) or (streaming and not is_single_input):
             async def _stream_output_generator(source=input):
@@ -36,7 +37,7 @@ class ForEachJob(Job):
                     for result in batch_results:
                         yield result
 
-            return _stream_output_generator()
+            output = _stream_output_generator()
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
@@ -44,13 +45,13 @@ class ForEachJob(Job):
 
             output = results[0] if is_single_input else results
 
-            if self.config.output:
-                context.register_source(None, "output", output)
-                output = await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)
+        output = await self._after_run(context, None, input, output)
 
-            output = await self._after_run(context, None, input, output)
+        if not is_direct_output:
+            context.register_source(None, "output", output)
+            output = await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)
 
-            return output
+        return output
 
     async def _run_batch(self, batch_items: List[Any], component: ComponentService, context: JobContext) -> List[Any]:
         return await asyncio.gather(*[ self._run(item, component, context) for item in batch_items ])
@@ -62,6 +63,8 @@ class ForEachJob(Job):
         job_time_tracker = TimeTracker()
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' started.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id)
 
+        is_direct_output = not self.config.do.output or self.config.do.output == "${output}"
+
         context.register_source(run_id, "item", item)
         input = (await context.render_variable(run_id, self.config.do.input)) if self.config.do.input is not None else item
 
@@ -70,7 +73,7 @@ class ForEachJob(Job):
 
         logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
 
-        return (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal)) if self.config.do.output else output
+        return output if is_direct_output else (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal))
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
         return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)

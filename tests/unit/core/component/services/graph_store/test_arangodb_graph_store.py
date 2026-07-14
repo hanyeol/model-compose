@@ -47,7 +47,6 @@ def mock_context():
 
     context.render_variable = AsyncMock(side_effect=render_variable)
     context.register_source = MagicMock()
-    context.contains_variable_reference = MagicMock(return_value=False)
     return context
 
 

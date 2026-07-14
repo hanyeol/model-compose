@@ -76,9 +76,6 @@ class VariableRenderer:
     async def render(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
         return await self._render_element(value, scope, skip_decode)
 
-    def contains_reference(self, key: str, value: Any) -> bool:
-        return self._contains_reference(key, value)
-
     async def _render_element(self, value: Any, scope: Optional[str], skip_decode: bool) -> Any:
         if isinstance(value, str):
             return await self._render_text(value, scope, skip_decode)
@@ -388,15 +385,3 @@ class VariableRenderer:
 
     def _is_spread_expression(self, text: str) -> bool:
         return self.patterns["spread"].fullmatch(text) is not None
-
-    def _contains_reference(self, key: str, element: Any) -> bool:
-        if isinstance(element, str):
-            return any(key == m.group(1) for m in self.patterns["variable"].finditer(element))
-
-        if isinstance(element, dict):
-            return any([ self._contains_reference(key, value) for value in element.values() ])
-
-        if isinstance(element, (list, tuple)):
-            return any([ self._contains_reference(key, item) for item in element ])
-
-        return False

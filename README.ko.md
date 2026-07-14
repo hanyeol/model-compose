@@ -228,7 +228,7 @@ controller:
 | **Runtime Flexibility** | **Hybrid-First (로컬 + 클라우드)** | 클라우드 전용 | 커스터마이즈 복잡 |
 | **Protocol Support** | **HTTP / WebSocket / MCP** | 프로바이더 한정 | 제한적 |
 | **Data Streaming** | **모든 단계에서 1급 지원** | 응답 전용 (SSE 토큰) | 프레임워크가 감싼 제너레이터 |
-| **Deployment** | **Docker / Native / Process** | 프로바이더 관리 | 수동 통합 |
+| **Deployment** | **Docker / Native / Virtualenv / Process** | 프로바이더 관리 | 수동 통합 |
 
 ---
 
@@ -239,7 +239,7 @@ controller:
 - **Human-in-the-loop** — 승인을 위해 워크플로우 일시 정지, CLI/UI/API로 재개
 - **20+ 컴포넌트** — 모델, 에이전트, HTTP/WebSocket 클라이언트, 벡터/그래프 스토어, 셸, 브라우저 등
 - **어떤 프로토콜이든** — HTTP REST, WebSocket, MCP를 한 줄로
-- **어떤 런타임이든** — Docker, 네이티브, 프로세스, 임베디드 — 한 줄로 전환
+- **어떤 런타임이든** — Docker, 네이티브, virtualenv, 프로세스, 임베디드 — 한 줄로 전환
 - **분산 실행** — Redis 큐 디스패치로 수평 확장
 - **즉시 웹 UI** — Gradio UI를 YAML 2줄로
 - **모든 곳에서 스트리밍** — SSE, WebSocket, 잡 간 스트림이 1급 값

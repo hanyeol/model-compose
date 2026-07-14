@@ -228,7 +228,7 @@ No shared filesystem. No code changes. Just add more subscribers to scale.
 | **Runtime Flexibility** | **Hybrid-First (Local + Cloud)** | Cloud Only | Complex to customize |
 | **Protocol Support** | **HTTP / WebSocket / MCP** | Provider-specific | Limited |
 | **Data Streaming** | **First-class across all stages** | Response-only (SSE tokens) | Framework-wrapped generators |
-| **Deployment** | **Docker / Native / Process** | Provider-managed | Manual integration |
+| **Deployment** | **Docker / Native / Virtualenv / Process** | Provider-managed | Manual integration |
 
 ---
 
@@ -239,7 +239,7 @@ No shared filesystem. No code changes. Just add more subscribers to scale.
 - **Human-in-the-loop** — pause workflows for approval, resume from CLI/UI/API
 - **20+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
 - **Any protocol** — HTTP REST, WebSocket, or MCP with one line
-- **Any runtime** — Docker, native, process, embedded — switch in one line
+- **Any runtime** — Docker, native, virtualenv, process, embedded — switch in one line
 - **Distributed** — Redis queue dispatch for horizontal scaling
 - **Instant Web UI** — Gradio-powered UI in 2 lines of YAML
 - **Streaming everywhere** — SSE, WebSocket, and inter-job streams as first-class values

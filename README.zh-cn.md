@@ -228,7 +228,7 @@ controller:
 | **Runtime Flexibility** | **Hybrid-First（本地 + 云端）** | 仅限云端 | 定制复杂 |
 | **Protocol Support** | **HTTP / WebSocket / MCP** | 提供商限定 | 有限 |
 | **Data Streaming** | **所有阶段一等支持** | 仅响应（SSE 令牌） | 框架封装的生成器 |
-| **Deployment** | **Docker / Native / Process** | 提供商管理 | 手动集成 |
+| **Deployment** | **Docker / Native / Virtualenv / Process** | 提供商管理 | 手动集成 |
 
 ---
 
@@ -239,7 +239,7 @@ controller:
 - **Human-in-the-loop** —— 暂停工作流以获得审批，通过 CLI/UI/API 恢复
 - **20+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
 - **任意协议** —— HTTP REST、WebSocket 或 MCP 只需一行
-- **任意运行时** —— Docker、原生、进程、嵌入式 —— 一行切换
+- **任意运行时** —— Docker、原生、virtualenv、进程、嵌入式 —— 一行切换
 - **分布式** —— 基于 Redis 队列的分发实现水平扩展
 - **即时 Web UI** —— 2 行 YAML 即可获得 Gradio UI
 - **随处流式传输** —— SSE、WebSocket 和作业间流作为一等值

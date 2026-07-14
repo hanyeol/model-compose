@@ -113,7 +113,7 @@ component:
     user_prompt: ${input.question}
 ```
 
-Ten working agents live under [agents/](examples/agents/), including a code reviewer, a RAG assistant, and a Web3 airdrop hunter.
+See simple agents like a code reviewer, a RAG assistant, and a web researcher in [agents/](examples/agents/).
 
 ### 🔍 RAG Pipelines
 
@@ -151,7 +151,7 @@ controller:
     port: 8080
 ```
 
-Full examples live in [mcp-servers/](examples/mcp-servers/), including a Korea DART MCP and a Slack bot MCP.
+Full examples live in [mcp-servers/](examples/mcp-servers/), including a Slack bot MCP.
 
 ### ⚡ Streaming Multi-Modal Workflows
 
@@ -252,7 +252,7 @@ Over 100 ready-to-run examples organized by category:
 
 | Category | What's inside |
 |---|---|
-| [`agents/`](examples/agents/) | Code reviewer, RAG assistant, Web researcher, Web3 airdrop hunter, ... |
+| [`agents/`](examples/agents/) | Code reviewer, RAG assistant, Web researcher, Web page analyzer, ... |
 | [`showcase/`](examples/showcase/) | End-to-end pipelines: disk analysis, face-based scene search, real-time TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
 | [`model-tasks/`](examples/model-tasks/) | Local chat, embedding, TTS, VLM, face embedding, ... |

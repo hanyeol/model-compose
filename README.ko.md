@@ -113,7 +113,7 @@ component:
     user_prompt: ${input.question}
 ```
 
-[agents/](examples/agents/) 아래에 코드 리뷰어, RAG 어시스턴트, Web3 에어드랍 헌터를 포함한 10개의 실전 에이전트가 있습니다.
+[agents/](examples/agents/)에서 코드 리뷰어, RAG 어시스턴트, 웹 리서처 같은 심플한 에이전트를 확인해보세요.
 
 ### 🔍 RAG 파이프라인
 
@@ -151,7 +151,7 @@ controller:
     port: 8080
 ```
 
-Korea DART MCP와 Slack 봇 MCP 등 전체 예제는 [mcp-servers/](examples/mcp-servers/)에서 확인할 수 있습니다.
+Slack 봇 MCP 등 전체 예제는 [mcp-servers/](examples/mcp-servers/)에서 확인할 수 있습니다.
 
 ### ⚡ 스트리밍 멀티모달 워크플로우
 
@@ -252,7 +252,7 @@ controller:
 
 | 카테고리 | 담긴 내용 |
 |---|---|
-| [`agents/`](examples/agents/) | 코드 리뷰어, RAG 어시스턴트, 웹 리서처, Web3 에어드랍 헌터, ... |
+| [`agents/`](examples/agents/) | 코드 리뷰어, RAG 어시스턴트, 웹 리서처, 웹 페이지 분석기, ... |
 | [`showcase/`](examples/showcase/) | end-to-end 파이프라인: 디스크 분석, 얼굴 기반 장면 검색, 실시간 TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
 | [`model-tasks/`](examples/model-tasks/) | 로컬 챗, 임베딩, TTS, VLM, 얼굴 임베딩, ... |

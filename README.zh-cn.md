@@ -113,7 +113,7 @@ component:
     user_prompt: ${input.question}
 ```
 
-[agents/](examples/agents/) 下有 10 个可运行的智能体，包括代码审查、RAG 助手、Web3 空投猎手等。
+在 [agents/](examples/agents/) 中查看代码审查、RAG 助手、网络研究员等简单智能体。
 
 ### 🔍 RAG 管道
 
@@ -151,7 +151,7 @@ controller:
     port: 8080
 ```
 
-完整示例位于 [mcp-servers/](examples/mcp-servers/)，包括 Korea DART MCP 和 Slack 机器人 MCP。
+完整示例位于 [mcp-servers/](examples/mcp-servers/)，包括 Slack 机器人 MCP。
 
 ### ⚡ 流式多模态工作流
 
@@ -252,7 +252,7 @@ controller:
 
 | 分类 | 内容 |
 |---|---|
-| [`agents/`](examples/agents/) | 代码审查、RAG 助手、网络研究员、Web3 空投猎手等 |
+| [`agents/`](examples/agents/) | 代码审查、RAG 助手、网络研究员、网页分析等 |
 | [`showcase/`](examples/showcase/) | 端到端管道：磁盘分析、基于人脸的场景搜索、实时 TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI、Anthropic、xAI、Google、ElevenLabs、vLLM |
 | [`model-tasks/`](examples/model-tasks/) | 本地聊天、嵌入、TTS、VLM、人脸嵌入等 |

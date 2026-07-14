@@ -36,13 +36,15 @@ AI systems should not be locked into a single provider, runtime, or cloud. They 
 
 Today, many AI applications are tightly coupled to provider-specific APIs, managed runtimes, and closed ecosystems. While convenient at first, this coupling introduces vendor lock-in — components can't be swapped without rewriting, systems can't move between environments, and teams are forced to choose between cloud convenience and local control.
 
-**model-compose** takes a fundamentally different approach based on three core principles:
+**model-compose** takes a fundamentally different approach based on four core principles:
 
 * **Composable** — Models, agents, workflows, tools, memory, and protocols are treated as modular, interchangeable building blocks.
 
 * **Portable** — Define your AI system once, then deploy it locally, in containers, or across distributed production environments without re-engineering the core architecture.
 
 * **Hybrid-First** — Bridge cloud APIs and local models on your own terms. Swap infrastructure layers seamlessly to optimize for privacy, latency, or cost without changing how your system behaves.
+
+* **Stream-Native** — Data flows through workflows as it arrives. Tokens, audio chunks, video frames, and live events are first-class values — no buffering an entire response before the next stage begins.
 
 The goal of model-compose is not to build another closed platform, but to restore architectural autonomy to developers.
 

@@ -1,0 +1,16 @@
+psutil>=5.9
+numpy>=1.26,<2.2
+torch>=2.2
+torchaudio>=2.2
+torchcodec>=0.4
+accelerate>=0.30
+transformers>=4.44
+faster-whisper>=1.0
+sentence-transformers>=3.0
+faiss-cpu>=1.8
+chromadb>=0.5
+langgraph>=0.2
+langchain-core>=0.3
+langchain-text-splitters>=0.3
+llama-index-core>=0.14
+llama-index-embeddings-huggingface>=0.7

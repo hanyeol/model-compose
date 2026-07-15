@@ -1,0 +1,85 @@
+# 3-stage streaming pipeline: STT -> text splitter -> embedding.
+#
+# Uses the same models as the LangGraph baselines so the comparison
+# isolates the orchestrator, not the model choices. The workflow output
+# is the embedding stream; the driver drains it to observe pipelining.
+
+controller: {}
+
+workflow:
+  title: Audio streaming pipeline benchmark
+  output: ${jobs.embed.output as stream}
+  jobs:
+    - id: read-audio
+      component: audio-store
+      action: read
+      input:
+        path: ${input.audio_path}
+      output: ${output}
+
+    - id: stt
+      component: whisper
+      depends_on: [ read-audio ]
+      input:
+        audio: ${jobs.read-audio.output.content as audio}
+      output: ${output as stream/text}
+
+    - id: split
+      component: splitter
+      depends_on: [ stt ]
+      input:
+        text: ${jobs.stt.output}
+      output: ${output as stream/text}
+
+    - id: embed
+      component: embedder
+      depends_on: [ split ]
+      input:
+        text: ${jobs.split.output}
+      output: ${output}
+
+components:
+  - id: audio-store
+    type: file-store
+    driver: local
+    base_path: ${env.BENCH_AUDIO_DIR}
+    actions:
+      - id: read
+        method: get
+        path: ${input.path}
+        streaming: true
+        chunk_size: 3200
+
+  - id: whisper
+    type: model
+    task: speech-to-text
+    driver: custom
+    family: faster-whisper
+    model: Systran/faster-whisper-base
+    device: cpu  # CTranslate2 has no MPS backend for macOS
+    compute_type: int8
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio as audio}
+      language: en
+      task: transcribe
+      streaming: true
+
+  - id: splitter
+    type: text-splitter
+    action:
+      text: ${input.text}
+      chunk_size: 200
+      chunk_overlap: 20
+      streaming: true
+
+  - id: embedder
+    type: model
+    task: text-embedding
+    driver: huggingface
+    architecture: sbert
+    model: sentence-transformers/all-MiniLM-L6-v2
+    device: mps
+    max_concurrent_count: 1
+    action:
+      text: ${input.text}

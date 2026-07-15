@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Voice Activity Detection
+  description: Detect speech segments in an audio file using a local Silero VAD model.
+  job:
+    input: ${input}
+    output:
+      segments: ${output as json}
+
+component:
+  type: model
+  task: voice-activity-detection
+  driver: custom
+  family: silero
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: ${input.sample_rate | 16000}
+    params:
+      threshold: ${input.threshold | 0.5}
+      min_speech_duration: ${input.min_speech_duration | 250ms}
+      min_silence_duration: ${input.min_silence_duration | 500ms}
+      speech_padding_time: ${input.speech_padding_time | 100ms}
+

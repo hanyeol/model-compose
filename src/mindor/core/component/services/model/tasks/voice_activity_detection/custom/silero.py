@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     import numpy as np
     import torch
 
-WINDOW_SIZE_SAMPLES_16K = 512
-WINDOW_SIZE_SAMPLES_8K  = 256
+_WINDOW_SIZE_SAMPLES_16K = 512
+_WINDOW_SIZE_SAMPLES_8K  = 256
 
 class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
     def __init__(
@@ -30,13 +30,13 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         self.model: Any = model
 
     async def _detect(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
-        target_sr = int(params["sample_rate"])
-        waveforms = [ await self._preprocess_audio(audio, target_sr) for audio in audios ]
+        sample_rate = int(params["sample_rate"])
+        waveforms = [ await self._preprocess_audio(audio, sample_rate) for audio in audios ]
 
         if streaming:
-            return [ self._detect_stream(waveform, target_sr, params) for waveform in waveforms ]
+            return [ self._detect_stream(waveform, sample_rate, params) for waveform in waveforms ]
 
-        return [ self._detect_full(waveform, target_sr, params) for waveform in waveforms ]
+        return [ self._detect_full(waveform, sample_rate, params) for waveform in waveforms ]
 
     def _detect_full(self, waveform: np.ndarray, sample_rate: int, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import torch
@@ -57,23 +57,83 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         return [ self._build_segment(tensor, ts, sample_rate) for ts in timestamps ]
 
     def _detect_stream(self, waveform: np.ndarray, sample_rate: int, params: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """Online per-frame VAD: emit each segment as soon as its trailing silence
+        exceeds min_silence_duration, without waiting for the whole audio to finish.
+        """
         import torch
-        from silero_vad import get_speech_timestamps
+
+        threshold           = float(params["threshold"])
+        neg_threshold       = max(threshold - 0.15, 0.01)
+        window_size         = _WINDOW_SIZE_SAMPLES_16K if sample_rate == 16000 else _WINDOW_SIZE_SAMPLES_8K
+        min_speech_samples  = int(params["min_speech_duration"] * sample_rate)
+        min_silence_samples = int(params["min_silence_duration"] * sample_rate)
+        speech_pad_samples  = int(params["speech_padding_time"] * sample_rate)
 
         tensor = torch.from_numpy(waveform)
-        timestamps = get_speech_timestamps(
-            tensor,
-            self.model,
-            sampling_rate=sample_rate,
-            threshold=float(params["threshold"]),
-            min_speech_duration_ms=int(params["min_speech_duration"] * 1000),
-            min_silence_duration_ms=int(params["min_silence_duration"] * 1000),
-            speech_pad_ms=int(params["speech_padding_time"] * 1000),
-            return_seconds=False,
-        )
+        audio_length = int(tensor.shape[-1])
 
-        for ts in timestamps:
-            yield self._build_segment(tensor, ts, sample_rate)
+        self.model.reset_states()
+
+        probs_in_segment: List[float] = []
+        speech_start: Optional[int] = None
+        temp_end = 0
+        triggered = False
+
+        with torch.no_grad():
+            for offset in range(0, audio_length, window_size):
+                chunk = tensor[offset:offset + window_size]
+
+                if chunk.shape[-1] < window_size:
+                    chunk = torch.nn.functional.pad(chunk, (0, window_size - chunk.shape[-1]))
+
+                prob = self.model(chunk, sample_rate).item()
+
+                # Speech resumed inside a candidate silence: cancel the pending end.
+                if prob >= threshold and temp_end:
+                    temp_end = 0
+
+                # Start of speech.
+                if prob >= threshold and not triggered:
+                    triggered = True
+                    speech_start = offset
+                    probs_in_segment = [prob]
+                    continue
+
+                if triggered:
+                    probs_in_segment.append(prob)
+
+                    # Silence while in speech: arm a candidate end, confirm once it grows past min_silence.
+                    if prob < neg_threshold:
+                        if not temp_end:
+                            temp_end = offset
+                        elif offset - temp_end >= min_silence_samples:
+                            speech_end = temp_end
+                            if speech_end - speech_start > min_speech_samples:
+                                yield self._build_padded_segment(
+                                    speech_start,
+                                    speech_end,
+                                    probs_in_segment,
+                                    audio_length,
+                                    sample_rate,
+                                    speech_pad_samples,
+                                )
+                            triggered = False
+                            speech_start = None
+                            temp_end = 0
+                            probs_in_segment = []
+
+        # Flush trailing unconfirmed segment at end-of-audio.
+        if triggered and speech_start is not None and audio_length - speech_start > min_speech_samples:
+            yield self._build_padded_segment(
+                speech_start,
+                audio_length,
+                probs_in_segment,
+                audio_length,
+                sample_rate,
+                speech_pad_samples,
+            )
+
+        self.model.reset_states()
 
     async def _preprocess_audio(self, audio: MediaSource, target_sample_rate: int) -> np.ndarray:
         import numpy as np
@@ -101,10 +161,28 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
             "confidence": self._compute_confidence(waveform, start_sample, end_sample, sample_rate),
         }
 
+    def _build_padded_segment(
+        self,
+        start_sample: int,
+        end_sample: int,
+        probs: List[float],
+        audio_length: int,
+        sample_rate: int,
+        pad_samples: int,
+    ) -> Dict[str, Any]:
+        padded_start = max(0, start_sample - pad_samples)
+        padded_end   = min(audio_length, end_sample + pad_samples)
+
+        return {
+            "start":      padded_start / sample_rate,
+            "end":        padded_end / sample_rate,
+            "confidence": float(sum(probs) / len(probs)) if probs else 0.0,
+        }
+
     def _compute_confidence(self, waveform: torch.Tensor, start_sample: int, end_sample: int, sample_rate: int) -> float:
         import torch
 
-        window_size = WINDOW_SIZE_SAMPLES_16K if sample_rate == 16000 else WINDOW_SIZE_SAMPLES_8K
+        window_size = _WINDOW_SIZE_SAMPLES_16K if sample_rate == 16000 else _WINDOW_SIZE_SAMPLES_8K
 
         start_sample = max(0, start_sample)
         end_sample = min(int(waveform.shape[-1]), end_sample)

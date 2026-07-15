@@ -23,7 +23,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
+    ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
 
         def _cleanup() -> None:
@@ -46,24 +46,21 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         cleanup: Callable[[], None],
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
         try:
             scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
 
-            return {
-                "scenes": [
-                    {
-                        "index": i,
-                        "start": start.get_timecode(),
-                        "end": end.get_timecode(),
-                        "start_frame": start.get_frames(),
-                        "end_frame": end.get_frames(),
-                        "duration": (end - start).get_timecode()
-                    }
-                    for i, (start, end) in enumerate(scenes)
-                ],
-                "total_scenes": len(scenes)
-            }
+            return [
+                {
+                    "index": i,
+                    "start": start.get_timecode(),
+                    "end": end.get_timecode(),
+                    "start_frame": start.get_frames(),
+                    "end_frame": end.get_frames(),
+                    "duration": (end - start).get_timecode()
+                }
+                for i, (start, end) in enumerate(scenes)
+            ]
         finally:
             cleanup()
 

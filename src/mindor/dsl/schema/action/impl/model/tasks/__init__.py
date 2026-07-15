@@ -16,4 +16,5 @@ from .face_embedding import *
 from .face_swap import *
 from .text_to_speech import *
 from .speech_to_text import *
+from .voice_activity_detection import *
 from .music_generation import *

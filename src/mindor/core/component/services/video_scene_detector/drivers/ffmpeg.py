@@ -27,7 +27,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
+    ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
         threshold = threshold if threshold is not None else 0.3
 
@@ -65,7 +65,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         duration: float,
         frame_rate: float,
         cleanup: Callable[[], None],
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
         """Run ffmpeg to completion and assemble the per-video scene result."""
         async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], bytes]:
             timestamps: List[float] = []
@@ -111,7 +111,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                     "duration": format_timecode(end - start)
                 })
 
-            return { "scenes": scenes, "total_scenes": len(scenes) }
+            return scenes
         finally:
             cleanup()
 

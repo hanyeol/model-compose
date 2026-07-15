@@ -81,7 +81,7 @@ class VideoSceneDetectorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> List[Optional[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]]:
+    ) -> List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]]:
         return await asyncio.gather(*[
             self._process(video, params, streaming, loop) for video in videos
         ])
@@ -92,7 +92,7 @@ class VideoSceneDetectorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> Optional[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
+    ) -> Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         if video is None:
             logging.debug("Video scene detector skipped because no video was provided.")
             return None
@@ -117,5 +117,5 @@ class VideoSceneDetectorAction:
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]:
+    ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
         pass

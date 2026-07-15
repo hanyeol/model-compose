@@ -25,7 +25,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
-    ) -> Union[Dict[str, Any], AsyncIterator[Dict[str, Any]]]:
+    ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
         threshold = threshold if threshold is not None else 0.5
 
@@ -48,7 +48,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         cleanup: Callable[[], None],
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
         try:
             scene_frames, frame_rate = await self._detect_scenes(input_path, threshold, start_time, end_time)
 
@@ -71,7 +71,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
 
             logging.debug(f"TransNetV2 detected {len(scenes)} scenes")
 
-            return { "scenes": scenes, "total_scenes": len(scenes) }
+            return scenes
         finally:
             cleanup()
 

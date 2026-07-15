@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
+from mindor.dsl.schema.component import HuggingfaceTextEmbeddingModelArchitecture
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -11,6 +12,7 @@ from .common import TextEmbeddingTaskAction
 import asyncio
 
 if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
     from transformers import PreTrainedModel, PreTrainedTokenizer
     from transformers.modeling_outputs import BaseModelOutput
     from torch import Tensor
@@ -20,14 +22,16 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizer,
+        architecture: HuggingfaceTextEmbeddingModelArchitecture,
+        model: Union[PreTrainedModel, SentenceTransformer],
+        tokenizer: Optional[PreTrainedTokenizer],
         device: torch.device
     ):
         super().__init__(config)
 
-        self.model: PreTrainedModel = model
-        self.tokenizer: PreTrainedTokenizer = tokenizer
+        self.architecture: HuggingfaceTextEmbeddingModelArchitecture = architecture
+        self.model: Union[PreTrainedModel, SentenceTransformer] = model
+        self.tokenizer: Optional[PreTrainedTokenizer] = tokenizer
         self.device: torch.device = device
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -48,6 +52,9 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         return params
 
     async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+        if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
+            return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
+
         import torch, torch.nn.functional as F
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
@@ -90,18 +97,44 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        requirements = super().get_setup_requirements() or []
+
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
+            return [ *requirements, "sentence-transformers" ]
+
+        return requirements
+
+    async def _load_model(self) -> None:
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
+            from sentence_transformers import SentenceTransformer
+            device = self._resolve_device(self.config.device)
+            self.model = SentenceTransformer(self._get_model_path(self.config), device=str(device.type))
+            self.device = device
+            return
+
+        await super()._load_model()
+
     async def _run(
         self,
         action: ModelActionConfig,
         context: ComponentActionContext,
         loop: asyncio.AbstractEventLoop
     ) -> Any:
-        return await HuggingfaceTextEmbeddingTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context, loop)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.BERT:
+            from transformers import BertModel
+            return BertModel
+
         from transformers import AutoModel
         return AutoModel
 
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.BERT:
+            from transformers import BertTokenizer
+            return BertTokenizer
+
         from transformers import AutoTokenizer
         return AutoTokenizer

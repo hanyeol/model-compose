@@ -40,7 +40,7 @@ workflows:
       - id: per-scene
         type: for-each
         depends_on: [ target-embed, scenes ]
-        input: ${jobs.scenes.output.scenes as list}
+        input: ${jobs.scenes.output as list}
         do:
           component: match-scene-ref
           input:
@@ -70,7 +70,7 @@ workflows:
 
     output:
       matched_scenes: ${jobs.collect.output as json}
-      all_scenes: ${jobs.scenes.output.scenes as json}
+      all_scenes: ${jobs.scenes.output as json}
 
   # ---------------- Sub-workflow: process one scene ----------------
   - id: match-one-scene

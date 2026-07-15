@@ -147,43 +147,38 @@ cd examples/video-scene-detector
 
 ### 输出格式
 
-所有工作流返回相同的输出结构：
+所有工作流返回一个扁平的场景列表。
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| `scenes` | array | 检测到的场景列表 |
-| `scenes[].index` | integer | 场景索引（从 0 开始） |
-| `scenes[].start` | string | 场景开始时间码（HH:MM:SS.mmm） |
-| `scenes[].end` | string | 场景结束时间码（HH:MM:SS.mmm） |
-| `scenes[].start_frame` | integer | 场景开始帧号 |
-| `scenes[].end_frame` | integer | 场景结束帧号 |
-| `scenes[].duration` | string | 场景持续时间码 |
-| `total_scenes` | integer | 检测到的总场景数 |
+| `index` | integer | 场景索引（从 0 开始） |
+| `start` | string | 场景开始时间码（HH:MM:SS.mmm） |
+| `end` | string | 场景结束时间码（HH:MM:SS.mmm） |
+| `start_frame` | integer | 场景开始帧号 |
+| `end_frame` | integer | 场景结束帧号 |
+| `duration` | string | 场景持续时间码 |
 
 #### 输出示例
 
 ```json
-{
-  "scenes": [
-    {
-      "index": 0,
-      "start": "00:00:00.000",
-      "end": "00:00:12.345",
-      "start_frame": 0,
-      "end_frame": 370,
-      "duration": "00:00:12.345"
-    },
-    {
-      "index": 1,
-      "start": "00:00:12.345",
-      "end": "00:00:28.678",
-      "start_frame": 370,
-      "end_frame": 860,
-      "duration": "00:00:16.333"
-    }
-  ],
-  "total_scenes": 2
-}
+[
+  {
+    "index": 0,
+    "start": "00:00:00.000",
+    "end": "00:00:12.345",
+    "start_frame": 0,
+    "end_frame": 370,
+    "duration": "00:00:12.345"
+  },
+  {
+    "index": 1,
+    "start": "00:00:12.345",
+    "end": "00:00:28.678",
+    "start_frame": 370,
+    "end_frame": 860,
+    "duration": "00:00:16.333"
+  }
+]
 ```
 
 ## 自定义

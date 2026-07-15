@@ -147,43 +147,38 @@ cd examples/video-scene-detector
 
 ### 출력 형식
 
-모든 워크플로우는 동일한 출력 구조를 반환합니다:
+모든 워크플로우는 감지된 장면들의 평평한 리스트를 반환합니다.
 
 | 필드 | 유형 | 설명 |
 |-----|------|------|
-| `scenes` | array | 감지된 장면 목록 |
-| `scenes[].index` | integer | 장면 인덱스 (0부터 시작) |
-| `scenes[].start` | string | 장면 시작 타임코드 (HH:MM:SS.mmm) |
-| `scenes[].end` | string | 장면 종료 타임코드 (HH:MM:SS.mmm) |
-| `scenes[].start_frame` | integer | 장면 시작 프레임 번호 |
-| `scenes[].end_frame` | integer | 장면 종료 프레임 번호 |
-| `scenes[].duration` | string | 장면 지속 시간 타임코드 |
-| `total_scenes` | integer | 감지된 총 장면 수 |
+| `index` | integer | 장면 인덱스 (0부터 시작) |
+| `start` | string | 장면 시작 타임코드 (HH:MM:SS.mmm) |
+| `end` | string | 장면 종료 타임코드 (HH:MM:SS.mmm) |
+| `start_frame` | integer | 장면 시작 프레임 번호 |
+| `end_frame` | integer | 장면 종료 프레임 번호 |
+| `duration` | string | 장면 지속 시간 타임코드 |
 
 #### 출력 예시
 
 ```json
-{
-  "scenes": [
-    {
-      "index": 0,
-      "start": "00:00:00.000",
-      "end": "00:00:12.345",
-      "start_frame": 0,
-      "end_frame": 370,
-      "duration": "00:00:12.345"
-    },
-    {
-      "index": 1,
-      "start": "00:00:12.345",
-      "end": "00:00:28.678",
-      "start_frame": 370,
-      "end_frame": 860,
-      "duration": "00:00:16.333"
-    }
-  ],
-  "total_scenes": 2
-}
+[
+  {
+    "index": 0,
+    "start": "00:00:00.000",
+    "end": "00:00:12.345",
+    "start_frame": 0,
+    "end_frame": 370,
+    "duration": "00:00:12.345"
+  },
+  {
+    "index": 1,
+    "start": "00:00:12.345",
+    "end": "00:00:28.678",
+    "start_frame": 370,
+    "end_frame": 860,
+    "duration": "00:00:16.333"
+  }
+]
 ```
 
 ## 맞춤화

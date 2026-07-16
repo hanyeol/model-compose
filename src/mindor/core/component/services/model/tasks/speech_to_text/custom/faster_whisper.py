@@ -68,12 +68,21 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         return params
 
     async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        waveforms = [ await self._preprocess_audio(audio) for audio in audios ]
+        waveforms = await self._preprocess_audio(audios)
 
         if streaming:
             return [ self._transcribe_stream(waveform, params["transcribe"]) for waveform in waveforms ]
 
         return [ self._transcribe_full(waveform, params["transcribe"]) for waveform in waveforms ]
+
+    async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
+        import numpy as np
+
+        async def _prepare(audio: MediaSource) -> np.ndarray:
+            waveform, _ = await load_audio_array(audio, sample_rate=16000)
+            return waveform.astype(np.float32)
+
+        return [ await _prepare(audio) for audio in audios ]
 
     def _transcribe_full(self, waveform: np.ndarray, params: Dict[str, Any]) -> str:
         segments, _ = self.model.transcribe(waveform, **params)
@@ -83,22 +92,6 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         segments, _ = self.model.transcribe(waveform, **params)
         for segment in segments:
             yield segment.text
-
-    async def _preprocess_audio(self, audio: MediaSource) -> np.ndarray:
-        import numpy as np
-        import torch
-        import torchaudio.functional as F
-
-        waveform, sample_rate = await load_audio_array(audio)
-
-        if waveform.ndim > 1:
-            waveform = waveform.mean(axis=0)  # mono
-
-        if sample_rate != 16000:
-            tensor = torch.from_numpy(waveform).float()
-            waveform = F.resample(tensor, sample_rate, 16000).numpy()
-
-        return waveform.astype(np.float32)
 
 class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
     config: FasterWhisperSpeechToTextModelComponentConfig
@@ -110,7 +103,7 @@ class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "faster-whisper", "torch", "torchaudio", "numpy" ]
+        return [ "faster-whisper", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

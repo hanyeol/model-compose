@@ -83,7 +83,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         import torch
 
-        waveforms = [ await self._preprocess_audio(audio) for audio in audios ]
+        waveforms = await self._preprocess_audio(audios)
 
         input_features = self.processor(
             waveforms,
@@ -105,11 +105,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             def _run():
                 try:
                     with torch.inference_mode():
-                        self.model.generate(
-                            **input_features,
-                            **params["generation"],
-                            streamer=streamer
-                        )
+                        self.model.generate(**input_features, **params["generation"], streamer=streamer)
                 except BaseException:
                     logging.exception("Whisper streaming generate failed")
                 finally:
@@ -120,28 +116,18 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             return [ streamer[index] for index in range(len(waveforms)) ]
 
         with torch.inference_mode():
-            predicted_ids = self.model.generate(
-                **input_features,
-                **params["generation"]
-            )
+            predicted_ids = self.model.generate( **input_features, **params["generation"])
 
         return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
 
-    async def _preprocess_audio(self, audio: MediaSource) -> np.ndarray:
+    async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         import numpy as np
-        import torch
-        import torchaudio.functional as F
 
-        waveform, sample_rate = await load_audio_array(audio)
+        async def _prepare(audio: MediaSource) -> np.ndarray:
+            waveform, _ = await load_audio_array(audio, sample_rate=16000)
+            return waveform.astype(np.float32)
 
-        if waveform.ndim > 1:
-            waveform = waveform.mean(axis=0)  # mono
-
-        if sample_rate != 16000:
-            tensor = torch.from_numpy(waveform).float()
-            waveform = F.resample(tensor, sample_rate, 16000).numpy()
-
-        return waveform.astype(np.float32)
+        return [ await _prepare(audio) for audio in audios ]
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
@@ -180,5 +166,6 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
             "transformers>=4.21.0",
             "torch",
             "torchaudio",
-            "accelerate"
+            "accelerate",
+            "soxr",
         ]

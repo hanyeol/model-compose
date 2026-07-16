@@ -118,8 +118,7 @@ class TestInputPathResolution:
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
         assert observed_paths == [sample_video], "FileStreamResource path should pass through unchanged"
-        assert isinstance(result, dict)
-        assert "scenes" in result
+        assert isinstance(result, list)
 
     @pytest.mark.anyio
     async def test_bytes_input_is_spooled(self, sample_video):
@@ -144,7 +143,7 @@ class TestInputPathResolution:
         assert len(observed_paths) == 1
         # Spooled path must differ from the original input fixture.
         assert observed_paths[0] != sample_video
-        assert isinstance(result, dict)
+        assert isinstance(result, list)
 
     @pytest.mark.anyio
     async def test_spooled_temp_file_is_cleaned_up(self, sample_video, monkeypatch):
@@ -197,7 +196,7 @@ class TestResultBuilding:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_boundary_above_threshold_yields_two_scenes(self, sample_video):
@@ -215,7 +214,7 @@ class TestResultBuilding:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] >= 2
+        assert len(result) >= 2
 
     @pytest.mark.anyio
     async def test_scene_entry_schema(self, sample_video):
@@ -231,7 +230,7 @@ class TestResultBuilding:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        scene = result["scenes"][0]
+        scene = result[0]
         for key in ("index", "start", "end", "start_frame", "end_frame", "duration"):
             assert key in scene, f"missing field: {key}"
         assert isinstance(scene["index"], int)
@@ -262,7 +261,7 @@ class TestTimeFiltering:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_end_time_skips_late_boundary(self, sample_video):
@@ -281,7 +280,7 @@ class TestTimeFiltering:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_time_window_keeps_inner_boundary(self, sample_video):
@@ -300,7 +299,7 @@ class TestTimeFiltering:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] >= 2
+        assert len(result) >= 2
 
     @pytest.mark.anyio
     async def test_empty_window_yields_no_scenes(self, sample_video):
@@ -316,4 +315,4 @@ class TestTimeFiltering:
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 0
+        assert len(result) == 0

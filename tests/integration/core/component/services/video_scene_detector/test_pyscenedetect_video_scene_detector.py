@@ -132,10 +132,9 @@ class TestPySceneDetector:
 
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert "scenes" in result
-        assert "total_scenes" in result
-        assert len(result["scenes"]) == result["total_scenes"]
+        assert isinstance(result, list)
+        for scene in result:
+            assert isinstance(scene, dict)
 
     @pytest.mark.anyio
     async def test_scene_entry_schema(self, multi_scene_video):
@@ -145,8 +144,8 @@ class TestPySceneDetector:
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
         # Multi-scene fixture should yield at least one scene with all fields populated.
-        assert result["total_scenes"] >= 1
-        scene = result["scenes"][0]
+        assert len(result) >= 1
+        scene = result[0]
         for key in ("index", "start", "end", "start_frame", "end_frame", "duration"):
             assert key in scene, f"missing field: {key}"
         assert isinstance(scene["index"], int)
@@ -161,7 +160,7 @@ class TestPySceneDetector:
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
         # Hard cut between solid color and testsrc.
-        assert result["total_scenes"] >= 2
+        assert len(result) >= 2
 
     @pytest.mark.anyio
     async def test_content_detector(self, multi_scene_video):
@@ -170,8 +169,8 @@ class TestPySceneDetector:
 
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert result["total_scenes"] >= 1
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
 
 @ffmpeg_required
@@ -186,7 +185,7 @@ class TestInputPathResolution:
 
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
+        assert isinstance(result, list)
 
     @pytest.mark.anyio
     async def test_bytes_input_is_spooled(self, sample_video):
@@ -198,7 +197,7 @@ class TestInputPathResolution:
 
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
+        assert isinstance(result, list)
 
     @pytest.mark.anyio
     async def test_spooled_temp_file_is_cleaned_up(self, sample_video, monkeypatch):
@@ -231,14 +230,13 @@ class TestSingleInput:
     """I/O matrix: single input."""
 
     @pytest.mark.anyio
-    async def test_no_output_returns_single_dict(self, sample_video):
+    async def test_no_output_returns_single_list(self, sample_video):
         config = _make_config()
         ctx = _make_context(sample_video)
 
         result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert "scenes" in result and "total_scenes" in result
+        assert isinstance(result, list)
 
 
 @ffmpeg_required
@@ -246,7 +244,7 @@ class TestListInput:
     """I/O matrix: list input."""
 
     @pytest.mark.anyio
-    async def test_list_returns_list_of_dicts(self, sample_video):
+    async def test_list_returns_list_of_lists(self, sample_video):
         config = _make_config()
         ctx = _make_context([sample_video, sample_video])
 
@@ -254,7 +252,7 @@ class TestListInput:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(r, dict) for r in result)
+        assert all(isinstance(r, list) for r in result)
 
 
 @ffmpeg_required

@@ -57,7 +57,7 @@ class TestAppleContainerPortsResolver:
         assert AppleContainerPortsResolver([]).resolve() == []
 
     def test_resolve_int_port(self):
-        assert AppleContainerPortsResolver([8080]).resolve() == ["8080:8080"]
+        assert AppleContainerPortsResolver([8080]).resolve() == [ "8080:8080" ]
 
     def test_resolve_string_port(self):
         assert AppleContainerPortsResolver(["80:8080"]).resolve() == ["80:8080"]

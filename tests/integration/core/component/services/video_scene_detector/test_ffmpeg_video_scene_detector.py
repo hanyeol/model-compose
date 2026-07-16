@@ -138,11 +138,8 @@ class TestFFmpegVideoSceneDetector:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert "scenes" in result
-        assert "total_scenes" in result
-        assert result["total_scenes"] >= 1
-        assert len(result["scenes"]) == result["total_scenes"]
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
     @pytest.mark.anyio
     async def test_scene_entry_schema(self, sample_video):
@@ -150,7 +147,7 @@ class TestFFmpegVideoSceneDetector:
         ctx = _make_context(sample_video)
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
-        scene = result["scenes"][0]
+        scene = result[0]
 
         # Required fields.
         for key in ("index", "start", "end", "start_frame", "end_frame", "duration"):
@@ -172,7 +169,7 @@ class TestFFmpegVideoSceneDetector:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] >= 2
+        assert len(result) >= 2
 
     @pytest.mark.anyio
     async def test_high_threshold_reduces_scenes(self, multi_scene_video):
@@ -183,7 +180,7 @@ class TestFFmpegVideoSceneDetector:
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
         # Still one wrapping scene (boundaries=[0, duration]), but no internal cuts.
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_start_time_option(self, multi_scene_video):
@@ -193,7 +190,7 @@ class TestFFmpegVideoSceneDetector:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_end_time_option(self, multi_scene_video):
@@ -203,7 +200,7 @@ class TestFFmpegVideoSceneDetector:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert result["total_scenes"] == 1
+        assert len(result) == 1
 
     @pytest.mark.anyio
     async def test_invalid_input_raises_runtime_error(self, tmp_path):
@@ -226,8 +223,7 @@ class TestFFmpegVideoSceneDetector:
         assert result == "detected"
         registered = dict(c.args for c in ctx.register_source.call_args_list)
         assert "result" in registered
-        assert isinstance(registered["result"], dict)
-        assert "scenes" in registered["result"]
+        assert isinstance(registered["result"], list)
 
 
 @ffmpeg_required
@@ -243,8 +239,8 @@ class TestInputPathResolution:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert result["total_scenes"] >= 1
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
     @pytest.mark.anyio
     async def test_bytes_input_is_spooled(self, sample_video):
@@ -257,8 +253,8 @@ class TestInputPathResolution:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert result["total_scenes"] >= 1
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
     @pytest.mark.anyio
     async def test_unknown_format_is_spooled(self, sample_video):
@@ -271,8 +267,8 @@ class TestInputPathResolution:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert result["total_scenes"] >= 1
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
     @pytest.mark.anyio
     async def test_string_path_is_treated_as_file(self, sample_video):
@@ -282,7 +278,7 @@ class TestInputPathResolution:
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
+        assert isinstance(result, list)
 
     @pytest.mark.anyio
     async def test_spooled_temp_file_is_cleaned_up(self, sample_video, monkeypatch):
@@ -316,33 +312,31 @@ class TestSingleInput:
     """I/O matrix: single input with various output references."""
 
     @pytest.mark.anyio
-    async def test_no_output_returns_single_dict(self, sample_video):
+    async def test_no_output_returns_single_list(self, sample_video):
         config = _make_config()
         ctx = _make_context(sample_video)
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert "scenes" in result and "total_scenes" in result
-        assert result["total_scenes"] >= 1
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
     @pytest.mark.anyio
-    async def test_passthrough_output_returns_single_dict(self, sample_video):
+    async def test_passthrough_output_returns_single_list(self, sample_video):
         config = _make_config(output="${result}")
         ctx = _make_context(sample_video)
 
         result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
 
-        assert isinstance(result, dict)
-        assert "scenes" in result
+        assert isinstance(result, list)
 
 
 @ffmpeg_required
 class TestListInput:
-    """I/O matrix: list input returns list of result dicts."""
+    """I/O matrix: list input returns list of scene lists."""
 
     @pytest.mark.anyio
-    async def test_list_returns_list_of_dicts(self, sample_video):
+    async def test_list_returns_list_of_lists(self, sample_video):
         config = _make_config()
         ctx = _make_context([sample_video, sample_video])
 
@@ -350,14 +344,14 @@ class TestListInput:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(r, dict) for r in result)
-        assert all(r["total_scenes"] >= 1 for r in result)
+        assert all(isinstance(r, list) for r in result)
+        assert all(len(r) >= 1 for r in result)
 
 
 @ffmpeg_required
 class TestStreamOutput:
     """Under the new model `${result[]}` no longer forces stream mode; scene_detector's
-    unit result is always a Dict (not AsyncIterable), so neither single nor list input
+    unit result is always a List (not AsyncIterable), so neither single nor list input
     produces an AsyncIterator output."""
 
     @pytest.mark.anyio
@@ -393,7 +387,7 @@ class TestBatchSize:
 
         assert isinstance(result, list)
         assert len(result) == 3
-        assert all(isinstance(r, dict) for r in result)
+        assert all(isinstance(r, list) for r in result)
 
 
 @ffmpeg_required

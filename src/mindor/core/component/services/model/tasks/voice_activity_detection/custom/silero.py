@@ -5,10 +5,11 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, SileroVoiceActivityDetectionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, VoiceActivityDetectionModelActionConfig
-from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.streaming.audio import load_audio_array, stream_audio_array, is_audio_streamable
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ..common import VoiceActivityDetectionTaskService, VoiceActivityDetectionTaskAction
+from ..common import VoiceActivityDetectionTaskService, VoiceActivityDetectionTaskAction, VoiceSegmenter
 import asyncio
 
 if TYPE_CHECKING:
@@ -29,18 +30,74 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
         self.model: Any = model
 
-    async def _detect(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+    async def _detect(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop
+    ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+        import numpy as np
+
         sample_rate = int(params["sample_rate"])
-        waveforms = [ await self._preprocess_audio(audio, sample_rate) for audio in audios ]
+        sources, window_size = await self._preprocess_audio(audios, sample_rate, streaming)
+        results = []
 
-        if streaming:
-            return [ self._detect_stream(waveform, sample_rate, params) for waveform in waveforms ]
+        for source in sources:
+            if isinstance(source, np.ndarray):
+                segments = self._collect_detections(source, sample_rate, params)
+                if streaming:
+                    # Streaming requested but source not consumable frame-by-frame:
+                    # yield the batch segments one by one to preserve the
+                    # AsyncIterator interface expected by downstream jobs.
+                    async def _stream_chunk_generator(segments=segments):
+                        for segment in segments:
+                            yield segment
+                    results.append(_stream_chunk_generator())
+                else:
+                    results.append(segments)
+            else:
+                results.append(self._stream_detections(source, window_size, sample_rate, params))
 
-        return [ self._detect_full(waveform, sample_rate, params) for waveform in waveforms ]
+        return results
 
-    def _detect_full(self, waveform: np.ndarray, sample_rate: int, params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        import torch
+    async def _preprocess_audio(
+        self,
+        audios: List[MediaSource],
+        sample_rate: int,
+        streaming: bool,
+    ) -> Tuple[List[Union[np.ndarray, AsyncIterator[np.ndarray]]], int]:
+        import numpy as np
+
+        window_size = self._resolve_window_size(sample_rate)
+
+        async def _prepare(audio: MediaSource) -> Union[np.ndarray, AsyncIterator[np.ndarray]]:
+            if streaming and is_audio_streamable(audio):
+                return stream_audio_array(audio, window_size, sample_rate=sample_rate)
+
+            if streaming:
+                logging.debug("Streaming input format=%r not directly consumable; collating for frame-by-frame VAD.", audio.format)
+
+            waveform, _ = await load_audio_array(audio, sample_rate=sample_rate)
+
+            # Normalize integer PCM to [-1.0, 1.0] as Silero expects; float dtypes pass through.
+            if np.issubdtype(waveform.dtype, np.integer):
+                waveform = waveform.astype(np.float32) / float(np.iinfo(waveform.dtype).max)
+            else:
+                waveform = waveform.astype(np.float32)
+
+            return waveform
+
+        return [ await _prepare(audio) for audio in audios ], window_size
+
+    def _collect_detections(
+        self,
+        waveform: np.ndarray,
+        sample_rate: int,
+        params: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         from silero_vad import get_speech_timestamps
+        import torch
 
         tensor = torch.from_numpy(waveform)
         timestamps = get_speech_timestamps(
@@ -54,102 +111,69 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
             return_seconds=False,
         )
 
-        return [ self._build_segment(tensor, ts, sample_rate) for ts in timestamps ]
+        return [ self._build_segment(tensor, timestamp, sample_rate) for timestamp in timestamps ]
 
-    def _detect_stream(self, waveform: np.ndarray, sample_rate: int, params: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        """Online per-frame VAD: emit each segment as soon as its trailing silence
-        exceeds min_silence_duration, without waiting for the whole audio to finish.
-        """
+    async def _stream_detections(
+        self,
+        frames: AsyncIterator[np.ndarray],
+        window_size: int,
+        sample_rate: int,
+        params: Dict[str, Any],
+    ) -> AsyncIterator[Dict[str, Any]]:
         import torch
 
-        threshold           = float(params["threshold"])
-        neg_threshold       = max(threshold - 0.15, 0.01)
-        window_size         = _WINDOW_SIZE_SAMPLES_16K if sample_rate == 16000 else _WINDOW_SIZE_SAMPLES_8K
-        min_speech_samples  = int(params["min_speech_duration"] * sample_rate)
-        min_silence_samples = int(params["min_silence_duration"] * sample_rate)
-        speech_pad_samples  = int(params["speech_padding_time"] * sample_rate)
-
-        tensor = torch.from_numpy(waveform)
-        audio_length = int(tensor.shape[-1])
+        segmenter = self._create_segmenter(sample_rate, params)
+        offset = 0  # samples consumed so far
 
         self.model.reset_states()
+        try:
+            with torch.no_grad():
+                async for frame in frames:
+                    tensor = torch.from_numpy(frame)
+                    prob = self.model(tensor, sample_rate).item()
 
-        probs_in_segment: List[float] = []
-        speech_start: Optional[int] = None
-        temp_end = 0
-        triggered = False
+                    segment = segmenter.feed(prob, offset)
+                    if segment is not None:
+                        # audio_length is not known ahead of time; clamp trailing padding to current offset + pad.
+                        yield self._build_padded_segment(
+                            *segment,
+                            offset + segmenter.speech_pad_samples,
+                            sample_rate,
+                            segmenter.speech_pad_samples,
+                        )
 
-        with torch.no_grad():
-            for offset in range(0, audio_length, window_size):
-                chunk = tensor[offset:offset + window_size]
+                    offset += window_size
 
-                if chunk.shape[-1] < window_size:
-                    chunk = torch.nn.functional.pad(chunk, (0, window_size - chunk.shape[-1]))
+            trailing = segmenter.flush(offset)
+            if trailing is not None:
+                yield self._build_padded_segment(
+                    *trailing,
+                    offset,
+                    sample_rate,
+                    segmenter.speech_pad_samples,
+                )
+        finally:
+            self.model.reset_states()
 
-                prob = self.model(chunk, sample_rate).item()
+    def _resolve_window_size(self, sample_rate: int) -> int:
+        if sample_rate == 16000:
+            return _WINDOW_SIZE_SAMPLES_16K
 
-                # Speech resumed inside a candidate silence: cancel the pending end.
-                if prob >= threshold and temp_end:
-                    temp_end = 0
+        if sample_rate == 8000:
+            return _WINDOW_SIZE_SAMPLES_8K
 
-                # Start of speech.
-                if prob >= threshold and not triggered:
-                    triggered = True
-                    speech_start = offset
-                    probs_in_segment = [prob]
-                    continue
+        raise ValueError(f"Silero VAD supports only 8000 or 16000 Hz; got sample_rate={sample_rate}")
 
-                if triggered:
-                    probs_in_segment.append(prob)
+    def _create_segmenter(self, sample_rate: int, params: Dict[str, Any]) -> VoiceSegmenter:
+        threshold = float(params["threshold"])
 
-                    # Silence while in speech: arm a candidate end, confirm once it grows past min_silence.
-                    if prob < neg_threshold:
-                        if not temp_end:
-                            temp_end = offset
-                        elif offset - temp_end >= min_silence_samples:
-                            speech_end = temp_end
-                            if speech_end - speech_start > min_speech_samples:
-                                yield self._build_padded_segment(
-                                    speech_start,
-                                    speech_end,
-                                    probs_in_segment,
-                                    audio_length,
-                                    sample_rate,
-                                    speech_pad_samples,
-                                )
-                            triggered = False
-                            speech_start = None
-                            temp_end = 0
-                            probs_in_segment = []
-
-        # Flush trailing unconfirmed segment at end-of-audio.
-        if triggered and speech_start is not None and audio_length - speech_start > min_speech_samples:
-            yield self._build_padded_segment(
-                speech_start,
-                audio_length,
-                probs_in_segment,
-                audio_length,
-                sample_rate,
-                speech_pad_samples,
-            )
-
-        self.model.reset_states()
-
-    async def _preprocess_audio(self, audio: MediaSource, target_sample_rate: int) -> np.ndarray:
-        import numpy as np
-        import torch
-        import torchaudio.functional as F
-
-        waveform, sample_rate = await load_audio_array(audio)
-
-        if waveform.ndim > 1:
-            waveform = waveform.mean(axis=0)
-
-        if sample_rate != target_sample_rate:
-            tensor = torch.from_numpy(waveform).float()
-            waveform = F.resample(tensor, sample_rate, target_sample_rate).numpy()
-
-        return waveform.astype(np.float32)
+        return VoiceSegmenter(
+            threshold=threshold,
+            neg_threshold=max(threshold - 0.15, 0.01),
+            min_speech_samples=int(params["min_speech_duration"] * sample_rate),
+            min_silence_samples=int(params["min_silence_duration"] * sample_rate),
+            speech_pad_samples=int(params["speech_padding_time"] * sample_rate),
+        )
 
     def _build_segment(self, waveform: torch.Tensor, timestamp: Dict[str, int], sample_rate: int) -> Dict[str, Any]:
         start_sample = int(timestamp["start"])
@@ -182,7 +206,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
     def _compute_confidence(self, waveform: torch.Tensor, start_sample: int, end_sample: int, sample_rate: int) -> float:
         import torch
 
-        window_size = _WINDOW_SIZE_SAMPLES_16K if sample_rate == 16000 else _WINDOW_SIZE_SAMPLES_8K
+        window_size = self._resolve_window_size(sample_rate)
 
         start_sample = max(0, start_sample)
         end_sample = min(int(waveform.shape[-1]), end_sample)
@@ -215,7 +239,7 @@ class SileroVoiceActivityDetectionTaskService(VoiceActivityDetectionTaskService)
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "silero-vad", "torch", "torchaudio", "numpy" ]
+        return [ "silero-vad", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = self._load_pretrained_model()

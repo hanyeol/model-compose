@@ -32,6 +32,8 @@
 | `model`（chat-completion） | ✅ | `streaming: true` |
 | `model`（text-to-text） | ✅ | `streaming: true` |
 | `model`（image-to-text） | ✅ | `streaming: true` |
+| `model`（speech-to-text） | ✅ 仅输出 | `streaming: true` |
+| `model`（voice-activity-detection） | ✅ PCM 输入+输出 | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
@@ -41,6 +43,13 @@
 > `model` 组件的 `streaming` 标志在一次响应内逐 **token** 输出模型解码的内容。
 > `agent` 组件的 `streaming` 标志在 ReAct 循环跨越多次模型调用时逐 **消息** 输出（助手回复、工具结果）。
 > 两个标志作用于不同粒度，可独立启用。当 agent 设为 `streaming: true` 时，不会自动开启所用模型的 token 流式，agent 仍然接收完整的模型响应并按消息粒度转发。
+
+> **音频任务的流式说明**
+>
+> 音频任务上的 `streaming` 默认仅控制 *输出* 形态：
+>
+> - `speech-to-text`（Whisper 系列）：输入音频必须在解码开始前完整就绪（Whisper 编码器需要完整的 mel-spectrogram）。`streaming: true` 会在解码器产生 token 时逐个 emit，但音频本身不是逐帧消费的 — 首 token 延迟受输入长度下限约束。
+> - `voice-activity-detection`（silero）：对 raw PCM 源支持真正的逐帧 *输入* 流式。片段在其尾部静音确认后立即 emit。压缩输入（mp3、wav 容器等）会退化为先 collate 再逐个 yield，保留 `AsyncIterator` 接口但不再具备低延迟特性。
 
 ### 13.1.3 流式协议
 

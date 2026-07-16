@@ -33,6 +33,8 @@
 | `model` (chat-completion) | ✅ | `streaming: true` |
 | `model` (text-to-text) | ✅ | `streaming: true` |
 | `model` (image-to-text) | ✅ | `streaming: true` |
+| `model` (speech-to-text) | ✅ 출력만 | `streaming: true` |
+| `model` (voice-activity-detection) | ✅ PCM 입출력 | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
@@ -42,6 +44,13 @@
 > `model` 컴포넌트의 `streaming` 플래그는 한 번의 응답 안에서 모델이 디코딩하는 **토큰**을 흘려보냅니다.
 > `agent` 컴포넌트의 `streaming` 플래그는 ReAct 루프가 여러 번의 모델 호출에 걸쳐 생성하는 **메시지 단위**(어시스턴트 응답, 도구 결과)를 흘려보냅니다.
 > 두 플래그는 서로 다른 단위로 동작하며 독립적으로 켤 수 있습니다. agent의 `streaming: true`는 내부에서 사용하는 model의 토큰 스트리밍을 자동으로 켜지 않으며, 항상 모델의 완성된 응답을 받아 메시지 단위 chunk로 전달합니다.
+
+> **오디오 태스크의 streaming 참고**
+>
+> 오디오 태스크에서 `streaming`은 기본적으로 *출력* 형태만 제어합니다:
+>
+> - `speech-to-text` (Whisper 계열): 입력 오디오는 디코딩 시작 전에 전체가 준비되어야 합니다 (Whisper 인코더가 완결된 mel-spectrogram을 필요로 함). `streaming: true`는 디코더가 생성하는 트랜스크립션 토큰을 스트림으로 흘려보내지만, 오디오 자체를 프레임 단위로 소비하지는 않습니다. 첫 토큰 지연은 입력 길이에 하한이 있습니다.
+> - `voice-activity-detection` (silero): raw PCM 소스에 대해 진짜 프레임 단위 *입력* 스트리밍을 지원합니다. 세그먼트는 뒤따르는 침묵이 확정되는 즉시 emit됩니다. 압축 입력 (mp3, wav 컨테이너 등)은 collate 후 하나씩 yield하는 방식으로 대체되어 `AsyncIterator` 인터페이스는 유지하지만 저지연 특성은 보장하지 않습니다.
 
 ### 13.1.3 스트리밍 프로토콜
 

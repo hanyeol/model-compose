@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `text-to-speech`, `speech-to-text`, `image-generation`, `image-upscale`, `face-detection`, `pose-detection`, `face-embedding`, `music-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `face-detection`, `pose-detection`, `face-embedding`, `music-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -380,6 +380,105 @@ component:
       caption: ${response.generated_text}
 ```
 
+### Image Embedding
+
+Generate vector embeddings for images. Use this for visual similarity search, image-based dedup/clustering, or building a retrieval index over local image folders. Bi-encoder style: encode once, compare with cosine similarity downstream.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-embedding` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `custom` |
+| `architecture` | string | `auto` | HuggingFace model architecture: `auto`, `clip`, `siglip`, `dinov2` |
+
+**Architecture notes:**
+
+- `auto` — Loads with `AutoModel` + `AutoImageProcessor`. If the loaded model exposes `get_image_features` (CLIP/SigLIP family), that path is used; otherwise the encoder's `last_hidden_state` is pooled per `params.pooling`.
+- `clip` — Explicit `CLIPModel.get_image_features()`. `params.pooling` is ignored (the model has a built-in projection head).
+- `siglip` — Explicit `SiglipModel.get_image_features()`. `params.pooling` is ignored.
+- `dinov2` — Runs `AutoModel` and pools `last_hidden_state` per `params.pooling` (default `cls`).
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | string \| list \| stream | **required** | Input image (path, URL, or base64), a list of images, or an async stream. |
+| `batch_size` | integer | `8` | Number of images per forward pass. |
+| `params.pooling` | string | `cls` | Pooling strategy over patch embeddings: `cls`, `mean`, `max`. Ignored by architectures with a built-in pooler (CLIP/SigLIP). |
+| `params.normalize` | bool | `true` | L2-normalize output embeddings so cosine similarity reduces to a dot product downstream. |
+
+**Result Shape:**
+
+Single image input → a single flat vector (`List[float]`). List input → a list of vectors (`List[List[float]]`). Stream input → an async iterator that yields one vector per image.
+
+**Example — CLIP for image similarity search:**
+
+```yaml
+component:
+  type: model
+  task: image-embedding
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.paths}
+    batch_size: 16
+```
+
+**Example — DINOv2 with mean pooling:**
+
+```yaml
+component:
+  type: model
+  task: image-embedding
+  driver: huggingface
+  architecture: dinov2
+  model: facebook/dinov2-base
+  action:
+    image: ${input.image}
+    params:
+      pooling: mean
+      normalize: true
+```
+
+**Example — Persist image vectors to a vector store:**
+
+```yaml
+components:
+  - id: embedder
+    type: model
+    task: image-embedding
+    driver: huggingface
+    architecture: clip
+    model: openai/clip-vit-base-patch32
+
+  - id: vec-store
+    type: vector-store
+    driver: qdrant
+    endpoint: http://localhost:6333
+    actions:
+      - id: insert
+        method: insert
+        collection: images
+        vector: ${input.vector}
+        vector_id: ${input.id}
+
+workflows:
+  - id: index-images
+    jobs:
+      - id: embed
+        component: embedder
+        input: { image: ${input.path} }
+      - id: store
+        component: vec-store
+        action: insert
+        input:
+          id: ${input.id}
+          vector: ${jobs.embed.output}
+        depends_on: [ embed ]
+```
+
 ### Face Detection
 
 Detect faces in an image and return bounding boxes (with optional facial landmarks). This task uses `driver: custom` with a `family` field to select the model family.
@@ -651,6 +750,71 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
+### Voice Activity Detection
+
+Detect speech segments in an audio file and return their start/end timestamps with a confidence score. Silent regions are omitted from the result. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `voice-activity-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `silero`) |
+| `model` | string / config | `null` | Optional and ignored for `silero`; the model ships inside the `silero-vad` pip package |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | audio | **required** | Input audio file, list of audio inputs, or async stream |
+| `sample_rate` | int | `16000` | Target sample rate (16000 or 8000); input is resampled if needed |
+| `batch_size` | int | `1` | Number of audio inputs to process per batch |
+| `streaming` | bool | `false` | Emit each detected segment as it is confirmed (per-input stream) |
+| `params.threshold` | float | `0.5` | Speech probability threshold (0.0 - 1.0); higher = stricter |
+| `params.min_speech_duration` | duration | `"250ms"` | Minimum speech chunk duration; shorter chunks are discarded |
+| `params.min_silence_duration` | duration | `"500ms"` | Silence required to split adjacent speech chunks |
+| `params.speech_padding_time` | duration | `"100ms"` | Padding added to both sides of each detected chunk |
+
+Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: voice-activity-detection
+  driver: custom
+  family: silero
+  device: cpu
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: 16000
+    params:
+      threshold: 0.5
+      min_speech_duration: 250ms
+      min_silence_duration: 500ms
+      speech_padding_time: 100ms
+```
+
+**Result Shape:**
+
+```json
+[
+  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
+  { "start": 47.07, "end": 150.02, "confidence": 0.937 },
+  { "start": 151.10, "end": 175.24, "confidence": 0.949 }
+]
+```
+
+When the input is a list, the action returns a list of per-audio segment lists. When `streaming: true`, per-input results are async iterators that yield one segment dict at a time as speech regions are confirmed.
+
+#### Supported Families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB), 16 kHz and 8 kHz supported, frame size 32 ms @ 16 kHz |
+
 ## Multiple Actions
 
 Define multiple actions for different model operations:
@@ -759,7 +923,13 @@ component:
 
 ### Streaming Text Generation
 
-The `streaming` action field is only available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, and `image-to-text`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, and `voice-activity-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+
+**Output vs input streaming.** `streaming: true` controls only the *output* shape: results are emitted as an `AsyncIterator` of chunks instead of a single value. The *input* is still consumed in whatever shape the backend requires:
+
+- **Whisper-family `speech-to-text`** (HuggingFace, faster-whisper): the input audio must be fully available before decoding begins (encoder needs the complete 30-second mel-spectrogram). With `streaming: true`, transcription tokens are emitted as decoding produces them, but the audio itself is not consumed frame-by-frame. Latency for the first token is therefore bounded below by the time to load and process the entire input.
+- **`voice-activity-detection` (silero)**: supports true frame-by-frame online streaming when the input is a streamable PCM source (see `is_audio_streamable` — raw PCM formats with a declared sample rate). Segments are emitted as soon as their trailing silence is confirmed. For non-streamable sources (mp3, wav container, etc.) the audio is collated first and segments are then yielded one by one, preserving the `AsyncIterator` interface but not the low-latency behavior.
+- **Text tasks**: token-by-token generation is streamed as the decoder produces each token.
 
 ```yaml
 component:
@@ -921,6 +1091,11 @@ workflow:
 - **Mixedbread**: mixedbread-ai/mxbai-rerank-large-v1, mxbai-rerank-xsmall-v1
 - **Cross-Encoder**: cross-encoder/ms-marco-MiniLM-L-6-v2, ms-marco-MiniLM-L-12-v2
 
+### Image Embedding Models
+- **CLIP Family**: openai/clip-vit-base-patch32, clip-vit-large-patch14 (uses `get_image_features`)
+- **SigLIP Family**: google/siglip-base-patch16-224
+- **Self-Supervised**: facebook/dinov2-base, dinov2-small (pool `last_hidden_state`)
+
 ### Multimodal Models
 - **Image Captioning**: BLIP, ViT-GPT2
 - **Visual QA**: BLIP-VQA, ViLT
@@ -934,6 +1109,7 @@ workflow:
 - **Chatbots**: Build conversational AI systems
 - **Content Analysis**: Classify and analyze text
 - **Search**: Generate embeddings for semantic search
+- **Visual Search / Dedup**: Encode images with CLIP/DINOv2 for similarity retrieval and near-duplicate detection
 - **Translation**: Translate between languages
 - **Summarization**: Create summaries of long documents
 - **Code Generation**: Generate and complete code snippets

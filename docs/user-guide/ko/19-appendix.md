@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # 기본값: huggingface
     model: model-name-or-path          # 또는 `{ provider, repository/path, ... }` 객체
 

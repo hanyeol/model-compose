@@ -104,44 +104,39 @@ component:
 
 ## Output Format
 
-All drivers return a standardized output structure:
+All drivers return a flat list of detected scenes. In streaming mode each scene is emitted as a single chunk.
 
 ```json
-{
-  "scenes": [
-    {
-      "index": 0,
-      "start": "00:00:00.000",
-      "end": "00:00:12.345",
-      "start_frame": 0,
-      "end_frame": 370,
-      "duration": "00:00:12.345"
-    },
-    {
-      "index": 1,
-      "start": "00:00:12.345",
-      "end": "00:00:28.678",
-      "start_frame": 370,
-      "end_frame": 860,
-      "duration": "00:00:16.333"
-    }
-  ],
-  "total_scenes": 2
-}
+[
+  {
+    "index": 0,
+    "start": "00:00:00.000",
+    "end": "00:00:12.345",
+    "start_frame": 0,
+    "end_frame": 370,
+    "duration": "00:00:12.345"
+  },
+  {
+    "index": 1,
+    "start": "00:00:12.345",
+    "end": "00:00:28.678",
+    "start_frame": 370,
+    "end_frame": 860,
+    "duration": "00:00:16.333"
+  }
+]
 ```
 
-### Output Fields
+### Scene Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `scenes` | array | List of detected scenes |
-| `scenes[].index` | integer | Scene index (0-based) |
-| `scenes[].start` | string | Scene start timecode (HH:MM:SS.mmm) |
-| `scenes[].end` | string | Scene end timecode (HH:MM:SS.mmm) |
-| `scenes[].start_frame` | integer | Scene start frame number |
-| `scenes[].end_frame` | integer | Scene end frame number |
-| `scenes[].duration` | string | Scene duration timecode |
-| `total_scenes` | integer | Total number of detected scenes |
+| `index` | integer | Scene index (0-based) |
+| `start` | string | Scene start timecode (HH:MM:SS.mmm) |
+| `end` | string | Scene end timecode (HH:MM:SS.mmm) |
+| `start_frame` | integer | Scene start frame number |
+| `end_frame` | integer | Scene end frame number |
+| `duration` | string | Scene duration timecode |
 
 ## Multiple Actions Configuration
 
@@ -213,7 +208,7 @@ workflows:
             - role: user
               content: |
                 Analyze the following scene data and provide a summary:
-                ${jobs.detect.output.scenes}
+                ${jobs.detect.output}
         depends_on: [detect]
 
 components:

@@ -250,8 +250,10 @@ model-compose 支持以下任务类型：
 | `text-classification` | 文本分类 | 情感分析、主题分类 |
 | `image-to-text` | 图像描述 | 图像描述、VQA |
 | `image-text-to-text` | 视觉语言生成 | 多模态推理、视觉问答 |
+| `image-embedding` | 图像嵌入 | 视觉检索、图像去重、聚类 |
 | `text-to-speech` | 文本转语音 | 语音生成、克隆、设计 |
 | `speech-to-text` | 语音转文本 | 语音识别、转录 |
+| `voice-activity-detection` | 检测音频中的语音片段 | ASR 前的静音过滤、字幕分割 |
 | `image-generation` | 图像生成 | 文本到图像转换 |
 | `image-upscale` | 图像放大 | 分辨率增强 |
 | `face-detection` | 人脸检测 | 人脸定位、边界框 |
@@ -417,7 +419,35 @@ component:
 - `git`：生成式图像到文本
 - `vit-gpt2`：视觉转换器 + GPT-2
 
-### 10.3.7 image-generation
+### 10.3.7 image-embedding
+
+将图像编码为固定大小的向量，用于视觉相似度、图像去重和检索索引。
+
+```yaml
+component:
+  type: model
+  task: image-embedding
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image as image}
+    batch_size: 16
+    params:
+      normalize: true
+```
+
+**支持的架构：**
+- `clip`：OpenAI CLIP — 通过 `get_image_features` 编码图像
+- `siglip`：Google SigLIP — 通过 `get_image_features` 编码图像
+- `dinov2`：Meta DINOv2 — 自监督编码器，使用 `params.pooling` 聚合
+- `auto`：`AutoModel` 自动回退 — 若加载的模型公开 `get_image_features` 则走该路径，否则对 `last_hidden_state` 进行池化
+
+CLIP 和 SigLIP 具有内置池化，因此 `params.pooling` 被忽略。DINOv2（以及 `auto` 加载了无投影头的模型时）通过 `params.pooling` 选择 `cls`（默认）、`mean` 或 `max`。
+
+结果：每张图像返回一个向量（`List[float]`）。列表输入返回向量列表；异步流输入返回按序产出向量的异步迭代器。
+
+### 10.3.8 image-generation
 
 从文本提示生成图像。
 
@@ -440,7 +470,7 @@ component:
 - `sdxl`：Stable Diffusion XL
 - `hunyuan`：HunyuanDiT
 
-### 10.3.8 image-upscale
+### 10.3.9 image-upscale
 
 增强图像分辨率。
 
@@ -462,7 +492,7 @@ component:
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
 
-### 10.3.9 text-to-speech
+### 10.3.10 text-to-speech
 
 从文本合成语音音频。此任务使用 `driver: custom` 和 `family` 字段选择模型系列，使用 `method` 字段选择生成方式。
 
@@ -560,7 +590,53 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 从参考音频克隆语音 |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 从文本描述设计语音 |
 
-### 10.3.10 face-embedding
+### 10.3.11 voice-activity-detection
+
+检测音频文件中的语音片段，返回每个片段的起止时间和置信度。静音区域从结果中省略。通常用作 speech-to-text 前的预处理步骤，以跳过静音并减少幻觉。
+
+```yaml
+component:
+  type: model
+  task: voice-activity-detection
+  driver: custom
+  family: silero
+  device: cpu
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: 16000
+    params:
+      threshold: 0.5
+      min_speech_duration: 250ms
+      min_silence_duration: 500ms
+      speech_padding_time: 100ms
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `sample_rate` | int | `16000` | 目标采样率（16000 或 8000）；根据需要重采样 |
+| `threshold` | float | `0.5` | 语音概率阈值（0.0 - 1.0）；越高越严格 |
+| `min_speech_duration` | duration | `250ms` | 丢弃短于此值的语音块 |
+| `min_silence_duration` | duration | `500ms` | 分割相邻块所需的静音时长 |
+| `speech_padding_time` | duration | `100ms` | 为每个检测到的块两侧添加的填充 |
+
+Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
+
+结果形式（检测到的语音片段的扁平列表，省略静音区域）：
+
+```json
+[
+  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
+  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+]
+```
+
+#### 支持的系列
+
+| 系列 | 后端 | 备注 |
+|------|------|------|
+| `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | 轻量级 CNN (~1MB)；模型捆绑在 pip 包中 |
+
+### 10.3.12 face-embedding
 
 从人脸图像中提取特征向量。
 

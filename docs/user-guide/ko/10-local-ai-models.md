@@ -250,8 +250,10 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `text-classification` | 텍스트 분류 | 감정 분석, 주제 분류 |
 | `image-to-text` | 이미지 캡셔닝 | 이미지 설명 생성, VQA |
 | `image-text-to-text` | 멀티모달 대화 | 이미지 기반 QA, 비전-언어 대화 |
+| `image-embedding` | 이미지 임베딩 | 시각 검색, 이미지 중복 제거, 클러스터링 |
 | `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
 | `speech-to-text` | 음성 인식 | 자막 생성, 받아쓰기 |
+| `voice-activity-detection` | 오디오의 음성 구간 감지 | ASR 전 침묵 필터링, 자막 분할 |
 | `image-generation` | 이미지 생성 | 텍스트→이미지 변환 |
 | `image-upscale` | 이미지 업스케일 | 해상도 향상 |
 | `face-detection` | 얼굴 검출 | 얼굴 위치/랜드마크 |
@@ -378,7 +380,35 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.6 image-generation
+### 10.3.6 image-embedding
+
+이미지를 고정 크기 벡터로 인코딩합니다. 시각적 유사도, 중복 제거, 검색 인덱스 구축에 사용됩니다.
+
+```yaml
+component:
+  type: model
+  task: image-embedding
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image as image}
+    batch_size: 16
+    params:
+      normalize: true
+```
+
+**지원 아키텍처:**
+- `clip`: OpenAI CLIP — `get_image_features`로 이미지 인코딩
+- `siglip`: Google SigLIP — `get_image_features`로 이미지 인코딩
+- `dinov2`: Meta DINOv2 — 자기지도 학습 인코더, `params.pooling`으로 풀링
+- `auto`: `AutoModel` 자동 판별 — 로드된 모델이 `get_image_features`를 노출하면 그 경로를 사용하고, 아니면 `last_hidden_state`를 풀링
+
+CLIP과 SigLIP은 내장 풀링을 사용하므로 `params.pooling`이 무시됩니다. DINOv2(그리고 `auto`가 projection head 없는 모델을 로드한 경우)에서는 `params.pooling`으로 `cls`(기본값), `mean`, `max` 중 선택합니다.
+
+결과: 이미지당 벡터 하나(`List[float]`). 리스트 입력이면 벡터 리스트, 비동기 스트림 입력이면 벡터를 순차 방출하는 async iterator.
+
+### 10.3.7 image-generation
 
 텍스트 프롬프트에서 이미지를 생성합니다.
 
@@ -401,7 +431,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.7 image-upscale
+### 10.3.8 image-upscale
 
 이미지 해상도를 향상시킵니다.
 
@@ -423,7 +453,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 10.3.8 text-to-speech
+### 10.3.9 text-to-speech
 
 텍스트에서 음성 오디오를 합성합니다. 이 태스크는 `driver: custom`과 `family` 필드로 모델 패밀리를 선택하고, `method` 필드로 생성 방식을 선택합니다.
 
@@ -521,7 +551,53 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | 참조 오디오에서 음성 복제 |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | 텍스트 설명으로 음성 디자인 |
 
-### 10.3.9 face-embedding
+### 10.3.10 voice-activity-detection
+
+오디오 파일에서 음성 구간을 감지하고, 각 구간의 시작/종료 시각과 신뢰도를 반환합니다. 침묵 구간은 결과에서 제외됩니다. 주로 speech-to-text 전처리 단계로 사용되어 침묵 구간을 건너뛰고 환각을 줄이는 데 활용됩니다.
+
+```yaml
+component:
+  type: model
+  task: voice-activity-detection
+  driver: custom
+  family: silero
+  device: cpu
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: 16000
+    params:
+      threshold: 0.5
+      min_speech_duration: 250ms
+      min_silence_duration: 500ms
+      speech_padding_time: 100ms
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `sample_rate` | int | `16000` | 대상 샘플레이트 (16000 또는 8000); 필요 시 자동 리샘플링 |
+| `threshold` | float | `0.5` | 음성 확률 임계값 (0.0 - 1.0); 높을수록 엄격 |
+| `min_speech_duration` | duration | `250ms` | 이보다 짧은 음성 구간은 제거 |
+| `min_silence_duration` | duration | `500ms` | 인접 구간을 분리하는 데 필요한 침묵 |
+| `speech_padding_time` | duration | `100ms` | 감지된 각 구간 양쪽에 추가되는 패딩 |
+
+Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허용합니다.
+
+결과 형식 (감지된 음성 구간의 평평한 리스트, 침묵 구간은 생략):
+
+```json
+[
+  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
+  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+]
+```
+
+#### 지원 패밀리
+
+| 패밀리 | 백엔드 | 비고 |
+|--------|---------|------|
+| `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | 경량 CNN (~1MB); 모델이 pip 패키지에 번들됨 |
+
+### 10.3.11 face-embedding
 
 얼굴 이미지에서 특징 벡터를 추출합니다.
 

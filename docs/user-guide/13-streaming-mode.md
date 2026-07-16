@@ -33,6 +33,8 @@ Components that support streaming:
 | `model` (chat-completion) | ✅ | `streaming: true` |
 | `model` (text-to-text) | ✅ | `streaming: true` |
 | `model` (image-to-text) | ✅ | `streaming: true` |
+| `model` (speech-to-text) | ✅ output only | `streaming: true` |
+| `model` (voice-activity-detection) | ✅ input+output for PCM | `streaming: true` |
 | `agent` | ✅ | `streaming: true` |
 | `http-client` | ✅ | `stream_format: json/text` |
 | `http-server` | ✅ | `stream_format: json/text` |
@@ -42,6 +44,13 @@ Components that support streaming:
 > The `streaming` flag on a `model` component yields **tokens** as the model decodes them within a single response.
 > The `streaming` flag on an `agent` component yields **whole messages** (assistant replies and tool results) as the ReAct loop produces them across multiple model calls.
 > The two flags operate at different granularities and can be enabled independently. An agent with `streaming: true` does not automatically enable token streaming on the underlying model — it always consumes complete model responses and forwards them as message-level chunks.
+
+> **Note on audio task streaming**
+>
+> `streaming` on audio tasks controls only the *output* shape by default:
+>
+> - `speech-to-text` (Whisper family): the input audio must be fully consumed before decoding begins (Whisper's encoder needs the complete mel-spectrogram). `streaming: true` emits transcription tokens as they are decoded, but the audio itself is not consumed frame-by-frame — first-token latency is bounded by the input length.
+> - `voice-activity-detection` (silero): supports true frame-by-frame *input* streaming for raw PCM sources. Segments are emitted as soon as their trailing silence is confirmed. Compressed inputs (mp3, wav container, etc.) fall back to collate-then-yield, preserving the `AsyncIterator` interface but not the low-latency behavior.
 
 ### 13.1.3 Streaming Protocol
 

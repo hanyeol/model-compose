@@ -251,10 +251,12 @@ model-compose supports the following task types:
 | `text-reranking` | Query-document scoring | Rerank retrieval results in RAG pipelines |
 | `image-to-text` | Image captioning | Image description, VQA |
 | `image-text-to-text` | Multimodal image + text generation | Visual reasoning, multimodal chat |
+| `image-embedding` | Image embedding | Visual search, image dedup, clustering |
 | `image-generation` | Image generation | Text-to-image conversion |
 | `image-upscale` | Image upscaling | Resolution enhancement |
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `speech-to-text` | Speech recognition | Transcription, subtitles |
+| `voice-activity-detection` | Detect speech segments in audio | Pre-ASR silence filtering, subtitle splitting |
 | `face-detection` | Face detection | Locate faces in images |
 | `pose-detection` | Pose detection | Keypoint estimation |
 | `face-embedding` | Face embedding | Face recognition, comparison |
@@ -473,7 +475,35 @@ component:
 - `git`: Generative Image-to-Text
 - `vit-gpt2`: Vision Transformer + GPT-2
 
-### 10.3.8 image-generation
+### 10.3.8 image-embedding
+
+Encodes images into fixed-size vectors for visual similarity, dedup, and retrieval.
+
+```yaml
+component:
+  type: model
+  task: image-embedding
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image as image}
+    batch_size: 16
+    params:
+      normalize: true
+```
+
+**Supported architectures:**
+- `clip`: OpenAI CLIP — image encoder via `get_image_features`
+- `siglip`: Google SigLIP — image encoder via `get_image_features`
+- `dinov2`: Meta DINOv2 — self-supervised encoder, pooled via `params.pooling`
+- `auto`: `AutoModel` fall-through — uses `get_image_features` if the loaded model exposes it, otherwise pools `last_hidden_state`
+
+CLIP and SigLIP have built-in poolers so `params.pooling` is ignored for them. For DINOv2 (and `auto` when the loaded model has no projection head), `params.pooling` chooses among `cls` (default), `mean`, or `max`.
+
+Result: single vector per image (`List[float]`); with a list input, a list of vectors; with an async stream input, an async iterator of vectors.
+
+### 10.3.9 image-generation
 
 Generates images from text prompts.
 
@@ -496,7 +526,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.9 image-upscale
+### 10.3.10 image-upscale
 
 Enhances image resolution.
 
@@ -518,7 +548,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 10.3.10 text-to-speech
+### 10.3.11 text-to-speech
 
 Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to choose the generation method.
 
@@ -616,7 +646,53 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
-### 10.3.11 face-embedding
+### 10.3.12 voice-activity-detection
+
+Detects speech segments in an audio file and returns their start/end timestamps with a confidence score. Silent regions are omitted from the result. Commonly used as a pre-processing step before speech-to-text to skip silence and reduce hallucinations.
+
+```yaml
+component:
+  type: model
+  task: voice-activity-detection
+  driver: custom
+  family: silero
+  device: cpu
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: 16000
+    params:
+      threshold: 0.5
+      min_speech_duration: 250ms
+      min_silence_duration: 500ms
+      speech_padding_time: 100ms
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `sample_rate` | int | `16000` | Target sample rate (16000 or 8000); input is resampled if needed |
+| `threshold` | float | `0.5` | Speech probability threshold (0.0 - 1.0); higher = stricter |
+| `min_speech_duration` | duration | `250ms` | Discard speech chunks shorter than this |
+| `min_silence_duration` | duration | `500ms` | Silence required to split adjacent chunks |
+| `speech_padding_time` | duration | `100ms` | Padding added to both sides of each detected chunk |
+
+Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
+
+Result shape (flat list of speech segments, silent regions omitted):
+
+```json
+[
+  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
+  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+]
+```
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB); the model ships inside the pip package |
+
+### 10.3.13 face-embedding
 
 Extracts feature vectors from face images.
 

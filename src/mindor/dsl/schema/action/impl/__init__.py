@@ -20,6 +20,7 @@ from .web_scraper import *
 from .web_browser import *
 from .video_scene_detector import *
 from .video_converter import *
+from .video_encoder import *
 from .video_frame_extractor import *
 from .audio_extractor import *
 from .audio_converter import *

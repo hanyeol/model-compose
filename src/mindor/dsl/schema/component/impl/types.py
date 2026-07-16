@@ -23,6 +23,7 @@ class ComponentType(str, Enum):
     WEB_BROWSER             = "web-browser"
     VIDEO_SCENE_DETECTOR    = "video-scene-detector"
     VIDEO_CONVERTER         = "video-converter"
+    VIDEO_ENCODER           = "video-encoder"
     VIDEO_FRAME_EXTRACTOR   = "video-frame-extractor"
     AUDIO_EXTRACTOR         = "audio-extractor"
     AUDIO_CONVERTER         = "audio-converter"

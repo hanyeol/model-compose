@@ -1,12 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Literal, Optional, Dict, List, Any
+from typing import Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageUpscaleModelActionConfig, ColorFormat
 from mindor.core.logger import logging
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.image import compose_with_alpha, has_alpha
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
@@ -37,8 +38,7 @@ class ImageUpscaleTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
-                    batch_results = self._upscale(batch_images, params)
+                    batch_results = self._process_batch(batch_images, params)
                     for result in batch_results:
                         yield result
 
@@ -46,14 +46,28 @@ class ImageUpscaleTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
-                batch_results = self._upscale(batch_images, params)
-                results.extend(batch_results)
+                results.extend(self._process_batch(batch_images, params))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    def _process_batch(self, batch_images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+        images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
+        alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in batch_images ]
+
+        images = self._upscale(images, params)
+
+        results: List[PILImage.Image] = []
+
+        for image, alpha in zip(images, alphas):
+            if alpha is not None:
+                results.append(compose_with_alpha(image, alpha))
+            else:
+                results.append(image)
+
+        return results
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         color_format = await context.render_variable(self.config.color_format)

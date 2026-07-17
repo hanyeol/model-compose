@@ -70,7 +70,8 @@
 - 7.5 [队列流式传输 (Queue Streaming)](./07-controller-configuration.md#75-队列流式传输-queue-streaming)
 - 7.6 [并发控制](./07-controller-configuration.md#76-并发控制)
 - 7.7 [端口和主机配置](./07-controller-configuration.md#77-端口和主机配置)
-- 7.8 [控制器最佳实践](./07-controller-configuration.md#78-控制器最佳实践)
+- 7.8 [优雅关闭 (Graceful Shutdown)](./07-controller-configuration.md#78-优雅关闭-graceful-shutdown)
+- 7.9 [控制器最佳实践](./07-controller-configuration.md#79-控制器最佳实践)
 
 ## 8. [WebSocket 接口](./08-websocket-interface.md)
 - 7.1 [WebSocket 概述](./08-websocket-interface.md#71-websocket-overview)

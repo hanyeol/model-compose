@@ -1247,7 +1247,119 @@ Now external access to `http://example.com/ai/workflows/runs` is forwarded by Ng
 
 ---
 
-## 7.8 Controller Best Practices
+## 7.8 Graceful Shutdown
+
+When a controller receives a stop signal (`Ctrl+C`, `model-compose down`, container SIGTERM, or a K8s pod termination), it needs to stop cleanly without dropping in-flight requests or causing client-visible errors. The controller supports a two-phase shutdown that cooperates with upstream load balancers and reverse proxies.
+
+### Shutdown Phases
+
+```
+[normal]                                    → /health: 200 ok
+                                            → workflow requests: accepted
+
+  (stop signal received)
+      ↓
+[shutdown_pending, for shutdown_pending_period]
+                                            → /health: 503 shutdown_pending
+                                            → workflow requests: still accepted
+                                            ← load balancer sees unhealthy, drains traffic
+
+      ↓ (after shutdown_pending_period elapses)
+[shutting_down]                             → /health: 503 shutting_down
+                                            → workflow requests: rejected (503)
+                                            → in-flight tasks drain (up to shutdown_timeout)
+                                            → components/gateways/listeners stop
+```
+
+The `shutdown_pending` phase exists so that traffic routers (load balancers, service meshes, K8s readiness probes) can observe an unhealthy health check and remove this instance from their pool **before** the controller starts rejecting requests. Without it, requests already in-flight or arriving in the small window between the stop signal and the router's next probe would fail with `503`.
+
+### Configuration
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `shutdown_pending_period` | `0s` | Duration of the `shutdown_pending` phase. Set to a value slightly longer than your load balancer's failure detection time. |
+| `shutdown_timeout` | `30s` | Maximum time to wait for in-flight tasks during the `shutting_down` phase before force-cancelling them. |
+
+**Default (`shutdown_pending_period: 0s`)**: The `shutdown_pending` phase is skipped and the controller goes straight into `shutting_down`. This is fine for local development or when there is no load balancer in front of the controller.
+
+### Basic Example
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s   # let LB drain traffic first
+  shutdown_timeout: 30s           # then wait up to 30s for in-flight tasks
+```
+
+### Kubernetes Example
+
+Combine `shutdown_pending_period` with the pod's readiness probe and `terminationGracePeriodSeconds` so K8s removes the pod from the Service endpoint list before the controller stops accepting requests.
+
+```yaml
+# model-compose.yml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s
+  shutdown_timeout: 30s
+```
+
+```yaml
+# k8s deployment
+spec:
+  template:
+    spec:
+      # 15s (pending) + 30s (in-flight drain) + buffer
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: model-compose
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 2   # ~10s to detect unhealthy
+```
+
+Here the timeline is:
+
+1. K8s sends `SIGTERM` → controller enters `shutdown_pending` and `/health` starts returning `503`.
+2. Within ~10s the kubelet's readiness probe fails twice and K8s removes the pod from the Service endpoints.
+3. The remaining `~5s` of the 15s pending period covers propagation to kube-proxy / ingress controllers.
+4. Controller enters `shutting_down`, in-flight tasks drain for up to 30s, then the pod exits.
+
+### Health Check Responses
+
+The `/health` endpoint reflects the current shutdown state:
+
+| Phase | Status Code | Body |
+|-------|-------------|------|
+| Normal | `200` | `{ "status": "ok" }` |
+| Shutdown pending | `503` | `{ "status": "shutdown_pending" }` |
+| Shutting down | `503` | `{ "status": "shutting_down" }` |
+
+Most load balancers only care about the status code, but the body is useful for debugging and monitoring dashboards.
+
+### Workflow Request Behavior
+
+- During **shutdown_pending**: `POST /workflow` and other workflow endpoints continue to work normally. This is the whole point of the phase.
+- During **shutting_down**: workflow requests are rejected with `503 Service Unavailable` (raised as `ShutdownError` internally). Clients should retry against another instance.
+
+### Choosing `shutdown_pending_period`
+
+The right value depends on your traffic router:
+
+- **AWS ALB / NLB target group**: unhealthy threshold × interval, typically 15–30s.
+- **K8s readinessProbe**: `periodSeconds × failureThreshold` plus endpoint propagation (~5–10s).
+- **HAProxy / Nginx active health checks**: check interval × failure threshold.
+- **No load balancer** (local dev, single-instance deploy): `0s` is fine.
+
+Set it to a value **slightly larger** than the observed detection time. Too small and requests will still hit this instance after it starts rejecting; too large only delays shutdown without harm.
+
+---
+
+## 7.9 Controller Best Practices
 
 ### 1. Port Configuration by Environment
 

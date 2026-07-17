@@ -70,7 +70,8 @@
 - 7.5 [큐 스트리밍 (Queue Streaming)](./07-controller-configuration.md#75-큐-스트리밍-queue-streaming)
 - 7.6 [동시 실행 제어](./07-controller-configuration.md#76-동시-실행-제어)
 - 7.7 [포트 및 호스트 설정](./07-controller-configuration.md#77-포트-및-호스트-설정)
-- 7.8 [컨트롤러 모범 사례](./07-controller-configuration.md#78-컨트롤러-모범-사례)
+- 7.8 [그레이스풀 셧다운 (Graceful Shutdown)](./07-controller-configuration.md#78-그레이스풀-셧다운-graceful-shutdown)
+- 7.9 [컨트롤러 모범 사례](./07-controller-configuration.md#79-컨트롤러-모범-사례)
 
 ## 8. [WebSocket 인터페이스](./08-websocket-interface.md)
 - 7.1 [WebSocket 개요](./08-websocket-interface.md#71-websocket-개요)

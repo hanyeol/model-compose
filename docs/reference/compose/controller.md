@@ -277,6 +277,27 @@ controller:
 | `max_concurrent_count` | integer | `1` | Maximum number of tasks that can execute concurrently |
 | `threaded` | boolean | `false` | Whether to run tasks in separate threads |
 
+### Shutdown
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `shutdown_pending_period` | string/number | `0s` | Duration to stay in the shutdown-pending phase before actual shutdown begins. During this phase `/health` returns `503` while workflow requests are still accepted, allowing upstream traffic routers to drain this instance. |
+| `shutdown_timeout` | string/number | `30s` | Maximum time to wait for in-flight tasks to complete before force-cancelling them. |
+
+**Shutdown phases:**
+
+1. **Pending** (only if `shutdown_pending_period > 0`) — `/health` returns `503 { "status": "shutdown_pending" }`. Workflow requests continue to be accepted normally so already-inflight and just-arriving requests can complete while traffic routers observe the failed health check and stop sending new requests.
+2. **Shutting down** — new workflow requests are rejected with `503 { "status": "shutting_down" }`. In-flight tasks are given up to `shutdown_timeout` to complete, then any remaining tasks are cancelled.
+
+**Example:**
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s   # let load balancer drain traffic
+  shutdown_timeout: 30s          # wait up to 30s for in-flight tasks
+```
+
 ### Runtime Configuration
 
 | Field | Type | Default | Description |

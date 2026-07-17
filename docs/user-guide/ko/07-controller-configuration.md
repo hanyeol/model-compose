@@ -1246,7 +1246,119 @@ server {
 
 ---
 
-## 7.8 컨트롤러 모범 사례
+## 7.8 그레이스풀 셧다운 (Graceful Shutdown)
+
+컨트롤러가 종료 신호(`Ctrl+C`, `model-compose down`, 컨테이너 SIGTERM, K8s 파드 종료)를 받으면, in-flight 요청을 유실하거나 클라이언트에 오류를 노출하지 않고 깨끗하게 정지해야 합니다. 컨트롤러는 상위 로드 밸런서 및 리버스 프록시와 협조하는 2단계 셧다운을 지원합니다.
+
+### 셧다운 단계
+
+```
+[정상]                                       → /health: 200 ok
+                                             → 워크플로 요청: 수락
+
+  (종료 신호 수신)
+      ↓
+[shutdown_pending, shutdown_pending_period 동안]
+                                             → /health: 503 shutdown_pending
+                                             → 워크플로 요청: 계속 수락
+                                             ← 로드 밸런서가 unhealthy 감지, 트래픽 드레인
+
+      ↓ (shutdown_pending_period 경과 후)
+[shutting_down]                              → /health: 503 shutting_down
+                                             → 워크플로 요청: 거절 (503)
+                                             → in-flight 태스크 드레인 (최대 shutdown_timeout)
+                                             → components/gateways/listeners 정지
+```
+
+`shutdown_pending` 단계는 트래픽 라우터(로드 밸런서, 서비스 메시, K8s readiness probe)가 실패한 헬스체크를 관측하고 이 인스턴스를 풀에서 제거할 시간을 확보하기 위해 존재합니다. 이 단계가 없으면 종료 신호와 라우터의 다음 프로브 사이의 짧은 시간 동안 도착하거나 이미 진행 중인 요청이 `503`으로 실패할 수 있습니다.
+
+### 설정
+
+| 필드 | 기본값 | 설명 |
+|------|--------|------|
+| `shutdown_pending_period` | `0s` | `shutdown_pending` 단계의 지속 시간. 로드 밸런서의 장애 감지 시간보다 약간 길게 설정하세요. |
+| `shutdown_timeout` | `30s` | `shutting_down` 단계에서 in-flight 태스크를 강제 취소하기 전까지 대기할 최대 시간. |
+
+**기본값 (`shutdown_pending_period: 0s`)**: `shutdown_pending` 단계를 건너뛰고 곧바로 `shutting_down`으로 진입합니다. 로컬 개발 환경이나 컨트롤러 앞에 로드 밸런서가 없는 경우에 적합합니다.
+
+### 기본 예시
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s   # 로드 밸런서가 트래픽을 드레인할 시간 확보
+  shutdown_timeout: 30s           # in-flight 태스크를 최대 30초 대기
+```
+
+### Kubernetes 예시
+
+파드의 readiness probe 및 `terminationGracePeriodSeconds`와 함께 `shutdown_pending_period`를 사용하면, 컨트롤러가 요청 수신을 중단하기 전에 K8s가 Service 엔드포인트 목록에서 파드를 제거합니다.
+
+```yaml
+# model-compose.yml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s
+  shutdown_timeout: 30s
+```
+
+```yaml
+# k8s deployment
+spec:
+  template:
+    spec:
+      # 15s (pending) + 30s (in-flight drain) + 여유
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: model-compose
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 2   # ~10초 안에 unhealthy 감지
+```
+
+타임라인은 다음과 같습니다:
+
+1. K8s가 `SIGTERM` 전송 → 컨트롤러가 `shutdown_pending`에 진입하고 `/health`가 `503` 반환 시작.
+2. ~10초 안에 kubelet readiness probe가 두 번 실패하고 K8s가 Service 엔드포인트에서 파드 제거.
+3. 15초 pending 기간 중 남은 ~5초는 kube-proxy / 인그레스 컨트롤러로의 전파 시간 커버.
+4. 컨트롤러가 `shutting_down`에 진입, in-flight 태스크를 최대 30초 드레인, 그 후 파드 종료.
+
+### 헬스체크 응답
+
+`/health` 엔드포인트는 현재 셧다운 상태를 반영합니다:
+
+| 단계 | 상태 코드 | 본문 |
+|------|-----------|------|
+| 정상 | `200` | `{ "status": "ok" }` |
+| 셧다운 대기 | `503` | `{ "status": "shutdown_pending" }` |
+| 셧다운 진행 | `503` | `{ "status": "shutting_down" }` |
+
+대부분의 로드 밸런서는 상태 코드만 확인하지만, 본문은 디버깅 및 모니터링 대시보드에서 유용합니다.
+
+### 워크플로 요청 동작
+
+- **shutdown_pending 중**: `POST /workflow` 및 기타 워크플로 엔드포인트는 정상적으로 동작합니다. 이 단계의 존재 이유입니다.
+- **shutting_down 중**: 워크플로 요청은 `503 Service Unavailable`로 거절됩니다 (내부적으로 `ShutdownError`). 클라이언트는 다른 인스턴스로 재시도해야 합니다.
+
+### `shutdown_pending_period` 값 선택
+
+적절한 값은 사용하는 트래픽 라우터에 따라 다릅니다:
+
+- **AWS ALB / NLB 타깃 그룹**: unhealthy threshold × interval, 보통 15–30초.
+- **K8s readinessProbe**: `periodSeconds × failureThreshold` + 엔드포인트 전파 시간 (~5–10초).
+- **HAProxy / Nginx 액티브 헬스체크**: check interval × failure threshold.
+- **로드 밸런서 없음** (로컬 개발, 단일 인스턴스 배포): `0s`로 충분.
+
+관측된 감지 시간보다 **약간 크게** 설정하세요. 너무 작으면 인스턴스가 요청을 거절하기 시작한 뒤에도 트래픽이 계속 들어오고, 너무 크면 셧다운만 지연될 뿐 문제는 없습니다.
+
+---
+
+## 7.9 컨트롤러 모범 사례
 
 ### 1. 환경별 포트 설정
 

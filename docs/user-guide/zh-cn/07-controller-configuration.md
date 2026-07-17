@@ -1246,7 +1246,119 @@ server {
 
 ---
 
-## 7.8 控制器最佳实践
+## 7.8 优雅关闭 (Graceful Shutdown)
+
+当控制器接收到停止信号（`Ctrl+C`、`model-compose down`、容器 SIGTERM 或 K8s pod 终止）时，需要在不丢弃 in-flight 请求或对客户端产生错误的情况下干净地停止。控制器支持与上游负载均衡器和反向代理协作的两阶段关闭。
+
+### 关闭阶段
+
+```
+[正常]                                        → /health: 200 ok
+                                              → 工作流请求：接受
+
+  (接收到停止信号)
+      ↓
+[shutdown_pending, 持续 shutdown_pending_period]
+                                              → /health: 503 shutdown_pending
+                                              → 工作流请求：继续接受
+                                              ← 负载均衡器检测到 unhealthy，排出流量
+
+      ↓ (shutdown_pending_period 结束后)
+[shutting_down]                               → /health: 503 shutting_down
+                                              → 工作流请求：拒绝 (503)
+                                              → in-flight 任务排出 (最多 shutdown_timeout)
+                                              → components/gateways/listeners 停止
+```
+
+`shutdown_pending` 阶段的存在是为了让流量路由器（负载均衡器、服务网格、K8s readiness probe）观察到失败的健康检查并将此实例从池中移除，**然后**控制器才开始拒绝请求。没有这个阶段，在停止信号和路由器的下一次探测之间的短窗口内到达或已进行中的请求会以 `503` 失败。
+
+### 配置
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `shutdown_pending_period` | `0s` | `shutdown_pending` 阶段的持续时间。设置为略长于负载均衡器故障检测时间的值。 |
+| `shutdown_timeout` | `30s` | 在 `shutting_down` 阶段强制取消 in-flight 任务之前等待的最长时间。 |
+
+**默认值 (`shutdown_pending_period: 0s`)**：跳过 `shutdown_pending` 阶段，直接进入 `shutting_down`。适用于本地开发或控制器前端没有负载均衡器的场景。
+
+### 基本示例
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s   # 让 LB 先排出流量
+  shutdown_timeout: 30s           # 然后为 in-flight 任务等待最多 30s
+```
+
+### Kubernetes 示例
+
+将 `shutdown_pending_period` 与 pod 的 readiness probe 和 `terminationGracePeriodSeconds` 结合使用，让 K8s 在控制器停止接受请求之前从 Service 端点列表中移除 pod。
+
+```yaml
+# model-compose.yml
+controller:
+  type: http-server
+  port: 8080
+  shutdown_pending_period: 15s
+  shutdown_timeout: 30s
+```
+
+```yaml
+# k8s deployment
+spec:
+  template:
+    spec:
+      # 15s (pending) + 30s (in-flight drain) + 缓冲
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: model-compose
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 2   # ~10s 检测到 unhealthy
+```
+
+时间线如下：
+
+1. K8s 发送 `SIGTERM` → 控制器进入 `shutdown_pending`，`/health` 开始返回 `503`。
+2. 在 ~10s 内 kubelet readiness probe 两次失败，K8s 从 Service 端点中移除该 pod。
+3. 15s pending 期间剩余的 ~5s 覆盖到 kube-proxy / ingress 控制器的传播时间。
+4. 控制器进入 `shutting_down`，in-flight 任务排出最多 30s，然后 pod 退出。
+
+### 健康检查响应
+
+`/health` 端点反映当前的关闭状态：
+
+| 阶段 | 状态码 | 响应体 |
+|------|--------|--------|
+| 正常 | `200` | `{ "status": "ok" }` |
+| 关闭待定 | `503` | `{ "status": "shutdown_pending" }` |
+| 正在关闭 | `503` | `{ "status": "shutting_down" }` |
+
+大多数负载均衡器只关心状态码，但响应体对调试和监控仪表板很有用。
+
+### 工作流请求行为
+
+- **shutdown_pending 期间**：`POST /workflow` 和其他工作流端点继续正常工作。这就是该阶段存在的目的。
+- **shutting_down 期间**：工作流请求以 `503 Service Unavailable` 被拒绝（内部作为 `ShutdownError` 抛出）。客户端应对另一个实例重试。
+
+### 选择 `shutdown_pending_period`
+
+合适的值取决于你的流量路由器：
+
+- **AWS ALB / NLB target group**：unhealthy threshold × interval，通常 15–30s。
+- **K8s readinessProbe**：`periodSeconds × failureThreshold` 加上端点传播 (~5–10s)。
+- **HAProxy / Nginx 主动健康检查**：check interval × failure threshold。
+- **没有负载均衡器**（本地开发、单实例部署）：`0s` 即可。
+
+将其设置为**略大于**观察到的检测时间。太小则实例开始拒绝后请求仍会到达；太大只是延迟关闭而无害。
+
+---
+
+## 7.9 控制器最佳实践
 
 ### 1. 按环境配置端口
 

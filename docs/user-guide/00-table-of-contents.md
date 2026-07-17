@@ -70,7 +70,8 @@ This document outlines the structure of the model-compose user guide.
 - 7.5 [Queue Streaming](./07-controller-configuration.md#75-queue-streaming)
 - 7.6 [Concurrency Control](./07-controller-configuration.md#76-concurrency-control)
 - 7.7 [Port and Host Configuration](./07-controller-configuration.md#77-port-and-host-configuration)
-- 7.8 [Controller Best Practices](./07-controller-configuration.md#78-controller-best-practices)
+- 7.8 [Graceful Shutdown](./07-controller-configuration.md#78-graceful-shutdown)
+- 7.9 [Controller Best Practices](./07-controller-configuration.md#79-controller-best-practices)
 
 ## 8. [WebSocket Interface](./08-websocket-interface.md)
 - 8.1 [WebSocket Overview](./08-websocket-interface.md#81-websocket-overview)

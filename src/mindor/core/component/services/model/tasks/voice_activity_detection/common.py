@@ -156,6 +156,7 @@ class VoiceActivityDetectionTaskAction:
         sample_rate          = await context.render_variable(self.config.sample_rate)
         threshold            = await context.render_variable(self.config.params.threshold)
         min_speech_duration  = parse_duration(await context.render_variable(self.config.params.min_speech_duration))
+        max_speech_duration  = parse_duration(await context.render_variable(self.config.params.max_speech_duration)) if self.config.params.max_speech_duration is not None else None
         min_silence_duration = parse_duration(await context.render_variable(self.config.params.min_silence_duration))
         speech_padding_time  = parse_duration(await context.render_variable(self.config.params.speech_padding_time))
 
@@ -163,6 +164,7 @@ class VoiceActivityDetectionTaskAction:
             "sample_rate":          sample_rate,
             "threshold":            threshold,
             "min_speech_duration":  min_speech_duration,
+            "max_speech_duration":  max_speech_duration,
             "min_silence_duration": min_silence_duration,
             "speech_padding_time":  speech_padding_time,
         }

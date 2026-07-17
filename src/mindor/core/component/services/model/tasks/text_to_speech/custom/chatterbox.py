@@ -9,6 +9,7 @@ from mindor.dsl.schema.action import ChatterboxTextToSpeechModelGenerateActionCo
 from mindor.dsl.schema.action import ChatterboxTextToSpeechModelCloneActionConfig
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.utils.audio import encode_waveform_to_pcm16
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
 import asyncio
@@ -46,7 +47,7 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
     def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
         def _generate(text: str) -> StreamResource:
             samples, sample_rate = self._synthesize(text, params["generation"])
-            frames, channels = self._encode_samples_to_pcm16(samples)
+            frames, channels = encode_waveform_to_pcm16(samples)
 
             return PcmStreamResource(frames, {
                 "sample_rate": str(sample_rate),

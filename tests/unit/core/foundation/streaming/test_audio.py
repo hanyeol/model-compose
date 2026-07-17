@@ -136,10 +136,10 @@ class TestLoadAudioArrayPcm:
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
         waveform, sr = await load_audio_array(src)
-        assert waveform.dtype == np.int16
+        assert waveform.dtype == np.float32
         assert waveform.shape == (1000,)
         assert sr == 16000
-        assert np.array_equal(waveform, samples)
+        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_s16le_stereo_default_is_downmix(self):
@@ -151,7 +151,8 @@ class TestLoadAudioArrayPcm:
         assert waveform.shape == (500,)
         assert waveform.dtype == np.float32
         assert sr == 16000
-        assert np.allclose(waveform, 2000.0)
+        # Mean of (1000, 3000) = 2000, normalized to float32 by /32767.
+        assert np.allclose(waveform, 2000.0 / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_mean_downmix(self):
@@ -161,8 +162,8 @@ class TestLoadAudioArrayPcm:
         waveform, sr = await load_audio_array(src, channel=None)
         assert waveform.shape == (500,)
         assert waveform.dtype == np.float32
-        # Mean of (1000, 3000) = 2000
-        assert np.allclose(waveform, 2000.0)
+        # Mean of (1000, 3000) = 2000, normalized to float32 by /32767.
+        assert np.allclose(waveform, 2000.0 / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_left(self):
@@ -171,7 +172,8 @@ class TestLoadAudioArrayPcm:
         src = pcm_stereo_source(left, right)
         waveform, sr = await load_audio_array(src, channel=0)
         assert waveform.shape == (500,)
-        assert np.array_equal(waveform, left)
+        assert waveform.dtype == np.float32
+        assert np.allclose(waveform, left.astype(np.float32) / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_right(self):
@@ -179,7 +181,8 @@ class TestLoadAudioArrayPcm:
         right = np.arange(500, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right)
         waveform, sr = await load_audio_array(src, channel=1)
-        assert np.array_equal(waveform, right)
+        assert waveform.dtype == np.float32
+        assert np.allclose(waveform, right.astype(np.float32) / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_channel_out_of_range_raises(self):
@@ -195,7 +198,8 @@ class TestLoadAudioArrayPcm:
         samples = np.arange(100, dtype=np.int16)
         src = pcm_mono_source(samples)
         waveform, _ = await load_audio_array(src, channel=5)
-        assert np.array_equal(waveform, samples)
+        assert waveform.dtype == np.float32
+        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
 
     @pytest.mark.anyio
     async def test_pcm_missing_sample_rate_defaults_to_16000(self):
@@ -227,9 +231,9 @@ class TestLoadAudioArrayPcm:
         src = pcm_mono_source(samples, sample_rate=16000)
         waveform, sr = await load_audio_array(src, sample_rate=16000)
         assert sr == 16000
-        # Should preserve int16 dtype (no resample = no cast)
-        assert waveform.dtype == np.int16
-        assert np.array_equal(waveform, samples)
+        # Integer PCM is normalized to float32 in [-1, 1] even without resampling.
+        assert waveform.dtype == np.float32
+        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
 
 
 class TestLoadAudioArrayCompressed:

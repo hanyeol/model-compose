@@ -171,18 +171,20 @@ async def load_audio_array(
 ) -> Tuple[np.ndarray, int]:
     """Load a MediaSource into a mono numpy waveform array.
 
-    Multi-channel inputs are always reduced to 1-D `(samples,)`. Mono sources
-    pass through as int-dtype `(samples,)` when no options are given and the
-    source rate is kept.
+    The returned waveform is always `float32` normalized to `[-1.0, 1.0]` so
+    downstream DSP code can operate on a uniform sample-value contract regardless
+    of whether the source was integer PCM (s16le, s24le, ...) or a decoded
+    float32 stream (torchaudio-decoded wav/mp3/...).
+
+    Multi-channel inputs are always reduced to 1-D `(samples,)`.
 
     `channel` selects how to reduce multi-channel audio to mono. `None` (default)
-    averages all channels (result cast to float32); an int selects a specific
-    channel index (must satisfy 0 <= channel < channels). Mono sources ignore
-    this parameter.
+    averages all channels; an int selects a specific channel index (must satisfy
+    0 <= channel < channels). Mono sources ignore this parameter.
 
     `sample_rate` resamples the waveform to the given rate via soxr if it
     differs from the source's own sample rate. `None` (default) keeps the source
-    rate unchanged. Resampling implicitly casts the waveform to float32.
+    rate unchanged.
     """
     import torchaudio, io
     import numpy as np
@@ -210,11 +212,19 @@ async def load_audio_array(
         waveform = loaded.numpy()
         source_sample_rate = int(source_sample_rate)
 
+    # Normalize integer PCM to [-1.0, 1.0] float32 before any downmix so channel
+    # averaging happens in the normalized space. torchaudio-decoded waveforms are
+    # already float32; this only pays a cast for them.
+    if np.issubdtype(waveform.dtype, np.integer):
+        waveform = waveform.astype(np.float32) / float(np.iinfo(waveform.dtype).max)
+    else:
+        waveform = waveform.astype(np.float32)
+
     # Channel selection / downmix
     if waveform.ndim > 1:
         source_channels = waveform.shape[0]
         if channel is None:
-            waveform = waveform.astype(np.float32).mean(axis=0)
+            waveform = waveform.mean(axis=0)
         else:
             if channel < 0 or channel >= source_channels:
                 raise ValueError(f"channel must satisfy 0 <= channel < channels; got channel={channel}, channels={source_channels}")
@@ -222,7 +232,7 @@ async def load_audio_array(
 
     # Resample
     if sample_rate is not None and sample_rate != source_sample_rate:
-        waveform = soxr.resample(waveform.astype(np.float32), source_sample_rate, sample_rate)
+        waveform = soxr.resample(waveform, source_sample_rate, sample_rate)
         source_sample_rate = sample_rate
 
     return waveform, source_sample_rate

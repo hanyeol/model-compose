@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextToSpeechModelActionConfig
@@ -12,7 +12,6 @@ from ...base import ModelTaskService, ComponentActionContext
 import asyncio
 
 if TYPE_CHECKING:
-    import numpy as np
     import torch
 
 class TextToSpeechTaskAction:
@@ -54,32 +53,6 @@ class TextToSpeechTaskAction:
     @abstractmethod
     def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
         pass
-
-    def _encode_samples_to_pcm16(self, samples: Union[torch.Tensor, np.typing.ArrayLike]) -> Tuple[bytes, int]:
-        import numpy as np
-
-        if hasattr(samples, "detach"):
-            samples = samples.detach()
-        if hasattr(samples, "cpu"):
-            samples = samples.cpu()
-        if hasattr(samples, "numpy"):
-            samples = samples.numpy()
-
-        array = np.asarray(samples)
-        if array.ndim == 1:
-            array = array[:, None]
-        elif array.ndim == 2 and array.shape[0] <= 8 and array.shape[0] < array.shape[1]:
-            array = array.T
-        elif array.ndim != 2:
-            raise ValueError(f"Expected mono or stereo audio samples, got shape {array.shape}")
-
-        if np.issubdtype(array.dtype, np.floating):
-            array = np.clip(array, -1.0, 1.0)
-            array = (array * 32767.0).astype("<i2")
-        elif array.dtype != np.int16:
-            array = array.astype("<i2")
-
-        return array.tobytes(), int(array.shape[1])
 
 class TextToSpeechTaskService(ModelTaskService):
     pass

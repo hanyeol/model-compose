@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelCo
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.utils.audio import encode_waveform_to_pcm16
 from ....base import ComponentActionContext
 from ..common import MusicGenerationTaskService, MusicGenerationTaskAction
 import asyncio
@@ -65,7 +66,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             if not result.success:
                 raise RuntimeError(f"Music generation failed: {result.error}")
 
-            frames, channels = self._encode_samples_to_pcm16(result.audios[0]["tensor"])
+            frames, channels = encode_waveform_to_pcm16(result.audios[0]["tensor"])
             sample_rate = result.audios[0].get("sample_rate", 48000)
 
             results.append(PcmStreamResource(frames, {

@@ -29,6 +29,7 @@ ComponentConfig = Annotated[
         VideoFrameExtractorComponentConfig,
         AudioExtractorComponentConfig,
         AudioConverterComponentConfig,
+        AudioProcessorComponentConfig,
         AudioFeatureExtractorComponentConfig,
         KeyValueStoreComponentConfig,
         GraphStoreComponentConfig,

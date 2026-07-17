@@ -80,12 +80,6 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
             waveform, _ = await load_audio_array(audio, sample_rate=sample_rate)
 
-            # Normalize integer PCM to [-1.0, 1.0] as Silero expects; float dtypes pass through.
-            if np.issubdtype(waveform.dtype, np.integer):
-                waveform = waveform.astype(np.float32) / float(np.iinfo(waveform.dtype).max)
-            else:
-                waveform = waveform.astype(np.float32)
-
             return waveform
 
         return [ await _prepare(audio) for audio in audios ], window_size
@@ -106,6 +100,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
             sampling_rate=sample_rate,
             threshold=float(params["threshold"]),
             min_speech_duration_ms=int(params["min_speech_duration"] * 1000),
+            max_speech_duration_s=params["max_speech_duration"] if params["max_speech_duration"] is not None else float("inf"),
             min_silence_duration_ms=int(params["min_silence_duration"] * 1000),
             speech_pad_ms=int(params["speech_padding_time"] * 1000),
             return_seconds=False,

@@ -5,6 +5,7 @@ from ...common import CommonModelActionConfig
 class VoiceActivityDetectionParamsConfig(BaseModel):
     threshold: Union[float, str] = Field(default=0.5, description="Speech probability threshold above which a frame is treated as speech.")
     min_speech_duration: Union[str, float, int] = Field(default="250ms", description="Minimum speech chunk duration (e.g. '250ms', '0.25s'); shorter chunks are discarded.")
+    max_speech_duration: Optional[Union[str, float, int]] = Field(default=None, description="Maximum speech chunk duration (e.g. '30s'); longer chunks are forcibly split. None means unlimited.")
     min_silence_duration: Union[str, float, int] = Field(default="500ms", description="Minimum silence duration (e.g. '500ms', '0.5s') required to split adjacent speech chunks.")
     speech_padding_time: Union[str, float, int] = Field(default="100ms", description="Padding time (e.g. '100ms', '0.1s') added to both sides of each detected speech chunk.")
 

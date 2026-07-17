@@ -11,20 +11,13 @@ class WorkQueue:
         self.workers: List[asyncio.Task] = []
         self.stopped: bool = False
         self.draining: bool = False
+
         self._active_counter: ActiveCounter = ActiveCounter()
 
     async def _worker(self):
         while not self.stopped:
             try:
                 args, kwargs, future = await self.queue.get()
-
-                if self.draining:
-                    if not future.done():
-                        future.set_exception(ShutdownError("Service is shutting down"))
-                    self.queue.task_done()
-                    continue
-
-                self._active_counter.acquire()
 
                 try:
                     result = await self.handler(*args, **kwargs)
@@ -60,6 +53,7 @@ class WorkQueue:
             raise ShutdownError("Queue is shutting down")
 
         future = asyncio.get_running_loop().create_future()
+        self._active_counter.acquire()
         await self.queue.put((args, kwargs, future))
 
         return future

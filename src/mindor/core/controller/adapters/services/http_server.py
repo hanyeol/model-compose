@@ -723,6 +723,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if self.server:
             self.server.should_exit = True
 
+        if self.daemon_task:
+            await self.daemon_task
+
     async def _on_task_state_change(self, task_id: str, state: TaskState) -> None:
         if self.websocket_manager.has_task_subscribers(task_id):
             await self.websocket_manager.broadcast_task_message(

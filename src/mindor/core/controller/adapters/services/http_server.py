@@ -523,6 +523,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         @self.http_router.get("/health")
         async def health_check():
+            if self.controller.is_shutdown_pending:
+                return JSONResponse(status_code=503, content={ "status": "shutdown_pending" })
+
+            if self.controller.is_shutting_down:
+                return JSONResponse(status_code=503, content={ "status": "shutting_down" })
+
             return JSONResponse(content={ "status": "ok" })
 
     def _configure_websocket_routes(self) -> None:

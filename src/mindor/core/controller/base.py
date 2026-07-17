@@ -164,6 +164,7 @@ class ControllerService(AsyncService):
         self.task_events: Dict[str, asyncio.Event] = {}
         self._queue: Optional[ControllerQueueService] = None
         self._inflight_tasks: Set[asyncio.Task] = set()
+        self._shutdown_pending: bool = False
         self._shutting_down: bool = False
         self._task_state_listeners: List[TaskStateListener] = []
         self._task_event_listeners: List[TaskEventListener] = []
@@ -280,6 +281,14 @@ class ControllerService(AsyncService):
             await ControllerAppleContainerRuntimeManager(self.config, verbose).stop()
             await self._stop_loggers()
             return
+
+    @property
+    def is_shutdown_pending(self) -> bool:
+        return self._shutdown_pending
+
+    @property
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
 
     async def run_workflow(
         self,
@@ -458,8 +467,15 @@ class ControllerService(AsyncService):
         await super()._start()
 
     async def _stop(self) -> None:
+        pending_period = parse_duration(self.config.shutdown_pending_period)
+        timeout        = parse_duration(self.config.shutdown_timeout)
+
+        if pending_period > 0:
+            self._shutdown_pending = True
+            logging.info("Shutdown pending: waiting %s for traffic to drain...", self.config.shutdown_pending_period)
+            await asyncio.sleep(pending_period)
+
         self._shutting_down = True
-        timeout = parse_duration(self.config.shutdown_timeout)
 
         if self._inflight_tasks:
             logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))

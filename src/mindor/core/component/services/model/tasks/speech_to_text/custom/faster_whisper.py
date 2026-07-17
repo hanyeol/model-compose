@@ -76,13 +76,13 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         return [ self._transcribe_full(waveform, params["transcribe"]) for waveform in waveforms ]
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
-        import numpy as np
+        waveforms: List[np.ndarray] = []
 
-        async def _prepare(audio: MediaSource) -> np.ndarray:
+        for audio in audios:
             waveform, _ = await load_audio_array(audio, sample_rate=16000)
-            return waveform.astype(np.float32)
+            waveforms.append(waveform)
 
-        return [ await _prepare(audio) for audio in audios ]
+        return waveforms
 
     def _transcribe_full(self, waveform: np.ndarray, params: Dict[str, Any]) -> str:
         segments, _ = self.model.transcribe(waveform, **params)

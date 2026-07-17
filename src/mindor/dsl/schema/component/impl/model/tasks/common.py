@@ -25,6 +25,8 @@ class ModelTaskType(str, Enum):
     TEXT_TO_SPEECH           = "text-to-speech"
     SPEECH_TO_TEXT           = "speech-to-text"
     VOICE_ACTIVITY_DETECTION = "voice-activity-detection"
+    SPEECH_SEPARATION        = "speech-separation"
+    SPEAKER_DIARIZATION      = "speaker-diarization"
     MUSIC_GENERATION         = "music-generation"
 
 class ModelDriver(str, Enum):

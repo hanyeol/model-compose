@@ -97,6 +97,7 @@ def params():
         "sample_rate": 16000,
         "threshold": 0.5,
         "min_speech_duration": parse_duration("250ms"),
+        "max_speech_duration": None,
         "min_silence_duration": parse_duration("500ms"),
         "speech_padding_time": parse_duration("100ms"),
     }

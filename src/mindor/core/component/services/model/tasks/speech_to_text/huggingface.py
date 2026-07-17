@@ -121,13 +121,13 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
-        import numpy as np
+        waveforms: List[np.ndarray] = []
 
-        async def _prepare(audio: MediaSource) -> np.ndarray:
+        for audio in audios:
             waveform, _ = await load_audio_array(audio, sample_rate=16000)
-            return waveform.astype(np.float32)
+            waveforms.append(waveform)
 
-        return [ await _prepare(audio) for audio in audios ]
+        return waveforms
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):

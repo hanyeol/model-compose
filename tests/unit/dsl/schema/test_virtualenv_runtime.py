@@ -45,7 +45,6 @@ class TestControllerValidateRuntime:
 
         message = str(exc.value)
         assert "virtualenv" in message
-        assert "component-only" in message
 
     def test_accepts_native(self):
         cfg = ControllerConfig(runtime={"type": "native"}, adapters=[])

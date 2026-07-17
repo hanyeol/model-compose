@@ -70,19 +70,20 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         import numpy as np
 
         window_size = self._resolve_window_size(sample_rate)
+        waveforms: List[Union[np.ndarray, AsyncIterator[np.ndarray]]] = []
 
-        async def _prepare(audio: MediaSource) -> Union[np.ndarray, AsyncIterator[np.ndarray]]:
+        for audio in audios:
             if streaming and is_audio_streamable(audio):
-                return stream_audio_array(audio, window_size, sample_rate=sample_rate)
+                waveforms.append(stream_audio_array(audio, window_size, sample_rate=sample_rate))
+                continue
 
             if streaming:
                 logging.debug("Streaming input format=%r not directly consumable; collating for frame-by-frame VAD.", audio.format)
 
             waveform, _ = await load_audio_array(audio, sample_rate=sample_rate)
+            waveforms.append(waveform)
 
-            return waveform
-
-        return [ await _prepare(audio) for audio in audios ], window_size
+        return waveforms, window_size
 
     def _collect_detections(
         self,

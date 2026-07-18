@@ -451,8 +451,10 @@ Regardless of type, every job supports the following fields:
 | `max_run_count` | `int` | `5` | Maximum times this job may execute within one workflow run (including routing re-runs). |
 | `interrupt` | object | `null` | Human-in-the-loop interrupt points. See [Interrupts (Human-in-the-Loop)](#interrupts-human-in-the-loop) below. |
 | `hook` | object | `null` | Inline Python hooks that run before/after the job. See [Hooks](#hooks) below. |
+| `retry` | int/object | `null` | Retry policy applied on failure. See [Retry](#retry) below. |
+| `on_error` | string/object | `null` | Fallback behavior after retries are exhausted. See [On-Error](#on-error) below. |
 
-Interrupts and hooks work on every job type — component, if, switch, delay, filter, for-each, random-router.
+Interrupts, hooks, retries, and on-error handlers work on every job type — component, if, switch, delay, filter, for-each, random-router.
 
 #### Interrupts (Human-in-the-Loop)
 
@@ -543,6 +545,92 @@ Each phase accepts either a single hook or a list. When a list is given, hooks p
 **Interaction with routing jobs (`if`, `switch`, `random-router`):** the after-hook is invoked with `output=None` and its return value is discarded — hooks on routing jobs are effectively observation-only.
 
 **Execution order per job:** `before-interrupt → before-hook → job body → output template render → after-interrupt → after-hook`.
+
+#### Retry
+
+Retry a job when it raises an exception. The retry loop is internal to the job — retries do **not** count against `max_run_count`, which tracks routing re-runs only.
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3               # 3 total attempts, no delay
+```
+
+Or the full form:
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry:
+      max_attempt_count: 5
+      delay: 1s
+      backoff: exponential   # fixed | exponential
+      max_delay: 30s
+```
+
+Any exception raised by the job body is retried up to `max_attempt_count` times.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_attempt_count` | `int` | `1` | Total attempts including the first, before falling through to `on_error`. Must be ≥ 1. |
+| `delay` | string/number | `0` | Base delay between attempts (`"1s"`, `"500ms"`, or seconds). |
+| `backoff` | `"fixed" \| "exponential"` | `"fixed"` | How the delay grows across attempts. |
+| `max_delay` | string/number | `null` | Cap for the delay after backoff is applied. |
+
+Delay grows per attempt (`n` = current attempt, `1`-indexed):
+
+- `fixed` → `base`
+- `exponential` → `base × 2^(n − 1)`
+
+If retries are exhausted, `on_error` is applied when configured; otherwise the exception propagates.
+
+#### On-Error
+
+Apply a fallback strategy after retries are exhausted. Without `on_error`, an unhandled exception fails the workflow.
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    on_error: ignore       # swallow the error, return null
+```
+
+Or the full form:
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3
+    on_error:
+      output:
+        status: failed
+        reason: ${error.message}
+      to: cleanup_job
+```
+
+The `on_error: ignore` string form is a shorthand for `on_error: {}` — swallow the error and return `null`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `output` | any | `null` | Fallback output rendered on failure. Can reference `${error.*}` variables. |
+| `to` | `string` | `null` | Job ID to route to on failure (like a routing job's target). |
+
+**Resolution order** when `on_error` fires:
+
+1. `to` set → route to that job (`output` is ignored).
+2. Otherwise `output` set → render and return it.
+3. Otherwise → return `null`.
+
+**Error variables** available inside `output`:
+
+| Path | Description |
+|------|-------------|
+| `${error.message}` | Exception message (`str(e)`). |
+
+`on_error` only fires after every retry attempt has failed; if any retry succeeds, `on_error` is not invoked.
 
 ### Component Job
 

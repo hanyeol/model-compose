@@ -450,8 +450,10 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 | `max_run_count` | `int` | `5` | 此作业在单次工作流运行中可执行的最大次数（含路由重跑）。 |
 | `interrupt` | object | `null` | 人机协作的中断点。参见下方 [中断（人机协作）](#中断人机协作)。 |
 | `hook` | object | `null` | 在作业前/后运行的内联 Python 钩子。参见下方 [钩子](#钩子)。 |
+| `retry` | int/object | `null` | 作业失败时的重试策略。参见下方 [重试](#重试)。 |
+| `on_error` | string/object | `null` | 重试耗尽后的回退行为。参见下方 [错误处理](#错误处理)。 |
 
-中断和钩子适用于每种作业类型 —— component、if、switch、delay、filter、for-each、random-router。
+中断、钩子、重试和错误处理适用于每种作业类型 —— component、if、switch、delay、filter、for-each、random-router。
 
 #### 中断（人机协作）
 
@@ -542,6 +544,92 @@ jobs:
 **与路由类作业（`if`、`switch`、`random-router`）的交互：** after 钩子会以 `output=None` 调用，并且其返回值会被丢弃 —— 路由类作业上的钩子实际上是仅观察的。
 
 **每个作业的执行顺序：** `before-interrupt → before-hook → job body → output template render → after-interrupt → after-hook`。
+
+#### 重试
+
+当作业抛出异常时进行重试。重试循环在作业内部完成，**不会** 计入 `max_run_count`（`max_run_count` 仅追踪由路由触发的重跑）。
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3               # 共 3 次尝试，无延迟
+```
+
+或详细形式：
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry:
+      max_attempt_count: 5
+      delay: 1s
+      backoff: exponential   # fixed | exponential
+      max_delay: 30s
+```
+
+作业本体抛出的任何异常都会被最多重试 `max_attempt_count` 次。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `max_attempt_count` | `int` | `1` | 包括首次尝试在内的总尝试次数，超过后进入 `on_error`。必须 ≥ 1。 |
+| `delay` | string/number | `0` | 尝试之间的基础延迟（`"1s"`、`"500ms"` 或秒数）。 |
+| `backoff` | `"fixed" \| "exponential"` | `"fixed"` | 延迟随尝试次数增长的方式。 |
+| `max_delay` | string/number | `null` | 应用退避后的延迟上限。 |
+
+每次尝试的延迟计算（`n` 为当前尝试序号，从 1 开始）：
+
+- `fixed` → `base`
+- `exponential` → `base × 2^(n − 1)`
+
+重试耗尽后，如果配置了 `on_error` 则应用其策略；否则异常向上传播。
+
+#### 错误处理
+
+在重试耗尽之后应用回退策略。若未配置 `on_error`，未处理的异常将导致工作流失败。
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    on_error: ignore       # 吞掉错误，返回 null
+```
+
+或详细形式：
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3
+    on_error:
+      output:
+        status: failed
+        reason: ${error.message}
+      to: cleanup_job
+```
+
+`on_error: ignore` 字符串形式是 `on_error: {}` 的简写 —— 吞掉异常并返回 `null`。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `output` | any | `null` | 失败时渲染并返回的回退输出。可引用 `${error.*}` 变量。 |
+| `to` | `string` | `null` | 失败时路由到的作业 ID（与路由作业的目标相同）。 |
+
+**`on_error` 触发时的判定顺序：**
+
+1. 若设置了 `to` → 路由到该作业（`output` 被忽略）。
+2. 否则若设置了 `output` → 渲染并返回。
+3. 否则 → 返回 `null`。
+
+**`output` 模板中可用的错误变量：**
+
+| 路径 | 说明 |
+|------|------|
+| `${error.message}` | 异常消息（`str(e)`）。 |
+
+`on_error` 仅在所有重试尝试都失败后才触发；只要有任何一次重试成功，`on_error` 就不会被调用。
 
 ### Component 作业
 

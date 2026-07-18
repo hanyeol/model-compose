@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-frame-extractor | audio-extractor | audio-converter | audio-feature-extractor | web-scraper | web-browser
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-frame-extractor | audio-extractor | audio-converter | audio-feature-extractor | web-scraper | web-browser | screen-capture
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -68,6 +68,7 @@ Model-compose supports the following component types:
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
+| `screen-capture` | Live screen and system/microphone audio capture as continuous streams | [screen-capture.md](components/screen-capture.md) |
 
 ## Common Configuration Properties
 

@@ -41,6 +41,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `audio-feature-extractor` | 音频特征提取 | 用于可视化的每帧频谱带 / 波形点 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
+| `screen-capture` | 本地屏幕与音频采集 | 将桌面/区域/系统或麦克风音频作为连续编码流实时输出 |
 
 ### 组件选择指南
 
@@ -69,6 +70,9 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 **浏览器自动化**
 - 浏览器控制 (CDP) → `web-browser`
+
+**实时采集**
+- 本地屏幕 / 区域 / 系统音频作为实时源 → `screen-capture`
 
 **AI 代理**
 - 使用工具的自主代理 → `agent`

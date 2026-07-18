@@ -56,7 +56,7 @@ workflows:
 
 ## Common Job Fields
 
-Every job type supports a shared set of fields for identification, dependencies, interrupts, and hooks. Individual job-type sections below list only their type-specific fields.
+Every job type supports a shared set of fields for identification, dependencies, interrupts, hooks, retries, and error handling. Individual job-type sections below list only their type-specific fields.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -66,6 +66,8 @@ Every job type supports a shared set of fields for identification, dependencies,
 | `max_run_count` | integer | `5` | Maximum executions within a single workflow run (including re-runs from routing) |
 | `interrupt` | object | `null` | Human-in-the-Loop interrupt points; see [Job Interrupts](#job-interrupts) |
 | `hook` | object | `null` | Inline Python hooks; see [Job Hooks](#job-hooks) |
+| `retry` | integer/object | `null` | Retry policy applied to this job on failure; see [Job Retry](#job-retry) |
+| `on_error` | string/object | `null` | Fallback behavior after retries are exhausted; see [Job On-Error](#job-on-error) |
 | `output` | any | `null` | Output mapping expression for this job (except router-only jobs like `if`, `switch`, `random-router`) |
 
 ### Job Interrupts
@@ -145,6 +147,92 @@ Each phase accepts a single hook object or a list of hooks. Hooks run in declara
 Hooks may be sync or async. The return value is always used verbatim: to leave data unchanged, explicitly `return input` (before) or `return output` (after). For routing jobs (`if`, `switch`, `random-router`), after-hook `output` is `None` and the return value is discarded — after hooks on those jobs are observation-only.
 
 **Execution order per job:** interrupt → hook. When a job declares an `output` mapping expression, it is rendered *before* the after-hook, so hooks see the shaped output.
+
+### Job Retry
+
+Retry a job when it raises an exception. The retry loop lives inside the job itself — retries do **not** count against `max_run_count`, which only tracks re-runs driven by routing.
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3               # shorthand — 3 total attempts, no delay
+```
+
+Or the full form:
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry:
+      max_attempt_count: 5
+      delay: 1s
+      backoff: exponential
+      max_delay: 30s
+```
+
+Any exception raised by the job body is retried up to `max_attempt_count` times.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_attempt_count` | integer | `1` | Total attempts including the first, before falling through to `on_error`. Must be ≥ 1 |
+| `delay` | string/number | `0` | Base delay between attempts (duration string like `1s`, `500ms`, or seconds) |
+| `backoff` | `"fixed"` \| `"exponential"` | `"fixed"` | How the delay grows across attempts |
+| `max_delay` | string/number | `null` | Cap for the delay after backoff is applied |
+
+**Backoff calculation:**
+
+- `fixed`: `delay = base`
+- `exponential`: `delay = base * 2^(attempt - 1)`
+
+When retries are exhausted, control falls through to [Job On-Error](#job-on-error) if configured; otherwise the exception propagates and fails the workflow.
+
+### Job On-Error
+
+Apply a fallback strategy after retries are exhausted. Without `on_error`, an unhandled exception fails the workflow.
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    on_error: ignore       # shorthand — swallow the error, return null
+```
+
+Or the full form:
+
+```yaml
+jobs:
+  - id: fetch
+    component: http-api
+    retry: 3
+    on_error:
+      output:
+        status: failed
+        reason: ${error.message}
+      to: cleanup_job
+```
+
+The `on_error: ignore` string form is a shorthand for `on_error: {}` — swallow the error and return `null`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `output` | any | `null` | Fallback output rendered on failure. Can reference `${error.*}` variables |
+| `to` | string | `null` | Job ID to route to on failure (like a routing job's target) |
+
+**Resolution order** when `on_error` fires:
+
+1. If `to` is set → return a routing target to that job (any `output` is ignored).
+2. Else if `output` is set → render `output` and return it as the job's result.
+3. Else → return `null`.
+
+**Error variables** available inside `output` templates via variable binding:
+
+| Path | Description |
+|------|-------------|
+| `${error.message}` | The exception's message (`str(e)`) |
+
+**Interaction with `retry`:** `on_error` only fires after all retry attempts have failed. If any retry attempt succeeds, `on_error` is not invoked and the successful output is used.
 
 ## Job Types
 

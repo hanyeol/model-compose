@@ -41,6 +41,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
+| `screen-capture` | Capture local screen and audio | Live desktop, region, or microphone/system audio as continuous encoded streams |
 
 ### Component Selection Guide
 
@@ -70,6 +71,9 @@ model-compose provides various component types for performing different tasks.
 
 **Browser Automation**
 - Full browser control (CDP) → `web-browser`
+
+**Live Capture**
+- Local screen / region / system audio as a live source → `screen-capture`
 
 **AI Agents**
 - Autonomous tool-using agents → `agent`

@@ -8,17 +8,6 @@ from .types import ComponentType
 
 ComponentValidatorRegistry: Dict[Tuple[ComponentType, str], List[Callable[[Any], Any]]] = {}
 
-def component_validator(type: ComponentType, mode: Literal[ "before", "after" ] = "before"):
-    def decorator(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
-        ComponentValidatorRegistry.setdefault((type, mode), []).append(func)
-        return func
-    return decorator
-
-def apply_component_validators(component: Any, mode: Literal[ "before", "after" ]) -> None:
-    type = component.get("type") if mode == "before" else component.type
-    for func in ComponentValidatorRegistry.get((type, mode), []):
-        func(component)
-
 class CommonComponentConfig(BaseModel):
     id: str = Field(default="__component__", description="ID of component.")
     type: ComponentType = Field(..., description="Type of component.")
@@ -47,3 +36,14 @@ class CommonComponentConfig(BaseModel):
         if value == "__default__":
             raise ValueError("Component id cannot be '__default__'")
         return value
+
+def component_validator(type: ComponentType, mode: Literal[ "before", "after" ] = "before"):
+    def decorator(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        ComponentValidatorRegistry.setdefault((type, mode), []).append(func)
+        return func
+    return decorator
+
+def apply_component_validators(component: Any, mode: Literal[ "before", "after" ]) -> None:
+    type = component.get("type") if mode == "before" else component.type
+    for func in ComponentValidatorRegistry.get((type, mode), []):
+        func(component)

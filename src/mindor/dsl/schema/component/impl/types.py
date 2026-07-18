@@ -25,6 +25,7 @@ class ComponentType(str, Enum):
     VIDEO_CONVERTER         = "video-converter"
     VIDEO_ENCODER           = "video-encoder"
     VIDEO_FRAME_EXTRACTOR   = "video-frame-extractor"
+    SCREEN_CAPTURE          = "screen-capture"
     AUDIO_EXTRACTOR         = "audio-extractor"
     AUDIO_CONVERTER         = "audio-converter"
     AUDIO_PROCESSOR         = "audio-processor"

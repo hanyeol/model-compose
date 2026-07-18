@@ -150,7 +150,7 @@ class PyannoteSpeakerDiarizationTaskService(SpeakerDiarizationTaskService):
 
         device = self._resolve_device(self.config.device)
         source, token = self._resolve_source_and_token()
-        pipeline = Pipeline.from_pretrained(source, use_auth_token=token)
+        pipeline = Pipeline.from_pretrained(source, token=token)
         if pipeline is None:
             raise RuntimeError(f"Failed to load pyannote pipeline '{source}'. Verify the HuggingFace token has access to the gated model.")
         pipeline.to(device)

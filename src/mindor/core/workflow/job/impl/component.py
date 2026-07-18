@@ -13,7 +13,7 @@ class ComponentJob(Job):
     def __init__(self, id: str, config: ComponentJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         component: ComponentService = self._create_component(self.id, self.config.component)
 
         if not component.started:
@@ -22,14 +22,14 @@ class ComponentJob(Job):
         input        = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
         repeat_count = (await context.render_variable(None, self.config.repeat_count)) if self.config.repeat_count else None
 
-        outputs = await asyncio.gather(*[ self._run(input, component, context) for _ in range(int(repeat_count or 1)) ])
+        outputs = await asyncio.gather(*[ self._run_once(input, component, context) for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None
         context.register_source(None, "output", output)
 
         return output
 
-    async def _run(self, input: Any, component: ComponentService, context: JobContext) -> Any:
+    async def _run_once(self, input: Any, component: ComponentService, context: JobContext) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
 

@@ -210,7 +210,7 @@ class TestAudioProcessorNumpyMethods:
     @pytest.mark.anyio
     async def test_normalize_scales_to_target_rms(self):
         import numpy as np
-        config = _config("normalize", level=-20.0, peak_limit=0.99)
+        config = _config("normalize", mode="rms", level=-20.0, peak_limit=0.99)
         action = AudioProcessorAction(config)
 
         # Start with a small amplitude tone

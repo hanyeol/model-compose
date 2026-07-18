@@ -10,7 +10,7 @@ class RandomRouterJob(Job):
     def __init__(self, id: str, config: RandomRouterJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         await self._before_run(context, None, None)
 
         target = await self._select_target(context)

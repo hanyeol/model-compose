@@ -13,7 +13,7 @@ class DelayJob(Job):
     def __init__(self, id: str, config: DelayJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Any:
+    async def _run(self, context: JobContext) -> Any:
         is_direct_output = not self.config.output or self.config.output == "${output}"
 
         await self._before_run(context, None, None)

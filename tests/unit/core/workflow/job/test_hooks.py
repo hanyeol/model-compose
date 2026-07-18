@@ -43,7 +43,7 @@ class _FakeJob(Job):
         self.config = _FakeConfig(hook=hook_config)
         self.global_configs = None
 
-    async def run(self, context):  # unused for hook helper tests
+    async def _run(self, context):  # unused for hook helper tests
         raise NotImplementedError
 
 

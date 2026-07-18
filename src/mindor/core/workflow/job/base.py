@@ -21,8 +21,11 @@ class Job(ABC):
         self.config: JobConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    @abstractmethod
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+        return await self._run(context)
+
+    @abstractmethod
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         pass
 
     async def _before_run(self, context: JobContext, run_id: Optional[str], input: Any) -> Any:

@@ -47,6 +47,7 @@ def minilm_action_factory():
     from mindor.core.component.services.model.tasks.text_embedding.huggingface import (
         HuggingfaceTextEmbeddingTaskAction,
     )
+    from mindor.dsl.schema.component import HuggingfaceTextEmbeddingModelArchitecture
 
     try:
         model     = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
@@ -59,7 +60,9 @@ def minilm_action_factory():
     model.eval()
 
     def _factory(config: TextEmbeddingModelActionConfig) -> HuggingfaceTextEmbeddingTaskAction:
-        return HuggingfaceTextEmbeddingTaskAction(config, model, tokenizer, device)
+        return HuggingfaceTextEmbeddingTaskAction(
+            config, HuggingfaceTextEmbeddingModelArchitecture.BERT, model, tokenizer, device
+        )
 
     return _factory
 

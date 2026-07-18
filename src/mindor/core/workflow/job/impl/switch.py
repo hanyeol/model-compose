@@ -10,7 +10,7 @@ class SwitchJob(Job):
     def __init__(self, id: str, config: SwitchJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         input = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
 
         input = await self._before_run(context, None, input)

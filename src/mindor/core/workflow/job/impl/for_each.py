@@ -15,7 +15,7 @@ class ForEachJob(Job):
     def __init__(self, id: str, config: ForEachJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         component: ComponentService = self._create_component(self.id, self.config.do.component)
 
         if not component.started:
@@ -54,9 +54,9 @@ class ForEachJob(Job):
         return output
 
     async def _run_batch(self, batch_items: List[Any], component: ComponentService, context: JobContext) -> List[Any]:
-        return await asyncio.gather(*[ self._run(item, component, context) for item in batch_items ])
+        return await asyncio.gather(*[ self._run_item(item, component, context) for item in batch_items ])
 
-    async def _run(self, item: Any, component: ComponentService, context: JobContext) -> Any:
+    async def _run_item(self, item: Any, component: ComponentService, context: JobContext) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
 

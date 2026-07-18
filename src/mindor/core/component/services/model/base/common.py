@@ -82,10 +82,18 @@ class ModelTaskService(AsyncService):
 
         path = self.config.model if isinstance(self.config.model, str) else self.config.model.path
 
+        if path == "__default__":
+            path = None
+
         if path and os.path.exists(path):
             return path
 
-        url = (self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None) or default_url
+        explicit_url = self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None
+
+        if path and not explicit_url:
+            raise FileNotFoundError(f"{label} model not found: {path}")
+
+        url = explicit_url or default_url
 
         if not url:
             raise FileNotFoundError(f"{label} model not found: {path}")

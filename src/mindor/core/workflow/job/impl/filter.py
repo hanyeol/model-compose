@@ -15,7 +15,7 @@ class FilterJob(Job):
     def __init__(self, id: str, config: FilterJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         input     = await context.render_variable(None, self.config.input)
         streaming = await context.render_variable(None, self.config.streaming)
 

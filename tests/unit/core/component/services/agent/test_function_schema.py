@@ -59,7 +59,7 @@ async def _noop(*args: Any, **kwargs: Any) -> Any:
 
 
 def _tool(params: List[WorkflowVariableConfig], description: Optional[str] = None) -> WorkflowTool:
-    return WorkflowTool(function=_noop, description=description, parameters=params)
+    return WorkflowTool(function=_noop, description=description, parameters=params, returns=[])
 
 
 def _dump(tool: WorkflowTool, name: str = "fn") -> Dict[str, Any]:

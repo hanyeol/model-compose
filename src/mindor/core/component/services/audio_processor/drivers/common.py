@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod
+from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
@@ -46,6 +46,11 @@ class AudioProcessorAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, method: AudioProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+        if method == AudioProcessorActionMethod.RESAMPLE:
+            sample_rate = await context.render_variable(self.config.sample_rate)
+
+            return { "sample_rate": int(sample_rate) }
+
         if method == AudioProcessorActionMethod.HIGHPASS:
             cutoff = await context.render_variable(self.config.cutoff)
 
@@ -55,6 +60,39 @@ class AudioProcessorAction:
             cutoff = await context.render_variable(self.config.cutoff)
 
             return { "cutoff": float(cutoff) }
+
+        if method == AudioProcessorActionMethod.BELL:
+            frequency = await context.render_variable(self.config.frequency)
+            gain      = await context.render_variable(self.config.gain)
+            q         = await context.render_variable(self.config.q)
+
+            return {
+                "frequency": float(frequency),
+                "gain":      float(gain),
+                "q":         float(q),
+            }
+
+        if method == AudioProcessorActionMethod.LOW_SHELF:
+            frequency = await context.render_variable(self.config.frequency)
+            gain      = await context.render_variable(self.config.gain)
+            q         = await context.render_variable(self.config.q)
+
+            return {
+                "frequency": float(frequency),
+                "gain":      float(gain),
+                "q":         float(q),
+            }
+
+        if method == AudioProcessorActionMethod.HIGH_SHELF:
+            frequency = await context.render_variable(self.config.frequency)
+            gain      = await context.render_variable(self.config.gain)
+            q         = await context.render_variable(self.config.q)
+
+            return {
+                "frequency": float(frequency),
+                "gain":      float(gain),
+                "q":         float(q),
+            }
 
         if method == AudioProcessorActionMethod.PITCH_SHIFT:
             semitones = await context.render_variable(self.config.semitones)
@@ -78,6 +116,29 @@ class AudioProcessorAction:
                 "attack":    parse_time(attack),
                 "release":   parse_time(release),
             }
+
+        if method == AudioProcessorActionMethod.NOISE_GATE:
+            threshold = await context.render_variable(self.config.threshold)
+            ratio     = await context.render_variable(self.config.ratio)
+            attack    = await context.render_variable(self.config.attack)
+            release   = await context.render_variable(self.config.release)
+
+            return {
+                "threshold": float(threshold),
+                "ratio":     float(ratio),
+                "attack":    parse_time(attack),
+                "release":   parse_time(release),
+            }
+
+        if method == AudioProcessorActionMethod.DISTORTION:
+            drive = await context.render_variable(self.config.drive)
+
+            return { "drive": float(drive) }
+
+        if method == AudioProcessorActionMethod.SATURATION:
+            drive = await context.render_variable(self.config.drive)
+
+            return { "drive": float(drive) }
 
         if method == AudioProcessorActionMethod.GAIN:
             level = await context.render_variable(self.config.level)
@@ -126,18 +187,60 @@ class AudioProcessorAction:
             }
 
         if method == AudioProcessorActionMethod.NORMALIZE:
-            level      = await context.render_variable(self.config.level)
-            peak_limit = await context.render_variable(self.config.peak_limit)
+            if self.config.mode == AudioProcessorNormalizeMode.RMS:
+                level      = await context.render_variable(self.config.level)
+                peak_limit = await context.render_variable(self.config.peak_limit)
 
-            return {
-                "level":      float(level),
-                "peak_limit": float(peak_limit),
-            }
+                return {
+                    "mode":       AudioProcessorNormalizeMode.RMS,
+                    "level":      float(level),
+                    "peak_limit": float(peak_limit),
+                }
+
+            if self.config.mode == AudioProcessorNormalizeMode.PEAK:
+                level = await context.render_variable(self.config.level)
+
+                return {
+                    "mode":  AudioProcessorNormalizeMode.PEAK,
+                    "level": float(level),
+                }
+
+            if self.config.mode == AudioProcessorNormalizeMode.LUFS:
+                level             = await context.render_variable(self.config.level)
+                tolerance         = await context.render_variable(self.config.tolerance)
+                max_gain          = await context.render_variable(self.config.max_gain)
+                true_peak_ceiling = await context.render_variable(self.config.true_peak_ceiling)
+
+                return {
+                    "mode":              AudioProcessorNormalizeMode.LUFS,
+                    "level":             float(level),
+                    "tolerance":         float(tolerance),
+                    "max_gain":          float(max_gain),
+                    "true_peak_ceiling": float(true_peak_ceiling),
+                }
+
+            raise ValueError(f"Unsupported normalize mode: {mode}")
 
         if method == AudioProcessorActionMethod.PEAK_LIMIT:
-            level = await context.render_variable(self.config.level)
+            if self.config.mode == AudioProcessorPeakLimitMode.HARD:
+                level = await context.render_variable(self.config.level)
 
-            return { "level": float(level) }
+                return {
+                    "mode":  AudioProcessorPeakLimitMode.HARD,
+                    "level": float(level),
+                }
+
+            if self.config.mode == AudioProcessorPeakLimitMode.SMOOTH:
+                level   = await context.render_variable(self.config.level)
+                release = await context.render_variable(self.config.release)
+
+                return {
+                    "mode":    AudioProcessorPeakLimitMode.SMOOTH,
+                    "level":   float(level),
+                    "release": parse_time(release),
+                }
+
+            raise ValueError(f"Unsupported peak-limit mode: {mode}")
 
         if method == AudioProcessorActionMethod.TRIM_EDGES:
             threshold = await context.render_variable(self.config.threshold)
@@ -163,6 +266,16 @@ class AudioProcessorAction:
                 "fade":                 parse_time(fade),
             }
 
+        if method == AudioProcessorActionMethod.FADE_IN:
+            duration = await context.render_variable(self.config.duration)
+
+            return { "duration": parse_time(duration) }
+
+        if method == AudioProcessorActionMethod.FADE_OUT:
+            duration = await context.render_variable(self.config.duration)
+
+            return { "duration": parse_time(duration) }
+
         raise ValueError(f"Unsupported audio processor action method: {method}")
 
     async def _process_batch(
@@ -187,11 +300,23 @@ class AudioProcessorAction:
             logging.debug("Audio processor (%s) skipped because no audio was provided.", method)
             return None
 
+        if method == AudioProcessorActionMethod.RESAMPLE:
+            return await self._resample(audio, params, loop)
+
         if method == AudioProcessorActionMethod.HIGHPASS:
             return await self._highpass(audio, params, loop)
 
         if method == AudioProcessorActionMethod.LOWPASS:
             return await self._lowpass(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.BELL:
+            return await self._bell(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.LOW_SHELF:
+            return await self._low_shelf(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.HIGH_SHELF:
+            return await self._high_shelf(audio, params, loop)
 
         if method == AudioProcessorActionMethod.PITCH_SHIFT:
             return await self._pitch_shift(audio, params, loop)
@@ -201,6 +326,15 @@ class AudioProcessorAction:
 
         if method == AudioProcessorActionMethod.COMPRESSOR:
             return await self._compressor(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.NOISE_GATE:
+            return await self._noise_gate(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.DISTORTION:
+            return await self._distortion(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.SATURATION:
+            return await self._saturation(audio, params, loop)
 
         if method == AudioProcessorActionMethod.GAIN:
             return await self._gain(audio, params, loop)
@@ -226,7 +360,17 @@ class AudioProcessorAction:
         if method == AudioProcessorActionMethod.TRIM_SILENCE:
             return await self._trim_silence(audio, params, loop)
 
+        if method == AudioProcessorActionMethod.FADE_IN:
+            return await self._fade_in(audio, params, loop)
+
+        if method == AudioProcessorActionMethod.FADE_OUT:
+            return await self._fade_out(audio, params, loop)
+
         raise ValueError(f"Unsupported audio processor action method: {method}")
+
+    @abstractmethod
+    async def _resample(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
 
     @abstractmethod
     async def _highpass(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
@@ -234,6 +378,18 @@ class AudioProcessorAction:
 
     @abstractmethod
     async def _lowpass(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _bell(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _low_shelf(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _high_shelf(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
         pass
 
     @abstractmethod
@@ -246,6 +402,18 @@ class AudioProcessorAction:
 
     @abstractmethod
     async def _compressor(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _noise_gate(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _distortion(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _saturation(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
         pass
 
     @abstractmethod
@@ -278,4 +446,12 @@ class AudioProcessorAction:
 
     @abstractmethod
     async def _trim_silence(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _fade_in(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
+        pass
+
+    @abstractmethod
+    async def _fade_out(self, audio: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> PcmStreamResource:
         pass

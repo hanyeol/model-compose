@@ -120,6 +120,29 @@ class TestWorkflowToolGenerator:
             is None
         )
 
+    def test_description_unchanged_when_not_interruptable(self) -> None:
+        schema = _schema([], description="Do the thing.")
+        tool = WorkflowToolGenerator().generate(schema.workflow_id, schema, _noop_runner)
+        assert tool.description == "Do the thing."
+
+    def test_description_appends_interrupt_hint_when_interruptable(self) -> None:
+        schema = _schema([], description="Do the thing.")
+        tool = WorkflowToolGenerator().generate(
+            schema.workflow_id, schema, _noop_runner, interruptable=True,
+        )
+        assert tool.description.startswith("Do the thing.\n\n")
+        assert "resume_workflow" in tool.description
+        assert "Human-in-the-Loop" in tool.description
+
+    def test_interrupt_hint_is_standalone_when_workflow_has_no_description(self) -> None:
+        schema = _schema([], description=None, title=None)
+        tool = WorkflowToolGenerator().generate(
+            schema.workflow_id, schema, _noop_runner, interruptable=True,
+        )
+        assert tool.description is not None
+        assert "resume_workflow" in tool.description
+        assert not tool.description.startswith("\n")
+
     def test_generated_function_has_named_parameters_from_input(self) -> None:
         schema = _schema(
             [

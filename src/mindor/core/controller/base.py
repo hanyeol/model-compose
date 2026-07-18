@@ -55,8 +55,8 @@ class TaskStatus(str, Enum):
 @dataclass
 class InterruptState:
     job_id: str
-    run_id: Optional[str]
     phase: Literal[ "before", "after" ]
+    run_id: Optional[str] = None
     message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -351,7 +351,7 @@ class ControllerService(AsyncService):
 
         return state
 
-    async def resume_workflow(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any = None) -> TaskState:
+    async def resume_workflow(self, task_id: str, job_id: str, run_id: Optional[str] = None, answer: Any = None) -> TaskState:
         with self.task_states_lock:
             state = self.task_states.get(task_id)
 

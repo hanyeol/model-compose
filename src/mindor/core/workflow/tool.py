@@ -30,6 +30,7 @@ class WorkflowTool:
     function: Callable[[Any], Awaitable[Any]]
     description: Optional[str]
     parameters: List[WorkflowVariableConfig]
+    returns: List[WorkflowVariableConfig]
 
     def as_model_tool(self, name: str) -> ModelTool:
         properties: Dict[str, ModelToolProperty] = {}
@@ -79,7 +80,8 @@ class WorkflowToolGenerator():
         self,
         workflow_id: str,
         workflow: WorkflowSchema,
-        runner: Callable[[str, Any, Any], Awaitable[Any]]
+        runner: Callable[[str, Any, Any], Awaitable[Any]],
+        interruptable: bool = False,
     ) -> WorkflowTool:
         async def _run_workflow(workflow_id, input: Any, context=None) -> Any:
             return await runner(workflow_id, input, context)
@@ -101,10 +103,21 @@ class WorkflowToolGenerator():
         context = { "_run_workflow": _run_workflow, "_build_input_value": _build_input_value }
         exec(compile(code, f"<string>", "exec"), context)
 
+        description = workflow.description or workflow.title
+
+        if interruptable:
+            interrupt_note = (
+                "This workflow may pause at a Human-in-the-Loop interrupt point; when it does, "
+                "the response is a status object with a task_id/job_id that can be passed to "
+                "`resume_workflow` after collecting the required answer."
+            )
+            description = f"{description}\n\n{interrupt_note}" if description else interrupt_note
+
         return WorkflowTool(
             function=context[f"_run_workflow_{safe_workflow_id}"],
-            description=workflow.description or workflow.title,
-            parameters=workflow.input
+            description=description,
+            parameters=workflow.input,
+            returns=workflow.output,
         )
 
     async def _build_input_value(self, arguments: List[Any], workflow: WorkflowSchema) -> Any:
@@ -134,19 +147,33 @@ class ResumeToolGenerator():
 
         return WorkflowTool(
             function=context[f"_resume_workflow_{safe_workflow_id}"],
-            description="Resume a workflow that was paused at a Human-in-the-Loop interrupt point.",
+            description="Resume the workflow that was paused at a Human-in-the-Loop interrupt point.",
             parameters=[
-                self._build_parameter("task_id", "The task ID of the interrupted workflow", required=True),
-                self._build_parameter("job_id",  "The job ID where the interrupt occurred",  required=True),
-                self._build_parameter("run_id",  "The run ID where the interrupt occurred", default=None, required=False),
-                self._build_parameter("answer",  "Optional JSON string with answer to resume with", default="", required=False),
-            ]
+                self._build_variable("task_id", WorkflowVariableType.STRING, "The task ID of the interrupted workflow", required=True),
+                self._build_variable("job_id",  WorkflowVariableType.STRING, "The job ID where the interrupt occurred",  required=True),
+                self._build_variable("run_id",  WorkflowVariableType.STRING, "The run ID where the interrupt occurred", default=None, required=False),
+                self._build_variable("answer",  WorkflowVariableType.STRING, "Optional JSON string with answer to resume with", default="", required=False),
+            ],
+            returns=[
+                self._build_variable(None, WorkflowVariableType.ANY, (
+                    "The output of the resumed workflow, or a status object with a task_id/job_id "
+                    "if it pauses again at another Human-in-the-Loop interrupt point (call "
+                    "`resume_workflow` again with the new answer)."
+                )),
+            ],
         )
 
-    def _build_parameter(self, name: str, description: str, default: Any = None, required: bool = False) -> WorkflowVariableConfig:
+    def _build_variable(
+        self,
+        name: Optional[str],
+        type: WorkflowVariableType,
+        description: str,
+        default: Any = None,
+        required: bool = False,
+    ) -> WorkflowVariableConfig:
         return WorkflowVariableConfig(
             name=name,
-            type=WorkflowVariableType.STRING,
+            type=type,
             default=default,
             required=required,
             annotations=[ WorkflowVariableAnnotationConfig(name="description", value=description) ]

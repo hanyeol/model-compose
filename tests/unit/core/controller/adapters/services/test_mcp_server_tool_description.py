@@ -8,6 +8,9 @@ the machine-readable `inputSchema`. It follows a Google-style docstring layout:
     Args:
         <name> (<type>): <description>
 
+    Returns:
+        <name> (<type>): <description>
+
 List parameters are rendered as `list[<type>]` — the Python/PEP 585 form, which
 is the most common convention among FastMCP-based servers.
 """
@@ -25,6 +28,7 @@ from mindor.core.workflow.tool import WorkflowTool
 from mindor.dsl.schema.workflow import (
     WorkflowVariableAnnotationConfig,
     WorkflowVariableConfig,
+    WorkflowVariableGroupConfig,
     WorkflowVariableType,
 )
 
@@ -56,9 +60,16 @@ def _var(
 
 
 def _tool(
-    params: List[WorkflowVariableConfig], description: Optional[str] = None
+    params: List[WorkflowVariableConfig],
+    description: Optional[str] = None,
+    returns: Optional[List[Any]] = None,
 ) -> WorkflowTool:
-    return WorkflowTool(function=_noop, description=description, parameters=params)
+    return WorkflowTool(
+        function=_noop,
+        description=description,
+        parameters=params,
+        returns=returns or [],
+    )
 
 
 async def _noop(*args: Any, **kwargs: Any) -> Any:
@@ -186,3 +197,106 @@ class TestMixedParameters:
         assert "    tags (list[string]): filters" in text
         assert "    limit (integer): max results" in text
         assert "    rows (list[object]): row list" in text
+
+
+class TestReturns:
+    def test_omits_returns_block_when_no_output(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        text = adapter._build_tool_description(_tool([], description="No output."))
+        assert "Returns:" not in text
+
+    def test_includes_returns_block_when_output_present(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        tool = _tool(
+            [],
+            description="Fetch item.",
+            returns=[_var("item", WorkflowVariableType.OBJECT, description="fetched item")],
+        )
+        text = adapter._build_tool_description(tool)
+
+        assert text.splitlines() == [
+            "Fetch item.",
+            "",
+            "Returns:",
+            "    item (object): fetched item",
+        ]
+
+    def test_args_and_returns_coexist(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        tool = _tool(
+            [_var("q", WorkflowVariableType.STRING, description="query")],
+            description="Search.",
+            returns=[_var("hits", WorkflowVariableType.OBJECT, is_list=True, description="matches")],
+        )
+        text = adapter._build_tool_description(tool)
+
+        assert text.splitlines() == [
+            "Search.",
+            "",
+            "Args:",
+            "    q (string): query",
+            "",
+            "Returns:",
+            "    hits (list[object]): matches",
+        ]
+
+    def test_anonymous_return_falls_back_to_output(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        tool = _tool(
+            [],
+            description="Compute.",
+            returns=[_var(None, WorkflowVariableType.NUMBER, description="the result")],
+        )
+        text = adapter._build_tool_description(tool)
+
+        assert "    output (number): the result" in text
+
+    def test_return_list_notation_matches_args(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        tool = _tool(
+            [],
+            returns=[_var("tags", WorkflowVariableType.STRING, is_list=True, description="labels")],
+        )
+        text = adapter._build_tool_description(tool)
+
+        assert "    tags (list[string]): labels" in text
+
+    def test_variable_group_return_rendered_as_list_of_objects_with_nested_fields(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        group = WorkflowVariableGroupConfig(
+            name="pair",
+            variables=[
+                _var("left", WorkflowVariableType.NUMBER, description="x"),
+                _var("right", WorkflowVariableType.NUMBER, description="y"),
+            ],
+        )
+        tool = _tool([], description="Pair.", returns=[group])
+        text = adapter._build_tool_description(tool)
+
+        assert text.splitlines() == [
+            "Pair.",
+            "",
+            "Returns:",
+            "    pair (list[object]): each item has:",
+            "        left (number): x",
+            "        right (number): y",
+        ]
+
+    def test_variable_group_return_uses_output_fallback_when_group_unnamed(
+        self, adapter: McpServerControllerAdapterService
+    ) -> None:
+        group = WorkflowVariableGroupConfig(
+            name=None,
+            variables=[_var("field", WorkflowVariableType.STRING, description="f")],
+        )
+        tool = _tool([], returns=[group])
+        text = adapter._build_tool_description(tool)
+
+        assert "    output (list[object]): each item has:" in text
+        assert "        field (string): f" in text

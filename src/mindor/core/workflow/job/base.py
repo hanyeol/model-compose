@@ -2,9 +2,11 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from mindor.dsl.schema.job import JobConfig, JobType, JobInterruptConfig, JobHookConfig
+from mindor.dsl.schema.job.impl.common import JobRetryConfig, JobRetryBackoff, JobOnErrorConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.hook import HookPoint
 from mindor.core.logger import logging
@@ -22,7 +24,54 @@ class Job(ABC):
         self.global_configs: ComponentGlobalConfigs = global_configs
 
     async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        return await self._run(context)
+        max_attempt_count = self.config.retry.max_attempt_count if self.config.retry else 1
+        attempt = 0
+
+        while True:
+            attempt += 1
+            try:
+                return await self._run(context)
+            except Exception as e:
+                if attempt < max_attempt_count:
+                    delay = self._resolve_retry_delay(attempt)
+
+                    logging.warning(
+                        "[task-%s] Job '%s' attempt %d/%d failed: %s. Retrying in %.2fs.",
+                        context.workflow.task_id, self.id, attempt, max_attempt_count, e, delay,
+                    )
+
+                    if delay > 0.0:
+                        await asyncio.sleep(delay)
+
+                    continue
+
+                if self.config.on_error is None:
+                    raise
+
+                logging.warning(
+                    "[task-%s] Job '%s' failed, applying on_error: %s",
+                    context.workflow.task_id, self.id, e
+                )
+
+                if self.config.on_error.to:
+                    return RoutingTarget(self.config.on_error.to)
+
+                if self.config.on_error.output is not None:
+                    context.register_source(None, "error", { "message": str(e) })
+                    return await context.render_variable(None, self.config.on_error.output)
+
+                return None
+
+    def _resolve_retry_delay(self, attempt: int) -> float:
+        delay = parse_duration(self.config.retry.delay)
+
+        if self.config.retry.backoff == JobRetryBackoff.EXPONENTIAL:
+            delay = delay * (2 ** (attempt - 1))
+
+        if self.config.retry.max_delay is not None:
+            delay = min(delay, parse_duration(self.config.retry.max_delay))
+
+        return max(delay, 0.0)
 
     @abstractmethod
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:

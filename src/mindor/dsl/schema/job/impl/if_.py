@@ -25,7 +25,7 @@ class IfJobConfig(CommonJobConfig):
         return values
 
     def get_routing_jobs(self) -> Set[str]:
-        jobs: Set[str] = set()
+        jobs = super().get_routing_jobs()
         for condition in self.conditions:
             jobs.update(job_id for job_id in (condition.if_true, condition.if_false) if job_id)
         if self.otherwise:

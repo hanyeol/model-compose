@@ -30,6 +30,8 @@ def make_job_config(job_id: str, depends_on: Optional[List[str]] = None, max_run
         depends_on=depends_on or [],
         max_run_count=max_run_count,
         type=SimpleNamespace(value="mock"),
+        retry=None,
+        on_error=None,
     )
 
 

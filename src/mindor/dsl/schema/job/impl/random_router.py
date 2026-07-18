@@ -18,4 +18,6 @@ class RandomRouterJobConfig(CommonJobConfig):
     routings: List[RandomRoutingConfig] = Field(default_factory=list, description="List of possible routing destinations.")
 
     def get_routing_jobs(self) -> Set[str]:
-        return { routing.to for routing in self.routings }
+        jobs = super().get_routing_jobs()
+        jobs.update(routing.to for routing in self.routings)
+        return jobs

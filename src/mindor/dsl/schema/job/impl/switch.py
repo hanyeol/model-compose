@@ -23,7 +23,8 @@ class SwitchJobConfig(CommonJobConfig):
         return values
 
     def get_routing_jobs(self) -> Set[str]:
-        jobs = { case.then for case in self.cases }
+        jobs = super().get_routing_jobs()
+        jobs.update(case.then for case in self.cases)
         if self.otherwise:
             jobs.add(self.otherwise)
         return jobs

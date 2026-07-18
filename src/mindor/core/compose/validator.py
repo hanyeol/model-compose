@@ -32,7 +32,9 @@ class ComposeValidator:
 
             if component.id in seen:
                 self.errors.append(
-                    f"components[{component_index}].id: Duplicate component ID '{component.id}' (first seen at components[{seen[component.id]}])"
+                    f"components[{component_index}].id: "
+                    f"Duplicate component ID '{component.id}' "
+                    f"(first seen at components[{seen[component.id]}])"
                 )
             else:
                 seen[component.id] = component_index
@@ -46,7 +48,9 @@ class ComposeValidator:
 
             if workflow.id in seen:
                 self.errors.append(
-                    f"workflows[{workflow_index}].id: Duplicate workflow ID '{workflow.id}' (first seen at workflows[{seen[workflow.id]}])"
+                    f"workflows[{workflow_index}].id: "
+                    f"Duplicate workflow ID '{workflow.id}' "
+                    f"(first seen at workflows[{seen[workflow.id]}])"
                 )
             else:
                 seen[workflow.id] = workflow_index
@@ -61,7 +65,8 @@ class ComposeValidator:
 
                 if job.id in seen:
                     self.errors.append(
-                        f"workflows[{workflow_index}].jobs[{job_index}].id: Duplicate job ID '{job.id}' in workflow '{workflow.id}'"
+                        f"workflows[{workflow_index}].jobs[{job_index}].id: "
+                        f"Duplicate job ID '{job.id}' in workflow '{workflow.id}'"
                     )
                 else:
                     seen[job.id] = job_index
@@ -83,12 +88,15 @@ class ComposeValidator:
                 if job.component == "__default__":
                     if not has_default_component:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].component: Uses default component but multiple components exist and none has 'default: true'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].component: "
+                            f"Uses default component but multiple components exist "
+                            f"and none has 'default: true'"
                         )
                 else:
                     if job.component not in component_ids:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].component: References non-existent component '{job.component}'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].component: "
+                            f"References non-existent component '{job.component}'"
                         )
 
     def _validate_action_references(self):
@@ -112,13 +120,17 @@ class ComposeValidator:
                     )
                     if not has_default_action:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].action: Uses default action but component '{component.id}' has multiple actions and none has 'default: true'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].action: "
+                            f"Uses default action but component '{component.id}' "
+                            f"has multiple actions and none has 'default: true'"
                         )
                 else:
                     action_ids = { action.id for action in component.actions }
                     if job.action not in action_ids:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].action: References non-existent action '{job.action}' on component '{component.id}'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].action: "
+                            f"References non-existent action '{job.action}' "
+                            f"on component '{component.id}'"
                         )
 
     def _validate_workflow_references(self):
@@ -139,12 +151,15 @@ class ComposeValidator:
                 if action.workflow == "__default__":
                     if not has_default_workflow:
                         self.errors.append(
-                            f"components[{component_index}].actions[{action_index}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
+                            f"components[{component_index}].actions[{action_index}].workflow: "
+                            f"Uses default workflow but multiple workflows exist "
+                            f"and none has 'default: true'"
                         )
                 else:
                     if action.workflow not in workflow_ids:
                         self.errors.append(
-                            f"components[{component_index}].actions[{action_index}].workflow: References non-existent workflow '{action.workflow}'"
+                            f"components[{component_index}].actions[{action_index}].workflow: "
+                            f"References non-existent workflow '{action.workflow}'"
                         )
 
         for listener_index, listener in enumerate(self.config.listeners):
@@ -155,12 +170,15 @@ class ComposeValidator:
                 if trigger.workflow == "__default__":
                     if not has_default_workflow:
                         self.errors.append(
-                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: Uses default workflow but multiple workflows exist and none has 'default: true'"
+                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: "
+                            f"Uses default workflow but multiple workflows exist "
+                            f"and none has 'default: true'"
                         )
                 else:
                     if trigger.workflow not in workflow_ids:
                         self.errors.append(
-                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: References non-existent workflow '{trigger.workflow}'"
+                            f"listeners[{listener_index}].triggers[{trigger_index}].workflow: "
+                            f"References non-existent workflow '{trigger.workflow}'"
                         )
 
     def _validate_job_graphs(self):
@@ -174,26 +192,32 @@ class ComposeValidator:
                 for dependency_id in job.depends_on:
                     if dependency_id == job.id:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: Job '{job.id}' depends on itself"
+                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: "
+                            f"Job '{job.id}' depends on itself"
                         )
                         continue
 
                     if dependency_id not in job_ids:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: Job '{job.id}' references non-existent job '{dependency_id}'"
+                            f"workflows[{workflow_index}].jobs[{job_index}].depends_on: "
+                            f"Job '{job.id}' references non-existent job '{dependency_id}'"
                         )
                         continue
 
                 for target_job_id in job.get_routing_jobs():
                     if target_job_id not in job_ids:
                         self.errors.append(
-                            f"workflows[{workflow_index}].jobs[{job_index}]: Routing target '{target_job_id}' does not exist in workflow '{workflow.id}'"
+                            f"workflows[{workflow_index}].jobs[{job_index}]: "
+                            f"Routing target '{target_job_id}' does not exist "
+                            f"in workflow '{workflow.id}'"
                         )
 
             entry_jobs = [ job for job in workflow.jobs if not job.depends_on ]
             if not entry_jobs:
                 self.errors.append(
-                    f"workflows[{workflow_index}]: Workflow '{workflow.id}' has no entry job (all jobs have depends_on)"
+                    f"workflows[{workflow_index}]: "
+                    f"Workflow '{workflow.id}' has no entry job "
+                    f"(all jobs have depends_on)"
                 )
 
             self._validate_no_cycles(workflow_index, workflow.id, { job.id: job for job in workflow.jobs })
@@ -205,7 +229,9 @@ class ComposeValidator:
         def _detect_cycle(job_id: str):
             if job_id in visiting:
                 self.errors.append(
-                    f"workflows[{workflow_index}]: Dependency cycle detected involving job '{job_id}' in workflow '{workflow_id}'"
+                    f"workflows[{workflow_index}]: "
+                    f"Dependency cycle detected involving job '{job_id}' "
+                    f"in workflow '{workflow_id}'"
                 )
                 return
 

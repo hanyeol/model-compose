@@ -48,6 +48,10 @@ class WorkflowRunner:
                 logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_elapsed)
 
             return output
+        except asyncio.CancelledError:
+            workflow_elapsed = workflow_time_tracker.elapsed()
+            logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, workflow_elapsed)
+            raise
         except Exception as e:
             workflow_elapsed = workflow_time_tracker.elapsed()
             tracing.on_workflow_error(context.task_id, self.id, e, workflow_elapsed)
@@ -101,7 +105,24 @@ class WorkflowRunner:
             if not scheduled_job_tasks:
                 raise RuntimeError("No runnable jobs but pending jobs remain.")
 
-            completed_job_tasks, _ = await asyncio.wait(scheduled_job_tasks.values(), return_when=asyncio.FIRST_COMPLETED)
+            try:
+                completed_job_tasks, _ = await asyncio.wait(scheduled_job_tasks.values(), return_when=asyncio.FIRST_COMPLETED)
+            except asyncio.CancelledError:
+                for job_id, job_task in scheduled_job_tasks.items():
+                    if not job_task.done():
+                        job_task.cancel()
+                await asyncio.gather(*scheduled_job_tasks.values(), return_exceptions=True)
+                for job_id in scheduled_job_tasks:
+                    job_elapsed = job_time_trackers[job_id].elapsed()
+                    await context.job_event_notifier.notify(
+                        "cancelled",
+                        job_id,
+                        self.jobs[job_id].type.value,
+                        context=context,
+                        elapsed=job_elapsed,
+                    )
+                    logging.info("[task-%s] Job '%s:%s' cancelled after %.2f seconds.", context.task_id, job_id, self.id, job_elapsed)
+                raise
 
             for completed_job_task in completed_job_tasks:
                 completed_job_id = next(job_id for job_id, job_task in scheduled_job_tasks.items() if job_task == completed_job_task)

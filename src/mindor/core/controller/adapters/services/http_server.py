@@ -141,7 +141,7 @@ class JobEventResult(BaseModel):
     workflow_id: str
     job_id: str
     job_type: str
-    event: Literal[ "started", "completed", "failed", "routed" ]
+    event: Literal[ "started", "cancelled", "completed", "failed", "routed" ]
     elapsed: Optional[float] = None
     output: Optional[Any] = None
     error: Optional[str] = None

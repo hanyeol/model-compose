@@ -960,6 +960,9 @@ class GradioWebUIBuilder:
             return f"✓ Job '**{job_id}**' completed · {event.elapsed:.2f}s"
         if event.event == "failed":
             return f"✗ Job '**{job_id}**' failed · {event.elapsed:.2f}s"
+        if event.event == "cancelled":
+            elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
+            return f"✕ Job '**{job_id}**' cancelled{elapsed_suffix}"
         if event.event == "routed":
             next_job_id = self._escape_markdown(event.next_job_id)
             return f"→ Job '**{job_id}**' routed to '**{next_job_id}**' · {event.elapsed:.2f}s"
@@ -973,6 +976,8 @@ class GradioWebUIBuilder:
             return f"✓ Component '**{component_id}**' completed"
         if event.event == "failed":
             return f"✗ Component '**{component_id}**' failed"
+        if event.event == "cancelled":
+            return f"✕ Component '**{component_id}**' cancelled"
         if event.event == "internal":
             return f"└ Component '**{component_id}**' reported" + (f" · [{event.kind}]" if event.kind else "")
         return f"• Component '**{component_id}**' {event.event}"

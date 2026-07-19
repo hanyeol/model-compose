@@ -102,7 +102,7 @@ class JobEvent:
     workflow_id: str
     job_id: str
     job_type: str
-    event: Literal[ "started", "completed", "failed", "routed" ]
+    event: Literal[ "started", "cancelled", "completed", "failed", "routed" ]
     run_id: Optional[Union[str, List[str]]] = None
     elapsed: Optional[float] = None
     input: Optional[Any] = None
@@ -118,7 +118,7 @@ class ComponentEvent:
     component_id: str
     component_type: str
     run_id: str
-    event: Literal[ "started", "completed", "failed", "internal" ]
+    event: Literal[ "started", "cancelled", "completed", "failed", "internal" ]
     kind: Optional[str] = None
     input: Optional[Any] = None
     output: Optional[Any] = None

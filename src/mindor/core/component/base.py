@@ -13,6 +13,7 @@ from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
 from mindor.core.logger import logging
 from .context import ComponentActionContext
+import asyncio
 
 class ActionResolver:
     def __init__(self, actions: List[ActionConfig]):
@@ -128,6 +129,9 @@ class ComponentService(AsyncService):
                     output = await self._run(action, context)
                 finally:
                     self._active_counter.release()
+        except asyncio.CancelledError:
+            await context.event_notifier.notify("cancelled")
+            raise
         except Exception as e:
             await context.event_notifier.notify("failed", error=str(e))
             raise

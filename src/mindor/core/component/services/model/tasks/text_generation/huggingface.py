@@ -9,6 +9,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
+from ...base.huggingface.cancellation import build_stopping_criteria
 from .common import TextGenerationTaskAction
 from threading import Thread
 import asyncio
@@ -89,7 +90,8 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         import torch
 
         stop_sequences = params["stop_sequences"]
-        stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
+        base_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
+        stopping_criteria = build_stopping_criteria(base_criteria, params.get("cancellation_token"))
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
         inputs = { k: v.to(self.device) for k, v in inputs.items() }

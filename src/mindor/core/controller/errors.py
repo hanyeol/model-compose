@@ -6,6 +6,12 @@ class TaskNotFoundError(TaskError):
 class TaskNotInterruptedError(TaskError):
     code = "TASK_NOT_INTERRUPTED"
 
+class TaskAlreadyFinishedError(TaskError):
+    code = "TASK_ALREADY_FINISHED"
+
+class TaskCancelInProgressError(TaskError):
+    code = "TASK_CANCEL_IN_PROGRESS"
+
 class JobIdMismatchError(TaskError):
     code = "JOB_ID_MISMATCH"
 

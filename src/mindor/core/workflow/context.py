@@ -6,6 +6,7 @@ from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer
 from mindor.core.foundation.variable.audio import AudioValueRenderer
 from mindor.core.foundation.variable.video import VideoValueRenderer
+from mindor.core.foundation.cancellation import CancellationToken
 from .interrupt import InterruptHandler
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class WorkflowContext:
         workflow_delegate: WorkflowDelegate,
         job_event_notifier: JobEventNotifier,
         component_event_notifier: ComponentEventNotifier,
+        cancellation_token: Optional[CancellationToken] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None,
     ):
@@ -40,6 +42,7 @@ class WorkflowContext:
         self.workflow_delegate: WorkflowDelegate = workflow_delegate
         self.job_event_notifier: JobEventNotifier = job_event_notifier
         self.component_event_notifier: ComponentEventNotifier = component_event_notifier
+        self.cancellation_token: Optional[CancellationToken] = cancellation_token
         self.job_run_ids: Dict[str, List[str]] = {}
 
     def complete_job(self, job_id: str, output: Any) -> None:

@@ -16,6 +16,7 @@ from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, T
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
 from mindor.core.errors import TaskError, ShutdownError
+from mindor.core.controller.errors import TaskNotFoundError, TaskAlreadyFinishedError, TaskCancelInProgressError
 from ..base import ControllerAdapterService, register_controller_adapter
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi import WebSocket
@@ -93,7 +94,7 @@ class InterruptResult(BaseModel):
 
 class TaskStateResult(BaseModel):
     task_id: str
-    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
     workflow_id: Optional[str] = None
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -121,7 +122,7 @@ class TaskStateResult(BaseModel):
 class WorkflowStartedResult(BaseModel):
     task_id: str
     workflow_id: str
-    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
 
 class TaskSubscribedResult(BaseModel):
     task_id: str
@@ -132,7 +133,7 @@ class TaskUnsubscribedResult(BaseModel):
 
 class TaskResumedResult(BaseModel):
     task_id: str
-    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
 
 class JobEventResult(BaseModel):
     task_id: str
@@ -168,8 +169,8 @@ class JobEventResult(BaseModel):
 class TaskEventResult(BaseModel):
     task_id: str
     workflow_id: Optional[str] = None
-    event: Literal[ "started", "interrupted", "resumed", "completed", "failed" ]
-    status: Literal[ "pending", "processing", "interrupted", "completed", "failed" ]
+    event: Literal[ "started", "interrupted", "resumed", "cancelled", "completed", "failed" ]
+    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[InterruptResult] = None
@@ -521,6 +522,19 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
+        @self.http_router.post("/tasks/{task_id}/cancel")
+        async def cancel_task(
+            task_id: str,
+            wait_for_completion: bool = True
+        ):
+            try:
+                state = await self.controller.cancel_workflow(task_id, wait_for_completion=wait_for_completion)
+                return JSONResponse(content=TaskStateResult.to_dict(state))
+            except TaskNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+            except (TaskAlreadyFinishedError, TaskCancelInProgressError) as e:
+                raise HTTPException(status_code=409, detail=str(e))
+
         @self.http_router.get("/health")
         async def health_check():
             if self.controller.is_shutdown_pending:
@@ -774,8 +788,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return JSONResponse(content=TaskStateResult.to_dict(state))
 
     def _render_task_output(self, state: TaskState) -> Response:
-        if state.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED):
+        if state.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED, TaskStatus.CANCELLING):
             return JSONResponse(status_code=202, content=TaskStateResult.to_dict(state))
+
+        if state.status == TaskStatus.CANCELLED:
+            return JSONResponse(status_code=409, content=TaskStateResult.to_dict(state))
 
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))

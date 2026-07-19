@@ -14,7 +14,7 @@ class SyncGeneratorStreamer:
     Optional features:
     - ``maxsize`` gives the queue a bounded capacity so the producer blocks
       when the consumer falls behind (backpressure).
-    - ``cancel_event`` is set on ``aclose()`` so the source generator can
+    - ``stop_event`` is set on ``aclose()`` so the source generator can
       cooperatively stop; the worker thread is joined before ``aclose``
       returns.
     - Exceptions raised inside the generator are forwarded and re-raised
@@ -25,10 +25,10 @@ class SyncGeneratorStreamer:
         generator: GeneratorType,
         loop: asyncio.AbstractEventLoop,
         maxsize: int = 0,
-        cancel_event: Optional[Event] = None,
+        stop_event: Optional[Event] = None,
     ):
         self.generator = generator
-        self.cancel_event = cancel_event
+        self.stop_event = stop_event
 
         # asyncio.Queue must bind to ``loop``. If we're already on it, build
         # inline; otherwise scheduling with .result() from a coroutine on the
@@ -82,8 +82,16 @@ class SyncGeneratorStreamer:
         return chunk
 
     async def aclose(self) -> None:
-        if self.cancel_event is not None:
-            self.cancel_event.set()
+        if self.stop_event is not None:
+            self.stop_event.set()
+
+        # Producer may be blocked on ``queue.put`` (backpressure) after the
+        # consumer left the ``async for`` loop. Drain until end-of-stream so
+        # the worker can finish; otherwise ``_thread.join`` would deadlock.
+        while True:
+            chunk = await self._queue.get()
+            if chunk is self._end_of_stream:
+                break
 
         await asyncio.to_thread(self._thread.join)
 

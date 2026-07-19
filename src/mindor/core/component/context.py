@@ -15,6 +15,7 @@ from mindor.core.foundation.variable.color import ColorValueRenderer, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
 
@@ -72,6 +73,10 @@ class ComponentActionContext:
         self.sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self.renderer: VariableRenderer = VariableRenderer(self.resolve_source)
         self.event_notifier: ComponentActionEventNotifier = self._build_event_notifier()
+
+    @property
+    def cancellation_token(self) -> Optional[CancellationToken]:
+        return self.workflow.cancellation_token if self.workflow else None
 
     def register_source(self, key: str, source: Any, scope: Optional[str] = None) -> None:
         self.sources.setdefault(scope or "__global__", {})[key] = source

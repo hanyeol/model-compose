@@ -12,6 +12,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
+from ...base.huggingface.cancellation import build_stopping_criteria
 from .common import SpeechToTextTaskAction
 from threading import Thread
 import asyncio
@@ -84,6 +85,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         import torch
 
         waveforms = await self._preprocess_audio(audios)
+        stopping_criteria = build_stopping_criteria(None, params.get("cancellation_token"))
 
         input_features = self.processor(
             waveforms,
@@ -105,7 +107,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             def _run():
                 try:
                     with torch.inference_mode():
-                        self.model.generate(**input_features, **params["generation"], streamer=streamer)
+                        self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria, streamer=streamer)
                 except BaseException:
                     logging.exception("Whisper streaming generate failed")
                 finally:
@@ -116,7 +118,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             return [ streamer[index] for index in range(len(waveforms)) ]
 
         with torch.inference_mode():
-            predicted_ids = self.model.generate( **input_features, **params["generation"])
+            predicted_ids = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
 
         return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
 

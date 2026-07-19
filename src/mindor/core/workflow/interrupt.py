@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Awaitable, Dict, Literal, Any
+from typing import Optional, Callable, Awaitable, Dict, List, Literal, Any
 from dataclasses import dataclass
 from threading import Lock
 import asyncio
@@ -31,7 +31,7 @@ class InterruptHandler:
 
     def resolve(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any) -> bool:
         with self._lock:
-            point = self._pop_point(task_id, job_id, run_id)
+            point = self._pop_point_for_job(task_id, job_id, run_id)
 
         if point is None:
             return False
@@ -41,8 +41,24 @@ class InterruptHandler:
 
         return True
 
-    def _pop_point(self, task_id: str, job_id: str, run_id: Optional[str]) -> Optional[InterruptPoint]:
+    def cancel(self, task_id: str) -> None:
+        with self._lock:
+            points = self._pop_points_for_task(task_id)
+
+        for point in points:
+            if point.future.done():
+                continue
+            loop = point.future.get_loop()
+            loop.call_soon_threadsafe(point.future.cancel)
+
+    def _pop_point_for_job(self, task_id: str, job_id: str, run_id: Optional[str]) -> Optional[InterruptPoint]:
         for key, point in self._points.items():
             if point.task_id == task_id and point.job_id == job_id and (run_id is None or point.run_id == run_id):
                 return self._points.pop(key)
         return None
+
+    def _pop_points_for_task(self, task_id: str) -> List[InterruptPoint]:
+        points: List[InterruptPoint] = []
+        for key in [ key for key, point in self._points.items() if point.task_id == task_id ]:
+            points.append(self._points.pop(key))
+        return points

@@ -24,6 +24,7 @@ class ImageGenerationGenerateTaskAction:
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
+        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -66,6 +67,7 @@ class ImageGenerationInpaintTaskAction:
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
+        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"

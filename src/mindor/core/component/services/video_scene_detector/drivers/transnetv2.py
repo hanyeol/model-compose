@@ -54,14 +54,14 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
 
             scenes: List[Dict[str, Any]] = []
 
-            for i in range(len(scene_frames) - 1):
-                start_frame = scene_frames[i]
-                end_frame = scene_frames[i + 1]
+            for index in range(len(scene_frames) - 1):
+                start_frame = scene_frames[index]
+                end_frame = scene_frames[index + 1]
                 start = start_frame / frame_rate
                 end = end_frame / frame_rate
 
                 scenes.append({
-                    "index": i,
+                    "index": index,
                     "start": format_timecode(start),
                     "end": format_timecode(end),
                     "start_frame": start_frame,
@@ -86,14 +86,14 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         try:
             scene_frames, frame_rate = await self._detect_scenes(input_path, threshold, start_time, end_time)
 
-            for i in range(len(scene_frames) - 1):
-                start_frame = scene_frames[i]
-                end_frame = scene_frames[i + 1]
+            for index in range(len(scene_frames) - 1):
+                start_frame = scene_frames[index]
+                end_frame = scene_frames[index + 1]
                 start = start_frame / frame_rate
                 end = end_frame / frame_rate
 
                 yield {
-                    "index": i,
+                    "index": index,
                     "start": format_timecode(start),
                     "end": format_timecode(end),
                     "start_frame": start_frame,

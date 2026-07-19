@@ -48,17 +48,30 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
     async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         generation_params = params["generation"]
+        cancellation_token = params.get("cancellation_token")
 
         if streaming:
-            return [ self._stream_one(prompt, generation_params) for prompt in texts ]
+            return [ self._stream_one(prompt, generation_params, cancellation_token) for prompt in texts ]
 
-        return [ self._generate_one(prompt, generation_params) for prompt in texts ]
+        return [ self._generate_one(prompt, generation_params, cancellation_token) for prompt in texts ]
 
-    def _generate_one(self, prompt: str, generation_params: Dict[str, Any]) -> str:
-        return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
+    def _generate_one(self, prompt: str, generation_params: Dict[str, Any], cancellation_token=None) -> str:
+        if cancellation_token is None:
+            return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
 
-    def _stream_one(self, prompt: str, generation_params: Dict[str, Any]) -> Iterator[str]:
+        chunks: List[str] = []
         for chunk in self.model(prompt, stream=True, **generation_params):
+            if cancellation_token.is_cancelled():
+                break
+            token = chunk["choices"][0].get("text", "")
+            if token:
+                chunks.append(token)
+        return "".join(chunks)
+
+    def _stream_one(self, prompt: str, generation_params: Dict[str, Any], cancellation_token=None) -> Iterator[str]:
+        for chunk in self.model(prompt, stream=True, **generation_params):
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                break
             token = chunk["choices"][0].get("text", "")
             if token:
                 yield token

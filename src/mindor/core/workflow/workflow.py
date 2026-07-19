@@ -1,6 +1,7 @@
 from typing import Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
 from mindor.core.component import ComponentGlobalConfigs
+from mindor.core.foundation.cancellation import CancellationToken
 from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .notifiers import JobEventCallback, ComponentEventCallback, JobEventNotifier, ComponentEventNotifier
@@ -81,6 +82,7 @@ class Workflow:
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler,
         workflow_delegate: WorkflowDelegate = None,
+        cancellation_token: Optional[CancellationToken] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None,
         on_job_event: Optional[JobEventCallback] = None,
@@ -95,6 +97,7 @@ class Workflow:
             workflow_delegate,
             JobEventNotifier(self.id, on_job_event),
             ComponentEventNotifier(self.id, on_component_event),
+            cancellation_token=cancellation_token,
             session_id=session_id,
             metadata=metadata,
         )

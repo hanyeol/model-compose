@@ -68,9 +68,9 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         loop: asyncio.AbstractEventLoop,
         cleanup: Callable[[], None],
     ) -> AsyncIterator[Dict[str, Any]]:
-        cancel_event = threading.Event()
-        generator = self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, cancel_event)
-        streamer = SyncGeneratorStreamer(generator, loop, maxsize=_FRAME_QUEUE_MAXSIZE, cancel_event=cancel_event)
+        stop_event = threading.Event()
+        generator = self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, stop_event)
+        streamer = SyncGeneratorStreamer(generator, loop, maxsize=_FRAME_QUEUE_MAXSIZE, stop_event=stop_event)
 
         try:
             async for frame in streamer:
@@ -86,7 +86,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
-        cancel_event: Optional[threading.Event],
+        stop_event: Optional[threading.Event],
     ) -> Iterator[Dict[str, Any]]:
         import cv2
 
@@ -109,7 +109,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
             frame_count = 0
 
             while current_frame < end_frame:
-                if cancel_event is not None and cancel_event.is_set():
+                if stop_event is not None and stop_event.is_set():
                     break
 
                 success, bgr_frame = capture.read()

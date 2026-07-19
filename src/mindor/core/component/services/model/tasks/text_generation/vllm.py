@@ -51,24 +51,31 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
     async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         sampling = params["sampling"]
+        cancellation_token = params.get("cancellation_token")
 
         if streaming:
-            return [ self._stream_one(prompt, sampling) for prompt in texts ]
+            return [ self._stream_one(prompt, sampling, cancellation_token) for prompt in texts ]
 
-        return [ await self._generate_one(prompt, sampling) for prompt in texts ]
+        return [ await self._generate_one(prompt, sampling, cancellation_token) for prompt in texts ]
 
-    async def _generate_one(self, prompt: str, sampling: SamplingParams) -> str:
+    async def _generate_one(self, prompt: str, sampling: SamplingParams, cancellation_token=None) -> str:
         request_id = f"request-{ulid.ulid()}"
         text = ""
         async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                await self.engine.abort(request_id)
+                break
             if output.outputs:
                 text = output.outputs[0].text
         return text
 
-    async def _stream_one(self, prompt: str, sampling: SamplingParams) -> AsyncIterator[str]:
+    async def _stream_one(self, prompt: str, sampling: SamplingParams, cancellation_token=None) -> AsyncIterator[str]:
         request_id = f"request-{ulid.ulid()}"
         previous = ""
         async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                await self.engine.abort(request_id)
+                break
             text = output.outputs[0].text if output.outputs else ""
             delta = text[len(previous):]
             previous = text

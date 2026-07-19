@@ -23,6 +23,7 @@ class ImageToTextTaskAction:
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
+        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"

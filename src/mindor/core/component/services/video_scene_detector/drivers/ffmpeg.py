@@ -99,11 +99,11 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
             scenes: List[Dict[str, Any]] = []
             boundaries = [ 0.0 ] + timestamps + [ duration ]
 
-            for i in range(len(boundaries) - 1):
-                start = boundaries[i]
-                end = boundaries[i + 1]
+            for index in range(len(boundaries) - 1):
+                start = boundaries[index]
+                end = boundaries[index + 1]
                 scenes.append({
-                    "index": i,
+                    "index": index,
                     "start": format_timecode(start),
                     "end": format_timecode(end),
                     "start_frame": int(start * frame_rate),

@@ -49,18 +49,19 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> List[Dict[str, Any]]:
         try:
             scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
+            results: List[Dict[str, Any]] = []
 
-            return [
-                {
-                    "index": i,
+            for index, (start, end) in enumerate(scenes):
+                results.append({
+                    "index": index,
                     "start": start.get_timecode(),
                     "end": end.get_timecode(),
                     "start_frame": start.get_frames(),
                     "end_frame": end.get_frames(),
                     "duration": (end - start).get_timecode()
-                }
-                for i, (start, end) in enumerate(scenes)
-            ]
+                })
+
+            return results
         finally:
             cleanup()
 
@@ -76,9 +77,9 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         try:
             scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
 
-            for i, (start, end) in enumerate(scenes):
+            for index, (start, end) in enumerate(scenes):
                 yield {
-                    "index": i,
+                    "index": index,
                     "start": start.get_timecode(),
                     "end": end.get_timecode(),
                     "start_frame": start.get_frames(),

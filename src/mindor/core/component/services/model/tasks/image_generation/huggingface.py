@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
     import torch
 
+class _PipelineCancelled(Exception):
+    pass
+
 class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAction):
     config: HuggingfaceImageGenerationModelActionConfig
 
@@ -94,10 +97,20 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         if params["seed"] is not None:
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
+        pipeline_kwargs = dict(params["pipeline"])
+        cancellation_token = params.get("cancellation_token")
+
+        if cancellation_token is not None:
+            def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
+                if cancellation_token.is_cancelled():
+                    raise _PipelineCancelled()
+                return callback_kwargs
+            pipeline_kwargs["callback_on_step_end"] = _abort_if_cancelled
+
         result = self.pipeline(
             prompt=prompts,
             generator=generator,
-            **params["pipeline"],
+            **pipeline_kwargs,
         )
 
         return list(result.images)
@@ -174,12 +187,22 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         if params["seed"] is not None:
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
+        pipeline_kwargs = dict(params["pipeline"])
+        cancellation_token = params.get("cancellation_token")
+
+        if cancellation_token is not None:
+            def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
+                if cancellation_token.is_cancelled():
+                    raise _PipelineCancelled()
+                return callback_kwargs
+            pipeline_kwargs["callback_on_step_end"] = _abort_if_cancelled
+
         result = self.pipeline(
             prompt=prompts,
             image=images,
             mask_image=mask_images,
             generator=generator,
-            **params["pipeline"],
+            **pipeline_kwargs,
         )
 
         return list(result.images)

@@ -10,6 +10,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
+from ...base.huggingface.cancellation import build_stopping_criteria
 from .common import ImageToTextTaskAction
 from PIL import Image as PILImage
 from threading import Thread
@@ -111,7 +112,8 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
-        stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
+        base_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
+        stopping_criteria = build_stopping_criteria(base_criteria, params.get("cancellation_token"))
 
         inputs: Tensor = self.processor(images=images, text=prompts, **params["processor"])
         inputs = inputs.to(self.device)

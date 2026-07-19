@@ -26,13 +26,21 @@ from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
 from mindor.core.controller.webui import ControllerWebUI, create_webui
 from mindor.core.tracer import TracerService, create_tracer
 from mindor.core.logger import LoggerService, create_logger, logging
-from mindor.core.controller.errors import TaskNotFoundError, TaskNotInterruptedError, JobIdMismatchError, InterruptNotActiveError
+from mindor.core.controller.errors import (
+    TaskNotFoundError,
+    TaskNotInterruptedError,
+    TaskAlreadyFinishedError,
+    TaskCancelInProgressError,
+    JobIdMismatchError,
+    InterruptNotActiveError,
+)
 from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.cancellation import CancellationToken
 from .runtime.base.specs import ControllerRuntimeSpecs
 from .runtime.native import ControllerNativeRuntimeManager
 from .runtime.docker import ControllerDockerRuntimeManager
@@ -49,6 +57,8 @@ class TaskStatus(str, Enum):
     PENDING     = "pending"
     PROCESSING  = "processing"
     INTERRUPTED = "interrupted"
+    CANCELLING  = "cancelling"
+    CANCELLED   = "cancelled"
     COMPLETED   = "completed"
     FAILED      = "failed"
 
@@ -75,7 +85,7 @@ class TaskState:
 @dataclass
 class TaskEvent:
     task_id: str
-    event: Literal[ "started", "interrupted", "resumed", "completed", "failed" ]
+    event: Literal[ "started", "interrupted", "resumed", "cancelled", "completed", "failed" ]
     status: TaskStatus
     workflow_id: Optional[str] = None
     input: Optional[Any] = None
@@ -161,9 +171,10 @@ class ControllerService(AsyncService):
         self.task_states: ExpiringDict[TaskState] = ExpiringDict()
         self.task_states_lock: Lock = Lock()
         self.interrupt_handlers: Dict[str, InterruptHandler] = {}
+        self.cancellation_tokens: Dict[str, CancellationToken] = {}
         self.task_events: Dict[str, asyncio.Event] = {}
         self._queue: Optional[ControllerQueueService] = None
-        self._inflight_tasks: Set[asyncio.Task] = set()
+        self._inflight_tasks: Dict[str, asyncio.Task] = {}
         self._shutdown_pending: bool = False
         self._shutting_down: bool = False
         self._task_state_listeners: List[TaskStateListener] = []
@@ -339,8 +350,8 @@ class ControllerService(AsyncService):
             self._notify_task_state_change(task_id)
             raise
 
-        self._inflight_tasks.add(task)
-        task.add_done_callback(self._inflight_tasks.discard)
+        self._inflight_tasks[task_id] = task
+        task.add_done_callback(lambda t: self._inflight_tasks.pop(task_id, None))
         task.add_done_callback(lambda t: self._handle_task_failure(task_id, workflow_id, t))
 
         if on_event is not None:
@@ -386,6 +397,49 @@ class ControllerService(AsyncService):
             self.task_states.set(task_id, state)
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
+
+        return state
+
+    async def cancel_workflow(self, task_id: str, wait_for_completion: bool = True) -> TaskState:
+        with self.task_states_lock:
+            state = self.task_states.get(task_id)
+
+            if not state:
+                raise TaskNotFoundError(f"Task not found: {task_id}")
+
+            if state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+                raise TaskAlreadyFinishedError(f"Task '{task_id}' has already finished: {state.status}")
+
+            if state.status == TaskStatus.CANCELLING:
+                raise TaskCancelInProgressError(f"Task '{task_id}' is already being cancelled")
+
+            task = self._inflight_tasks.get(task_id)
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.CANCELLING,
+                workflow_id=state.workflow_id,
+                input=state.input,
+                session_id=state.session_id,
+                metadata=state.metadata
+            )
+            self.task_states.set(task_id, state)
+
+        self._signal_task_state_change(task_id)
+        self._notify_task_state_change(task_id)
+
+        token = self.cancellation_tokens.get(task_id)
+        if token:
+            token.cancel()
+
+        handler = self.interrupt_handlers.get(task_id)
+        if handler:
+            handler.cancel(task_id)
+
+        if task is not None:
+            task.cancel()
+
+        if wait_for_completion:
+            state = await self._wait_for_terminal_state(task_id)
 
         return state
 
@@ -479,7 +533,7 @@ class ControllerService(AsyncService):
 
         if self._inflight_tasks:
             logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))
-            _, pending = await asyncio.wait(self._inflight_tasks, timeout=timeout)
+            _, pending = await asyncio.wait(self._inflight_tasks.values(), timeout=timeout)
             if pending:
                 logging.warning("Cancelling %d task(s) that did not complete within timeout", len(pending))
                 for task in pending:
@@ -697,6 +751,8 @@ class ControllerService(AsyncService):
             )
             self._notify_component_event(event)
 
+        cancellation_token = self._attach_cancellation_token(task_id)
+
         try:
             async def _run_workflow(workflow_id, input, interrupt_handler):
                 if self._queue and not any(workflow.id == workflow_id for workflow in self.workflows):
@@ -707,6 +763,7 @@ class ControllerService(AsyncService):
                     input,
                     interrupt_handler,
                     _run_workflow,
+                    cancellation_token=cancellation_token,
                     session_id=session_id,
                     metadata=metadata,
                     on_job_event=_on_job_event,
@@ -724,6 +781,14 @@ class ControllerService(AsyncService):
                 session_id=session_id,
                 metadata=metadata
             )
+        except asyncio.CancelledError:
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.CANCELLED,
+                workflow_id=workflow_id,
+                session_id=session_id,
+                metadata=metadata
+            )
         except Exception as e:
             error = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
             state = TaskState(
@@ -736,6 +801,7 @@ class ControllerService(AsyncService):
             )
         finally:
             self._detach_interrupt_handler(task_id)
+            self._detach_cancellation_token(task_id)
 
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)
@@ -751,12 +817,12 @@ class ControllerService(AsyncService):
 
         while True:
             state = self.get_task_state(task_id)
-            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
                 self.task_events.pop(task_id, None)
                 return state
             event.clear()
             state = self.get_task_state(task_id)
-            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
                 self.task_events.pop(task_id, None)
                 return state
             await event.wait()
@@ -805,12 +871,20 @@ class ControllerService(AsyncService):
     def _detach_interrupt_handler(self, task_id: str) -> None:
         self.interrupt_handlers.pop(task_id, None)
 
+    def _attach_cancellation_token(self, task_id: str) -> CancellationToken:
+        token = CancellationToken()
+        self.cancellation_tokens[task_id] = token
+        return token
+
+    def _detach_cancellation_token(self, task_id: str) -> None:
+        self.cancellation_tokens.pop(task_id, None)
+
     def _handle_task_failure(self, task_id: str, workflow_id: str, task: asyncio.Task) -> None:
         if task.cancelled() or task.exception() is None:
             return
 
         state = self.get_task_state(task_id)
-        if state and state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+        if state and state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
 
         state = TaskState(
@@ -837,7 +911,7 @@ class ControllerService(AsyncService):
             return
 
         previous_status = self._task_previous_status.get(task_id)
-        if state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+        if state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             self._task_previous_status.pop(task_id, None)
         else:
             self._task_previous_status[task_id] = state.status
@@ -865,6 +939,8 @@ class ControllerService(AsyncService):
                 event = "started"
         elif state.status == TaskStatus.INTERRUPTED:
             event = "interrupted"
+        elif state.status == TaskStatus.CANCELLED:
+            event = "cancelled"
         elif state.status == TaskStatus.COMPLETED:
             event = "completed"
         elif state.status == TaskStatus.FAILED:

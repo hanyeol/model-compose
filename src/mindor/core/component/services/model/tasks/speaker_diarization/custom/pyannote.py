@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 
 _DEFAULT_PYANNOTE_REPO = "pyannote/speaker-diarization-3.1"
 
+class PipelineCancelled(Exception):
+    pass
+
 class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
     def __init__(
         self,
@@ -89,13 +92,28 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         import torch
 
         tensor = torch.from_numpy(waveform).unsqueeze(0)
+
         if self.device is not None:
             tensor = tensor.to(self.device)
 
-        with torch.no_grad():
-            annotation = self.pipeline({ "waveform": tensor, "sample_rate": sample_rate }, **params["pipeline"])
+        pipeline_kwargs = params["pipeline"]
+        cancellation_token = params.get("cancellation_token")
 
+        if cancellation_token is not None:
+            def _abort_if_cancelled(_step_name, _step_artifact, file=None, total=None, completed=None):
+                if cancellation_token.is_cancelled():
+                    raise PipelineCancelled()
+            pipeline_kwargs = { **pipeline_kwargs, "hook": _abort_if_cancelled }
+
+        try:
+            with torch.no_grad():
+                output = self.pipeline({ "waveform": tensor, "sample_rate": sample_rate }, **pipeline_kwargs)
+        except PipelineCancelled:
+            raise asyncio.CancelledError()
+
+        annotation = getattr(output, "speaker_diarization", output)
         segments: List[Dict[str, Any]] = []
+
         for turn, _, speaker in annotation.itertracks(yield_label=True):
             segments.append({
                 "speaker":    str(speaker),
@@ -151,8 +169,10 @@ class PyannoteSpeakerDiarizationTaskService(SpeakerDiarizationTaskService):
         device = self._resolve_device(self.config.device)
         source, token = self._resolve_source_and_token()
         pipeline = Pipeline.from_pretrained(source, token=token)
+
         if pipeline is None:
             raise RuntimeError(f"Failed to load pyannote pipeline '{source}'. Verify the HuggingFace token has access to the gated model.")
+
         pipeline.to(device)
 
         return pipeline, device

@@ -27,6 +27,7 @@ class SpeakerDiarizationTaskAction:
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
+        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"

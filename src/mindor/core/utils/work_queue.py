@@ -18,19 +18,28 @@ class WorkQueue:
         while not self.stopped:
             try:
                 args, kwargs, future = await self.queue.get()
-
-                try:
-                    result = await self.handler(*args, **kwargs)
-                    if not future.done():
-                        future.set_result(result)
-                except Exception as e:
-                    if not future.done():
-                        future.set_exception(e)
-                finally:
-                    self.queue.task_done()
-                    self._active_counter.release()
             except asyncio.CancelledError:
                 break
+
+            # Run the handler in a child task and await it as an
+            # awaitable, so a CancelledError raised inside the handler
+            # (e.g. cooperative workflow cancel) reports on the child
+            # task without cancelling this worker.
+            handler_task = asyncio.ensure_future(self.handler(*args, **kwargs))
+            try:
+                await asyncio.wait({handler_task})
+                if handler_task.cancelled():
+                    if not future.done():
+                        future.cancel()
+                elif handler_task.exception() is not None:
+                    if not future.done():
+                        future.set_exception(handler_task.exception())
+                else:
+                    if not future.done():
+                        future.set_result(handler_task.result())
+            finally:
+                self.queue.task_done()
+                self._active_counter.release()
 
     async def start(self):
         if self.queue:

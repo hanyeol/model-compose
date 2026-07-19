@@ -4,15 +4,27 @@ The main guarantee: while a blocking callable is executed via run_in_thread,
 the caller's event loop must remain free to process other coroutines. This
 is what lets a component do CPU-heavy or blocking work without stalling
 the whole workflow controller.
+
+A second guarantee: cancelling the returned future propagates into the
+thread's inner asyncio task at its next await, so pure-async runners unwind
+cleanly (finally blocks run, resources release), nested run_in_thread calls
+don't leak "Event loop is closed" errors, and no scenario deadlocks.
 """
 from __future__ import annotations
 
 import asyncio
+import random
+import threading
 import time
 
 import pytest
 
 from mindor.core.foundation.async_service import AsyncService
+
+
+# Wrap potentially-hanging scenarios in a timeout; a TimeoutError from any of
+# these tests means a deadlock regressed, not a slow machine.
+DEADLOCK_TIMEOUT = 5.0
 
 
 @pytest.fixture
@@ -121,3 +133,348 @@ async def test_run_in_thread_propagates_exception():
 
     with pytest.raises(RuntimeError, match="boom"):
         await service.run_in_thread(_raiser)
+
+
+# ---------------------------------------------------------------------------
+# Cancellation semantics
+#
+# When the outer future is cancelled we forward the cancel into the thread's
+# inner asyncio task. Pure-async runners unwind at their next await; sync
+# blocking calls cannot be interrupted (documented limitation). Nothing must
+# deadlock and no scenario may raise "Event loop is closed".
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_cancel_delivered_into_runner():
+    service = _StubService()
+    inside_cancelled = False
+
+    async def runner():
+        nonlocal inside_cancelled
+        try:
+            await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            inside_cancelled = True
+            raise
+
+    fut = service.run_in_thread(runner)
+    await asyncio.sleep(0.1)
+    fut.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+    # Give the inner thread a moment to record the observation.
+    await asyncio.sleep(0.1)
+    assert inside_cancelled
+    assert fut.cancelled()
+
+
+@pytest.mark.anyio
+async def test_finally_runs_on_cancel():
+    service = _StubService()
+    hit_finally = False
+
+    async def runner():
+        nonlocal hit_finally
+        try:
+            await asyncio.sleep(5.0)
+        finally:
+            hit_finally = True
+
+    fut = service.run_in_thread(runner)
+    await asyncio.sleep(0.1)
+    fut.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+    await asyncio.sleep(0.1)
+    assert hit_finally
+
+
+@pytest.mark.anyio
+async def test_cancel_after_completion_is_noop():
+    service = _StubService()
+
+    async def runner():
+        return "done"
+
+    fut = service.run_in_thread(runner)
+    result = await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+    fut.cancel()  # too late
+    assert result == "done"
+    assert fut.done() and not fut.cancelled()
+
+
+@pytest.mark.anyio
+async def test_nested_awaits_receive_cancel():
+    service = _StubService()
+    reached: list[str] = []
+
+    async def deep():
+        try:
+            await asyncio.sleep(3.0)
+        except asyncio.CancelledError:
+            reached.append("deep")
+            raise
+
+    async def middle():
+        try:
+            await deep()
+        except asyncio.CancelledError:
+            reached.append("middle")
+            raise
+
+    async def runner():
+        try:
+            await middle()
+        except asyncio.CancelledError:
+            reached.append("runner")
+            raise
+
+    fut = service.run_in_thread(runner)
+    await asyncio.sleep(0.1)
+    fut.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+    await asyncio.sleep(0.1)
+    assert set(reached) == {"deep", "middle", "runner"}
+
+
+@pytest.mark.anyio
+async def test_outer_awaiting_task_cancel_propagates():
+    service = _StubService()
+    inner_saw_cancel = False
+
+    async def runner():
+        nonlocal inner_saw_cancel
+        try:
+            await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            inner_saw_cancel = True
+            raise
+
+    fut = service.run_in_thread(runner)
+
+    async def outer():
+        await fut
+
+    outer_task = asyncio.create_task(outer())
+    await asyncio.sleep(0.1)
+    outer_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(outer_task, DEADLOCK_TIMEOUT)
+
+    await asyncio.sleep(0.1)
+    assert fut.cancelled()
+    assert inner_saw_cancel
+
+
+@pytest.mark.anyio
+async def test_self_cancel_from_inside():
+    service = _StubService()
+    fut_ref: list[asyncio.Future | None] = [None]
+
+    async def runner():
+        await asyncio.sleep(0.05)
+        fut_ref[0].cancel()
+        # Next await observes the cancellation propagated back into us.
+        await asyncio.sleep(1.0)
+        return "should not reach"
+
+    fut = service.run_in_thread(runner)
+    fut_ref[0] = fut
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+
+@pytest.mark.anyio
+async def test_multiple_concurrent_cancels_are_safe():
+    service = _StubService()
+
+    async def runner():
+        try:
+            await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            raise
+
+    fut = service.run_in_thread(runner)
+    await asyncio.sleep(0.1)
+
+    async def cancel_once():
+        fut.cancel()
+
+    await asyncio.gather(*(cancel_once() for _ in range(10)))
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+
+@pytest.mark.anyio
+async def test_stuck_sync_thread_does_not_block_caller():
+    """A runner blocked on a sync threading.Lock cannot honour cancel — that's
+    a documented limitation of running sync code in a thread. But the CALLER
+    must return promptly with the future in cancelled state; other tasks
+    stay responsive. Without this, workflow cancel would hang forever if the
+    thread had a stuck sync call."""
+    service = _StubService()
+    held = threading.Lock()
+    held.acquire()
+    started = threading.Event()
+
+    async def runner():
+        started.set()
+        try:
+            held.acquire()  # blocks the thread's event loop entirely
+        finally:
+            if held.locked():
+                held.release()
+
+    fut = service.run_in_thread(runner)
+    # Wait for the runner to enter the blocking call.
+    await asyncio.get_running_loop().run_in_executor(None, started.wait, 2.0)
+    fut.cancel()
+
+    # We deliberately do NOT await `fut` — that would wait forever for the
+    # stuck thread. We verify the future is in cancelled state.
+    await asyncio.sleep(0.2)
+    assert fut.cancelled()
+
+    # Release the lock so the stuck thread can exit before test teardown.
+    held.release()
+
+
+@pytest.mark.anyio
+async def test_nested_run_in_thread_completes():
+    service = _StubService()
+
+    async def inner():
+        await asyncio.sleep(0.05)
+        return "inner"
+
+    async def outer():
+        return await service.run_in_thread(inner)
+
+    result = await asyncio.wait_for(service.run_in_thread(outer), DEADLOCK_TIMEOUT)
+    assert result == "inner"
+
+
+@pytest.mark.anyio
+async def test_nested_run_in_thread_cancel_does_not_raise_loop_closed():
+    """When outer cancels a 3-level nested run_in_thread, the innermost
+    completion callback fires after the middle thread's loop has already
+    been closed. call_soon_threadsafe would raise RuntimeError; the helper
+    must swallow that specific case rather than crashing the worker."""
+    service = _StubService()
+
+    async def inner():
+        try:
+            await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            raise
+
+    async def middle():
+        return await service.run_in_thread(inner)
+
+    async def outer():
+        return await service.run_in_thread(middle)
+
+    fut = service.run_in_thread(outer)
+    await asyncio.sleep(0.1)
+    fut.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)
+
+
+@pytest.mark.anyio
+async def test_immediate_cancel_hammer():
+    """Cancel a fresh future before its worker has finished setting up the
+    inner task. Repeated to shake out races between _propagate_cancel and
+    _run_and_set_result."""
+    service = _StubService()
+
+    async def one():
+        async def runner():
+            await asyncio.sleep(1.0)
+
+        fut = service.run_in_thread(runner)
+        fut.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await fut
+
+    await asyncio.wait_for(
+        asyncio.gather(*(one() for _ in range(200))),
+        timeout=15.0,
+    )
+
+
+@pytest.mark.anyio
+async def test_rapid_spawn_and_cancel_churn():
+    service = _StubService()
+
+    async def runner():
+        await asyncio.sleep(0.5)
+
+    async def churn():
+        for _ in range(100):
+            fut = service.run_in_thread(runner)
+            await asyncio.sleep(0.001)
+            fut.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await fut
+
+    await asyncio.wait_for(churn(), timeout=15.0)
+
+
+@pytest.mark.anyio
+async def test_fan_out_with_partial_cancel():
+    service = _StubService()
+
+    async def worker(index: int):
+        await asyncio.sleep(random.uniform(0.1, 0.4))
+        return index
+
+    futures = [service.run_in_thread(worker, i) for i in range(30)]
+
+    # Cancel a random third before any of them can naturally complete.
+    await asyncio.sleep(0.05)
+    for fut in random.sample(futures, 10):
+        fut.cancel()
+
+    results = await asyncio.wait_for(
+        asyncio.gather(*futures, return_exceptions=True),
+        timeout=DEADLOCK_TIMEOUT,
+    )
+
+    cancelled_count = sum(1 for r in results if isinstance(r, asyncio.CancelledError))
+    # Some cancels may lose the race to natural completion. The invariant is
+    # simply that we do not deadlock and at least one cancel was observed.
+    assert cancelled_count >= 1
+
+
+@pytest.mark.anyio
+async def test_runner_manages_background_tasks_on_cancel():
+    """A runner that spawns its own background task in the thread loop must
+    be able to tear it down cleanly when the outer future is cancelled."""
+    service = _StubService()
+
+    async def background():
+        while True:
+            await asyncio.sleep(0.05)
+
+    async def runner():
+        task = asyncio.create_task(background())
+        try:
+            await asyncio.sleep(5.0)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    fut = service.run_in_thread(runner)
+    await asyncio.sleep(0.1)
+    fut.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(fut, DEADLOCK_TIMEOUT)

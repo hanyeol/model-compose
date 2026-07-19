@@ -23,6 +23,10 @@ async def run_command(
     except asyncio.TimeoutError:
         if await kill_process(process):
             raise TimeoutError(f"Command timed out: {' '.join(command)}")
+    except BaseException:
+        # Includes asyncio.CancelledError: don't leave an orphaned child.
+        await kill_process(process)
+        raise
 
     return (stdout, stderr, process.returncode)
 
@@ -39,7 +43,12 @@ async def run_command_foreground(
         stderr=sys.stderr
     )
 
-    await process.wait()
+    try:
+        await process.wait()
+    except BaseException:
+        # Includes asyncio.CancelledError: don't leave an orphaned child.
+        await kill_process(process)
+        raise
 
     return process.returncode
 

@@ -91,13 +91,18 @@ class GradioWebUIBuilder:
                     gr.Markdown("#### Input Parameters")
                     input_components = [ self._build_input_component(variable) for variable in workflow.input ]
 
-                    run_button = gr.Button("🚀 Run Workflow", variant="primary")
+                    task_state = gr.State(value=None)
+                    with gr.Row(equal_height=True):
+                        run_button = gr.Button("🚀 Run Workflow", variant="primary")
+                        cancel_button = gr.Button("✕ Cancel", variant="stop", interactive=False)
 
                     interrupt_state = gr.State(value=None)
                     with gr.Column(visible=False) as interrupt_panel:
                         interrupt_components = self._build_interrupt_components()
                         interrupt_answer = interrupt_components[-1]
-                        resume_button = gr.Button("▶️ Resume", variant="primary")
+                        with gr.Row(equal_height=True):
+                            resume_button = gr.Button("▶️ Resume", variant="primary")
+                            resume_cancel_button = gr.Button("✕ Cancel", variant="stop")
                     interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
 
                     gr.Markdown("#### Output Values")
@@ -125,6 +130,12 @@ class GradioWebUIBuilder:
             def _resume_button_ready():
                 return gr.update(value="▶️ Resume", interactive=True)
 
+            def _cancel_button_active():
+                return gr.update(interactive=True)
+
+            def _cancel_button_inactive():
+                return gr.update(interactive=False)
+
             async def _on_workflow_event(event):
                 for message in self._log_messages_for_event(event):
                     log_message_queue.put(message)
@@ -134,18 +145,24 @@ class GradioWebUIBuilder:
 
                 yield [
                     _run_button_running(),
+                    _cancel_button_active(),
+                    None,
                     *self._clear_interrupt_updates(),
                     *self._clear_output_updates(output_components),
                     *log_panel.update([], self._log_spinner_message()),
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
-                task = asyncio.create_task(runner().run_workflow(workflow_id, input, on_event=_on_workflow_event))
+                state = await runner().run_workflow(workflow_id, input, on_event=_on_workflow_event, wait_for_completion=False)
+                task_id = state.task_id
+                async_task = asyncio.create_task(runner().wait_for_completion(task_id))
 
-                while not task.done():
+                while not async_task.done():
                     if await log_message_queue.poll(timeout=0.1):
                         yield [
                             _run_button_running(),
+                            _cancel_button_active(),
+                            task_id,
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in output_components),
                             *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
@@ -157,16 +174,20 @@ class GradioWebUIBuilder:
                 if messages:
                     yield [
                         _run_button_running(),
+                        _cancel_button_active(),
+                        task_id,
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in output_components),
                         *log_panel.update(messages),
                     ]
 
                 try:
-                    state = task.result()
+                    state = async_task.result()
                 except Exception as e:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
                         *log_panel.update(messages),
@@ -176,7 +197,20 @@ class GradioWebUIBuilder:
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
                         _run_button_running(),
+                        _cancel_button_active(),
+                        state.task_id,
                         *self._build_interrupt_updates(state),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.update(messages),
+                    ]
+                    return
+
+                if state.status == TaskStatus.CANCELLED:
+                    yield [
+                        _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
+                        *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
                         *log_panel.update(messages),
                     ]
@@ -185,6 +219,8 @@ class GradioWebUIBuilder:
                 if state.status == TaskStatus.FAILED:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
                         *log_panel.update(messages),
@@ -199,6 +235,8 @@ class GradioWebUIBuilder:
                 if output is None:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         *clear_interrupt,
                         *(gr.update() for _ in output_components),
                         *log_done,
@@ -209,6 +247,8 @@ class GradioWebUIBuilder:
                     async for updates in self._stream_output_updates(output, workflow.output[0], output_tree[0]):
                         yield [
                             _run_button_running(),
+                            _cancel_button_active(),
+                            gr.update(),
                             *clear_interrupt,
                             *updates,
                             *log_done,
@@ -216,6 +256,8 @@ class GradioWebUIBuilder:
 
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         *clear_interrupt,
                         *(gr.update() for _ in output_components),
                         *log_done,
@@ -233,21 +275,25 @@ class GradioWebUIBuilder:
 
                     yield [
                         _run_button_running() if wait_for_media else _run_button_ready(),
+                        _cancel_button_active() if wait_for_media else _cancel_button_inactive(),
+                        gr.update() if wait_for_media else None,
                         *clear_interrupt,
                         *updates,
                         *log_done,
                     ]
 
-            async def _resume_workflow(ui_state: Optional[Dict[str, str]], answer_text: str):
+            async def _resume_workflow(interrupt_point: Optional[Dict[str, str]], answer_text: str):
                 yield [
                     _run_button_running(),
+                    _cancel_button_active(),
+                    gr.update(),
                     _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in output_components),
                     *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
                 ]
 
-                task_id, job_id, run_id = ui_state["task_id"], ui_state["job_id"], ui_state.get("run_id")
+                task_id, job_id, run_id = interrupt_point["task_id"], interrupt_point["job_id"], interrupt_point.get("run_id")
 
                 # Parse answer: try JSON first, fallback to string
                 answer = answer_text
@@ -259,10 +305,12 @@ class GradioWebUIBuilder:
 
                 try:
                     await runner().resume_workflow(task_id, job_id, run_id, answer if answer_text else None)
-                    task = asyncio.create_task(runner().wait_for_completion(task_id))
+                    async_task = asyncio.create_task(runner().wait_for_completion(task_id))
                 except Exception as e:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
@@ -270,10 +318,12 @@ class GradioWebUIBuilder:
                     ]
                     raise gr.Error(str(e))
 
-                while not task.done():
+                while not async_task.done():
                     if await log_message_queue.poll(timeout=0.1):
                         yield [
                             _run_button_running(),
+                            _cancel_button_active(),
+                            task_id,
                             _resume_button_running(),
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in output_components),
@@ -286,6 +336,8 @@ class GradioWebUIBuilder:
                 if messages:
                     yield [
                         _run_button_running(),
+                        _cancel_button_active(),
+                        task_id,
                         _resume_button_running(),
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in output_components),
@@ -293,10 +345,12 @@ class GradioWebUIBuilder:
                     ]
 
                 try:
-                    state = task.result()
+                    state = async_task.result()
                 except Exception as e:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
@@ -307,8 +361,22 @@ class GradioWebUIBuilder:
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
                         _run_button_running(),
+                        _cancel_button_active(),
+                        state.task_id,
                         _resume_button_ready(),
                         *self._build_interrupt_updates(state),
+                        *(gr.update() for _ in output_components),
+                        *log_panel.update(messages),
+                    ]
+                    return
+
+                if state.status == TaskStatus.CANCELLED:
+                    yield [
+                        _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
+                        _resume_button_ready(),
+                        *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
                         *log_panel.update(messages),
                     ]
@@ -317,6 +385,8 @@ class GradioWebUIBuilder:
                 if state.status == TaskStatus.FAILED:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in output_components),
@@ -332,6 +402,8 @@ class GradioWebUIBuilder:
                 if output is None:
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         _resume_button_ready(),
                         *clear_interrupt,
                         *(gr.update() for _ in output_components),
@@ -343,6 +415,8 @@ class GradioWebUIBuilder:
                     async for updates in self._stream_output_updates(output, workflow.output[0], output_tree[0]):
                         yield [
                             _run_button_running(),
+                            _cancel_button_active(),
+                            gr.update(),
                             _resume_button_ready(),
                             *clear_interrupt,
                             *updates,
@@ -351,6 +425,8 @@ class GradioWebUIBuilder:
 
                     yield [
                         _run_button_ready(),
+                        _cancel_button_inactive(),
+                        None,
                         _resume_button_ready(),
                         *clear_interrupt,
                         *(gr.update() for _ in output_components),
@@ -369,22 +445,45 @@ class GradioWebUIBuilder:
 
                     yield [
                         _run_button_running() if wait_for_media else _run_button_ready(),
+                        _cancel_button_active() if wait_for_media else _cancel_button_inactive(),
+                        gr.update() if wait_for_media else None,
                         _resume_button_ready(),
                         *clear_interrupt,
                         *updates,
                         *log_done,
                     ]
 
+            async def _cancel_workflow(task_id: Optional[str]):
+                if not task_id:
+                    return _cancel_button_inactive()
+                try:
+                    await runner().cancel_workflow(task_id)
+                except Exception:
+                    pass
+                return _cancel_button_inactive()
+
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=[ run_button, *interrupt_components, *output_components, *log_components ]
+                outputs=[ run_button, cancel_button, task_state, *interrupt_components, *output_components, *log_components ]
             )
 
             resume_button.click(
                 fn=_resume_workflow,
                 inputs=[ interrupt_state, interrupt_answer ],
-                outputs=[ run_button, resume_button, *interrupt_components, *output_components, *log_components ]
+                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *output_components, *log_components ]
+            )
+
+            cancel_button.click(
+                fn=_cancel_workflow,
+                inputs=[ task_state ],
+                outputs=[ cancel_button ]
+            )
+
+            resume_cancel_button.click(
+                fn=_cancel_workflow,
+                inputs=[ task_state ],
+                outputs=[ cancel_button ]
             )
 
             for component in media_components:
@@ -472,7 +571,7 @@ class GradioWebUIBuilder:
 
     def _build_interrupt_updates(self, state: TaskState) -> List[Any]:
         interrupt = state.interrupt
-        ui_state = {
+        interrupt_point = {
             "task_id": state.task_id,
             "job_id": interrupt.job_id if interrupt else None,
             "run_id": interrupt.run_id if interrupt else None,
@@ -481,7 +580,7 @@ class GradioWebUIBuilder:
         metadata = interrupt.metadata if interrupt else None
 
         return [
-            ui_state,
+            interrupt_point,
             gr.update(visible=True),
             gr.update(value=message),
             gr.update(value=metadata, visible=metadata is not None),
@@ -849,6 +948,8 @@ class GradioWebUIBuilder:
             return f"✓ Workflow '**{workflow_id}**' completed"
         if event.event == "failed":
             return f"✗ Workflow '**{workflow_id}**' failed"
+        if event.event == "cancelled":
+            return f"✕ Workflow '**{workflow_id}**' cancelled"
         return None
 
     def _log_format_job_title(self, event: JobEvent) -> str:

@@ -90,6 +90,7 @@ class WorkflowRunner:
                             error=str(e)
                         )
                         raise
+
                     running_job_ids.add(job.id)
 
                     await context.job_event_notifier.notify(

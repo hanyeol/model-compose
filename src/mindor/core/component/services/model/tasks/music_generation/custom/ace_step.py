@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm16
@@ -25,14 +26,25 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        params["time_signature" ] = await context.render_variable(self.config.params.time_signature)
-        params["inference_steps"] = await context.render_variable(self.config.params.inference_steps)
-        params["guidance_scale" ] = await context.render_variable(self.config.params.guidance_scale)
-        params["seed"           ] = await context.render_variable(self.config.params.seed)
+        time_signature  = await context.render_variable(self.config.params.time_signature)
+        inference_steps = await context.render_variable(self.config.params.inference_steps)
+        guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
+        seed            = await context.render_variable(self.config.params.seed)
+
+        params["time_signature"]  = time_signature
+        params["inference_steps"] = inference_steps
+        params["guidance_scale"]  = guidance_scale
+        params["seed"]            = seed
 
         return params
 
-    def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
+    def _generate(
+        self,
+        prompts: List[str],
+        lyrics: Optional[List[Optional[str]]],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Any]:
         from acestep.inference import generate_music, GenerationParams, GenerationConfig
 
         generation_config = GenerationConfig(

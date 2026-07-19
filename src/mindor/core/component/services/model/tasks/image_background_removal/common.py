@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageBackgroundRemovalModelActionConfig, BackgroundRemovalOutputFormat
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -32,7 +33,7 @@ class ImageBackgroundRemovalTaskAction:
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_images = [ self._normalize_image(image) for image in batch_images ]
-                    batch_masks = self._predict_masks(batch_images, params)
+                    batch_masks = self._predict_masks(batch_images, params, context.cancellation_token)
                     for image, mask in zip(batch_images, batch_masks):
                         yield self._render_output(image, mask, params["output_format"])
 
@@ -41,7 +42,7 @@ class ImageBackgroundRemovalTaskAction:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_images = [ self._normalize_image(image) for image in batch_images ]
-                batch_masks = self._predict_masks(batch_images, params)
+                batch_masks = self._predict_masks(batch_images, params, context.cancellation_token)
                 for image, mask in zip(batch_images, batch_masks):
                     results.append(self._render_output(image, mask, params["output_format"]))
 
@@ -73,7 +74,12 @@ class ImageBackgroundRemovalTaskAction:
         raise ValueError(f"Unsupported output format: {output_format}")
 
     @abstractmethod
-    def _predict_masks(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _predict_masks(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         pass
 
 class ImageBackgroundRemovalTaskService(ModelTaskService):

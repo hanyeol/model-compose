@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, ImageEmbeddingModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageEmbeddingModelArchitecture
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -34,7 +35,13 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
         self.processor: ProcessorMixin = processor
         self.device: torch.device = device
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         import torch, torch.nn.functional as F
 
         inputs: Dict[str, Tensor] = self.processor(images=images, return_tensors="pt")

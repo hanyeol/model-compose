@@ -76,6 +76,7 @@ def _make_context(text_value: Any) -> ComponentActionContext:
       - zero-arg callable returning an AsyncIterator of str → AsyncIterator
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any) -> None:

@@ -24,6 +24,7 @@ def anyio_backend():
 
 def _make_context(images):
     context = MagicMock(spec=ComponentActionContext)
+    context.cancellation_token = None
 
     async def render_variable(value, scope=None, skip_decode=False):
         return value

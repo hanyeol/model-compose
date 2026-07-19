@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
@@ -47,49 +48,54 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = int(await context.render_variable(self.config.params.num_inference_steps))
-        width                 = int(await context.render_variable(self.config.params.width))
-        height                = int(await context.render_variable(self.config.params.height))
-        num_images_per_prompt = int(await context.render_variable(self.config.params.num_images_per_prompt))
+        num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
+        width                 = await context.render_variable(self.config.params.width)
+        height                = await context.render_variable(self.config.params.height)
+        num_images_per_prompt = await context.render_variable(self.config.params.num_images_per_prompt)
 
         return {
-            "num_inference_steps":   num_inference_steps,
-            "width":                 width,
-            "height":                height,
-            "num_images_per_prompt": num_images_per_prompt,
+            "num_inference_steps":   int(num_inference_steps),
+            "width":                 int(width),
+            "height":                int(height),
+            "num_images_per_prompt": int(num_images_per_prompt),
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
             negative_prompt = await context.render_variable(self.config.params.negative_prompt)
-            guidance_scale  = float(await context.render_variable(self.config.params.guidance_scale))
+            guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
 
             return {
                 "negative_prompt": negative_prompt,
-                "guidance_scale":  guidance_scale,
+                "guidance_scale":  float(guidance_scale),
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
-            guidance_scale      = float(await context.render_variable(self.config.params.guidance_scale))
-            max_sequence_length = int(await context.render_variable(self.config.params.max_sequence_length))
+            guidance_scale      = await context.render_variable(self.config.params.guidance_scale)
+            max_sequence_length = await context.render_variable(self.config.params.max_sequence_length)
 
             return {
-                "guidance_scale":      guidance_scale,
-                "max_sequence_length": max_sequence_length,
+                "guidance_scale":      float(guidance_scale),
+                "max_sequence_length": int(max_sequence_length),
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
             negative_prompt          = await context.render_variable(self.config.params.negative_prompt)
-            distilled_guidance_scale = float(await context.render_variable(self.config.params.distilled_guidance_scale))
+            distilled_guidance_scale = await context.render_variable(self.config.params.distilled_guidance_scale)
 
             return {
                 "negative_prompt":          negative_prompt,
-                "distilled_guidance_scale": distilled_guidance_scale,
+                "distilled_guidance_scale": float(distilled_guidance_scale),
             }
 
         raise ValueError(f"Unknown architecture: {architecture}")
 
-    def _generate(self, prompts: List[str], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _generate(
+        self,
+        prompts: List[str],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import torch
 
         generator: Optional[torch.Generator] = None
@@ -98,7 +104,6 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
         pipeline_params = params["pipeline"]
-        cancellation_token = params.get("cancellation_token")
 
         if cancellation_token is not None:
             def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
@@ -147,42 +152,49 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = int(await context.render_variable(self.config.params.num_inference_steps))
-        width                 = int(await context.render_variable(self.config.params.width))
-        height                = int(await context.render_variable(self.config.params.height))
-        num_images_per_prompt = int(await context.render_variable(self.config.params.num_images_per_prompt))
-        strength              = float(await context.render_variable(self.config.params.strength))
+        num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
+        width                 = await context.render_variable(self.config.params.width)
+        height                = await context.render_variable(self.config.params.height)
+        num_images_per_prompt = await context.render_variable(self.config.params.num_images_per_prompt)
+        strength              = await context.render_variable(self.config.params.strength)
 
         return {
-            "num_inference_steps":   num_inference_steps,
-            "width":                 width,
-            "height":                height,
-            "num_images_per_prompt": num_images_per_prompt,
-            "strength":              strength,
+            "num_inference_steps":   int(num_inference_steps),
+            "width":                 int(width),
+            "height":                int(height),
+            "num_images_per_prompt": int(num_images_per_prompt),
+            "strength":              float(strength),
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
             negative_prompt = await context.render_variable(self.config.params.negative_prompt)
-            guidance_scale  = float(await context.render_variable(self.config.params.guidance_scale))
+            guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
 
             return {
                 "negative_prompt": negative_prompt,
-                "guidance_scale":  guidance_scale,
+                "guidance_scale":  float(guidance_scale),
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
-            guidance_scale      = float(await context.render_variable(self.config.params.guidance_scale))
-            max_sequence_length = int(await context.render_variable(self.config.params.max_sequence_length))
+            guidance_scale      = await context.render_variable(self.config.params.guidance_scale)
+            max_sequence_length = await context.render_variable(self.config.params.max_sequence_length)
 
             return {
-                "guidance_scale":      guidance_scale,
-                "max_sequence_length": max_sequence_length,
+                "guidance_scale":      float(guidance_scale),
+                "max_sequence_length": int(max_sequence_length),
             }
 
         raise ValueError(f"Inpainting is not supported for architecture: {architecture}")
 
-    def _inpaint(self, prompts: List[str], images: List[PILImage.Image], mask_images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _inpaint(
+        self,
+        prompts: List[str],
+        images: List[PILImage.Image],
+        mask_images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import torch
 
         generator: Optional[torch.Generator] = None
@@ -191,7 +203,6 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
         pipeline_params = params["pipeline"]
-        cancellation_token = params.get("cancellation_token")
 
         if cancellation_token is not None:
             def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):

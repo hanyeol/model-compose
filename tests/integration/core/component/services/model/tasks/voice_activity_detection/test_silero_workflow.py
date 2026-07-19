@@ -97,6 +97,7 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
     from mindor.core.foundation.streaming.audio import create_audio_source
 
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

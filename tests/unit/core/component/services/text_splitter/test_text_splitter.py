@@ -24,6 +24,7 @@ def anyio_backend():
 def mock_context():
     """Create a mock ComponentActionContext for testing."""
     context = MagicMock(spec=ComponentActionContext)
+    context.cancellation_token = None
     # Make render_variable return the value as-is by default
     async def render_variable(value, scope=None, skip_decode=False):
         return value
@@ -462,6 +463,7 @@ class TestTextSplitterStreamingInput:
         stream_action = TextSplitterAction(stream_config)
 
         stream_mock = MagicMock(spec=ComponentActionContext)
+        stream_mock.cancellation_token = None
         async def render_variable(value, scope=None, skip_decode=False):
             if value == "UNUSED":
                 return _stream_texts(texts)

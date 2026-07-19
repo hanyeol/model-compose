@@ -5,6 +5,7 @@ from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageTextToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -130,13 +131,14 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
     ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
         stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
 
-        chat_prompts: List[str] = [
+        prompts = [
             self.processor.apply_chat_template(
                 self._build_messages(prompt, system_prompt),
                 tokenize=False,
@@ -145,7 +147,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
             for prompt in prompts
         ]
 
-        inputs: Tensor = self.processor(images=images, text=chat_prompts, **params["processor"])
+        inputs: Tensor = self.processor(images=images, text=prompts, **params["processor"])
         inputs = inputs.to(self.device)
 
         input_lengths = inputs["input_ids"].shape[1] if "input_ids" in inputs else None

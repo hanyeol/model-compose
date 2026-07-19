@@ -88,6 +88,7 @@ DRIVERS.append(pytest.param(FFmpegVideoFrameExtractorAction, id="ffmpeg"))
 def make_extractor_context(video_path: str):
     """Mock context that resolves render_video to a FileStreamResource MediaSource."""
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     ctx.register_source = MagicMock()
 
     async def render_variable(value, **kwargs):
@@ -110,6 +111,7 @@ def make_processor_context(input_payload: Any, stream_output: bool = False):
     sources: dict[str, Any] = {}
 
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
 
     def register_source(key: str, value: Any) -> None:
         sources[key] = value

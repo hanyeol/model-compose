@@ -2,6 +2,7 @@ from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.rate_limit import RateLimiter
@@ -37,7 +38,7 @@ class WebScraperAction:
         if isinstance(url, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_urls, params, loop)
+                    batch_results = await self._process_batch(batch_urls, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -45,7 +46,7 @@ class WebScraperAction:
         else:
             results = []
             async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_urls, params, loop)
+                batch_results = await self._process_batch(batch_urls, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -65,7 +66,7 @@ class WebScraperAction:
         wait_until        = await context.render_variable(self.config.wait_until)
         wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
-        timeout           = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
+        timeout           = (await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0
 
         # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }
@@ -83,7 +84,7 @@ class WebScraperAction:
             "wait_until":        wait_until,
             "wait_for":          wait_for,
             "submit":            submit,
-            "timeout":           timeout,
+            "timeout":           parse_duration(timeout),
         }
 
     async def _process_batch(
@@ -91,6 +92,7 @@ class WebScraperAction:
         urls: List[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[Any]]:
         needs_browser = params["submit"] or params["enable_javascript"]
         if needs_browser and any(url is not None for url in urls):
@@ -100,16 +102,23 @@ class WebScraperAction:
                 browser = await p.chromium.launch(headless=True)
                 try:
                     return await asyncio.gather(*[
-                        self._process(url, params, loop, browser) for url in urls
+                        self._process(url, params, loop, browser, cancellation_token) for url in urls
                     ])
                 finally:
                     await browser.close()
 
         return await asyncio.gather(*[
-            self._process(url, params, loop, None) for url in urls
+            self._process(url, params, loop, None, cancellation_token) for url in urls
         ])
 
-    async def _process(self, url: str, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, browser: Optional[Any]) -> Optional[Any]:
+    async def _process(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        browser: Optional[Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Optional[Any]:
         if url is None:
             logging.debug("Web scraper skipped because no URL was provided.")
             return None
@@ -117,18 +126,43 @@ class WebScraperAction:
         # Fetch HTML content (with optional form submission)
         if params["submit"] or params["enable_javascript"]:
             html_content = await self._fetch_html_with_javascript(
-                browser, url, params["headers"], params["cookies"], params["timeout"], params["wait_until"], params["wait_for"], params["submit"]
+                browser,
+                url,
+                params["headers"],
+                params["cookies"],
+                params["timeout"],
+                params["wait_until"],
+                params["wait_for"],
+                params["submit"],
+                cancellation_token
             )
         else:
             html_content = await self._fetch_html(
-                url, params["headers"], params["cookies"], params["timeout"]
+                url,
+                params["headers"],
+                params["cookies"],
+                params["timeout"],
+                cancellation_token
             )
 
         # Parse and extract result
         if params["selector"]:
-            return self._extract_with_selector(html_content, params["selector"], params["extract_mode"], params["attribute"], params["multiple"])
+            return self._extract_with_selector(
+                html_content,
+                params["selector"],
+                params["extract_mode"],
+                params["attribute"],
+                params["multiple"]
+            )
+
         if params["xpath"]:
-            return self._extract_with_xpath(html_content, params["xpath"], params["extract_mode"], params["attribute"], params["multiple"])
+            return self._extract_with_xpath(
+                html_content,
+                params["xpath"],
+                params["extract_mode"],
+                params["attribute"],
+                params["multiple"]
+            )
 
         return self._extract_full_page(html_content, params["extract_mode"])
 
@@ -141,7 +175,8 @@ class WebScraperAction:
         timeout: float,
         wait_until: str,
         wait_for: Optional[str],
-        submit: Optional[Dict[str, Any]] = None
+        submit: Optional[Dict[str, Any]] = None,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> str:
         """Fetch HTML content with JavaScript rendering using a shared playwright browser. Optionally submit form before extraction."""
         from urllib.parse import urlparse
@@ -221,7 +256,14 @@ class WebScraperAction:
         finally:
             await web_context.close()
 
-    async def _fetch_html(self, url: str, headers: Dict[str, str], cookies: Dict[str, str], timeout: float) -> str:
+    async def _fetch_html(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        cookies: Dict[str, str],
+        timeout: float,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> str:
         """Fetch HTML content using aiohttp."""
         async with aiohttp.ClientSession(cookies=cookies) as session:
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=timeout)) as response:

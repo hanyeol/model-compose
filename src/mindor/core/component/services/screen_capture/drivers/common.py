@@ -56,15 +56,19 @@ class ScreenCaptureAction:
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        video_source  = coerce_enum(await context.render_variable(self.config.video_source), ScreenCaptureVideoSource, "video_source")
-        audio_source  = coerce_enum(await context.render_variable(self.config.audio_source), ScreenCaptureAudioSource, "audio_source")
-        include_video = bool(await context.render_variable(self.config.include_video))
-        include_audio = bool(await context.render_variable(self.config.include_audio))
-        display       = int(await context.render_variable(self.config.display))
+        video_source  = await context.render_variable(self.config.video_source)
+        audio_source  = await context.render_variable(self.config.audio_source)
+        include_video = await context.render_variable(self.config.include_video)
+        include_audio = await context.render_variable(self.config.include_audio)
+        display       = await context.render_variable(self.config.display)
         region        = await self._resolve_region(context) if self.config.region is not None else None
-        framerate     = float(await context.render_variable(self.config.framerate))
+        framerate     = await context.render_variable(self.config.framerate)
         encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
-        duration      = parse_time(await context.render_variable(self.config.duration)) if self.config.duration is not None else None
+        duration      = await context.render_variable(self.config.duration) if self.config.duration is not None else None
+
+        video_source = coerce_enum(video_source, ScreenCaptureVideoSource, "video_source")
+        framerate    = float(framerate)
+        duration     = parse_time(duration) if duration is not None else None
 
         if framerate <= 0:
             raise ValueError(f"'framerate' must be > 0, got {framerate}")
@@ -77,11 +81,11 @@ class ScreenCaptureAction:
 
         return {
             "video_source":  video_source,
-            "display":       display,
+            "display":       int(display),
             "region":        region,
-            "include_video": include_video,
-            "include_audio": include_audio,
-            "audio_source":  audio_source,
+            "include_video": bool(include_video),
+            "include_audio": bool(include_audio),
+            "audio_source":  coerce_enum(audio_source, ScreenCaptureAudioSource, "audio_source"),
             "framerate":     framerate,
             "encoding":      encoding,
             "duration":      duration,

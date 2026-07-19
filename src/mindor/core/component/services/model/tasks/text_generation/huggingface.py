@@ -4,18 +4,19 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
-from ...base.huggingface.cancellation import build_stopping_criteria
+from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import TextGenerationTaskAction
 from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer, GenerationMixin
+    from transformers import PreTrainedModel, PreTrainedTokenizer, GenerationMixin, StoppingCriteriaList
     from torch import Tensor
     import torch
 
@@ -85,16 +86,21 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        from transformers import StopStringCriteria, GenerationConfig
+    async def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        from transformers import GenerationConfig
         import torch
-
-        stop_sequences = params["stop_sequences"]
-        base_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
-        stopping_criteria = build_stopping_criteria(base_criteria, params.get("cancellation_token"))
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
         inputs = { k: v.to(self.device) for k, v in inputs.items() }
+
+        stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
 
         if streaming:
             streamer = BatchTextIteratorStreamer(
@@ -125,6 +131,23 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
             )
 
         return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+    def _build_stopping_criteria(
+        self,
+        stop_sequences: Optional[List[str]],
+        cancellation_token: Optional[CancellationToken]
+    ) -> Optional[StoppingCriteriaList]:
+        from transformers import StopStringCriteria, StoppingCriteriaList
+
+        criteria = []
+
+        if stop_sequences:
+            criteria.append(StopStringCriteria(self.tokenizer, stop_sequences))
+
+        if cancellation_token:
+            criteria.append(create_cancellation_criteria(cancellation_token))
+
+        return StoppingCriteriaList(criteria) if criteria else None
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):

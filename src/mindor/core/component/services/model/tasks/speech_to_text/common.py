@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Any, Iterator
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -26,7 +27,6 @@ class SpeechToTextTaskAction:
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
-        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -34,7 +34,7 @@ class SpeechToTextTaskAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._transcribe(batch_audios, params, streaming, loop)
+                    batch_results = await self._transcribe(batch_audios, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -52,7 +52,7 @@ class SpeechToTextTaskAction:
         else:
             results: List[Any] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._transcribe(batch_audios, params, streaming, loop)
+                batch_results = await self._transcribe(batch_audios, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -83,7 +83,14 @@ class SpeechToTextTaskAction:
         }
 
     @abstractmethod
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _transcribe(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         pass
 
 class SpeechToTextTaskService(ModelTaskService):

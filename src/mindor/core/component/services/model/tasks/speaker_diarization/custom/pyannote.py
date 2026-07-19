@@ -5,6 +5,7 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, PyannoteSpeakerDiarizationModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeakerDiarizationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import load_audio_array
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
@@ -57,13 +58,14 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
-        sample_rate = int(params["sample_rate"])
-        waveforms = await self._preprocess_audio(audios, sample_rate)
+        waveforms = await self._preprocess_audio(audios, params["sample_rate"])
         results = []
 
         for waveform in waveforms:
-            segments = self._collect_segments(waveform, sample_rate, params)
+            segments = self._collect_segments(waveform, params["sample_rate"], params, cancellation_token)
+
             if streaming:
                 async def _stream_chunk_generator(segments=segments):
                     for segment in segments:
@@ -88,6 +90,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         waveform: np.ndarray,
         sample_rate: int,
         params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         import torch
 
@@ -97,7 +100,6 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
             tensor = tensor.to(self.device)
 
         pipeline_kwargs = params["pipeline"]
-        cancellation_token = params.get("cancellation_token")
 
         if cancellation_token is not None:
             def _abort_if_cancelled(_step_name, _step_artifact, file=None, total=None, completed=None):

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceDetectionModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
@@ -27,7 +28,7 @@ class FaceDetectionTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._detect(batch_images, params)
+                    batch_results = self._detect(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -35,7 +36,7 @@ class FaceDetectionTaskAction:
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = self._detect(batch_images, params)
+                batch_results = self._detect(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -44,19 +45,24 @@ class FaceDetectionTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_confidence   = float(await context.render_variable(self.config.min_confidence))
-        return_landmarks = bool(await context.render_variable(self.config.return_landmarks))
+        min_confidence   = await context.render_variable(self.config.min_confidence)
+        return_landmarks = await context.render_variable(self.config.return_landmarks)
 
-        if not 0.0 <= min_confidence <= 1.0:
-            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
+        if not 0.0 <= float(min_confidence) <= 1.0:
+            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {float(min_confidence)}")
 
         return {
-            "min_confidence":   min_confidence,
-            "return_landmarks": return_landmarks,
+            "min_confidence":   float(min_confidence),
+            "return_landmarks": bool(return_landmarks),
         }
 
     @abstractmethod
-    def _detect(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Dict[str, Any]]:
         pass
 
 class FaceDetectionTaskService(ModelTaskService):

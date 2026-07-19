@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Any, Iterator
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageTextToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.utils.streamer import SyncGeneratorStreamer
@@ -31,7 +32,7 @@ class ImageTextToTextTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images, batch_prompts in BatchSourceIterator((image, prompt), batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, loop)
+                    batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -49,7 +50,7 @@ class ImageTextToTextTaskAction:
         else:
             results: List[Any] = []
             async for batch_images, batch_prompts in BatchSourceIterator((image, prompt), batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, loop)
+                batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -94,6 +95,7 @@ class ImageTextToTextTaskAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
     ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         pass
 

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Union, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -29,7 +30,7 @@ class VideoFrameExtractorAction:
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                    batch_results = await self._process_batch(batch_videos, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if isinstance(result, (StreamIterator, AsyncIterator)):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -45,7 +46,7 @@ class VideoFrameExtractorAction:
         else:
             results = []
             async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                batch_results = await self._process_batch(batch_videos, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if isinstance(result, (StreamIterator, AsyncIterator)):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -63,10 +64,13 @@ class VideoFrameExtractorAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        frame_interval  = int(await context.render_variable(self.config.frame_interval))
-        start_time      = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
-        end_time        = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
-        max_frame_count = int(await context.render_variable(self.config.max_frame_count)) if self.config.max_frame_count is not None else None
+        frame_interval  = await context.render_variable(self.config.frame_interval)
+        start_time      = await context.render_variable(self.config.start_time) if self.config.start_time else None
+        end_time        = await context.render_variable(self.config.end_time) if self.config.end_time else None
+        max_frame_count = await context.render_variable(self.config.max_frame_count) if self.config.max_frame_count is not None else None
+
+        frame_interval  = int(frame_interval)
+        max_frame_count = int(max_frame_count) if max_frame_count is not None else None
 
         if frame_interval < 1:
             raise ValueError(f"'frame_interval' must be >= 1, got {frame_interval}")
@@ -76,8 +80,8 @@ class VideoFrameExtractorAction:
 
         return {
             "frame_interval":  frame_interval,
-            "start_time":      start_time,
-            "end_time":        end_time,
+            "start_time":      parse_time(start_time) if start_time is not None else None,
+            "end_time":        parse_time(end_time) if end_time is not None else None,
             "max_frame_count": max_frame_count,
         }
 
@@ -87,9 +91,10 @@ class VideoFrameExtractorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]]:
         return await asyncio.gather(*[
-            self._process(video, params, streaming, loop) for video in videos
+            self._process(video, params, streaming, loop, cancellation_token) for video in videos
         ])
 
     async def _process(
@@ -98,6 +103,7 @@ class VideoFrameExtractorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         if video is None:
             logging.debug("Video frame extractor skipped because no video was provided.")
@@ -111,6 +117,7 @@ class VideoFrameExtractorAction:
             params["max_frame_count"],
             streaming,
             loop,
+            cancellation_token,
         )
 
     @abstractmethod
@@ -123,5 +130,6 @@ class VideoFrameExtractorAction:
         max_frame_count: Optional[int],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
         pass

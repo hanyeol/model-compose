@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceEmbeddingModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
@@ -32,7 +33,7 @@ class FaceEmbeddingTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._embed(batch_images, params)
+                    batch_results = self._embed(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +41,7 @@ class FaceEmbeddingTaskAction:
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = self._embed(batch_images, params)
+                batch_results = self._embed(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -49,18 +50,23 @@ class FaceEmbeddingTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        face_detection       = bool(await context.render_variable(self.config.face_detection))
-        alignment            = bool(await context.render_variable(self.config.alignment))
-        normalize_embeddings = bool(await context.render_variable(self.config.normalize_embeddings))
+        face_detection       = await context.render_variable(self.config.face_detection)
+        alignment            = await context.render_variable(self.config.alignment)
+        normalize_embeddings = await context.render_variable(self.config.normalize_embeddings)
 
         return {
-            "face_detection":       face_detection,
-            "alignment":            alignment,
-            "normalize_embeddings": normalize_embeddings,
+            "face_detection":       bool(face_detection),
+            "alignment":            bool(alignment),
+            "normalize_embeddings": bool(normalize_embeddings),
         }
 
     @abstractmethod
-    def _embed(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _embed(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Dict[str, Any]]:
         pass
 
 class FaceEmbeddingTaskService(ModelTaskService):

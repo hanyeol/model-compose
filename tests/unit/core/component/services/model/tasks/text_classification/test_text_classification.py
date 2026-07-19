@@ -27,6 +27,7 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_classification.common import TextClassificationTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.dsl.schema.action import TextClassificationModelActionConfig
 
 
@@ -48,7 +49,7 @@ class _FakeClassificationAction(TextClassificationTaskAction):
         self.params_seen: List[Dict[str, Any]] = []
         self.labels_seen: List[Optional[List[str]]] = []
 
-    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> List[Any]:
+    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[Any]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         self.labels_seen.append(labels)

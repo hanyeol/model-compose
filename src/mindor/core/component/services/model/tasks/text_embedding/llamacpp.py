@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
@@ -22,7 +23,13 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         self.model: Llama = model
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         import math
 
         embeddings = self.model.embed(texts)

@@ -4,6 +4,7 @@ from typing import Optional, Dict, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -48,6 +49,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         bitrate: Optional[str],
         track: Optional[int],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
@@ -79,9 +81,9 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         )
 
         if is_streamable_output:
-            return await self._extract_to_stream(command, source, input_path, format, _cleanup)
+            return await self._extract_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
-        return await self._extract_to_file(command, source, input_path, format, _cleanup)
+        return await self._extract_to_file(command, source, input_path, format, _cleanup, cancellation_token)
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
         """
@@ -112,6 +114,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         input_path: Optional[str],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg to a temporary file, then return an AudioStreamResource over that file."""
         output_path = create_temporary_file(format)
@@ -141,6 +144,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         input_path: Optional[str],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as an AudioStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]

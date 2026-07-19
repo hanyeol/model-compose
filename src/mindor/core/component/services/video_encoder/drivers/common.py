@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoEncoderActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -44,7 +45,7 @@ class VideoEncoderAction:
         if isinstance(source, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for sources, audios in BatchSourceIterator((source, audio), batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(sources, audios, params, streaming, loop)
+                    batch_results = await self._process_batch(sources, audios, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -52,7 +53,7 @@ class VideoEncoderAction:
         else:
             results = []
             async for sources, audios in BatchSourceIterator((source, audio), batch_size=batch_size or 1):
-                batch_results = await self._process_batch(sources, audios, params, streaming, loop)
+                batch_results = await self._process_batch(sources, audios, params, streaming, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -94,9 +95,10 @@ class VideoEncoderAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[VideoStreamResource]]:
         return await asyncio.gather(*[
-            self._process(source, audios[index] if audios is not None else None, params, streaming, loop)
+            self._process(source, audios[index] if audios is not None else None, params, streaming, loop, cancellation_token)
             for index, source in enumerate(sources)
         ])
 
@@ -107,15 +109,16 @@ class VideoEncoderAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[VideoStreamResource]:
         if source is None:
             logging.debug("Video encoder skipped because no input was provided.")
             return None
 
         if isinstance(source, list):
-            return await self._encode_from_frames(source, audio, params, streaming, loop)
+            return await self._encode_from_frames(source, audio, params, streaming, loop, cancellation_token)
 
-        return await self._encode_from_video(source, audio, params, streaming, loop)
+        return await self._encode_from_video(source, audio, params, streaming, loop, cancellation_token)
 
     @abstractmethod
     async def _encode_from_frames(
@@ -125,6 +128,7 @@ class VideoEncoderAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         pass
 
@@ -136,5 +140,6 @@ class VideoEncoderAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         pass

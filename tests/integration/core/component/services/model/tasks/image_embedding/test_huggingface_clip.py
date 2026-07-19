@@ -123,6 +123,7 @@ def _make_context(image_value: Any) -> ComponentActionContext:
       - a zero-arg callable returning an AsyncIterator[PIL] → streaming input
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any) -> None:

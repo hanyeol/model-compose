@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_embedding.common import TextEmbeddingTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
 
 
@@ -47,7 +48,7 @@ class _FakeEmbeddingAction(TextEmbeddingTaskAction):
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         return [ [ float(len(t)), float(i) ] for i, t in enumerate(texts) ]

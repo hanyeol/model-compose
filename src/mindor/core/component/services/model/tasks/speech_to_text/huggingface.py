@@ -5,6 +5,7 @@ from typing import Type, Union, Optional, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import load_audio_array
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
@@ -12,13 +13,13 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
-from ...base.huggingface.cancellation import build_stopping_criteria
+from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import SpeechToTextTaskAction
 from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, ProcessorMixin
+    from transformers import PreTrainedModel, ProcessorMixin, StoppingCriteriaList
     import numpy as np
     import torch
 
@@ -81,12 +82,17 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _transcribe(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         import torch
 
         waveforms = await self._preprocess_audio(audios)
-        stopping_criteria = build_stopping_criteria(None, params.get("cancellation_token"))
-
         input_features = self.processor(
             waveforms,
             sampling_rate=16000,
@@ -95,6 +101,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             chunk_length=params["chunk_length"]
         )
         input_features = input_features.to(self.device)
+
+        stopping_criteria = self._build_stopping_criteria(cancellation_token)
 
         if streaming:
             streamer = BatchTextIteratorStreamer(
@@ -130,6 +138,16 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             waveforms.append(waveform)
 
         return waveforms
+
+    def _build_stopping_criteria(self, cancellation_token: Optional[CancellationToken]) -> Optional[StoppingCriteriaList]:
+        from transformers import StoppingCriteriaList
+
+        criteria = []
+
+        if cancellation_token:
+            criteria.append(create_cancellation_criteria(cancellation_token))
+
+        return StoppingCriteriaList(criteria) if criteria else None
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):

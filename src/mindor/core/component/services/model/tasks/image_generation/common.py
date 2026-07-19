@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -24,7 +25,6 @@ class ImageGenerationGenerateTaskAction:
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
-        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -32,7 +32,7 @@ class ImageGenerationGenerateTaskAction:
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                    batch_results = self._generate(batch_prompts, params)
+                    batch_results = self._generate(batch_prompts, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class ImageGenerationGenerateTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                batch_results = self._generate(batch_prompts, params)
+                batch_results = self._generate(batch_prompts, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -52,7 +52,12 @@ class ImageGenerationGenerateTaskAction:
         return {}
 
     @abstractmethod
-    def _generate(self, prompts: List[str], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _generate(
+        self,
+        prompts: List[str],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         pass
 
 class ImageGenerationInpaintTaskAction:
@@ -67,7 +72,6 @@ class ImageGenerationInpaintTaskAction:
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
-        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -77,7 +81,7 @@ class ImageGenerationInpaintTaskAction:
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params)
+                    batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -85,7 +89,7 @@ class ImageGenerationInpaintTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params)
+                batch_results = self._inpaint(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -97,7 +101,14 @@ class ImageGenerationInpaintTaskAction:
         return {}
 
     @abstractmethod
-    def _inpaint(self, prompts: List[str], images: List[PILImage.Image], mask_images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _inpaint(
+        self,
+        prompts: List[str],
+        images: List[PILImage.Image],
+        mask_images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         pass
 
 class ImageGenerationTaskService(ModelTaskService):

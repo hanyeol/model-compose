@@ -30,6 +30,7 @@ _HTML_BY_URL = {
 
 def _make_context(url_value: Any) -> ComponentActionContext:
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:
@@ -63,7 +64,7 @@ def _make_action(output: Any = None, **config_kwargs) -> WebScraperAction:
 
 
 def _patch_fetch_html(action: WebScraperAction):
-    async def fake_fetch(url, headers, cookies, timeout):
+    async def fake_fetch(url, headers, cookies, timeout, cancellation_token=None):
         return _HTML_BY_URL[url]
     return patch.object(action, "_fetch_html", side_effect=fake_fetch)
 

@@ -91,6 +91,7 @@ def _make_context(video_value: Any) -> ComponentActionContext:
       - list of any of the above: returned as list
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

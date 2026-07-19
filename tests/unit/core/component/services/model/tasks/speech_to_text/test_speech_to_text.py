@@ -19,6 +19,7 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.speech_to_text.common import SpeechToTextTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
@@ -42,7 +43,7 @@ class _FakeSpeechToTextAction(SpeechToTextTaskAction):
         self.stream_chunks: int = stream_chunks
         self.batches_seen: List[List[str]] = []
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> Union[List[str], List[Iterator[str]]]:
         labels = [ _label(a) for a in audios ]
         self.batches_seen.append(labels)
 
@@ -94,6 +95,7 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
       - zero-arg callable returning an AsyncIterator of labels → AsyncIterator[MediaSource]
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

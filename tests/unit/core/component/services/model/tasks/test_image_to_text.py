@@ -18,6 +18,7 @@ from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_to_text.common import ImageToTextTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.dsl.schema.action import ImageToTextModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
@@ -60,6 +61,7 @@ class _FakeImageToTextAction(ImageToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[Iterator[str]]]:
         labels = [ _label(img) for img in images ]
         self.batches_seen.append(labels)

@@ -52,6 +52,7 @@ def _make_context(video_value: Any = None) -> ComponentActionContext:
     from mindor.core.foundation.streaming.video import create_video_source
 
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

@@ -2,6 +2,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ShellComponentConfig
 from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
@@ -36,7 +37,7 @@ class ShellAction:
         if isinstance(command, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_commands, params, streaming)
+                    batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         if isinstance(result, (StreamIterator, AsyncIterator)):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -52,7 +53,7 @@ class ShellAction:
         else:
             results: List[Any] = []
             async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_commands, params, streaming)
+                batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if isinstance(result, (StreamIterator, AsyncIterator)):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -72,12 +73,12 @@ class ShellAction:
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         working_dir = await self._resolve_working_directory()
         env         = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
-        timeout     = parse_duration(await context.render_variable(self.config.timeout)) if self.config.timeout else None
+        timeout     = await context.render_variable(self.config.timeout) if self.config.timeout else None
 
         return {
             "working_dir": working_dir,
             "env":         env,
-            "timeout":     timeout,
+            "timeout":     parse_duration(timeout) if timeout is not None else None,
         }
 
     async def _process_batch(
@@ -85,23 +86,31 @@ class ShellAction:
         commands: List[ArrayValue],
         params: Dict[str, Any],
         streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         return await asyncio.gather(*[
-            self._process(command, params, streaming) for command in commands
+            self._process(command, params, streaming, cancellation_token) for command in commands
         ])
 
-    async def _process(self, command: ArrayValue, params: Dict[str, Any], streaming: bool) -> Any:
+    async def _process(
+        self,
+        command: ArrayValue,
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Any:
         if streaming:
-            return self._stream_command(command.values, params["working_dir"], params["env"], params["timeout"])
+            return self._stream_command(command.values, params["working_dir"], params["env"], params["timeout"], cancellation_token)
 
-        return await self._run_command(command.values, params["working_dir"], params["env"], params["timeout"])
+        return await self._run_command(command.values, params["working_dir"], params["env"], params["timeout"], cancellation_token)
 
     async def _run_command(
         self,
         command: List[str],
         working_dir: str,
         env: Dict[str, str],
-        timeout: Optional[float]
+        timeout: Optional[float],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         logging.debug("[shell] Running command: %s (cwd: %s)", " ".join(command), working_dir)
         stdout, stderr, exit_code = await run_command(command, working_dir, env, timeout)
@@ -118,7 +127,8 @@ class ShellAction:
         command: List[str],
         working_dir: str,
         env: Dict[str, str],
-        timeout: Optional[float]
+        timeout: Optional[float],
+        cancellation_token: Optional[CancellationToken] = None,
     ):
         """Yield stdout lines as they are produced by the process."""
         logging.debug("[shell] Streaming command: %s (cwd: %s)", " ".join(command), working_dir)

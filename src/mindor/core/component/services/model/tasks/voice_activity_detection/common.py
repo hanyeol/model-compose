@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Tuple, Iterator, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VoiceActivityDetectionModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -115,7 +116,7 @@ class VoiceActivityDetectionTaskAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._detect(batch_audios, params, streaming, loop)
+                    batch_results = await self._detect(batch_audios, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -133,7 +134,7 @@ class VoiceActivityDetectionTaskAction:
         else:
             results: List[Any] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._detect(batch_audios, params, streaming, loop)
+                batch_results = await self._detect(batch_audios, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -155,22 +156,29 @@ class VoiceActivityDetectionTaskAction:
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sample_rate          = await context.render_variable(self.config.sample_rate)
         threshold            = await context.render_variable(self.config.params.threshold)
-        min_speech_duration  = parse_duration(await context.render_variable(self.config.params.min_speech_duration))
-        max_speech_duration  = parse_duration(await context.render_variable(self.config.params.max_speech_duration)) if self.config.params.max_speech_duration is not None else None
-        min_silence_duration = parse_duration(await context.render_variable(self.config.params.min_silence_duration))
-        speech_padding_time  = parse_duration(await context.render_variable(self.config.params.speech_padding_time))
+        min_speech_duration  = await context.render_variable(self.config.params.min_speech_duration)
+        max_speech_duration  = await context.render_variable(self.config.params.max_speech_duration) if self.config.params.max_speech_duration is not None else None
+        min_silence_duration = await context.render_variable(self.config.params.min_silence_duration)
+        speech_padding_time  = await context.render_variable(self.config.params.speech_padding_time)
 
         return {
             "sample_rate":          sample_rate,
             "threshold":            threshold,
-            "min_speech_duration":  min_speech_duration,
-            "max_speech_duration":  max_speech_duration,
-            "min_silence_duration": min_silence_duration,
-            "speech_padding_time":  speech_padding_time,
+            "min_speech_duration":  parse_duration(min_speech_duration),
+            "max_speech_duration":  parse_duration(max_speech_duration) if max_speech_duration is not None else None,
+            "min_silence_duration": parse_duration(min_silence_duration),
+            "speech_padding_time":  parse_duration(speech_padding_time),
         }
 
     @abstractmethod
-    async def _detect(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+    async def _detect(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
         pass
 
 class VoiceActivityDetectionTaskService(ModelTaskService):

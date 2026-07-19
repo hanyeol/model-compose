@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Optional, Dict, List, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import ImageTextToTextTaskAction
@@ -34,6 +35,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
 
         sampling_params: Dict[str, Any] = { "n": num_return_sequences }
+
         if params["max_output_length"] is not None:
             sampling_params["max_tokens"] = params["max_output_length"]
 
@@ -54,7 +56,51 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return params
 
-    def _build_chat_prompt(self, prompt_text: str, system_prompt: Optional[str]) -> str:
+    async def _generate(
+        self,
+        images: List[PILImage.Image],
+        prompts: List[str],
+        system_prompt: Optional[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        prompts = [
+            self.tokenizer.apply_chat_template(
+                self._build_messages(prompt, system_prompt),
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            for prompt in prompts
+        ]
+
+        if streaming:
+            return [ self._stream_one(prompt, image, params["sampling"]) for prompt, image in zip(prompts, images) ]
+
+        return [ await self._generate_one(prompt, image, params["sampling"]) for prompt, image in zip(prompts, images) ]
+
+    async def _generate_one(self, prompt: str, image: PILImage.Image, sampling: SamplingParams) -> str:
+        request_id = f"request-{ulid.ulid()}"
+        text = ""
+        request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+        async for output in self.engine.generate(request, sampling, request_id=request_id):
+            if output.outputs:
+                text = output.outputs[0].text
+        return text
+
+    async def _stream_one(self, prompt: str, image: PILImage.Image, sampling: SamplingParams) -> AsyncIterator[str]:
+        request_id = f"request-{ulid.ulid()}"
+        previous = ""
+        request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+        async for output in self.engine.generate(request, sampling, request_id=request_id):
+            text = output.outputs[0].text if output.outputs else ""
+            delta = text[len(previous):]
+            previous = text
+            if delta:
+                yield delta
+
+    def _build_messages(self, prompt_text: str, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []
 
         if system_prompt:
@@ -68,52 +114,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
             ],
         })
 
-        return self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-
-    async def _generate(
-        self,
-        images: List[PILImage.Image],
-        prompts: List[str],
-        system_prompt: Optional[str],
-        params: Dict[str, Any],
-        streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        sampling = params["sampling"]
-
-        pairs: List[tuple[str, PILImage.Image]] = []
-        for image, prompt in zip(images, prompts):
-            chat_prompt = self._build_chat_prompt(prompt, system_prompt)
-            pairs.append((chat_prompt, image))
-
-        if streaming:
-            return [ self._stream_one(chat_prompt, image, sampling) for chat_prompt, image in pairs ]
-
-        return [ await self._generate_one(chat_prompt, image, sampling) for chat_prompt, image in pairs ]
-
-    async def _generate_one(self, chat_prompt: str, image: PILImage.Image, sampling: SamplingParams) -> str:
-        request_id = f"request-{ulid.ulid()}"
-        text = ""
-        request = { "prompt": chat_prompt, "multi_modal_data": { "image": image } }
-        async for output in self.engine.generate(request, sampling, request_id=request_id):
-            if output.outputs:
-                text = output.outputs[0].text
-        return text
-
-    async def _stream_one(self, chat_prompt: str, image: PILImage.Image, sampling: SamplingParams) -> AsyncIterator[str]:
-        request_id = f"request-{ulid.ulid()}"
-        previous = ""
-        request = { "prompt": chat_prompt, "multi_modal_data": { "image": image } }
-        async for output in self.engine.generate(request, sampling, request_id=request_id):
-            text = output.outputs[0].text if output.outputs else ""
-            delta = text[len(previous):]
-            previous = text
-            if delta:
-                yield delta
+        return messages
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.VLLM)
 class VllmImageTextToTextTaskService(VllmModelTaskService):

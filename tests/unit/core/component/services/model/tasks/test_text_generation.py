@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_generation.common import TextGenerationTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
@@ -47,6 +48,7 @@ class _FakeGenerationAction(TextGenerationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[Iterator[str]]]:
         self.batches_seen.append(list(texts))
         if streaming:

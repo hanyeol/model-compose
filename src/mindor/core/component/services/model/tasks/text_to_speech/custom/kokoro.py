@@ -5,6 +5,7 @@ from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import KokoroTextToSpeechModelGenerateActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm16
@@ -34,7 +35,12 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+    def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[StreamResource]:
         def _generate(text: str) -> StreamResource:
             samples, sample_rate = self._synthesize(text, params["voice"], params["speed"])
             frames, channels = encode_waveform_to_pcm16(samples)

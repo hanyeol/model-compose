@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioConverterActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -28,7 +29,7 @@ class AudioConverterAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_audios, params, loop)
+                    batch_results = await self._process_batch(batch_audios, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -36,7 +37,7 @@ class AudioConverterAction:
         else:
             results = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_audios, params, loop)
+                batch_results = await self._process_batch(batch_audios, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -64,9 +65,10 @@ class AudioConverterAction:
         audios: List[MediaSource],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[AudioStreamResource]]:
         return await asyncio.gather(*[
-            self._process(audio, params, loop) for audio in audios
+            self._process(audio, params, loop, cancellation_token) for audio in audios
         ])
 
     async def _process(
@@ -74,6 +76,7 @@ class AudioConverterAction:
         audio: MediaSource,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[AudioStreamResource]:
         if audio is None:
             logging.debug("Audio converter skipped because no audio was provided.")
@@ -87,6 +90,7 @@ class AudioConverterAction:
             params["sample_rate"],
             params["channels"],
             loop,
+            cancellation_token,
         )
 
     @abstractmethod
@@ -99,5 +103,6 @@ class AudioConverterAction:
         sample_rate: Optional[Any],
         channels: Optional[Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         pass

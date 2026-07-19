@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Dict, List, Tuple, Any
+from typing import Type, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import HuggingfaceTextRerankingModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextRerankingModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
@@ -46,7 +47,14 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
 
         return params
 
-    async def _rerank(self, queries: List[str], documents: List[List[str]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _rerank(
+        self,
+        queries: List[str],
+        documents: List[List[str]],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         import torch
 
         pairs: List[Tuple[str, str]] = []

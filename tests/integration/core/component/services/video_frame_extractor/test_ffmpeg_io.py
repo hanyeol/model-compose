@@ -80,6 +80,7 @@ async def _collect(stream: AsyncIterator) -> list:
 def _make_context(video_value: Any, output: Any = None) -> ComponentActionContext:
     """Build a mock context where render_video resolves inputs into MediaSource(s)."""
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
 
     # Track registered sources so render_variable can resolve `${result[]}` to the
     # last-registered element value.

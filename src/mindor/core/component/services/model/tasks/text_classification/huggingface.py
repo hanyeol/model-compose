@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.component import HuggingfaceTextClassificationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -49,7 +50,14 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
 
         return params
 
-    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop) -> List[Any]:
+    async def _predict(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        labels: Optional[List[str]],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Any]:
         import torch, torch.nn.functional as F
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])

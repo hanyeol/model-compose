@@ -91,6 +91,7 @@ def _make_context(source_value: Any) -> ComponentActionContext:
       - zero-arg callable returning an AsyncIterator of values: AsyncIterator[MediaSource]
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

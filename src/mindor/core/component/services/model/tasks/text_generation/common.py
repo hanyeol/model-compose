@@ -5,6 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
@@ -21,7 +22,6 @@ class TextGenerationTaskAction:
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
-        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -29,7 +29,7 @@ class TextGenerationTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_texts, params, streaming, loop)
+                    batch_results = await self._generate(batch_texts, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -47,7 +47,7 @@ class TextGenerationTaskAction:
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_texts, params, streaming, loop)
+                batch_results = await self._generate(batch_texts, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -95,7 +95,14 @@ class TextGenerationTaskAction:
         return chunks
 
     @abstractmethod
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         pass
 
 class TextGenerationTaskService(ModelTaskService):

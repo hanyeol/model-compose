@@ -874,6 +874,7 @@ class ControllerService(AsyncService):
     def _attach_cancellation_token(self, task_id: str) -> CancellationToken:
         token = CancellationToken()
         self.cancellation_tokens[task_id] = token
+
         return token
 
     def _detach_cancellation_token(self, task_id: str) -> None:

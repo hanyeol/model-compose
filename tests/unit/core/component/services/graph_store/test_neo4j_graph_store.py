@@ -31,6 +31,7 @@ def anyio_backend():
 def mock_context():
     """Create a mock ComponentActionContext with Pydantic model conversion."""
     context = MagicMock(spec=ComponentActionContext)
+    context.cancellation_token = None
 
     def _convert(value):
         from pydantic import BaseModel

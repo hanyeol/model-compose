@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceTextEmbeddingModelArchitecture
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -51,7 +52,13 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         return params
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
             return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
 

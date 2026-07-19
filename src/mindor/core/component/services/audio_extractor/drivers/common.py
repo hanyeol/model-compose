@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioExtractorActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -28,7 +29,7 @@ class AudioExtractorAction:
         if isinstance(source, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_sources in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_sources, params, loop)
+                    batch_results = await self._process_batch(batch_sources, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -36,7 +37,7 @@ class AudioExtractorAction:
         else:
             results = []
             async for batch_sources in BatchSourceIterator(source, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_sources, params, loop)
+                batch_results = await self._process_batch(batch_sources, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -50,14 +51,11 @@ class AudioExtractorAction:
         bitrate = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
         track   = await context.render_variable(self.config.track) if self.config.track is not None else None
 
-        if track is not None:
-            track = int(track)
-
         return {
             "format":  format,
             "codec":   codec,
             "bitrate": bitrate,
-            "track":   track,
+            "track":   int(track) if track is not None else None,
         }
 
     async def _process_batch(
@@ -65,9 +63,10 @@ class AudioExtractorAction:
         sources: List[MediaSource],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[AudioStreamResource]]:
         return await asyncio.gather(*[
-            self._process(source, params, loop) for source in sources
+            self._process(source, params, loop, cancellation_token) for source in sources
         ])
 
     async def _process(
@@ -75,6 +74,7 @@ class AudioExtractorAction:
         source: MediaSource,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[AudioStreamResource]:
         if source is None:
             logging.debug("Audio extractor skipped because no source was provided.")
@@ -87,6 +87,7 @@ class AudioExtractorAction:
             params["bitrate"],
             params["track"],
             loop,
+            cancellation_token,
         )
 
     @abstractmethod
@@ -98,5 +99,6 @@ class AudioExtractorAction:
         bitrate: Optional[str],
         track: Optional[int],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         pass

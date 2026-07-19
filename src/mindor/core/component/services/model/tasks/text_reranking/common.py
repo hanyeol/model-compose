@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextRerankingModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -38,7 +39,7 @@ class TextRerankingTaskAction:
             async def _stream_output_generator():
                 async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
-                    batch_scores = await self._rerank(batch_queries, batch_texts, params, loop)
+                    batch_scores = await self._rerank(batch_queries, batch_texts, params, loop, context.cancellation_token)
                     for scores, original_documents in zip(batch_scores, batch_documents):
                         yield self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
 
@@ -47,7 +48,7 @@ class TextRerankingTaskAction:
             results: List[Any] = []
             async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                 batch_texts = self._extract_document_texts(batch_documents, document_field)
-                batch_scores = await self._rerank(batch_queries, batch_texts, params, loop)
+                batch_scores = await self._rerank(batch_queries, batch_texts, params, loop, context.cancellation_token)
                 for scores, original_documents in zip(batch_scores, batch_documents):
                     results.append(self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents))
 
@@ -113,7 +114,14 @@ class TextRerankingTaskAction:
         return result
 
     @abstractmethod
-    async def _rerank(self, queries: List[str], documents: List[List[str]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _rerank(
+        self,
+        queries: List[str],
+        documents: List[List[str]],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         pass
 
 class TextRerankingTaskService(ModelTaskService):

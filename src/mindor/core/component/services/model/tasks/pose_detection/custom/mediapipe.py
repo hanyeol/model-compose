@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazePosePoseDetectionModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
 from ..utils import openpose, blazepose, topology
 from ....base import ComponentActionContext
@@ -25,7 +26,12 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
 
         self.model_path: str = model_path
 
-    def _detect(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Dict[str, Any]]:
         from mediapipe import Image as MPImage, ImageFormat
         from mediapipe.tasks.python import vision
         from mediapipe.tasks.python.core.base_options import BaseOptions

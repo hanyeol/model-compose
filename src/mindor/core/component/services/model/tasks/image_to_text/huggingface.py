@@ -5,19 +5,20 @@ from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
-from ...base.huggingface.cancellation import build_stopping_criteria
+from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import ImageToTextTaskAction
 from PIL import Image as PILImage
 from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin
+    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, StoppingCriteriaList
     from torch import Tensor
     import torch
 
@@ -108,15 +109,22 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return params
 
-    async def _generate(self, images: List[PILImage.Image], prompts: Optional[List[str]], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        from transformers import StopStringCriteria, GenerationConfig
+    async def _generate(
+        self,
+        images: List[PILImage.Image],
+        prompts: Optional[List[str]],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        from transformers import GenerationConfig
         import torch
-
-        base_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
-        stopping_criteria = build_stopping_criteria(base_criteria, params.get("cancellation_token"))
 
         inputs: Tensor = self.processor(images=images, text=prompts, **params["processor"])
         inputs = inputs.to(self.device)
+
+        stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
 
         if streaming:
             streamer = BatchTextIteratorStreamer(
@@ -147,6 +155,23 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
             )
 
         return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+    def _build_stopping_criteria(
+        self,
+        stop_sequences: Optional[List[str]],
+        cancellation_token: Optional[CancellationToken]
+    ) -> Optional[StoppingCriteriaList]:
+        from transformers import StopStringCriteria, StoppingCriteriaList
+
+        criteria = []
+ 
+        if stop_sequences:
+            criteria.append(StopStringCriteria(self.processor.tokenizer, stop_sequences))
+    
+        if cancellation_token:
+            criteria.append(create_cancellation_criteria(cancellation_token))
+
+        return StoppingCriteriaList(criteria) if criteria else None
 
 @register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):

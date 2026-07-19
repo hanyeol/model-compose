@@ -5,6 +5,7 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, SileroVoiceActivityDetectionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, VoiceActivityDetectionModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import load_audio_array, stream_audio_array, is_audio_streamable
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
@@ -35,7 +36,8 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
     ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
         import numpy as np
 

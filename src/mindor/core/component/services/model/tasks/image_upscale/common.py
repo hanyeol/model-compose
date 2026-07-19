@@ -5,6 +5,7 @@ from typing import Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageUpscaleModelActionConfig, ColorFormat
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import compose_with_alpha, has_alpha
@@ -38,7 +39,7 @@ class ImageUpscaleTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._process_batch(batch_images, params)
+                    batch_results = self._process_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -46,18 +47,23 @@ class ImageUpscaleTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                results.extend(self._process_batch(batch_images, params))
+                results.extend(self._process_batch(batch_images, params, context.cancellation_token))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    def _process_batch(self, batch_images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _process_batch(
+        self,
+        batch_images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
         alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in batch_images ]
 
-        images = self._upscale(images, params)
+        images = self._upscale(images, params, cancellation_token)
 
         results: List[PILImage.Image] = []
 
@@ -98,7 +104,12 @@ class ImageUpscaleTaskAction:
         return image.resize(downsample_size, resample)
 
     @abstractmethod
-    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _upscale(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         pass
 
 class ImageUpscaleTaskService(ModelTaskService):

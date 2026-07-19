@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -26,7 +27,7 @@ class TextEmbeddingTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._embed(batch_texts, params, loop)
+                    batch_results = await self._embed(batch_texts, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -34,7 +35,7 @@ class TextEmbeddingTaskAction:
         else:
             results: List[List[float]] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._embed(batch_texts, params, loop)
+                batch_results = await self._embed(batch_texts, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -54,7 +55,13 @@ class TextEmbeddingTaskAction:
         }
 
     @abstractmethod
-    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> List[List[float]]:
+    async def _embed(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[List[float]]:
         pass
 
 class TextEmbeddingTaskService(ModelTaskService):

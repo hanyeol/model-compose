@@ -1,19 +1,20 @@
-from typing import Optional, List
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from mindor.core.foundation.cancellation import CancellationToken
 
-def build_stopping_criteria(base: Optional[List], cancellation_token: Optional[CancellationToken]):
-    from transformers import StoppingCriteria, StoppingCriteriaList
+if TYPE_CHECKING:
+    from transformers import StoppingCriteria
 
-    criteria: List = list(base) if base else []
+def create_cancellation_criteria(cancellation_token: CancellationToken) -> "StoppingCriteria":
+    from transformers import StoppingCriteria
 
-    if cancellation_token is not None:
-        class CancellationTokenCriteria(StoppingCriteria):
-            def __init__(self, token: CancellationToken):
-                self._token = token
+    class CancellationCriteria(StoppingCriteria):
+        def __init__(self, token: CancellationToken):
+            super().__init__()
 
-            def __call__(self, input_ids, scores, **kwargs) -> bool:
-                return self._token.is_cancelled()
+            self._token = token
 
-        criteria.append(CancellationTokenCriteria(cancellation_token))
+        def __call__(self, input_ids, scores, **kwargs) -> bool:
+            return self._token.is_cancelled()
 
-    return StoppingCriteriaList(criteria) if criteria else None
+    return CancellationCriteria(cancellation_token)

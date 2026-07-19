@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationGenerateTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationGenerateModelActionConfig
 
 
@@ -62,6 +63,7 @@ class _FakeImageGenerationAction(ImageGenerationGenerateTaskAction):
         self,
         prompts: List[str],
         params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         self.batches_seen.append(list(prompts))
         return [ _fake_image(p) for p in prompts ]

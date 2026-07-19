@@ -419,6 +419,7 @@ class TestSqliteModelMemoryStorage:
 def mock_context():
     """Create a mock ComponentActionContext with a passthrough render_variable."""
     context = MagicMock(spec=ComponentActionContext)
+    context.cancellation_token = None
     async def render_variable(value, ignore_files=False):
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
@@ -1538,6 +1539,7 @@ class TestSummaryExplicitInputMode:
         # Track every register_source call to verify the three documented sources are registered.
         recorded_sources = {}
         context = MagicMock(spec=ComponentActionContext)
+        context.cancellation_token = None
 
         async def render_variable(value, ignore_files=False):
             return value

@@ -5,6 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import TextToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
@@ -28,7 +29,7 @@ class TextToTextTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_texts, params, streaming, loop)
+                    batch_results = await self._generate(batch_texts, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -46,7 +47,7 @@ class TextToTextTaskAction:
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_texts, params, streaming, loop)
+                batch_results = await self._generate(batch_texts, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -88,7 +89,14 @@ class TextToTextTaskAction:
         }
 
     @abstractmethod
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         pass
 
 class TextToTextTaskService(ModelTaskService):

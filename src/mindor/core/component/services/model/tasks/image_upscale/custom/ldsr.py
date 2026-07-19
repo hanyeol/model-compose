@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, LocalModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscaleModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ....base import ComponentActionContext
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
@@ -30,28 +31,33 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        num_inference_steps = int(await context.render_variable(self.config.params.num_inference_steps))
-        eta                 = float(await context.render_variable(self.config.params.eta))
+        num_inference_steps = await context.render_variable(self.config.params.num_inference_steps)
+        eta                 = await context.render_variable(self.config.params.eta)
         downsample_method   = await context.render_variable(self.config.params.downsample_method)
-        seed                = await context.render_variable(self.config.params.seed)
+        seed                = await context.render_variable(self.config.params.seed) if self.config.params.seed is not None else None
 
         params.update({
-            "num_inference_steps": num_inference_steps,
-            "eta":                 eta,
+            "num_inference_steps": int(num_inference_steps),
+            "eta":                 float(eta),
             "downsample_method":   downsample_method,
             "seed":                int(seed) if seed is not None else None,
         })
 
         return params
 
-    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _upscale(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import torch
 
-        downsample_method = params["downsample_method"]
-        if downsample_method is not None:
-            images = [ self._downsample_image(image, downsample_method) for image in images ]
-
         generator: Optional[torch.Generator] = None
+
+        if params["downsample_method"] is not None:
+            images = [ self._downsample_image(image, params["downsample_method"]) for image in images ]
+
         if params["seed"] is not None:
             generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextToTextModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -84,12 +85,18 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         from transformers import StopStringCriteria, GenerationConfig
         import torch
 
-        stop_sequences = params["stop_sequences"]
-        stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if stop_sequences else None
+        stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if params["stop_sequences"] else None
 
         inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
         inputs = { k: v.to(self.device) for k, v in inputs.items() }

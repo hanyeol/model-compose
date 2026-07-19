@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Set, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -36,6 +37,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         max_frame_count: Optional[int],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
 
@@ -81,9 +83,9 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                     pass
 
         if streaming:
-            return self._stream_frames(command, video, input_path, max_frame_count, _cleanup)
+            return self._stream_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
 
-        return await self._collect_frames(command, video, input_path, max_frame_count, _cleanup)
+        return await self._collect_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
 
     async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
         """
@@ -114,6 +116,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         input_path: Optional[str],
         max_frame_count: Optional[int],
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         """Run ffmpeg to completion and return all extracted frames as a list."""
         async def _handle_stdout(reader: asyncio.StreamReader) -> List[PILImage.Image]:
@@ -191,6 +194,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         input_path: Optional[str],
         max_frame_count: Optional[int],
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Run ffmpeg and yield {image, timestamp} dicts as frames are decoded."""
         timestamps: asyncio.Queue = asyncio.Queue()

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
@@ -29,7 +30,7 @@ class AudioProcessorAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_audios, self.config.method, params, loop)
+                    batch_results = await self._process_batch(batch_audios, self.config.method, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -37,7 +38,7 @@ class AudioProcessorAction:
         else:
             results = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_audios, self.config.method, params, loop)
+                batch_results = await self._process_batch(batch_audios, self.config.method, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -219,7 +220,7 @@ class AudioProcessorAction:
                     "true_peak_ceiling": float(true_peak_ceiling),
                 }
 
-            raise ValueError(f"Unsupported normalize mode: {mode}")
+            raise ValueError(f"Unsupported normalize mode: {self.config.mode}")
 
         if method == AudioProcessorActionMethod.PEAK_LIMIT:
             if self.config.mode == AudioProcessorPeakLimitMode.HARD:
@@ -240,7 +241,7 @@ class AudioProcessorAction:
                     "release": parse_time(release),
                 }
 
-            raise ValueError(f"Unsupported peak-limit mode: {mode}")
+            raise ValueError(f"Unsupported peak-limit mode: {self.config.mode}")
 
         if method == AudioProcessorActionMethod.TRIM_EDGES:
             threshold = await context.render_variable(self.config.threshold)
@@ -284,9 +285,10 @@ class AudioProcessorAction:
         method: AudioProcessorActionMethod,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[PcmStreamResource]]:
         return await asyncio.gather(*[
-            self._process(audio, method, params, loop) for audio in audios
+            self._process(audio, method, params, loop, cancellation_token) for audio in audios
         ])
 
     async def _process(
@@ -295,6 +297,7 @@ class AudioProcessorAction:
         method: AudioProcessorActionMethod,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[PcmStreamResource]:
         if audio is None:
             logging.debug("Audio processor (%s) skipped because no audio was provided.", method)

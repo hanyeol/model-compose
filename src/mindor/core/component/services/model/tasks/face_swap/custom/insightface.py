@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceSwapModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ..common import FaceSwapTaskService, FaceSwapTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
@@ -30,16 +31,21 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        detection_threshold = float(await context.render_variable(self.config.detection_threshold))
-        if not 0.0 <= detection_threshold <= 1.0:
-            raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {detection_threshold}")
+        detection_threshold = await context.render_variable(self.config.detection_threshold)
+        if not 0.0 <= float(detection_threshold) <= 1.0:
+            raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {float(detection_threshold)}")
 
-        params["detection_threshold"] = detection_threshold
+        params["detection_threshold"] = float(detection_threshold)
         params["detection_size"]      = tuple(self.config.detection_size)
 
         return params
 
-    def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any]) -> Face:
+    def _prepare_source_face(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Face:
         import numpy as np
         import cv2
 
@@ -53,7 +59,13 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         return max(faces, key=lambda face: face.det_score)
 
-    def _swap(self, images: List[PILImage.Image], source_face: Face, params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _swap(
+        self,
+        images: List[PILImage.Image],
+        source_face: Face,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import numpy as np
         import cv2
 

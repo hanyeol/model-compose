@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.dsl.schema.action.impl.audio_feature_extractor.impl.common import AudioFeature
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -32,7 +33,7 @@ class AudioFeatureExtractorAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop)
+                    batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +41,7 @@ class AudioFeatureExtractorAction:
         else:
             results = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop)
+                batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -49,33 +50,45 @@ class AudioFeatureExtractorAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, feature: AudioFeature, context: ComponentActionContext) -> Dict[str, Any]:
-        sample_rate = int(await context.render_variable(self.config.sample_rate))
-        fps         = int(await context.render_variable(self.config.fps))
+        sample_rate = await context.render_variable(self.config.sample_rate)
+        fps         = await context.render_variable(self.config.fps)
 
         if feature == AudioFeature.SPECTRUM:
-            max_frequency = await context.render_variable(self.config.max_frequency) if self.config.max_frequency is not None else None
+            band_count      = await context.render_variable(self.config.band_count)
+            min_frequency   = await context.render_variable(self.config.min_frequency)
+            max_frequency   = await context.render_variable(self.config.max_frequency) if self.config.max_frequency is not None else None
+            window_size     = await context.render_variable(self.config.window_size)
+            window_type     = await context.render_variable(self.config.window_type)
+            frequency_scale = await context.render_variable(self.config.frequency_scale)
+            normalize_mode  = await context.render_variable(self.config.normalize_mode)
+            percentile      = await context.render_variable(self.config.percentile)
 
             return {
-                "sample_rate":     sample_rate,
-                "fps":             fps,
-                "band_count":      int(await context.render_variable(self.config.band_count)),
-                "min_frequency":   float(await context.render_variable(self.config.min_frequency)),
-                "max_frequency":   float(max_frequency) if max_frequency is not None else sample_rate / 2,
-                "window_size":     int(await context.render_variable(self.config.window_size)),
-                "window_type":     await context.render_variable(self.config.window_type),
-                "frequency_scale": await context.render_variable(self.config.frequency_scale),
-                "normalize_mode":  await context.render_variable(self.config.normalize_mode),
-                "percentile":      float(await context.render_variable(self.config.percentile)),
+                "sample_rate":     int(sample_rate),
+                "fps":             int(fps),
+                "band_count":      int(band_count),
+                "min_frequency":   float(min_frequency),
+                "max_frequency":   float(max_frequency) if max_frequency is not None else int(sample_rate) / 2,
+                "window_size":     int(window_size),
+                "window_type":     window_type,
+                "frequency_scale": frequency_scale,
+                "normalize_mode":  normalize_mode,
+                "percentile":      float(percentile),
             }
 
         if feature == AudioFeature.WAVEFORM:
+            point_count     = await context.render_variable(self.config.point_count)
+            window_duration = await context.render_variable(self.config.window_duration)
+            summary_mode    = await context.render_variable(self.config.summary_mode)
+            rectify         = await context.render_variable(self.config.rectify)
+
             return {
-                "sample_rate":     sample_rate,
-                "fps":             fps,
-                "point_count":     int(await context.render_variable(self.config.point_count)),
-                "window_duration": parse_duration(await context.render_variable(self.config.window_duration)),
-                "summary_mode":    await context.render_variable(self.config.summary_mode),
-                "rectify":         bool(await context.render_variable(self.config.rectify)),
+                "sample_rate":     int(sample_rate),
+                "fps":             int(fps),
+                "point_count":     int(point_count),
+                "window_duration": parse_duration(window_duration),
+                "summary_mode":    summary_mode,
+                "rectify":         bool(rectify),
             }
 
         raise ValueError(f"Unsupported audio feature: {feature}")
@@ -86,9 +99,10 @@ class AudioFeatureExtractorAction:
         feature: AudioFeature,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[dict]]:
         return await asyncio.gather(*[
-            self._process(audio, feature, params, loop) for audio in audios
+            self._process(audio, feature, params, loop, cancellation_token) for audio in audios
         ])
 
     async def _process(
@@ -97,12 +111,13 @@ class AudioFeatureExtractorAction:
         feature: AudioFeature,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[dict]:
         if audio is None:
             logging.debug("Audio feature extractor (%s) skipped because no audio was provided.", feature)
             return None
 
-        return await self._extract(feature, audio, params, loop)
+        return await self._extract(feature, audio, params, loop, cancellation_token)
 
     async def _extract(
         self,
@@ -110,20 +125,21 @@ class AudioFeatureExtractorAction:
         source: MediaSource,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> dict:
         if feature == AudioFeature.SPECTRUM:
-            return await self._extract_spectrum(source, params, loop)
+            return await self._extract_spectrum(source, params, loop, cancellation_token)
 
         if feature == AudioFeature.WAVEFORM:
-            return await self._extract_waveform(source, params, loop)
+            return await self._extract_waveform(source, params, loop, cancellation_token)
 
         raise ValueError(f"Unsupported audio feature: {feature}")
 
-    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> dict:
+    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
         return self._compute_spectrum(samples, params)
 
-    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop) -> dict:
+    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
         return self._compute_waveform(samples, params)
 

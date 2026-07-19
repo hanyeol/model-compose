@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
@@ -46,29 +47,39 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
         return params
 
-    async def _generate(self, texts: List[str], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        generation_params = params["generation"]
-        cancellation_token = params.get("cancellation_token")
-
+    async def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
         if streaming:
-            return [ self._stream_one(prompt, generation_params, cancellation_token) for prompt in texts ]
+            return [ self._stream_one(prompt, params["generation"], cancellation_token) for prompt in texts ]
 
-        return [ self._generate_one(prompt, generation_params, cancellation_token) for prompt in texts ]
+        return [ self._generate_one(prompt, params["generation"], cancellation_token) for prompt in texts ]
 
-    def _generate_one(self, prompt: str, generation_params: Dict[str, Any], cancellation_token=None) -> str:
-        if cancellation_token is None:
-            return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
-
-        chunks: List[str] = []
-        for chunk in self.model(prompt, stream=True, **generation_params):
-            if cancellation_token.is_cancelled():
-                break
-            token = chunk["choices"][0].get("text", "")
-            if token:
+    def _generate_one(
+        self,
+        prompt: str,
+        generation_params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> str:
+        if cancellation_token is not None:
+            chunks: List[str] = []
+            for token in self._stream_one(prompt, generation_params, cancellation_token):
                 chunks.append(token)
-        return "".join(chunks)
+            return "".join(chunks)
+        
+        return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
 
-    def _stream_one(self, prompt: str, generation_params: Dict[str, Any], cancellation_token=None) -> Iterator[str]:
+    def _stream_one(
+        self,
+        prompt: str,
+        generation_params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Iterator[str]:
         for chunk in self.model(prompt, stream=True, **generation_params):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break

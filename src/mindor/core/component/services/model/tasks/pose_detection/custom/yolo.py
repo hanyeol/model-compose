@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseDetectionModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
 from ..utils import openpose, coco
 from ....base import ComponentActionContext
@@ -25,7 +26,12 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
         self.model: YOLO = model
 
-    def _detect(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
 
         predictions = self.model.predict(

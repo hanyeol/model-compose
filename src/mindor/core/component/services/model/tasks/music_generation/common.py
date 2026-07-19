@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any, List
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -26,7 +27,7 @@ class MusicGenerationTaskAction:
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts, batch_lyrics in BatchSourceIterator((prompt, lyrics), batch_size=batch_size or 1):
-                    batch_results = self._generate(batch_prompts, batch_lyrics, params)
+                    batch_results = self._generate(batch_prompts, batch_lyrics, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -34,7 +35,7 @@ class MusicGenerationTaskAction:
         else:
             results: List[Any] = []
             async for batch_prompts, batch_lyrics in BatchSourceIterator((prompt, lyrics), batch_size=batch_size or 1):
-                batch_results = self._generate(batch_prompts, batch_lyrics, params)
+                batch_results = self._generate(batch_prompts, batch_lyrics, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -54,7 +55,13 @@ class MusicGenerationTaskAction:
         }
 
     @abstractmethod
-    def _generate(self, prompts: List[str], lyrics: Optional[List[Optional[str]]], params: Dict[str, Any]) -> List[Any]:
+    def _generate(
+        self,
+        prompts: List[str],
+        lyrics: Optional[List[Optional[str]]],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[Any]:
         pass
 
 class MusicGenerationTaskService(ModelTaskService):

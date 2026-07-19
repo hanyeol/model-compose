@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Any, Iterator
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeakerDiarizationModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -27,7 +28,6 @@ class SpeakerDiarizationTaskAction:
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
-        params["cancellation_token"] = context.cancellation_token
 
         is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -35,7 +35,7 @@ class SpeakerDiarizationTaskAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._diarize(batch_audios, params, streaming, loop)
+                    batch_results = await self._diarize(batch_audios, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -53,7 +53,7 @@ class SpeakerDiarizationTaskAction:
         else:
             results: List[Any] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._diarize(batch_audios, params, streaming, loop)
+                batch_results = await self._diarize(batch_audios, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
@@ -77,20 +77,27 @@ class SpeakerDiarizationTaskAction:
         num_speakers         = await context.render_variable(self.config.params.num_speakers) if self.config.params.num_speakers is not None else None
         min_speakers         = await context.render_variable(self.config.params.min_speakers) if self.config.params.min_speakers is not None else None
         max_speakers         = await context.render_variable(self.config.params.max_speakers) if self.config.params.max_speakers is not None else None
-        min_segment_duration = parse_duration(await context.render_variable(self.config.params.min_segment_duration))
-        merge_gap            = parse_duration(await context.render_variable(self.config.params.merge_gap))
+        min_segment_duration = await context.render_variable(self.config.params.min_segment_duration)
+        merge_gap            = await context.render_variable(self.config.params.merge_gap)
 
         return {
-            "sample_rate":          sample_rate,
-            "num_speakers":         num_speakers,
-            "min_speakers":         min_speakers,
-            "max_speakers":         max_speakers,
-            "min_segment_duration": min_segment_duration,
-            "merge_gap":            merge_gap,
+            "sample_rate":          int(sample_rate),
+            "num_speakers":         int(num_speakers) if num_speakers is not None else None,
+            "min_speakers":         int(min_speakers) if min_speakers is not None else None,
+            "max_speakers":         int(max_speakers) if max_speakers is not None else None,
+            "min_segment_duration": parse_duration(min_segment_duration),
+            "merge_gap":            parse_duration(merge_gap),
         }
 
     @abstractmethod
-    async def _diarize(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+    async def _diarize(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
         pass
 
 class SpeakerDiarizationTaskService(ModelTaskService):

@@ -4,6 +4,7 @@ from typing import Optional, Set, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
 from mindor.dsl.schema.action import VideoEncoderActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -32,6 +33,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format, frame_rate = params["format"], params["frame_rate"] or 30
         audio_path, audio_spooled = (None, False)
@@ -72,9 +74,9 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         logging.debug(f"Encoding {len(frames)} frames to '{format}'")
 
         if streaming:
-            return await self._encode_to_stream(command, _frames_bytes(), format, _cleanup)
+            return await self._encode_to_stream(command, _frames_bytes(), format, _cleanup, cancellation_token)
 
-        return await self._encode_to_file(command, _frames_bytes(), format, _cleanup)
+        return await self._encode_to_file(command, _frames_bytes(), format, _cleanup, cancellation_token)
 
     async def _encode_from_video(
         self,
@@ -83,6 +85,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format = params["format"]
         video_path, video_spooled = await self._resolve_input_path(video)
@@ -132,9 +135,9 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         logging.debug(f"Encoding video to '{format}'")
 
         if streaming:
-            return await self._encode_to_stream(command, source_bytes, format, _cleanup)
+            return await self._encode_to_stream(command, source_bytes, format, _cleanup, cancellation_token)
 
-        return await self._encode_to_file(command, source_bytes, format, _cleanup)
+        return await self._encode_to_file(command, source_bytes, format, _cleanup, cancellation_token)
 
     def _resolve_encoding_options(self, params: Dict[str, Any], has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}
@@ -170,6 +173,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         source: Optional[AsyncIterable[bytes]],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         """Run ffmpeg to a temporary file, then return a VideoStreamResource over that file."""
         output_path = create_temporary_file(format)
@@ -199,6 +203,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         source: Optional[AsyncIterable[bytes]],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as a VideoStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]

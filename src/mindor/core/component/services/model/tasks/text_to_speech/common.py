@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextToSpeechModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -31,7 +32,7 @@ class TextToSpeechTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = self._generate(batch_texts, params)
+                    batch_results = self._generate(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -39,7 +40,7 @@ class TextToSpeechTaskAction:
         else:
             results: List[StreamResource] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = self._generate(batch_texts, params)
+                batch_results = self._generate(batch_texts, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -51,7 +52,12 @@ class TextToSpeechTaskAction:
         return {}
 
     @abstractmethod
-    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+    def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[StreamResource]:
         pass
 
 class TextToSpeechTaskService(ModelTaskService):

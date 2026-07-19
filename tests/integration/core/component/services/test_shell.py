@@ -19,6 +19,7 @@ def anyio_backend():
 
 def _make_context() -> ComponentActionContext:
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     sources: dict = {}
 
     def register_source(key: str, value: Any, scope: Any = None) -> None:

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Union, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
@@ -29,7 +30,7 @@ class VideoSceneDetectorAction:
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                    batch_results = await self._process_batch(batch_videos, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         if isinstance(result, (StreamIterator, AsyncIterator)):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -45,7 +46,7 @@ class VideoSceneDetectorAction:
         else:
             results = []
             async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, params, streaming, loop)
+                batch_results = await self._process_batch(batch_videos, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if isinstance(result, (StreamIterator, AsyncIterator)):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -64,15 +65,15 @@ class VideoSceneDetectorAction:
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         detector   = await context.render_variable(self.config.detector) if self.config.detector else None
-        threshold  = float(await context.render_variable(self.config.threshold)) if self.config.threshold is not None else None
-        start_time = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
-        end_time   = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
+        threshold  = await context.render_variable(self.config.threshold) if self.config.threshold is not None else None
+        start_time = await context.render_variable(self.config.start_time) if self.config.start_time else None
+        end_time   = await context.render_variable(self.config.end_time) if self.config.end_time else None
 
         return {
             "detector":   detector,
-            "threshold":  threshold,
-            "start_time": start_time,
-            "end_time":   end_time,
+            "threshold":  float(threshold) if threshold is not None else None,
+            "start_time": parse_time(start_time) if start_time is not None else None,
+            "end_time":   parse_time(end_time) if end_time is not None else None,
         }
 
     async def _process_batch(
@@ -81,9 +82,10 @@ class VideoSceneDetectorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]]:
         return await asyncio.gather(*[
-            self._process(video, params, streaming, loop) for video in videos
+            self._process(video, params, streaming, loop, cancellation_token) for video in videos
         ])
 
     async def _process(
@@ -92,6 +94,7 @@ class VideoSceneDetectorAction:
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         if video is None:
             logging.debug("Video scene detector skipped because no video was provided.")
@@ -105,6 +108,7 @@ class VideoSceneDetectorAction:
             params["end_time"],
             streaming,
             loop,
+            cancellation_token,
         )
 
     @abstractmethod
@@ -117,5 +121,6 @@ class VideoSceneDetectorAction:
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
         pass

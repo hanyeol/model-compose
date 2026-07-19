@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_to_speech.common import TextToSpeechTaskAction
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
@@ -49,7 +50,7 @@ class _FakeTextToSpeechAction(TextToSpeechTaskAction):
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+    def _generate(self, texts: List[str], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[StreamResource]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         return [ BytesStreamResource(t.encode("utf-8"), content_type="audio/pcm") for t in texts ]

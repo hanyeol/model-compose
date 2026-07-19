@@ -48,6 +48,7 @@ def make_context(resolved_video: Any = None):
     otherwise reject non-string inputs at config-construction time.
     """
     ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = None
     ctx.register_source = MagicMock()
 
     async def render_variable(value, **kwargs):

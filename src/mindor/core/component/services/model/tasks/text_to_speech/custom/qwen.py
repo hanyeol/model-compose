@@ -9,6 +9,7 @@ from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelCloneActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelDesignActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -50,7 +51,12 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    def _generate(self, texts: List[str], params: Dict[str, Any]) -> List[StreamResource]:
+    def _generate(
+        self,
+        texts: List[str],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[StreamResource]:
         def _generate(text: str) -> StreamResource:
             samples, sample_rate = self._synthesize(text, params)
             frames, channels = encode_waveform_to_pcm16(samples[0])

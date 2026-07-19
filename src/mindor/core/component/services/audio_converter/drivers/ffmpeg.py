@@ -4,6 +4,7 @@ from typing import List, Optional, Set, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -49,6 +50,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         sample_rate: Optional[Union[int, str]],
         channels: Optional[Union[int, str]],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
@@ -88,9 +90,9 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         )
 
         if is_streamable_output:
-            return await self._convert_to_stream(command, source, input_path, format, _cleanup)
+            return await self._convert_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
-        return await self._convert_to_file(command, source, input_path, format, _cleanup)
+        return await self._convert_to_file(command, source, input_path, format, _cleanup, cancellation_token)
 
     async def _convert_to_file(
         self,
@@ -99,6 +101,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         input_path: Optional[str],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg to a temporary file, then return an AudioStreamResource over that file."""
         output_path = create_temporary_file(format)
@@ -129,6 +132,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         input_path: Optional[str],
         format: str,
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as an AudioStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]

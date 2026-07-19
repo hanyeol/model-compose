@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageBackgroundRemovalModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelComponentConfig, PeftAdapterConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -34,11 +35,18 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        params["input_size"] = int(await context.render_variable(self.config.params.input_size))
+        input_size = await context.render_variable(self.config.params.input_size)
+
+        params["input_size"] = int(input_size)
 
         return params
 
-    def _predict_masks(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _predict_masks(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import torch
         from torchvision import transforms
 

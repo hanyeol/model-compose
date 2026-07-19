@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -23,6 +24,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         end_time: Optional[float],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
 
@@ -34,9 +36,9 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
                     pass
 
         if streaming:
-            return self._stream_scenes(input_path, detector, threshold, start_time, end_time, _cleanup)
+            return self._stream_scenes(input_path, detector, threshold, start_time, end_time, _cleanup, cancellation_token)
 
-        return await self._collect_scenes(input_path, detector, threshold, start_time, end_time, _cleanup)
+        return await self._collect_scenes(input_path, detector, threshold, start_time, end_time, _cleanup, cancellation_token)
 
     async def _collect_scenes(
         self,
@@ -46,6 +48,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         try:
             scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
@@ -73,6 +76,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         cleanup: Callable[[], None],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         try:
             scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)

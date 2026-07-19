@@ -41,6 +41,7 @@ class SyncGeneratorStreamer:
             self._queue: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
 
         self._end_of_stream = object()
+        self._exhausted = False
         self._thread = self._start_stream_forwarder(loop)
 
     @staticmethod
@@ -74,6 +75,7 @@ class SyncGeneratorStreamer:
         chunk = await self._queue.get()
 
         if chunk is self._end_of_stream:
+            self._exhausted = True
             raise StopAsyncIteration
 
         if isinstance(chunk, BaseException):
@@ -88,9 +90,12 @@ class SyncGeneratorStreamer:
         # Producer may be blocked on ``queue.put`` (backpressure) after the
         # consumer left the ``async for`` loop. Drain until end-of-stream so
         # the worker can finish; otherwise ``_thread.join`` would deadlock.
-        while True:
+        # If the consumer already drained the queue to completion, skip the
+        # drain loop — the sentinel is gone and get() would block forever.
+        while not self._exhausted:
             chunk = await self._queue.get()
             if chunk is self._end_of_stream:
+                self._exhausted = True
                 break
 
         await asyncio.to_thread(self._thread.join)

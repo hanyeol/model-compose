@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SwinIRImageUpscaleModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
 from ....base import ComponentActionContext
@@ -49,7 +50,12 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    def _upscale(self, images: List[PILImage.Image], params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _upscale(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         import torch
         import numpy as np
 

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoConverterActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -38,7 +39,7 @@ class VideoConverterAction:
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, params, loop)
+                    batch_results = await self._process_batch(batch_videos, params, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -46,7 +47,7 @@ class VideoConverterAction:
         else:
             results = []
             async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, params, loop)
+                batch_results = await self._process_batch(batch_videos, params, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -84,9 +85,10 @@ class VideoConverterAction:
         videos: List[MediaSource],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[VideoStreamResource]]:
         return await asyncio.gather(*[
-            self._process(video, params, loop) for video in videos
+            self._process(video, params, loop, cancellation_token) for video in videos
         ])
 
     async def _process(
@@ -94,6 +96,7 @@ class VideoConverterAction:
         video: MediaSource,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[VideoStreamResource]:
         if video is None:
             logging.debug("Video converter skipped because no video was provided.")
@@ -109,6 +112,7 @@ class VideoConverterAction:
             params["resolution"],
             params["fps"],
             loop,
+            cancellation_token,
         )
 
     @abstractmethod
@@ -123,5 +127,6 @@ class VideoConverterAction:
         resolution: Optional[str],
         fps: Optional[str],
         loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         pass

@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceSwapModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskService, ComponentActionContext
@@ -27,12 +28,12 @@ class FaceSwapTaskAction:
         is_single_input  = not isinstance(target_image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        source_face = self._prepare_source_face(source_image, params)
+        source_face = self._prepare_source_face(source_image, params, context.cancellation_token)
 
         if isinstance(target_image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(target_image, batch_size=batch_size or 1):
-                    batch_results = self._swap(batch_images, source_face, params)
+                    batch_results = self._swap(batch_images, source_face, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +41,7 @@ class FaceSwapTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(target_image, batch_size=batch_size or 1):
-                batch_results = self._swap(batch_images, source_face, params)
+                batch_results = self._swap(batch_images, source_face, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -49,23 +50,34 @@ class FaceSwapTaskAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        swap_all_faces = bool(await context.render_variable(self.config.swap_all_faces))
-        face_index     = int(await context.render_variable(self.config.face_index))
+        swap_all_faces = await context.render_variable(self.config.swap_all_faces)
+        face_index     = await context.render_variable(self.config.face_index)
 
-        if face_index < 0:
-            raise ValueError(f"'face_index' must be >= 0, got {face_index}")
+        if int(face_index) < 0:
+            raise ValueError(f"'face_index' must be >= 0, got {int(face_index)}")
 
         return {
-            "swap_all_faces": swap_all_faces,
-            "face_index":     face_index,
+            "swap_all_faces": bool(swap_all_faces),
+            "face_index":     int(face_index),
         }
 
     @abstractmethod
-    def _prepare_source_face(self, image: PILImage.Image, params: Dict[str, Any]) -> Any:
+    def _prepare_source_face(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> Any:
         pass
 
     @abstractmethod
-    def _swap(self, images: List[PILImage.Image], source_face: Any, params: Dict[str, Any]) -> List[PILImage.Image]:
+    def _swap(
+        self,
+        images: List[PILImage.Image],
+        source_face: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> List[PILImage.Image]:
         pass
 
 class FaceSwapTaskService(ModelTaskService):

@@ -84,7 +84,7 @@ class WorkflowRunner:
                         if job_run_counts[job.id] > job.config.max_run_count:
                             raise RuntimeError(f"Job '{job.id}' has reached its max_run_count ({job.config.max_run_count}).")
 
-                        async def on_started(input: Any, job_id: str = job.id) -> None:
+                        async def on_job_start(input: Any, job_id: str = job.id) -> None:
                             await context.job_event_notifier.notify(
                                 "started",
                                 job_id,
@@ -98,7 +98,7 @@ class WorkflowRunner:
 
                         scheduled_job_tasks[job.id] = asyncio.create_task(job.run(
                             JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id)),
-                            on_started=on_started,
+                            on_start=on_job_start,
                         ))
                     except Exception as e:
                         await context.job_event_notifier.notify(
@@ -186,7 +186,7 @@ class WorkflowRunner:
                             if job_run_counts[next_job_id] > next_job.config.max_run_count:
                                 raise RuntimeError(f"Job '{next_job_id}' has reached its max_run_count ({next_job.config.max_run_count}).")
 
-                            async def on_started(input: Any, job_id: str = next_job_id) -> None:
+                            async def on_job_start(input: Any, job_id: str = next_job_id) -> None:
                                 await context.job_event_notifier.notify(
                                     "started",
                                     job_id,
@@ -200,7 +200,7 @@ class WorkflowRunner:
 
                             scheduled_job_tasks[next_job_id] = asyncio.create_task(next_job.run(
                                 JobContext(context, next_job_id, is_terminal=self._is_terminal_job(next_job_id)),
-                                on_started=on_started,
+                                on_start=on_job_start,
                             ))
                         except Exception as e:
                             await context.job_event_notifier.notify(

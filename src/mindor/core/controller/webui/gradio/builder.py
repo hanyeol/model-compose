@@ -149,7 +149,7 @@ class GradioWebUIBuilder:
                     None,
                     *self._clear_interrupt_updates(),
                     *self._clear_output_updates(output_components),
-                    *log_panel.update([], self._log_spinner_message()),
+                    *log_panel.update([], self._log_spinner_message("Running...")),
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
@@ -165,7 +165,7 @@ class GradioWebUIBuilder:
                             task_id,
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in output_components),
-                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
+                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
                 log_message_queue.drain()
@@ -229,6 +229,7 @@ class GradioWebUIBuilder:
 
                 # Completed
                 clear_interrupt = self._clear_interrupt_updates()
+                log_rendering = log_panel.update(messages, self._log_spinner_message("Rendering output..."))
                 log_done = log_panel.update(messages)
 
                 output = state.output
@@ -251,7 +252,7 @@ class GradioWebUIBuilder:
                             gr.update(),
                             *clear_interrupt,
                             *updates,
-                            *log_done,
+                            *log_rendering,
                         ]
 
                     yield [
@@ -279,7 +280,7 @@ class GradioWebUIBuilder:
                         gr.update() if wait_for_media else None,
                         *clear_interrupt,
                         *updates,
-                        *log_done,
+                        *(log_rendering if wait_for_media else log_done),
                     ]
 
             async def _resume_workflow(interrupt_point: Optional[Dict[str, str]], answer_text: str):
@@ -290,7 +291,7 @@ class GradioWebUIBuilder:
                     _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in output_components),
-                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
+                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                 ]
 
                 task_id, job_id, run_id = interrupt_point["task_id"], interrupt_point["job_id"], interrupt_point.get("run_id")
@@ -327,7 +328,7 @@ class GradioWebUIBuilder:
                             _resume_button_running(),
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in output_components),
-                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message()),
+                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
                 log_message_queue.drain()
@@ -396,6 +397,7 @@ class GradioWebUIBuilder:
 
                 # Completed
                 clear_interrupt = self._clear_interrupt_updates()
+                log_rendering = log_panel.update(messages, self._log_spinner_message("Rendering output..."))
                 log_done = log_panel.update(messages)
 
                 output = state.output
@@ -420,7 +422,7 @@ class GradioWebUIBuilder:
                             _resume_button_ready(),
                             *clear_interrupt,
                             *updates,
-                            *log_done,
+                            *log_rendering,
                         ]
 
                     yield [
@@ -450,7 +452,7 @@ class GradioWebUIBuilder:
                         _resume_button_ready(),
                         *clear_interrupt,
                         *updates,
-                        *log_done,
+                        *(log_rendering if wait_for_media else log_done),
                     ]
 
             async def _cancel_workflow(task_id: Optional[str]):
@@ -935,8 +937,8 @@ class GradioWebUIBuilder:
     def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
         return self._log_assistant_message(self._log_format_payload(value) or "", title=title)
 
-    def _log_spinner_message(self) -> Dict:
-        return self._log_assistant_message("<span class=\"log-spinner\">Running...</span>")
+    def _log_spinner_message(self, text: str) -> Dict:
+        return self._log_assistant_message(f"<span class=\"log-spinner\">{text}</span>")
 
     def _log_format_task_title(self, event: TaskEvent) -> Optional[str]:
         workflow_id = self._escape_markdown(event.workflow_id)

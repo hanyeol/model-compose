@@ -65,7 +65,7 @@ class CommonJobConfig(BaseModel):
     id: str = Field(default="__job__", description="ID of job.")
     name: Optional[str] = Field(default=None, description="Human-readable label for this job.")
     type: JobType = Field(..., description="Type of job.")
-    max_run_count: int = Field(default=5, gt=0, description="Max executions per workflow run, including routing re-runs.")
+    max_run_count: int = Field(default=25, gt=0, description="Max executions per workflow run, including routing re-runs.")
     depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
     interrupt: Optional[JobInterruptsConfig] = Field(default=None, description="Human-in-the-Loop interrupt points around each job run.")
     hook: Optional[JobHooksConfig] = Field(default=None, description="Inline Python hooks to run before/after each job run.")

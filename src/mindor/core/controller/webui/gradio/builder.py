@@ -910,6 +910,8 @@ class GradioWebUIBuilder:
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {event.task_id}`") ]
         if event.event == "started" and event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
+        if event.event == "completed" and event.output is not None:
+            messages.append(self._log_payload_message(event.output, title="Output"))
         if event.event == "failed" and event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
         return messages

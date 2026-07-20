@@ -904,6 +904,8 @@ class GradioWebUIBuilder:
     def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
         title = self._log_format_job_title(event)
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`job_type: {event.job_type}`") ]
+        if event.event == "started" and event.input is not None:
+            messages.append(self._log_payload_message(event.input, title="Input"))
         if event.event == "completed" and event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
         if event.event == "failed" and event.error:

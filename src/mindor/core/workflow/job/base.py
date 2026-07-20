@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Union, Literal, Optional, Awaitable, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from mindor.dsl.schema.job import JobConfig, JobType, JobInterruptConfig, JobHookConfig
@@ -13,6 +13,8 @@ from mindor.core.logger import logging
 from .context import JobContext
 import asyncio, inspect
 
+OnStartedCallback = Callable[[Any], Awaitable[None]]
+
 class RoutingTarget:
     def __init__(self, job_id):
         self.job_id = job_id
@@ -23,9 +25,19 @@ class Job(ABC):
         self.config: JobConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
 
-    async def run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+        self._on_started: Optional[OnStartedCallback] = None
+        self._started_fired: bool = False
+
+    async def run(
+        self,
+        context: JobContext,
+        on_started: Optional[OnStartedCallback] = None,
+    ) -> Union[Any, RoutingTarget]:
         max_attempt_count = self.config.retry.max_attempt_count if self.config.retry else 1
         attempt = 0
+
+        self._on_started = on_started
+        self._started_fired = False
 
         while True:
             attempt += 1
@@ -77,6 +89,12 @@ class Job(ABC):
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         pass
 
+    async def _started(self, input: Any) -> None:
+        if not self._started_fired:
+            self._started_fired = True
+            if self._on_started is not None:
+                await self._on_started(input)
+ 
     async def _before_run(self, context: JobContext, run_id: Optional[str], input: Any) -> Any:
         input = await self._apply_before_interrupt(context, run_id, input)
         input = await self._apply_before_hooks(context, run_id, input)

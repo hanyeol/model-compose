@@ -25,6 +25,8 @@ class ForEachJob(Job):
         batch_size = await context.render_variable(None, self.config.batch_size)
         streaming  = await context.render_variable(None, self.config.streaming)
 
+        await self._started(input)
+
         input = await self._before_run(context, None, input)
 
         is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))

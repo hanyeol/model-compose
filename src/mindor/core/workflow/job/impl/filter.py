@@ -19,6 +19,8 @@ class FilterJob(Job):
         input     = await context.render_variable(None, self.config.input)
         streaming = await context.render_variable(None, self.config.streaming)
 
+        await self._started(input)
+
         input = await self._before_run(context, None, input)
 
         is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))

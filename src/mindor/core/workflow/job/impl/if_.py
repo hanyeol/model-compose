@@ -14,6 +14,8 @@ class IfJob(Job):
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         input = await context.render_variable(None, self.config.input)
 
+        await self._started(input)
+
         input = await self._before_run(context, None, input)
 
         target: Optional[str] = None

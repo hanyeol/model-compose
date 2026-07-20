@@ -22,6 +22,8 @@ class ComponentJob(Job):
         input        = (await context.render_variable(None, self.config.input)) if self.config.input else context.workflow.input
         repeat_count = (await context.render_variable(None, self.config.repeat_count)) if self.config.repeat_count else None
 
+        await self._started(input)
+
         outputs = await asyncio.gather(*[ self._run_once(input, component, context) for _ in range(int(repeat_count or 1)) ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None

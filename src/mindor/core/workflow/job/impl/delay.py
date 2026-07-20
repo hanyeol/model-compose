@@ -16,6 +16,8 @@ class DelayJob(Job):
     async def _run(self, context: JobContext) -> Any:
         is_direct_output = not self.config.output or self.config.output == "${output}"
 
+        await self._started(None)
+
         await self._before_run(context, None, None)
 
         output = await self._delay(self.config.mode, context)

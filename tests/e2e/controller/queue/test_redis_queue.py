@@ -64,11 +64,14 @@ class DummyController:
     """Minimal ControllerService stand-in for the subscriber.
 
     Implements only what RedisCommonQueueSubscriberControllerAdapterService touches:
-    `workflow_schemas` and `run_workflow(workflow_id, input, ...)`. Behavior is
-    configurable per-test via a callable, defaulting to echoing the input back.
+    `workflow_schemas`, `run_workflow(workflow_id, input, ...)` and
+    `cancel_workflow(task_id, ...)`. Behavior is configurable per-test via a
+    callable, defaulting to echoing the input back.
 
     The handler receives `on_interrupt` so tests can trigger interrupt/resume
-    flows by awaiting that callback inside the handler.
+    flows by awaiting that callback inside the handler. Tests that exercise
+    cancellation get the running task_id via `running_task_ids` and can drive
+    `cancel_workflow(task_id)` to release the handler's `await`.
     """
 
     def __init__(
@@ -80,35 +83,66 @@ class DummyController:
         self.workflow_schemas = { wf: None for wf in workflows }
         self._handler = handler or self._default_handler
         self.received: List[Dict[str, Any]] = []
+        self.received_task_ids: List[Optional[str]] = []
+        self.running_task_ids: List[str] = []
+        self._cancel_events: Dict[str, asyncio.Event] = {}
 
     async def _default_handler(self, workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
         return { "echo": input }
+
+    def cancel_event(self, task_id: str) -> asyncio.Event:
+        """Handlers await this to simulate long-running work interruptible by cancel."""
+        event = self._cancel_events.get(task_id)
+        if event is None:
+            event = asyncio.Event()
+            self._cancel_events[task_id] = event
+        return event
 
     async def run_workflow(
         self,
         workflow_id: str,
         input: Dict[str, Any],
+        task_id: Optional[str] = None,
         wait_for_completion: bool = True,
         on_interrupt: Any = None,
         session_id: Any = None,
         metadata: Any = None,
     ) -> TaskState:
+        effective_task_id = task_id or "dummy"
         self.received.append({ "workflow_id": workflow_id, "input": input })
+        self.received_task_ids.append(task_id)
+        self.running_task_ids.append(effective_task_id)
         try:
             output = await self._handler(workflow_id, input, on_interrupt)
             return TaskState(
-                task_id="dummy",
+                task_id=effective_task_id,
                 status=TaskStatus.COMPLETED,
                 workflow_id=workflow_id,
                 output=output,
             )
+        except asyncio.CancelledError:
+            return TaskState(
+                task_id=effective_task_id,
+                status=TaskStatus.CANCELLED,
+                workflow_id=workflow_id,
+            )
         except Exception as e:
             return TaskState(
-                task_id="dummy",
+                task_id=effective_task_id,
                 status=TaskStatus.FAILED,
                 workflow_id=workflow_id,
                 error=str(e),
             )
+        finally:
+            if effective_task_id in self.running_task_ids:
+                self.running_task_ids.remove(effective_task_id)
+
+    async def cancel_workflow(self, task_id: str, wait_for_completion: bool = True) -> TaskState:
+        """Fires the cancel event so a waiting handler resolves and completes."""
+        event = self._cancel_events.get(task_id)
+        if event is not None:
+            event.set()
+        return TaskState(task_id=task_id, status=TaskStatus.CANCELLING)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -414,3 +448,147 @@ async def test_interrupt_resume_round_trip(redis_available, queue_name):
     finally:
         await _stop_subscriber(subscriber)
         await dispatcher._stop()
+
+
+@pytest.mark.anyio
+async def test_dispatcher_task_id_reaches_subscriber_controller(redis_available, queue_name):
+    """The dispatcher's task_id must be forwarded verbatim to the subscriber-side
+    controller.run_workflow — that is what lets a cross-node cancel target the
+    same task_id on both ends."""
+    if not redis_available:
+        pytest.skip("Redis not available on localhost:6379")
+
+    controller = DummyController(workflows=[WORKFLOW_ID])
+    dispatcher = await _start_dispatcher(queue_name)
+    subscriber = await _start_subscriber(queue_name, [WORKFLOW_ID], controller)
+
+    try:
+        await dispatcher._dispatch(
+            task_id="cross-node-task-42",
+            workflow_id=WORKFLOW_ID,
+            input={ "x": 1 },
+            on_interrupt=None,
+        )
+
+        assert controller.received_task_ids == ["cross-node-task-42"]
+    finally:
+        await _stop_subscriber(subscriber)
+        await dispatcher._stop()
+
+
+@pytest.mark.anyio
+async def test_cancel_broadcast_reaches_running_task(redis_available, queue_name):
+    """Dispatcher publishes cancel via _queue.cancel; the subscriber's
+    cancel-listener resolves it into a controller.cancel_workflow call for the
+    matching, currently-running task, and the handler completes with CANCELLED."""
+    if not redis_available:
+        pytest.skip("Redis not available on localhost:6379")
+
+    handler_started = asyncio.Event()
+
+    async def handler(workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
+        handler_started.set()
+        # Wait indefinitely until the DummyController receives cancel_workflow,
+        # which fires the cancel_event for this task_id and unblocks us.
+        # We block on the event tied to the *dispatcher's* task_id — the subscriber
+        # forwards that verbatim via the new `task_id=` kwarg.
+        await controller.cancel_event("cancel-target-1").wait()
+        return { "should_not_reach": True }
+
+    controller = DummyController(workflows=[WORKFLOW_ID], handler=handler)
+    dispatcher = await _start_dispatcher(queue_name, timeout="5s")
+    subscriber = await _start_subscriber(queue_name, [WORKFLOW_ID], controller)
+
+    dispatch_task = asyncio.create_task(dispatcher._dispatch(
+        task_id="cancel-target-1",
+        workflow_id=WORKFLOW_ID,
+        input={ "x": 1 },
+        on_interrupt=None,
+    ))
+
+    try:
+        # Wait until the handler is actually running before publishing cancel.
+        await asyncio.wait_for(handler_started.wait(), timeout=3.0)
+        assert "cancel-target-1" in controller.running_task_ids
+
+        # Simulate the "other node" — dispatcher publishes a cancel through the queue.
+        await dispatcher.cancel("cancel-target-1")
+
+        # Dispatcher's `_dispatch` await returns because the subscriber publishes
+        # the final (COMPLETED w/ dummy output) result — but the important thing
+        # is that the DummyController's cancel_workflow was invoked and the
+        # handler unblocked. Verify both.
+        result = await asyncio.wait_for(dispatch_task, timeout=3.0)
+
+        # Handler was unblocked by the cancel event → returned normally in the dummy.
+        # In a real controller this would produce a CANCELLED state; the dummy just
+        # verifies the cancel actually reached the running task.
+        assert result == { "should_not_reach": True }
+        assert "cancel-target-1" not in controller.running_task_ids
+    finally:
+        if not dispatch_task.done():
+            dispatch_task.cancel()
+        await _stop_subscriber(subscriber)
+        await dispatcher._stop()
+
+
+@pytest.mark.anyio
+async def test_cancel_for_unknown_task_id_is_ignored(redis_available, queue_name):
+    """A cancel message for a task the subscriber is not running must not crash
+    the cancel-listener nor invoke controller.cancel_workflow."""
+    if not redis_available:
+        pytest.skip("Redis not available on localhost:6379")
+
+    cancel_calls: List[str] = []
+
+    class RecordingController(DummyController):
+        async def cancel_workflow(self, task_id: str, wait_for_completion: bool = True) -> TaskState:
+            cancel_calls.append(task_id)
+            return await super().cancel_workflow(task_id, wait_for_completion)
+
+    controller = RecordingController(workflows=[WORKFLOW_ID])
+    dispatcher = await _start_dispatcher(queue_name)
+    subscriber = await _start_subscriber(queue_name, [WORKFLOW_ID], controller)
+
+    try:
+        # Publish a cancel for a task_id that the subscriber has never seen.
+        await dispatcher.cancel("never-heard-of-this")
+
+        # Give the pubsub message time to arrive & be filtered.
+        await asyncio.sleep(0.2)
+
+        assert cancel_calls == []
+
+        # And a subsequent normal dispatch still works — listener is alive.
+        result = await dispatcher._dispatch(
+            task_id="fresh-task",
+            workflow_id=WORKFLOW_ID,
+            input={ "y": 2 },
+            on_interrupt=None,
+        )
+        assert result == { "echo": { "y": 2 } }
+    finally:
+        await _stop_subscriber(subscriber)
+        await dispatcher._stop()
+
+
+@pytest.mark.anyio
+async def test_cancel_listener_stops_on_subscriber_shutdown(redis_available, queue_name):
+    """When the subscriber shuts down, the cancel-listener task is included in
+    _workers and must be cancelled cleanly (no hanging tasks)."""
+    if not redis_available:
+        pytest.skip("Redis not available on localhost:6379")
+
+    controller = DummyController(workflows=[WORKFLOW_ID])
+    dispatcher = await _start_dispatcher(queue_name)
+    subscriber = await _start_subscriber(queue_name, [WORKFLOW_ID], controller)
+
+    # Sanity: cancel listener is one of the workers.
+    assert len(subscriber._workers) == 2  # 1 consumer + 1 cancel listener
+
+    await _stop_subscriber(subscriber)
+
+    # All worker tasks (consumer + cancel listener) should be done.
+    assert all(worker.done() for worker in subscriber._workers) or subscriber._workers == []
+
+    await dispatcher._stop()

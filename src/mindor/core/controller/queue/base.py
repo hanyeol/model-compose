@@ -39,6 +39,9 @@ class CommonControllerQueueService(AsyncService):
 
         return await self._dispatch(task_id, workflow_id, input, _on_interrupt)
 
+    async def cancel(self, task_id: str) -> None:
+        await self._cancel(task_id)
+
     @abstractmethod
     async def _dispatch(
         self,
@@ -47,6 +50,10 @@ class CommonControllerQueueService(AsyncService):
         input: Dict[str, Any],
         on_interrupt: InterruptCallback
     ) -> Any:
+        pass
+
+    @abstractmethod
+    async def _cancel(self, task_id: str) -> None:
         pass
 
 def register_controller_queue_service(driver: ControllerQueueDriver):

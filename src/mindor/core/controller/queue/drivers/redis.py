@@ -179,6 +179,10 @@ class RedisControllerQueueService(CommonControllerQueueService):
             except asyncio.CancelledError:
                 pass
 
+    async def _cancel(self, task_id: str) -> None:
+        cancel_key = f"{self.config.name}:cancel"
+        await self.client.publish(cancel_key, json.dumps({ "task_id": task_id }))
+
     def _build_redis_url(self) -> str:
         if not self.config.url:
             scheme = "rediss" if self.config.secure else "redis"

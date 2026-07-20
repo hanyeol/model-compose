@@ -305,6 +305,7 @@ class ControllerService(AsyncService):
         self,
         workflow_id: str,
         input: Dict[str, Any],
+        task_id: Optional[str] = None,
         wait_for_completion: bool = True,
         on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
         on_event: Optional[TaskEventCallback] = None,
@@ -314,7 +315,7 @@ class ControllerService(AsyncService):
         if self._shutting_down:
             raise ShutdownError("Service is shutting down")
 
-        task_id = ulid.ulid()
+        task_id = task_id or ulid.ulid()
         state = TaskState(
             task_id=task_id,
             status=TaskStatus.PENDING,
@@ -434,6 +435,12 @@ class ControllerService(AsyncService):
         handler = self.interrupt_handlers.get(task_id)
         if handler:
             handler.cancel(task_id)
+
+        if self._queue and not any(workflow.id == state.workflow_id for workflow in self.workflows):
+            try:
+                await self._queue.cancel(task_id)
+            except Exception as e:
+                logging.warning("Failed to publish cancel for task %s: %s", task_id, e)
 
         if task is not None:
             task.cancel()

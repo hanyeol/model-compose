@@ -30,6 +30,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         self._workers: List[asyncio.Task] = []
         self._stop_event: asyncio.Event = asyncio.Event()
         self._worker_id: str = config.worker_id or ulid.ulid()
+        self._active_task_ids: set[str] = set()
 
     def _get_setup_requirements(self):
         return [ "redis>=5.0.0" ]
@@ -48,12 +49,14 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in workflows ]
         logging.info("Queue subscriber started: %s (queues: %s, workers: %d)", self._build_redis_url(), ", ".join(queue_keys), self.config.max_concurrent_count)
 
+        self._workers.append(asyncio.create_task(self._cancel_listener_loop()))
+
         for index in range(self.config.max_concurrent_count):
             task = asyncio.create_task(self._consumer_loop(index, queue_keys))
             self._workers.append(task)
 
         try:
-            await asyncio.gather(*self._workers)
+            await asyncio.gather(*self._workers, return_exceptions=True)
         finally:
             await self._client.aclose()
             self._client = None
@@ -115,20 +118,52 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 await pubsub.unsubscribe(resume_key)
                 await pubsub.aclose()
 
+        self._active_task_ids.add(task_id)
         try:
             state = await self.controller.run_workflow(
                 workflow_id,
                 input,
+                task_id=task_id,
                 wait_for_completion=True,
                 on_interrupt=_on_interrupt
             )
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
+        finally:
+            self._active_task_ids.discard(task_id)
 
         if state.status == TaskStatus.COMPLETED and isinstance(state.output, (StreamIterator, AsyncIterator)):
             await self._publish_stream_result(workflow_id, task_id, run_id, state)
         else:
             await self._publish_result(workflow_id, task_id, run_id, state)
+
+    async def _cancel_listener_loop(self) -> None:
+        cancel_key = f"{self.config.name}:cancel"
+        pubsub = self._client.pubsub()
+        try:
+            await pubsub.subscribe(cancel_key)
+            async for message in pubsub.listen():
+                if message["type"] != "message":
+                    continue
+                try:
+                    data = json.loads(message["data"])
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                task_id = data.get("task_id")
+                if not task_id or task_id not in self._active_task_ids:
+                    continue
+                try:
+                    await self.controller.cancel_workflow(task_id, wait_for_completion=False)
+                except Exception as e:
+                    logging.warning("Failed to cancel task %s: %s", task_id, e)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            try:
+                await pubsub.unsubscribe(cancel_key)
+                await pubsub.aclose()
+            except Exception:
+                pass
 
     async def _read_resume(self, pubsub) -> Any:
         async for message in pubsub.listen():

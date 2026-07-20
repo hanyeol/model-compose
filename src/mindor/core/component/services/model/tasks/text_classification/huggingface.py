@@ -74,13 +74,17 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
             for prob in probs:
                 predicted_index = torch.argmax(prob).item()
                 predictions.append({
-                    "label":         labels[predicted_index] if labels else predicted_index,
+                    "label":         labels[predicted_index] if labels else None,
+                    "label_id":      predicted_index,
                     "probabilities": prob.tolist(),
                 })
         else:
             predicted_indices = torch.argmax(logits, dim=-1).tolist()
             for predicted_index in predicted_indices:
-                predictions.append(labels[predicted_index] if labels else predicted_index)
+                predictions.append({
+                    "label":    labels[predicted_index] if labels else None,
+                    "label_id": predicted_index,
+                })
 
         return predictions
 

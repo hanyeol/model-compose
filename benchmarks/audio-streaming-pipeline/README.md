@@ -75,18 +75,16 @@ Latest run on a 40:57 audio file (Apple Silicon, benchmarks/.venv). Raw runs are
 
 | Implementation | TTFO (s) | E2E (s) | Ready RSS (MB) | Peak RSS (MB) | Mean RSS (MB) | Mean CPU% |
 |---|---:|---:|---:|---:|---:|---:|
-| **model-compose** | **67.3** | **174.3** | 553 | 2378 | 876 | 361 |
-| LangGraph | 427.9 | 429.9 | 714 | 2893 | 1041 | 492 |
-| LangChain | 503.6 | 505.5 | 1026 | 2786 | 1021 | 459 |
-| LlamaIndex | 613.6 | 613.6 | 558 | 2686 | 854 | 444 |
-
-`model-compose` uses `architecture: sbert` for the text-embedding component (opts into the `sentence-transformers` loader instead of raw `AutoModel`); the other three drivers use `SentenceTransformer` directly in their pipeline files. Keeps the loader consistent across all four implementations.
+| **model-compose** | **48.0** | **124.4** | **490** | 2557 | 1249 | **409** |
+| LangGraph | 509.6 | 511.6 | 773 | **2481** | **863** | 467 |
+| LangChain | 449.6 | 451.5 | 782 | 2684 | 935 | 493 |
+| LlamaIndex | 457.6 | 457.6 | 773 | 2568 | 929 | 479 |
 
 Observations:
 
-- **model-compose is 2.5×–3.5× faster on E2E**. TTFO is 6×–9× faster because the pipeline actually pipelines across stages instead of running them one after the other.
+- **model-compose is 3.6×–4.1× faster on E2E**. TTFO is 9.4×–10.6× faster because the pipeline actually pipelines across stages instead of running them one after the other.
 - **LangGraph, LangChain, LlamaIndex all show TTFO ≈ E2E**: each stage waits for the previous to finish before starting. The first vector emerges only after the whole pipeline settles.
 - **LlamaIndex's TTFO = E2E exactly** because `IngestionPipeline.run` is a single blocking call — no per-stage hooks, no partial output. This is by design (see above).
-- **Ready RSS is comparable across all four** (550–1030 MB). Same model set, so the spread reflects framework baseline plus per-component setup. All four preload their models before `runtime.ready` and pause briefly so the sample lands before inference-time memory starts growing.
-- **Peak RSS is comparable across all four** (2.4–2.9 GB) — inference-time working memory dominates and framework overhead disappears into the noise.
-- **Mean CPU% is comparable (361–492%)**. Wall-clock savings come from stages overlapping, not from any single stage being cheaper. model-compose sits at the low end because its wall time is shortest — the CPU is idle waiting on the next chunk more often.
+- **Ready RSS ranges 490–780 MB**. Same model set, so the spread reflects framework baseline plus per-component setup.
+- **Peak RSS is comparable across all four** (2.5–2.7 GB) — inference-time working memory dominates and framework overhead disappears into the noise.
+- **Mean CPU% is comparable (409–493%)**. Wall-clock savings come from stages overlapping, not from any single stage being cheaper. model-compose sits at the low end because its wall time is shortest — the CPU is idle waiting on the next chunk more often.

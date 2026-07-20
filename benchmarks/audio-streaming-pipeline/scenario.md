@@ -1,4 +1,4 @@
-# Scenario spec: audio-streaming-pipeline
+# Scenario: audio-streaming-pipeline
 
 Every implementation in this benchmark must satisfy this contract. If it doesn't, its numbers don't compare.
 

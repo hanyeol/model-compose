@@ -30,7 +30,7 @@ class IpcRuntimeWorker(ABC):
         self._codec: VariableCodec = VariableCodec()
         self._inbound_streams: Dict[str, IpcInboundStream] = {}
         self._outbound_streams: Dict[str, IpcOutboundStream] = {}
-        self._run_tasks: "set[asyncio.Task]" = set()
+        self._run_tasks: Dict[str, asyncio.Task] = {}
 
     async def run(self) -> None:
         try:
@@ -57,9 +57,19 @@ class IpcRuntimeWorker(ABC):
                     # RUN may consume an inbound stream which needs subsequent
                     # STREAM_CHUNK messages to flow. Run it as a task so the
                     # dispatch loop keeps draining the transport.
+                    request_id = message.request_id
                     task = asyncio.create_task(self._run_request(message))
-                    self._run_tasks.add(task)
-                    task.add_done_callback(self._run_tasks.discard)
+                    if request_id:
+                        self._run_tasks[request_id] = task
+                        task.add_done_callback(lambda _t, rid=request_id: self._run_tasks.pop(rid, None))
+                    continue
+
+                if message.type == IpcMessageType.CANCEL:
+                    target_request_id = message.request_id
+                    if target_request_id:
+                        target = self._run_tasks.get(target_request_id)
+                        if target is not None and not target.done():
+                            target.cancel()
                     continue
 
                 try:
@@ -70,7 +80,7 @@ class IpcRuntimeWorker(ABC):
             await self._notify_error(str(e))
         finally:
             await self._abort_all_streams()
-            for task in list(self._run_tasks):
+            for task in list(self._run_tasks.values()):
                 task.cancel()
             try:
                 await self._stop()
@@ -81,6 +91,9 @@ class IpcRuntimeWorker(ABC):
         try:
             result = await self._dispatch_message(message)
             await self._send_result(message.request_id, result)
+        except asyncio.CancelledError:
+            await self._send_error(message.request_id, "Request was cancelled")
+            raise
         except Exception as e:
             await self._send_error(message.request_id, str(e))
 

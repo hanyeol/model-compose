@@ -11,6 +11,7 @@ class IpcMessageType(str, Enum):
     START        = "start"
     STOP         = "stop"
     RUN          = "run"
+    CANCEL       = "cancel"
     RESULT       = "result"
     ERROR        = "error"
     HEARTBEAT    = "heartbeat"

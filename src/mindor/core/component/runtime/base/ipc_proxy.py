@@ -83,6 +83,18 @@ class IpcRuntimeProxy(ABC):
 
         try:
             return await future
+        except asyncio.CancelledError:
+            # Best-effort: tell the worker to stop the in-flight request so it
+            # doesn't run to completion after the caller has abandoned it.
+            if self._closed_error is None:
+                try:
+                    await self._send_message(IpcMessage(
+                        type=IpcMessageType.CANCEL,
+                        request_id=request_id,
+                    ).serialize())
+                except Exception:
+                    pass
+            raise
         finally:
             self._pending_requests.pop(request_id, None)
 

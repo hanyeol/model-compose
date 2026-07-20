@@ -149,23 +149,19 @@ class WorkflowVariableResolver:
 
     def _to_variable_config_list(self, variables: List[Union[WorkflowVariable, WorkflowVariableGroup]]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         configs: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = []
-        seen_single: Set[WorkflowVariable] = set()
+        seen: Set[WorkflowVariable] = set()
 
         for item in variables:
             if isinstance(item, WorkflowVariableGroup):
-                group: List[WorkflowVariableConfig] = []
-                seen_in_group: Set[WorkflowVariable] = set()
-                for variable in item.variables:
-                    if variable not in seen_in_group:
-                        if variable.name is not None or len(group) == 0:
-                            group.append(self._to_variable_config(variable))
-                        seen_in_group.add(variable)
-                configs.append(WorkflowVariableGroupConfig(name=item.name, variables=group, repeat_count=item.repeat_count))
-            else:
-                if item not in seen_single:
-                    if item.name is not None or len(configs) == 0:
-                        configs.append(self._to_variable_config(item))
-                    seen_single.add(item)
+                items: List[WorkflowVariableConfig] = []
+                for config in self._to_variable_config_list(item.variables):
+                    if not isinstance(config, WorkflowVariableGroupConfig):
+                        items.append(config)
+                configs.append(WorkflowVariableGroupConfig(name=item.name, variables=items, repeat_count=item.repeat_count))
+            elif item not in seen:
+                if item.name is not None or len(configs) == 0:
+                    configs.append(self._to_variable_config(item))
+                seen.add(item)
 
         return configs
     

@@ -6,6 +6,8 @@ from mindor.core.foundation.streaming.http import HttpStreamResource, HttpEventS
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.url import encode_url
 from requests.structures import CaseInsensitiveDict
+from urllib.parse import urlparse, unquote
+from urllib.request import url2pathname
 import aiohttp, asyncio, json, platform
 
 _DEFAULT_USER_AGENTS = {
@@ -177,5 +179,12 @@ class HttpClient:
     def _default_user_agent() -> str:
         return _DEFAULT_USER_AGENTS.get(platform.system(), _DEFAULT_USER_AGENTS["Linux"])
 
-async def create_stream_with_url(url: str) -> Union[HttpStreamResource, HttpEventStreamResource]:
+async def create_stream_with_url(url: str) -> StreamResource:
+    parsed = urlparse(url)
+
+    if parsed.scheme == "file":
+        from mindor.core.foundation.streaming.file import FileStreamResource
+        path = url2pathname(parsed.path)
+        return FileStreamResource(path)
+
     return await HttpClient.get_shared_instance().request(url)

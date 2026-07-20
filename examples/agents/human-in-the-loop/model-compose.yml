@@ -89,8 +89,28 @@ components:
     model:
       component: gpt-4o
       input:
-        messages: ${messages}
-        tools: ${tools}
+        messages:
+          "*": ${messages}
+          "...": ${item}
+          tool_calls:
+            "*": ${item.tool_calls}
+            id: ${item.id}
+            type: function
+            function:
+              name: ${item.name}
+              arguments: ${item.arguments}
+        tools:
+          "*": ${tools}
+          type: function
+          function: ${item}
+      output:
+        role: ${response.role}
+        content: ${response.content}
+        tool_calls:
+          "*": ${response.tool_calls}
+          id: ${item.id}
+          name: ${item.function.name}
+          arguments: ${item.function.arguments}
     tools:
       - read-file
       - list-directory

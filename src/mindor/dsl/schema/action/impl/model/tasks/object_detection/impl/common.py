@@ -9,4 +9,5 @@ class CommonObjectDetectionModelActionConfig(CommonModelActionConfig):
     max_object_count: Union[int, str] = Field(default=300, description="Maximum objects per image.")
     iou_threshold: Union[float, str] = Field(default=0.7, description="IoU threshold for non-maximum suppression.")
     agnostic_nms: Union[bool, str] = Field(default=False, description="Perform class-agnostic non-maximum suppression.")
+    bounding_box_padding: Union[float, str] = Field(default=0.0, description="Padding ratio to expand each bounding box.")
     batch_size: Union[int, str] = Field(default=1, description="Batch size.")

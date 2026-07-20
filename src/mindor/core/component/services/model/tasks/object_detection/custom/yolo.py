@@ -46,7 +46,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         for image, prediction in zip(images, predictions):
             width, height = image.size
-            results.append(self._serialize(prediction, width, height))
+            results.append(self._serialize(prediction, width, height, params))
 
         return results
 
@@ -70,7 +70,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         return class_ids
 
-    def _serialize(self, prediction: Results, width: int, height: int) -> Dict[str, Any]:
+    def _serialize(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         objects: List[Dict[str, Any]] = []
 
         if prediction.boxes is not None and len(prediction.boxes) > 0:
@@ -85,7 +85,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
                     "label":        names[label_id] if label_id in names else None,
                     "label_id":     label_id,
                     "score":        float(boxes_conf[index]),
-                    "bounding_box": self._serialize_bounding_box(boxes_xyxy[index]),
+                    "bounding_box": self._serialize_bounding_box(boxes_xyxy[index], width, height, params["bounding_box_padding"]),
                 })
 
         return {
@@ -94,9 +94,23 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
             "height":  height,
         }
 
-    def _serialize_bounding_box(self, box_xyxy: np.ndarray) -> List[int]:
+    def _serialize_bounding_box(self, box_xyxy: np.ndarray, width: int, height: int, padding: float) -> List[int]:
         x1, y1, x2, y2 = box_xyxy
-        return [ int(x1), int(y1), int(x2 - x1), int(y2 - y1) ]
+
+        if padding > 0.0:
+            box_w = x2 - x1
+            box_h = y2 - y1
+            x1 -= box_w * padding
+            y1 -= box_h * padding
+            x2 += box_w * padding
+            y2 += box_h * padding
+
+        x1 = max(0, int(x1))
+        y1 = max(0, int(y1))
+        x2 = min(width, int(x2))
+        y2 = min(height, int(y2))
+
+        return [ x1, y1, x2 - x1, y2 - y1 ]
 
 class YoloObjectDetectionTaskService(ObjectDetectionTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

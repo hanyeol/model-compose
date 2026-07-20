@@ -21,22 +21,39 @@ class WorkQueue:
             except asyncio.CancelledError:
                 break
 
-            # Run the handler in a child task and await it as an
-            # awaitable, so a CancelledError raised inside the handler
-            # (e.g. cooperative workflow cancel) reports on the child
-            # task without cancelling this worker.
-            handler_task = asyncio.ensure_future(self.handler(*args, **kwargs))
             try:
-                await asyncio.wait({handler_task})
-                if handler_task.cancelled():
-                    if not future.done():
-                        future.cancel()
-                elif handler_task.exception() is not None:
-                    if not future.done():
-                        future.set_exception(handler_task.exception())
-                else:
-                    if not future.done():
-                        future.set_result(handler_task.result())
+                # Skip work that was cancelled while queued — never invoke handler.
+                if future.cancelled():
+                    continue
+
+                # Run the handler in a child task and await it as an
+                # awaitable, so a CancelledError raised inside the handler
+                # (e.g. cooperative workflow cancel) reports on the child
+                # task without cancelling this worker.
+                handler_task = asyncio.ensure_future(self.handler(*args, **kwargs))
+
+                # Forward a cancel on the future to the running handler so an
+                # in-flight action stops promptly instead of running to completion.
+                # Bind handler_task explicitly — a closure over the loop-local
+                # variable would rebind on the next iteration.
+                def _forward_cancel(future: asyncio.Future, handler_task=handler_task) -> None:
+                    if future.cancelled() and not handler_task.done():
+                        handler_task.cancel()
+                future.add_done_callback(_forward_cancel)
+
+                try:
+                    await asyncio.wait({handler_task})
+                    if handler_task.cancelled():
+                        if not future.done():
+                            future.cancel()
+                    elif handler_task.exception() is not None:
+                        if not future.done():
+                            future.set_exception(handler_task.exception())
+                    else:
+                        if not future.done():
+                            future.set_result(handler_task.result())
+                finally:
+                    future.remove_done_callback(_forward_cancel)
             finally:
                 self.queue.task_done()
                 self._active_counter.release()

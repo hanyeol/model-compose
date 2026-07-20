@@ -80,26 +80,7 @@ class WorkflowRunner:
                     job_time_trackers[job.id] = TimeTracker()
                     context.job_run_ids[job.id] = []
                     try:
-                        job_run_counts[job.id] = job_run_counts.get(job.id, 0) + 1
-                        if job_run_counts[job.id] > job.config.max_run_count:
-                            raise RuntimeError(f"Job '{job.id}' has reached its max_run_count ({job.config.max_run_count}).")
-
-                        async def on_job_start(input: Any, job_id: str = job.id) -> None:
-                            await context.job_event_notifier.notify(
-                                "started",
-                                job_id,
-                                self.jobs[job_id].type.value,
-                                context=context,
-                                input=input
-                            )
-                            tracing.on_job_start(context.task_id, job_id, self.id, input)
-                            logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job_id, self.id)
-                            logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job_id, self.id, input)
-
-                        scheduled_job_tasks[job.id] = asyncio.create_task(job.run(
-                            JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id)),
-                            on_start=on_job_start,
-                        ))
+                        scheduled_job_tasks[job.id] = self._schedule_job(job, context, job_run_counts)
                     except Exception as e:
                         await context.job_event_notifier.notify(
                             "failed",
@@ -182,26 +163,7 @@ class WorkflowRunner:
                         context.job_run_ids[next_job_id] = []
                         try:
                             next_job = pending_jobs[next_job_id]
-                            job_run_counts[next_job_id] = job_run_counts.get(next_job_id, 0) + 1
-                            if job_run_counts[next_job_id] > next_job.config.max_run_count:
-                                raise RuntimeError(f"Job '{next_job_id}' has reached its max_run_count ({next_job.config.max_run_count}).")
-
-                            async def on_job_start(input: Any, job_id: str = next_job_id) -> None:
-                                await context.job_event_notifier.notify(
-                                    "started",
-                                    job_id,
-                                    self.jobs[job_id].type.value,
-                                    context=context,
-                                    input=input
-                                )
-                                tracing.on_job_start(context.task_id, job_id, self.id, input)
-                                logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job_id, self.id)
-                                logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job_id, self.id, input)
-
-                            scheduled_job_tasks[next_job_id] = asyncio.create_task(next_job.run(
-                                JobContext(context, next_job_id, is_terminal=self._is_terminal_job(next_job_id)),
-                                on_start=on_job_start,
-                            ))
+                            scheduled_job_tasks[next_job_id] = self._schedule_job(next_job, context, job_run_counts)
                         except Exception as e:
                             await context.job_event_notifier.notify(
                                 "failed",
@@ -252,6 +214,39 @@ class WorkflowRunner:
                     del pending_jobs[completed_job_id]
 
         return output
+
+    def _schedule_job(
+        self,
+        job: Job,
+        context: WorkflowContext,
+        counts: Dict[str, int],
+    ) -> asyncio.Task:
+        """Enforce max_run_count and create the asyncio.Task running `job`.
+
+        Mutates `counts[job.id]` and raises RuntimeError if the limit is exceeded.
+        Kept as a discrete method so both scheduling sites in `_run_jobs`
+        (initial dispatch + routing rewind) share one source of truth.
+        """
+        counts[job.id] = counts.get(job.id, 0) + 1
+        if counts[job.id] > job.config.max_run_count:
+            raise RuntimeError(f"Job '{job.id}' has reached its max_run_count ({job.config.max_run_count}).")
+
+        async def on_job_start(input: Any, job_id: str = job.id) -> None:
+            await context.job_event_notifier.notify(
+                "started",
+                job_id,
+                self.jobs[job_id].type.value,
+                context=context,
+                input=input
+            )
+            tracing.on_job_start(context.task_id, job_id, self.id, input)
+            logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job_id, self.id)
+            logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job_id, self.id, input)
+
+        return asyncio.create_task(job.run(
+            JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id)),
+            on_start=on_job_start,
+        ))
 
     def _is_runnable_job(
         self,

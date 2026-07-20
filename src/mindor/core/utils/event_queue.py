@@ -11,8 +11,10 @@ class EventQueue:
 
     def get(self, consume: bool = True) -> List[Any]:
         events = self._events
+
         if consume:
             self._events = []
+
         return events
 
     def drain(self) -> None:
@@ -21,6 +23,7 @@ class EventQueue:
 
     def reset(self) -> None:
         self._events.clear()
+
         while not self._queue.empty():
             self._queue.get_nowait()
 

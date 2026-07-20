@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Callable, Awaitable
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Annotated, Any, Callable, Awaitable
 from collections.abc import AsyncIterator
 from enum import Enum
 from dataclasses import dataclass
@@ -41,6 +41,7 @@ from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.event_dispatcher import EventDispatcher
 from .runtime.base.specs import ControllerRuntimeSpecs
 from .runtime.native import ControllerNativeRuntimeManager
 from .runtime.docker import ControllerDockerRuntimeManager
@@ -183,7 +184,7 @@ class ControllerService(AsyncService):
         self._component_event_listeners: List[ComponentEventListener] = []
         self._task_event_callbacks: Dict[str, TaskEventCallback] = {}
         self._task_previous_status: Dict[str, TaskStatus] = {}
-        self._event_dispatch_tasks: Set[asyncio.Task] = set()
+        self._event_dispatcher: EventDispatcher = EventDispatcher()
         self._output_renderer: TaskOutputRenderer = TaskOutputRenderer()
 
         if self.config.max_concurrent_count > 0:
@@ -356,7 +357,10 @@ class ControllerService(AsyncService):
         task.add_done_callback(lambda t: self._handle_task_failure(task_id, workflow_id, t))
 
         if on_event is not None:
-            task.add_done_callback(lambda _: self._task_event_callbacks.pop(task_id, None))
+            def _cleanup_callback(_, tid=task_id):
+                self._task_event_callbacks.pop(tid, None)
+                self._event_dispatcher.unregister(("callback", tid))
+            task.add_done_callback(_cleanup_callback)
 
         if wait_for_completion:
             state = await self._wait_for_terminal_state(task_id)
@@ -547,6 +551,10 @@ class ControllerService(AsyncService):
                     task.cancel()
                 await asyncio.gather(*pending, return_exceptions=True)
 
+        # Drain pending event notifications while listeners/adapters/components
+        # are still alive. Runs on both daemon and non-daemon (e.g. `run`) paths.
+        await self._event_dispatcher.close()
+
         if self.task_queue:
             await self.task_queue.stop(timeout=timeout)
 
@@ -557,7 +565,6 @@ class ControllerService(AsyncService):
 
         if self.daemon:
             await self._stop_adapters()
-            await self._cancel_pending_event_dispatch_tasks()
             await self._stop_components()
             await self._stop_gateways()
             await self._stop_listeners()
@@ -570,6 +577,7 @@ class ControllerService(AsyncService):
 
     async def _serve(self) -> None:
         adapter_tasks = [ adapter.daemon_task for adapter in self._create_adapters() if adapter.daemon_task ]
+
         if adapter_tasks:
             await asyncio.gather(*adapter_tasks)
 
@@ -723,6 +731,7 @@ class ControllerService(AsyncService):
         )
         with self.task_states_lock:
             self.task_states.set(task_id, state)
+
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
@@ -926,14 +935,16 @@ class ControllerService(AsyncService):
 
         callback = self._task_event_callbacks.get(task_id)
         if callback:
-            task = asyncio.create_task(self._invoke_event_callback(callback, state))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("callback", task_id),
+                lambda callback=callback, state=state: self._invoke_event_callback(callback, state),
+            )
 
         for listener in self._task_state_listeners:
-            task = asyncio.create_task(self._invoke_task_state_listener(listener, task_id, state))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("task_state_listener", id(listener)),
+                lambda listener=listener, task_id=task_id, state=state: self._invoke_task_state_listener(listener, task_id, state),
+            )
 
         event = self._derive_task_event(state, previous_status)
         if event is not None:
@@ -972,14 +983,16 @@ class ControllerService(AsyncService):
     def _notify_task_event(self, event: TaskEvent) -> None:
         callback = self._task_event_callbacks.get(event.task_id)
         if callback:
-            task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("callback", event.task_id),
+                lambda callback=callback, event=event: self._invoke_event_callback(callback, event),
+            )
 
         for listener in self._task_event_listeners:
-            task = asyncio.create_task(self._invoke_task_event_listener(listener, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("task_event_listener", id(listener)),
+                lambda listener=listener, event=event: self._invoke_task_event_listener(listener, event),
+            )
 
     async def _invoke_task_state_listener(self, listener: TaskStateListener, task_id: str, state: TaskState) -> None:
         try:
@@ -995,15 +1008,18 @@ class ControllerService(AsyncService):
 
     def _notify_job_event(self, event: JobEvent) -> None:
         callback = self._task_event_callbacks.get(event.task_id)
+
         if callback:
-            task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("callback", event.task_id),
+                lambda callback=callback, event=event: self._invoke_event_callback(callback, event),
+            )
 
         for listener in self._job_event_listeners:
-            task = asyncio.create_task(self._invoke_job_event_listener(listener, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("job_event_listener", id(listener)),
+                lambda listener=listener, event=event: self._invoke_job_event_listener(listener, event),
+            )
 
     async def _invoke_job_event_listener(self, listener: JobEventListener, event: JobEvent) -> None:
         try:
@@ -1013,15 +1029,18 @@ class ControllerService(AsyncService):
 
     def _notify_component_event(self, event: ComponentEvent) -> None:
         callback = self._task_event_callbacks.get(event.task_id)
+
         if callback:
-            task = asyncio.create_task(self._invoke_event_callback(callback, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("callback", event.task_id),
+                lambda callback=callback, event=event: self._invoke_event_callback(callback, event),
+            )
 
         for listener in self._component_event_listeners:
-            task = asyncio.create_task(self._invoke_component_event_listener(listener, event))
-            self._event_dispatch_tasks.add(task)
-            task.add_done_callback(self._event_dispatch_tasks.discard)
+            self._event_dispatcher.dispatch(
+                ("component_event_listener", id(listener)),
+                lambda listener=listener, event=event: self._invoke_component_event_listener(listener, event),
+            )
 
     async def _invoke_component_event_listener(self, listener: ComponentEventListener, event: ComponentEvent) -> None:
         try:
@@ -1034,15 +1053,6 @@ class ControllerService(AsyncService):
             await callback(event)
         except Exception:
             logging.warning("Event callback error for task %s", event.task_id, exc_info=True)
-
-    async def _cancel_pending_event_dispatch_tasks(self) -> None:
-        for task in list(self._event_dispatch_tasks):
-            task.cancel()
-
-        if self._event_dispatch_tasks:
-            await asyncio.gather(*self._event_dispatch_tasks, return_exceptions=True)
-
-        self._event_dispatch_tasks.clear()
 
 class TaskOutputRenderer:
     async def render(self, value: Any) -> Any:

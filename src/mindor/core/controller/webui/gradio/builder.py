@@ -499,8 +499,20 @@ class GradioWebUIBuilder:
                 outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ]
             )
 
+            def _on_media_rendered():
+                return [
+                    _run_button_ready(),
+                    _cancel_button_inactive(),
+                    None,
+                    *log_panel.update(log_message_queue.get(consume=False)),
+                ]
+
             for component in media_components:
-                component.change(fn=_run_button_ready, inputs=None, outputs=run_button)
+                component.change(
+                    fn=_on_media_rendered,
+                    inputs=None,
+                    outputs=[ run_button, cancel_button, task_state, *log_components ],
+                )
 
         return section
 

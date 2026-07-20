@@ -12,6 +12,7 @@ from .image_generation import *
 from .image_embedding import *
 from .image_upscale import *
 from .image_background_removal import *
+from .object_detection import *
 from .face_detection import *
 from .face_embedding import *
 from .face_swap import *

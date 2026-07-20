@@ -14,6 +14,7 @@ ModelActionConfig = Union[
     ImageEmbeddingModelActionConfig,
     ImageUpscaleModelActionConfig,
     ImageBackgroundRemovalModelActionConfig,
+    ObjectDetectionModelActionConfig,
     FaceDetectionModelActionConfig,
     PoseDetectionModelActionConfig,
     FaceEmbeddingModelActionConfig,

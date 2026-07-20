@@ -18,6 +18,7 @@ class ModelTaskType(str, Enum):
     IMAGE_EMBEDDING          = "image-embedding"
     IMAGE_UPSCALE            = "image-upscale"
     IMAGE_BACKGROUND_REMOVAL = "image-background-removal"
+    OBJECT_DETECTION         = "object-detection"
     FACE_DETECTION           = "face-detection"
     FACE_EMBEDDING           = "face-embedding"
     FACE_SWAP                = "face-swap"

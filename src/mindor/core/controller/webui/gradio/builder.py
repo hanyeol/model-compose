@@ -21,7 +21,7 @@ from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage
 from collections import deque
 import gradio as gr
-import asyncio, json, re
+import asyncio, json, re, logging
 
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
@@ -100,9 +100,7 @@ class GradioWebUIBuilder:
                     with gr.Column(visible=False) as interrupt_panel:
                         interrupt_components = self._build_interrupt_components()
                         interrupt_answer = interrupt_components[-1]
-                        with gr.Row(equal_height=True):
-                            resume_button = gr.Button("▶️ Resume", variant="primary")
-                            resume_cancel_button = gr.Button("✕ Cancel", variant="stop")
+                        resume_button = gr.Button("▶️ Resume", variant="primary")
                     interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
 
                     gr.Markdown("#### Output Values")
@@ -456,13 +454,32 @@ class GradioWebUIBuilder:
                     ]
 
             async def _cancel_workflow(task_id: Optional[str]):
-                if not task_id:
-                    return _cancel_button_inactive()
-                try:
-                    await runner().cancel_workflow(task_id)
-                except Exception:
-                    pass
-                return _cancel_button_inactive()
+                yield [
+                    _run_button_running(),
+                    _cancel_button_inactive(),
+                    None,
+                    _resume_button_ready(),
+                    *self._clear_interrupt_updates(),
+                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Cancelling...")),
+                ]
+
+                if task_id:
+                    try:
+                        await runner().cancel_workflow(task_id)
+                    except Exception as e:
+                        logging.warning("Failed to cancel task %s: %s", task_id, e)
+
+                log_message_queue.drain()
+                messages = log_message_queue.get(consume=False)
+
+                yield [
+                    _run_button_ready(),
+                    _cancel_button_inactive(),
+                    None,
+                    _resume_button_ready(),
+                    *self._clear_interrupt_updates(),
+                    *log_panel.update(messages),
+                ]
 
             run_button.click(
                 fn=_run_workflow,
@@ -479,13 +496,7 @@ class GradioWebUIBuilder:
             cancel_button.click(
                 fn=_cancel_workflow,
                 inputs=[ task_state ],
-                outputs=[ cancel_button ]
-            )
-
-            resume_cancel_button.click(
-                fn=_cancel_workflow,
-                inputs=[ task_state ],
-                outputs=[ cancel_button ]
+                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ]
             )
 
             for component in media_components:

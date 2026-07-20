@@ -17,6 +17,7 @@ ModelComponentConfig = Annotated[
         ImageEmbeddingModelComponentConfig,
         ImageUpscaleModelComponentConfig,
         ImageBackgroundRemovalModelComponentConfig,
+        ImageSegmentationModelComponentConfig,
         ObjectDetectionModelComponentConfig,
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,

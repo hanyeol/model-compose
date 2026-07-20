@@ -11,6 +11,7 @@ from .image_text_to_text import *
 from .image_embedding import *
 from .image_upscale import *
 from .image_background_removal import *
+from .image_segmentation import *
 from .object_detection import *
 from .face_detection import *
 from .pose_detection import *

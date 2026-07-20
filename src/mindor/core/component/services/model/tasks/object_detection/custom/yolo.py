@@ -8,12 +8,15 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..common import ObjectDetectionTaskService, ObjectDetectionTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
+from pathlib import Path
+import asyncio, os
 
 if TYPE_CHECKING:
     from ultralytics import YOLO
     from ultralytics.engine.results import Results
     import numpy as np
+
+_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "ultralytics"
 
 class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
     def __init__(self, config: YoloObjectDetectionModelActionConfig, model: YOLO):
@@ -114,7 +117,10 @@ class YoloObjectDetectionTaskService(ObjectDetectionTaskService):
         self.model = None
 
     async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(label="object detection")
+        return await self._resolve_local_model(
+            cache_dir=_CACHE_DIR,
+            label="object detection",
+        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
         return await YoloObjectDetectionTaskAction(action, self.model).run(context, loop)

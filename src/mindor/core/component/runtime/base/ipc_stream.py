@@ -25,7 +25,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
-import asyncio, base64
+import asyncio
 
 # Sentinels placed in IpcInboundStream.queue.
 _STREAM_END   = object()
@@ -49,14 +49,14 @@ class IpcInboundStream:
     def decode_chunk(self, data: Any) -> Any:
         """Convert on-wire chunk data back to the Python value for this stream's kind.
 
-        - StreamKind.BYTES  ← base64 string → bytes
+        - StreamKind.BYTES  ← raw bytes (travels in the IpcMessage binary trailer, not the JSON payload)
         - StreamKind.TEXT   ← raw string
         - StreamKind.OBJECT ← codec.decode(data) (may contain nested __variable__ markers)
         """
         if self.kind == StreamKind.BYTES:
-            if not isinstance(data, str):
-                raise TypeError(f"bytes-kind chunk wire data must be a string, got {type(data).__name__}")
-            return base64.b64decode(data)
+            if not isinstance(data, (bytes, bytearray)):
+                raise TypeError(f"bytes-kind chunk wire data must be bytes, got {type(data).__name__}")
+            return bytes(data)
 
         if self.kind == StreamKind.TEXT:
             if not isinstance(data, str):
@@ -180,16 +180,15 @@ class IpcOutboundStream:
         return await self._iterator.__anext__()
 
     def encode_chunk(self, raw: Any) -> Any:
-        """Convert a raw chunk yielded by the source into the on-wire form for
-        `STREAM_CHUNK.payload.data`.
+        """Convert a raw chunk yielded by the source into the on-wire form.
 
-        - StreamKind.BYTES  → base64 string
+        - StreamKind.BYTES  → raw bytes (sent in the IpcMessage binary trailer, not the JSON payload)
         - StreamKind.TEXT   → raw string (str)
         - StreamKind.OBJECT → codec.encode(raw) (may contain nested __variable__ markers)
         """
         if self.kind == StreamKind.BYTES:
             if isinstance(raw, (bytes, bytearray)):
-                return base64.b64encode(bytes(raw)).decode("ascii")
+                return bytes(raw)
             raise TypeError(
                 f"bytes-kind stream yielded non-bytes chunk: {type(raw).__name__}"
             )

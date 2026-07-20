@@ -223,7 +223,9 @@ class IpcRuntimeProxy(ABC):
             stream = self._inbound_streams.get(stream_id)
             if stream is None or stream.closed:
                 return
-            chunk = stream.decode_chunk(payload.get("data"))
+            # BYTES chunks travel in the binary trailer; other kinds ride in payload.data.
+            data = message.binary if stream.kind == StreamKind.BYTES else payload.get("data")
+            chunk = stream.decode_chunk(data)
             stream.queue.put_nowait(chunk)
             return
 
@@ -303,10 +305,19 @@ class IpcRuntimeProxy(ABC):
         ).serialize())
 
     async def _send_stream_chunk_message(self, stream_id: str, seq: int, data: Any) -> None:
-        await self._send_message(IpcMessage(
-            type=IpcMessageType.STREAM_CHUNK,
-            payload={ "stream_id": stream_id, "seq": seq, "data": data },
-        ).serialize())
+        # BYTES chunks travel out-of-band in the binary trailer to avoid base64 overhead.
+        if isinstance(data, (bytes, bytearray)):
+            message = IpcMessage(
+                type=IpcMessageType.STREAM_CHUNK,
+                payload={ "stream_id": stream_id, "seq": seq },
+                binary=bytes(data),
+            )
+        else:
+            message = IpcMessage(
+                type=IpcMessageType.STREAM_CHUNK,
+                payload={ "stream_id": stream_id, "seq": seq, "data": data },
+            )
+        await self._send_message(message.serialize())
 
     async def _send_stream_end_message(self, stream_id: str) -> None:
         await self._send_message(IpcMessage(

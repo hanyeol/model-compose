@@ -74,18 +74,21 @@ def _inbound(kind: StreamKind = StreamKind.BYTES, stream_id: str = "s1", codec=N
 # ---------------------------------------------------------------------------
 
 class TestEncodeChunk:
-    def test_bytes_kind_encodes_to_base64_string(self):
+    def test_bytes_kind_passes_bytes_through(self):
         out = _outbound(StreamKind.BYTES)
         inb = _inbound(StreamKind.BYTES)
         wire = out.encode_chunk(b"hello\x00\xff")
-        assert isinstance(wire, str)
-        # base64-roundtrip back to the original bytes.
+        # BYTES chunks are handed off to the wire layer as raw bytes; the
+        # transport places them in the IpcMessage binary trailer.
+        assert wire == b"hello\x00\xff"
         assert inb.decode_chunk(wire) == b"hello\x00\xff"
 
     def test_bytes_kind_accepts_bytearray(self):
         out = _outbound(StreamKind.BYTES)
         inb = _inbound(StreamKind.BYTES)
         wire = out.encode_chunk(bytearray(b"abc"))
+        assert wire == b"abc"
+        assert isinstance(wire, bytes)
         assert inb.decode_chunk(wire) == b"abc"
 
     def test_bytes_kind_rejects_non_bytes(self):
@@ -116,12 +119,12 @@ class TestEncodeChunk:
 # ---------------------------------------------------------------------------
 
 class TestDecodeChunk:
-    def test_bytes_kind_requires_string_wire(self):
+    def test_bytes_kind_requires_bytes_wire(self):
         inb = _inbound(StreamKind.BYTES)
         with pytest.raises(TypeError, match="bytes-kind chunk wire data"):
-            inb.decode_chunk(b"not a string")
+            inb.decode_chunk("not bytes")
 
-    def test_bytes_kind_requires_string_wire_for_dicts_too(self):
+    def test_bytes_kind_requires_bytes_wire_for_dicts_too(self):
         inb = _inbound(StreamKind.BYTES)
         with pytest.raises(TypeError, match="bytes-kind chunk wire data"):
             inb.decode_chunk({"oops": True})

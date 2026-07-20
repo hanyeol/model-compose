@@ -10,21 +10,26 @@ import os, socket, struct
 _FRAME_HEADER = struct.Struct(">BxxxL")
 _STDOUT = 1
 
+# IPC frame prefix shared with IpcMessage: header_len + binary_len (BE u32).
+_IPC_FRAME_PREFIX = struct.Struct(">II")
+_IPC_FRAME_PREFIX_SIZE = _IPC_FRAME_PREFIX.size
+
 class DockerAttachChannel:
-    """Bidirectional line-framed bytes channel over a docker `attach` socket.
+    """Bidirectional length-prefixed bytes channel over a docker `attach` socket.
 
     Exposes a `send(bytes) -> None` / `recv() -> Optional[bytes]` / `close()`
     interface against the daemon's attach stream.
 
     Wire:
     - **Send (host → container)**: written directly to the attach socket.
-      Docker forwards the bytes verbatim to the container's stdin. We append
-      `\\n` per message; the container reads with `readline()`.
+      Docker forwards the bytes verbatim to the container's stdin. Callers pass
+      complete `IpcMessage.serialize()` frames (8B prefix + body); the container
+      parses them by reading the prefix first.
     - **Recv (container → host)**: docker frames stdout/stderr with an 8-byte
       multiplex header (non-TTY mode). We demultiplex and yield only stdout
       payload as bytes, dropping stderr frames (which carry user logs — the
       caller can subscribe via `docker logs` or a sidecar stream if needed).
-      Stdout payload is buffered and re-framed by `\\n`.
+      Stdout payload is buffered and re-framed by the IPC length prefix.
 
     The container is expected to be started with `tty=False, stdin_open=True`
     so the daemon emits framed output.
@@ -43,33 +48,21 @@ class DockerAttachChannel:
     def send(self, message: bytes) -> None:
         if self._closed:
             raise RuntimeError("DockerAttachChannel is closed")
-        # Docker daemon forwards stdin bytes verbatim. We append `\n` so
-        # the container can read messages with `readline()`.
-        self._sock.sendall(message + b"\n")
+        # Docker daemon forwards stdin bytes verbatim. The message is already
+        # a length-prefixed IPC frame; the container parses it by prefix.
+        self._sock.sendall(message)
 
     def recv(self) -> Optional[bytes]:
         if self._closed:
             return None
-        while True:
-            newline_idx = self._recv_buffer.find(b"\n")
-            if newline_idx >= 0:
-                line = bytes(self._recv_buffer[:newline_idx])
-                del self._recv_buffer[: newline_idx + 1]
-                return line
-
-            # Need more bytes — pull the next stdout frame from the wire.
-            payload = self._read_one_stdout_frame()
-            if payload is None:
-                # EOF. Drain any partial line we have so the caller still sees
-                # the last message, then return None on the subsequent call.
-                if self._recv_buffer:
-                    line = bytes(self._recv_buffer)
-                    self._recv_buffer.clear()
-                    self._closed = True
-                    return line
-                self._closed = True
-                return None
-            self._recv_buffer.extend(payload)
+        prefix = self._read_ipc_bytes(_IPC_FRAME_PREFIX_SIZE)
+        if prefix is None:
+            return None
+        header_length, binary_length = _IPC_FRAME_PREFIX.unpack(prefix)
+        body = self._read_ipc_bytes(header_length + binary_length)
+        if body is None:
+            return None
+        return prefix + body
 
     def close(self) -> None:
         if self._closed:
@@ -83,6 +76,21 @@ class DockerAttachChannel:
             self._sock.close()
         except OSError:
             pass
+
+    def _read_ipc_bytes(self, n: int) -> Optional[bytes]:
+        """Read exactly `n` bytes of demuxed stdout payload from the wire."""
+        buf = bytearray()
+        while len(buf) < n:
+            if not self._recv_buffer:
+                payload = self._read_one_stdout_frame()
+                if payload is None:
+                    self._closed = True
+                    return None
+                self._recv_buffer.extend(payload)
+            take = min(n - len(buf), len(self._recv_buffer))
+            buf.extend(self._recv_buffer[:take])
+            del self._recv_buffer[:take]
+        return bytes(buf)
 
     def _read_one_stdout_frame(self) -> Optional[bytes]:
         """Read the next non-TTY mux frame and return its payload iff it is a

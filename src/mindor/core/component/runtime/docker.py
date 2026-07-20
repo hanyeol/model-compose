@@ -17,7 +17,11 @@ from mindor.core.foundation.containers.docker import DockerContainerOptions
 from mindor.core.runtime.docker import DockerRuntime, DockerRuntimeBackend
 from mindor.core.utils.channels.docker_attach import DockerAttachChannel
 from pathlib import Path
-import asyncio
+import asyncio, struct
+
+# IPC frame prefix shared with IpcMessage: header_len + binary_len (BE u32).
+_IPC_FRAME_PREFIX = struct.Struct(">II")
+_IPC_FRAME_PREFIX_SIZE = _IPC_FRAME_PREFIX.size
 
 class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
     """Image + container preparer for a component runtime."""
@@ -94,20 +98,41 @@ class ComponentDockerRuntimeWorker(ComponentRuntimeWorker):
         self._ipc_out: BinaryIO = ipc_out
 
     async def _send_message(self, message: bytes) -> None:
-        await self._loop.run_in_executor(None, self._write_line, message)
+        await self._loop.run_in_executor(None, self._write_frame, message)
 
     async def _recv_message(self) -> Optional[bytes]:
-        return await self._loop.run_in_executor(None, self._read_line)
+        return await self._loop.run_in_executor(None, self._read_frame)
 
-    def _write_line(self, message: bytes) -> None:
-        self._ipc_out.write(message + b"\n")
+    def _write_frame(self, message: bytes) -> None:
+        self._ipc_out.write(message)
         self._ipc_out.flush()
 
-    def _read_line(self) -> Optional[bytes]:
-        line = self._ipc_in.readline()
-        if not line:
+    def _read_frame(self) -> Optional[bytes]:
+        prefix = self._read_exactly(_IPC_FRAME_PREFIX_SIZE)
+
+        if prefix is None:
             return None
-        return line.rstrip(b"\n")
+
+        header_length, binary_length = _IPC_FRAME_PREFIX.unpack(prefix)
+        body = self._read_exactly(header_length + binary_length)
+
+        if body is None:
+            return None
+
+        return prefix + body
+
+    def _read_exactly(self, length: int) -> Optional[bytes]:
+        buffer = bytearray()
+
+        while len(buffer) < length:
+            chunk = self._ipc_in.read(length - len(buffer))
+
+            if not chunk:
+                return None
+
+            buffer.extend(chunk)
+
+        return bytes(buffer)
 
     def _close_transport(self) -> None:
         for resource in (self._ipc_in, self._ipc_out):

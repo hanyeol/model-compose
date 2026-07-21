@@ -8,6 +8,7 @@ from mindor.core.utils.transport.http_client import HttpClient
 from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -106,7 +107,7 @@ class HttpClientAction:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-            return _stream_chunk_generator()
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
 
         context.register_source("response", response)
 
@@ -121,7 +122,7 @@ class HttpClientAction:
                         context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                return _stream_chunk_generator()
+                return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
 
             context.register_source("result", result)
 

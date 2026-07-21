@@ -40,8 +40,22 @@ class SentenceSplitterAction:
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(text, (list, StreamIterator, AsyncIterator))
+        is_fragmented    = isinstance(text, StreamChunkIterator) and text.is_fragmented
+        is_single_input  = is_fragmented or not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if is_fragmented:
+            # Producer marked the stream as a single fragmented text (e.g. LLM
+            # token deltas). Feed the whole stream into one splitter instead of
+            # treating each chunk as an independent input.
+            result = await self._process(text, params, streaming, loop, context.cancellation_token)
+
+            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                async for chunk in result:
+                    context.register_source("result[]", chunk, scope=scope)
+                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
 
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():

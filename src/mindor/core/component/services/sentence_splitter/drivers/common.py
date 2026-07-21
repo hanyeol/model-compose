@@ -44,20 +44,7 @@ class SentenceSplitterAction:
         is_single_input  = is_fragmented or not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if is_fragmented:
-            # Producer marked the stream as a single fragmented text (e.g. LLM
-            # token deltas). Feed the whole stream into one splitter instead of
-            # treating each chunk as an independent input.
-            result = await self._process(text, params, streaming, loop, context.cancellation_token)
-
-            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                async for chunk in result:
-                    context.register_source("result[]", chunk, scope=scope)
-                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
-
-            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
-
-        if isinstance(text, (StreamIterator, AsyncIterator)):
+        if isinstance(text, (StreamIterator, AsyncIterator)) and not is_fragmented:
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_texts, params, streaming, loop, context.cancellation_token)
@@ -75,7 +62,7 @@ class SentenceSplitterAction:
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+            async for batch_texts in BatchSourceIterator([ text ] if is_fragmented else text, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(batch_texts, params, streaming, loop, context.cancellation_token)
                 for result in batch_results:
                     if isinstance(result, (StreamIterator, AsyncIterator)):

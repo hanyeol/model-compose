@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
 from ..streaming.text import load_text_from_stream
-from ..streaming.iterators import StreamIterator
+from ..streaming.iterators import StreamIterator, StreamChunkIterator
 import json
 
 class TextValueRenderer:
@@ -11,6 +11,11 @@ class TextValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+            
+            # Preserve `is_fragmented` so downstream consumers keep the stream's semantics.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+            
             return _iterate()
 
         if isinstance(value, (list, tuple)):

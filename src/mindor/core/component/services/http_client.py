@@ -107,7 +107,7 @@ class HttpClientAction:
                     context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.stream_fragmented)
 
         context.register_source("response", response)
 
@@ -119,10 +119,10 @@ class HttpClientAction:
             if isinstance(result, HttpEventStreamResource):
                 async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                     async for chunk in result:
-                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
+                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.completion.stream_format), scope=scope)
                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
+                return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.completion.stream_fragmented)
 
             context.register_source("result", result)
 

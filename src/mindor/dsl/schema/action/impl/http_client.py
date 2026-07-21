@@ -12,6 +12,7 @@ class HttpClientCompletionType(str, Enum):
 class HttpClientCommonCompletionConfig(BaseModel):
     type: HttpClientCompletionType
     stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
+    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g. LLM token deltas) rather than independent events. Consumers use this to decide whether to reassemble the stream or treat each chunk as a standalone input.")
 
 class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.POLLING]
@@ -60,6 +61,7 @@ class HttpClientActionConfig(CommonActionConfig):
     body: Dict[str, Any] = Field(default_factory=dict, description="Request body.")
     params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters.")
     stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
+    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g. LLM token deltas) rather than independent events. Consumers use this to decide whether to reassemble the stream or treat each chunk as a standalone input.")
     completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="Async request completion handling via polling or callbacks.")
 
     @model_validator(mode="before")

@@ -15,7 +15,6 @@ from mindor.core.foundation.streaming.url import DataUriStreamResource
 from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.foundation.streaming.image import ImageStreamResource, load_image_from_stream
-from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.event_queue import EventQueue
 from PIL import Image as PILImage

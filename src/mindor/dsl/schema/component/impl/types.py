@@ -17,6 +17,7 @@ class ComponentType(str, Enum):
     WORKFLOW                = "workflow"
     SHELL                   = "shell"
     TEXT_SPLITTER           = "text-splitter"
+    SENTENCE_SPLITTER       = "sentence-splitter"
     IMAGE_PROCESSOR         = "image-processor"
     VECTOR_PROCESSOR        = "vector-processor"
     WEB_SCRAPER             = "web-scraper"

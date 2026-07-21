@@ -79,7 +79,6 @@ class SegmentMergeBuffer:
     def _separator_overhead_for_append(self) -> int:
         return len(self.separator) if self._segments else 0
 
-
 class StreamingTextSplitter:
     """Splits text incrementally as input is fed.
 

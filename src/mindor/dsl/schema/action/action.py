@@ -15,6 +15,7 @@ ActionConfig = Union[
     WorkflowActionConfig,
     ShellActionConfig,
     TextSplitterActionConfig,
+    SentenceSplitterActionConfig,
     ImageProcessorActionConfig,
     VectorProcessorActionConfig,
     AgentActionConfig,

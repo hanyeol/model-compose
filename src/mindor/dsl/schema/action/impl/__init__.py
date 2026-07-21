@@ -14,6 +14,7 @@ from .vector_store import *
 from .workflow import *
 from .shell import *
 from .text_splitter import *
+from .sentence_splitter import *
 from .image_processor import *
 from .vector_processor import *
 from .web_scraper import *

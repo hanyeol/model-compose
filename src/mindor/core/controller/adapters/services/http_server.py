@@ -482,6 +482,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     workflow_id,
                     body.input,
                     wait_for_completion=body.wait_for_completion,
+                    stop_at_streaming=body.output_only,
                     session_id=body.session_id,
                     metadata=body.metadata,
                 )
@@ -497,7 +498,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                         data=TaskStateResult.to_dict(state),
                     ))
 
-            return self._render_task_response(state, body.output_only)
+            return self._render_task_response(state, body.output_only, allow_streaming=True)
 
         @self.http_router.get("/tasks/{task_id}")
         async def get_task_state(
@@ -775,21 +776,26 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             workflow_id, _ = WorkflowResolver(self.controller.workflows).resolve(workflow_id, raise_on_error=False)
         return workflow_id
 
-    def _render_task_response(self, state: TaskState, output_only: bool) -> Response:
+    def _render_task_response(self, state: TaskState, output_only: bool, allow_streaming: bool = False) -> Response:
         if not output_only and isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
             raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
 
         if output_only:
-            return self._render_task_output(state)
+            return self._render_task_output(state, allow_streaming=allow_streaming)
 
         return self._render_task_state(state)
 
     def _render_task_state(self, state: TaskState) -> Response:
         return JSONResponse(content=TaskStateResult.to_dict(state))
 
-    def _render_task_output(self, state: TaskState) -> Response:
+    def _render_task_output(self, state: TaskState, allow_streaming: bool = False) -> Response:
         if state.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED, TaskStatus.CANCELLING):
             return JSONResponse(status_code=202, content=TaskStateResult.to_dict(state))
+
+        if state.status == TaskStatus.STREAMING:
+            if not allow_streaming:
+                return JSONResponse(status_code=202, content=TaskStateResult.to_dict(state))
+            return self._render_stream_output(state.output)
 
         if state.status == TaskStatus.CANCELLED:
             return JSONResponse(status_code=409, content=TaskStateResult.to_dict(state))
@@ -800,19 +806,22 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
-        if isinstance(state.output, StreamResource):
-            return self._render_stream_resource(state.output)
-
-        if isinstance(state.output, StreamEncodingIterator):
-            return self._render_event_stream(state.output)
-
-        if isinstance(state.output, (StreamIterator, AsyncIterator)):
-            return StreamingResponse(state.output, media_type="application/octet-stream")
+        if isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
+            return self._render_stream_output(state.output)
 
         if isinstance(state.output, bytes):
             return Response(content=state.output, media_type="application/octet-stream")
 
         return JSONResponse(content=state.output)
+
+    def _render_stream_output(self, output: Any) -> Response:
+        if isinstance(output, StreamResource):
+            return self._render_stream_resource(output)
+
+        if isinstance(output, StreamEncodingIterator):
+            return self._render_event_stream(output)
+
+        return StreamingResponse(output, media_type="application/octet-stream")
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:
         return StreamingResponse(

@@ -42,8 +42,8 @@ class ControllerRunner:
     async def cancel_workflow(self, task_id: str) -> TaskState:
         return await self.service.cancel_workflow(task_id, wait_for_completion=True)
 
-    async def wait_for_completion(self, task_id: str) -> TaskState:
-        return await self.service.wait_for_terminal_state(task_id)
+    async def wait_for_completion(self, task_id: str, stop_at_streaming: bool = False) -> TaskState:
+        return await self.service.wait_for_terminal_state(task_id, stop_at_streaming=stop_at_streaming)
 
     async def get_task_state(self, task_id: str) -> TaskState:
         state = self.service.get_task_state(task_id)

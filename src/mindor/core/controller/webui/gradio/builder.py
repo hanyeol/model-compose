@@ -103,13 +103,13 @@ class GradioWebUIBuilder:
                     interrupt_components = [ interrupt_state, interrupt_panel, *interrupt_components ]
 
                     gr.Markdown("#### Output Values")
-                    output_tree: List[Union[gr.Component, List[ComponentGroup]]] = [ self._build_output_component(variable) for variable in workflow.output ]
+                    output_components: List[Union[gr.Component, List[ComponentGroup]]] = [ self._build_output_component(variable) for variable in workflow.output ]
 
-                    if not output_tree:
-                        output_tree = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
+                    if not output_components:
+                        output_components = [ gr.Textbox(label="", lines=10, interactive=False, buttons=["copy"]) ]
 
-                    output_components = self._flatten_output_components(output_tree)
-                    media_components = [ component for component in output_components if self._is_media_component(component) ]
+                    flattened_output_components = self._flatten_output_components(output_components)
+                    media_components = [ component for component in flattened_output_components if self._is_media_component(component) ]
 
                 with gr.Column(scale=1):
                     log_panel = WorkflowLogPanel()
@@ -145,14 +145,14 @@ class GradioWebUIBuilder:
                     _cancel_button_active(),
                     None,
                     *self._clear_interrupt_updates(),
-                    *self._clear_output_updates(output_components),
+                    *self._clear_output_updates(flattened_output_components),
                     *log_panel.update([], self._log_spinner_message("Running...")),
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
                 state = await runner().run_workflow(workflow_id, input, on_event=_on_workflow_event, wait_for_completion=False)
                 task_id = state.task_id
-                async_task = asyncio.create_task(runner().wait_for_completion(task_id))
+                async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
 
                 while not async_task.done():
                     if await log_message_queue.poll(timeout=0.1):
@@ -161,7 +161,7 @@ class GradioWebUIBuilder:
                             _cancel_button_active(),
                             task_id,
                             *(gr.update() for _ in interrupt_components),
-                            *(gr.update() for _ in output_components),
+                            *(gr.update() for _ in flattened_output_components),
                             *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
@@ -174,7 +174,7 @@ class GradioWebUIBuilder:
                         _cancel_button_active(),
                         task_id,
                         *(gr.update() for _ in interrupt_components),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
 
@@ -186,7 +186,7 @@ class GradioWebUIBuilder:
                         _cancel_button_inactive(),
                         None,
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     raise gr.Error(str(e))
@@ -197,7 +197,7 @@ class GradioWebUIBuilder:
                         _cancel_button_active(),
                         state.task_id,
                         *self._build_interrupt_updates(state),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     return
@@ -208,7 +208,7 @@ class GradioWebUIBuilder:
                         _cancel_button_inactive(),
                         None,
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     return
@@ -219,12 +219,12 @@ class GradioWebUIBuilder:
                         _cancel_button_inactive(),
                         None,
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     raise gr.Error(str(state.error))
 
-                # Completed
+                # STREAMING or COMPLETED
                 clear_interrupt = self._clear_interrupt_updates()
                 log_rendering = log_panel.update(messages, self._log_spinner_message("Rendering output..."))
                 log_done = log_panel.update(messages)
@@ -236,39 +236,56 @@ class GradioWebUIBuilder:
                         _cancel_button_inactive(),
                         None,
                         *clear_interrupt,
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_done,
                     ]
                     return
 
                 if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
-                    async for updates in self._stream_output_updates(output, workflow.output[0], output_tree[0]):
+                    async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
+                        log_message_queue.drain()
+                        pending_logs = log_message_queue.get(consume=False)
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
                             gr.update(),
                             *clear_interrupt,
                             *updates,
-                            *log_rendering,
+                            *log_panel.update(pending_logs, self._log_spinner_message("Rendering output...")),
                         ]
+
+                    if state.status == TaskStatus.STREAMING:
+                        state = await runner().wait_for_completion(task_id)
+                        log_message_queue.drain()
+                        messages = log_message_queue.get(consume=False)
+                        log_done = log_panel.update(messages)
 
                     yield [
                         _run_button_ready(),
                         _cancel_button_inactive(),
                         None,
                         *clear_interrupt,
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_done,
                     ]
                 else:
+                    if isinstance(output, (StreamIterator, AsyncIterator)):
+                        output = [ chunk async for chunk in output ]
+
+                    if state.status == TaskStatus.STREAMING:
+                        state = await runner().wait_for_completion(task_id)
+                        log_message_queue.drain()
+                        messages = log_message_queue.get(consume=False)
+                        log_done = log_panel.update(messages)
+
                     if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_tree)
+                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
                     else:
                         updates = [ output ]
 
-                    wait_for_media = self._has_pending_media_updates(updates, output_components, media_components)
+                    wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
 
-                    if len(output_components) == 1:
+                    if len(flattened_output_components) == 1:
                         updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
@@ -287,7 +304,7 @@ class GradioWebUIBuilder:
                     gr.update(),
                     _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
-                    *(gr.update() for _ in output_components),
+                    *(gr.update() for _ in flattened_output_components),
                     *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                 ]
 
@@ -303,7 +320,7 @@ class GradioWebUIBuilder:
 
                 try:
                     await runner().resume_workflow(task_id, job_id, run_id, answer if answer_text else None)
-                    async_task = asyncio.create_task(runner().wait_for_completion(task_id))
+                    async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
                 except Exception as e:
                     yield [
                         _run_button_ready(),
@@ -311,7 +328,7 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.ignore(),
                     ]
                     raise gr.Error(str(e))
@@ -324,7 +341,7 @@ class GradioWebUIBuilder:
                             task_id,
                             _resume_button_running(),
                             *(gr.update() for _ in interrupt_components),
-                            *(gr.update() for _ in output_components),
+                            *(gr.update() for _ in flattened_output_components),
                             *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
@@ -338,7 +355,7 @@ class GradioWebUIBuilder:
                         task_id,
                         _resume_button_running(),
                         *(gr.update() for _ in interrupt_components),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
 
@@ -351,7 +368,7 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     raise gr.Error(str(e))
@@ -363,7 +380,7 @@ class GradioWebUIBuilder:
                         state.task_id,
                         _resume_button_ready(),
                         *self._build_interrupt_updates(state),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     return
@@ -375,7 +392,7 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     return
@@ -387,12 +404,12 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(messages),
                     ]
                     raise gr.Error(str(state.error))
 
-                # Completed
+                # STREAMING or COMPLETED
                 clear_interrupt = self._clear_interrupt_updates()
                 log_rendering = log_panel.update(messages, self._log_spinner_message("Rendering output..."))
                 log_done = log_panel.update(messages)
@@ -405,13 +422,15 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *clear_interrupt,
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_done,
                     ]
                     return
 
                 if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
-                    async for updates in self._stream_output_updates(output, workflow.output[0], output_tree[0]):
+                    async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
+                        log_message_queue.drain()
+                        pending_logs = log_message_queue.get(consume=False)
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -419,8 +438,14 @@ class GradioWebUIBuilder:
                             _resume_button_ready(),
                             *clear_interrupt,
                             *updates,
-                            *log_rendering,
+                            *log_panel.update(pending_logs, self._log_spinner_message("Rendering output...")),
                         ]
+
+                    if state.status == TaskStatus.STREAMING:
+                        state = await runner().wait_for_completion(task_id)
+                        log_message_queue.drain()
+                        messages = log_message_queue.get(consume=False)
+                        log_done = log_panel.update(messages)
 
                     yield [
                         _run_button_ready(),
@@ -428,18 +453,27 @@ class GradioWebUIBuilder:
                         None,
                         _resume_button_ready(),
                         *clear_interrupt,
-                        *(gr.update() for _ in output_components),
+                        *(gr.update() for _ in flattened_output_components),
                         *log_done,
                     ]
                 else:
+                    if isinstance(output, (StreamIterator, AsyncIterator)):
+                        output = [ chunk async for chunk in output ]
+
+                    if state.status == TaskStatus.STREAMING:
+                        state = await runner().wait_for_completion(task_id)
+                        log_message_queue.drain()
+                        messages = log_message_queue.get(consume=False)
+                        log_done = log_panel.update(messages)
+
                     if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_tree)
+                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
                     else:
                         updates = [ output ]
 
-                    wait_for_media = self._has_pending_media_updates(updates, output_components, media_components)
+                    wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
 
-                    if len(output_components) == 1:
+                    if len(flattened_output_components) == 1:
                         updates = [ updates[0] if len(updates) == 1 else updates ]
 
                     yield [
@@ -483,13 +517,13 @@ class GradioWebUIBuilder:
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=[ run_button, cancel_button, task_state, *interrupt_components, *output_components, *log_components ]
+                outputs=[ run_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
             )
 
             resume_button.click(
                 fn=_resume_workflow,
                 inputs=[ interrupt_state, interrupt_answer ],
-                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *output_components, *log_components ]
+                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *flattened_output_components, *log_components ]
             )
 
             cancel_button.click(
@@ -786,13 +820,13 @@ class GradioWebUIBuilder:
     def _has_pending_media_updates(
         self,
         updates: List[Any],
-        output_components: List[gr.Component],
+        flattened_output_components: List[gr.Component],
         media_components: List[gr.Component]
     ) -> bool:
-        if not media_components or len(updates) != len(output_components):
+        if not media_components or len(updates) != len(flattened_output_components):
             return bool(media_components) and False if not media_components else False
 
-        for update, component in zip(updates, output_components):
+        for update, component in zip(updates, flattened_output_components):
             if component in media_components and update is not None:
                 return True
 
@@ -1007,7 +1041,7 @@ class GradioWebUIBuilder:
         if event.event == "cancelled":
             return f"✕ Component '**{component_id}**' cancelled"
         if event.event == "internal":
-            return f"└ Component '**{component_id}**' reported" + (f" · [{event.kind}]" if event.kind else "")
+            return f"└ Component '**{component_id}**' reported" + (f" · [**{event.kind}**]" if event.kind else "")
         return f"• Component '**{component_id}**' {event.event}"
 
     def _escape_markdown(self, value: str) -> str:

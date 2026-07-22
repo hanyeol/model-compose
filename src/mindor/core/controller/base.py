@@ -42,6 +42,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.event_dispatcher import EventDispatcher
+from .streaming import TaskOutputStreamIterator, TaskOutputStreamResource
 from .runtime.base.specs import ControllerRuntimeSpecs
 from .runtime.native import ControllerNativeRuntimeManager
 from .runtime.docker import ControllerDockerRuntimeManager
@@ -60,6 +61,7 @@ class TaskStatus(str, Enum):
     INTERRUPTED = "interrupted"
     CANCELLING  = "cancelling"
     CANCELLED   = "cancelled"
+    STREAMING   = "streaming"
     COMPLETED   = "completed"
     FAILED      = "failed"
 
@@ -86,7 +88,7 @@ class TaskState:
 @dataclass
 class TaskEvent:
     task_id: str
-    event: Literal[ "started", "interrupted", "resumed", "cancelled", "completed", "failed" ]
+    event: Literal[ "started", "interrupted", "resumed", "cancelled", "streaming", "completed", "failed" ]
     status: TaskStatus
     workflow_id: Optional[str] = None
     input: Optional[Any] = None
@@ -308,6 +310,7 @@ class ControllerService(AsyncService):
         input: Dict[str, Any],
         task_id: Optional[str] = None,
         wait_for_completion: bool = True,
+        stop_at_streaming: bool = False,
         on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
         on_event: Optional[TaskEventCallback] = None,
         session_id: Optional[str] = None,
@@ -324,6 +327,7 @@ class ControllerService(AsyncService):
             session_id=session_id,
             metadata=metadata
         )
+
         with self.task_states_lock:
             self.task_states.set(task_id, state)
 
@@ -346,10 +350,13 @@ class ControllerService(AsyncService):
                 session_id=session_id,
                 metadata=metadata
             )
+
             with self.task_states_lock:
                 self.task_states.set(task_id, state, 1 * 3600)
+
             self._signal_task_state_change(task_id)
             self._notify_task_state_change(task_id)
+
             raise
 
         self._inflight_tasks[task_id] = task
@@ -363,7 +370,7 @@ class ControllerService(AsyncService):
             task.add_done_callback(_cleanup_callback)
 
         if wait_for_completion:
-            state = await self._wait_for_terminal_state(task_id)
+            state = await self._wait_for_terminal_state(task_id, include_streaming=stop_at_streaming)
 
         return state
 
@@ -398,8 +405,10 @@ class ControllerService(AsyncService):
             session_id=state.session_id,
             metadata=state.metadata
         )
+
         with self.task_states_lock:
             self.task_states.set(task_id, state)
+
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
@@ -427,16 +436,19 @@ class ControllerService(AsyncService):
                 session_id=state.session_id,
                 metadata=state.metadata
             )
+
             self.task_states.set(task_id, state)
 
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
         token = self.cancellation_tokens.get(task_id)
+
         if token:
             token.cancel()
 
         handler = self.interrupt_handlers.get(task_id)
+
         if handler:
             handler.cancel(task_id)
 
@@ -454,8 +466,8 @@ class ControllerService(AsyncService):
 
         return state
 
-    async def wait_for_terminal_state(self, task_id: str) -> TaskState:
-        return await self._wait_for_terminal_state(task_id)
+    async def wait_for_terminal_state(self, task_id: str, stop_at_streaming: bool = False) -> TaskState:
+        return await self._wait_for_terminal_state(task_id, include_streaming=stop_at_streaming)
 
     def add_task_state_listener(self, listener: TaskStateListener) -> None:
         if listener not in self._task_state_listeners:
@@ -789,14 +801,52 @@ class ControllerService(AsyncService):
             interrupt_handler = self._attach_interrupt_handler(task_id, workflow_id, on_interrupt, task_metadata=metadata)
             output = await _run_workflow(workflow_id, input, interrupt_handler)
             output = await self._render_task_output(output)
-            state = TaskState(
-                task_id=task_id,
-                status=TaskStatus.COMPLETED,
-                workflow_id=workflow_id,
-                output=output,
-                session_id=session_id,
-                metadata=metadata
-            )
+
+            if isinstance(output, (StreamResource, StreamIterator, AsyncIterator)):
+                future: asyncio.Future[Tuple[TaskStatus, Optional[str]]] = asyncio.get_running_loop().create_future()
+
+                async def _on_stream_terminated(event: str, error: Optional[str]) -> None:
+                    if not future.done():
+                        future.set_result((TaskStatus(event), error))
+
+                if isinstance(output, StreamResource):
+                    output = TaskOutputStreamResource(output, _on_stream_terminated)
+                else:
+                    output = TaskOutputStreamIterator(output, _on_stream_terminated)
+
+                state = TaskState(
+                    task_id=task_id,
+                    status=TaskStatus.STREAMING,
+                    workflow_id=workflow_id,
+                    output=output,
+                    session_id=session_id,
+                    metadata=metadata
+                )
+
+                with self.task_states_lock:
+                    self.task_states.set(task_id, state)
+
+                self._signal_task_state_change(task_id)
+                self._notify_task_state_change(task_id)
+
+                status, error = await future
+                state = TaskState(
+                    task_id=task_id,
+                    status=status,
+                    workflow_id=workflow_id,
+                    error=error,
+                    session_id=session_id,
+                    metadata=metadata
+                )
+            else:
+                state = TaskState(
+                    task_id=task_id,
+                    status=TaskStatus.COMPLETED,
+                    workflow_id=workflow_id,
+                    output=output,
+                    session_id=session_id,
+                    metadata=metadata
+                )
         except asyncio.CancelledError:
             state = TaskState(
                 task_id=task_id,
@@ -821,27 +871,37 @@ class ControllerService(AsyncService):
 
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)
+
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
         return state
 
-    async def _wait_for_terminal_state(self, task_id: str) -> TaskState:
+    async def _wait_for_terminal_state(self, task_id: str, include_streaming: bool = False) -> TaskState:
         if task_id not in self.task_events:
             self.task_events[task_id] = asyncio.Event()
         event = self.task_events[task_id]
 
         while True:
             state = self.get_task_state(task_id)
-            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+            if self._is_terminal_state(state, include_streaming):
                 self.task_events.pop(task_id, None)
+                await self._event_dispatcher.join(("callback", task_id))
                 return state
             event.clear()
             state = self.get_task_state(task_id)
-            if state and state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+            if self._is_terminal_state(state, include_streaming):
                 self.task_events.pop(task_id, None)
+                await self._event_dispatcher.join(("callback", task_id))
                 return state
             await event.wait()
+
+    def _is_terminal_state(self, state: TaskState, include_streaming: bool = False) -> bool:
+        if state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+            return True
+        if include_streaming and state.status == TaskStatus.STREAMING:
+            return True
+        return False
 
     async def _render_task_output(self, output: Any) -> Any:
         return await self._output_renderer.render(output)
@@ -870,8 +930,10 @@ class ControllerService(AsyncService):
                 session_id=session_id,
                 metadata=task_metadata
             )
+    
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
+
             self._signal_task_state_change(task_id)
             self._notify_task_state_change(task_id)
 
@@ -912,8 +974,10 @@ class ControllerService(AsyncService):
             session_id=state.session_id if state else None,
             metadata=state.metadata if state else None
         )
+
         with self.task_states_lock:
             self.task_states.set(task_id, state, 1 * 3600)
+
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
@@ -960,6 +1024,8 @@ class ControllerService(AsyncService):
             event = "interrupted"
         elif state.status == TaskStatus.CANCELLED:
             event = "cancelled"
+        elif state.status == TaskStatus.STREAMING:
+            event = "streaming"
         elif state.status == TaskStatus.COMPLETED:
             event = "completed"
         elif state.status == TaskStatus.FAILED:

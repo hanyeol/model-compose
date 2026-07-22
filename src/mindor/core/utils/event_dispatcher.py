@@ -33,17 +33,29 @@ class EventDispatcher:
 
         queue.put_nowait(handler)
 
+    async def join(self, key: Hashable) -> None:
+        """Wait until all handlers currently queued for `key` have been processed."""
+        queue = self._queues.get(key)
+
+        if queue is None:
+            return
+
+        await queue.join()
+
     async def _run_worker(self, key: Hashable, queue: asyncio.Queue) -> None:
         while True:
             handler = await queue.get()
-            if handler is None:
-                return
             try:
-                await handler()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logging.warning("Event dispatch error for %r", key, exc_info=True)
+                if handler is None:
+                    return
+                try:
+                    await handler()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logging.warning("Event dispatch error for %r", key, exc_info=True)
+            finally:
+                queue.task_done()
 
     def unregister(self, key: Hashable) -> None:
         """Drop the queue/worker for `key` after draining any pending events."""

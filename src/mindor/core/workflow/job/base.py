@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Awaitable, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Union, Optional, Awaitable, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from mindor.dsl.schema.job import JobConfig, JobType, JobInterruptConfig, JobHookConfig

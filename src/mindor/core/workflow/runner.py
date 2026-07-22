@@ -1,12 +1,14 @@
 from typing import Optional, Dict, List, Set, Any
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.workflow import JobConfig
 from mindor.core.component import ComponentGlobalConfigs
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from mindor.core.tracer import tracing
 from .context import WorkflowContext
 from .job import Job, RoutingTarget, create_job
+from .job.streaming import JobOutputStreamIterator, StreamTerminatedEvent
 from .job.context import JobContext
 import asyncio
 
@@ -39,23 +41,33 @@ class WorkflowRunner:
             if self.output is not None:
                 output = await context.render_variable(self.output)
 
-            workflow_elapsed = workflow_time_tracker.elapsed()
-            if isinstance(output, AsyncIterable):
-                tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed, is_streaming=True)
-                logging.info("[task-%s] Workflow '%s' completed in %.2f seconds (streaming output pending consumption).", context.task_id, self.id, workflow_elapsed)
+            if isinstance(output, (StreamIterator, AsyncIterator)):
+                async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str]) -> None:
+                    elapsed = workflow_time_tracker.elapsed()
+                    if event == "completed":
+                        tracing.on_workflow_end(context.task_id, self.id, None, elapsed)
+                        logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
+                    elif event == "cancelled":
+                        logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, elapsed)
+                    else:
+                        tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
+                        logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
+
+                output = JobOutputStreamIterator(output, _on_terminated)
             else:
-                tracing.on_workflow_end(context.task_id, self.id, output, workflow_elapsed)
-                logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, workflow_elapsed)
+                elapsed = workflow_time_tracker.elapsed()
+                tracing.on_workflow_end(context.task_id, self.id, output, elapsed)
+                logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
 
             return output
         except asyncio.CancelledError:
-            workflow_elapsed = workflow_time_tracker.elapsed()
-            logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, workflow_elapsed)
+            elapsed = workflow_time_tracker.elapsed()
+            logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, elapsed)
             raise
         except Exception as e:
-            workflow_elapsed = workflow_time_tracker.elapsed()
-            tracing.on_workflow_error(context.task_id, self.id, e, workflow_elapsed)
-            logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, workflow_elapsed, e, exc_info=True)
+            elapsed = workflow_time_tracker.elapsed()
+            tracing.on_workflow_error(context.task_id, self.id, e, elapsed)
+            logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e, exc_info=True)
             raise
 
     async def _run_jobs(
@@ -186,19 +198,44 @@ class WorkflowRunner:
                         )
                         logging.info("[task-%s] Job '%s:%s' completed without routing.", context.task_id, completed_job_id, self.id)
                 else:
+                    if isinstance(completed_job_output, (StreamIterator, AsyncIterator)):
+                        job_time_tracker = job_time_trackers[completed_job_id]
+                        job_id = completed_job_id
+                        job_type = self.jobs[completed_job_id].type.value
+
+                        async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str], job_id=job_id, job_type=job_type, job_time_tracker=job_time_tracker) -> None:
+                            job_elapsed = job_time_tracker.elapsed()
+                            await context.job_event_notifier.notify(
+                                event,
+                                job_id,
+                                job_type,
+                                context=context,
+                                elapsed=job_elapsed,
+                                error=error
+                            )
+                            if event == "completed":
+                                tracing.on_job_end(context.task_id, job_id, self.id, None, job_elapsed)
+                                logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, job_id, self.id, job_elapsed)
+                            else:
+                                logging.info("[task-%s] Job '%s:%s' %s after %.2f seconds.", context.task_id, job_id, self.id, event, job_elapsed)
+
+                        completed_job_output = JobOutputStreamIterator(completed_job_output, _on_terminated)
+
                     context.complete_job(completed_job_id, completed_job_output)
-                    job_elapsed = job_time_trackers[completed_job_id].elapsed()
-                    await context.job_event_notifier.notify(
-                        "completed",
-                        completed_job_id,
-                        self.jobs[completed_job_id].type.value,
-                        context=context,
-                        elapsed=job_elapsed,
-                        output=completed_job_output
-                    )
-                    tracing.on_job_end(context.task_id, completed_job_id, self.id, completed_job_output, job_elapsed)
-                    logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, completed_job_id, self.id, job_elapsed)
-                    logging.debug("[task-%s] Job '%s:%s' output: %s", context.task_id, completed_job_id, self.id, completed_job_output)
+
+                    if not isinstance(completed_job_output, JobOutputStreamIterator):
+                        job_elapsed = job_time_trackers[completed_job_id].elapsed()
+                        await context.job_event_notifier.notify(
+                            "completed",
+                            completed_job_id,
+                            self.jobs[completed_job_id].type.value,
+                            context=context,
+                            elapsed=job_elapsed,
+                            output=completed_job_output
+                        )
+                        tracing.on_job_end(context.task_id, completed_job_id, self.id, completed_job_output, job_elapsed)
+                        logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, completed_job_id, self.id, job_elapsed)
+                        logging.debug("[task-%s] Job '%s:%s' output: %s", context.task_id, completed_job_id, self.id, completed_job_output)
 
                     if self._is_terminal_job(completed_job_id):
                         if isinstance(output, dict) and isinstance(completed_job_output, dict):

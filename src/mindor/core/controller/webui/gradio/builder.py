@@ -3,9 +3,11 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Callable, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
+from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
+from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
+from .renderer import WorkflowSchemaRenderer, WorkflowFlowRenderer
 
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -60,21 +62,29 @@ class GradioWebUIBuilder:
     def build(
         self,
         workflow_schemas: Dict[str, WorkflowSchema],
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig],
         runner: Callable[[], ControllerRunner]
     ) -> Tuple[gr.Blocks, str]:
+        workflow_configs: Dict[str, WorkflowConfig] = { workflow.id: workflow for workflow in workflows }
+        component_configs: Dict[str, ComponentConfig] = { component.id: component for component in components }
+
         with gr.Blocks() as blocks:
             for workflow_id, workflow in workflow_schemas.items():
                 if len(workflow_schemas) > 1:
                     with gr.Tab(label=workflow.name or workflow_id):
-                        self._build_workflow_section(workflow_id, workflow, runner)
+                        self._build_workflow_section(workflow_id, workflow, workflow_configs.get(workflow_id), workflow_configs, component_configs, runner)
                 else:
-                    self._build_workflow_section(workflow_id, workflow, runner)
+                    self._build_workflow_section(workflow_id, workflow, workflow_configs.get(workflow_id), workflow_configs, component_configs, runner)
 
         return blocks, self._global_css()
 
     def _build_workflow_section(self,
         workflow_id: str,
         workflow: WorkflowSchema,
+        workflow_config: Optional[WorkflowConfig],
+        workflow_configs: Dict[str, WorkflowConfig],
+        component_configs: Dict[str, ComponentConfig],
         runner: Callable[[], ControllerRunner]
     ) -> gr.Column:
         log_message_queue: EventQueue = EventQueue()
@@ -84,6 +94,17 @@ class GradioWebUIBuilder:
 
             if workflow.description:
                 gr.Markdown(f"📝 {workflow.description}")
+
+            with gr.Row():
+                with gr.Column():
+                    with gr.Accordion("📄 Workflow Schema", open=False):
+                        gr.Code(value=WorkflowSchemaRenderer().render(workflow), language="json", interactive=False)
+                with gr.Column():
+                    with gr.Accordion("🔀 Workflow Flow", open=False):
+                        if workflow_config is not None:
+                            gr.Markdown(value=WorkflowFlowRenderer().render(workflow_config, workflow_configs, component_configs))
+                        else:
+                            gr.Markdown(value="_Flow information unavailable._")
 
             with gr.Row(equal_height=True):
                 with gr.Column(scale=2, elem_classes=["input-output-column"]):
@@ -722,6 +743,7 @@ class GradioWebUIBuilder:
                 flattened.append(component)
 
         return flattened
+
 
     def _clear_output_updates(self, components: List[gr.Component]) -> List[Any]:
         updates = []

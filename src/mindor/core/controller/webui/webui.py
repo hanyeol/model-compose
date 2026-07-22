@@ -14,14 +14,16 @@ class ControllerWebUI(AsyncService):
     def __init__(
         self,
         config: ControllerWebUIConfig,
-        components: List[ComponentConfig],
         workflows: List[WorkflowConfig],
+        components: List[ComponentConfig],
         daemon: bool
     ):
         super().__init__(daemon)
 
         self.config: ControllerWebUIConfig = config
         self.workflow_schemas: Dict[str, WorkflowSchema] = create_workflow_schemas(workflows, components, exclude_private=True)
+        self.workflows: List[WorkflowConfig] = workflows
+        self.components: List[ComponentConfig] = components
 
         self.driver: Optional[WebUIDriver] = None
 
@@ -37,12 +39,12 @@ class ControllerWebUI(AsyncService):
     def _configure_driver(self) -> None:
         if self.config.driver == ControllerWebUIDriver.GRADIO:
             from .gradio import GradioDriver
-            self.driver = GradioDriver(self.config, self.workflow_schemas)
+            self.driver = GradioDriver(self.config, self.workflow_schemas, self.workflows, self.components)
             return
 
         if self.config.driver == ControllerWebUIDriver.STATIC:
             from .static import StaticDriver
-            self.driver = StaticDriver(self.config, self.workflow_schemas)
+            self.driver = StaticDriver(self.config, self.workflow_schemas, self.workflows, self.components)
             return
 
     async def _serve(self) -> None:
@@ -56,10 +58,10 @@ class ControllerWebUI(AsyncService):
         if self.driver:
             await self.driver.stop()
 
-def create_webui(config: ControllerWebUIConfig, components: List[ComponentConfig], workflows: List[WorkflowConfig], daemon: bool) -> ControllerWebUI:
+def create_webui(config: ControllerWebUIConfig, workflows: List[WorkflowConfig], components: List[ComponentConfig], daemon: bool) -> ControllerWebUI:
     global WebUIInstance
 
     if not WebUIInstance:
-        WebUIInstance = ControllerWebUI(config, components, workflows, daemon)
+        WebUIInstance = ControllerWebUI(config, workflows, components, daemon)
 
     return WebUIInstance

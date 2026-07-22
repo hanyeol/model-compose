@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig
+from mindor.dsl.schema.workflow import WorkflowConfig
+from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.workflow.schema import WorkflowSchema
 
 if TYPE_CHECKING:
@@ -14,10 +16,14 @@ class WebUIDriver(ABC):
     def __init__(
         self,
         config: ControllerWebUIConfig,
-        workflow_schemas: Dict[str, WorkflowSchema]
+        workflow_schemas: Dict[str, WorkflowSchema],
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
     ):
         self.config = config
         self.workflow_schemas = workflow_schemas
+        self.workflows = workflows
+        self.components = components
         self.runner: Optional[ControllerRunner] = None
 
     async def start(self) -> None:

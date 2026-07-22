@@ -10,8 +10,8 @@ import uvicorn
 class StaticDriver(WebUIDriver):
     requires_runner = False
 
-    def __init__(self, config, workflow_schemas):
-        super().__init__(config, workflow_schemas)
+    def __init__(self, config, workflow_schemas, workflows, components):
+        super().__init__(config, workflow_schemas, workflows, components)
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)

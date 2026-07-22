@@ -5,7 +5,7 @@ from mindor.dsl.schema.component.impl.agent import AgentComponentConfig
 from mindor.dsl.schema.component.impl.workflow import WorkflowComponentConfig
 from mindor.dsl.schema.job import ComponentJobConfig, ForEachJobConfig
 from mindor.core.workflow.schema import WorkflowSchema
-import json
+import json, zlib, base64
 
 class WorkflowSchemaRenderer:
     def render(self, workflow: WorkflowSchema) -> str:
@@ -37,27 +37,44 @@ class WorkflowFlowRenderer:
         if not workflow_config.jobs:
             return "_No jobs defined._"
 
-        lines: List[str] = [ "```mermaid", "graph TD" ]
+        diagram_lines: List[str] = [ "graph TD" ]
         referenced_workflows: Dict[str, Tuple[str, str]] = {}
 
-        self._render_workflow_jobs(workflow_config, component_configs, workflow_configs, referenced_workflows, lines, prefix="")
+        self._render_workflow_jobs(workflow_config, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix="")
 
         for workflow_id, (source_node, link_label) in referenced_workflows.items():
-            sub_workflow = workflow_configs.get(workflow_id)
-            if sub_workflow is None or not sub_workflow.jobs:
+            sub_workflow = workflow_configs[workflow_id]
+
+            if not sub_workflow.jobs:
                 continue
 
             prefix = f"__w_{workflow_id}__"
             title = sub_workflow.title or workflow_id
-            lines.append(f'    subgraph {prefix}["{title}<br/>(workflow)"]')
-            lines.append("    direction TB")
-            self._render_workflow_jobs(sub_workflow, component_configs, workflow_configs, referenced_workflows, lines, prefix=f"{prefix}_")
-            lines.append("    end")
-            lines.append(f"    {source_node} -. {link_label} .- {prefix}")
+            diagram_lines.append(f'    subgraph {prefix}["{title}<br/>(workflow)"]')
+            diagram_lines.append("    direction TB")
+            self._render_workflow_jobs(sub_workflow, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix=f"{prefix}_")
+            diagram_lines.append("    end")
+            diagram_lines.append(f"    {source_node} -. {link_label} .- {prefix}")
 
-        lines.append("```")
+        diagram = "\n".join(diagram_lines)
+        viewer_url = self._build_mermaid_viewer_url(diagram)
 
-        return "\n".join(lines)
+        return "\n".join([
+            "```mermaid",
+            diagram,
+            "```",
+            "",
+            f'<a href="{viewer_url}" target="_blank" style="text-decoration: none;">🔍</a> <a href="{viewer_url}" target="_blank">Open in Mermaid Live Viewer</a>',
+        ])
+
+    def _build_mermaid_viewer_url(self, diagram: str) -> str:
+        payload = json.dumps({
+            "code": diagram,
+            "mermaid": json.dumps({ "theme": "default" }),
+        })
+        compressed = zlib.compress(payload.encode("utf-8"), 9)
+        encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
+        return f"https://mermaid.live/view#pako:{encoded}"
 
     def _render_workflow_jobs(
         self,

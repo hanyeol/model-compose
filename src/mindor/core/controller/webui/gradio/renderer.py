@@ -147,16 +147,24 @@ class WorkflowFlowRenderer:
 
         return None
 
+    def _resolve_component_config(self, component: Union[str, ComponentConfig], component_configs: Dict[str, ComponentConfig]) -> Optional[ComponentConfig]:
+        if not isinstance(component, str):
+            return component
+
+        if component == "__default__":
+            if len(component_configs) == 1:
+                return next(iter(component_configs.values()))
+            return next((config for config in component_configs.values() if config.default), None)
+
+        return component_configs.get(component)
+
     def _resolve_component_label(self, component: Union[str, ComponentConfig], component_configs: Dict[str, ComponentConfig]) -> str:
-        if isinstance(component, str):
-            config = component_configs.get(component)
+        config = self._resolve_component_config(component, component_configs)
 
-            if config is not None:
-                return f"{config.id}<br/>({config.type.value})"
+        if config is not None:
+            return f"{config.id}<br/>({config.type.value})"
 
-            return f"{component}<br/>(unknown)"
-
-        return f"{component.id}<br/>({component.type.value})"
+        return f"{component}<br/>(unknown)"
 
     def _resolve_agent_tool_workflows(
         self,
@@ -164,7 +172,7 @@ class WorkflowFlowRenderer:
         component_configs: Dict[str, ComponentConfig],
         workflow_configs: Dict[str, WorkflowConfig]
     ) -> List[str]:
-        config = component_configs.get(component) if isinstance(component, str) else component
+        config = self._resolve_component_config(component, component_configs)
 
         if not isinstance(config, AgentComponentConfig):
             return []
@@ -177,7 +185,7 @@ class WorkflowFlowRenderer:
         component_configs: Dict[str, ComponentConfig],
         workflow_configs: Dict[str, WorkflowConfig]
     ) -> List[str]:
-        config = component_configs.get(component) if isinstance(component, str) else component
+        config = self._resolve_component_config(component, component_configs)
 
         if not isinstance(config, WorkflowComponentConfig):
             return []

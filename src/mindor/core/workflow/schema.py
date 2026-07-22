@@ -24,7 +24,6 @@ class WorkflowVariable:
     format: Optional[str]
     default: Optional[Any]
     annotations: Optional[List[WorkflowVariableAnnotation]]
-    internal: bool
 
     def __eq__(self, other):
         if not isinstance(other, WorkflowVariable):
@@ -62,7 +61,7 @@ class WorkflowVariableResolver:
             }
         }
 
-    def _enumerate_input_variables(self, value: Any, wanted_key: str, internal: bool = False) -> List[WorkflowVariable]:
+    def _enumerate_input_variables(self, value: Any, wanted_key: str) -> List[WorkflowVariable]:
         if isinstance(value, str):
             variables: List[WorkflowVariable] = []
 
@@ -89,25 +88,24 @@ class WorkflowVariableResolver:
                         format=format,
                         default=default,
                         annotations=annotations,
-                        internal=internal
                     ))
 
             return variables
 
         if isinstance(value, BaseModel):
-            return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key, internal)
+            return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key)
 
         if isinstance(value, dict):
-            return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value.values() ], [])
+            return sum([ self._enumerate_input_variables(v, wanted_key) for v in value.values() ], [])
 
         if isinstance(value, list):
-            return sum([ self._enumerate_input_variables(v, wanted_key, internal) for v in value ], [])
+            return sum([ self._enumerate_input_variables(v, wanted_key) for v in value ], [])
 
         return []
 
-    def _enumerate_output_variables(self, name: Optional[str], value: Any, internal: bool = False) -> List[WorkflowVariable]:
+    def _enumerate_output_variables(self, name: Optional[str], value: Any) -> List[WorkflowVariable]:
         variables: List[WorkflowVariable] = []
-        
+
         if isinstance(value, str):
             for m in self.patterns["variable"].finditer(value):
                 key, index, path, type, is_list, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -131,20 +129,19 @@ class WorkflowVariableResolver:
                     format=format,
                     default=default,
                     annotations=annotations,
-                    internal=internal
                 ))
 
             return variables
-        
+
         if isinstance(value, BaseModel):
-            return self._enumerate_output_variables(name, value.model_dump(exclude_none=True), internal)
-        
+            return self._enumerate_output_variables(name, value.model_dump(exclude_none=True))
+
         if isinstance(value, dict):
-            return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v, internal) for k, v in value.items() ], [])
+            return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v) for k, v in value.items() ], [])
 
         if isinstance(value, list):
-            return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v, internal) for i, v in enumerate(value) ], [])
-        
+            return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v) for i, v in enumerate(value) ], [])
+
         return []
 
     def _to_variable_config_list(self, variables: List[Union[WorkflowVariable, WorkflowVariableGroup]]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
@@ -306,9 +303,9 @@ class WorkflowInputVariableResolver(WorkflowVariableResolver):
             if workflow:
                 variables.extend(self._resolve_workflow(workflow, workflows, components))
             else:
-                variables.extend(self._enumerate_input_variables(action, "input", internal=True))
+                variables.extend(self._enumerate_input_variables(action, "input"))
         else:
-            variables.extend(self._enumerate_input_variables(action, "input", internal=True))
+            variables.extend(self._enumerate_input_variables(action, "input"))
 
         return variables
 
@@ -326,7 +323,6 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         workflow: WorkflowConfig,
         workflows: List[WorkflowConfig],
         components: List[ComponentConfig],
-        internal: bool = False
     ) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         variables: List[Union[WorkflowVariable, WorkflowVariableGroup]] = []
 
@@ -347,18 +343,18 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
                     if not job.do.output or job.do.output == "${output}":
                         do_variables = self._resolve_job_component(job.do.component, job.do.action, workflows, components)
                     else:
-                        do_variables = self._enumerate_output_variables(None, job.do.output, internal=internal)
+                        do_variables = self._enumerate_output_variables(None, job.do.output)
                     if not do_variables:
-                        do_variables = [ self._any_variable(internal=internal) ]
+                        do_variables = [ self._any_variable() ]
                     job_variables.append(WorkflowVariableGroup(name=job.name or job.id, variables=do_variables, repeat_count=0))
                 else:
                     if isinstance(job, OutputJobConfig):
-                        job_variables.extend(self._enumerate_output_variables(None, job.output, internal=internal))
+                        job_variables.extend(self._enumerate_output_variables(None, job.output))
         else:
-            variables.extend(self._enumerate_output_variables(None, workflow.output, internal=internal))
+            variables.extend(self._enumerate_output_variables(None, workflow.output))
 
         if not variables:
-            variables.append(self._any_variable(internal=internal))
+            variables.append(self._any_variable())
 
         return variables
 
@@ -396,18 +392,18 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         if component.type == ComponentType.WORKFLOW:
             _, workflow = WorkflowResolver(workflows).resolve(action.workflow, raise_on_error=False)
             if workflow:
-                variables.extend(self._resolve_workflow(workflow, workflows, components, internal=True))
+                variables.extend(self._resolve_workflow(workflow, workflows, components))
             else:
-                variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
+                variables.extend(self._enumerate_output_variables(None, action.output))
         else:
-            variables.extend(self._enumerate_output_variables(None, action.output, internal=True))
+            variables.extend(self._enumerate_output_variables(None, action.output))
 
         return variables
 
     def _is_terminal_job(self, workflow: WorkflowConfig, job_id: str) -> bool:
         return all(job_id not in job.depends_on for job in workflow.jobs if job.id != job_id)
 
-    def _any_variable(self, internal: bool = False) -> WorkflowVariable:
+    def _any_variable(self) -> WorkflowVariable:
         return WorkflowVariable(
             name=None,
             type="any",
@@ -417,7 +413,6 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             format=None,
             default=None,
             annotations=None,
-            internal=internal,
         )
 
 class WorkflowSchema:

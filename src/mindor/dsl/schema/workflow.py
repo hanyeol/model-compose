@@ -61,7 +61,6 @@ class WorkflowVariableConfig(BaseModel):
     required: bool = Field(default=False, description="Whether this variable is required.")
     default: Optional[Any] = Field(default=None, description="Default value if not provided.")
     annotations: List[WorkflowVariableAnnotationConfig] = Field(default_factory=list, description="Variable annotations.")
-    internal: bool = Field(default=False, description="Whether this variable is for internal use.")
 
     def get_annotation_value(self, name: str) -> Optional[str]:
         if self.annotations:

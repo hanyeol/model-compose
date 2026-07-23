@@ -1,0 +1,74 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Producer: enqueues one audio input (path or URL) per invocation.
+  # Call this workflow repeatedly to line up multiple clips; the
+  # player workflow drains them in order.
+  - id: publish-audio
+    title: Enqueue an audio clip for playback
+    description: |
+      Push a single audio source into the `audio-queue`. Run this
+      workflow (via HTTP or the webui) each time you want to add a
+      clip to the playback queue. Leave `play-audio` running to hear
+      each enqueued clip through the system's default output device.
+    jobs:
+      - id: publish
+        component: audio-queue
+        action: enqueue
+        input: ${input.source as file}
+
+  # Consumer: long-running workflow that reads audio references from
+  # the queue and hands them straight to audio-playback. Because
+  # audio-playback accepts an AsyncIterator on its `audio` field, the
+  # dequeue stream feeds it directly and playback happens sequentially
+  # (blocking: true keeps clips from overlapping).
+  #
+  # Runs until cancelled — cancel the workflow to stop consuming.
+  - id: play-audio
+    title: Play audio clips from the queue
+    description: |
+      Continuously dequeue audio references and play them through the
+      system default output device. Start this once and leave it
+      running; use the runs API or the webui to cancel it when done.
+    jobs:
+      - id: subscribe
+        component: audio-queue
+        action: dequeue
+
+      - id: play
+        component: player
+        input:
+          audio: ${jobs.subscribe.output as audio}
+        depends_on: [ subscribe ]
+
+components:
+  # In-process queue shared between the producer and consumer
+  # workflows. Each publish appends one item; the consumer sees them
+  # in FIFO order.
+  - id: audio-queue
+    type: data-queue
+    driver: memory
+    max_size: 100
+    actions:
+      - id: enqueue
+        method: publish
+      - id: dequeue
+        method: consume
+
+  # System audio playback via ffmpeg. `blocking: true` waits for each
+  # clip to finish before returning, which is what lets the queue-fed
+  # stream play clips back-to-back without overlap.
+  - id: player
+    type: audio-playback
+    driver: ffmpeg
+    action:
+      audio: ${input.audio}
+      sink: system
+      blocking: true

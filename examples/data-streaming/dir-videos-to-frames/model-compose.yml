@@ -7,84 +7,69 @@ controller:
     driver: gradio
     port: 8081
 
-workflow:
-  title: Directory → Videos → Frames → Local Files
-  description: |
-    Stream a directory of videos through the frame extractor and save every
-    frame to local files as it is produced.
-  jobs:
-    # 1) Enumerate videos in the input directory as a stream.
-    #
-    # Q1: file-store `list` needs a `streaming: true` mode that yields one item
-    #     at a time (AsyncIterator[item_dict]) instead of the paged dict shape
-    #     it currently returns.
-    - id: list-videos
-      component: source-store
-      output: ${output.items[*].path}
+workflows:
+  # Top-level workflow: list videos in a directory, then dispatch one
+  # sub-workflow run per video to extract and save its frames.
+  - id: process-directory
+    title: Directory → Videos → Frames → Local Files
+    description: |
+      List every video in ./input/videos and, for each one, stream its
+      frames through the extractor and save them under ./output/frames.
+    jobs:
+      # List the videos in the source directory. `list` returns a dict
+      # with an `items` array whose entries expose `path`, `url`, `size`,
+      # `content_type`, and `modified_at`.
+      - id: list-videos
+        component: source-store
+        # Forward just the items array so the next job can iterate over
+        # per-video dicts directly.
+        output: ${output.items}
 
-      # Q2: what should `output` of a streaming list look like in expressions?
-      #     - ${result}        the whole AsyncIterator (current "is_direct_output")
-      #     - ${result[]}      same iterator but flagged "this is a stream"
-      #     We assume `${result}` is sufficient — `streaming: true` already
-      #     declares the intent. Each yielded item has shape
-      #     { path, url, size, content_type, modified_at }.
-
-    # 2) Extract frames from every video as a nested stream.
-    #
-    # Q3: `${... as video[]}` — does the existing `as video` coercion handle
-    #     "an iterator of items where each item should be coerced to a video
-    #     MediaSource"? If not, we either:
-    #       a) extend the coercion DSL with a `[]` suffix that means
-    #          "apply per element of an iterable"
-    #       b) accept an iterator of file_dicts and let frame-extractor do
-    #          the per-item MediaSource conversion internally.
-    #     Sketch below assumes (a).
-    - id: extract-frames-per-video
-      component: frame-extractor
-      input:
-        video: ${jobs.list-videos.output as video[];path}
-        frame_interval: 30
-      depends_on: [ list-videos ]
-      # Expected output shape (per finalized table):
-      #   AsyncIterator[AsyncIterator[F]]
-      # where each outer item corresponds to one input video.
-
-    # 3) Save every frame to a per-video subdirectory.
-    #
-    # Q4: nested for-each needs a way to reference the OUTER loop's item from
-    #     the inner loop body. Today `${item}` is overwritten by the inner
-    #     for-each. Options:
-    #       a) `${parent.item}` / `${outer.item}`
-    #       b) named loops: `for-each` accepts an `as:` field
-    #          (e.g. `as: video`, then `${video.path}` inside)
-    #       c) bind the outer item into the inner input explicitly:
-    #          `input: { video: ${item}, frames: ${item} }` — won't work because
-    #          inner input must be the inner iterable, not a dict mixing both.
-    #     Sketch below assumes (b) — named loop variables.
-    - id: save-all
-      type: for-each
-      input: ${jobs.extract-frames-per-video.output}
-      do:
+      # Iterate over the video items and run the per-video sub-workflow
+      # once for each. Inside `do`, `${item}` refers to one list entry.
+      - id: process-videos
         type: for-each
-        input: ${video}   # the inner AsyncIterator[F] for this video
-        as: frame
+        input: ${jobs.list-videos.output}
+        do:
+          component: per-video-runner
+          input:
+            # Pass the video's `file://` URL so the sub-workflow can load
+            # it as a raw video stream, plus its relative path so frames
+            # can be grouped by source video in the output directory.
+            video_url: ${item.url}
+            video_path: ${item.path}
+        depends_on: [ list-videos ]
+
+  # Sub-workflow: takes a single video, extracts its frames as a stream,
+  # and writes each frame to a per-video subdirectory on disk. Mirrors
+  # the single-video example in ../video-to-frames/.
+  - id: process-one-video
+    title: Video → Frames → Local Files (per video)
+    private: true
+    jobs:
+      - id: extract-frames
+        component: frame-extractor
+        input:
+          # `;url` tells the renderer to fetch the string as a URL (here a
+          # `file://` URL from the file-store list) and hand the extractor
+          # a raw video stream.
+          video: ${input.video_url as video;url}
+          frame_interval: 30
+
+      - id: save-frames
+        type: for-each
+        input: ${jobs.extract-frames.output}
         do:
           component: storage
           input:
-            # Q5: where does the video name come from? `list-videos` yields a
-            #     dict with `path`, but here we only have the iterator the
-            #     extractor produced, not the original list item. Two designs:
-            #       a) pair extractor output with its input: extractor yields
-            #          tuples (video_meta, AsyncIterator[F]) — heavy
-            #       b) require user to pre-join: drive everything from
-            #          `list-videos` instead, calling extractor inside for-each
-            #     Sketch below uses (b) ⇒ this whole jobs[] section is wrong.
-            #     A reorganized version follows in jobs[].
-            path: ${video.path}/frame-${frame.timestamp}.png
-            source: ${frame.image as image/png}
-      depends_on: [ extract-frames-per-video ]
+            # Group frames by the source video's relative path so runs
+            # across multiple videos don't collide in the output tree.
+            path: ${input.video_path}/frame-${item.timestamp}.png
+            source: ${item.image as image/png}
+        depends_on: [ extract-frames ]
 
 components:
+  # Reads the input directory and lists matching video files.
   - id: source-store
     type: file-store
     driver: local
@@ -93,6 +78,18 @@ components:
       method: list
       pattern: "*.mov"
 
+  # Invokes the per-video sub-workflow from the top-level for-each.
+  - id: per-video-runner
+    type: workflow
+    action:
+      workflow: process-one-video
+      input:
+        video_url: ${input.video_url}
+        video_path: ${input.video_path}
+
+  # Extracts frames from a video using ffmpeg.
+  # `streaming: true` makes the action yield frames as they are decoded
+  # so the following for-each can save them incrementally.
   - id: frame-extractor
     type: video-frame-extractor
     driver: ffmpeg
@@ -101,6 +98,7 @@ components:
       frame_interval: ${input.frame_interval}
       streaming: true
 
+  # Writes a single file to the local output directory.
   - id: storage
     type: file-store
     driver: local

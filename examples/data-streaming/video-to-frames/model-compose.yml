@@ -28,7 +28,7 @@ workflow:
         input:
           path: frame-${item.timestamp}.png
           source: ${item.image as image/png}
-      # output: ${output as stream/json}
+      output: ${output as stream/json}
       depends_on: [ extract-frames ]
 
 components:

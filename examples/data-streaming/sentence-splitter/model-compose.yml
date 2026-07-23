@@ -1,0 +1,57 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: OpenAI Stream → Sentence Splitter
+  description: |
+    Call the OpenAI Chat Completions API with `stream: true`, then feed the
+    streaming token deltas into the sentence-splitter so downstream consumers
+    receive one complete sentence (or merged sentence chunk) at a time rather
+    than raw token fragments.
+  jobs:
+    - id: chat-stream
+      component: openai-chat
+      input:
+        prompt: ${input.prompt as text}
+        temperature: ${input.temperature as number | 0.7}
+
+    - id: split-sentences
+      component: splitter
+      input:
+        text: ${jobs.chat-stream.output}
+      output: ${output as stream/text}
+      depends_on: [ chat-stream ]
+
+components:
+  - id: openai-chat
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+        temperature: ${input.temperature}
+        stream: true
+      stream_format: json
+      output: ${response[].choices[0].delta.content}
+
+  - id: splitter
+    type: sentence-splitter
+    action:
+      text: ${input.text}
+      min_chunk_length: ${input.min_chunk_length as integer | 0}
+      max_chunk_length: ${input.max_chunk_length as integer}
+      streaming: true

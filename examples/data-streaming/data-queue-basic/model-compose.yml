@@ -1,0 +1,88 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Producer: call this workflow (via HTTP or the webui) to push one
+  # message into the shared queue. Each invocation appends one item.
+  # Pass `session` to route the item to an isolated sub-queue; omit it
+  # to publish into the default session.
+  - id: publish-message
+    title: Publish a message to the queue
+    description: |
+      Push a single message into the `messages` data-queue. Run this
+      workflow repeatedly (from the webui or via HTTP) while a
+      consumer is running to see items flow through. Use the same
+      `session` value on both sides to route items independently.
+    jobs:
+      - id: publish
+        component: messages
+        action: enqueue
+        input:
+          session: ${input.session}
+          text: ${input.text}
+
+  # Consumer: long-running workflow that drains the queue and writes
+  # each message to disk. Consumers with different `session` values
+  # read from independent sub-queues; consumers sharing a session
+  # split items work-queue style.
+  - id: consume-messages
+    title: Consume messages from the queue
+    description: |
+      Continuously read messages from the `messages` queue and save
+      each one to ./output/messages/. Runs until cancelled. Set
+      `session` to consume only that session's items.
+    jobs:
+      - id: subscribe
+        component: messages
+        action: dequeue
+        input:
+          session: ${input.session}
+
+      - id: save
+        type: for-each
+        input: ${jobs.subscribe.output}
+        do:
+          component: storage
+          input:
+            path: ${input.session | 'default'}/message-${item.text}.txt
+            source: ${item.text}
+        depends_on: [ subscribe ]
+
+components:
+  # Shared in-process queue. Because the component instance is cached
+  # by id across workflow invocations, `publish-message` and
+  # `consume-messages` see the same underlying queues.
+  #
+  # `session` on each action isolates items into independent
+  # sub-queues. Items published under session "A" are only visible to
+  # consumers subscribing to session "A". Omit `session` to use the
+  # shared default session.
+  - id: messages
+    type: data-queue
+    driver: memory
+    max_size: 100
+    actions:
+      - id: enqueue
+        method: publish
+        session: ${input.session}
+      - id: dequeue
+        method: consume
+        session: ${input.session}
+
+  # Writes each consumed message to a text file under
+  # ./output/messages/<session>/.
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./output/messages
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+    output: ${result.path}

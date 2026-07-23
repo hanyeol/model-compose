@@ -67,15 +67,6 @@ class WorkflowFlowRenderer:
             f'<a href="{viewer_url}" target="_blank" style="text-decoration: none;">🔍</a> <a href="{viewer_url}" target="_blank">Open in Mermaid Live Viewer</a>',
         ])
 
-    def _build_mermaid_viewer_url(self, diagram: str) -> str:
-        payload = json.dumps({
-            "code": diagram,
-            "mermaid": json.dumps({ "theme": "default" }),
-        })
-        compressed = zlib.compress(payload.encode("utf-8"), 9)
-        encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
-        return f"https://mermaid.live/view#pako:{encoded}"
-
     def _render_workflow_jobs(
         self,
         workflow_config: WorkflowConfig,
@@ -191,3 +182,12 @@ class WorkflowFlowRenderer:
             return []
 
         return [ action.workflow for action in config.actions if action.workflow in workflow_configs ]
+
+    def _build_mermaid_viewer_url(self, diagram: str) -> str:
+        contents = json.dumps({
+            "code": diagram,
+            "mermaid": json.dumps({ "theme": "default" }),
+        })
+        compressed = zlib.compress(contents.encode("utf-8"), 9)
+        encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
+        return f"https://mermaid.live/view#pako:{encoded}"

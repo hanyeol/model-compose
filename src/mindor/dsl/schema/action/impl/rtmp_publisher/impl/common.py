@@ -4,7 +4,7 @@ from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
 
 class CommonRtmpPublisherActionConfig(CommonActionConfig):
-    url: str = Field(..., description="RTMP endpoint URL, e.g. 'rtmp://a.rtmp.youtube.com/live2/${env.YOUTUBE_STREAM_KEY}'.")
+    url: Union[str, List[str]] = Field(..., description="RTMP endpoint URL(s). Pass a list to broadcast to multiple targets in parallel (bounded by 'batch_size').")
     video: Optional[Union[str, List[str]]] = Field(default=None, description="Existing video source(s) to publish. Mutually exclusive with 'frames'.")
     frames: Optional[Union[str, List[str]]] = Field(default=None, description="Frame sequence(s) to publish. Mutually exclusive with 'video'.")
     frame_rate: Optional[Union[int, str]] = Field(default=None, description="Frame rate for 'frames' input.")

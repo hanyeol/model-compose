@@ -22,6 +22,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         self,
         video: MediaSource,
         audio: Optional[MediaSource],
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -66,14 +67,15 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
 
         source_bytes = video.stream if video_path is None else None
 
-        logging.debug(f"Publishing video to RTMP: {params['url']}")
+        logging.debug(f"Publishing video to RTMP: {url}")
 
-        await self._publish(command, source_bytes, params, _cleanup, cancellation_token)
+        await self._publish(url, command, source_bytes, params, _cleanup, cancellation_token)
 
     async def _publish_from_frames(
         self,
         frames: List[PILImage.Image],
         audio: Optional[MediaSource],
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -110,13 +112,14 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                 await asyncio.to_thread(frame.save, buffer, "PNG")
                 yield buffer.getvalue()
 
-        logging.debug(f"Publishing {len(frames)} frames to RTMP: {params['url']}")
+        logging.debug(f"Publishing {len(frames)} frames to RTMP: {url}")
 
-        await self._publish(command, _frames_bytes(), params, _cleanup, cancellation_token)
+        await self._publish(url, command, _frames_bytes(), params, _cleanup, cancellation_token)
 
     async def _publish_audio_only(
         self,
         audio: MediaSource,
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -138,9 +141,9 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
 
         source_bytes = audio.stream if audio_path is None else None
 
-        logging.debug(f"Publishing audio-only to RTMP: {params['url']}")
+        logging.debug(f"Publishing audio-only to RTMP: {url}")
 
-        await self._publish(command, source_bytes, params, _cleanup, cancellation_token)
+        await self._publish(url, command, source_bytes, params, _cleanup, cancellation_token)
 
     def _resolve_encoding_options(self, params: Dict[str, Any], has_video: bool, has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}
@@ -173,6 +176,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
 
     async def _publish(
         self,
+        url: str,
         command: List[str],
         source: Optional[AsyncIterable[bytes]],
         params: Dict[str, Any],
@@ -180,7 +184,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         """Run ffmpeg to the RTMP endpoint. Blocks until the publish stream ends."""
-        command = command + [ "-f", params["format"], params["url"] ]
+        command = command + [ "-f", params["format"], url ]
 
         try:
             process, _, error = await run_subprocess(
@@ -195,7 +199,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         finally:
             cleanup()
 
-        logging.debug(f"RTMP publish completed: {params['url']}")
+        logging.debug(f"RTMP publish completed: {url}")
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
         """Return a filesystem path for `source`, spooling to a temp file if needed.

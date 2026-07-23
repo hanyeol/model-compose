@@ -23,34 +23,35 @@ class RtmpPublisherAction:
         self.config: RtmpPublisherActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        video, audio = await self._prepare_input(context)
+        video, audio, url = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
 
         # Unlike video_encoder, publishing has no return value,
         # so single vs. batch and streaming vs. non-streaming inputs collapse into
-        # the same sequential consume-and-publish loop.
-        async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
-            await self._process_batch(batch_videos, batch_audios, params, loop, context.cancellation_token)
+        # the same sequential consume-and-publish loop. batch_size controls the
+        # fan-out when multiple destination URLs are provided.
+        async for batch_videos, batch_audios, batch_urls in BatchSourceIterator((video, audio, url), batch_size=batch_size or 1):
+            await self._process_batch(batch_videos, batch_audios, batch_urls, params, loop, context.cancellation_token)
 
         return None
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, Any]:
         video  = await context.render_video(self.config.video) if self.config.video is not None else None
         frames = await context.render_image_array(self.config.frames) if self.config.frames is not None else None
         audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
+        url    = await context.render_variable(self.config.url)
 
         video = frames if frames is not None else video
 
-        return video, audio
+        return video, audio, url
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         encoding_config = self.config.encoding
         video_encoder = encoding_config.video if encoding_config else None
         audio_encoder = encoding_config.audio if encoding_config else None
 
-        url    = await context.render_variable(self.config.url)
         format = await context.render_variable(encoding_config.format) if encoding_config and encoding_config.format else _DEFAULT_FORMAT
 
         frame_rate    = await context.render_variable(self.config.frame_rate)   if self.config.frame_rate  is not None else None
@@ -62,7 +63,6 @@ class RtmpPublisherAction:
         fps           = await context.render_variable(video_encoder.fps)        if video_encoder and video_encoder.fps        else None
 
         return {
-            "url":           url,
             "format":        format,
             "frame_rate":    frame_rate,
             "video_codec":   video_codec,
@@ -77,25 +77,26 @@ class RtmpPublisherAction:
         self,
         videos: Optional[List[Any]],
         audios: Optional[List[MediaSource]],
+        urls: List[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        if videos is None:
-            await asyncio.gather(*[
-                self._process(None, audio, params, loop, cancellation_token) for audio in (audios or [])
-            ])
-            return
-
         await asyncio.gather(*[
-            self._process(video, audios[index] if audios is not None else None, params, loop, cancellation_token)
-            for index, video in enumerate(videos)
+            self._process(
+                videos[index] if videos is not None else None,
+                audios[index] if audios is not None else None,
+                urls[index],
+                params, loop, cancellation_token,
+            )
+            for index in range(len(urls))
         ])
 
     async def _process(
         self,
         video: Any,
         audio: Optional[MediaSource],
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -105,20 +106,21 @@ class RtmpPublisherAction:
             return
 
         if video is None:
-            await self._publish_audio_only(audio, params, loop, cancellation_token)
+            await self._publish_audio_only(audio, url, params, loop, cancellation_token)
             return
 
         if isinstance(video, ImageArrayValue):
-            await self._publish_from_frames(video.values, audio, params, loop, cancellation_token)
+            await self._publish_from_frames(video.values, audio, url, params, loop, cancellation_token)
             return
 
-        await self._publish_from_video(video, audio, params, loop, cancellation_token)
+        await self._publish_from_video(video, audio, url, params, loop, cancellation_token)
 
     @abstractmethod
     async def _publish_from_video(
         self,
         video: MediaSource,
         audio: Optional[MediaSource],
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -130,6 +132,7 @@ class RtmpPublisherAction:
         self,
         frames: List[PILImage.Image],
         audio: Optional[MediaSource],
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -140,6 +143,7 @@ class RtmpPublisherAction:
     async def _publish_audio_only(
         self,
         audio: MediaSource,
+        url: str,
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,

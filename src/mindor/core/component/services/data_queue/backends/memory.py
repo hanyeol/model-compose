@@ -12,7 +12,7 @@ from ..base import DataQueueService, DataQueueDriver, register_data_queue_servic
 from ..base import ComponentActionContext
 import asyncio
 
-DEFAULT_SESSION = "__default__"
+_DEFAULT_SESSION = "__default__"
 
 class MemoryDataQueueFullError(Exception):
     pass
@@ -61,18 +61,18 @@ class MemoryDataQueueService(DataQueueService):
         return MemoryDataQueueConsumeIterator(queue)
 
     async def _resolve_session(self, action: DataQueueActionConfig, context: ComponentActionContext) -> str:
-        if action.session is None:
-            return DEFAULT_SESSION
+        session = await context.render_variable(action.session) if action.session is not None else None
 
-        rendered = await context.render_variable(action.session)
-        if rendered is None or rendered == "":
-            return DEFAULT_SESSION
+        if session:
+            return _DEFAULT_SESSION
 
-        return str(rendered)
+        return str(session)
 
     def _get_or_create_queue(self, session: str) -> asyncio.Queue:
         queue = self._sessions.get(session)
+
         if queue is None:
             queue = asyncio.Queue(maxsize=self.config.max_size)
             self._sessions[session] = queue
+
         return queue

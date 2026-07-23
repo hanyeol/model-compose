@@ -28,8 +28,10 @@ ActionConfig = Union[
     RtmpPublisherActionConfig,
     AudioExtractorActionConfig,
     AudioProcessorActionConfig,
+    AudioPlaybackActionConfig,
     KeyValueStoreActionConfig,
     GraphStoreActionConfig,
     FileStoreActionConfig,
-    SearchEngineActionConfig
+    SearchEngineActionConfig,
+    DataQueueActionConfig
 ]

@@ -34,10 +34,12 @@ ComponentConfig = Annotated[
         AudioConverterComponentConfig,
         AudioProcessorComponentConfig,
         AudioFeatureExtractorComponentConfig,
+        AudioPlaybackComponentConfig,
         KeyValueStoreComponentConfig,
         GraphStoreComponentConfig,
         FileStoreComponentConfig,
-        SearchEngineComponentConfig
+        SearchEngineComponentConfig,
+        DataQueueComponentConfig
     ],
     Field(discriminator="type")
 ]

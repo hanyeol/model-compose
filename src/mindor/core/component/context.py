@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
-from mindor.core.foundation.variable.image import ImageValueRenderer
+from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
 from mindor.core.foundation.variable.audio import AudioValueRenderer
 from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.foundation.variable.media import MediaValueRenderer
@@ -13,7 +13,7 @@ from mindor.core.foundation.variable.text import TextValueRenderer
 from mindor.core.foundation.variable.size import SizeValueRenderer
 from mindor.core.foundation.variable.color import ColorValueRenderer, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
-from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue
+from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue, VectorArrayValue
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.gateway import find_gateway_by_port
@@ -90,7 +90,7 @@ class ComponentActionContext:
     async def render_image(self, value: Any) -> Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]:
         return await ImageValueRenderer().render(await self.render_variable(value))
 
-    async def render_image_array(self, value: Any) -> Union[List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]:
+    async def render_image_array(self, value: Any) -> Union[ImageArrayValue, List[ImageArrayValue], AsyncIterator[ImageArrayValue]]:
         return await ImageValueRenderer().render_array(await self.render_variable(value))
 
     async def render_audio(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
@@ -108,8 +108,8 @@ class ComponentActionContext:
     async def render_vector(self, value: Any) -> Union[VectorValue, List[VectorValue], AsyncIterator[VectorValue]]:
         return await VectorValueRenderer().render(await self.render_variable(value))
 
-    async def render_vector_list(self, value: Any) -> Union[List[VectorValue], AsyncIterator[List[VectorValue]]]:
-        return await VectorValueRenderer().render_list(await self.render_variable(value))
+    async def render_vector_array(self, value: Any) -> Union[VectorArrayValue, List[VectorArrayValue], AsyncIterator[VectorArrayValue]]:
+        return await VectorValueRenderer().render_array(await self.render_variable(value))
 
     async def render_array(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         return await ArrayValueRenderer().render(await self.render_variable(value))

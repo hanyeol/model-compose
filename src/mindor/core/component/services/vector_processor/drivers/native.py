@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorProcessorComponentConfig
 from mindor.dsl.schema.action import VectorProcessorActionConfig, SimilarityMetric, DistanceMetric, RankingMetric
-from mindor.core.foundation.variable.vector import VectorValue
+from mindor.core.foundation.variable.vector import VectorValue, VectorArrayValue
 from ..base import VectorProcessorService, VectorProcessorDriver, register_vector_processor_service
 from ..base import ComponentActionContext
 from .common import VectorProcessorAction
@@ -27,41 +27,19 @@ class NativeVectorProcessorAction(VectorProcessorAction):
 
         return [ float(np.dot(self._as_array(v), self._as_array(o))) for v, o in zip(vectors, others) ]
 
-    def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
-
-        results: List[Any] = []
-        for vector in vectors:
-            v = self._as_array(vector)
-            n = float(np.linalg.norm(v))
-            results.append((v / n if n > 0 else v).tolist())
-        return results
-
-    def _mean(self, batches: List[List[VectorValue]], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
-
-        axis = params["axis"]
-        return [ self._as_native(np.mean(self._as_matrix(vectors), axis=axis)) for vectors in batches ]
-
-    def _sum(self, batches: List[List[VectorValue]], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
-
-        axis = params["axis"]
-        return [ self._as_native(np.sum(self._as_matrix(vectors), axis=axis)) for vectors in batches ]
-
-    def _top_k(self, queries: List[VectorValue], candidates: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         import numpy as np
 
         k: int = params["k"]
         metric = params["metric"]
 
-        if not candidates:
-            return [ [] for _ in queries ]
-
-        vectors = self._as_array_list(candidates)
-
         results: List[Any] = []
-        for query in queries:
+        for query, candidate in zip(queries, candidates):
+            if not candidate.values:
+                results.append([])
+                continue
+
+            vectors = self._as_array_list(candidate.values)
             q = self._as_array(query)
             scores = self._score(q, vectors, metric)
             order = np.argsort(scores)
@@ -73,18 +51,18 @@ class NativeVectorProcessorAction(VectorProcessorAction):
 
         return results
 
-    def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         threshold: float = params["threshold"]
         metric = params["metric"]
-
-        if not candidates:
-            return [ [] for _ in queries ]
-
-        vectors = self._as_array_list(candidates)
         keep_higher = isinstance(metric, SimilarityMetric)
 
         results: List[Any] = []
-        for query in queries:
+        for query, candidate in zip(queries, candidates):
+            if not candidate.values:
+                results.append([])
+                continue
+
+            vectors = self._as_array_list(candidate.values)
             q = self._as_array(query)
             scores = self._score(q, vectors, metric)
 
@@ -95,6 +73,26 @@ class NativeVectorProcessorAction(VectorProcessorAction):
             results.append(matches)
 
         return results
+
+    def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+        import numpy as np
+
+        results: List[Any] = []
+        for vector in vectors:
+            v = self._as_array(vector)
+            n = float(np.linalg.norm(v))
+            results.append((v / n if n > 0 else v).tolist())
+        return results
+
+    def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        import numpy as np
+
+        return [ self._as_native(np.mean(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+
+    def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        import numpy as np
+
+        return [ self._as_native(np.sum(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
 
     @staticmethod
     def _as_array(value: VectorValue) -> np.ndarray:

@@ -9,6 +9,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.logger import logging
 from PIL import Image as PILImage
 from ..base import ComponentActionContext
@@ -29,37 +30,44 @@ class VideoEncoderAction:
         self.config: VideoEncoderActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+        (video, audio), is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
-        audio      = await context.render_audio(self.config.audio) if self.config.audio is not None else None
-        params     = await self._resolve_params(context)
 
-        if self.config.frames is not None:
-            source = await context.render_image_array(self.config.frames)
-        else:
-            source = await context.render_video(self.config.video)
+        params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(source, (list, StreamIterator, AsyncIterator)) and self.config.frames is None
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(source, (StreamIterator, AsyncIterator)):
+        if is_streaming_input:
             async def _stream_output_generator():
-                async for sources, audios in BatchSourceIterator((source, audio), batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(sources, audios, params, streaming, loop, context.cancellation_token)
+                async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_videos, batch_audios, params, streaming, loop, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
             return _stream_output_generator()
         else:
             results = []
-            async for sources, audios in BatchSourceIterator((source, audio), batch_size=batch_size or 1):
-                batch_results = await self._process_batch(sources, audios, params, streaming, loop, context.cancellation_token)
+            async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_videos, batch_audios, params, streaming, loop, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, Any], bool, bool]:
+        video  = await context.render_video(self.config.video) if self.config.video is not None else None
+        frames = await context.render_image_array(self.config.frames) if self.config.frames is not None else None
+        audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
+
+        video = frames if frames is not None else video
+
+        is_single_input = not isinstance(video, (list, StreamIterator, AsyncIterator)) and not isinstance(audio, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator)) or isinstance(audio, (StreamIterator, AsyncIterator))
+
+        return (video, audio), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         encoding_config = self.config.encoding
@@ -90,7 +98,7 @@ class VideoEncoderAction:
 
     async def _process_batch(
         self,
-        sources: List[Any],
+        videos: List[Any],
         audios: Optional[List[MediaSource]],
         params: Dict[str, Any],
         streaming: bool,
@@ -98,32 +106,32 @@ class VideoEncoderAction:
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[VideoStreamResource]]:
         return await asyncio.gather(*[
-            self._process(source, audios[index] if audios is not None else None, params, streaming, loop, cancellation_token)
-            for index, source in enumerate(sources)
+            self._process(video, audios[index] if audios is not None else None, params, streaming, loop, cancellation_token)
+            for index, video in enumerate(videos)
         ])
 
     async def _process(
         self,
-        source: Any,
+        video: Any,
         audio: Optional[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[VideoStreamResource]:
-        if source is None:
+        if video is None:
             logging.debug("Video encoder skipped because no input was provided.")
             return None
 
-        if isinstance(source, list):
-            return await self._encode_from_frames(source, audio, params, streaming, loop, cancellation_token)
+        if isinstance(video, ImageArrayValue):
+            return await self._encode_from_frames(video.values, audio, params, streaming, loop, cancellation_token)
 
-        return await self._encode_from_video(source, audio, params, streaming, loop, cancellation_token)
+        return await self._encode_from_video(video, audio, params, streaming, loop, cancellation_token)
 
     @abstractmethod
-    async def _encode_from_frames(
+    async def _encode_from_video(
         self,
-        frames: List[PILImage.Image],
+        video: MediaSource,
         audio: Optional[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
@@ -133,9 +141,9 @@ class VideoEncoderAction:
         pass
 
     @abstractmethod
-    async def _encode_from_video(
+    async def _encode_from_frames(
         self,
-        video: MediaSource,
+        frames: List[PILImage.Image],
         audio: Optional[MediaSource],
         params: Dict[str, Any],
         streaming: bool,

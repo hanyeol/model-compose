@@ -4,15 +4,16 @@ from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
 class VectorProcessorActionMethod(str, Enum):
-    # Similarity / distance (higher-is-closer vs lower-is-closer)
+    # Pairwise vector operations (vector, other)
     SIMILARITY        = "similarity"
     DISTANCE          = "distance"
+    DOT_PRODUCT       = "dot-product"
     # Ranking / filtering built on top of similarity or distance
     TOP_K             = "top-k"
     THRESHOLD_FILTER  = "threshold-filter"
-    # Pure vector operations
-    DOT_PRODUCT       = "dot-product"
+    # Unary vector operations (vector)
     NORMALIZE         = "normalize"
+    # Aggregation over a vector array (vectors)
     MEAN              = "mean"
     SUM               = "sum"
 

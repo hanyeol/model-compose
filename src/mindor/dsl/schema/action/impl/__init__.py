@@ -24,6 +24,7 @@ from .video_converter import *
 from .video_encoder import *
 from .video_frame_extractor import *
 from .screen_capture import *
+from .rtmp_publisher import *
 from .audio_extractor import *
 from .audio_converter import *
 from .audio_processor import *

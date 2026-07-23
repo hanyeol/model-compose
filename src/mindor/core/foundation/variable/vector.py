@@ -6,6 +6,10 @@ class VectorValue:
     def __init__(self, values: List[Union[float, int]]):
         self.values: List[Union[float, int]] = values
 
+class VectorArrayValue:
+    def __init__(self, values: List[VectorValue]):
+        self.values: List[VectorValue] = values
+
 class VectorValueRenderer:
     async def render(self, value: Any) -> Union[VectorValue, List[VectorValue], AsyncIterator[VectorValue]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
@@ -19,24 +23,26 @@ class VectorValueRenderer:
 
         return self._render_element(value)
 
-    async def render_list(self, value: Any) -> Union[List[VectorValue], AsyncIterator[List[VectorValue]]]:
+    async def render_array(self, value: Any) -> Union[VectorArrayValue, List[VectorArrayValue], AsyncIterator[VectorArrayValue]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
-                    yield self._render_element_list(chunk)
+                    yield self._render_element_array(chunk)
             return _iterate()
 
-        return self._render_element_list(value)
+        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):
+            return [ self._render_element_array(item) for item in value ]
 
-    def _render_element_list(self, value: Any) -> List[VectorValue]:
+        return self._render_element_array(value)
+
+    def _render_element_array(self, value: Any) -> VectorArrayValue:
+        if isinstance(value, VectorArrayValue):
+            return value
+
         if isinstance(value, (list, tuple)):
-            if not value:
-                return []
-            if isinstance(value[0], (list, tuple)):
-                return [ self._render_element(item) for item in value ]
-            return [ self._render_element(value) ]
+            return VectorArrayValue([ self._render_element(item) for item in value ])
 
-        return [ self._render_element(value) ]
+        raise TypeError(f"Cannot render element of type {type(value).__name__} as vector array")
 
     def _render_element(self, value: Any) -> VectorValue:
         if isinstance(value, VectorValue):

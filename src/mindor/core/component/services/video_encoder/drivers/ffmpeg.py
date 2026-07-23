@@ -26,58 +26,6 @@ _STREAMABLE_OUTPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegVideoEncoderAction(VideoEncoderAction):
-    async def _encode_from_frames(
-        self,
-        frames: List[PILImage.Image],
-        audio: Optional[MediaSource],
-        params: Dict[str, Any],
-        streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> VideoStreamResource:
-        format, frame_rate = params["format"], params["frame_rate"] or 30
-        audio_path, audio_spooled = (None, False)
-
-        if audio is not None:
-            audio_path, audio_spooled = await self._resolve_input_path(audio)
-
-        if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
-            logging.warning(f"Format '{format}' is not streamable; falling back to file output.")
-            streaming = False
-
-        command = [ "ffmpeg", "-hide_banner", "-y" ]
-        command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
-
-        if audio_path is not None:
-            command.extend([ "-i", audio_path ])
-            command.extend([ "-map", "0:v", "-map", "1:a" ])
-
-        for option, value in self._resolve_encoding_options(params, has_audio=audio_path is not None).items():
-            command.extend([ option, value ])
-
-        if audio_path is not None:
-            command.append("-shortest")
-
-        def _cleanup() -> None:
-            if audio_spooled and audio_path is not None:
-                try:
-                    os.remove(audio_path)
-                except FileNotFoundError:
-                    pass
-
-        async def _frames_bytes() -> AsyncIterator[bytes]:
-            for frame in frames:
-                buffer = io.BytesIO()
-                await asyncio.to_thread(frame.save, buffer, "PNG")
-                yield buffer.getvalue()
-
-        logging.debug(f"Encoding {len(frames)} frames to '{format}'")
-
-        if streaming:
-            return await self._encode_to_stream(command, _frames_bytes(), format, _cleanup, cancellation_token)
-
-        return await self._encode_to_file(command, _frames_bytes(), format, _cleanup, cancellation_token)
-
     async def _encode_from_video(
         self,
         video: MediaSource,
@@ -138,6 +86,58 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             return await self._encode_to_stream(command, source_bytes, format, _cleanup, cancellation_token)
 
         return await self._encode_to_file(command, source_bytes, format, _cleanup, cancellation_token)
+
+    async def _encode_from_frames(
+        self,
+        frames: List[PILImage.Image],
+        audio: Optional[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        loop: asyncio.AbstractEventLoop,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        format, frame_rate = params["format"], params["frame_rate"] or 30
+        audio_path, audio_spooled = (None, False)
+
+        if audio is not None:
+            audio_path, audio_spooled = await self._resolve_input_path(audio)
+
+        if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
+            logging.warning(f"Format '{format}' is not streamable; falling back to file output.")
+            streaming = False
+
+        command = [ "ffmpeg", "-hide_banner", "-y" ]
+        command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
+
+        if audio_path is not None:
+            command.extend([ "-i", audio_path ])
+            command.extend([ "-map", "0:v", "-map", "1:a" ])
+
+        for option, value in self._resolve_encoding_options(params, has_audio=audio_path is not None).items():
+            command.extend([ option, value ])
+
+        if audio_path is not None:
+            command.append("-shortest")
+
+        def _cleanup() -> None:
+            if audio_spooled and audio_path is not None:
+                try:
+                    os.remove(audio_path)
+                except FileNotFoundError:
+                    pass
+
+        async def _frames_bytes() -> AsyncIterator[bytes]:
+            for frame in frames:
+                buffer = io.BytesIO()
+                await asyncio.to_thread(frame.save, buffer, "PNG")
+                yield buffer.getvalue()
+
+        logging.debug(f"Encoding {len(frames)} frames to '{format}'")
+
+        if streaming:
+            return await self._encode_to_stream(command, _frames_bytes(), format, _cleanup, cancellation_token)
+
+        return await self._encode_to_file(command, _frames_bytes(), format, _cleanup, cancellation_token)
 
     def _resolve_encoding_options(self, params: Dict[str, Any], has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}

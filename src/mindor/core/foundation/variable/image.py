@@ -5,8 +5,12 @@ from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.iterators import StreamIterator
 from PIL import Image as PILImage
 
+class ImageArrayValue:
+    def __init__(self, values: List[PILImage.Image]):
+        self.values: List[PILImage.Image] = values
+
 class ImageValueRenderer:
-    async def render_array(self, value: Any) -> Optional[Union[List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]]:
+    async def render_array(self, value: Any) -> Optional[Union[ImageArrayValue, List[ImageArrayValue], AsyncIterator[ImageArrayValue]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
@@ -16,7 +20,7 @@ class ImageValueRenderer:
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
             return [ await self._render_element_array(item) for item in value ]
 
-        return [ await self._render_element_array(value) ]
+        return await self._render_element_array(value)
 
     async def render(self, value: Any) -> Optional[Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
@@ -30,9 +34,12 @@ class ImageValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element_array(self, value: Any) -> Optional[List[PILImage.Image]]:
+    async def _render_element_array(self, value: Any) -> Optional[ImageArrayValue]:
+        if isinstance(value, ImageArrayValue):
+            return value
+
         if isinstance(value, (list, tuple)):
-            return [ await self._render_element(item) for item in value ]
+            return ImageArrayValue([ await self._render_element(item) for item in value ])
 
         return None
 

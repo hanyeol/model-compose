@@ -7,6 +7,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageCompressStrategy
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 from PIL import Image as PILImage
@@ -197,16 +198,19 @@ class ImageProcessorAction:
 
     def _process_batch(
         self,
-        images: Union[List[PILImage.Image], List[List[PILImage.Image]]],
+        images: Union[List[PILImage.Image], List[ImageArrayValue]],
         method: ImageProcessorActionMethod,
         params: Dict[str, Any],
     ) -> List[Optional[PILImage.Image]]:
         return [ self._process(image, method, params) for image in images ]
 
-    def _process(self, image: Union[PILImage.Image, List[PILImage.Image]], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
-        if image is None or (isinstance(image, list) and not image):
+    def _process(self, image: Union[PILImage.Image, ImageArrayValue], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
+        if image is None or (isinstance(image, ImageArrayValue) and not image.values):
             logging.debug("Image processor (%s) skipped because no image was provided.", method)
             return None
+
+        if isinstance(image, ImageArrayValue):
+            image = image.values
 
         if method == ImageProcessorActionMethod.RESIZE:
             return self._resize(image, params)

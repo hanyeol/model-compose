@@ -100,25 +100,25 @@ class GradioWebUIBuilder:
                     with gr.Accordion("📄 Workflow Schema", open=False):
                         gr.Code(value=WorkflowSchemaRenderer().render(workflow), language="json", interactive=False)
                 with gr.Column():
-                    with gr.Accordion("🔀 Workflow Flow", open=False) as flow_graph_accordion:
+                    with gr.Accordion("🔀 Workflow Flow", open=False) as flow_diagram_accordion:
                         if workflow_config is not None:
                             # Defer mermaid injection until the accordion is expanded. On hidden
                             # tabs the markdown container has zero size at mount time, so mermaid's
                             # initial run produces nothing. Injecting on expand guarantees the
                             # container is visible when the diagram is first parsed.
-                            flow_graph_markdown = gr.Markdown(value="")
-                            flow_graph_value = WorkflowFlowRenderer().render(workflow_config, workflow_configs, component_configs)
-                            flow_graph_injected = gr.State(value=False)
+                            flow_diagram_markdown = gr.Markdown(value="")
+                            flow_diagram_value = WorkflowFlowRenderer().render(workflow_config, workflow_configs, component_configs)
+                            flow_diagram_injected = gr.State(value=False)
 
-                            def _inject_flow_graph(injected: bool):
+                            def _inject_flow_diagram(injected: bool):
                                 if injected:
                                     return gr.update(), True
-                                return gr.update(value=flow_graph_value), True
+                                return gr.update(value=flow_diagram_value), True
 
-                            flow_graph_accordion.expand(
-                                fn=_inject_flow_graph,
-                                inputs=[flow_graph_injected],
-                                outputs=[flow_graph_markdown, flow_graph_injected],
+                            flow_diagram_accordion.expand(
+                                fn=_inject_flow_diagram,
+                                inputs=[flow_diagram_injected],
+                                outputs=[flow_diagram_markdown, flow_diagram_injected],
                             )
                         else:
                             gr.Markdown(value="_Flow information unavailable._")

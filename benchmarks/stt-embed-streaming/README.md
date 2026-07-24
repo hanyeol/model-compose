@@ -1,4 +1,4 @@
-# audio-streaming-pipeline
+# stt-embed-streaming
 
 Three-stage pipeline where each stage can, in principle, produce partial output before the previous stage finishes. This is the shape where stream-native orchestration should win.
 
@@ -56,15 +56,15 @@ benchmarks/.venv/bin/pip install -e .   # model-compose in dev mode
 Prepare the audio (drop `test.mp3` into `data/`, then):
 
 ```bash
-benchmarks/.venv/bin/python benchmarks/audio-streaming-pipeline/data/fetch.py
+benchmarks/.venv/bin/python benchmarks/stt-embed-streaming/data/fetch.py
 ```
 
 Run one implementation through the harness:
 
 ```bash
 benchmarks/.venv/bin/python -m benchmarks.common.runner \
-  --impl benchmarks/audio-streaming-pipeline/langgraph \
-  --input benchmarks/audio-streaming-pipeline/data/sample.wav
+  --impl benchmarks/stt-embed-streaming/langgraph \
+  --input benchmarks/stt-embed-streaming/data/sample.wav
 ```
 
 Metrics land in `<impl>/results/summary-*.json` and per-100 ms samples in `<impl>/results/system-*.csv`.

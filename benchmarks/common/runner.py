@@ -1,8 +1,8 @@
 """Drive an implementation subprocess and measure it against scenario.md.
 
     python -m benchmarks.common.runner \\
-        --impl benchmarks/audio-streaming-pipeline/langgraph \\
-        --input benchmarks/audio-streaming-pipeline/data/sample.wav
+        --impl benchmarks/stt-embed-streaming/langgraph \\
+        --input benchmarks/stt-embed-streaming/data/sample.wav
 
 The runner:
   1. Reads the WAV in 100 ms chunks.

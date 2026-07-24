@@ -59,7 +59,7 @@ Raw 100 ms samples are written to `<impl>/results/system-*.csv`; aggregated numb
 
 | Name | Status | Focus |
 |---|---|---|
-| [audio-streaming-pipeline](./audio-streaming-pipeline/) | ready | 3-stage: STT → text splitter → embedding. Compares model-compose vs. LangGraph / LangChain / LlamaIndex. |
+| [stt-embed-streaming](./stt-embed-streaming/) | ready | 3-stage: STT → text splitter → embedding. Compares model-compose vs. LangGraph / LangChain / LlamaIndex. |
 
 ## Ground rules
 

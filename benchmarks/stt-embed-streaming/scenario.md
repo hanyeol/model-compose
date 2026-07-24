@@ -1,4 +1,4 @@
-# Scenario: audio-streaming-pipeline
+# Scenario: stt-embed-streaming
 
 Every implementation in this benchmark must satisfy this contract. If it doesn't, its numbers don't compare.
 

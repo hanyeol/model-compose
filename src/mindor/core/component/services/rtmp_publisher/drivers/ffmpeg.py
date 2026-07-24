@@ -158,11 +158,11 @@ class FFmpegRtmpSessionPublisher:
         # The first MediaSource takes stdin (`pipe:0`); any further one gets
         # its own inherited descriptor so both sides can stay live rather
         # than one being spooled first.
-        stream_input: Optional[MediaSource] = None
+        stdin_owner: Optional[MediaSource] = None
         fd_channels: List[SubprocessStreamChannel] = []
 
-        video_input, stream_input = self._resolve_input_source(video, stream_input, fd_channels)
-        audio_input, stream_input = self._resolve_input_source(audio, stream_input, fd_channels)
+        video_input, stdin_owner = self._resolve_input_source(video, stdin_owner, fd_channels)
+        audio_input, stdin_owner = self._resolve_input_source(audio, stdin_owner, fd_channels)
 
         command = self._build_normalize_command(video_input, audio_input, has_audio)
 
@@ -171,7 +171,7 @@ class FFmpegRtmpSessionPublisher:
 
             normalizer = await asyncio.create_subprocess_exec(
                 *command,
-                stdin=asyncio.subprocess.PIPE if stream_input is not None else None,
+                stdin=asyncio.subprocess.PIPE if stdin_owner is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 pass_fds=tuple(channel.read_fd for channel in fd_channels),
@@ -192,12 +192,12 @@ class FFmpegRtmpSessionPublisher:
                         logging.info("[normalizer] %s", message)
 
             stderr_task = asyncio.create_task(_handle_stderr())
-
             stdin_task: Optional[asyncio.Task] = None
-            if stream_input is not None:
+
+            if stdin_owner is not None:
                 async def _feed_stdin() -> None:
                     try:
-                        async for chunk in stream_input.stream:
+                        async for chunk in stdin_owner.stream:
                             try:
                                 normalizer.stdin.write(chunk)
                                 await normalizer.stdin.drain()
@@ -208,6 +208,7 @@ class FFmpegRtmpSessionPublisher:
                             normalizer.stdin.close()
                         except Exception:
                             pass
+
                 stdin_task = asyncio.create_task(_feed_stdin())
 
             try:
@@ -358,23 +359,23 @@ class FFmpegRtmpSessionPublisher:
     @staticmethod
     def _resolve_input_source(
         source: Optional[Union[MediaSource, str]],
-        stream_input: Optional[MediaSource],
+        stdin_owner: Optional[MediaSource],
         fd_channels: List[SubprocessStreamChannel],
     ) -> Tuple[Optional[str], Optional[MediaSource]]:
         """Assign one input to `pipe:0` or an inherited descriptor.
 
         The first MediaSource is claimed for stdin (`pipe:0`); any further
         one is fed over its own inherited fd, which is POSIX-only. Returns
-        the resolved ffmpeg input spec plus the updated `stream_input`
+        the resolved ffmpeg input spec plus the updated `stdin_owner`
         (unchanged when `source` was a file path or None).
         """
         if source is None:
-            return None, stream_input
+            return None, stdin_owner
 
         if isinstance(source, str):
-            return source, stream_input
+            return source, stdin_owner
 
-        if stream_input is None:
+        if stdin_owner is None:
             return "pipe:0", source
 
         if not _SUPPORTS_FD_INPUT:
@@ -386,7 +387,7 @@ class FFmpegRtmpSessionPublisher:
         channel = SubprocessStreamChannel(source.stream)
         fd_channels.append(channel)
 
-        return f"pipe:{channel.read_fd}", stream_input
+        return f"pipe:{channel.read_fd}", stdin_owner
 
     def _build_normalize_command(
         self,
@@ -544,23 +545,23 @@ class FFmpegRtmpSimplePublisher:
 
         # Same input plan as the session publisher: the first MediaSource
         # takes stdin, any further one rides an inherited descriptor.
-        stream_input: Optional[MediaSource] = None
+        stdin_owner: Optional[MediaSource] = None
         fd_channels: List[SubprocessStreamChannel] = []
 
         video_input: Optional[str] = None
         audio_input: Optional[str] = None
 
         if has_video:
-            video_input, stream_input = self._resolve_input_source(video, stream_input, fd_channels)
+            video_input, stdin_owner = self._resolve_input_source(video, stdin_owner, fd_channels)
 
         if has_audio:
-            audio_input, stream_input = self._resolve_input_source(audio, stream_input, fd_channels)
+            audio_input, stdin_owner = self._resolve_input_source(audio, stdin_owner, fd_channels)
 
         command = self._build_publish_command(video_input, video_attrs, audio_input, audio_attrs)
 
         logging.debug(f"Publishing to RTMP: {self.url}")
 
-        source: Optional[AsyncIterable[bytes]] = stream_input.stream if stream_input is not None else None
+        source: Optional[AsyncIterable[bytes]] = stdin_owner.stream if stdin_owner is not None else None
 
         async def _on_started() -> None:
             # ffmpeg owns the read ends now; each start() drops the parent's
@@ -617,20 +618,20 @@ class FFmpegRtmpSimplePublisher:
     @staticmethod
     def _resolve_input_source(
         source: Union[MediaSource, str],
-        stream_input: Optional[MediaSource],
+        stdin_owner: Optional[MediaSource],
         fd_channels: List[SubprocessStreamChannel],
     ) -> Tuple[str, Optional[MediaSource]]:
         """Assign one input to `pipe:0` or an inherited descriptor.
 
         The first MediaSource is claimed for stdin (`pipe:0`); any further
         one is fed over its own inherited fd, which is POSIX-only. Returns
-        the resolved ffmpeg input spec plus the updated `stream_input`
+        the resolved ffmpeg input spec plus the updated `stdin_owner`
         (unchanged when `source` was a file path).
         """
         if isinstance(source, str):
-            return source, stream_input
+            return source, stdin_owner
 
-        if stream_input is None:
+        if stdin_owner is None:
             return "pipe:0", source
 
         if not _SUPPORTS_FD_INPUT:
@@ -642,7 +643,7 @@ class FFmpegRtmpSimplePublisher:
         channel = SubprocessStreamChannel(source.stream)
         fd_channels.append(channel)
 
-        return f"pipe:{channel.read_fd}", stream_input
+        return f"pipe:{channel.read_fd}", stdin_owner
 
     def _build_publish_command(
         self,

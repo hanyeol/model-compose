@@ -1,11 +1,11 @@
-from typing import List, Union, Any
+from typing import List, Optional, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.video import create_video_source
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator
 
 class VideoValueRenderer:
-    async def render(self, value: Any) -> Union[MediaSource, List[MediaSource], AsyncIterator[MediaSource]]:
+    async def render(self, value: Any) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
@@ -17,5 +17,7 @@ class VideoValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element(self, value: Any) -> MediaSource:
-        return create_video_source(value)
+    async def _render_element(self, value: Any) -> Optional[MediaSource]:
+        if value is not None:
+            return create_video_source(value)
+        return None

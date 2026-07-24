@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, Any
+from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
-from PIL import Image as PILImage
 from ..base import ComponentActionContext
-import asyncio
+import asyncio, ulid
 
 # RTMP is virtually always flv-wrapped h264/aac.
 _DEFAULT_FORMAT: str = "flv"
@@ -23,29 +22,36 @@ class RtmpPublisherAction:
         self.config: RtmpPublisherActionConfig = config
 
     async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        video, audio, url = await self._prepare_input(context)
-        batch_size = await context.render_variable(self.config.batch_size)
+        video = await context.render_video(self.config.video) if self.config.video is not None else None
+        audio = await context.render_audio(self.config.audio) if self.config.audio is not None else None
+        url   = await context.render_variable(self.config.url)
 
         params = await self._resolve_params(context)
 
-        # Unlike video_encoder, publishing has no return value,
-        # so single vs. batch and streaming vs. non-streaming inputs collapse into
-        # the same sequential consume-and-publish loop. batch_size controls the
-        # fan-out when multiple destination URLs are provided.
-        async for batch_videos, batch_audios, batch_urls in BatchSourceIterator((video, audio, url), batch_size=batch_size or 1):
-            await self._process_batch(batch_videos, batch_audios, batch_urls, params, loop, context.cancellation_token)
+        # Iterable inputs (list or async iterator) mean "keep the RTMP
+        # session open across each item". A fresh ULID names the session
+        # so the driver can hold one long-lived ffmpeg process for this
+        # action's lifetime. Single-value inputs run as one-shot publishes:
+        # one ffmpeg process, no persistent session.
+        is_multiple_video = isinstance(video, (list, StreamIterator, AsyncIterator))
+        is_multiple_audio = isinstance(audio, (list, StreamIterator, AsyncIterator))
+
+        session = ulid.ulid() if is_multiple_video or is_multiple_audio else None
+
+        try:
+            async for videos, audios in BatchSourceIterator((video, audio), batch_size=1):
+                video = videos[0] if videos is not None else None
+                audio = audios[0] if audios is not None else None
+                await self._process(video, audio, url, session, params, loop, context.cancellation_token)
+        finally:
+            # The session's persistent publisher exists for the batch loop
+            # only. Tear it down when the loop ends (normal completion,
+            # cancellation, or exception) so we don't leak the ffmpeg
+            # process past the action's lifetime.
+            if session is not None:
+                await self._cleanup(session)
 
         return None
-
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, Any]:
-        video  = await context.render_video(self.config.video) if self.config.video is not None else None
-        frames = await context.render_image_array(self.config.frames) if self.config.frames is not None else None
-        audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
-        url    = await context.render_variable(self.config.url)
-
-        video = frames if frames is not None else video
-
-        return video, audio, url
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         encoding_config = self.config.encoding
@@ -54,7 +60,6 @@ class RtmpPublisherAction:
 
         format = await context.render_variable(encoding_config.format) if encoding_config and encoding_config.format else _DEFAULT_FORMAT
 
-        frame_rate    = await context.render_variable(self.config.frame_rate)   if self.config.frame_rate  is not None else None
         video_codec   = await context.render_variable(video_encoder.codec)      if video_encoder and video_encoder.codec      else _DEFAULT_VIDEO_CODEC
         video_bitrate = await context.render_variable(video_encoder.bitrate)    if video_encoder and video_encoder.bitrate    else None
         audio_codec   = await context.render_variable(audio_encoder.codec)      if audio_encoder and audio_encoder.codec      else _DEFAULT_AUDIO_CODEC
@@ -64,7 +69,6 @@ class RtmpPublisherAction:
 
         return {
             "format":        format,
-            "frame_rate":    frame_rate,
             "video_codec":   video_codec,
             "video_bitrate": video_bitrate,
             "audio_codec":   audio_codec,
@@ -73,30 +77,12 @@ class RtmpPublisherAction:
             "fps":           fps,
         }
 
-    async def _process_batch(
-        self,
-        videos: Optional[List[Any]],
-        audios: Optional[List[MediaSource]],
-        urls: List[str],
-        params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
-        await asyncio.gather(*[
-            self._process(
-                videos[index] if videos is not None else None,
-                audios[index] if audios is not None else None,
-                urls[index],
-                params, loop, cancellation_token,
-            )
-            for index in range(len(urls))
-        ])
-
     async def _process(
         self,
-        video: Any,
+        video: Optional[MediaSource],
         audio: Optional[MediaSource],
         url: str,
+        session: Optional[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -105,22 +91,15 @@ class RtmpPublisherAction:
             logging.debug("RTMP publisher skipped because no input was provided.")
             return
 
-        if video is None:
-            await self._publish_audio_only(audio, url, params, loop, cancellation_token)
-            return
-
-        if isinstance(video, ImageArrayValue):
-            await self._publish_from_frames(video.values, audio, url, params, loop, cancellation_token)
-            return
-
-        await self._publish_from_video(video, audio, url, params, loop, cancellation_token)
+        await self._publish(video, audio, url, session, params, loop, cancellation_token)
 
     @abstractmethod
-    async def _publish_from_video(
+    async def _publish(
         self,
-        video: MediaSource,
+        video: Optional[MediaSource],
         audio: Optional[MediaSource],
         url: str,
+        session: Optional[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -128,24 +107,6 @@ class RtmpPublisherAction:
         pass
 
     @abstractmethod
-    async def _publish_from_frames(
-        self,
-        frames: List[PILImage.Image],
-        audio: Optional[MediaSource],
-        url: str,
-        params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
-        pass
-
-    @abstractmethod
-    async def _publish_audio_only(
-        self,
-        audio: MediaSource,
-        url: str,
-        params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
+    async def _cleanup(self, session: str) -> None:
+        """Tear down the persistent RTMP session opened for `session`."""
         pass

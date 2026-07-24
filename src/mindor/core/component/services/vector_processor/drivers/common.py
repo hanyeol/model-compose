@@ -65,7 +65,7 @@ class VectorProcessorAction:
                 raise ValueError(f"'other' must be specified for '{method.value}' method")
 
             is_single_input = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
-            is_streaming_input    = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
 
             return (vector, other), is_single_input, is_streaming_input
 
@@ -80,7 +80,7 @@ class VectorProcessorAction:
                 raise ValueError(f"'candidates' must be specified for '{method.value}' method")
 
             is_single_input = isinstance(query, VectorValue) and isinstance(candidates, VectorArrayValue)
-            is_streaming_input    = isinstance(query, (StreamIterator, AsyncIterator)) or isinstance(candidates, (StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(query, (StreamIterator, AsyncIterator)) or isinstance(candidates, (StreamIterator, AsyncIterator))
 
             return (query, candidates), is_single_input, is_streaming_input
 
@@ -91,7 +91,7 @@ class VectorProcessorAction:
                 raise ValueError("'vector' must be specified for 'normalize' method")
 
             is_single_input = isinstance(vector, VectorValue)
-            is_streaming_input    = isinstance(vector, (StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(vector, (StreamIterator, AsyncIterator))
 
             return (vector,), is_single_input, is_streaming_input
 
@@ -102,7 +102,7 @@ class VectorProcessorAction:
                 raise ValueError(f"'vectors' must be specified for '{method.value}' method")
 
             is_single_input = isinstance(vectors, VectorArrayValue)
-            is_streaming_input    = isinstance(vectors, (StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(vectors, (StreamIterator, AsyncIterator))
 
             return (vectors,), is_single_input, is_streaming_input
 

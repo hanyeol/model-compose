@@ -36,6 +36,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format = params["format"]
+
         video_path, video_spooled = await self._resolve_input_path(video)
         audio_path, audio_spooled = (None, False)
 

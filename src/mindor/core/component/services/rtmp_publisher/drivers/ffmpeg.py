@@ -108,7 +108,7 @@ class FFmpegRtmpSessionPublisher:
 
     async def publish(
         self,
-        video_path: str,
+        video: Union[MediaSource, str],
         has_audio: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
@@ -119,17 +119,23 @@ class FFmpegRtmpSessionPublisher:
         same codec init this way, this process sees them as one continuous
         MPEG-TS — no per-video PSI reset, no continuity_counter jumps.
 
+        `video` may be either a file path (str) or a MediaSource whose stream
+        is piped into the normalizer's stdin.
+
         Videos are serialized per publisher (via _publish_lock) so their byte
         streams don't interleave on stdin.
         """
-        command = self._build_normalize_command(video_path, has_audio)
+        video_label = video if isinstance(video, str) else "<stream>"
+        input_kind  = "file" if isinstance(video, str) else "pipe:0"
+        command = self._build_normalize_command(video, has_audio)
 
         async with self._publish_lock:
-            logging.info("Publishing video %s to %s", os.path.basename(video_path), self.url)
+            logging.info("Publishing video %s (input=%s) to %s", os.path.basename(video_label), input_kind, self.url)
             logging.debug("Normalize command: %s", " ".join(command))
 
             normalizer = await asyncio.create_subprocess_exec(
                 *command,
+                stdin=asyncio.subprocess.PIPE if isinstance(video, MediaSource) else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -141,21 +147,38 @@ class FFmpegRtmpSessionPublisher:
                         return
                     message = line.decode("utf-8", errors="replace").rstrip()
                     if message:
-                        logging.info("[normalizer %s] %s", os.path.basename(video_path), message)
+                        logging.info("[normalizer %s] %s", os.path.basename(video_label), message)
 
             stderr_task = asyncio.create_task(_handle_stderr())
+
+            stdin_task: Optional[asyncio.Task] = None
+            if isinstance(video, MediaSource):
+                async def _feed_stdin() -> None:
+                    try:
+                        async for chunk in video.stream:
+                            try:
+                                normalizer.stdin.write(chunk)
+                                await normalizer.stdin.drain()
+                            except (BrokenPipeError, ConnectionResetError):
+                                break
+                    finally:
+                        try:
+                            normalizer.stdin.close()
+                        except Exception:
+                            pass
+                stdin_task = asyncio.create_task(_feed_stdin())
 
             bytes_written = 0
             try:
                 while True:
                     if cancellation_token is not None and cancellation_token.is_cancelled():
-                        logging.info("Publish cancelled while streaming %s", video_path)
+                        logging.info("Publish cancelled while streaming %s", video_label)
                         break
 
                     if not self.is_alive():
                         logging.warning(
                             "RTMP publisher for %s died (exit %s) while publishing %s",
-                            self.url, self._process.returncode, video_path,
+                            self.url, self._process.returncode, video_label,
                         )
                         break
 
@@ -179,6 +202,13 @@ class FFmpegRtmpSessionPublisher:
                         pass
                 await normalizer.wait()
 
+                if stdin_task is not None and not stdin_task.done():
+                    stdin_task.cancel()
+                    try:
+                        await stdin_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
                 if not stderr_task.done():
                     stderr_task.cancel()
                 try:
@@ -189,12 +219,12 @@ class FFmpegRtmpSessionPublisher:
                 if normalizer.returncode not in (0, -15):
                     logging.warning(
                         "Normalizer for %s exited with %d (%d bytes published); see [normalizer %s] log lines",
-                        video_path, normalizer.returncode, bytes_written,
-                        os.path.basename(video_path),
+                        video_label, normalizer.returncode, bytes_written,
+                        os.path.basename(video_label),
                     )
                 else:
                     logging.info(
-                        "Finished publishing %s to %s (%d bytes)", video_path, self.url, bytes_written,
+                        "Finished publishing %s to %s (%d bytes)", video_label, self.url, bytes_written,
                     )
 
     async def close(self) -> None:
@@ -291,8 +321,9 @@ class FFmpegRtmpSessionPublisher:
             self.url,
         ]
 
-    def _build_normalize_command(self, video_path: str, has_audio: bool) -> List[str]:
+    def _build_normalize_command(self, video: Union[MediaSource, str], has_audio: bool) -> List[str]:
         """Decode+transcode+mux a video into MPEG-TS on stdout."""
+        video_input = video if isinstance(video, str) else "pipe:0"
         width       = self._normalize_spec["width"]
         height      = self._normalize_spec["height"]
         fps         = self._normalize_spec["fps"]
@@ -321,7 +352,7 @@ class FFmpegRtmpSessionPublisher:
         if has_audio:
             command = [
                 "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                "-i", video_path,
+                "-i", video_input,
                 "-vf", vf,
                 "-af", af,
                 "-map", "0:v",
@@ -330,7 +361,7 @@ class FFmpegRtmpSessionPublisher:
         else:
             command = [
                 "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                "-i", video_path,
+                "-i", video_input,
                 "-f", "lavfi",
                 "-i", f"anullsrc=channel_layout={self._channel_layout(channels)}:sample_rate={sample_rate}",
                 "-vf", vf,
@@ -617,8 +648,12 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         video_path, spooled = await self._resolve_input_path(video)
 
         try:
-            has_audio_track = await self._probe_has_audio(video_path)
-            await publisher.publish(video_path, has_audio_track, cancellation_token)
+            has_audio_track = await self._probe_has_audio(video_path) if video_path is not None else False
+            await publisher.publish(
+                video_path if video_path is not None else video,
+                has_audio_track,
+                cancellation_token,
+            )
         finally:
             if spooled and video_path is not None:
                 try:

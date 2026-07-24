@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, Any
-from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
-import asyncio, ulid
+import asyncio
 
 # RTMP is virtually always flv-wrapped h264/aac.
 _DEFAULT_FORMAT: str = "flv"
@@ -28,28 +26,12 @@ class RtmpPublisherAction:
 
         params = await self._resolve_params(context)
 
-        # Iterable inputs (list or async iterator) mean "keep the RTMP
-        # session open across each item". A fresh ULID names the session
-        # so the driver can hold one long-lived ffmpeg process for this
-        # action's lifetime. Single-value inputs run as one-shot publishes:
-        # one ffmpeg process, no persistent session.
-        is_multiple_video = isinstance(video, (list, StreamIterator, AsyncIterator))
-        is_multiple_audio = isinstance(audio, (list, StreamIterator, AsyncIterator))
-
-        session = ulid.ulid() if is_multiple_video or is_multiple_audio else None
-
-        try:
-            async for videos, audios in BatchSourceIterator((video, audio), batch_size=1):
-                video = videos[0] if videos is not None else None
-                audio = audios[0] if audios is not None else None
-                await self._process(video, audio, url, session, params, loop, context.cancellation_token)
-        finally:
-            # The session's persistent publisher exists for the batch loop
-            # only. Tear it down when the loop ends (normal completion,
-            # cancellation, or exception) so we don't leak the ffmpeg
-            # process past the action's lifetime.
-            if session is not None:
-                await self._cleanup(session)
+        # Each item runs as its own publish so a peer-side disconnect
+        # (e.g. YouTube ending the stream) doesn't bleed into the next one.
+        async for videos, audios in BatchSourceIterator((video, audio), batch_size=1):
+            video = videos[0] if videos is not None else None
+            audio = audios[0] if audios is not None else None
+            await self._process(video, audio, url, params, loop, context.cancellation_token)
 
         return None
 
@@ -82,7 +64,6 @@ class RtmpPublisherAction:
         video: Optional[MediaSource],
         audio: Optional[MediaSource],
         url: str,
-        session: Optional[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
@@ -91,7 +72,7 @@ class RtmpPublisherAction:
             logging.debug("RTMP publisher skipped because no input was provided.")
             return
 
-        await self._publish(video, audio, url, session, params, loop, cancellation_token)
+        await self._publish(video, audio, url, params, loop, cancellation_token)
 
     @abstractmethod
     async def _publish(
@@ -99,14 +80,8 @@ class RtmpPublisherAction:
         video: Optional[MediaSource],
         audio: Optional[MediaSource],
         url: str,
-        session: Optional[str],
         params: Dict[str, Any],
         loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        pass
-
-    @abstractmethod
-    async def _cleanup(self, session: str) -> None:
-        """Tear down the persistent RTMP session opened for `session`."""
         pass

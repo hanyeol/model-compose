@@ -26,7 +26,7 @@ _STREAMABLE_INPUT_FORMATS: Set[str] = {
 # `pass_fds` and inherited pipe descriptors are POSIX-only; Windows can't
 # hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
 # the second live stream to a temp file so ffmpeg reads it as a file input.
-_SUPPORTS_FD_INPUT: bool = os.name != "nt"
+_SUPPORTS_FD_INPUT: bool = os.name == "posix"
 
 class FFmpegRtmpSessionPublisher:
     """A long-lived ffmpeg process that keeps one RTMP session open.
@@ -167,6 +167,7 @@ class FFmpegRtmpSessionPublisher:
         command = self._build_normalize_command(video_input, audio_input, has_audio)
 
         async with self._publish_lock:
+            logging.debug("Publishing to RTMP: %s", self.url)
             logging.debug("Normalize command: %s", " ".join(command))
 
             normalizer = await asyncio.create_subprocess_exec(
@@ -214,9 +215,14 @@ class FFmpegRtmpSessionPublisher:
             try:
                 while True:
                     if cancellation_token is not None and cancellation_token.is_cancelled():
+                        logging.info("RTMP publish cancelled for %s", self.url)
                         break
 
                     if not self.is_alive():
+                        logging.warning(
+                            "RTMP publisher for %s died (exit %s)",
+                            self.url, self._process.returncode,
+                        )
                         break
 
                     chunk = await normalizer.stdout.read(65536)
@@ -253,6 +259,13 @@ class FFmpegRtmpSessionPublisher:
                     await stderr_task
                 except (asyncio.CancelledError, Exception):
                     pass
+
+                if normalizer.returncode not in (0, -15):
+                    logging.warning(
+                        "Normalizer for %s exited with %d", self.url, normalizer.returncode,
+                    )
+                else:
+                    logging.debug("RTMP publish completed: %s", self.url)
 
     async def close(self) -> None:
         if self._process.stdin is not None and not self._process.stdin.is_closing():

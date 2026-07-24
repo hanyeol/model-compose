@@ -109,7 +109,8 @@ class FFmpegRtmpSessionPublisher:
     async def publish(
         self,
         video: Union[MediaSource, str],
-        has_audio: bool,
+        audio: Optional[Union[MediaSource, str]] = None,
+        has_audio: bool = False,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         """Normalize a video to standard MPEG-TS and stream its bytes into stdin.
@@ -120,22 +121,45 @@ class FFmpegRtmpSessionPublisher:
         MPEG-TS — no per-video PSI reset, no continuity_counter jumps.
 
         `video` may be either a file path (str) or a MediaSource whose stream
-        is piped into the normalizer's stdin.
+        is piped into the normalizer's stdin. `audio`, when given, is treated
+        as an override track (replacing the video's own audio). Because ffmpeg
+        only exposes one `pipe:0`, at most one of `video`/`audio` may be a
+        MediaSource; the caller is responsible for spooling the other side
+        to a file when both are streams.
+
+        `has_audio` is only consulted when `audio` is None — it tells the
+        normalizer whether the video already carries an audio track (mapped
+        as `0:a`) or if it should fall back to anullsrc silence.
 
         Videos are serialized per publisher (via _publish_lock) so their byte
         streams don't interleave on stdin.
         """
         video_label = video if isinstance(video, str) else "<stream>"
-        input_kind  = "file" if isinstance(video, str) else "pipe:0"
-        command = self._build_normalize_command(video, has_audio)
+        video_input_kind = "file" if isinstance(video, str) else "pipe:0"
+
+        stream_input: Optional[MediaSource] = None
+        if isinstance(video, MediaSource):
+            stream_input = video
+        elif isinstance(audio, MediaSource):
+            stream_input = audio
+
+        audio_label_bits: List[str] = []
+        if audio is not None:
+            audio_label_bits.append("file" if isinstance(audio, str) else "pipe:0")
+
+        command = self._build_normalize_command(video, audio, has_audio)
 
         async with self._publish_lock:
-            logging.info("Publishing video %s (input=%s) to %s", os.path.basename(video_label), input_kind, self.url)
+            audio_info = f", audio={audio_label_bits[0]}" if audio_label_bits else ""
+            logging.info(
+                "Publishing video %s (input=%s%s) to %s",
+                os.path.basename(video_label), video_input_kind, audio_info, self.url,
+            )
             logging.debug("Normalize command: %s", " ".join(command))
 
             normalizer = await asyncio.create_subprocess_exec(
                 *command,
-                stdin=asyncio.subprocess.PIPE if isinstance(video, MediaSource) else None,
+                stdin=asyncio.subprocess.PIPE if stream_input is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -152,10 +176,10 @@ class FFmpegRtmpSessionPublisher:
             stderr_task = asyncio.create_task(_handle_stderr())
 
             stdin_task: Optional[asyncio.Task] = None
-            if isinstance(video, MediaSource):
+            if stream_input is not None:
                 async def _feed_stdin() -> None:
                     try:
-                        async for chunk in video.stream:
+                        async for chunk in stream_input.stream:
                             try:
                                 normalizer.stdin.write(chunk)
                                 await normalizer.stdin.drain()
@@ -321,9 +345,25 @@ class FFmpegRtmpSessionPublisher:
             self.url,
         ]
 
-    def _build_normalize_command(self, video: Union[MediaSource, str], has_audio: bool) -> List[str]:
-        """Decode+transcode+mux a video into MPEG-TS on stdout."""
+    def _build_normalize_command(
+        self,
+        video: Union[MediaSource, str],
+        audio: Optional[Union[MediaSource, str]],
+        has_audio: bool,
+    ) -> List[str]:
+        """Decode+transcode+mux a video into MPEG-TS on stdout.
+
+        Audio source selection:
+        - `audio` provided → use it as the second input, replacing the video's
+          own audio track (`-map 0:v -map 1:a`).
+        - `audio` is None but `has_audio` → keep the video's built-in audio
+          track (`-map 0:v -map 0:a`).
+        - Neither → substitute anullsrc silence to keep the MPEG-TS audio
+          plane populated so `-re` pacing stays honest.
+        """
         video_input = video if isinstance(video, str) else "pipe:0"
+        audio_input = (audio if isinstance(audio, str) else "pipe:0") if audio is not None else None
+
         width       = self._normalize_spec["width"]
         height      = self._normalize_spec["height"]
         fps         = self._normalize_spec["fps"]
@@ -336,20 +376,24 @@ class FFmpegRtmpSessionPublisher:
         af = f"aresample={sample_rate}"
         gop = fps * 2
 
-        # Always emit an audio-bearing MPEG-TS regardless of whether the source
-        # video has an audio track. If it does, we normalize it; if it doesn't,
-        # we substitute anullsrc (infinite silence) as a second input. Without
-        # this, an audio-less video produces MPEG-TS with no audio packets and
-        # the publisher's `-re` clock keeps advancing wall time while the
-        # audio stream is stuck — YouTube sees a "backward in time" audio
-        # lag that never catches up.
         vf = (
             f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
             f"setsar=1,fps={fps}"
         )
 
-        if has_audio:
+        if audio_input is not None:
+            command = [
+                "ffmpeg", "-hide_banner", "-loglevel", "warning",
+                "-i", video_input,
+                "-i", audio_input,
+                "-vf", vf,
+                "-af", af,
+                "-map", "0:v",
+                "-map", "1:a",
+                "-shortest",
+            ]
+        elif has_audio:
             command = [
                 "ffmpeg", "-hide_banner", "-loglevel", "warning",
                 "-i", video_input,
@@ -645,19 +689,39 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
             return
 
         publisher = await self.session_manager.get_or_create(session, url, params)
-        video_path, spooled = await self._resolve_input_path(video)
+        video_path, video_spooled = await self._resolve_input_path(video)
+
+        audio_path, audio_spooled = (None, False)
+        if audio is not None:
+            audio_path, audio_spooled = await self._resolve_input_path(audio)
+
+            # ffmpeg only exposes one pipe:0. If both inputs would end up as
+            # streams, force-spool the audio side so the video keeps its
+            # pipe path.
+            if video_path is None and audio_path is None:
+                audio_path = await save_stream_to_temporary_file(audio.stream, audio.format)
+                audio_spooled = True
 
         try:
-            has_audio_track = await self._probe_has_audio(video_path) if video_path is not None else False
-            await publisher.publish(
-                video_path if video_path is not None else video,
-                has_audio_track,
-                cancellation_token,
-            )
+            has_audio_track = False
+            if audio is None and video_path is not None:
+                has_audio_track = await self._probe_has_audio(video_path)
+
+            video_arg: Union[MediaSource, str] = video_path if video_path is not None else video
+            audio_arg: Optional[Union[MediaSource, str]] = None
+            if audio is not None:
+                audio_arg = audio_path if audio_path is not None else audio
+
+            await publisher.publish(video_arg, audio_arg, has_audio_track, cancellation_token)
         finally:
-            if spooled and video_path is not None:
+            if video_spooled and video_path is not None:
                 try:
                     os.remove(video_path)
+                except FileNotFoundError:
+                    pass
+            if audio_spooled and audio_path is not None:
+                try:
+                    os.remove(audio_path)
                 except FileNotFoundError:
                     pass
 

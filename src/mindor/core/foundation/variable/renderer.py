@@ -1,11 +1,11 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, AsyncIterable
 from pydantic import BaseModel
 from ..streaming.resources import StreamResource
 from ..streaming.file import UploadFileStreamResource, FileStreamResource
 from ..streaming.base64 import Base64StreamResource, encode_value_to_base64
 from ..streaming.bytes import BytesStreamResource
-from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, StreamIterator
+from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, StreamIterator, StreamChunkIterator
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from ..streaming.video import VideoStreamResource
@@ -93,30 +93,44 @@ class VariableRenderer:
 
         return value
 
-    async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> List[Any]:
+    async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
         source = await self._render_element(entries["*"], scope, skip_decode)
 
         if source is None:
             return []
 
-        if not isinstance(source, (list, tuple)):
-            raise TypeError(f"Map source (`*`) must resolve to a list, got {type(source).__name__}")
-
         template = { key: value for key, value in entries.items() if key != "*" }
 
-        if not template:
-            return list(source)
+        if isinstance(source, (list, tuple)):
+            if not template:
+                return list(source)
 
-        values: List[Any] = []
+            values: List[Any] = []
 
-        for item in source:
-            self._item_stack.append(item)
-            try:
-                values.append(await self._render_dict(template, scope, skip_decode))
-            finally:
-                self._item_stack.pop()
+            for item in source:
+                self._item_stack.append(item)
+                try:
+                    values.append(await self._render_dict(template, scope, skip_decode))
+                finally:
+                    self._item_stack.pop()
 
-        return values
+            return values
+
+        if isinstance(source, (StreamIterator, AsyncIterable)):
+            if not template:
+                return source
+
+            async def _iterate() -> AsyncIterator[Any]:
+                async for item in source:
+                    self._item_stack.append(item)
+                    try:
+                        yield await self._render_dict(template, scope, skip_decode)
+                    finally:
+                        self._item_stack.pop()
+
+            return StreamChunkIterator(_iterate())
+
+        raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
 
     async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
         values = {}

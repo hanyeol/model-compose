@@ -81,9 +81,10 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                     pass
 
         logging.debug(
-            f"Converting video to '{format}' format "
-            f"({'path' if input_path else 'pipe'} input, "
-            f"{'stream' if is_streamable_output else 'file'} output)"
+            "Converting video to '%s' format (%s input, %s output)",
+            format,
+            "path" if input_path else "pipe",
+            "stream" if is_streamable_output else "file",
         )
 
         if is_streamable_output:
@@ -105,20 +106,48 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         command = command + [ "-movflags", "+faststart", "-y", output_path ]
 
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            source.stream if input_path is None else None,
+            stderr_handler=lambda r: r.read(),
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            process, _, error = await run_subprocess(
-                command,
-                source.stream if input_path is None else None,
-                stderr_handler=lambda r: r.read(),
-            )
+            process, _, error = await process_task
 
             if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace")
+                error_message = error.decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
+        except asyncio.CancelledError:
+            logging.info("Video conversion cancelled")
+            raise
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
-        logging.debug(f"Video conversion completed: '{output_path}'")
+        logging.debug("Video conversion completed: '%s'", output_path)
 
         return VideoStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
@@ -154,6 +183,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                 error.append(line)
 
         async def _stream() -> AsyncIterator[bytes]:
+            watcher_task: Optional[asyncio.Task] = None
             try:
                 async with stream_subprocess(
                     command,
@@ -161,6 +191,16 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
                 ) as (process, chunks, _):
+                    if cancellation_token is not None:
+                        async def _watch_cancellation() -> None:
+                            while not cancellation_token.is_cancelled():
+                                if process.returncode is not None:
+                                    return
+                                await asyncio.sleep(0.2)
+                            process.kill()
+
+                        watcher_task = asyncio.create_task(_watch_cancellation())
+
                     async for chunk in chunks:
                         yield chunk
 
@@ -168,6 +208,13 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                     error_message = b"".join(error).decode("utf-8", errors="replace")
                     raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
             finally:
+                if watcher_task is not None and not watcher_task.done():
+                    watcher_task.cancel()
+                    try:
+                        await watcher_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)

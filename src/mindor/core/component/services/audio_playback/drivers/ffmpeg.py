@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Optional, List, Set, Dict, Tuple, Any
 from collections.abc import AsyncIterable
 from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriver
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
@@ -14,6 +14,13 @@ from ..base import AudioPlaybackService, register_audio_playback_service
 from ..base import ComponentActionContext
 from .common import AudioPlaybackAction
 import asyncio, os, platform
+
+# Input container formats safe to feed through ffmpeg pipe:0. Other formats
+# (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
+# first so ffmpeg can seek for moov atoms, indexes, etc.
+_STREAMABLE_INPUT_FORMATS: Set[str] = {
+    "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
+}
 
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
     async def _play(
@@ -48,14 +55,14 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
                 except FileNotFoundError:
                     pass
 
-        source_bytes = audio.stream if audio_path is None else None
+        source = audio.stream if audio_path is None else None
 
-        logging.debug(f"Starting ffmpeg audio playback: {' '.join(command)}")
+        logging.debug("Starting ffmpeg audio playback: %s", " ".join(command))
 
         if params["blocking"]:
-            await self._run_blocking(command, source_bytes, _cleanup, cancellation_token)
+            await self._run_blocking(command, source, _cleanup, cancellation_token)
         else:
-            await self._run_detached(command, source_bytes, _cleanup)
+            await self._run_detached(command, source, _cleanup)
 
     def _build_audio_output_options(
         self,
@@ -92,17 +99,45 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         cleanup,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            source,
+            stderr_handler=lambda r: r.read(),
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            process, _, error = await run_subprocess(
-                command,
-                source,
-                stderr_handler=lambda r: r.read(),
-            )
+            process, _, error = await process_task
 
             if process.returncode != 0:
                 error_message = error.decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg audio playback failed (exit code {process.returncode}): {error_message}")
+        except asyncio.CancelledError:
+            logging.info("Audio playback cancelled")
+            raise
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
     async def _run_detached(
@@ -128,12 +163,22 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         asyncio.create_task(_wait_and_cleanup())
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """Return a filesystem path for `source`, spooling to a temp file if needed.
+        """
+        Decide how ffmpeg should read the input.
 
-        Returns (path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
         """
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
+
+        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before playback")
 
         spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
 

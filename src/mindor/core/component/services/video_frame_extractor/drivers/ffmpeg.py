@@ -73,7 +73,10 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         command.extend([ "-f", "image2pipe", "-vcodec", "png", "pipe:1" ])
 
-        logging.debug(f"Extracting frames with ffmpeg ({'path' if input_path else 'pipe'} input, streaming={streaming})")
+        logging.debug(
+            "Extracting frames with ffmpeg (%s input, streaming=%s)",
+            "path" if input_path else "pipe", streaming,
+        )
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -163,16 +166,34 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
             return timestamps, b"".join(error_lines)
 
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            video.stream if input_path is None else None,
+            stdout_handler=_handle_stdout,
+            stderr_handler=_handle_stderr,
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            process, images, (timestamps, error) = await run_subprocess(
-                command,
-                video.stream if input_path is None else None,
-                stdout_handler=_handle_stdout,
-                stderr_handler=_handle_stderr,
-            )
+            process, images, (timestamps, error) = await process_task
 
             if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace")
+                error_message = error.decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_message}")
 
             frames = []
@@ -184,7 +205,17 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 })
 
             return frames
+        except asyncio.CancelledError:
+            logging.info("Frame extraction cancelled")
+            raise
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
     async def _stream_frames(
@@ -239,6 +270,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             return b"".join(error_lines)
 
         frame_count = 0
+        watcher_task: Optional[asyncio.Task] = None
 
         try:
             async with stream_subprocess(
@@ -247,6 +279,16 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 stdout_handler=_handle_stdout,
                 stderr_handler=_handle_stderr,
             ) as (process, images, error):
+                if cancellation_token is not None:
+                    async def _watch_cancellation() -> None:
+                        while not cancellation_token.is_cancelled():
+                            if process.returncode is not None:
+                                return
+                            await asyncio.sleep(0.2)
+                        process.kill()
+
+                    watcher_task = asyncio.create_task(_watch_cancellation())
+
                 async for image in images:
                     timestamp = await timestamps.get()
                     yield {
@@ -262,6 +304,13 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 error_message = error.result().decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg frame extraction failed (exit code {process.returncode}): {error_message}")
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
     def _extract_frame_image(self, buffer: bytes) -> Tuple[Optional[PILImage.Image], bytes]:

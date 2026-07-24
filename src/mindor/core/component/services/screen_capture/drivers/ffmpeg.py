@@ -118,7 +118,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         command.append("pipe:1")
 
-        logging.debug(f"Starting ffmpeg video capture: {' '.join(command)}")
+        logging.debug("Starting ffmpeg video capture: %s", " ".join(command))
 
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -195,7 +195,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         command.extend([ "-f", self._audio_muxer(audio_format), "pipe:1" ])
 
-        logging.debug(f"Starting ffmpeg audio capture: {' '.join(command)}")
+        logging.debug("Starting ffmpeg audio capture: %s", " ".join(command))
 
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -357,7 +357,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         ffmpeg_command.extend([ "-f", self._audio_muxer(audio_format), "pipe:1" ])
 
-        logging.debug(f"Starting audiotee | ffmpeg pipeline for macOS system audio")
+        logging.debug("Starting audiotee | ffmpeg pipeline for macOS system audio")
 
         # asyncio's subprocess.PIPE hands back a StreamReader, which has no
         # fileno() and cannot be fed as another process's stdin. Build an

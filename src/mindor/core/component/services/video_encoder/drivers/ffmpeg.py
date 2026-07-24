@@ -9,6 +9,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -18,12 +19,24 @@ from ..base import ComponentActionContext
 from .common import VideoEncoderAction
 import asyncio, io, os
 
+# Input container formats safe to feed through ffmpeg pipe:0. Other formats
+# (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
+# first so ffmpeg can seek for moov atoms, indexes, etc.
+_STREAMABLE_INPUT_FORMATS: Set[str] = {
+    "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
+}
+
 # Output container formats that can be written to ffmpeg's stdout (no post-write seek).
 # Others (mp4/mov/mkv/avi/...) need a real file path with seeking — typically for moov atom
 # placement, index tables, +faststart, etc.
 _STREAMABLE_OUTPUT_FORMATS: Set[str] = {
     "mpegts", "ts", "flv", "ogg", "webm",
 }
+
+# `pass_fds` and inherited pipe descriptors are POSIX-only; Windows can't
+# hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
+# the second live stream to a temp file so ffmpeg reads it as a file input.
+_SUPPORTS_FD_INPUT: bool = os.name == "posix"
 
 class FFmpegVideoEncoderAction(VideoEncoderAction):
     async def _encode_from_video(
@@ -37,15 +50,30 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
     ) -> VideoStreamResource:
         format = params["format"]
 
-        video_path, video_spooled = await self._resolve_input_path(video)
-        audio_path, audio_spooled = (None, False)
-
         if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
-            logging.warning(f"Format '{format}' is not streamable; falling back to file output.")
+            logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        if audio is not None:
-            audio_path, audio_spooled = await self._resolve_input_path(audio)
+        video_path, video_spooled = await self._resolve_input_path(video)
+        audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+
+        # On Windows only `pipe:0` is available. If both sides would end up as
+        # live streams, force-spool the audio side so the video keeps its pipe path.
+        if not _SUPPORTS_FD_INPUT and audio is not None:
+            if video_path is None and audio_path is None:
+                audio_path = await save_stream_to_temporary_file(audio.stream, audio.format)
+                audio_spooled = True
+
+        # The first live stream takes stdin (`pipe:0`); any further one rides an
+        # inherited descriptor (POSIX-only). File paths are resolved to themselves.
+        stdin_owner: Optional[MediaSource] = None
+        fd_channels: List[SubprocessStreamChannel] = []
+
+        video_input, stdin_owner = self._resolve_input_source(video, video_path, stdin_owner, fd_channels)
+        audio_input, stdin_owner = (
+            self._resolve_input_source(audio, audio_path, stdin_owner, fd_channels)
+            if audio is not None else (None, stdin_owner)
+        )
 
         command = [ "ffmpeg", "-hide_banner", "-y" ]
 
@@ -55,16 +83,16 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video.attrs.get("fps"):
             command.extend([ "-r", str(video.attrs["fps"]) ])
 
-        command.extend([ "-i", video_path if video_path is not None else "pipe:0" ])
+        command.extend([ "-i", video_input ])
 
-        if audio_path is not None:
-            command.extend([ "-i", audio_path ])
+        if audio_input is not None:
+            command.extend([ "-i", audio_input ])
             command.extend([ "-map", "0:v", "-map", "1:a" ])
 
-        for option, value in self._resolve_encoding_options(params, has_audio=audio_path is not None).items():
+        for option, value in self._resolve_encoding_options(params, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
 
-        if audio_path is not None:
+        if audio_input is not None:
             command.append("-shortest")
 
         def _cleanup() -> None:
@@ -79,14 +107,14 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 except FileNotFoundError:
                     pass
 
-        source_bytes = video.stream if video_path is None else None
+        source = stdin_owner.stream if stdin_owner is not None else None
 
-        logging.debug(f"Encoding video to '{format}'")
+        logging.debug("Encoding video to '%s'", format)
 
         if streaming:
-            return await self._encode_to_stream(command, source_bytes, format, _cleanup, cancellation_token)
+            return await self._encode_to_stream(command, source, fd_channels, format, _cleanup, cancellation_token)
 
-        return await self._encode_to_file(command, source_bytes, format, _cleanup, cancellation_token)
+        return await self._encode_to_file(command, source, fd_channels, format, _cleanup, cancellation_token)
 
     async def _encode_from_frames(
         self,
@@ -98,26 +126,41 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format, frame_rate = params["format"], params["frame_rate"] or 30
-        audio_path, audio_spooled = (None, False)
-
-        if audio is not None:
-            audio_path, audio_spooled = await self._resolve_input_path(audio)
 
         if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
-            logging.warning(f"Format '{format}' is not streamable; falling back to file output.")
+            logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
+
+        audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+
+        # `image2pipe` already claims stdin. If audio remains a live stream, it
+        # needs an inherited descriptor — POSIX-only. Force-spool on Windows.
+        if not _SUPPORTS_FD_INPUT and audio is not None and audio_path is None:
+            audio_path = await save_stream_to_temporary_file(audio.stream, audio.format)
+            audio_spooled = True
+
+        fd_channels: List[SubprocessStreamChannel] = []
+        audio_input: Optional[str] = None
+
+        if audio is not None:
+            if audio_path is not None:
+                audio_input = audio_path
+            else:
+                channel = SubprocessStreamChannel(audio.stream)
+                fd_channels.append(channel)
+                audio_input = f"pipe:{channel.read_fd}"
 
         command = [ "ffmpeg", "-hide_banner", "-y" ]
         command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
 
-        if audio_path is not None:
-            command.extend([ "-i", audio_path ])
+        if audio_input is not None:
+            command.extend([ "-i", audio_input ])
             command.extend([ "-map", "0:v", "-map", "1:a" ])
 
-        for option, value in self._resolve_encoding_options(params, has_audio=audio_path is not None).items():
+        for option, value in self._resolve_encoding_options(params, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
 
-        if audio_path is not None:
+        if audio_input is not None:
             command.append("-shortest")
 
         def _cleanup() -> None:
@@ -133,12 +176,65 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 await asyncio.to_thread(frame.save, buffer, "PNG")
                 yield buffer.getvalue()
 
-        logging.debug(f"Encoding {len(frames)} frames to '{format}'")
+        logging.debug("Encoding %d frames to '%s'", len(frames), format)
 
         if streaming:
-            return await self._encode_to_stream(command, _frames_bytes(), format, _cleanup, cancellation_token)
+            return await self._encode_to_stream(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
 
-        return await self._encode_to_file(command, _frames_bytes(), format, _cleanup, cancellation_token)
+        return await self._encode_to_file(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
+
+    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before encoding")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
+
+    @staticmethod
+    def _resolve_input_source(
+        media: MediaSource,
+        media_path: Optional[str],
+        stdin_owner: Optional[MediaSource],
+        fd_channels: List[SubprocessStreamChannel],
+    ) -> Tuple[str, Optional[MediaSource]]:
+        """Assign one input to a file path, `pipe:0`, or an inherited descriptor.
+
+        `media_path` is the result of `_resolve_input_path` — a real path if the
+        source was spooled or already on disk, or None if it should be fed as a
+        live stream. Live streams take stdin (`pipe:0`) first; any further one
+        rides an inherited fd, which is POSIX-only.
+        """
+        if media_path is not None:
+            return media_path, stdin_owner
+
+        if stdin_owner is None:
+            return "pipe:0", media
+
+        if not _SUPPORTS_FD_INPUT:
+            raise RuntimeError(
+                "Multiple live streams are not supported on this platform; "
+                "spool one input to a file before encoding."
+            )
+
+        channel = SubprocessStreamChannel(media.stream)
+        fd_channels.append(channel)
+
+        return f"pipe:{channel.read_fd}", stdin_owner
 
     def _resolve_encoding_options(self, params: Dict[str, Any], has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}
@@ -172,6 +268,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         self,
         command: List[str],
         source: Optional[AsyncIterable[bytes]],
+        fd_channels: List[SubprocessStreamChannel],
         format: str,
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
@@ -181,20 +278,59 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         command = command + [ "-movflags", "+faststart", output_path ]
 
+        async def _on_started() -> None:
+            # ffmpeg owns the read ends now; each start() drops the parent's
+            # copy so ffmpeg can see EOF, then begins pumping the source.
+            for channel in fd_channels:
+                await channel.start()
+
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            source,
+            stderr_handler=lambda r: r.read(),
+            pass_fds=tuple(channel.read_fd for channel in fd_channels),
+            on_started=_on_started,
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            process, _, error = await run_subprocess(
-                command,
-                source,
-                stderr_handler=lambda r: r.read(),
-            )
+            process, _, error = await process_task
 
             if process.returncode != 0:
                 error_message = error.decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg video encoding failed (exit code {process.returncode}): {error_message}")
+        except asyncio.CancelledError:
+            logging.info("Video encoding cancelled")
+            raise
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            for channel in fd_channels:
+                await channel.close()
+
             cleanup()
 
-        logging.debug(f"Video encoding completed: '{output_path}'")
+        logging.debug("Video encoding completed: '%s'", output_path)
 
         return VideoStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
@@ -202,6 +338,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         self,
         command: List[str],
         source: Optional[AsyncIterable[bytes]],
+        fd_channels: List[SubprocessStreamChannel],
         format: str,
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
@@ -228,14 +365,33 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
                 error.append(line)
 
+        async def _on_started() -> None:
+            # ffmpeg owns the read ends now; each start() drops the parent's
+            # copy so ffmpeg can see EOF, then begins pumping the source.
+            for channel in fd_channels:
+                await channel.start()
+
         async def _stream() -> AsyncIterator[bytes]:
+            watcher_task: Optional[asyncio.Task] = None
             try:
                 async with stream_subprocess(
                     command,
                     source=source,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
+                    pass_fds=tuple(channel.read_fd for channel in fd_channels),
+                    on_started=_on_started,
                 ) as (process, chunks, _):
+                    if cancellation_token is not None:
+                        async def _watch_cancellation() -> None:
+                            while not cancellation_token.is_cancelled():
+                                if process.returncode is not None:
+                                    return
+                                await asyncio.sleep(0.2)
+                            process.kill()
+
+                        watcher_task = asyncio.create_task(_watch_cancellation())
+
                     async for chunk in chunks:
                         yield chunk
 
@@ -243,21 +399,19 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                     error_message = b"".join(error).decode("utf-8", errors="replace")
                     raise RuntimeError(f"ffmpeg video encoding failed (exit code {process.returncode}): {error_message}")
             finally:
+                if watcher_task is not None and not watcher_task.done():
+                    watcher_task.cancel()
+                    try:
+                        await watcher_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+                for channel in fd_channels:
+                    await channel.close()
+
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """Return a filesystem path for `source`, spooling to a temp file if needed.
-
-        Returns (path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
 @register_video_encoder_service(VideoEncoderDriver.FFMPEG)
 class FFmpegVideoEncoderService(VideoEncoderService):

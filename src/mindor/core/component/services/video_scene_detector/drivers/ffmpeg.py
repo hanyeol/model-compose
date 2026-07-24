@@ -44,7 +44,10 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         command.extend([ "-vf", f"select='gt(scene,{threshold})',showinfo" ])
         command.extend([ "-f", "null", "-" ])
 
-        logging.debug(f"Detecting scenes with ffmpeg (threshold={threshold}, streaming={streaming})")
+        logging.debug(
+            "Detecting scenes with ffmpeg (threshold=%s, streaming=%s)",
+            threshold, streaming,
+        )
 
         def _cleanup() -> None:
             if spooled:
@@ -89,14 +92,32 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
             return timestamps, b"".join(error_lines)
 
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            stderr_handler=_handle_stderr,
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            process, _, (timestamps, error) = await run_subprocess(
-                command,
-                stderr_handler=_handle_stderr,
-            )
+            process, _, (timestamps, error) = await process_task
 
             if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace")
+                error_message = error.decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_message}")
 
             scenes: List[Dict[str, Any]] = []
@@ -115,7 +136,17 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 })
 
             return scenes
+        except asyncio.CancelledError:
+            logging.info("Scene detection cancelled")
+            raise
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
     async def _stream_scenes(
@@ -149,11 +180,23 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
             return b"".join(error_lines)
 
+        watcher_task: Optional[asyncio.Task] = None
+
         try:
             async with stream_subprocess(
                 command,
                 stderr_handler=_handle_stderr,
             ) as (process, _, error):
+                if cancellation_token is not None:
+                    async def _watch_cancellation() -> None:
+                        while not cancellation_token.is_cancelled():
+                            if process.returncode is not None:
+                                return
+                            await asyncio.sleep(0.2)
+                        process.kill()
+
+                    watcher_task = asyncio.create_task(_watch_cancellation())
+
                 index = 0
                 prev_boundary = 0.0
 
@@ -180,6 +223,13 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 error_message = error.result().decode("utf-8", errors="replace") if error else ""
                 raise RuntimeError(f"ffmpeg scene detection failed (exit code {process.returncode}): {error_message}")
         finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
             cleanup()
 
     async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:

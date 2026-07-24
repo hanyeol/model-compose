@@ -26,22 +26,48 @@ class SubprocessPipeChannel:
         self._writer: IO[bytes] = os.fdopen(response_fd, "wb", buffering=0)
         self._closed = False
 
+    def __enter__(self) -> "SubprocessPipeChannel":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
     def send(self, message: bytes) -> None:
         if self._closed:
             raise RuntimeError("SubprocessPipeChannel is closed")
+
         self._writer.write(message)
 
     def recv(self) -> Optional[bytes]:
         if self._closed:
             return None
+
         prefix = self._read_exactly(_FRAME_PREFIX_SIZE)
         if prefix is None:
             return None
+
         header_length, binary_length = _FRAME_PREFIX.unpack(prefix)
         body = self._read_exactly(header_length + binary_length)
+
         if body is None:
             return None
+
         return prefix + body
+
+    def close(self) -> None:
+        if self._closed:
+            return
+
+        self._closed = True
+
+        try:
+            self._reader.close()
+        except Exception:
+            pass
+        try:
+            self._writer.close()
+        except Exception:
+            pass
 
     def _read_exactly(self, length: int) -> Optional[bytes]:
         buffer = bytearray()
@@ -55,22 +81,3 @@ class SubprocessPipeChannel:
             buffer.extend(chunk)
 
         return bytes(buffer)
-
-    def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        try:
-            self._reader.close()
-        except Exception:
-            pass
-        try:
-            self._writer.close()
-        except Exception:
-            pass
-
-    def __enter__(self) -> "SubprocessPipeChannel":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        self.close()

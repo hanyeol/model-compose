@@ -25,25 +25,32 @@ class UnixSocketChannel:
     def connect(cls, path: str) -> "UnixSocketChannel":
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(path)
+
         return cls(sock)
 
     def send(self, message: bytes) -> None:
         if self._closed:
             raise RuntimeError("UnixSocketChannel is closed")
+
         self._writer.write(message + b"\n")
 
     def recv(self) -> Optional[bytes]:
         if self._closed:
             return None
+
         line = self._reader.readline()
+
         if not line:
             return None
+
         return line.rstrip(b"\n")
 
     def close(self) -> None:
         if self._closed:
             return
+
         self._closed = True
+
         for resource in (self._reader, self._writer, self._sock):
             try:
                 resource.close()
@@ -89,7 +96,9 @@ class UnixSocketListener:
     def close(self) -> None:
         if self._closed:
             return
+
         self._closed = True
+
         if self._sock is not None:
             try:
                 self._sock.close()

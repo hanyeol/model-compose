@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_command, run_subprocess, kill_process
 from mindor.core.logger import logging
 from ..base import RtmpPublisherService, register_rtmp_publisher_service
@@ -21,6 +22,11 @@ import asyncio, os
 _STREAMABLE_INPUT_FORMATS: Set[str] = {
     "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
+
+# `pass_fds` and inherited pipe descriptors are POSIX-only; Windows can't
+# hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
+# the second live stream to a temp file so ffmpeg reads it as a file input.
+_SUPPORTS_FD_INPUT: bool = os.name != "nt"
 
 class FFmpegRtmpSessionPublisher:
     """A long-lived ffmpeg process that keeps one RTMP session open.
@@ -121,11 +127,12 @@ class FFmpegRtmpSessionPublisher:
         no per-input PSI reset, no continuity_counter jumps.
 
         `video` may be a file path (str), a MediaSource whose stream is piped
-        into the normalizer's stdin, or `None` for audio-only sessions.
-        `audio`, when given, replaces the video's own audio track. Because
-        ffmpeg only exposes one `pipe:0`, at most one of `video`/`audio` may
-        be a MediaSource; the caller must spool the other side to a file when
-        both are streams.
+        into the normalizer, or `None` for audio-only sessions. `audio`, when
+        given, replaces the video's own audio track. On POSIX both sides may
+        be MediaSources: the first one claims stdin (`pipe:0`) and the second
+        rides an inherited descriptor (`pipe:<fd>`) so neither is spooled to
+        a temp file. On Windows only one may be a stream — the caller must
+        spool the other side to a file first.
 
         `has_audio` is only consulted for mixed sessions when `audio` is
         None — it tells the normalizer whether the video already carries an
@@ -148,29 +155,18 @@ class FFmpegRtmpSessionPublisher:
         if self.audio_only and audio is None:
             raise ValueError("Audio-only session requires an audio input.")
 
-        primary = audio if self.audio_only else video
-        primary_label = primary if isinstance(primary, str) else "<stream>"
-        primary_input_kind = "file" if isinstance(primary, str) else "pipe:0"
-
+        # The first MediaSource takes stdin (`pipe:0`); any further one gets
+        # its own inherited descriptor so both sides can stay live rather
+        # than one being spooled first.
         stream_input: Optional[MediaSource] = None
-        if isinstance(video, MediaSource):
-            stream_input = video
-        elif isinstance(audio, MediaSource):
-            stream_input = audio
+        fd_channels: List[SubprocessStreamChannel] = []
 
-        audio_label_bits: List[str] = []
-        if not self.audio_only and audio is not None:
-            audio_label_bits.append("file" if isinstance(audio, str) else "pipe:0")
+        video_input, stream_input = self._resolve_input_source(video, stream_input, fd_channels)
+        audio_input, stream_input = self._resolve_input_source(audio, stream_input, fd_channels)
 
-        command = self._build_normalize_command(video, audio, has_audio)
+        command = self._build_normalize_command(video_input, audio_input, has_audio)
 
         async with self._publish_lock:
-            audio_info = f", audio={audio_label_bits[0]}" if audio_label_bits else ""
-            logging.info(
-                "Publishing %s %s (input=%s%s) to %s",
-                "audio" if self.audio_only else "video",
-                os.path.basename(primary_label), primary_input_kind, audio_info, self.url,
-            )
             logging.debug("Normalize command: %s", " ".join(command))
 
             normalizer = await asyncio.create_subprocess_exec(
@@ -178,7 +174,13 @@ class FFmpegRtmpSessionPublisher:
                 stdin=asyncio.subprocess.PIPE if stream_input is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                pass_fds=tuple(channel.read_fd for channel in fd_channels),
             )
+
+            # ffmpeg owns the read ends now; each start() drops the parent's
+            # copy so ffmpeg can see EOF, then begins pumping the source.
+            for channel in fd_channels:
+                await channel.start()
 
             async def _handle_stderr() -> None:
                 while True:
@@ -187,7 +189,7 @@ class FFmpegRtmpSessionPublisher:
                         return
                     message = line.decode("utf-8", errors="replace").rstrip()
                     if message:
-                        logging.info("[normalizer %s] %s", os.path.basename(primary_label), message)
+                        logging.info("[normalizer] %s", message)
 
             stderr_task = asyncio.create_task(_handle_stderr())
 
@@ -208,18 +210,12 @@ class FFmpegRtmpSessionPublisher:
                             pass
                 stdin_task = asyncio.create_task(_feed_stdin())
 
-            bytes_written = 0
             try:
                 while True:
                     if cancellation_token is not None and cancellation_token.is_cancelled():
-                        logging.info("Publish cancelled while streaming %s", primary_label)
                         break
 
                     if not self.is_alive():
-                        logging.warning(
-                            "RTMP publisher for %s died (exit %s) while publishing %s",
-                            self.url, self._process.returncode, primary_label,
-                        )
                         break
 
                     chunk = await normalizer.stdout.read(65536)
@@ -230,9 +226,7 @@ class FFmpegRtmpSessionPublisher:
                     try:
                         self._process.stdin.write(chunk)
                         await self._process.stdin.drain()
-                        bytes_written += len(chunk)
-                    except (BrokenPipeError, ConnectionResetError) as e:
-                        logging.warning("RTMP publisher for %s disconnected: %s", self.url, e)
+                    except (BrokenPipeError, ConnectionResetError):
                         break
             finally:
                 if normalizer.returncode is None:
@@ -249,23 +243,15 @@ class FFmpegRtmpSessionPublisher:
                     except (asyncio.CancelledError, Exception):
                         pass
 
+                for channel in fd_channels:
+                    await channel.close()
+
                 if not stderr_task.done():
                     stderr_task.cancel()
                 try:
                     await stderr_task
                 except (asyncio.CancelledError, Exception):
                     pass
-
-                if normalizer.returncode not in (0, -15):
-                    logging.warning(
-                        "Normalizer for %s exited with %d (%d bytes published); see [normalizer %s] log lines",
-                        primary_label, normalizer.returncode, bytes_written,
-                        os.path.basename(primary_label),
-                    )
-                else:
-                    logging.info(
-                        "Finished publishing %s to %s (%d bytes)", primary_label, self.url, bytes_written,
-                    )
 
     async def close(self) -> None:
         if self._process.stdin is not None and not self._process.stdin.is_closing():
@@ -369,29 +355,62 @@ class FFmpegRtmpSessionPublisher:
 
         return command
 
+    @staticmethod
+    def _resolve_input_source(
+        source: Optional[Union[MediaSource, str]],
+        stream_input: Optional[MediaSource],
+        fd_channels: List[SubprocessStreamChannel],
+    ) -> Tuple[Optional[str], Optional[MediaSource]]:
+        """Assign one input to `pipe:0` or an inherited descriptor.
+
+        The first MediaSource is claimed for stdin (`pipe:0`); any further
+        one is fed over its own inherited fd, which is POSIX-only. Returns
+        the resolved ffmpeg input spec plus the updated `stream_input`
+        (unchanged when `source` was a file path or None).
+        """
+        if source is None:
+            return None, stream_input
+
+        if isinstance(source, str):
+            return source, stream_input
+
+        if stream_input is None:
+            return "pipe:0", source
+
+        if not _SUPPORTS_FD_INPUT:
+            raise RuntimeError(
+                "Multiple live streams are not supported on this platform; "
+                "spool one input to a file before publishing."
+            )
+
+        channel = SubprocessStreamChannel(source.stream)
+        fd_channels.append(channel)
+
+        return f"pipe:{channel.read_fd}", stream_input
+
     def _build_normalize_command(
         self,
-        video: Optional[Union[MediaSource, str]],
-        audio: Optional[Union[MediaSource, str]],
+        video_input: Optional[str],
+        audio_input: Optional[str],
         has_audio: bool,
     ) -> List[str]:
         """Decode+transcode+mux an input into MPEG-TS on stdout.
 
+        `video_input` / `audio_input` are already-resolved ffmpeg input specs:
+        a file path, `pipe:0`, or `pipe:<fd>` for an inherited descriptor.
+
         Audio source selection (mixed sessions):
-        - `audio` provided → use it as the second input, replacing the video's
-          own audio track (`-map 0:v -map 1:a`).
-        - `audio` is None but `has_audio` → keep the video's built-in audio
-          track (`-map 0:v -map 0:a`).
+        - `audio_input` provided → use it as the second input, replacing the
+          video's own audio track (`-map 0:v -map 1:a`).
+        - `audio_input` is None but `has_audio` → keep the video's built-in
+          audio track (`-map 0:v -map 0:a`).
         - Neither → substitute anullsrc silence to keep the MPEG-TS audio
           plane populated so `-re` pacing stays honest.
 
-        Audio-only sessions (`video is None`): the audio input is the sole
-        media stream and is normalized to the session's sample rate / channel
-        layout. No video encoding options are emitted.
+        Audio-only sessions (`video_input is None`): the audio input is the
+        sole media stream and is normalized to the session's sample rate /
+        channel layout. No video encoding options are emitted.
         """
-        video_input = (video if isinstance(video, str) else "pipe:0") if video is not None else None
-        audio_input = (audio if isinstance(audio, str) else "pipe:0") if audio is not None else None
-
         sample_rate = self._normalize_spec["sample_rate"]
         channels    = self._normalize_spec["channels"]
 
@@ -404,7 +423,7 @@ class FFmpegRtmpSessionPublisher:
             # Audio-only session — normalize the single audio input.
             command = [
                 "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                "-i", audio_input,
+                *self._resolve_input_options(audio_input),
                 "-af", af,
                 "-map", "0:a",
             ]
@@ -422,8 +441,8 @@ class FFmpegRtmpSessionPublisher:
             if audio_input is not None:
                 command = [
                     "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                    "-i", video_input,
-                    "-i", audio_input,
+                    *self._resolve_input_options(video_input),
+                    *self._resolve_input_options(audio_input),
                     "-vf", vf,
                     "-af", af,
                     "-map", "0:v",
@@ -433,7 +452,7 @@ class FFmpegRtmpSessionPublisher:
             elif has_audio:
                 command = [
                     "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                    "-i", video_input,
+                    *self._resolve_input_options(video_input),
                     "-vf", vf,
                     "-af", af,
                     "-map", "0:v",
@@ -442,7 +461,7 @@ class FFmpegRtmpSessionPublisher:
             else:
                 command = [
                     "ffmpeg", "-hide_banner", "-loglevel", "warning",
-                    "-i", video_input,
+                    *self._resolve_input_options(video_input),
                     "-f", "lavfi",
                     "-i", f"anullsrc=channel_layout={self._channel_layout(channels)}:sample_rate={sample_rate}",
                     "-vf", vf,
@@ -483,6 +502,20 @@ class FFmpegRtmpSessionPublisher:
         return command
 
     @staticmethod
+    def _resolve_input_options(spec: str) -> List[str]:
+        """Emit the `-i` options for one input.
+
+        Pipe inputs get an enlarged thread queue: with video and audio
+        arriving on two independent descriptors, whichever side ffmpeg
+        reads first will run ahead, and the default 8-packet queue makes
+        the demuxer log "Thread message queue blocking" and stall the other.
+        """
+        if spec.startswith("pipe:"):
+            return [ "-thread_queue_size", "512", "-i", spec ]
+
+        return [ "-i", spec ]
+
+    @staticmethod
     def _channel_layout(channels: int) -> str:
         return { 1: "mono", 2: "stereo" }.get(channels, "stereo")
 
@@ -509,84 +542,32 @@ class FFmpegRtmpSimplePublisher:
         has_video = video is not None
         has_audio = audio is not None
 
-        command = [ "ffmpeg", "-hide_banner", "-y" ]
+        # Same input plan as the session publisher: the first MediaSource
+        # takes stdin, any further one rides an inherited descriptor.
+        stream_input: Optional[MediaSource] = None
+        fd_channels: List[SubprocessStreamChannel] = []
+
+        video_input: Optional[str] = None
+        audio_input: Optional[str] = None
 
         if has_video:
-            if video_attrs and video_attrs.get("resolution"):
-                command.extend([ "-s", str(video_attrs["resolution"]) ])
-            if video_attrs and video_attrs.get("fps"):
-                command.extend([ "-r", str(video_attrs["fps"]) ])
-            command.extend([ "-i", video if isinstance(video, str) else "pipe:0" ])
+            video_input, stream_input = self._resolve_input_source(video, stream_input, fd_channels)
 
         if has_audio:
-            command.extend([ "-i", audio if isinstance(audio, str) else "pipe:0" ])
-            if has_video:
-                command.extend([ "-map", "0:v", "-map", "1:a", "-shortest" ])
+            audio_input, stream_input = self._resolve_input_source(audio, stream_input, fd_channels)
 
-        for option, value in self._resolve_encoding_options(has_video=has_video, has_audio=has_audio).items():
-            command.extend([ option, value ])
-
-        command.extend([ "-f", self.params["format"], self.url ])
-
-        source = self._resolve_source(video, audio)
+        command = self._build_publish_command(video_input, video_attrs, audio_input, audio_attrs)
 
         logging.debug(f"Publishing to RTMP: {self.url}")
 
-        await self._run_process(command, source, cancellation_token)
+        source: Optional[AsyncIterable[bytes]] = stream_input.stream if stream_input is not None else None
 
-    def _resolve_source(
-        self,
-        video: Optional[Union[MediaSource, str]],
-        audio: Optional[Union[MediaSource, str]],
-    ) -> Optional[AsyncIterable[bytes]]:
-        """Return the byte stream to feed on stdin when the input isn't a file path.
+        async def _on_started() -> None:
+            # ffmpeg owns the read ends now; each start() drops the parent's
+            # copy so ffmpeg can see EOF, then begins pumping the source.
+            for channel in fd_channels:
+                await channel.start()
 
-        ffmpeg only accepts one `pipe:0` input, so we pick video's stream when
-        both are present, and fall back to audio's stream only when there is
-        no video at all.
-        """
-        if isinstance(video, MediaSource):
-            return video.stream
-
-        if video is None and isinstance(audio, MediaSource):
-            return audio.stream
-
-        return None
-
-    def _resolve_encoding_options(self, has_video: bool, has_audio: bool) -> Dict[str, str]:
-        options: Dict[str, str] = {}
-
-        if has_video:
-            if self.params["video_codec"]:
-                options["-c:v"] = self.params["video_codec"]
-
-            if self.params["video_bitrate"]:
-                options["-b:v"] = self.params["video_bitrate"]
-
-            if self.params["resolution"]:
-                options["-s"] = self.params["resolution"]
-
-            if self.params["fps"]:
-                options["-r"] = str(self.params["fps"])
-
-            if self.params["video_codec"] in ("libx264", "libx265"):
-                options["-pix_fmt"] = "yuv420p"
-
-        if has_audio:
-            if self.params["audio_codec"]:
-                options["-c:a"] = self.params["audio_codec"]
-
-            if self.params["audio_bitrate"]:
-                options["-b:a"] = self.params["audio_bitrate"]
-
-        return options
-
-    async def _run_process(
-        self,
-        command: List[str],
-        source: Optional[AsyncIterable[bytes]],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
         # run_subprocess only reacts to asyncio cancellation, but our
         # CancellationToken is a threading.Event that has to be polled.
         # Wrap the ffmpeg run in a task and cancel it when the token fires;
@@ -595,6 +576,8 @@ class FFmpegRtmpSimplePublisher:
             command,
             source,
             stderr_handler=lambda r: r.read(),
+            pass_fds=tuple(channel.read_fd for channel in fd_channels),
+            on_started=_on_started,
         ))
 
         watcher_task: Optional[asyncio.Task] = None
@@ -627,6 +610,107 @@ class FFmpegRtmpSimplePublisher:
                     await watcher_task
                 except (asyncio.CancelledError, Exception):
                     pass
+
+            for channel in fd_channels:
+                await channel.close()
+
+    @staticmethod
+    def _resolve_input_source(
+        source: Union[MediaSource, str],
+        stream_input: Optional[MediaSource],
+        fd_channels: List[SubprocessStreamChannel],
+    ) -> Tuple[str, Optional[MediaSource]]:
+        """Assign one input to `pipe:0` or an inherited descriptor.
+
+        The first MediaSource is claimed for stdin (`pipe:0`); any further
+        one is fed over its own inherited fd, which is POSIX-only. Returns
+        the resolved ffmpeg input spec plus the updated `stream_input`
+        (unchanged when `source` was a file path).
+        """
+        if isinstance(source, str):
+            return source, stream_input
+
+        if stream_input is None:
+            return "pipe:0", source
+
+        if not _SUPPORTS_FD_INPUT:
+            raise RuntimeError(
+                "Multiple live streams are not supported on this platform; "
+                "spool one input to a file before publishing."
+            )
+
+        channel = SubprocessStreamChannel(source.stream)
+        fd_channels.append(channel)
+
+        return f"pipe:{channel.read_fd}", stream_input
+
+    def _build_publish_command(
+        self,
+        video_input: Optional[str],
+        video_attrs: Optional[Dict[str, Any]],
+        audio_input: Optional[str],
+        audio_attrs: Optional[Dict[str, Any]],
+    ) -> List[str]:
+        """Build the one-shot ffmpeg command that publishes to RTMP.
+
+        `video_input` / `audio_input` are already-resolved ffmpeg input specs:
+        a file path, `pipe:0`, or `pipe:<fd>` for an inherited descriptor.
+        """
+        has_video = video_input is not None
+        has_audio = audio_input is not None
+
+        command = [ "ffmpeg", "-hide_banner", "-y" ]
+
+        if has_video:
+            if video_attrs and video_attrs.get("resolution"):
+                command.extend([ "-s", str(video_attrs["resolution"]) ])
+            if video_attrs and video_attrs.get("fps"):
+                command.extend([ "-r", str(video_attrs["fps"]) ])
+            command.extend([ "-i", video_input ])
+
+        if has_audio:
+            if audio_attrs and audio_attrs.get("sample_rate"):
+                command.extend([ "-ar", str(audio_attrs["sample_rate"]) ])
+            if audio_attrs and audio_attrs.get("channels"):
+                command.extend([ "-ac", str(audio_attrs["channels"]) ])
+            command.extend([ "-i", audio_input ])
+            if has_video:
+                command.extend([ "-map", "0:v", "-map", "1:a", "-shortest" ])
+
+        for option, value in self._resolve_encoding_options(has_video=has_video, has_audio=has_audio).items():
+            command.extend([ option, value ])
+
+        command.extend([ "-f", self.params["format"], self.url ])
+
+        return command
+
+    def _resolve_encoding_options(self, has_video: bool, has_audio: bool) -> Dict[str, str]:
+        options: Dict[str, str] = {}
+
+        if has_video:
+            if self.params["video_codec"]:
+                options["-c:v"] = self.params["video_codec"]
+
+            if self.params["video_bitrate"]:
+                options["-b:v"] = self.params["video_bitrate"]
+
+            if self.params["resolution"]:
+                options["-s"] = self.params["resolution"]
+
+            if self.params["fps"]:
+                options["-r"] = str(self.params["fps"])
+
+            if self.params["video_codec"] in ("libx264", "libx265"):
+                options["-pix_fmt"] = "yuv420p"
+
+        if has_audio:
+            if self.params["audio_codec"]:
+                options["-c:a"] = self.params["audio_codec"]
+
+            if self.params["audio_bitrate"]:
+                options["-b:a"] = self.params["audio_bitrate"]
+
+        return options
 
 class FFmpegRtmpSessionManager:
     """Owns persistent RTMP session publishers keyed by session id.
@@ -743,10 +827,11 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
         audio_only = video is None
 
-        if audio is not None:
-            # ffmpeg only exposes one pipe:0. If both inputs would end up as
-            # streams, force-spool the audio side so the video keeps its
-            # pipe path.
+        # POSIX can hand a second live stream to ffmpeg over an inherited
+        # descriptor, so both sides may stay as streams. On Windows only
+        # `pipe:0` is available — spool the audio side so the video keeps
+        # its pipe path.
+        if not _SUPPORTS_FD_INPUT and audio is not None:
             if not audio_only and video_path is None and audio_path is None:
                 audio_path = await save_stream_to_temporary_file(audio.stream, audio.format)
                 audio_spooled = True
@@ -793,6 +878,15 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
     ) -> None:
         video_path, video_spooled = (await self._resolve_input_path(video)) if video is not None else (None, False)
         audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+
+        # POSIX can hand a second live stream to ffmpeg over an inherited
+        # descriptor, so both sides may stay as streams. On Windows only
+        # `pipe:0` is available — spool the audio side so the video keeps
+        # its pipe path.
+        if not _SUPPORTS_FD_INPUT and video is not None and audio is not None:
+            if video_path is None and audio_path is None:
+                audio_path = await save_stream_to_temporary_file(audio.stream, audio.format)
+                audio_spooled = True
 
         try:
             publisher = FFmpegRtmpSimplePublisher(url, params)

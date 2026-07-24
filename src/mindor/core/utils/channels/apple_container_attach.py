@@ -36,20 +36,25 @@ class AppleContainerAttachChannel:
     async def recv(self) -> Optional[bytes]:
         if self._closed:
             return None
+
         try:
             prefix = await self._stdout.readexactly(_IPC_FRAME_PREFIX_SIZE)
         except asyncio.IncompleteReadError:
             return None
+
         header_length, binary_length = _IPC_FRAME_PREFIX.unpack(prefix)
+
         try:
             body = await self._stdout.readexactly(header_length + binary_length)
         except asyncio.IncompleteReadError:
             return None
+
         return prefix + body
 
     def close(self) -> None:
         if self._closed:
             return
+
         self._closed = True
 
         try:

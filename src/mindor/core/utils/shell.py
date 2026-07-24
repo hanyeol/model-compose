@@ -1,5 +1,5 @@
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Optional
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator
 from contextlib import asynccontextmanager
 from asyncio.subprocess import Process
 import asyncio, os, sys
@@ -59,7 +59,16 @@ async def run_subprocess(
     stderr_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[Any]]] = None,
     working_dir: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
+    pass_fds: Tuple[int, ...] = (),
+    on_started: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> Tuple[Process, Any, Any]:
+    """Run a command, optionally feeding stdin from `source`.
+
+    `pass_fds` hands additional descriptors to the child (for tools like
+    ffmpeg that can read a `pipe:<fd>` input beyond stdin). `on_started`
+    runs once the child exists — that is where the caller closes its own
+    copies of those descriptors and begins writing to them.
+    """
     process = await asyncio.create_subprocess_exec(
         *command,
         cwd=working_dir or os.getcwd(),
@@ -67,7 +76,11 @@ async def run_subprocess(
         stdin=asyncio.subprocess.PIPE if source is not None else None,
         stdout=asyncio.subprocess.PIPE if stdout_handler is not None else None,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
+        pass_fds=pass_fds,
     )
+
+    if on_started is not None:
+        await on_started()
 
     async def _feed_stdin() -> None:
         try:
@@ -107,13 +120,20 @@ async def stream_subprocess(
     stderr_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[None]]] = None,
     working_dir: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
-) -> AsyncIterator[Tuple[Process, AsyncIterator[Any], Optional[asyncio.Task]]]:
+    pass_fds: Tuple[int, ...] = (),
+    on_started: Optional[Callable[[], Awaitable[None]]] = None,
+) -> AsyncGenerator[Tuple[Process, AsyncIterator[Any], Optional[asyncio.Task]], None]:
     """Spawn a subprocess and expose its stdout as an async iterator while it runs.
 
     The caller consumes `stdout_iterator` directly. `stdout_handler` is a factory that takes
     the process's stdout reader and returns an async iterator of items to be yielded.
     `stderr_handler` runs as a background task — typically used to drain stderr and
     side-band data (e.g. timestamps, error lines) via closure variables.
+
+    `pass_fds` hands additional descriptors to the child (for tools like ffmpeg
+    that can read a `pipe:<fd>` input beyond stdin). `on_started` runs once the
+    child exists — that is where the caller closes its own copies of those
+    descriptors and begins writing to them.
 
     On context exit (including consumer break or exception): the process is killed,
     stdin stdin_feeder is awaited, and `stderr_task` is awaited so the caller can inspect
@@ -126,7 +146,11 @@ async def stream_subprocess(
         stdin=asyncio.subprocess.PIPE if source is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
+        pass_fds=pass_fds,
     )
+
+    if on_started is not None:
+        await on_started()
 
     async def _feed_stdin() -> None:
         try:

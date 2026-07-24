@@ -41,6 +41,7 @@ class DockerAttachChannel:
         # versions.
         if hasattr(sock, "_sock"):
             sock = sock._sock
+
         self._sock: socket.socket = sock
         self._closed = False
         self._recv_buffer = bytearray()
@@ -48,6 +49,7 @@ class DockerAttachChannel:
     def send(self, message: bytes) -> None:
         if self._closed:
             raise RuntimeError("DockerAttachChannel is closed")
+
         # Docker daemon forwards stdin bytes verbatim. The message is already
         # a length-prefixed IPC frame; the container parses it by prefix.
         self._sock.sendall(message)
@@ -55,23 +57,31 @@ class DockerAttachChannel:
     def recv(self) -> Optional[bytes]:
         if self._closed:
             return None
+
         prefix = self._read_ipc_bytes(_IPC_FRAME_PREFIX_SIZE)
+
         if prefix is None:
             return None
+
         header_length, binary_length = _IPC_FRAME_PREFIX.unpack(prefix)
         body = self._read_ipc_bytes(header_length + binary_length)
+
         if body is None:
             return None
+
         return prefix + body
 
     def close(self) -> None:
         if self._closed:
             return
+
         self._closed = True
+
         try:
             self._sock.shutdown(socket.SHUT_RDWR)
         except OSError:
             pass
+
         try:
             self._sock.close()
         except OSError:
@@ -79,41 +89,56 @@ class DockerAttachChannel:
 
     def _read_ipc_bytes(self, n: int) -> Optional[bytes]:
         """Read exactly `n` bytes of demuxed stdout payload from the wire."""
-        buf = bytearray()
-        while len(buf) < n:
+        buffer = bytearray()
+
+        while len(buffer) < n:
             if not self._recv_buffer:
                 payload = self._read_one_stdout_frame()
+
                 if payload is None:
                     self._closed = True
                     return None
+
                 self._recv_buffer.extend(payload)
-            take = min(n - len(buf), len(self._recv_buffer))
-            buf.extend(self._recv_buffer[:take])
+
+            take = min(n - len(buffer), len(self._recv_buffer))
+            buffer.extend(self._recv_buffer[:take])
             del self._recv_buffer[:take]
-        return bytes(buf)
+
+        return bytes(buffer)
 
     def _read_one_stdout_frame(self) -> Optional[bytes]:
         """Read the next non-TTY mux frame and return its payload iff it is a
         stdout frame. Stderr frames are dropped (user code logs)."""
         while True:
             header = self._read_exactly(8)
+
             if header is None:
                 return None
+
             stream_type, length = _FRAME_HEADER.unpack(header)
+
             if length == 0:
                 continue
+
             payload = self._read_exactly(length)
+
             if payload is None:
                 return None
+
             if stream_type == _STDOUT:
                 return payload
             # stderr (or any other stream) → drop and keep reading.
 
     def _read_exactly(self, n: int) -> Optional[bytes]:
         buf = bytearray()
+
         while len(buf) < n:
             chunk = self._sock.recv(n - len(buf))
+
             if not chunk:
                 return None
+
             buf.extend(chunk)
+
         return bytes(buf)

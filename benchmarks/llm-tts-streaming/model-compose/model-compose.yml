@@ -1,0 +1,66 @@
+# 3-stage streaming pipeline: LLM -> sentence-splitter -> TTS.
+#
+# Uses the same models (Qwen2.5-0.5B-Instruct, Kokoro) and same
+# generation config as the baselines so the comparison isolates the
+# orchestrator, not the model choices. The workflow output is the TTS
+# audio stream; the driver drains it to observe pipelining.
+
+controller: {}
+
+workflow:
+  title: LLM streaming TTS pipeline benchmark
+  jobs:
+    - id: llm
+      component: llm
+      input:
+        prompt: ${input.prompt}
+      output: ${output as stream/text}
+
+    - id: split
+      component: splitter
+      depends_on: [ llm ]
+      input:
+        text: ${jobs.llm.output}
+      output: ${output as stream/text}
+
+    - id: tts
+      component: tts
+      depends_on: [ split ]
+      input:
+        text: ${jobs.split.output}
+      output: ${output}
+  output: ${jobs.tts.output as stream}
+
+components:
+  - id: llm
+    type: model
+    task: text-generation
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B-Instruct
+    device: mps
+    max_concurrent_count: 1
+    action:
+      prompt: ${input.prompt as text}
+      streaming: true
+      params:
+        do_sample: false
+        max_output_length: 512
+
+  - id: splitter
+    type: sentence-splitter
+    action:
+      text: ${input.text}
+      streaming: true
+
+  - id: tts
+    type: model
+    task: text-to-speech
+    driver: custom
+    family: kokoro
+    model: hexgrad/Kokoro-82M
+    device: cpu
+    max_concurrent_count: 1
+    action:
+      method: generate
+      text: ${input.text as text}
+      voice: af_heart

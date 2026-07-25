@@ -1,0 +1,1 @@
+Explain how a small four-stroke internal combustion engine works, step by step. Cover intake, compression, combustion, and exhaust in order. Assume the reader has never seen an engine before. Keep the explanation grounded and concrete, using short sentences.

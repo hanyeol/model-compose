@@ -1,10 +1,10 @@
 """Drive an implementation subprocess and measure it against scenario.md.
 
-    python -m benchmarks.common.runner \\
+    python benchmarks/stt-embed-streaming/common/benchmark.py \\
         --impl benchmarks/stt-embed-streaming/langgraph \\
         --input benchmarks/stt-embed-streaming/data/sample.wav
 
-The runner:
+The harness:
   1. Reads the WAV in 100 ms chunks.
   2. Spawns the implementation (`python pipeline.py`).
   3. Waits for `runtime.ready` on stdout (all models loaded).
@@ -32,6 +32,7 @@ from pathlib import Path
 
 import psutil
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from benchmarks.common.metrics import MetricsCollector, SystemSample
 
 CHUNK_MS = 100

@@ -62,7 +62,7 @@ benchmarks/.venv/bin/python benchmarks/stt-embed-streaming/data/fetch.py
 Run one implementation through the harness:
 
 ```bash
-benchmarks/.venv/bin/python -m benchmarks.common.runner \
+benchmarks/.venv/bin/python benchmarks/stt-embed-streaming/common/benchmark.py \
   --impl benchmarks/stt-embed-streaming/langgraph \
   --input benchmarks/stt-embed-streaming/data/sample.wav
 ```

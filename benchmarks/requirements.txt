@@ -14,3 +14,6 @@ langchain-core>=0.3
 langchain-text-splitters>=0.3
 llama-index-core>=0.14
 llama-index-embeddings-huggingface>=0.7
+kokoro>=0.9
+nltk>=3.9
+soundfile>=0.12

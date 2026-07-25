@@ -1,18 +1,20 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Any, Union
 from enum import Enum
 from pydantic import Field
 from ...common import CommonActionConfig
 
 class DataQueueActionMethod(str, Enum):
-    PUBLISH = "publish"
-    CONSUME = "consume"
+    ENQUEUE = "enqueue"
+    DEQUEUE = "dequeue"
 
 class CommonDataQueueActionConfig(CommonActionConfig):
     method: DataQueueActionMethod = Field(..., description="Data queue operation method.")
-    session: Optional[str] = Field(default=None, description="Session key that isolates items into an independent sub-queue. Producers and consumers with the same session share a queue; items published under one session are never seen by consumers of another. Omit to use the shared default session.")
+    session: Optional[str] = Field(default=None, description="Key that isolates items into an independent sub-queue. Omit to use the shared default queue.")
 
-class CommonDataQueuePublishActionConfig(CommonDataQueueActionConfig):
-    method: Literal[DataQueueActionMethod.PUBLISH]
+class CommonDataQueueEnqueueActionConfig(CommonDataQueueActionConfig):
+    method: Literal[DataQueueActionMethod.ENQUEUE]
+    item: Union[Any, str] = Field(..., description="Value to enqueue.")
+    spread: Union[bool, str] = Field(default=False, description="If true, enqueue each element of a list or iterator item separately.")
 
-class CommonDataQueueConsumeActionConfig(CommonDataQueueActionConfig):
-    method: Literal[DataQueueActionMethod.CONSUME]
+class CommonDataQueueDequeueActionConfig(CommonDataQueueActionConfig):
+    method: Literal[DataQueueActionMethod.DEQUEUE]

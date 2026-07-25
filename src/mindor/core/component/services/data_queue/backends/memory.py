@@ -4,8 +4,8 @@ from mindor.dsl.schema.component import MemoryDataQueueComponentConfig
 from mindor.dsl.schema.action import (
     DataQueueActionConfig,
     DataQueueActionMethod,
-    MemoryDataQueuePublishActionConfig,
-    MemoryDataQueueConsumeActionConfig,
+    MemoryDataQueueEnqueueActionConfig,
+    MemoryDataQueueDequeueActionConfig,
 )
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from ..base import DataQueueService, DataQueueDriver, register_data_queue_service
@@ -17,7 +17,7 @@ _DEFAULT_SESSION = "__default__"
 class MemoryDataQueueFullError(Exception):
     pass
 
-class MemoryDataQueueConsumeIterator(StreamIterator):
+class MemoryDataQueueDequeueIterator(StreamIterator):
     def __init__(self, queue: asyncio.Queue):
         self.queue: asyncio.Queue = queue
 
@@ -33,32 +33,45 @@ class MemoryDataQueueService(DataQueueService):
         self._sessions: Dict[str, asyncio.Queue] = {}
 
     async def _run(self, action: DataQueueActionConfig, context: ComponentActionContext) -> Any:
-        if action.method == DataQueueActionMethod.PUBLISH:
-            return await self._publish(action, context)
+        if action.method == DataQueueActionMethod.ENQUEUE:
+            return await self._enqueue(action, context)
 
-        if action.method == DataQueueActionMethod.CONSUME:
-            return await self._consume(action, context)
+        if action.method == DataQueueActionMethod.DEQUEUE:
+            return await self._dequeue(action, context)
 
         raise ValueError(f"Unsupported data queue action method: {action.method}")
 
-    async def _publish(self, action: MemoryDataQueuePublishActionConfig, context: ComponentActionContext) -> None:
+    async def _enqueue(self, action: MemoryDataQueueEnqueueActionConfig, context: ComponentActionContext) -> None:
+        item   = await context.render_variable(action.item)
+        spread = bool(await context.render_variable(action.spread))
+
         session = await self._resolve_session(action, context)
         queue = self._get_or_create_queue(session)
 
-        try:
-            queue.put_nowait(context.input)
-        except asyncio.QueueFull:
-            raise MemoryDataQueueFullError(
-                f"Data queue '{self.id}' session '{session}' is full (max_size={self.config.max_size})"
-            )
+        if spread and isinstance(item, (list, tuple)):
+            for element in item:
+                self._enqueue_item(queue, element, session)
+                await asyncio.sleep(0)
+        elif spread and isinstance(item, (StreamIterator, AsyncIterator)):
+            async for element in item:
+                self._enqueue_item(queue, element, session)
+                await asyncio.sleep(0)
+        else:
+            self._enqueue_item(queue, item, session)
 
         return None
 
-    async def _consume(self, action: MemoryDataQueueConsumeActionConfig, context: ComponentActionContext) -> Any:
+    def _enqueue_item(self, queue: asyncio.Queue, item: Any, session: str) -> None:
+        try:
+            queue.put_nowait(item)
+        except asyncio.QueueFull:
+            raise MemoryDataQueueFullError(f"Data queue '{self.id}' session '{session}' is full (max_size={self.config.max_size})")
+
+    async def _dequeue(self, action: MemoryDataQueueDequeueActionConfig, context: ComponentActionContext) -> Any:
         session = await self._resolve_session(action, context)
         queue = self._get_or_create_queue(session)
 
-        return MemoryDataQueueConsumeIterator(queue)
+        return MemoryDataQueueDequeueIterator(queue)
 
     async def _resolve_session(self, action: DataQueueActionConfig, context: ComponentActionContext) -> str:
         session = await context.render_variable(action.session) if action.session is not None else None

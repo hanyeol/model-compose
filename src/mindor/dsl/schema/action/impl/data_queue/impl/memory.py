@@ -1,20 +1,20 @@
 from typing import Union, Annotated
 from pydantic import Field
 from .common import (
-    CommonDataQueuePublishActionConfig,
-    CommonDataQueueConsumeActionConfig,
+    CommonDataQueueEnqueueActionConfig,
+    CommonDataQueueDequeueActionConfig,
 )
 
-class MemoryDataQueuePublishActionConfig(CommonDataQueuePublishActionConfig):
+class MemoryDataQueueEnqueueActionConfig(CommonDataQueueEnqueueActionConfig):
     pass
 
-class MemoryDataQueueConsumeActionConfig(CommonDataQueueConsumeActionConfig):
+class MemoryDataQueueDequeueActionConfig(CommonDataQueueDequeueActionConfig):
     pass
 
 MemoryDataQueueActionConfig = Annotated[
     Union[
-        MemoryDataQueuePublishActionConfig,
-        MemoryDataQueueConsumeActionConfig,
+        MemoryDataQueueEnqueueActionConfig,
+        MemoryDataQueueDequeueActionConfig,
     ],
     Field(discriminator="method")
 ]

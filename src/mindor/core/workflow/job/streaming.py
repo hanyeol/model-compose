@@ -1,14 +1,22 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 import asyncio
 
 StreamTerminatedEvent = Literal[ "completed", "cancelled", "failed" ]
 StreamTerminatedCallback = Callable[[StreamTerminatedEvent, Optional[str]], Awaitable[None]]
 
-class JobOutputStreamIterator(StreamIterator):
+class JobOutputStreamIterator(StreamChunkIterator):
+    """StreamChunkIterator wrapper that fires a callback on stream termination.
+
+    Inherits from `StreamChunkIterator` (rather than the bare `StreamIterator`)
+    so that downstream consumers reading `${jobs.xxx.output}` still see the
+    stream's `is_fragmented` semantics — carried forward from the wrapped
+    source — instead of losing them at the workflow-runner boundary.
+    """
     def __init__(self, source: Union[StreamIterator, AsyncIterator], on_terminated: StreamTerminatedCallback):
-        self.source: Union[StreamIterator, AsyncIterator] = source
+        super().__init__(source, is_fragmented=source.is_fragmented if isinstance(source, StreamChunkIterator) else False)
+
         self.on_terminated: StreamTerminatedCallback = on_terminated
 
         self._notified_terminated: bool = False

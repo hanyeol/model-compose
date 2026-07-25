@@ -1,5 +1,5 @@
 from typing import Optional
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator
 from .resources import StreamResource, read_stream_to_bytes
 import io
 
@@ -34,3 +34,13 @@ async def load_text_from_stream(stream: StreamResource, encoding: str = "utf-8")
         return stream.text
 
     return (await read_stream_to_bytes(stream)).decode(encoding, errors="replace")
+
+async def load_text_from_iterator(iterator: AsyncIterable, encoding: str = "utf-8") -> str:
+    parts: list[str] = []
+
+    async for chunk in iterator:
+        if isinstance(chunk, bytes):
+            chunk = chunk.decode(encoding, errors="replace")
+        parts.append(chunk)
+
+    return "".join(parts)

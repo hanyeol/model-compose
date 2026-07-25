@@ -213,10 +213,15 @@ class VariableRenderer:
         skip_decode: bool = False,
     ) -> Any:
         if is_list:
-            if type == "stream":
-                raise ValueError(f"`{type}[]` is not allowed: stream is single by nature")
+            if isinstance(value, (StreamIterator, AsyncIterator)):
+                async def _iterate():
+                    async for item in value:
+                        yield await self._convert_value_to_type(item, type, False, subtype, attrs, format, skip_decode)
+                return _iterate()
+
             if not isinstance(value, (list, tuple)):
-                raise ValueError(f"`{type}[]` requires a list/tuple input, got {value.__class__.__name__}")
+                raise ValueError(f"`{type}[]` requires a list/tuple or stream input, got {value.__class__.__name__}")
+
             return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, skip_decode) for v in value ]
 
         # `path` is intentionally excluded: it refers to a local filesystem location and is not

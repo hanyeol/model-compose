@@ -31,18 +31,18 @@ class AudioPlaybackAction:
         return None
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        sink     = await context.render_variable(self.config.sink)
-        device   = await context.render_variable(self.config.device)   if self.config.device   is not None else None
-        volume   = await context.render_variable(self.config.volume)
-        duration = await context.render_variable(self.config.duration) if self.config.duration is not None else None
-        blocking = await context.render_variable(self.config.blocking)
+        sink            = await context.render_variable(self.config.sink)
+        device          = await context.render_variable(self.config.device) if self.config.device is not None else None
+        volume          = await context.render_variable(self.config.volume)
+        duration        = await context.render_variable(self.config.duration) if self.config.duration is not None else None
+        wait_for_finish = await context.render_variable(self.config.wait_for_finish)
 
         return {
-            "sink":     AudioPlaybackSink(sink) if not isinstance(sink, AudioPlaybackSink) else sink,
-            "device":   device,
-            "volume":   float(volume),
-            "duration": parse_time(duration) if duration is not None else None,
-            "blocking": bool(blocking),
+            "sink":            AudioPlaybackSink(sink) if not isinstance(sink, AudioPlaybackSink) else sink,
+            "device":          device,
+            "volume":          float(volume),
+            "duration":        parse_time(duration) if duration is not None else None,
+            "wait_for_finish": bool(wait_for_finish),
         }
 
     async def _process_batch(

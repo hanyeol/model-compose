@@ -22,6 +22,13 @@ _STREAMABLE_INPUT_FORMATS: Set[str] = {
     "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
 
+# Raw PCM formats have no container signature — ffmpeg cannot autodetect them,
+# so the input options must declare -f/-ar/-ac explicitly. They are always
+# streamable through pipe:0 (no seek required).
+_RAW_PCM_INPUT_FORMATS: Set[str] = {
+    "u8", "s16le", "s24le", "s32le", "f32le", "f64le",
+}
+
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
     async def _play(
         self,
@@ -38,6 +45,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         if params["duration"] is not None:
             command.extend([ "-t", str(params["duration"]) ])
 
+        command.extend(self._build_audio_input_options(audio))
         command.extend([ "-i", audio_path if audio_path is not None else "pipe:0" ])
 
         if params["volume"] != 1.0:
@@ -59,40 +67,12 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
 
         logging.debug("Starting ffmpeg audio playback: %s", " ".join(command))
 
-        if params["blocking"]:
-            await self._run_blocking(command, source, _cleanup, cancellation_token)
+        if params["wait_for_finish"]:
+            await self._run_awaited(command, source, _cleanup, cancellation_token)
         else:
             await self._run_detached(command, source, _cleanup)
 
-    def _build_audio_output_options(
-        self,
-        system: str,
-        sink: AudioPlaybackSink,
-        device: Optional[Any],
-    ) -> List[str]:
-        # macOS: audiotoolbox writes to a Core Audio device. The muxer accepts
-        #        an integer device index as its output url; -audio_device_index
-        #        selects a specific device when sink='device'.
-        # Windows: WASAPI is exposed via ffmpeg's "wasapi" output muxer;
-        #          the url is the device name ("default" for the OS default).
-        # Linux: PulseAudio is exposed via the "pulse" muxer; the url is a
-        #        sink name ("default" for the OS default).
-        if system == "Darwin":
-            if sink == AudioPlaybackSink.DEVICE and device is not None:
-                return [ "-f", "audiotoolbox", "-audio_device_index", str(device), "-" ]
-            return [ "-f", "audiotoolbox", "-" ]
-
-        if system == "Windows":
-            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
-            return [ "-f", "wasapi", target ]
-
-        if system == "Linux":
-            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
-            return [ "-f", "pulse", target ]
-
-        raise NotImplementedError(f"Audio playback is not supported on platform: {system}")
-
-    async def _run_blocking(
+    async def _run_awaited(
         self,
         command: List[str],
         source: Optional[AsyncIterable[bytes]],
@@ -147,9 +127,9 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         cleanup,
     ) -> None:
         # Fire-and-forget: spawn ffmpeg and return without awaiting. The caller
-        # opted out of playback completion (blocking=False) so we don't surface
-        # a nonzero exit code, but we still ensure temp inputs are cleaned up
-        # once the process finishes.
+        # opted out of playback completion (wait_for_finish=False) so we
+        # don't surface a nonzero exit code, but we still ensure temp inputs
+        # are cleaned up once the process finishes.
         async def _wait_and_cleanup() -> None:
             try:
                 _, _, _ = await run_subprocess(
@@ -175,7 +155,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS or source.format in _RAW_PCM_INPUT_FORMATS:
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before playback")
@@ -184,6 +164,53 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
 
         return spooled_path, True
 
+    def _build_audio_input_options(self, source: MediaSource) -> List[str]:
+        if source.format in _RAW_PCM_INPUT_FORMATS:
+            # Raw PCM has no container header, so ffmpeg needs -f/-ar/-ac up front
+            # to know how to decode the bytes. `sample_rate` and `channels` come
+            # from the PcmStreamResource attrs the producer set at synthesis time.
+            options: List[str] = [ "-f", source.format ]
+
+            sample_rate = source.attrs.get("sample_rate") if source.attrs else None
+            channels = source.attrs.get("channels") if source.attrs else None
+
+            if sample_rate is not None:
+                options.extend([ "-ar", str(sample_rate) ])
+
+            if channels is not None:
+                options.extend([ "-ac", str(channels) ])
+
+            return options
+
+        return []
+
+    def _build_audio_output_options(
+        self,
+        system: str,
+        sink: AudioPlaybackSink,
+        device: Optional[Any],
+    ) -> List[str]:
+        # macOS: audiotoolbox writes to a Core Audio device. The muxer accepts
+        #        an integer device index as its output url; -audio_device_index
+        #        selects a specific device when sink='device'.
+        if system == "Darwin":
+            if sink == AudioPlaybackSink.DEVICE and device is not None:
+                return [ "-f", "audiotoolbox", "-audio_device_index", str(device), "-" ]
+            return [ "-f", "audiotoolbox", "-" ]
+
+        # Windows: WASAPI is exposed via ffmpeg's "wasapi" output muxer;
+        #          the url is the device name ("default" for the OS default).
+        if system == "Windows":
+            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
+            return [ "-f", "wasapi", target ]
+
+        # Linux: PulseAudio is exposed via the "pulse" muxer; the url is a
+        #        sink name ("default" for the OS default).
+        if system == "Linux":
+            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
+            return [ "-f", "pulse", target ]
+
+        raise NotImplementedError(f"Audio playback is not supported on platform: {system}")
 
 @register_audio_playback_service(AudioPlaybackDriver.FFMPEG)
 class FFmpegAudioPlaybackService(AudioPlaybackService):

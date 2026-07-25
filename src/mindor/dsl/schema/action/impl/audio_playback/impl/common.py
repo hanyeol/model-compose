@@ -13,7 +13,7 @@ class CommonAudioPlaybackActionConfig(CommonActionConfig):
     device: Optional[Union[int, str]] = Field(default=None, description="Device index or name; required when sink='device'.")
     volume: Union[float, str] = Field(default=1.0, description="Linear playback gain (1.0 = unchanged, 0.0 = mute).")
     duration: Optional[Union[str, float]] = Field(default=None, description="Maximum playback duration; None plays to end of input.")
-    blocking: Union[bool, str] = Field(default=True, description="Wait for playback to finish before returning.")
+    wait_for_finish: Union[bool, str] = Field(default=True, description="Wait for playback to finish before returning.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of inputs per batch when 'audio' is a list or stream.")
 
     @model_validator(mode="after")

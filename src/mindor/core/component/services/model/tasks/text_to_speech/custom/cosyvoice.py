@@ -224,6 +224,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "numpy",
             "soundfile",
             "conformer",
+            "hydra-core",
             "hyperpyyaml",
             "modelscope",
             "omegaconf",

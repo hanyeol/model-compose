@@ -218,7 +218,9 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             # torchaudio >=2.9 delegates audio decoding to torchcodec.
-            "torchcodec",
+            # PyPI default targets CUDA 13; pull the cu128 variant from
+            # PyTorch's index to match torch above.
+            "torchcodec@https://download.pytorch.org/whl/cu128",
             "accelerate",
             "diffusers",
             "gdown",

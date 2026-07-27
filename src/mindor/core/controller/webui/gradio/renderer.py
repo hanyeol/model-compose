@@ -95,7 +95,7 @@ class WorkflowFlowRenderer:
 
             component_node = f"{prefix}__c_{job.id}__"
             lines.append(f'    {component_node}["{self._resolve_component_label(component, component_configs)}"]')
-            lines.append(f"    {prefix}{job.id} --> {component_node}")
+            lines.append(f"    {prefix}{job.id} -.-> {component_node}")
             lines.append(f"    {component_node} -.-> {prefix}{job.id}")
 
             for tool_workflow_id in self._resolve_agent_tool_workflows(component, component_configs, workflow_configs):
@@ -110,7 +110,7 @@ class WorkflowFlowRenderer:
             for target in job.get_routing_jobs():
                 if target in job_ids:
                     routing_targets.add(target)
-                    lines.append(f"    {prefix}{job.id} -.-> {prefix}{target}")
+                    lines.append(f"    {prefix}{job.id} --> {prefix}{target}")
 
         for job in workflow_config.jobs:
             if not job.depends_on and job.id not in routing_targets:
@@ -118,7 +118,7 @@ class WorkflowFlowRenderer:
             else:
                 for dependent in job.depends_on:
                     if dependent in job_ids:
-                        lines.append(f"    {prefix}{dependent} -.-> {prefix}{job.id}")
+                        lines.append(f"    {prefix}{dependent} --> {prefix}{job.id}")
 
         dependents: Set[str] = { dependent for job in workflow_config.jobs for dependent in job.depends_on }
 

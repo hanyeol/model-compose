@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from abc import ABC, abstractmethod
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from .ipc_message import IpcMessage, IpcMessageType
 from .ipc_stream import IpcInboundStream, IpcOutboundStream, IpcStreamReader
-import asyncio
+import asyncio, traceback
 
 class IpcRuntimeWorker(ABC):
     """
@@ -75,9 +75,9 @@ class IpcRuntimeWorker(ABC):
                 try:
                     await self._dispatch_message(message)
                 except Exception as e:
-                    await self._send_error(message.request_id, str(e))
+                    await self._send_error(message.request_id, e)
         except Exception as e:
-            await self._notify_error(str(e))
+            await self._notify_error(e)
         finally:
             await self._abort_all_streams()
             for task in list(self._run_tasks.values()):
@@ -95,7 +95,7 @@ class IpcRuntimeWorker(ABC):
             await self._send_error(message.request_id, "Request was cancelled")
             raise
         except Exception as e:
-            await self._send_error(message.request_id, str(e))
+            await self._send_error(message.request_id, e)
 
     async def _dispatch_message(self, message: IpcMessage) -> Dict[str, Any]:
         if message.type == IpcMessageType.RUN:
@@ -273,11 +273,11 @@ class IpcRuntimeWorker(ABC):
             payload=payload,
         ).serialize())
 
-    async def _send_error(self, request_id: str, error: str) -> None:
+    async def _send_error(self, request_id: str, error: Union[BaseException, str]) -> None:
         await self._send_message(IpcMessage(
             type=IpcMessageType.ERROR,
             request_id=request_id,
-            payload={ "error": error },
+            payload=self._build_error_payload(error),
         ).serialize())
 
     async def _notify_status(self, status: str) -> None:
@@ -286,14 +286,22 @@ class IpcRuntimeWorker(ABC):
             payload={ "status": status },
         ).serialize())
 
-    async def _notify_error(self, error: str) -> None:
+    async def _notify_error(self, error: Union[BaseException, str]) -> None:
         try:
             await self._send_message(IpcMessage(
                 type=IpcMessageType.ERROR,
-                payload={ "error": error },
+                payload=self._build_error_payload(error),
             ).serialize())
         except Exception:
             pass
+
+    def _build_error_payload(self, error: Union[BaseException, str]) -> Dict[str, Any]:
+        if isinstance(error, BaseException):
+            return {
+                "error":     str(error) or type(error).__name__,
+                "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+            }
+        return { "error": error }
 
     @abstractmethod
     async def _start(self) -> None:

@@ -119,7 +119,7 @@ class IpcRuntimeProxy(ABC):
             payload = message.payload or {}
 
             if message.type == IpcMessageType.ERROR:
-                raise RuntimeError(f"Worker '{self.worker_id}' failed to start: {payload.get('error', 'Unknown error')}")
+                raise RuntimeError(f"Worker '{self.worker_id}' failed to start: {self._format_error(payload)}")
 
             if message.type == IpcMessageType.STATUS:
                 if payload.get("status") == "ready":
@@ -164,7 +164,7 @@ class IpcRuntimeProxy(ABC):
                     continue
 
                 if message.type == IpcMessageType.ERROR:
-                    future.set_exception(Exception(payload.get("error", "Unknown error")))
+                    future.set_exception(Exception(self._format_error(payload)))
                     continue
         except asyncio.CancelledError:
             pass
@@ -330,6 +330,16 @@ class IpcRuntimeProxy(ABC):
             type=IpcMessageType.STREAM_ABORT,
             payload={ "stream_id": stream_id, "error": error },
         ).serialize())
+
+    @staticmethod
+    def _format_error(payload: Dict[str, Any]) -> str:
+        """Compose an error message from an ERROR payload, appending the worker
+        traceback (if present) so raise sites don't lose the origin frames."""
+        message = payload.get("error") or "Unknown error"
+        traceback = payload.get("traceback")
+        if traceback:
+            return f"{message}\n\nWorker traceback:\n{traceback}"
+        return message
 
     @abstractmethod
     async def _start(self) -> None:

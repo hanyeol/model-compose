@@ -116,7 +116,10 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        reference_audio = await context.render_file(self.config.reference_audio)
+        # CosyVoice's frontend expects a 16 kHz mono waveform for the prompt.
+        # Decoding here (async) avoids CosyVoice's own load_wav, which routes
+        # through torchaudio+torchcodec and fails on newer stacks.
+        reference_audio = await context.render_audio_buffer(self.config.reference_audio, sample_rate=16000)
         reference_text  = await context.render_variable(self.config.reference_text)
         speed           = await context.render_variable(self.config.speed)
         text_frontend   = await context.render_variable(self.config.text_frontend)
@@ -131,10 +134,9 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
         return params
 
     def _invoke(self, text: str, params: Dict[str, Any]) -> Any:
-        from cosyvoice.utils.file_utils import load_wav
+        import torch
 
-        # CosyVoice's frontend expects a 16kHz mono tensor for the prompt wav.
-        prompt_wav = load_wav(str(params["reference_audio"]), 16000)
+        prompt_wav = torch.from_numpy(params["reference_audio"].waveform).unsqueeze(0)
 
         # With a transcript, use zero_shot (better speaker similarity). Without
         # one, fall back to cross_lingual — which accepts any language and does
@@ -164,7 +166,8 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         instructions    = await context.render_variable(self.config.instructions)
-        reference_audio = await context.render_file(self.config.reference_audio)
+        # See CloneTaskAction._resolve_params for why we render as buffer here.
+        reference_audio = await context.render_audio_buffer(self.config.reference_audio, sample_rate=16000)
         speed           = await context.render_variable(self.config.speed)
         text_frontend   = await context.render_variable(self.config.text_frontend)
 
@@ -188,9 +191,9 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
                 "Use family=cosyvoice with a CosyVoice2/3 checkpoint (e.g. FunAudioLLM/CosyVoice2-0.5B)."
             )
 
-        from cosyvoice.utils.file_utils import load_wav
+        import torch
 
-        prompt_wav = load_wav(str(params["reference_audio"]), 16000)
+        prompt_wav = torch.from_numpy(params["reference_audio"].waveform).unsqueeze(0)
 
         return self.model.inference_instruct2(
             tts_text=text,

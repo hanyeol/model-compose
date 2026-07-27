@@ -28,6 +28,10 @@ class AudioValueRenderer:
         return None
 
 class AudioBufferValueRenderer:
+    def __init__(self, sample_rate: Optional[int] = None, channel: Optional[int] = None):
+        self.sample_rate = sample_rate
+        self.channel = channel
+
     async def render_array(self, value: Any) -> Optional[Union[AudioBufferArrayValue, List[AudioBufferArrayValue], AsyncIterator[AudioBufferArrayValue]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
@@ -69,4 +73,6 @@ class AudioBufferValueRenderer:
             return value
 
         source = create_audio_source(value)
-        return await load_audio_buffer(source)
+        sample_rate, channel = self.sample_rate, self.channel
+
+        return await load_audio_buffer(source, sample_rate, channel)

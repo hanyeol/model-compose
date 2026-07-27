@@ -25,6 +25,7 @@ class AudioValueRenderer:
     async def _render_element(self, value: Any) -> Optional[MediaSource]:
         if value is not None:
             return create_audio_source(value)
+
         return None
 
 class AudioBufferValueRenderer:
@@ -66,13 +67,13 @@ class AudioBufferValueRenderer:
         return None
 
     async def _render_element(self, value: Any) -> Optional[AudioBuffer]:
-        if value is None:
-            return None
-
         if isinstance(value, AudioBuffer):
             return value
 
-        source = create_audio_source(value)
-        sample_rate, channel = self.sample_rate, self.channel
+        if value is not None:
+            source = create_audio_source(value)
+            sample_rate, channel = self.sample_rate, self.channel
 
-        return await load_audio_buffer(source, sample_rate, channel)
+            return await load_audio_buffer(source, sample_rate, channel)
+
+        return None

@@ -20,4 +20,5 @@ class VideoValueRenderer:
     async def _render_element(self, value: Any) -> Optional[MediaSource]:
         if value is not None:
             return create_video_source(value)
+
         return None

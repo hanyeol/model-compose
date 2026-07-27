@@ -1141,9 +1141,6 @@ class TaskOutputRenderer:
         return value
 
     async def _render_element(self, value: Any) -> Any:
-        if value is None or isinstance(value, (str, bytes, bytearray, StreamResource)):
-            return value
-
         if isinstance(value, (StreamIterator, AsyncIterator)):
             chunks = [ chunk async for chunk in value ]
             if isinstance(value, StreamChunkIterator) and value.is_fragmented:

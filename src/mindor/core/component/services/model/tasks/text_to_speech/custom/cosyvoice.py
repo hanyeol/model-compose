@@ -67,7 +67,7 @@ class CosyvoiceTextToSpeechTaskAction(TextToSpeechTaskAction):
     def _invoke(self, text: str, params: Dict[str, Any]) -> Any:
         pass
 
-    async def _render_prompt_wav(self, context: ComponentActionContext, value: Any) -> str:
+    async def _render_reference_audio(self, context: ComponentActionContext, value: Any) -> str:
         """Decode the reference audio and re-emit it as a 16 kHz mono WAV
         tempfile path. CosyVoice's frontend re-reads the prompt with its own
         load_wav (which in newer torchaudio routes through torchcodec and
@@ -130,7 +130,7 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        prompt_wav     = await self._render_prompt_wav(context, self.config.reference_audio)
+        prompt_wav     = await self._render_prompt_wav_file(context, self.config.reference_audio)
         prompt_text    = await context.render_variable(self.config.reference_text)
         speed          = await context.render_variable(self.config.speed)
         text_frontend  = await context.render_variable(self.config.text_frontend)
@@ -172,16 +172,16 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        instructions  = await context.render_variable(self.config.instructions)
-        prompt_wav    = await self._render_prompt_wav(context, self.config.reference_audio)
-        speed         = await context.render_variable(self.config.speed)
-        text_frontend = await context.render_variable(self.config.text_frontend)
+        instructions    = await context.render_variable(self.config.instructions)
+        reference_audio = await self._render_reference_audio(context, self.config.reference_audio)
+        speed           = await context.render_variable(self.config.speed)
+        text_frontend   = await context.render_variable(self.config.text_frontend)
 
         params.update({
-            "instructions":  instructions,
-            "prompt_wav":    prompt_wav,
-            "speed":         float(speed) if speed is not None else 1.0,
-            "text_frontend": bool(text_frontend) if text_frontend is not None else True,
+            "instructions":    instructions,
+            "reference_audio": reference_audio,
+            "speed":           float(speed) if speed is not None else 1.0,
+            "text_frontend":   bool(text_frontend) if text_frontend is not None else True,
         })
 
         return params
@@ -200,7 +200,7 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
         return self.model.inference_instruct2(
             tts_text=text,
             instruct_text=params["instructions"],
-            prompt_wav=params["prompt_wav"],
+            prompt_wav=params["reference_audio"],
             stream=False,
             speed=params["speed"],
             text_frontend=params["text_frontend"],

@@ -30,10 +30,27 @@ class ModelComponent(ComponentService):
     def _create_service(self, type: ModelTaskType, driver: ModelDriver) -> ModelTaskService:
         try:
             if type not in ModelTaskServiceRegistry or driver not in ModelTaskServiceRegistry[type]:
-                _load_model_task_module(type, driver)
+                self._load_task_module(type, driver)
             return ModelTaskServiceRegistry[type][driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported model task type: {type} on {driver}")
+
+    def _load_task_module(self, task: ModelTaskType, driver: ModelDriver) -> None:
+        """Import the module that registers the given model task and driver.
+
+        Convention: a task "foo-bar" (ModelTaskType.value) with driver "baz-qux"
+        (ModelDriver.value) maps to mindor.core.component.services.model.tasks.foo_bar.baz_qux
+        — either a single-file module (baz_qux.py) or a package (baz_qux/__init__.py).
+        Importing the module triggers its @register_model_task_service decorator,
+        populating ModelTaskServiceRegistry.
+        """
+        task_module = task.value.replace("-", "_")
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.model.tasks.{task_module}.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported model task type: {task} on {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -50,20 +67,3 @@ class ModelComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ModelAction(action).run(context, self.service)
-
-def _load_model_task_module(task: ModelTaskType, driver: ModelDriver) -> None:
-    """Import the module that registers the given model task and driver.
-
-    Convention: a task "foo-bar" (ModelTaskType.value) with driver "baz-qux"
-    (ModelDriver.value) maps to mindor.core.component.services.model.tasks.foo_bar.baz_qux
-    — either a single-file module (baz_qux.py) or a package (baz_qux/__init__.py).
-    Importing the module triggers its @register_model_task_service decorator,
-    populating ModelTaskServiceRegistry.
-    """
-    task_module = task.value.replace("-", "_")
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.model.tasks.{task_module}.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported model task type: {task} on {driver}") from e

@@ -1,10 +1,9 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from abc import ABC, abstractmethod
+from typing import Type, Optional, Dict, List, Any
+from abc import abstractmethod
 from mindor.dsl.schema.component import AudioExtractorComponentConfig, AudioExtractorDriver
 from mindor.dsl.schema.action import AudioExtractorActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
-import asyncio
 
 class AudioExtractorService(AsyncService):
     def __init__(self, id: str, config: AudioExtractorComponentConfig, daemon: bool):
@@ -17,10 +16,10 @@ class AudioExtractorService(AsyncService):
         return None
 
     async def run(self, action: AudioExtractorActionConfig, context: ComponentActionContext) -> Any:
-        return await self._run(action, context, asyncio.get_running_loop())
+        return await self._run(action, context)
 
     @abstractmethod
-    async def _run(self, action: AudioExtractorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: AudioExtractorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 def register_audio_extractor_service(driver: AudioExtractorDriver):

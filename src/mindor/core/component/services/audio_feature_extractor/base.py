@@ -4,7 +4,6 @@ from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig, Au
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
-import asyncio
 
 class AudioFeatureExtractorService(AsyncService):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
@@ -17,10 +16,10 @@ class AudioFeatureExtractorService(AsyncService):
         return None
 
     async def run(self, action: AudioFeatureExtractorActionConfig, context: ComponentActionContext) -> Any:
-        return await self.run_in_thread(self._run, action, context, asyncio.get_running_loop())
+        return await self._run(action, context)
 
     @abstractmethod
-    async def _run(self, action: AudioFeatureExtractorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: AudioFeatureExtractorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 def register_audio_feature_extractor_service(driver: AudioFeatureExtractorDriver):

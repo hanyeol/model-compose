@@ -10,10 +10,9 @@ from mindor.dsl.schema.action import ChatterboxTextToSpeechModelCloneActionConfi
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.utils.audio import encode_waveform_to_pcm16
+from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
-import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -45,23 +44,28 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    def _generate(
+    async def _generate(
         self,
         texts: List[str],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[StreamResource]:
-        def _generate(text: str) -> StreamResource:
-            samples, sample_rate = self._synthesize(text, params["generation"])
-            frames, channels = encode_waveform_to_pcm16(samples)
+        def _generate() -> List[StreamResource]:
+            results: List[StreamResource] = []
 
-            return PcmStreamResource(frames, {
-                "sample_rate": str(sample_rate),
-                "channels":    str(channels),
-                "bit_depth":   "16",
-            })
+            for text in texts:
+                samples, sample_rate = self._synthesize(text, params["generation"])
+                frames, channels = encode_waveform_to_pcm(samples)
 
-        return [ _generate(text) for text in texts ]
+                results.append(PcmStreamResource(frames, {
+                    "sample_rate": str(sample_rate),
+                    "channels":    str(channels),
+                    "bit_depth":   "16",
+                }))
+
+            return results
+
+        return await self._run_in_executor(_generate)
 
     def _synthesize(self, text: str, generation_params: dict) -> Tuple[Any, int]:
         wav = self.model.generate(text, **generation_params)
@@ -114,11 +118,11 @@ class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
 
         return model, device
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await ChatterboxTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context, loop)
+            return await ChatterboxTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context)
 
         if action.method == TextToSpeechActionMethod.CLONE:
-            return await ChatterboxTextToSpeechCloneTaskAction(action, self.model, self.device).run(context, loop)
+            return await ChatterboxTextToSpeechCloneTaskAction(action, self.model, self.device).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

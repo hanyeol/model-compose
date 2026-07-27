@@ -22,10 +22,26 @@ class DataQueueComponent(ComponentService):
     def _create_service(self, driver: DataQueueDriver) -> DataQueueService:
         try:
             if driver not in DataQueueServiceRegistry:
-                _load_backend_module(driver)
+                self._load_backend_module(driver)
             return DataQueueServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported data queue driver: {driver}")
+
+    def _load_backend_module(self, driver: DataQueueDriver) -> None:
+        """Import the module that registers the given data queue backend driver.
+
+        Convention: a driver "foo-bar" (DataQueueDriver.value) maps to
+        mindor.core.component.services.data_queue.backends.foo_bar — either a
+        single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_data_queue_service decorator,
+        populating DataQueueServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.data_queue.backends.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported data queue driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class DataQueueComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_backend_module(driver: DataQueueDriver) -> None:
-    """Import the module that registers the given data queue backend driver.
-
-    Convention: a driver "foo-bar" (DataQueueDriver.value) maps to
-    mindor.core.component.services.data_queue.backends.foo_bar — either a
-    single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_data_queue_service decorator,
-    populating DataQueueServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.data_queue.backends.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported data queue driver: {driver}") from e

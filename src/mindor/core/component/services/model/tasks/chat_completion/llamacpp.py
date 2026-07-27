@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp import LlamaCppChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
@@ -10,7 +9,6 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
 from .huggingface import HuggingfaceToolBuilder
-import asyncio
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -44,12 +42,6 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
 
         return conversation.prompt
 
-    async def _process_output(self, result: Any) -> Any:
-        return result
-
-    def _process_stream(self, chunks: AsyncIterator[Any]) -> AsyncIterator[Any]:
-        return chunks
-
     def _resolve_chat_formatter(self):
         from llama_cpp import llama_chat_format
 
@@ -73,7 +65,6 @@ class LlamaCppChatCompletionTaskService(LlamaCppModelTaskService):
     async def _run(
         self,
         action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
+        context: ComponentActionContext
     ) -> Any:
-        return await LlamaCppChatCompletionTaskAction(action, self.model, self.config.tools).run(context, loop)
+        return await LlamaCppChatCompletionTaskAction(action, self.model, self.config.tools).run(context)

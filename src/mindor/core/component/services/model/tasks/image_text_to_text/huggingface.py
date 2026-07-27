@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Optional, Dict, List, Protocol, Any, Iterator
+from typing import Type, Union, Optional, Dict, List, Protocol, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageTextToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -130,70 +131,74 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         system_prompt: Optional[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        from transformers import StopStringCriteria, GenerationConfig
-        import torch
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
 
-        stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
+        def _generate() -> Union[List[str], List[Any]]:
+            from transformers import StopStringCriteria, GenerationConfig
+            import torch
 
-        prompts = [
-            self.processor.apply_chat_template(
-                self._build_messages(prompt, system_prompt),
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            for prompt in prompts
-        ]
+            stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
 
-        inputs: Tensor = self.processor(images=images, text=prompts, **params["processor"])
-        inputs = inputs.to(self.device)
+            rendered_prompts = [
+                self.processor.apply_chat_template(
+                    self._build_messages(prompt, system_prompt),
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                for prompt in prompts
+            ]
 
-        input_lengths = inputs["input_ids"].shape[1] if "input_ids" in inputs else None
+            inputs: Tensor = self.processor(images=images, text=rendered_prompts, **params["processor"])
+            inputs = inputs.to(self.device)
+
+            input_lengths = inputs["input_ids"].shape[1] if "input_ids" in inputs else None
+
+            if streaming:
+                streamer = BatchTextIteratorStreamer(
+                    self.processor.tokenizer,
+                    batch_size=len(images),
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                )
+
+                def _run():
+                    with torch.inference_mode():
+                        self.model.generate(
+                            **inputs,
+                            generation_config=GenerationConfig(**params["generation"]),
+                            stopping_criteria=stopping_criteria,
+                            streamer=streamer,
+                        )
+
+                Thread(target=_run, daemon=True).start()
+
+                return [ streamer[index] for index in range(len(images)) ]
+
+            with torch.inference_mode():
+                outputs = self.model.generate(
+                    **inputs,
+                    generation_config=GenerationConfig(**params["generation"]),
+                    stopping_criteria=stopping_criteria,
+                )
+
+            if input_lengths is not None:
+                outputs = outputs[:, input_lengths:]
+
+            return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        results = await self._run_in_executor(_generate)
 
         if streaming:
-            streamer = BatchTextIteratorStreamer(
-                self.processor.tokenizer,
-                batch_size=len(images),
-                skip_prompt=True,
-                skip_special_tokens=True,
-            )
+            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
-            def _run():
-                with torch.inference_mode():
-                    self.model.generate(
-                        **inputs,
-                        generation_config=GenerationConfig(**params["generation"]),
-                        stopping_criteria=stopping_criteria,
-                        streamer=streamer,
-                    )
-
-            Thread(target=_run, daemon=True).start()
-
-            return [ streamer[index] for index in range(len(images)) ]
-
-        with torch.inference_mode():
-            outputs = self.model.generate(
-                **inputs,
-                generation_config=GenerationConfig(**params["generation"]),
-                stopping_criteria=stopping_criteria,
-            )
-
-        if input_lengths is not None:
-            outputs = outputs[:, input_lengths:]
-
-        return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return results
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await HuggingfaceImageTextToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageTextToTextTaskAction(action, self.model, self.processor, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.AUTO:

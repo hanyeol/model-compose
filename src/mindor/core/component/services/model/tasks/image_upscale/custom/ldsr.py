@@ -9,7 +9,6 @@ from mindor.core.logger import logging
 from ....base import ComponentActionContext
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from diffusers import LDMSuperResolutionPipeline
@@ -45,34 +44,38 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    def _upscale(
+    async def _upscale(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
+        def _upscale() -> List[PILImage.Image]:
+            import torch
 
-        generator: Optional[torch.Generator] = None
+            generator: Optional[torch.Generator] = None
 
-        if params["downsample_method"] is not None:
-            images = [ self._downsample_image(image, params["downsample_method"]) for image in images ]
+            _images = images
+            if params["downsample_method"] is not None:
+                _images = [ self._downsample_image(image, params["downsample_method"]) for image in _images ]
 
-        if params["seed"] is not None:
-            generator = torch.Generator(device=self.device).manual_seed(params["seed"])
+            if params["seed"] is not None:
+                generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
-        results: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
 
-        for image in images:
-            result = self.pipeline(
-                image=image,
-                num_inference_steps=params["num_inference_steps"],
-                eta=params["eta"],
-                generator=generator,
-            )
-            results.append(result.images[0])
+            for image in _images:
+                result = self.pipeline(
+                    image=image,
+                    num_inference_steps=params["num_inference_steps"],
+                    eta=params["eta"],
+                    generator=generator,
+                )
+                results.append(result.images[0])
 
-        return results
+            return results
+
+        return await self._run_in_executor(_upscale)
 
 class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -136,5 +139,5 @@ class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return params
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await LdsrImageUpscaleTaskAction(action, self.pipeline, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await LdsrImageUpscaleTaskAction(action, self.pipeline, self.device).run(context)

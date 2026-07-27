@@ -22,11 +22,11 @@ class LocalFileStoreAction(FileStoreAction):
 
         self.base_path: str = base_path  # absolute, normalized
 
-    async def _put(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path         = await context.render_variable(self.config.path)
-        source       = await context.render_variable(self.config.source)
-        content_type = await context.render_variable(self.config.content_type)
-        chunk_size   = await context.render_size(self.config.chunk_size, _DEFAULT_CHUNK_SIZE)
+    async def _put(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path         = params["path"]
+        source       = params["source"]
+        content_type = params["content_type"]
+        chunk_size   = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
 
         source = await resolve_stream_resource(source) if source is not None else None
 
@@ -67,11 +67,11 @@ class LocalFileStoreAction(FileStoreAction):
             "content_type": content_type,
         }
 
-    async def _get(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path       = await context.render_variable(self.config.path)
-        save_to    = await context.render_variable(self.config.save_to)
-        streaming  = await context.render_variable(self.config.streaming)
-        chunk_size = await context.render_size(self.config.chunk_size)
+    async def _get(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path       = params["path"]
+        save_to    = params["save_to"]
+        streaming  = params["streaming"]
+        chunk_size = params["chunk_size"]
 
         absolute_path = self._resolve_absolute_path(path)
 
@@ -139,35 +139,41 @@ class LocalFileStoreAction(FileStoreAction):
             "content": content,
         }
 
-    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path = await context.render_variable(self.config.path)
+    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _delete() -> Dict[str, Any]:
+            path = params["path"]
 
-        absolute_path = self._resolve_absolute_path(path)
+            absolute_path = self._resolve_absolute_path(path)
 
-        if not is_path_within(self.base_path, absolute_path):
-            raise PermissionError(f"Path escapes the allowed root directory: {path!r}")
+            if not is_path_within(self.base_path, absolute_path):
+                raise PermissionError(f"Path escapes the allowed root directory: {path!r}")
 
-        if os.path.exists(absolute_path):
-            os.remove(absolute_path)
+            if os.path.exists(absolute_path):
+                os.remove(absolute_path)
 
-        return { "path": path }
+            return { "path": path }
 
-    async def _exists(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path = await context.render_variable(self.config.path)
+        return await self._run_in_executor(_delete)
 
-        absolute_path = self._resolve_absolute_path(path)
+    async def _exists(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _exists() -> Dict[str, Any]:
+            path = params["path"]
 
-        if not is_path_within(self.base_path, absolute_path):
-            raise PermissionError(f"Path escapes the allowed root directory: {path!r}")
+            absolute_path = self._resolve_absolute_path(path)
 
-        return { "path": path, "exists": os.path.exists(absolute_path) }
+            if not is_path_within(self.base_path, absolute_path):
+                raise PermissionError(f"Path escapes the allowed root directory: {path!r}")
 
-    async def _list(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path             = await context.render_variable(self.config.path)
-        recursive        = await context.render_variable(self.config.recursive)
-        pattern          = await context.render_variable(self.config.pattern)
-        max_result_count = await context.render_variable(self.config.max_result_count)
-        page_token       = await context.render_variable(self.config.next_token)
+            return { "path": path, "exists": os.path.exists(absolute_path) }
+
+        return await self._run_in_executor(_exists)
+
+    async def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path             = params["path"]
+        recursive        = params["recursive"]
+        pattern          = params["pattern"]
+        max_result_count = params["max_result_count"]
+        page_token       = params["next_token"]
 
         list_path = self._resolve_absolute_path(path) if path else self.base_path
 

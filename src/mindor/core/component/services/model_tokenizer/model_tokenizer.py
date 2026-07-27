@@ -1,16 +1,17 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriver
 from mindor.dsl.schema.action import ActionConfig, ModelTokenizerActionConfig
+from ...action.base import ComponentAction
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import ModelTokenizerTaskService, ModelTokenizerTaskServiceRegistry
-import asyncio, importlib
+import importlib
 
-class ModelTokenizerAction:
+class ModelTokenizerAction(ComponentAction):
     def __init__(self, config: ModelTokenizerActionConfig):
         self.config: ModelTokenizerActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop, service: ModelTokenizerTaskService) -> Any:
+    async def run(self, context: ComponentActionContext, service: ModelTokenizerTaskService) -> Any:
         return await service.run(self.config, context)
 
 @register_component(ComponentType.MODEL_TOKENIZER)
@@ -29,32 +30,41 @@ class ModelTokenizerComponent(ComponentService):
     def _create_service(self, task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> ModelTokenizerTaskService:
         try:
             if task not in ModelTokenizerTaskServiceRegistry or driver not in ModelTokenizerTaskServiceRegistry[task]:
-                _load_tokenizer_task_module(task, driver)
-            return ModelTokenizerTaskServiceRegistry[task][driver](self.id, self.config)
+                self._load_task_module(task, driver)
+            return ModelTokenizerTaskServiceRegistry[task][driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported tokenizer task type: {task} on {driver}")
+
+    def _load_task_module(self, task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> None:
+        """Import the module that registers the given tokenizer task and driver.
+
+        Convention: a task "foo-bar" (ModelTokenizerTaskType.value) with driver
+        "baz-qux" (ModelTokenizerDriver.value) maps to
+        mindor.core.component.services.model_tokenizer.tasks.foo_bar.baz_qux —
+        either a single-file module (baz_qux.py) or a package (baz_qux/__init__.py).
+        Importing the module triggers its @register_model_tokenizer_task_service
+        decorator, populating ModelTokenizerTaskServiceRegistry.
+        """
+        task_module = task.value.replace("-", "_")
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.model_tokenizer.tasks.{task_module}.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported tokenizer task type: {task} on {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
 
+    async def _start(self) -> None:
+        await self.service.start()
+
+        await super()._start()
+
+    async def _stop(self) -> None:
+        await super()._stop()
+
+        await self.service.stop()
+
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        self.service.load()
-        return await self.run_in_thread(ModelTokenizerAction(action).run, context, asyncio.get_running_loop(), self.service)
-
-def _load_tokenizer_task_module(task: ModelTokenizerTaskType, driver: ModelTokenizerDriver) -> None:
-    """Import the module that registers the given tokenizer task and driver.
-
-    Convention: a task "foo-bar" (ModelTokenizerTaskType.value) with driver
-    "baz-qux" (ModelTokenizerDriver.value) maps to
-    mindor.core.component.services.model_tokenizer.tasks.foo_bar.baz_qux —
-    either a single-file module (baz_qux.py) or a package (baz_qux/__init__.py).
-    Importing the module triggers its @register_model_tokenizer_task_service
-    decorator, populating ModelTokenizerTaskServiceRegistry.
-    """
-    task_module = task.value.replace("-", "_")
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.model_tokenizer.tasks.{task_module}.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported tokenizer task type: {task} on {driver}") from e
+        return await ModelTokenizerAction(action).run(context, self.service)

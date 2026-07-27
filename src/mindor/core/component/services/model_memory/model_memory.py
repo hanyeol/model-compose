@@ -232,6 +232,56 @@ class ModelMemoryComponent(ComponentService):
         self._storage: ModelMemoryStorage = self._create_storage()
         self._summary_component: Optional[ComponentService] = None
 
+    def _create_buffer(self) -> ModelMemoryBuffer:
+        driver = self.config.buffer.driver
+        try:
+            if driver not in ModelMemoryBufferRegistry:
+                self._load_buffer_driver_module(driver)
+            return ModelMemoryBufferRegistry[driver](self.config.buffer)
+        except KeyError:
+            raise ValueError(f"Unsupported model memory buffer driver: {driver}")
+
+    def _create_storage(self) -> ModelMemoryStorage:
+        driver = self.config.storage.driver
+        try:
+            if driver not in ModelMemoryStorageRegistry:
+                self._load_storage_driver_module(driver)
+            return ModelMemoryStorageRegistry[driver](self.config.storage)
+        except KeyError:
+            raise ValueError(f"Unsupported model memory storage driver: {driver}")
+
+    def _load_buffer_driver_module(self, driver: ModelMemoryBufferDriver) -> None:
+        """Import the module that registers the given model memory buffer driver.
+
+        Convention: a driver "foo-bar" (ModelMemoryBufferDriver.value) maps to
+        mindor.core.component.services.model_memory.buffer.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_model_memory_buffer decorator,
+        populating ModelMemoryBufferRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.model_memory.buffer.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported model memory buffer driver: {driver}") from e
+
+    def _load_storage_driver_module(self, driver: ModelMemoryStorageDriver) -> None:
+        """Import the module that registers the given model memory storage driver.
+
+        Convention: a driver "foo-bar" (ModelMemoryStorageDriver.value) maps to
+        mindor.core.component.services.model_memory.storage.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_model_memory_storage decorator,
+        populating ModelMemoryStorageRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.model_memory.storage.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported model memory storage driver: {driver}") from e
+
     def _get_setup_requirements(self) -> Optional[List[str]]:
         buffer_requirements  = self._buffer.get_setup_requirements()
         storage_requirements = self._storage.get_setup_requirements()
@@ -255,53 +305,3 @@ class ModelMemoryComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await ModelMemoryAction(action, self.config.window, self.config.summary, self._summary_component).run(context, self._buffer, self._storage)
-
-    def _create_buffer(self) -> ModelMemoryBuffer:
-        driver = self.config.buffer.driver
-        try:
-            if driver not in ModelMemoryBufferRegistry:
-                _load_buffer_driver_module(driver)
-            return ModelMemoryBufferRegistry[driver](self.config.buffer)
-        except KeyError:
-            raise ValueError(f"Unsupported model memory buffer driver: {driver}")
-
-    def _create_storage(self) -> ModelMemoryStorage:
-        driver = self.config.storage.driver
-        try:
-            if driver not in ModelMemoryStorageRegistry:
-                _load_storage_driver_module(driver)
-            return ModelMemoryStorageRegistry[driver](self.config.storage)
-        except KeyError:
-            raise ValueError(f"Unsupported model memory storage driver: {driver}")
-
-def _load_buffer_driver_module(driver: ModelMemoryBufferDriver) -> None:
-    """Import the module that registers the given model memory buffer driver.
-
-    Convention: a driver "foo-bar" (ModelMemoryBufferDriver.value) maps to
-    mindor.core.component.services.model_memory.buffer.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_model_memory_buffer decorator,
-    populating ModelMemoryBufferRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.model_memory.buffer.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported model memory buffer driver: {driver}") from e
-
-def _load_storage_driver_module(driver: ModelMemoryStorageDriver) -> None:
-    """Import the module that registers the given model memory storage driver.
-
-    Convention: a driver "foo-bar" (ModelMemoryStorageDriver.value) maps to
-    mindor.core.component.services.model_memory.storage.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_model_memory_storage decorator,
-    populating ModelMemoryStorageRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.model_memory.storage.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported model memory storage driver: {driver}") from e

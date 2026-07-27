@@ -8,7 +8,6 @@ from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from .common import TextEmbeddingTaskAction
-import asyncio
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -27,34 +26,31 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         self,
         texts: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
-        import math
+        def _embed() -> List[List[float]]:
+            import math
 
-        embeddings = self.model.embed(texts)
+            embeddings = self.model.embed(texts)
 
-        if params["normalize"]:
-            normalized_embeddings = []
-            for embedding in embeddings:
-                norm = math.sqrt(sum(x * x for x in embedding))
-                if norm > 1e-12:
-                    normalized_embeddings.append([x / norm for x in embedding])
-                else:
-                    normalized_embeddings.append(embedding)
-            return normalized_embeddings
+            if params["normalize"]:
+                normalized_embeddings = []
+                for embedding in embeddings:
+                    norm = math.sqrt(sum(x * x for x in embedding))
+                    if norm > 1e-12:
+                        normalized_embeddings.append([x / norm for x in embedding])
+                    else:
+                        normalized_embeddings.append(embedding)
+                return normalized_embeddings
 
-        return embeddings
+            return embeddings
+
+        return await self._run_in_executor(_embed)
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)
 class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context)
 
     async def _load_model(self) -> None:
         from llama_cpp import Llama

@@ -8,91 +8,118 @@ from mindor.core.foundation.variable.vector import VectorValue, VectorArrayValue
 from ..base import VectorProcessorService, VectorProcessorDriver, register_vector_processor_service
 from ..base import ComponentActionContext
 from .common import VectorProcessorAction
-import asyncio
 
 if TYPE_CHECKING:
     import numpy as np
 
 class NativeVectorProcessorAction(VectorProcessorAction):
-    def _similarity(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
-        fn = self._similarity_fn(params["metric"])
-        return [ fn(self._as_array(v), self._as_array(o)) for v, o in zip(vectors, others) ]
+    async def _similarity(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+        def _similarity() -> List[Any]:
+            import numpy as np
 
-    def _distance(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
-        fn = self._distance_fn(params["metric"])
-        return [ fn(self._as_array(v), self._as_array(o)) for v, o in zip(vectors, others) ]
+            fn = self._similarity_fn(params["metric"])
+            return [ fn(self._as_array(v), self._as_array(o)) for v, o in zip(vectors, others) ]
 
-    def _dot_product(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
+        return await self._run_in_executor(_similarity)
 
-        return [ float(np.dot(self._as_array(v), self._as_array(o))) for v, o in zip(vectors, others) ]
+    async def _distance(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+        def _distance() -> List[Any]:
+            import numpy as np
 
-    def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
+            fn = self._distance_fn(params["metric"])
+            return [ fn(self._as_array(v), self._as_array(o)) for v, o in zip(vectors, others) ]
 
-        k: int = params["k"]
-        metric = params["metric"]
+        return await self._run_in_executor(_distance)
 
-        results: List[Any] = []
-        for query, candidate in zip(queries, candidates):
-            if not candidate.values:
-                results.append([])
-                continue
+    async def _dot_product(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+        def _dot_product() -> List[Any]:
+            import numpy as np
 
-            vectors = self._as_array_list(candidate.values)
-            q = self._as_array(query)
-            scores = self._score(q, vectors, metric)
-            order = np.argsort(scores)
+            return [ float(np.dot(self._as_array(v), self._as_array(o))) for v, o in zip(vectors, others) ]
 
-            if isinstance(metric, SimilarityMetric):
-                order = order[::-1]
+        return await self._run_in_executor(_dot_product)
 
-            results.append([ { "index": int(index), "score": float(scores[index]) } for index in order[:k] ])
+    async def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        def _top_k() -> List[Any]:
+            import numpy as np
 
-        return results
+            k: int = params["k"]
+            metric = params["metric"]
 
-    def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
-        threshold: float = params["threshold"]
-        metric = params["metric"]
-        keep_higher = isinstance(metric, SimilarityMetric)
+            results: List[Any] = []
+            for query, candidate in zip(queries, candidates):
+                if not candidate.values:
+                    results.append([])
+                    continue
 
-        results: List[Any] = []
-        for query, candidate in zip(queries, candidates):
-            if not candidate.values:
-                results.append([])
-                continue
+                vectors = self._as_array_list(candidate.values)
+                q = self._as_array(query)
+                scores = self._score(q, vectors, metric)
+                order = np.argsort(scores)
 
-            vectors = self._as_array_list(candidate.values)
-            q = self._as_array(query)
-            scores = self._score(q, vectors, metric)
+                if isinstance(metric, SimilarityMetric):
+                    order = order[::-1]
 
-            matches: List[Dict[str, Any]] = []
-            for index, score in enumerate(scores):
-                if (score >= threshold if keep_higher else score <= threshold):
-                    matches.append({ "index": index, "score": float(score) })
-            results.append(matches)
+                results.append([ { "index": int(index), "score": float(scores[index]) } for index in order[:k] ])
 
-        return results
+            return results
 
-    def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
+        return await self._run_in_executor(_top_k)
 
-        results: List[Any] = []
-        for vector in vectors:
-            v = self._as_array(vector)
-            n = float(np.linalg.norm(v))
-            results.append((v / n if n > 0 else v).tolist())
-        return results
+    async def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        def _threshold_filter() -> List[Any]:
+            threshold: float = params["threshold"]
+            metric = params["metric"]
+            keep_higher = isinstance(metric, SimilarityMetric)
 
-    def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
+            results: List[Any] = []
+            for query, candidate in zip(queries, candidates):
+                if not candidate.values:
+                    results.append([])
+                    continue
 
-        return [ self._as_native(np.mean(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+                vectors = self._as_array_list(candidate.values)
+                q = self._as_array(query)
+                scores = self._score(q, vectors, metric)
 
-    def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
-        import numpy as np
+                matches: List[Dict[str, Any]] = []
+                for index, score in enumerate(scores):
+                    if (score >= threshold if keep_higher else score <= threshold):
+                        matches.append({ "index": index, "score": float(score) })
+                results.append(matches)
 
-        return [ self._as_native(np.sum(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+            return results
+
+        return await self._run_in_executor(_threshold_filter)
+
+    async def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+        def _normalize() -> List[Any]:
+            import numpy as np
+
+            results: List[Any] = []
+            for vector in vectors:
+                v = self._as_array(vector)
+                n = float(np.linalg.norm(v))
+                results.append((v / n if n > 0 else v).tolist())
+            return results
+
+        return await self._run_in_executor(_normalize)
+
+    async def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        def _mean() -> List[Any]:
+            import numpy as np
+
+            return [ self._as_native(np.mean(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+
+        return await self._run_in_executor(_mean)
+
+    async def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        def _sum() -> List[Any]:
+            import numpy as np
+
+            return [ self._as_native(np.sum(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+
+        return await self._run_in_executor(_sum)
 
     @staticmethod
     def _as_array(value: VectorValue) -> np.ndarray:
@@ -180,5 +207,5 @@ class NativeVectorProcessorService(VectorProcessorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "numpy" ]
 
-    async def _run(self, action: VectorProcessorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await NativeVectorProcessorAction(action).run(context, loop)
+    async def _run(self, action: VectorProcessorActionConfig, context: ComponentActionContext) -> Any:
+        return await NativeVectorProcessorAction(action).run(context)

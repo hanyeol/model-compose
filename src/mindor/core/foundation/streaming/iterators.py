@@ -2,7 +2,7 @@ from typing import Any, Optional
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
 from enum import Enum
-import json
+from .json import encode_value_to_json
 
 class StreamEncodingFormat(str, Enum):
     TEXT = "text"
@@ -40,21 +40,21 @@ class StreamEncodingIterator(StreamIterator):
             if chunk is None:
                 continue
 
-            encoded = self._encode_chunk(chunk)
+            encoded = await self._encode_chunk(chunk)
 
             if encoded is None:
                 continue
 
             yield encoded
 
-    def _encode_chunk(self, chunk: Any) -> Optional[Any]:
+    async def _encode_chunk(self, chunk: Any) -> Optional[Any]:
         if self.format == StreamEncodingFormat.TEXT:
             return chunk if isinstance(chunk, str) else str(chunk)
 
         if self.format == StreamEncodingFormat.JSON:
-            return json.dumps(chunk, ensure_ascii=False, default=str)
+            return await encode_value_to_json(chunk)
 
         if not isinstance(chunk, (str, bytes, type(None))):
-            return json.dumps(chunk, ensure_ascii=False, default=str)
+            return await encode_value_to_json(chunk)
 
         return chunk

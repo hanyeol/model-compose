@@ -5,7 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
-from mindor.core.foundation.variable.audio import AudioValueRenderer
+from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBufferValueRenderer, AudioBufferArrayValue
+from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.foundation.variable.media import MediaValueRenderer
 from mindor.core.foundation.variable.file import FileValueRenderer
@@ -95,6 +96,12 @@ class ComponentActionContext:
 
     async def render_audio(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
         return await AudioValueRenderer().render(await self.render_variable(value))
+
+    async def render_audio_buffer(self, value: Any) -> Union[AudioBuffer, List[AudioBuffer], AsyncIterator[AudioBuffer]]:
+        return await AudioBufferValueRenderer().render(await self.render_variable(value))
+
+    async def render_audio_buffer_array(self, value: Any) -> Union[AudioBufferArrayValue, List[AudioBufferArrayValue], AsyncIterator[AudioBufferArrayValue]]:
+        return await AudioBufferValueRenderer().render_array(await self.render_variable(value))
 
     async def render_video(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
         return await VideoValueRenderer().render(await self.render_variable(value))

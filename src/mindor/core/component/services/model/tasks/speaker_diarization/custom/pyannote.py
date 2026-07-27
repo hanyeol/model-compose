@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, PyannoteSpeakerDiarizationModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeakerDiarizationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.streaming.audio import load_audio_buffer
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
 from ..common import SpeakerDiarizationTaskService, SpeakerDiarizationTaskAction
@@ -57,30 +57,34 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+    ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         waveforms = await self._preprocess_audio(audios, params["sample_rate"])
-        results = []
 
-        for waveform in waveforms:
-            segments = self._collect_segments(waveform, params["sample_rate"], params, cancellation_token)
+        def _diarize() -> List[List[Dict[str, Any]]]:
+            return [
+                self._collect_segments(waveform, params["sample_rate"], params, cancellation_token)
+                for waveform in waveforms
+            ]
 
-            if streaming:
+        all_segments = await self._run_in_executor(_diarize)
+
+        if streaming:
+            results = []
+            for segments in all_segments:
                 async def _stream_chunk_generator(segments=segments):
                     for segment in segments:
                         yield segment
                 results.append(_stream_chunk_generator())
-            else:
-                results.append(segments)
+            return results
 
-        return results
+        return all_segments
 
     async def _preprocess_audio(self, audios: List[MediaSource], sample_rate: int) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_array(audio, sample_rate=sample_rate)
+            waveform, _ = await load_audio_buffer(audio, sample_rate=sample_rate)
             waveforms.append(waveform)
 
         return waveforms
@@ -190,10 +194,5 @@ class PyannoteSpeakerDiarizationTaskService(SpeakerDiarizationTaskService):
 
         return _DEFAULT_PYANNOTE_REPO, None
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await PyannoteSpeakerDiarizationTaskAction(action, self.pipeline, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await PyannoteSpeakerDiarizationTaskAction(action, self.pipeline, self.device).run(context)

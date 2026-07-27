@@ -22,10 +22,26 @@ class SentenceSplitterComponent(ComponentService):
     def _create_service(self, driver: SentenceSplitterDriver) -> SentenceSplitterService:
         try:
             if driver not in SentenceSplitterServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return SentenceSplitterServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported sentence splitter driver: {driver}")
+
+    def _load_driver_module(self, driver: SentenceSplitterDriver) -> None:
+        """Import the module that registers the given sentence splitter driver.
+
+        Convention: a driver "foo-bar" (SentenceSplitterDriver.value) maps to
+        mindor.core.component.services.sentence_splitter.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_sentence_splitter_service
+        decorator, populating SentenceSplitterServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.sentence_splitter.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported sentence splitter driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class SentenceSplitterComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: SentenceSplitterDriver) -> None:
-    """Import the module that registers the given sentence splitter driver.
-
-    Convention: a driver "foo-bar" (SentenceSplitterDriver.value) maps to
-    mindor.core.component.services.sentence_splitter.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_sentence_splitter_service
-    decorator, populating SentenceSplitterServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.sentence_splitter.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported sentence splitter driver: {driver}") from e

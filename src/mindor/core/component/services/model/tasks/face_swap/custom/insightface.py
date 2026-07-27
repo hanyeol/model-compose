@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..common import FaceSwapTaskService, FaceSwapTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
@@ -40,64 +40,70 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         return params
 
-    def _prepare_source_face(
+    async def _prepare_source_face(
         self,
         image: PILImage.Image,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Face:
-        import numpy as np
-        import cv2
+        def _prepare_source_face() -> Face:
+            import numpy as np
+            import cv2
 
-        self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
-        image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-        faces = self.analyzer.get(image_cv)
+            image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+            faces = self.analyzer.get(image_cv)
 
-        if not faces:
-            raise ValueError("No face detected in the source image.")
+            if not faces:
+                raise ValueError("No face detected in the source image.")
 
-        return max(faces, key=lambda face: face.det_score)
+            return max(faces, key=lambda face: face.det_score)
 
-    def _swap(
+        return await self._run_in_executor(_prepare_source_face)
+
+    async def _swap(
         self,
         images: List[PILImage.Image],
         source_face: Face,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import numpy as np
-        import cv2
+        def _swap() -> List[PILImage.Image]:
+            import numpy as np
+            import cv2
 
-        self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.analyzer.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
-        results: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
 
-        for image in images:
-            image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-            target_faces = self.analyzer.get(image_cv)
+            for image in images:
+                image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+                target_faces = self.analyzer.get(image_cv)
 
-            if not target_faces:
-                results.append(image)
-                continue
-
-            target_faces.sort(key=lambda face: face.det_score, reverse=True)
-
-            if params["swap_all_faces"]:
-                selected_faces = target_faces
-            else:
-                if params["face_index"] >= len(target_faces):
+                if not target_faces:
                     results.append(image)
                     continue
-                selected_faces = [ target_faces[params["face_index"]] ]
 
-            swapped = image_cv
-            for target_face in selected_faces:
-                swapped = self.swapper.get(swapped, target_face, source_face, paste_back=True)
+                target_faces.sort(key=lambda face: face.det_score, reverse=True)
 
-            results.append(PILImage.fromarray(cv2.cvtColor(swapped, cv2.COLOR_BGR2RGB)))
+                if params["swap_all_faces"]:
+                    selected_faces = target_faces
+                else:
+                    if params["face_index"] >= len(target_faces):
+                        results.append(image)
+                        continue
+                    selected_faces = [ target_faces[params["face_index"]] ]
 
-        return results
+                swapped = image_cv
+                for target_face in selected_faces:
+                    swapped = self.swapper.get(swapped, target_face, source_face, paste_back=True)
+
+                results.append(PILImage.fromarray(cv2.cvtColor(swapped, cv2.COLOR_BGR2RGB)))
+
+            return results
+
+        return await self._run_in_executor(_swap)
 
 class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -140,5 +146,5 @@ class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
             label="face swap",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await InsightfaceFaceSwapTaskAction(action, self.analyzer, self.swapper).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await InsightfaceFaceSwapTaskAction(action, self.analyzer, self.swapper).run(context)

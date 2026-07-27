@@ -27,7 +27,6 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         end_time: Optional[float],
         max_frame_count: Optional[int],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
@@ -42,7 +41,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 pass
 
         if streaming:
-            return self._stream_frames(input_path, frame_interval, start_time, end_time, max_frame_count, loop, _cleanup, cancellation_token)
+            return self._stream_frames(input_path, frame_interval, start_time, end_time, max_frame_count, _cleanup, cancellation_token)
 
         return await self._collect_frames(input_path, frame_interval, start_time, end_time, max_frame_count, _cleanup, cancellation_token)
 
@@ -56,10 +55,13 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        try:
-            return list(self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, None))
-        finally:
-            cleanup()
+        def _collect() -> List[Dict[str, Any]]:
+            try:
+                return list(self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, None))
+            finally:
+                cleanup()
+
+        return await self._run_in_executor(_collect)
 
     async def _stream_frames(
         self,
@@ -68,13 +70,12 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
-        loop: asyncio.AbstractEventLoop,
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         stop_event = threading.Event()
         generator = self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, stop_event)
-        streamer = SyncGeneratorStreamer(generator, loop, maxsize=_FRAME_QUEUE_MAXSIZE, stop_event=stop_event)
+        streamer = SyncGeneratorStreamer(generator, asyncio.get_running_loop(), maxsize=_FRAME_QUEUE_MAXSIZE, stop_event=stop_event)
 
         try:
             async for frame in streamer:
@@ -161,5 +162,5 @@ class OpenCVVideoFrameExtractorService(VideoFrameExtractorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "opencv-python" ]
 
-    async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await OpenCVVideoFrameExtractorAction(action).run(context, loop)
+    async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext) -> Any:
+        return await OpenCVVideoFrameExtractorAction(action).run(context)

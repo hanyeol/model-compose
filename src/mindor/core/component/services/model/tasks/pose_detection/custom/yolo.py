@@ -10,7 +10,7 @@ from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
 from ..utils import openpose, coco
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from ultralytics import YOLO
@@ -26,26 +26,29 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
         self.model: YOLO = model
 
-    def _detect(
+    async def _detect(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+        def _detect() -> List[Dict[str, Any]]:
+            results: List[Dict[str, Any]] = []
 
-        predictions = self.model.predict(
-            source=[ image.convert("RGB") for image in images ],
-            conf=params["min_confidence"],
-            max_det=params["max_pose_count"],
-            verbose=False,
-        )
+            predictions = self.model.predict(
+                source=[ image.convert("RGB") for image in images ],
+                conf=params["min_confidence"],
+                max_det=params["max_pose_count"],
+                verbose=False,
+            )
 
-        for image, prediction in zip(images, predictions):
-            width, height = image.size
-            results.append(self._serialize(prediction, width, height, params))
+            for image, prediction in zip(images, predictions):
+                width, height = image.size
+                results.append(self._serialize(prediction, width, height, params))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_detect)
 
     def _serialize(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         poses: List[Dict[str, Any]] = []
@@ -138,5 +141,5 @@ class YoloPoseDetectionTaskService(PoseDetectionTaskService):
             label="pose detection",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await YoloPoseDetectionTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await YoloPoseDetectionTaskAction(action, self.model).run(context)

@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..common import FaceDetectionTaskService, FaceDetectionTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from mediapipe.tasks.python.vision import FaceDetectorResult
@@ -24,34 +24,37 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         self.model_path: str = model_path
 
-    def _detect(
+    async def _detect(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        from mediapipe import Image as MPImage, ImageFormat
-        from mediapipe.tasks.python import vision
-        from mediapipe.tasks.python.core.base_options import BaseOptions
-        import numpy as np
+        def _detect() -> List[Dict[str, Any]]:
+            from mediapipe import Image as MPImage, ImageFormat
+            from mediapipe.tasks.python import vision
+            from mediapipe.tasks.python.core.base_options import BaseOptions
+            import numpy as np
 
-        options = vision.FaceDetectorOptions(
-            base_options=BaseOptions(model_asset_path=self.model_path),
-            min_detection_confidence=params["min_confidence"],
-        )
+            options = vision.FaceDetectorOptions(
+                base_options=BaseOptions(model_asset_path=self.model_path),
+                min_detection_confidence=params["min_confidence"],
+            )
 
-        results: List[Dict[str, Any]] = []
+            results: List[Dict[str, Any]] = []
 
-        with vision.FaceDetector.create_from_options(options) as detector:
-            for image in images:
-                rgb_frame = np.asarray(image.convert("RGB"))
-                height, width = rgb_frame.shape[:2]
+            with vision.FaceDetector.create_from_options(options) as detector:
+                for image in images:
+                    rgb_frame = np.asarray(image.convert("RGB"))
+                    height, width = rgb_frame.shape[:2]
 
-                prediction = detector.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
+                    prediction = detector.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
 
-                results.append(self._serialize(prediction, width, height, params))
+                    results.append(self._serialize(prediction, width, height, params))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_detect)
 
     def _serialize(self, prediction: FaceDetectorResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         faces: List[Dict[str, Any]] = []
@@ -108,5 +111,5 @@ class BlazeFaceFaceDetectionTaskService(FaceDetectionTaskService):
             label="face detection",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await BlazeFaceFaceDetectionTaskAction(action, self.model_path).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await BlazeFaceFaceDetectionTaskAction(action, self.model_path).run(context)

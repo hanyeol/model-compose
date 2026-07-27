@@ -29,10 +29,26 @@ class WebBrowserComponent(ComponentService):
     def _create_service(self, driver: WebBrowserDriver) -> WebBrowserService:
         try:
             if driver not in WebBrowserServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return WebBrowserServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported web browser driver: {driver}")
+
+    def _load_driver_module(self, driver: WebBrowserDriver) -> None:
+        """Import the module that registers the given web browser driver.
+
+        Convention: a driver "foo-bar" (WebBrowserDriver.value) maps to
+        mindor.core.component.services.web_browser.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_web_browser_service decorator,
+        populating WebBrowserServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.web_browser.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported web browser driver: {driver}") from e
 
     async def _start(self) -> None:
         await super()._start()
@@ -69,19 +85,3 @@ class WebBrowserComponent(ComponentService):
                     self._sessions[session_key] = await self.service.create_session()
 
         return self._sessions[session_key]
-
-def _load_driver_module(driver: WebBrowserDriver) -> None:
-    """Import the module that registers the given web browser driver.
-
-    Convention: a driver "foo-bar" (WebBrowserDriver.value) maps to
-    mindor.core.component.services.web_browser.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_web_browser_service decorator,
-    populating WebBrowserServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.web_browser.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported web browser driver: {driver}") from e

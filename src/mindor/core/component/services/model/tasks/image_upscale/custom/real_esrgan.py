@@ -9,7 +9,6 @@ from mindor.core.logger import logging
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from RealESRGAN import RealESRGAN
@@ -45,26 +44,29 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    def _upscale(
+    async def _upscale(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import numpy as np
+        def _upscale() -> List[PILImage.Image]:
+            import numpy as np
 
-        results: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
 
-        for image in images:
-            results.append(self.model.predict(
-                np.array(image),
-                batch_size=params["batch_size"],
-                patches_size=params["patches_size"],
-                padding=params["padding"],
-                pad_size=params["pad_size"],
-            ))
+            for image in images:
+                results.append(self.model.predict(
+                    np.array(image),
+                    batch_size=params["batch_size"],
+                    patches_size=params["patches_size"],
+                    padding=params["padding"],
+                    pad_size=params["pad_size"],
+                ))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_upscale)
 
 class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -102,5 +104,5 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return model, device
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await RealEsrganImageUpscaleTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await RealEsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)

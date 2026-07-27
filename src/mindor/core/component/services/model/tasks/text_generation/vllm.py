@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
-import asyncio, ulid
+import ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
@@ -55,54 +55,54 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
         if streaming:
-            return [ self._stream_one(prompt, params["sampling"], cancellation_token) for prompt in texts ]
+            return [ self._stream_text(prompt, params["sampling"], cancellation_token) for prompt in texts ]
 
-        return [ await self._generate_one(prompt, params["sampling"], cancellation_token) for prompt in texts ]
+        return [ await self._generate_text(prompt, params["sampling"], cancellation_token) for prompt in texts ]
 
-    async def _generate_one(
+    async def _generate_text(
         self,
         prompt: str,
         sampling: SamplingParams,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> str:
         request_id = f"request-{ulid.ulid()}"
         text = ""
+
         async for output in self.engine.generate(prompt, sampling, request_id=request_id):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 await self.engine.abort(request_id)
                 break
+
             if output.outputs:
                 text = output.outputs[0].text
+
         return text
 
-    async def _stream_one(
+    async def _stream_text(
         self,
         prompt: str,
         sampling: SamplingParams,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[str]:
         request_id = f"request-{ulid.ulid()}"
         previous = ""
+
         async for output in self.engine.generate(prompt, sampling, request_id=request_id):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 await self.engine.abort(request_id)
-                break
+                return
+
             text = output.outputs[0].text if output.outputs else ""
             delta = text[len(previous):]
             previous = text
+
             if delta:
                 yield delta
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
 class VllmTextGenerationTaskService(VllmModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await VllmTextGenerationTaskAction(action, self.engine).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await VllmTextGenerationTaskAction(action, self.engine).run(context)

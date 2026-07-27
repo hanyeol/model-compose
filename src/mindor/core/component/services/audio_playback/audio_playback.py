@@ -22,10 +22,26 @@ class AudioPlaybackComponent(ComponentService):
     def _create_service(self, driver: AudioPlaybackDriver) -> AudioPlaybackService:
         try:
             if driver not in AudioPlaybackServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return AudioPlaybackServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio playback driver: {driver}")
+
+    def _load_driver_module(self, driver: AudioPlaybackDriver) -> None:
+        """Import the module that registers the given audio playback driver.
+
+        Convention: a driver "foo-bar" (AudioPlaybackDriver.value) maps to
+        mindor.core.component.services.audio_playback.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_audio_playback_service
+        decorator, populating AudioPlaybackServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.audio_playback.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported audio playback driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class AudioPlaybackComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: AudioPlaybackDriver) -> None:
-    """Import the module that registers the given audio playback driver.
-
-    Convention: a driver "foo-bar" (AudioPlaybackDriver.value) maps to
-    mindor.core.component.services.audio_playback.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_audio_playback_service
-    decorator, populating AudioPlaybackServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.audio_playback.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported audio playback driver: {driver}") from e

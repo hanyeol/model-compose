@@ -9,7 +9,6 @@ from mindor.core.logger import logging
 from ....base import ComponentActionContext
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -47,48 +46,51 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    def _upscale(
+    async def _upscale(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
-        import numpy as np
+        def _upscale() -> List[PILImage.Image]:
+            import torch
+            import numpy as np
 
-        results: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
 
-        for image in images:
-            image_pixels = np.array(image).astype(np.float32) / 255.0
+            for image in images:
+                image_pixels = np.array(image).astype(np.float32) / 255.0
 
-            if len(image_pixels.shape) == 3:
-                tensor_image = torch.from_numpy(image_pixels).permute(2, 0, 1).unsqueeze(0)
-            else:
-                tensor_image = torch.from_numpy(image_pixels).unsqueeze(0).unsqueeze(0)
-
-            tensor_image = tensor_image.to(self.device)
-            if params["half_precision"]:
-                tensor_image = tensor_image.half()
-
-            if params["pre_pad_size"] > 0:
-                tensor_image = torch.nn.functional.pad(tensor_image, (0, params["pre_pad_size"], 0, params["pre_pad_size"]), mode="reflect")
-
-            with torch.inference_mode():
-                if params["tile_size"] > 0:
-                    upscaled_tensor = self._tile_process(tensor_image, params["tile_size"], params["tile_pad_size"], params["scale"])
+                if len(image_pixels.shape) == 3:
+                    tensor_image = torch.from_numpy(image_pixels).permute(2, 0, 1).unsqueeze(0)
                 else:
-                    upscaled_tensor = self.model(tensor_image)
+                    tensor_image = torch.from_numpy(image_pixels).unsqueeze(0).unsqueeze(0)
 
-            if params["pre_pad_size"] > 0:
-                pad = params["pre_pad_size"] * params["scale"]
-                upscaled_tensor = upscaled_tensor[:, :, :-pad, :-pad]
+                tensor_image = tensor_image.to(self.device)
+                if params["half_precision"]:
+                    tensor_image = tensor_image.half()
 
-            upscaled_tensor = upscaled_tensor.squeeze(0).clamp(0, 1).permute(1, 2, 0).cpu().float()
-            upscaled_pixels = (upscaled_tensor.numpy() * 255.0).round().astype(np.uint8)
+                if params["pre_pad_size"] > 0:
+                    tensor_image = torch.nn.functional.pad(tensor_image, (0, params["pre_pad_size"], 0, params["pre_pad_size"]), mode="reflect")
 
-            results.append(PILImage.fromarray(upscaled_pixels))
+                with torch.inference_mode():
+                    if params["tile_size"] > 0:
+                        upscaled_tensor = self._tile_process(tensor_image, params["tile_size"], params["tile_pad_size"], params["scale"])
+                    else:
+                        upscaled_tensor = self.model(tensor_image)
 
-        return results
+                if params["pre_pad_size"] > 0:
+                    pad = params["pre_pad_size"] * params["scale"]
+                    upscaled_tensor = upscaled_tensor[:, :, :-pad, :-pad]
+
+                upscaled_tensor = upscaled_tensor.squeeze(0).clamp(0, 1).permute(1, 2, 0).cpu().float()
+                upscaled_pixels = (upscaled_tensor.numpy() * 255.0).round().astype(np.uint8)
+
+                results.append(PILImage.fromarray(upscaled_pixels))
+
+            return results
+
+        return await self._run_in_executor(_upscale)
 
     def _tile_process(self, image: Tensor, tile_size: int, tile_pad_size: int, scale: int) -> Tensor:
         """Process image in tiles with reflect-padded borders to avoid seam artifacts."""
@@ -173,5 +175,5 @@ class EsrganImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return model, device
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await EsrganImageUpscaleTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await EsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)

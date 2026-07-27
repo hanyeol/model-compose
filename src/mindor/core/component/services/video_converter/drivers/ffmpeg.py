@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple, Callable, Any
+from typing import Dict, Optional, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoConverterComponentConfig
 from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -16,6 +17,19 @@ from ..base import VideoConverterService, VideoConverterDriver, register_video_c
 from ..base import ComponentActionContext
 from .common import VideoConverterAction
 import asyncio, os
+
+_DEFAULT_FORMAT = "mp4"
+
+# Fallback (video_codec, audio_codec) when the encoder config leaves them unset.
+_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
+    "mp4":  ("libx264",    "aac"),
+    "m4v":  ("libx264",    "aac"),
+    "mov":  ("libx264",    "aac"),
+    "mkv":  ("libx264",    "aac"),
+    "webm": ("libvpx-vp9", "libopus"),
+    "avi":  ("mpeg4",      "libmp3lame"),
+    "ogv":  ("libtheora",  "libvorbis"),
+}
 
 # Container formats safe to feed through ffmpeg pipe:0. Other formats (mp4/mov/mkv/avi/...) or
 # unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
@@ -34,16 +48,13 @@ class FFmpegVideoConverterAction(VideoConverterAction):
     async def _convert(
         self,
         source: MediaSource,
-        format: str,
-        video_codec: Optional[str],
-        video_bitrate: Optional[str],
-        audio_codec: Optional[str],
-        audio_bitrate: Optional[str],
-        resolution: Optional[str],
-        fps: Optional[str],
-        loop: asyncio.AbstractEventLoop,
+        encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
+        format = self._resolve_container_format(encoding)
+        video = encoding.video
+        audio = encoding.audio
+
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
@@ -60,18 +71,21 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 
+        video_codec = self._resolve_video_codec(encoding)
+        audio_codec = self._resolve_audio_codec(encoding)
+
         if video_codec:
             command.extend([ "-c:v", video_codec ])
-        if video_bitrate:
-            command.extend([ "-b:v", video_bitrate ])
+        if video and video.bitrate:
+            command.extend([ "-b:v", str(video.bitrate) ])
         if audio_codec:
             command.extend([ "-c:a", audio_codec ])
-        if audio_bitrate:
-            command.extend([ "-b:a", audio_bitrate ])
-        if resolution:
-            command.extend([ "-s", resolution ])
-        if fps:
-            command.extend([ "-r", fps ])
+        if audio and audio.bitrate:
+            command.extend([ "-b:a", str(audio.bitrate) ])
+        if video and video.resolution:
+            command.extend([ "-s", video.resolution ])
+        if video and video.fps is not None:
+            command.extend([ "-r", str(video.fps) ])
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -232,7 +246,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS:
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
@@ -241,10 +255,33 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         return spooled_path, True
 
+    @staticmethod
+    def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
+        if encoding.format:
+            return encoding.format.lower()
+
+        return _DEFAULT_FORMAT
+
+    @staticmethod
+    def _resolve_video_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+        if encoding.video and encoding.video.codec:
+            return encoding.video.codec
+
+        default_video_codec, _ = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
+        return default_video_codec
+
+    @staticmethod
+    def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+        if encoding.audio and encoding.audio.codec:
+            return encoding.audio.codec
+
+        _, default_audio_codec = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
+        return default_audio_codec
+
 @register_video_converter_service(VideoConverterDriver.FFMPEG)
 class FFmpegVideoConverterService(VideoConverterService):
     def __init__(self, id: str, config: VideoConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegVideoConverterAction(action).run(context, loop)
+    async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegVideoConverterAction(action).run(context)

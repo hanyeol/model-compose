@@ -5,19 +5,21 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
+from ....action.media import MediaComponentAction
 import asyncio
 
-class AudioConverterAction:
+class AudioConverterAction(MediaComponentAction):
     def __init__(self, config: AudioConverterActionConfig):
         self.config: AudioConverterActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -29,7 +31,7 @@ class AudioConverterAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_audios, params, loop, context.cancellation_token)
+                    batch_results = await self._process_batch(batch_audios, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -37,7 +39,7 @@ class AudioConverterAction:
         else:
             results = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_audios, params, loop, context.cancellation_token)
+                batch_results = await self._process_batch(batch_audios, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -46,36 +48,28 @@ class AudioConverterAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        format      = await context.render_variable(self.config.format) if self.config.format else "wav"
-        codec       = await context.render_variable(self.config.codec) if self.config.codec else None
-        bitrate     = await context.render_variable(self.config.bitrate) if self.config.bitrate else None
-        sample_rate = await context.render_variable(self.config.sample_rate) if self.config.sample_rate is not None else None
-        channels    = await context.render_variable(self.config.channels) if self.config.channels is not None else None
+        format   = await context.render_variable(self.config.format) if self.config.format else "wav"
+        encoding = await self._resolve_audio_encoder(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
 
         return {
-            "format":      format,
-            "codec":       codec,
-            "bitrate":     bitrate,
-            "sample_rate": sample_rate,
-            "channels":    channels,
+            "format":   format,
+            "encoding": encoding,
         }
 
     async def _process_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[AudioStreamResource]]:
         return await asyncio.gather(*[
-            self._process(audio, params, loop, cancellation_token) for audio in audios
+            self._process(audio, params, cancellation_token) for audio in audios
         ])
 
     async def _process(
         self,
         audio: MediaSource,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[AudioStreamResource]:
         if audio is None:
@@ -85,11 +79,7 @@ class AudioConverterAction:
         return await self._convert(
             audio,
             params["format"],
-            params["codec"],
-            params["bitrate"],
-            params["sample_rate"],
-            params["channels"],
-            loop,
+            params["encoding"],
             cancellation_token,
         )
 
@@ -98,11 +88,7 @@ class AudioConverterAction:
         self,
         source: MediaSource,
         format: str,
-        codec: Optional[str],
-        bitrate: Optional[str],
-        sample_rate: Optional[Any],
-        channels: Optional[Any],
-        loop: asyncio.AbstractEventLoop,
+        encoding: AudioEncoderParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         pass

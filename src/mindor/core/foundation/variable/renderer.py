@@ -3,7 +3,8 @@ from collections.abc import AsyncIterator, AsyncIterable
 from pydantic import BaseModel
 from ..streaming.resources import StreamResource
 from ..streaming.file import UploadFileStreamResource, FileStreamResource
-from ..streaming.base64 import Base64StreamResource, encode_value_to_base64
+from ..streaming.base64 import Base64StreamResource, encode_value_to_base64, decode_base64_value
+from ..streaming.json import decode_json_value
 from ..streaming.bytes import BytesStreamResource
 from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, StreamIterator, StreamChunkIterator
 from ..streaming.image import load_image_from_stream, ImageStreamResource
@@ -15,7 +16,7 @@ from mindor.core.utils.url import parse_data_uri
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
-import re, json, base64, aiofiles
+import re, aiofiles
 
 class FieldResolver:
     def __init__(self):
@@ -240,7 +241,7 @@ class VariableRenderer:
                 value = await self._load_bytes_from_format(value, format)
 
         if type in [ "json", "object", "list" ] and isinstance(value, (str, bytes)):
-            value = json.loads(value)
+            value = await decode_json_value(value)
 
         if type in [ "string", "text", "markdown" ]:
             if isinstance(value, bytes):
@@ -340,12 +341,12 @@ class VariableRenderer:
                 return await file.read()
 
         if format == "base64":
-            return base64.b64decode(value)
+            return await decode_base64_value(value)
 
         if format == "data-uri":
             _, meta, data = parse_data_uri(value)
             if "base64" in meta.split(";"):
-                return base64.b64decode(data)
+                return await decode_base64_value(data)
             return unquote_to_bytes(data)
 
         raise ValueError(f"Unknown format: {format}")

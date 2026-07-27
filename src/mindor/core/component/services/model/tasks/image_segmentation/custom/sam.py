@@ -9,7 +9,7 @@ from ..common import ImageSegmentationTaskService, ImageSegmentationTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
 from pathlib import Path
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from ultralytics import SAM
@@ -24,36 +24,39 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
 
         self.model: SAM = model
 
-    def _segment(
+    async def _segment(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+        def _segment() -> List[Dict[str, Any]]:
+            results: List[Dict[str, Any]] = []
 
-        for image in images:
-            rgb_image = image.convert("RGB")
-            width, height = rgb_image.size
+            for image in images:
+                rgb_image = image.convert("RGB")
+                width, height = rgb_image.size
 
-            if params["box_prompts"] is not None:
-                bboxes = [ [ int(x), int(y), int(x + w), int(y + h) ] for x, y, w, h in params["box_prompts"] ]
-                predictions = self.model.predict(
-                    source=rgb_image,
-                    bboxes=bboxes,
-                    conf=params["min_confidence"],
-                    verbose=False,
-                )
-                results.append(self._serialize(predictions[0], width, height, params, box_prompted=True))
-            else:
-                predictions = self.model.predict(
-                    source=rgb_image,
-                    conf=params["min_confidence"],
-                    verbose=False,
-                )
-                results.append(self._serialize(predictions[0], width, height, params, box_prompted=False))
+                if params["box_prompts"] is not None:
+                    bboxes = [ [ int(x), int(y), int(x + w), int(y + h) ] for x, y, w, h in params["box_prompts"] ]
+                    predictions = self.model.predict(
+                        source=rgb_image,
+                        bboxes=bboxes,
+                        conf=params["min_confidence"],
+                        verbose=False,
+                    )
+                    results.append(self._serialize(predictions[0], width, height, params, box_prompted=True))
+                else:
+                    predictions = self.model.predict(
+                        source=rgb_image,
+                        conf=params["min_confidence"],
+                        verbose=False,
+                    )
+                    results.append(self._serialize(predictions[0], width, height, params, box_prompted=False))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_segment)
 
     def _serialize(
         self,
@@ -155,5 +158,5 @@ class SamImageSegmentationTaskService(ImageSegmentationTaskService):
             label="image segmentation",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await SamImageSegmentationTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await SamImageSegmentationTaskAction(action, self.model).run(context)

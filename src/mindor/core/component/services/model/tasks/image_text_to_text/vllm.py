@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Optional, Dict, List, Any, Iterator
+from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -9,7 +9,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import ImageTextToTextTaskAction
 from PIL import Image as PILImage
-import asyncio, ulid
+import ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
@@ -63,9 +63,8 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         system_prompt: Optional[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
         prompts = [
             self.tokenizer.apply_chat_template(
                 self._build_messages(prompt, system_prompt),
@@ -76,27 +75,51 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         ]
 
         if streaming:
-            return [ self._stream_one(prompt, image, params["sampling"]) for prompt, image in zip(prompts, images) ]
+            return [ self._stream_text(prompt, image, params["sampling"], cancellation_token) for prompt, image in zip(prompts, images) ]
 
-        return [ await self._generate_one(prompt, image, params["sampling"]) for prompt, image in zip(prompts, images) ]
+        return [ await self._generate_text(prompt, image, params["sampling"], cancellation_token) for prompt, image in zip(prompts, images) ]
 
-    async def _generate_one(self, prompt: str, image: PILImage.Image, sampling: SamplingParams) -> str:
+    async def _generate_text(
+        self,
+        prompt: str,
+        image: PILImage.Image,
+        sampling: SamplingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> str:
         request_id = f"request-{ulid.ulid()}"
         text = ""
         request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+
         async for output in self.engine.generate(request, sampling, request_id=request_id):
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                await self.engine.abort(request_id)
+                break
+
             if output.outputs:
                 text = output.outputs[0].text
+
         return text
 
-    async def _stream_one(self, prompt: str, image: PILImage.Image, sampling: SamplingParams) -> AsyncIterator[str]:
+    async def _stream_text(
+        self,
+        prompt: str,
+        image: PILImage.Image,
+        sampling: SamplingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[str]:
         request_id = f"request-{ulid.ulid()}"
-        previous = ""
         request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+        previous = ""
+
         async for output in self.engine.generate(request, sampling, request_id=request_id):
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                await self.engine.abort(request_id)
+                return
+
             text = output.outputs[0].text if output.outputs else ""
             delta = text[len(previous):]
             previous = text
+
             if delta:
                 yield delta
 
@@ -118,10 +141,5 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.VLLM)
 class VllmImageTextToTextTaskService(VllmModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await VllmImageTextToTextTaskAction(action, self.engine, self.tokenizer).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await VllmImageTextToTextTaskAction(action, self.engine, self.tokenizer).run(context)

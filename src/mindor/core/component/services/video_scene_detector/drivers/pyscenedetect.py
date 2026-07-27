@@ -12,7 +12,7 @@ from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
-import asyncio, os
+import os
 
 class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
     async def _detect(
@@ -23,7 +23,6 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
@@ -51,7 +50,9 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         try:
-            scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
+            scenes = await self._run_in_executor(
+                self._detect_scenes, input_path, detector, threshold, start_time, end_time,
+            )
             results: List[Dict[str, Any]] = []
 
             for index, (start, end) in enumerate(scenes):
@@ -79,7 +80,9 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         try:
-            scenes = self._detect_scenes(input_path, detector, threshold, start_time, end_time)
+            scenes = await self._run_in_executor(
+                self._detect_scenes, input_path, detector, threshold, start_time, end_time,
+            )
 
             for index, (start, end) in enumerate(scenes):
                 yield {
@@ -106,6 +109,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         scene_detector = self._create_detector(detector, threshold)
 
         params: Dict[str, Any] = {}
+
         if start_time:
             params["start_time"] = start_time
         if end_time:
@@ -166,5 +170,5 @@ class PySceneVideoSceneDetectorService(VideoSceneDetectorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "scenedetect[opencv]" ]
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await PySceneVideoSceneDetectorAction(action).run(context, loop)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
+        return await PySceneVideoSceneDetectorAction(action).run(context)

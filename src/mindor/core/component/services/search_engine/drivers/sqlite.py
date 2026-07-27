@@ -1,102 +1,102 @@
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import SQLiteSearchEngineComponentConfig
-from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineActionMethod, SearchEngineFieldType
+from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineFieldType
 from ..base import SearchEngineService, SearchEngineDriver, register_search_engine_service
 from ..base import ComponentActionContext
 from .common import SearchEngineAction
-import asyncio, sqlite3, os, json
+import sqlite3, os, json
 
 class SQLiteSearchEngineAction(SearchEngineAction):
-    async def _index(self, database: sqlite3.Connection, context: ComponentActionContext) -> Dict[str, Any]:
-        index_id  = await context.render_variable(self.config.index)
-        documents = await context.render_variable(self.config.documents)
+    async def _index(self, database: sqlite3.Connection, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _index() -> Dict[str, Any]:
+            index_id  = params["index"]
+            documents = params["documents"]
 
-        if documents is None:
-            raise ValueError("'documents' must be specified for 'index' method")
+            self._ensure_meta_table(database)
+            meta = self._load_meta(database, index_id)
 
-        self._ensure_meta_table(database)
-        meta = self._load_meta(database, index_id)
+            if meta is None:
+                if not self.config.fields:
+                    raise LookupError(f"Index '{index_id}' does not exist and no fields were provided.")
+                meta = self._create_index(database, index_id, self.config.fields)
 
-        if meta is None:
-            if not self.config.fields:
-                raise LookupError(f"Index '{index_id}' does not exist and no fields were provided.")
-            meta = self._create_index(database, index_id, self.config.fields)
+            column_names = [ f["name"] for f in meta["fields"] ]
+            placeholders = ", ".join([ "?" ] * len(column_names))
+            columns_sql  = ", ".join(f'"{n}"' for n in column_names)
+            insert_sql   = f'INSERT INTO "{index_id}" ({columns_sql}) VALUES ({placeholders})'
 
-        column_names = [ f["name"] for f in meta["fields"] ]
-        placeholders = ", ".join([ "?" ] * len(column_names))
-        columns_sql  = ", ".join(f'"{n}"' for n in column_names)
-        insert_sql   = f'INSERT INTO "{index_id}" ({columns_sql}) VALUES ({placeholders})'
+            affected_documents = 0
+            for document in documents:
+                if meta["id_field"] and meta["id_field"] in document:
+                    database.execute(
+                        f'DELETE FROM "{index_id}" WHERE "{meta["id_field"]}" = ?',
+                        ( str(document[meta["id_field"]]), )
+                    )
+                values = [ str(document.get(name, "")) for name in column_names ]
+                database.execute(insert_sql, values)
+                affected_documents += 1
+            database.commit()
 
-        affected_documents = 0
-        for document in documents:
-            if meta["id_field"] and meta["id_field"] in document:
-                database.execute(
+            total_documents = database.execute(f'SELECT COUNT(*) AS c FROM "{index_id}"').fetchone()["c"]
+
+            return { "affected_documents": affected_documents, "total_documents": total_documents }
+
+        return await self._run_in_executor(_index)
+
+    async def _search(self, database: sqlite3.Connection, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        def _search() -> List[Dict[str, Any]]:
+            index_id      = params["index"]
+            query         = params["query"]
+            limit         = params["limit"]
+            search_fields = params["search_fields"]
+
+            meta = self._load_meta(database, index_id)
+            if meta is None:
+                raise LookupError(f"Index '{index_id}' does not exist.")
+
+            match_expr = ("{" + " ".join(search_fields) + "}: " + str(query)) if search_fields else str(query)
+
+            column_names = [ f["name"] for f in meta["fields"] ]
+            columns_sql  = ", ".join(f'"{n}"' for n in column_names)
+
+            rows = database.execute(
+                f'SELECT {columns_sql}, -bm25("{index_id}") AS score '
+                f'FROM "{index_id}" WHERE "{index_id}" MATCH ? '
+                f'ORDER BY score DESC LIMIT ?',
+                ( match_expr, int(limit) )
+            ).fetchall()
+
+            results: List[Dict[str, Any]] = []
+            for row in rows:
+                document = { name: row[name] for name in column_names }
+                results.append({ "document": document, "score": row["score"] })
+
+            return results
+
+        return await self._run_in_executor(_search)
+
+    async def _delete(self, database: sqlite3.Connection, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _delete() -> Dict[str, Any]:
+            index_id     = params["index"]
+            document_ids = params["document_ids"]
+
+            meta = self._load_meta(database, index_id)
+            if meta is None or not meta["id_field"]:
+                return { "affected_documents": 0 }
+
+            affected_documents = 0
+            for document_id in document_ids:
+                cursor = database.execute(
                     f'DELETE FROM "{index_id}" WHERE "{meta["id_field"]}" = ?',
-                    ( str(document[meta["id_field"]]), )
+                    ( str(document_id), )
                 )
-            values = [ str(document.get(name, "")) for name in column_names ]
-            database.execute(insert_sql, values)
-            affected_documents += 1
-        database.commit()
+                if cursor.rowcount > 0:
+                    affected_documents += cursor.rowcount
+            database.commit()
 
-        total_documents = database.execute(f'SELECT COUNT(*) AS c FROM "{index_id}"').fetchone()["c"]
+            return { "affected_documents": affected_documents }
 
-        return { "affected_documents": affected_documents, "total_documents": total_documents }
-
-    async def _search(self, database: sqlite3.Connection, context: ComponentActionContext) -> List[Dict[str, Any]]:
-        index_id      = await context.render_variable(self.config.index)
-        query         = await context.render_variable(self.config.query)
-        limit         = await context.render_variable(self.config.limit)
-        search_fields = await context.render_variable(self.config.search_fields)
-
-        if query is None:
-            raise ValueError("'query' must be specified for 'search' method")
-
-        meta = self._load_meta(database, index_id)
-        if meta is None:
-            raise LookupError(f"Index '{index_id}' does not exist.")
-
-        match_expr = ("{" + " ".join(search_fields) + "}: " + str(query)) if search_fields else str(query)
-
-        column_names = [ f["name"] for f in meta["fields"] ]
-        columns_sql  = ", ".join(f'"{n}"' for n in column_names)
-
-        rows = database.execute(
-            f'SELECT {columns_sql}, -bm25("{index_id}") AS score '
-            f'FROM "{index_id}" WHERE "{index_id}" MATCH ? '
-            f'ORDER BY score DESC LIMIT ?',
-            ( match_expr, int(limit) )
-        ).fetchall()
-
-        results: List[Dict[str, Any]] = []
-        for row in rows:
-            document = { name: row[name] for name in column_names }
-            results.append({ "document": document, "score": row["score"] })
-
-        return results
-
-    async def _delete(self, database: sqlite3.Connection, context: ComponentActionContext) -> Dict[str, Any]:
-        index_id     = await context.render_variable(self.config.index)
-        document_ids = await context.render_variable(self.config.document_ids)
-
-        if document_ids is None:
-            raise ValueError("'document_ids' must be specified for 'delete' method")
-
-        meta = self._load_meta(database, index_id)
-        if meta is None or not meta["id_field"]:
-            return { "affected_documents": 0 }
-
-        affected_documents = 0
-        for document_id in document_ids:
-            cursor = database.execute(
-                f'DELETE FROM "{index_id}" WHERE "{meta["id_field"]}" = ?',
-                ( str(document_id), )
-            )
-            if cursor.rowcount > 0:
-                affected_documents += cursor.rowcount
-        database.commit()
-
-        return { "affected_documents": affected_documents }
+        return await self._run_in_executor(_delete)
 
     def _ensure_meta_table(self, database: sqlite3.Connection) -> None:
         database.execute(
@@ -143,27 +143,29 @@ class SQLiteSearchEngineService(SearchEngineService):
     def __init__(self, id: str, config: SQLiteSearchEngineComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
+        self.database: Optional[sqlite3.Connection] = None
+
     def get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
+    async def _start(self) -> None:
+        database_path = os.path.join(self.config.storage_dir, self.config.database)
+
+        parent_dir = os.path.dirname(database_path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+
+        self.database = sqlite3.connect(database_path, check_same_thread=False)
+        self.database.row_factory = sqlite3.Row
+
+        await super()._start()
+
+    async def _stop(self) -> None:
+        await super()._stop()
+
+        if self.database:
+            self.database.close()
+            self.database = None
+
     async def _run(self, action: SearchEngineActionConfig, context: ComponentActionContext) -> Any:
-        loop = asyncio.get_running_loop()
-
-        async def _run():
-            database_path = os.path.join(self.config.storage_dir, self.config.database)
-
-            if action.method != SearchEngineActionMethod.INDEX and not os.path.exists(database_path):
-                raise FileNotFoundError(f"Search engine database does not exist: {database_path}. Run an 'index' action first to create the database.")
-
-            parent_dir = os.path.dirname(database_path)
-            if parent_dir:
-                os.makedirs(parent_dir, exist_ok=True)
-
-            database = sqlite3.connect(database_path)
-            database.row_factory = sqlite3.Row
-            try:
-                return await SQLiteSearchEngineAction(action).run(context, loop, database)
-            finally:
-                database.close()
-
-        return await self.run_in_thread(_run)
+        return await SQLiteSearchEngineAction(action).run(context, self.database)

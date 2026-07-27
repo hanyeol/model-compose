@@ -9,7 +9,7 @@ from mindor.core.logger import logging
 from ..common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os, shutil
+import os, shutil
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
@@ -37,27 +37,30 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         return params
 
-    def _embed(
+    async def _embed(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        import numpy as np
-        import cv2
+        def _embed() -> List[Dict[str, Any]]:
+            import numpy as np
+            import cv2
 
-        results: List[Dict[str, Any]] = []
+            results: List[Dict[str, Any]] = []
 
-        for image in images:
-            rgb_frame = np.asarray(image.convert("RGB"))
-            height, width = rgb_frame.shape[:2]
+            for image in images:
+                rgb_frame = np.asarray(image.convert("RGB"))
+                height, width = rgb_frame.shape[:2]
 
-            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-            detections = self.model.get(bgr_frame)
+                bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+                detections = self.model.get(bgr_frame)
 
-            results.append(self._serialize(detections, width, height, params))
+                results.append(self._serialize(detections, width, height, params))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_embed)
 
     def _serialize(self, detections: List[Face], width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         detections = detections[:params["max_num_faces"]] if params["max_num_faces"] and params["max_num_faces"] > 0 else detections
@@ -184,5 +187,5 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
     def _get_device_id(self) -> int:
         return 0
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await InsightfaceFaceEmbeddingTaskAction(action, self.model).run(context)

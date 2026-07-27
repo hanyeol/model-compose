@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -45,16 +46,14 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         self,
         source: MediaSource,
         format: str,
-        codec: Optional[str],
-        bitrate: Optional[str],
+        encoding: AudioEncoderParams,
         track: Optional[int],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
-        codec = codec or _FORMAT_CODEC_MAP.get(format)
+        resolved_codec = self._resolve_audio_codec(encoding, format)
 
         command = [ "ffmpeg", "-hide_banner" ]
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
@@ -62,10 +61,14 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
 
         if track is not None:
             command.extend([ "-map", f"0:a:{track}" ])
-        if codec:
-            command.extend([ "-c:a", codec ])
-        if bitrate:
-            command.extend([ "-b:a", bitrate ])
+        if resolved_codec:
+            command.extend([ "-c:a", resolved_codec ])
+        if encoding.bitrate:
+            command.extend([ "-b:a", str(encoding.bitrate) ])
+        if encoding.sample_rate:
+            command.extend([ "-ar", str(encoding.sample_rate) ])
+        if encoding.channels:
+            command.extend([ "-ac", str(encoding.channels) ])
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -85,28 +88,6 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
             return await self._extract_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
         return await self._extract_to_file(command, source, input_path, format, _cleanup, cancellation_token)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     async def _extract_to_file(
         self,
@@ -234,10 +215,39 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
 
         return AudioStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
+    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
+
+    @staticmethod
+    def _resolve_audio_codec(encoding: AudioEncoderParams, format: str) -> Optional[str]:
+        if encoding.codec:
+            return encoding.codec
+
+        return _FORMAT_CODEC_MAP.get(format)
+
 @register_audio_extractor_service(AudioExtractorDriver.FFMPEG)
 class FFmpegAudioExtractorService(AudioExtractorService):
     def __init__(self, id: str, config: AudioExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: AudioExtractorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegAudioExtractorAction(action).run(context, loop)
+    async def _run(self, action: AudioExtractorActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegAudioExtractorAction(action).run(context)

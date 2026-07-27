@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from typing import Union, Optional, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
@@ -52,33 +53,42 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
+
         if streaming:
-            return [ self._stream_one(prompt, params["generation"], cancellation_token) for prompt in texts ]
+            # llama_cpp yields tokens synchronously; wrap each per-prompt generator
+            # with SyncGeneratorStreamer so the caller can consume it via async for.
+            return [
+                SyncGeneratorStreamer(self._stream_text(prompt, params["generation"], cancellation_token), loop)
+                for prompt in texts
+            ]
 
-        return [ self._generate_one(prompt, params["generation"], cancellation_token) for prompt in texts ]
+        def _generate() -> List[str]:
+            return [ self._generate_text(prompt, params["generation"], cancellation_token) for prompt in texts ]
 
-    def _generate_one(
+        return await self._run_in_executor(_generate)
+
+    def _generate_text(
         self,
         prompt: str,
         generation_params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> str:
         if cancellation_token is not None:
             chunks: List[str] = []
-            for token in self._stream_one(prompt, generation_params, cancellation_token):
+            for token in self._stream_text(prompt, generation_params, cancellation_token):
                 chunks.append(token)
             return "".join(chunks)
-        
+
         return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
 
-    def _stream_one(
+    def _stream_text(
         self,
         prompt: str,
         generation_params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Iterator[str]:
         for chunk in self.model(prompt, stream=True, **generation_params):
             if cancellation_token is not None and cancellation_token.is_cancelled():
@@ -89,10 +99,5 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.LLAMACPP)
 class LlamaCppTextGenerationTaskService(LlamaCppModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await LlamaCppTextGenerationTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await LlamaCppTextGenerationTaskAction(action, self.model).run(context)

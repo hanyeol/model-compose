@@ -8,12 +8,13 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import aiohttp, asyncio
 import sys, subprocess
 
-class WebScraperAction:
+class WebScraperAction(ComponentAction):
     def __init__(
         self,
         config: WebScraperActionConfig,
@@ -26,7 +27,7 @@ class WebScraperAction:
         self.cookies = cookies
         self.timeout = timeout
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         url        = await context.render_text(self.config.url)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -38,7 +39,7 @@ class WebScraperAction:
         if isinstance(url, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_urls, params, loop, context.cancellation_token)
+                    batch_results = await self._process_batch(batch_urls, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -46,7 +47,7 @@ class WebScraperAction:
         else:
             results = []
             async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_urls, params, loop, context.cancellation_token)
+                batch_results = await self._process_batch(batch_urls, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -91,7 +92,6 @@ class WebScraperAction:
         self,
         urls: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[Any]]:
         needs_browser = params["submit"] or params["enable_javascript"]
@@ -102,22 +102,21 @@ class WebScraperAction:
                 browser = await p.chromium.launch(headless=True)
                 try:
                     return await asyncio.gather(*[
-                        self._process(url, params, loop, browser, cancellation_token) for url in urls
+                        self._process(url, params, browser, cancellation_token) for url in urls
                     ])
                 finally:
                     await browser.close()
 
         return await asyncio.gather(*[
-            self._process(url, params, loop, None, cancellation_token) for url in urls
+            self._process(url, params, None, cancellation_token) for url in urls
         ])
 
     async def _process(
         self,
         url: str,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         browser: Optional[Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[Any]:
         if url is None:
             logging.debug("Web scraper skipped because no URL was provided.")
@@ -405,4 +404,4 @@ class WebScraperComponent(ComponentService):
         if self._rate_limiter:
             await self._rate_limiter.acquire()
 
-        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context, asyncio.get_running_loop())
+        return await WebScraperAction(action, self.config.headers, self.config.cookies, self.config.timeout).run(context)

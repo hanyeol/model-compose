@@ -10,14 +10,15 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
+from ....action.base import ComponentAction
 from PIL import Image as PILImage
 import asyncio
 
-class ImageProcessorAction:
+class ImageProcessorAction(ComponentAction):
     def __init__(self, config: ImageProcessorActionConfig):
         self.config: ImageProcessorActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         image      = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -29,7 +30,7 @@ class ImageProcessorAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._process_batch(batch_images, self.config.method, params)
+                    batch_results = await self._process_batch(self.config.method, batch_images, params)
                     for result in batch_results:
                         yield result
 
@@ -37,7 +38,7 @@ class ImageProcessorAction:
         else:
             results = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = self._process_batch(batch_images, self.config.method, params)
+                batch_results = await self._process_batch(self.config.method, batch_images, params)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -196,111 +197,110 @@ class ImageProcessorAction:
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
-    def _process_batch(
+    async def _process_batch(
         self,
-        images: Union[List[PILImage.Image], List[ImageArrayValue]],
         method: ImageProcessorActionMethod,
+        images: Union[List[PILImage.Image], List[ImageArrayValue]],
         params: Dict[str, Any],
     ) -> List[Optional[PILImage.Image]]:
-        return [ self._process(image, method, params) for image in images ]
+        return await asyncio.gather(*[
+            self._process(method, image, params) for image in images
+        ])
 
-    def _process(self, image: Union[PILImage.Image, ImageArrayValue], method: ImageProcessorActionMethod, params: Dict[str, Any]) -> Optional[PILImage.Image]:
-        if image is None or (isinstance(image, ImageArrayValue) and not image.values):
+    async def _process(self, method: ImageProcessorActionMethod, image: Union[PILImage.Image, ImageArrayValue], params: Dict[str, Any]) -> Optional[PILImage.Image]:
+        if image is None:
             logging.debug("Image processor (%s) skipped because no image was provided.", method)
             return None
 
-        if isinstance(image, ImageArrayValue):
-            image = image.values
-
         if method == ImageProcessorActionMethod.RESIZE:
-            return self._resize(image, params)
+            return await self._resize(image, params)
 
         if method == ImageProcessorActionMethod.CROP:
-            return self._crop(image, params)
+            return await self._crop(image, params)
 
         if method == ImageProcessorActionMethod.ROTATE:
-            return self._rotate(image, params)
+            return await self._rotate(image, params)
 
         if method == ImageProcessorActionMethod.FLIP:
-            return self._flip(image, params)
+            return await self._flip(image, params)
 
         if method == ImageProcessorActionMethod.GRAYSCALE:
-            return self._grayscale(image, params)
+            return await self._grayscale(image, params)
 
         if method == ImageProcessorActionMethod.BLUR:
-            return self._blur(image, params)
+            return await self._blur(image, params)
 
         if method == ImageProcessorActionMethod.SHARPEN:
-            return self._sharpen(image, params)
+            return await self._sharpen(image, params)
 
         if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
-            return self._adjust_brightness(image, params)
+            return await self._adjust_brightness(image, params)
 
         if method == ImageProcessorActionMethod.ADJUST_CONTRAST:
-            return self._adjust_contrast(image, params)
+            return await self._adjust_contrast(image, params)
 
         if method == ImageProcessorActionMethod.ADJUST_SATURATION:
-            return self._adjust_saturation(image, params)
+            return await self._adjust_saturation(image, params)
 
         if method == ImageProcessorActionMethod.CONCAT:
-            return self._concat(image, params)
+            return await self._concat(image.values, params)
 
         if method == ImageProcessorActionMethod.MERGE:
-            return self._merge(image, params)
+            return await self._merge(image.values, params)
 
         if method == ImageProcessorActionMethod.COMPRESS:
-            return self._compress(image, params)
+            return await self._compress(image, params)
 
         raise ValueError(f"Unsupported image processing action method: {method}")
 
     @abstractmethod
-    def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+    async def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+    async def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+    async def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod
-    def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
+    async def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
         pass

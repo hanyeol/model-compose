@@ -23,14 +23,30 @@ class VectorStoreComponent(ComponentService):
     def _create_service(self, driver: VectorStoreDriver) -> VectorStoreService:
         try:
             if driver not in VectorStoreServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return VectorStoreServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported vector store driver: {driver}")
 
+    def _load_driver_module(self, driver: VectorStoreDriver) -> None:
+        """Import the module that registers the given vector store driver.
+
+        Convention: a driver "foo-bar" (VectorStoreDriver.value) maps to
+        mindor.core.component.services.vector_store.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_vector_store_service
+        decorator, populating VectorStoreServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.vector_store.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported vector store driver: {driver}") from e
+
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
-    
+
     async def _start(self) -> None:
         await self.service.start()
 
@@ -43,19 +59,3 @@ class VectorStoreComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: VectorStoreDriver) -> None:
-    """Import the module that registers the given vector store driver.
-
-    Convention: a driver "foo-bar" (VectorStoreDriver.value) maps to
-    mindor.core.component.services.vector_store.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_vector_store_service
-    decorator, populating VectorStoreServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.vector_store.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported vector store driver: {driver}") from e

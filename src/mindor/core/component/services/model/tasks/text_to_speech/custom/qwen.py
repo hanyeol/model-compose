@@ -13,10 +13,9 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.utils.audio import encode_waveform_to_pcm16
+from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
-import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -51,23 +50,28 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    def _generate(
+    async def _generate(
         self,
         texts: List[str],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[StreamResource]:
-        def _generate(text: str) -> StreamResource:
-            samples, sample_rate = self._synthesize(text, params)
-            frames, channels = encode_waveform_to_pcm16(samples[0])
+        def _generate() -> List[StreamResource]:
+            results: List[StreamResource] = []
 
-            return PcmStreamResource(frames, {
-                "sample_rate": str(sample_rate),
-                "channels":    str(channels),
-                "bit_depth":   "16",
-            })
+            for text in texts:
+                samples, sample_rate = self._synthesize(text, params)
+                frames, channels = encode_waveform_to_pcm(samples[0])
 
-        return [ _generate(text) for text in texts ]
+                results.append(PcmStreamResource(frames, {
+                    "sample_rate": str(sample_rate),
+                    "channels":    str(channels),
+                    "bit_depth":   "16",
+                }))
+
+            return results
+
+        return await self._run_in_executor(_generate)
 
     def _resolve_language(self, language: Optional[str]) -> Optional[str]:
         return _QWEN_LANGUAGE_MAP.get(language.split("-")[0])
@@ -186,14 +190,14 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
 
         return model, device
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await QwenTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context, loop)
+            return await QwenTextToSpeechGenerateTaskAction(action, self.model, self.device).run(context)
 
         if action.method == TextToSpeechActionMethod.CLONE:
-            return await QwenTextToSpeechCloneTaskAction(action, self.model, self.device).run(context, loop)
+            return await QwenTextToSpeechCloneTaskAction(action, self.model, self.device).run(context)
 
         if action.method == TextToSpeechActionMethod.DESIGN:
-            return await QwenTextToSpeechDesignTaskAction(action, self.model, self.device).run(context, loop)
+            return await QwenTextToSpeechDesignTaskAction(action, self.model, self.device).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

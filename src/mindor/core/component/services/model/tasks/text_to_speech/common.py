@@ -9,18 +9,18 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
-import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class TextToSpeechTaskAction:
+class TextToSpeechTaskAction(ComponentAction):
     def __init__(self, config: TextToSpeechModelActionConfig, device: Optional[torch.device]):
         self.config: TextToSpeechModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -32,7 +32,7 @@ class TextToSpeechTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = self._generate(batch_texts, params, context.cancellation_token)
+                    batch_results = await self._generate(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class TextToSpeechTaskAction:
         else:
             results: List[StreamResource] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = self._generate(batch_texts, params, context.cancellation_token)
+                batch_results = await self._generate(batch_texts, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -52,11 +52,11 @@ class TextToSpeechTaskAction:
         return {}
 
     @abstractmethod
-    def _generate(
+    async def _generate(
         self,
         texts: List[str],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[StreamResource]:
         pass
 

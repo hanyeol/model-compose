@@ -22,10 +22,26 @@ class ScreenCaptureComponent(ComponentService):
     def _create_service(self, driver: ScreenCaptureDriver) -> ScreenCaptureService:
         try:
             if driver not in ScreenCaptureServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return ScreenCaptureServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported screen capture driver: {driver}")
+
+    def _load_driver_module(self, driver: ScreenCaptureDriver) -> None:
+        """Import the module that registers the given screen capture driver.
+
+        Convention: a driver "foo-bar" (ScreenCaptureDriver.value) maps to
+        mindor.core.component.services.screen_capture.drivers.foo_bar —
+        either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_screen_capture_service
+        decorator, populating ScreenCaptureServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.screen_capture.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported screen capture driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class ScreenCaptureComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: ScreenCaptureDriver) -> None:
-    """Import the module that registers the given screen capture driver.
-
-    Convention: a driver "foo-bar" (ScreenCaptureDriver.value) maps to
-    mindor.core.component.services.screen_capture.drivers.foo_bar —
-    either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_screen_capture_service
-    decorator, populating ScreenCaptureServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.screen_capture.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported screen capture driver: {driver}") from e

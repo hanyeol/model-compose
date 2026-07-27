@@ -27,11 +27,10 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
-        threshold = threshold if threshold is not None else 0.3
+        resolved_threshold = threshold if threshold is not None else 0.3
 
         command: List[str] = [ "ffmpeg", "-hide_banner" ]
 
@@ -41,12 +40,12 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
             command.extend([ "-to", str(end_time) ])
 
         command.extend([ "-i", input_path ])
-        command.extend([ "-vf", f"select='gt(scene,{threshold})',showinfo" ])
+        command.extend([ "-vf", f"select='gt(scene,{resolved_threshold})',showinfo" ])
         command.extend([ "-f", "null", "-" ])
 
         logging.debug(
             "Detecting scenes with ffmpeg (threshold=%s, streaming=%s)",
-            threshold, streaming,
+            resolved_threshold, streaming,
         )
 
         def _cleanup() -> None:
@@ -287,5 +286,5 @@ class FFmpegVideoSceneDetectorService(VideoSceneDetectorService):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegVideoSceneDetectorAction(action).run(context, loop)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegVideoSceneDetectorAction(action).run(context)

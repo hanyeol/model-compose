@@ -6,12 +6,11 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, SileroVoiceActivityDetectionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, VoiceActivityDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_array, stream_audio_array, is_audio_streamable
+from mindor.core.foundation.streaming.audio import load_audio_buffer, stream_audio_buffer, is_audio_streamable
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ..common import VoiceActivityDetectionTaskService, VoiceActivityDetectionTaskAction, VoiceSegmenter
-import asyncio
 
 if TYPE_CHECKING:
     import numpy as np
@@ -36,18 +35,33 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[List[Dict[str, Any]]], List[Union[Iterator[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]]:
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         import numpy as np
 
         sample_rate = int(params["sample_rate"])
         sources, window_size = await self._preprocess_audio(audios, sample_rate, streaming)
-        results = []
 
-        for source in sources:
+        # Partition into fully-loaded waveforms (need executor offload for the
+        # sync silero call) and streamable frame iterators (native async).
+        collect_indices: List[int] = []
+        collect_waveforms: List[np.ndarray] = []
+        results: List[Any] = [ None ] * len(sources)
+
+        for index, source in enumerate(sources):
             if isinstance(source, np.ndarray):
-                segments = self._collect_detections(source, sample_rate, params)
+                collect_indices.append(index)
+                collect_waveforms.append(source)
+            else:
+                results[index] = self._stream_detections(source, window_size, sample_rate, params)
+
+        if collect_waveforms:
+            def _collect() -> List[List[Dict[str, Any]]]:
+                return [ self._collect_detections(waveform, sample_rate, params) for waveform in collect_waveforms ]
+
+            batch_segments = await self._run_in_executor(_collect)
+
+            for index, segments in zip(collect_indices, batch_segments):
                 if streaming:
                     # Streaming requested but source not consumable frame-by-frame:
                     # yield the batch segments one by one to preserve the
@@ -55,11 +69,9 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
                     async def _stream_chunk_generator(segments=segments):
                         for segment in segments:
                             yield segment
-                    results.append(_stream_chunk_generator())
+                    results[index] = _stream_chunk_generator()
                 else:
-                    results.append(segments)
-            else:
-                results.append(self._stream_detections(source, window_size, sample_rate, params))
+                    results[index] = segments
 
         return results
 
@@ -76,13 +88,16 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
         for audio in audios:
             if streaming and is_audio_streamable(audio):
-                waveforms.append(stream_audio_array(audio, window_size, sample_rate=sample_rate))
+                async def _stream_waveform_generator(audio=audio):
+                    async for waveform, _  in stream_audio_buffer(audio, window_size, sample_rate=sample_rate):
+                        yield waveform
+                waveforms.append(_stream_waveform_generator())
                 continue
 
             if streaming:
                 logging.debug("Streaming input format=%r not directly consumable; collating for frame-by-frame VAD.", audio.format)
 
-            waveform, _ = await load_audio_array(audio, sample_rate=sample_rate)
+            waveform, _ = await load_audio_buffer(audio, sample_rate=sample_rate)
             waveforms.append(waveform)
 
         return waveforms, window_size
@@ -254,10 +269,5 @@ class SileroVoiceActivityDetectionTaskService(VoiceActivityDetectionTaskService)
 
         return model, device
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await SileroVoiceActivityDetectionTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await SileroVoiceActivityDetectionTaskAction(action, self.model, self.device).run(context)

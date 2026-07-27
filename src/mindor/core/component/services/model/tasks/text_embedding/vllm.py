@@ -8,7 +8,7 @@ from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextEmbeddingTaskAction
-import asyncio, math, ulid
+import math, ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine
@@ -27,8 +27,7 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         self,
         texts: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
         from vllm import PoolingParams
 
@@ -38,15 +37,18 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         for text in texts:
             request_id = f"request-{ulid.ulid()}"
             final_pooled = None
+
             async for pooled in self.engine.encode(text, pooling_params, request_id=request_id):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    await self.engine.abort(request_id)
+                    return embeddings
                 final_pooled = pooled
 
             if final_pooled is None:
                 embeddings.append([])
                 continue
 
-            embedding = list(final_pooled.outputs.embedding)
-            embeddings.append(embedding)
+            embeddings.append(list(final_pooled.outputs.embedding))
 
         if params["normalize"]:
             normalized: List[List[float]] = []
@@ -59,7 +61,6 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             return normalized
 
         return embeddings
-
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.VLLM)
 class VllmTextEmbeddingTaskService(VllmModelTaskService):
@@ -77,10 +78,5 @@ class VllmTextEmbeddingTaskService(VllmModelTaskService):
 
         self._load_tokenizer(model_path, params)
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await VllmTextEmbeddingTaskAction(action, self.engine).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await VllmTextEmbeddingTaskAction(action, self.engine).run(context)

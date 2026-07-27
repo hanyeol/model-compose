@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig
+from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.foundation.variable.time import parse_duration
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
-import asyncio, ulid
+import ulid
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient
@@ -63,145 +63,171 @@ class ChromaWhereSpecBuilder:
         return { condition.field: { operator: condition.value } }
 
 class ChromaVectorStoreAction(VectorStoreAction):
-    async def _insert(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        vector          = await context.render_variable(self.config.vector)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        document        = await context.render_variable(self.config.document)
-        metadata        = await context.render_variable(self.config.metadata)
-        batch_size      = await context.render_variable(self.config.batch_size)
+    async def _resolve_params(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(method, context)
 
-        is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
-        vectors: List[List[float]] = [ vector ] if is_single_input else vector
-        vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
-        documents: Optional[List[str]] = [ document ] if is_single_input and document else document
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
-        inserted_ids, affected_rows = [], 0
+        if method in (VectorStoreActionMethod.INSERT, VectorStoreActionMethod.UPDATE):
+            document = await context.render_variable(self.config.document)
 
-        if vector_ids is None:
-            vector_ids = [ ulid.ulid() for _ in vectors ]
+            params.update({
+                "document": document,
+            })
 
-        collection: Collection = self.client.get_or_create_collection(name=collection_name)
-        for index in range(0, len(vectors), batch_size):
-            batch_vectors = vectors[index:index + batch_size]
-            batch_vector_ids = vector_ids[index:index + batch_size] if vector_ids else None
-            batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
-            batch_documents = documents[index:index + batch_size] if documents else None
+            return params
 
-            collection.add(
-                ids=batch_vector_ids,
-                embeddings=batch_vectors,
-                metadatas=batch_metadatas,
-                documents=batch_documents
-            )
-            inserted_ids.extend(batch_vector_ids)
-            affected_rows += len(batch_vector_ids)
+        return params
 
-        return { "ids": inserted_ids, "affected_rows": affected_rows }
+    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _insert() -> Dict[str, Any]:
+            collection_name = params["collection"]
+            vector          = params["vector"]
+            vector_id       = params["vector_id"]
+            document        = params["document"]
+            metadata        = params["metadata"]
+            batch_size      = params["batch_size"]
 
-    async def _update(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        vector          = await context.render_variable(self.config.vector)
-        metadata        = await context.render_variable(self.config.metadata)
-        document        = await context.render_variable(self.config.document)
-        batch_size      = await context.render_variable(self.config.batch_size)
+            is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
+            vectors: List[List[float]] = [ vector ] if is_single_input else vector
+            vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
+            metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
+            documents: Optional[List[str]] = [ document ] if is_single_input and document else document
+            batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
+            inserted_ids, affected_rows = [], 0
 
-        is_single_input: bool = bool(not isinstance(vector_id, list))
-        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-        vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
-        metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
-        documents: Optional[List[str]] = [ document ] if is_single_input and document else document
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-        affected_rows = 0
+            if vector_ids is None:
+                vector_ids = [ ulid.ulid() for _ in vectors ]
 
-        collection: Collection = self.client.get_or_create_collection(name=collection_name)
-        for index in range(0, len(vector_ids), batch_size):
-            batch_vector_ids = vector_ids[index:index + batch_size]
-            batch_vectors = vectors[index:index + batch_size] if vectors else None
-            batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
-            batch_documents = documents[index:index + batch_size] if documents else None
+            collection: Collection = self.client.get_or_create_collection(name=collection_name)
+            for index in range(0, len(vectors), batch_size):
+                batch_vectors = vectors[index:index + batch_size]
+                batch_vector_ids = vector_ids[index:index + batch_size] if vector_ids else None
+                batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
+                batch_documents = documents[index:index + batch_size] if documents else None
 
-            collection.update(
-                ids=batch_vector_ids,
-                embeddings=batch_vectors,
-                metadatas=batch_metadatas,
-                documents=batch_documents
-            )
-            affected_rows += len(batch_vector_ids)
+                collection.add(
+                    ids=batch_vector_ids,
+                    embeddings=batch_vectors,
+                    metadatas=batch_metadatas,
+                    documents=batch_documents
+                )
+                inserted_ids.extend(batch_vector_ids)
+                affected_rows += len(batch_vector_ids)
 
-        return { "affected_rows": affected_rows }
+            return { "ids": inserted_ids, "affected_rows": affected_rows }
 
-    async def _search(self, context: ComponentActionContext) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
-        collection_name = await context.render_variable(self.config.collection)
-        query           = await context.render_variable(self.config.query)
-        top_k           = await context.render_variable(self.config.top_k)
-        filter          = await context.render_variable(self.config.filter)
-        output_fields   = await context.render_variable(self.config.output_fields)
-        batch_size      = await context.render_variable(self.config.batch_size)
+        return await self._run_in_executor(_insert)
 
-        is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
-        queries: List[List[float]] = [ query ] if is_single_input else query
-        batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
-        results = []
+    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _update() -> Dict[str, Any]:
+            collection_name = params["collection"]
+            vector_id       = params["vector_id"]
+            vector          = params["vector"]
+            metadata        = params["metadata"]
+            document        = params["document"]
+            batch_size      = params["batch_size"]
 
-        collection: Collection = self.client.get_or_create_collection(name=collection_name)
-        where_spec = ChromaWhereSpecBuilder().build(filter)
+            is_single_input: bool = bool(not isinstance(vector_id, list))
+            vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+            vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
+            metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
+            documents: Optional[List[str]] = [ document ] if is_single_input and document else document
+            batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
+            affected_rows = 0
 
-        for index in range(0, len(queries), batch_size):
-            batch_queries = queries[index:index + batch_size]
+            collection: Collection = self.client.get_or_create_collection(name=collection_name)
+            for index in range(0, len(vector_ids), batch_size):
+                batch_vector_ids = vector_ids[index:index + batch_size]
+                batch_vectors = vectors[index:index + batch_size] if vectors else None
+                batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
+                batch_documents = documents[index:index + batch_size] if documents else None
 
-            result = collection.query(
-                query_embeddings=batch_queries,
-                n_results=int(top_k),
-                where=where_spec,
-                include=[ "embeddings", "distances", "metadatas", "documents" ]
-            )
+                collection.update(
+                    ids=batch_vector_ids,
+                    embeddings=batch_vectors,
+                    metadatas=batch_metadatas,
+                    documents=batch_documents
+                )
+                affected_rows += len(batch_vector_ids)
 
-            for n in range(len(result["ids"])):
-                hits = []
-                for index, id in enumerate(result["ids"][n]):
-                    metadata = result["metadatas"][n][index]
-                    if output_fields:
-                        metadata = { key: metadata[key] for key in output_fields if key in metadata }
+            return { "affected_rows": affected_rows }
 
-                    hits.append({
-                        "id": id,
-                        "embedding": result["embeddings"][n][index],
-                        "score": 1 / (1 + result["distances"][n][index]),
-                        "distance": result["distances"][n][index],
-                        "metadata": metadata,
-                        "document": result["documents"][n][index]
-                    })
-                results.append(hits)
+        return await self._run_in_executor(_update)
 
-        return results[0] if is_single_input else results
+    async def _search(self, params: Dict[str, Any]) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
+        def _search() -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
+            collection_name = params["collection"]
+            query           = params["query"]
+            top_k           = params["top_k"]
+            filter          = params["filter"]
+            output_fields   = params["output_fields"]
+            batch_size      = params["batch_size"]
 
-    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        filter          = await context.render_variable(self.config.filter)
-        batch_size      = await context.render_variable(self.config.batch_size)
+            is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
+            queries: List[List[float]] = [ query ] if is_single_input else query
+            batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
+            results = []
 
-        is_single_input: bool = bool(not isinstance(vector_id, list))
-        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-        affected_rows = 0
+            collection: Collection = self.client.get_or_create_collection(name=collection_name)
+            where_spec = ChromaWhereSpecBuilder().build(filter)
 
-        collection: Collection = self.client.get_or_create_collection(name=collection_name)
-        where_spec = ChromaWhereSpecBuilder().build(filter)
+            for index in range(0, len(queries), batch_size):
+                batch_queries = queries[index:index + batch_size]
 
-        for index in range(0, len(vector_ids), batch_size):
-            batch_vector_ids = vector_ids[index:index + batch_size]
+                result = collection.query(
+                    query_embeddings=batch_queries,
+                    n_results=int(top_k),
+                    where=where_spec,
+                    include=[ "embeddings", "distances", "metadatas", "documents" ]
+                )
 
-            collection.delete(
-                ids=batch_vector_ids,
-                where=where_spec
-            )
-            affected_rows += len(batch_vector_ids)
+                for n in range(len(result["ids"])):
+                    hits = []
+                    for index, id in enumerate(result["ids"][n]):
+                        metadata = result["metadatas"][n][index]
+                        if output_fields:
+                            metadata = { key: metadata[key] for key in output_fields if key in metadata }
 
-        return { "affected_rows": affected_rows }
+                        hits.append({
+                            "id": id,
+                            "embedding": result["embeddings"][n][index],
+                            "score": 1 / (1 + result["distances"][n][index]),
+                            "distance": result["distances"][n][index],
+                            "metadata": metadata,
+                            "document": result["documents"][n][index]
+                        })
+                    results.append(hits)
+
+            return results[0] if is_single_input else results
+
+        return await self._run_in_executor(_search)
+
+    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        def _delete() -> Dict[str, Any]:
+            collection_name = params["collection"]
+            vector_id       = params["vector_id"]
+            filter          = params["filter"]
+            batch_size      = params["batch_size"]
+
+            is_single_input: bool = bool(not isinstance(vector_id, list))
+            vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
+            batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
+            affected_rows = 0
+
+            collection: Collection = self.client.get_or_create_collection(name=collection_name)
+            where_spec = ChromaWhereSpecBuilder().build(filter)
+
+            for index in range(0, len(vector_ids), batch_size):
+                batch_vector_ids = vector_ids[index:index + batch_size]
+
+                collection.delete(
+                    ids=batch_vector_ids,
+                    where=where_spec
+                )
+                affected_rows += len(batch_vector_ids)
+
+            return { "affected_rows": affected_rows }
+
+        return await self._run_in_executor(_delete)
 
 @register_vector_store_service(VectorStoreDriver.CHROMA)
 class ChromaVectorStoreService(VectorStoreService):
@@ -225,7 +251,7 @@ class ChromaVectorStoreService(VectorStoreService):
             self.client = None
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await self.run_in_thread(ChromaVectorStoreAction(action, self.client).run, context, asyncio.get_running_loop())
+        return await ChromaVectorStoreAction(action, self.client).run(context)
 
     def _create_client(self) -> ChromaClient:
         if self.config.mode == "server":

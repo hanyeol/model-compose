@@ -10,7 +10,6 @@ from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from .common import ImageBackgroundRemovalTaskAction
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
@@ -41,53 +40,51 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 
         return params
 
-    def _predict_masks(
+    async def _predict_masks(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
-        from torchvision import transforms
+        def _predict_masks() -> List[PILImage.Image]:
+            import torch
+            from torchvision import transforms
 
-        input_size = params["input_size"]
+            input_size = params["input_size"]
 
-        transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
-        ])
+            transform = transforms.Compose([
+                transforms.Resize((input_size, input_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
+            ])
 
-        batch = torch.stack([ transform(image) for image in images ]).to(self.device)
+            batch = torch.stack([ transform(image) for image in images ]).to(self.device)
 
-        with torch.inference_mode():
-            outputs = self.model(batch)
+            with torch.inference_mode():
+                outputs = self.model(batch)
 
-        logits = outputs[-1] if isinstance(outputs, (list, tuple)) else outputs
-        probs = torch.sigmoid(logits).squeeze(1).float().cpu()
+            logits = outputs[-1] if isinstance(outputs, (list, tuple)) else outputs
+            probs = torch.sigmoid(logits).squeeze(1).float().cpu()
 
-        masks: List[PILImage.Image] = []
-        for prob, image in zip(probs, images):
-            mask_tensor = (prob * 255.0).clamp(0, 255).to(torch.uint8)
-            mask = PILImage.fromarray(mask_tensor.numpy(), mode="L")
-            if mask.size != image.size:
-                mask = mask.resize(image.size, PILImage.Resampling.BILINEAR)
-            masks.append(mask)
+            masks: List[PILImage.Image] = []
+            for prob, image in zip(probs, images):
+                mask_tensor = (prob * 255.0).clamp(0, 255).to(torch.uint8)
+                mask = PILImage.fromarray(mask_tensor.numpy(), mode="L")
+                if mask.size != image.size:
+                    mask = mask.resize(image.size, PILImage.Resampling.BILINEAR)
+                masks.append(mask)
 
-        return masks
+            return masks
+
+        return await self._run_in_executor(_predict_masks)
 
 @register_model_task_service(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageBackgroundRemovalTaskService(HuggingfaceMultimodalModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "transformers", "torch", "torchvision", "accelerate", "timm", "kornia" ]
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceImageBackgroundRemovalTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageBackgroundRemovalTaskAction(action, self.model, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO:

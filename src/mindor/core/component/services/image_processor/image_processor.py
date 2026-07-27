@@ -22,10 +22,26 @@ class ImageProcessorComponent(ComponentService):
     def _create_service(self, driver: ImageProcessorDriver) -> ImageProcessorService:
         try:
             if driver not in ImageProcessorServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return ImageProcessorServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported image processor driver: {driver}")
+
+    def _load_driver_module(self, driver: ImageProcessorDriver) -> None:
+        """Import the module that registers the given image processor driver.
+
+        Convention: a driver "foo-bar" (ImageProcessorDriver.value) maps to
+        mindor.core.component.services.image_processor.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_image_processor_service
+        decorator, populating ImageProcessorServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.image_processor.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported image processor driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class ImageProcessorComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: ImageProcessorDriver) -> None:
-    """Import the module that registers the given image processor driver.
-
-    Convention: a driver "foo-bar" (ImageProcessorDriver.value) maps to
-    mindor.core.component.services.image_processor.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_image_processor_service
-    decorator, populating ImageProcessorServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.image_processor.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported image processor driver: {driver}") from e

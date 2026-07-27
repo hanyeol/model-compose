@@ -1,7 +1,11 @@
 from typing import Optional
 from collections.abc import AsyncIterable, AsyncIterator
 from .resources import StreamResource, read_stream_to_bytes
-import io
+import asyncio, io
+
+# utf-8 decode is very fast (~2 GB/s), so break-even against ~40µs of
+# to_thread overhead sits around 128 KB. Small payloads stay on the loop.
+_OFFLOAD_THRESHOLD_BYTES = 128 * 1024
 
 class TextStreamResource(StreamResource):
     def __init__(self, text: str, encoding: str = "utf-8", filename: Optional[str] = None):
@@ -33,7 +37,12 @@ async def load_text_from_stream(stream: StreamResource, encoding: str = "utf-8")
     if isinstance(stream, TextStreamResource):
         return stream.text
 
-    return (await read_stream_to_bytes(stream)).decode(encoding, errors="replace")
+    data = await read_stream_to_bytes(stream)
+
+    if len(data) < _OFFLOAD_THRESHOLD_BYTES:
+        return data.decode(encoding, errors="replace")
+
+    return await asyncio.to_thread(lambda: data.decode(encoding, errors="replace"))
 
 async def load_text_from_iterator(iterator: AsyncIterable, encoding: str = "utf-8") -> str:
     parts: list[str] = []

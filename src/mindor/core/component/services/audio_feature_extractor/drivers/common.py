@@ -11,17 +11,17 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
+from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import asyncio
 
 if TYPE_CHECKING:
     import numpy as np
 
-class AudioFeatureExtractorAction:
+class AudioFeatureExtractorAction(ComponentAction):
     def __init__(self, config: AudioFeatureExtractorActionConfig):
         self.config: AudioFeatureExtractorActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -33,7 +33,7 @@ class AudioFeatureExtractorAction:
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop, context.cancellation_token)
+                    batch_results = await self._process_batch(batch_audios, self.config.feature, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -41,7 +41,7 @@ class AudioFeatureExtractorAction:
         else:
             results = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_audios, self.config.feature, params, loop, context.cancellation_token)
+                batch_results = await self._process_batch(batch_audios, self.config.feature, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -98,48 +98,46 @@ class AudioFeatureExtractorAction:
         audios: List[MediaSource],
         feature: AudioFeature,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[dict]]:
-        return await asyncio.gather(*[
-            self._process(audio, feature, params, loop, cancellation_token) for audio in audios
-        ])
+        results: List[Optional[dict]] = []
+        for audio in audios:
+            results.append(await self._process(audio, feature, params, cancellation_token))
+        return results
 
     async def _process(
         self,
         audio: MediaSource,
         feature: AudioFeature,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Optional[dict]:
         if audio is None:
             logging.debug("Audio feature extractor (%s) skipped because no audio was provided.", feature)
             return None
 
-        return await self._extract(feature, audio, params, loop, cancellation_token)
+        return await self._extract(feature, audio, params, cancellation_token)
 
     async def _extract(
         self,
         feature: AudioFeature,
         source: MediaSource,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> dict:
         if feature == AudioFeature.SPECTRUM:
-            return await self._extract_spectrum(source, params, loop, cancellation_token)
+            return await self._extract_spectrum(source, params, cancellation_token)
 
         if feature == AudioFeature.WAVEFORM:
-            return await self._extract_waveform(source, params, loop, cancellation_token)
+            return await self._extract_waveform(source, params, cancellation_token)
 
         raise ValueError(f"Unsupported audio feature: {feature}")
 
-    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
         return self._compute_spectrum(samples, params)
 
-    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
         return self._compute_waveform(samples, params)
 
@@ -162,7 +160,7 @@ class AudioFeatureExtractorAction:
             params["max_frequency"],
             params["frequency_scale"]
         )
-        
+
         window = self._get_fft_window(params["window_type"], window_size)
 
         bands = np.zeros((frame_count, band_count), dtype=np.float32)

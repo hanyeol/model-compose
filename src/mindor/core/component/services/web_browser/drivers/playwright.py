@@ -11,7 +11,6 @@ import io
 
 class PlaywrightPageAdapter(PageAdapter):
     """Thin wrapper around a Playwright Page. Every method delegates directly."""
-
     def __init__(self, page: Any):
         self._page = page
 

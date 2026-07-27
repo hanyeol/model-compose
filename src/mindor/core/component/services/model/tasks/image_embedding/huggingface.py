@@ -11,7 +11,6 @@ from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
 from .common import ImageEmbeddingTaskAction
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, ProcessorMixin
@@ -39,21 +38,23 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
-        import torch, torch.nn.functional as F
+        def _embed() -> List[List[float]]:
+            import torch, torch.nn.functional as F
 
-        inputs: Dict[str, Tensor] = self.processor(images=images, return_tensors="pt")
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs: Dict[str, Tensor] = self.processor(images=images, return_tensors="pt")
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-        with torch.inference_mode():
-            embeddings = self._extract_image_features(inputs, params["pooling"])
+            with torch.inference_mode():
+                embeddings = self._extract_image_features(inputs, params["pooling"])
 
-        if params["normalize"]:
-            embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
+            if params["normalize"]:
+                embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-        return embeddings.cpu().tolist()
+            return embeddings.cpu().tolist()
+
+        return await self._run_in_executor(_embed)
 
     def _extract_image_features(self, inputs: Dict[str, Tensor], pooling: str) -> Tensor:
         if self.architecture == HuggingfaceImageEmbeddingModelArchitecture.AUTO:
@@ -95,13 +96,8 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.IMAGE_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageEmbeddingTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await HuggingfaceImageEmbeddingTaskAction(action, self.config.architecture, self.model, self.processor, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageEmbeddingTaskAction(action, self.config.architecture, self.model, self.processor, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageEmbeddingModelArchitecture.AUTO:

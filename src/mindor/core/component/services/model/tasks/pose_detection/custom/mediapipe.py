@@ -10,7 +10,7 @@ from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
 from ..utils import openpose, blazepose, topology
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from mediapipe.tasks.python.vision import PoseLandmarkerResult
@@ -26,38 +26,41 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
 
         self.model_path: str = model_path
 
-    def _detect(
+    async def _detect(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        from mediapipe import Image as MPImage, ImageFormat
-        from mediapipe.tasks.python import vision
-        from mediapipe.tasks.python.core.base_options import BaseOptions
-        import numpy as np
+        def _detect() -> List[Dict[str, Any]]:
+            from mediapipe import Image as MPImage, ImageFormat
+            from mediapipe.tasks.python import vision
+            from mediapipe.tasks.python.core.base_options import BaseOptions
+            import numpy as np
 
-        options = vision.PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=self.model_path),
-            running_mode=vision.RunningMode.IMAGE,
-            num_poses=params["max_pose_count"],
-            min_pose_detection_confidence=params["min_confidence"],
-            min_pose_presence_confidence=params["min_presence_confidence"],
-            min_tracking_confidence=params["min_tracking_confidence"],
-            output_segmentation_masks=params["return_segmentation_mask"],
-        )
+            options = vision.PoseLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=self.model_path),
+                running_mode=vision.RunningMode.IMAGE,
+                num_poses=params["max_pose_count"],
+                min_pose_detection_confidence=params["min_confidence"],
+                min_pose_presence_confidence=params["min_presence_confidence"],
+                min_tracking_confidence=params["min_tracking_confidence"],
+                output_segmentation_masks=params["return_segmentation_mask"],
+            )
 
-        results: List[Dict[str, Any]] = []
+            results: List[Dict[str, Any]] = []
 
-        with vision.PoseLandmarker.create_from_options(options) as landmarker:
-            for image in images:
-                rgb_frame = np.asarray(image.convert("RGB"))
-                height, width = rgb_frame.shape[:2]
+            with vision.PoseLandmarker.create_from_options(options) as landmarker:
+                for image in images:
+                    rgb_frame = np.asarray(image.convert("RGB"))
+                    height, width = rgb_frame.shape[:2]
 
-                prediction = landmarker.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
-                results.append(self._serialize(prediction, width, height, params))
+                    prediction = landmarker.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
+                    results.append(self._serialize(prediction, width, height, params))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_detect)
 
     def _serialize(self, prediction: PoseLandmarkerResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         # MediaPipe internal field names (pose_landmarks/pose_world_landmarks) stay inside this method.
@@ -165,5 +168,5 @@ class BlazePosePoseDetectionTaskService(PoseDetectionTaskService):
             label="pose detection",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await BlazePosePoseDetectionTaskAction(action, self.model_path).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await BlazePosePoseDetectionTaskAction(action, self.model_path).run(context)

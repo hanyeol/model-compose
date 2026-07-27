@@ -2,45 +2,17 @@ from __future__ import annotations
 
 from typing import Optional, Dict, Any
 from abc import abstractmethod
-from dataclasses import dataclass
 from mindor.dsl.schema.action import (
     ScreenCaptureActionConfig,
     ScreenCaptureVideoSource,
     ScreenCaptureAudioSource,
-    VideoAudioEncodingConfig,
-    VideoEncoderConfig,
-    AudioEncoderConfig,
 )
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.foundation.variable.bitrate import parse_bitrate
 from mindor.core.utils.enum import coerce_enum
+from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
 
-@dataclass
-class VideoEncoderParams:
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None
-    resolution: Optional[str] = None
-    fps: Optional[float] = None
-
-@dataclass
-class AudioEncoderParams:
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None
-
-@dataclass
-class VideoAudioEncodingParams:
-    """Rendered encoding parameters ready for the driver layer.
-
-    Values here are already resolved from variable references (${input.foo})
-    and normalized (e.g. bitrate parsed to bits per second), so downstream
-    consumers don't need to touch the DSL config again.
-    """
-    format: Optional[str] = None
-    video: Optional[VideoEncoderParams] = None
-    audio: Optional[AudioEncoderParams] = None
-
-class ScreenCaptureAction:
+class ScreenCaptureAction(MediaComponentAction):
     def __init__(self, config: ScreenCaptureActionConfig):
         self.config: ScreenCaptureActionConfig = config
 
@@ -50,7 +22,6 @@ class ScreenCaptureAction:
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         result = await self._capture(params)
-
         context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
@@ -90,37 +61,6 @@ class ScreenCaptureAction:
             "encoding":      encoding,
             "duration":      duration,
         }
-
-    async def _resolve_encoding_params(self, context: ComponentActionContext, config: VideoAudioEncodingConfig) -> VideoAudioEncodingParams:
-        format = await context.render_variable(config.format) if config.format else None
-
-        return VideoAudioEncodingParams(
-            format=format,
-            video=await self._resolve_video_encoder(context, config.video) if config.video else None,
-            audio=await self._resolve_audio_encoder(context, config.audio) if config.audio else None,
-        )
-
-    async def _resolve_video_encoder(self, context: ComponentActionContext, config: VideoEncoderConfig) -> VideoEncoderParams:
-        codec      = await context.render_variable(config.codec)      if config.codec      else None
-        bitrate    = await context.render_variable(config.bitrate)    if config.bitrate    else None
-        resolution = await context.render_variable(config.resolution) if config.resolution else None
-        fps        = await context.render_variable(config.fps)        if config.fps        else None
-
-        return VideoEncoderParams(
-            codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
-            resolution=resolution,
-            fps=float(fps) if fps is not None else None,
-        )
-
-    async def _resolve_audio_encoder(self, context: ComponentActionContext, config: AudioEncoderConfig) -> AudioEncoderParams:
-        codec   = await context.render_variable(config.codec)   if config.codec   else None
-        bitrate = await context.render_variable(config.bitrate) if config.bitrate else None
-
-        return AudioEncoderParams(
-            codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
-        )
 
     async def _resolve_region(self, context: ComponentActionContext) -> Dict[str, int]:
         x      = int(await context.render_variable(self.config.region.x))

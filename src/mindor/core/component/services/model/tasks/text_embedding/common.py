@@ -8,14 +8,14 @@ from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
-import asyncio
 
-class TextEmbeddingTaskAction:
+class TextEmbeddingTaskAction(ComponentAction):
     def __init__(self, config: TextEmbeddingModelActionConfig):
         self.config: TextEmbeddingModelActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -27,7 +27,7 @@ class TextEmbeddingTaskAction:
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._embed(batch_texts, params, loop, context.cancellation_token)
+                    batch_results = await self._embed(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -35,7 +35,7 @@ class TextEmbeddingTaskAction:
         else:
             results: List[List[float]] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._embed(batch_texts, params, loop, context.cancellation_token)
+                batch_results = await self._embed(batch_texts, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -59,8 +59,7 @@ class TextEmbeddingTaskAction:
         self,
         texts: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
         pass
 

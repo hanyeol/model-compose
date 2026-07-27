@@ -3,42 +3,14 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMethod, VideoAudioEncodingConfig, VideoEncoderConfig, AudioEncoderConfig
+from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMethod
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
-from PIL import Image as PILImage
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.variable.time import parse_duration
-from mindor.core.foundation.variable.bitrate import parse_bitrate
+from PIL import Image as PILImage
+from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
-
-
-@dataclass
-class VideoEncoderParams:
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None
-    resolution: Optional[str] = None
-    fps: Optional[float] = None
-
-
-@dataclass
-class AudioEncoderParams:
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None
-
-
-@dataclass
-class VideoAudioEncodingParams:
-    """Rendered encoding parameters ready for the session/recorder layer.
-
-    Values here are already resolved from variable references (${input.foo})
-    and normalized (e.g. bitrate parsed to bits per second), so downstream
-    consumers don't need to touch the DSL config again.
-    """
-    format: Optional[str] = None
-    video: Optional[VideoEncoderParams] = None
-    audio: Optional[AudioEncoderParams] = None
-
 
 class WebBrowserSession(ABC):
     """Abstract browser session exposing high-level browser actions."""
@@ -138,7 +110,7 @@ class WebBrowserSession(ABC):
     async def close(self) -> None:
         pass
 
-class WebBrowserAction:
+class WebBrowserAction(MediaComponentAction):
     def __init__(self, config: WebBrowserActionConfig, timeout: Optional[str]):
         self.config: WebBrowserActionConfig = config
         self.timeout = timeout
@@ -280,34 +252,3 @@ class WebBrowserAction:
             return await session.set_cookies(cookies)
 
         raise ValueError(f"Unsupported web-browser action method: {method}")
-
-    async def _resolve_encoding_params(self, context: ComponentActionContext, config: VideoAudioEncodingConfig) -> VideoAudioEncodingParams:
-        format = await context.render_variable(config.format) if config.format else None
-
-        return VideoAudioEncodingParams(
-            format=format,
-            video=await self._resolve_video_encoder(context, config.video) if config.video else None,
-            audio=await self._resolve_audio_encoder(context, config.audio) if config.audio else None,
-        )
-
-    async def _resolve_video_encoder(self, context: ComponentActionContext, config: VideoEncoderConfig) -> VideoEncoderParams:
-        codec      = await context.render_variable(config.codec)      if config.codec      else None
-        bitrate    = await context.render_variable(config.bitrate)    if config.bitrate    else None
-        resolution = await context.render_variable(config.resolution) if config.resolution else None
-        fps        = await context.render_variable(config.fps)        if config.fps        else None
-
-        return VideoEncoderParams(
-            codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
-            resolution=resolution,
-            fps=float(fps) if fps is not None else None,
-        )
-
-    async def _resolve_audio_encoder(self, context: ComponentActionContext, config: AudioEncoderConfig) -> AudioEncoderParams:
-        codec   = await context.render_variable(config.codec)   if config.codec   else None
-        bitrate = await context.render_variable(config.bitrate) if config.bitrate else None
-
-        return AudioEncoderParams(
-            codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
-        )

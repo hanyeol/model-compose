@@ -1,12 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Optional, Dict, List, Iterator, Any
+from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.streaming.audio import load_audio_buffer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
@@ -87,54 +88,66 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        import torch
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
 
+        # Audio preprocessing is real async IO (stream reads), so keep it on
+        # the loop instead of the executor thread.
         waveforms = await self._preprocess_audio(audios)
-        input_features = self.processor(
-            waveforms,
-            sampling_rate=16000,
-            return_tensors="pt",
-            padding=True,
-            chunk_length=params["chunk_length"]
-        )
-        input_features = input_features.to(self.device)
 
-        stopping_criteria = self._build_stopping_criteria(cancellation_token)
+        def _transcribe() -> Union[List[str], List[Any]]:
+            import torch
+
+            input_features = self.processor(
+                waveforms,
+                sampling_rate=16000,
+                return_tensors="pt",
+                padding=True,
+                chunk_length=params["chunk_length"]
+            )
+            input_features = input_features.to(self.device)
+
+            stopping_criteria = self._build_stopping_criteria(cancellation_token)
+
+            if streaming:
+                streamer = BatchTextIteratorStreamer(
+                    self.processor.tokenizer,
+                    batch_size=len(waveforms),
+                    skip_prompt=True,
+                    skip_special_tokens=True
+                )
+
+                def _run():
+                    try:
+                        with torch.inference_mode():
+                            self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria, streamer=streamer)
+                    except BaseException:
+                        logging.exception("Whisper streaming generate failed")
+                    finally:
+                        streamer.end()
+
+                Thread(target=_run, daemon=True).start()
+
+                return [ streamer[index] for index in range(len(waveforms)) ]
+
+            with torch.inference_mode():
+                predicted_ids = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
+
+            return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+
+        results = await self._run_in_executor(_transcribe)
 
         if streaming:
-            streamer = BatchTextIteratorStreamer(
-                self.processor.tokenizer,
-                batch_size=len(waveforms),
-                skip_prompt=True,
-                skip_special_tokens=True
-            )
+            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
-            def _run():
-                try:
-                    with torch.inference_mode():
-                        self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria, streamer=streamer)
-                except BaseException:
-                    logging.exception("Whisper streaming generate failed")
-                finally:
-                    streamer.end()
-
-            Thread(target=_run, daemon=True).start()
-
-            return [ streamer[index] for index in range(len(waveforms)) ]
-
-        with torch.inference_mode():
-            predicted_ids = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
-
-        return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+        return results
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_array(audio, sample_rate=16000)
+            waveform, _ = await load_audio_buffer(audio, sample_rate=16000)
             waveforms.append(waveform)
 
         return waveforms
@@ -151,13 +164,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:

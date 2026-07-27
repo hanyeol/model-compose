@@ -14,13 +14,13 @@ from mindor.core.foundation.variable.vector import VectorValue, VectorArrayValue
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
-import asyncio
+from ....action.base import ComponentAction
 
-class VectorProcessorAction:
+class VectorProcessorAction(ComponentAction):
     def __init__(self, config: VectorProcessorActionConfig):
         self.config: VectorProcessorActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -31,14 +31,15 @@ class VectorProcessorAction:
         if is_streaming_input:
             async def _stream_output_generator(source=input):
                 async for batch in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    for result in self._process(self.config.method, batch, params):
+                    batch_results = await self._process(self.config.method, batch, params)
+                    for result in batch_results:
                         yield result
 
             return _stream_output_generator()
         else:
             results: List[Any] = []
             async for batch in BatchSourceIterator(input, batch_size=batch_size or 1):
-                results.extend(self._process(self.config.method, batch, params))
+                results.extend(await self._process(self.config.method, batch, params))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -157,64 +158,63 @@ class VectorProcessorAction:
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
-    def _process(self, method: VectorProcessorActionMethod, batch: Tuple[Any, ...], params: Dict[str, Any]) -> List[Any]:
+    async def _process(self, method: VectorProcessorActionMethod, batch: Tuple[Any, ...], params: Dict[str, Any]) -> List[Any]:
         if method == VectorProcessorActionMethod.SIMILARITY:
-            return self._similarity(batch[0], batch[1], params)
+            return await self._similarity(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.DISTANCE:
-            return self._distance(batch[0], batch[1], params)
+            return await self._distance(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.DOT_PRODUCT:
-            return self._dot_product(batch[0], batch[1], params)
+            return await self._dot_product(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.TOP_K:
-            return self._top_k(batch[0], batch[1], params)
+            return await self._top_k(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
-            return self._threshold_filter(batch[0], batch[1], params)
+            return await self._threshold_filter(batch[0], batch[1], params)
 
         if method == VectorProcessorActionMethod.NORMALIZE:
-            return self._normalize(batch[0], params)
+            return await self._normalize(batch[0], params)
 
         if method == VectorProcessorActionMethod.MEAN:
-            return self._mean(batch[0], params)
+            return await self._mean(batch[0], params)
 
         if method == VectorProcessorActionMethod.SUM:
-            return self._sum(batch[0], params)
+            return await self._sum(batch[0], params)
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 
-
     @abstractmethod
-    def _similarity(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    async def _similarity(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _distance(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    async def _distance(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _dot_product(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    async def _dot_product(self, vectors: List[VectorValue], others: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+    async def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+    async def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
+    async def _normalize(self, vectors: List[VectorValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+    async def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @abstractmethod
-    def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+    async def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
         pass
 
     @staticmethod

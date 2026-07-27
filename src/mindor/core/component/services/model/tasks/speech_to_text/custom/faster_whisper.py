@@ -5,8 +5,10 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
-from mindor.core.foundation.streaming.audio import load_audio_array
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.audio import load_audio_buffer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ......base import ComponentActionContext
 from ..common import SpeechToTextTaskService, SpeechToTextTaskAction
 import asyncio
@@ -67,19 +69,35 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
+    async def _transcribe(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
+
         waveforms = await self._preprocess_audio(audios)
 
         if streaming:
-            return [ self._transcribe_stream(waveform, params["transcribe"]) for waveform in waveforms ]
+            # faster_whisper yields segments synchronously; wrap each iterator so
+            # the caller can consume it via ``async for``.
+            return [
+                SyncGeneratorStreamer(self._transcribe_stream(waveform, params["transcribe"]), loop)
+                for waveform in waveforms
+            ]
 
-        return [ self._transcribe_full(waveform, params["transcribe"]) for waveform in waveforms ]
+        def _transcribe() -> List[str]:
+            return [ self._transcribe_full(waveform, params["transcribe"]) for waveform in waveforms ]
+
+        return await self._run_in_executor(_transcribe)
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_array(audio, sample_rate=16000)
+            waveform, _ = await load_audio_buffer(audio, sample_rate=16000)
             waveforms.append(waveform)
 
         return waveforms
@@ -121,10 +139,5 @@ class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
 
         return model, device
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
-    ) -> Any:
-        return await FasterWhisperSpeechToTextTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await FasterWhisperSpeechToTextTaskAction(action, self.model, self.device).run(context)

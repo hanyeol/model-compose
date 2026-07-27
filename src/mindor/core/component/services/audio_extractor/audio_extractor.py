@@ -23,10 +23,26 @@ class AudioExtractorComponent(ComponentService):
     def _create_service(self, driver: AudioExtractorDriver) -> AudioExtractorService:
         try:
             if driver not in AudioExtractorServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return AudioExtractorServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio extractor driver: {driver}")
+
+    def _load_driver_module(self, driver: AudioExtractorDriver) -> None:
+        """Import the module that registers the given audio extractor driver.
+
+        Convention: a driver "foo-bar" (AudioExtractorDriver.value) maps to
+        mindor.core.component.services.audio_extractor.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_audio_extractor_service
+        decorator, populating AudioExtractorServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.audio_extractor.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported audio extractor driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -43,19 +59,3 @@ class AudioExtractorComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: AudioExtractorDriver) -> None:
-    """Import the module that registers the given audio extractor driver.
-
-    Convention: a driver "foo-bar" (AudioExtractorDriver.value) maps to
-    mindor.core.component.services.audio_extractor.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_audio_extractor_service
-    decorator, populating AudioExtractorServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.audio_extractor.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported audio extractor driver: {driver}") from e

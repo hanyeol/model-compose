@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import List, Optional, Set, Tuple, Union, Callable, Any
+from typing import List, Optional, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -45,11 +46,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         self,
         source: MediaSource,
         format: str,
-        codec: Optional[str],
-        bitrate: Optional[str],
-        sample_rate: Optional[Union[int, str]],
-        channels: Optional[Union[int, str]],
-        loop: asyncio.AbstractEventLoop,
+        encoding: AudioEncoderParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         input_path, spooled = await self._resolve_input_path(source)
@@ -66,15 +63,15 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 
-        codec = codec or _FORMAT_CODEC_MAP.get(format)
+        codec = self._resolve_audio_codec(encoding, format)
         if codec:
             command.extend([ "-c:a", codec ])
-        if bitrate:
-            command.extend([ "-b:a", bitrate ])
-        if sample_rate:
-            command.extend([ "-ar", str(sample_rate) ])
-        if channels:
-            command.extend([ "-ac", str(channels) ])
+        if encoding.bitrate:
+            command.extend([ "-b:a", str(encoding.bitrate) ])
+        if encoding.sample_rate:
+            command.extend([ "-ar", str(encoding.sample_rate) ])
+        if encoding.channels:
+            command.extend([ "-ac", str(encoding.channels) ])
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -238,7 +235,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS:
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
@@ -247,10 +244,17 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         return spooled_path, True
 
+    @staticmethod
+    def _resolve_audio_codec(encoding: AudioEncoderParams, format: str) -> Optional[str]:
+        if encoding.codec:
+            return encoding.codec
+
+        return _FORMAT_CODEC_MAP.get(format)
+
 @register_audio_converter_service(AudioConverterDriver.FFMPEG)
 class FFmpegAudioConverterService(AudioConverterService):
     def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegAudioConverterAction(action).run(context, loop)
+    async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegAudioConverterAction(action).run(context)

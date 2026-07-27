@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -37,11 +38,11 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        max_input_length     = await context.render_variable(self.config.max_input_length)
-        min_output_length    = await context.render_variable(self.config.params.min_output_length)
-        num_beams            = await context.render_variable(self.config.params.num_beams)
-        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        max_input_length  = await context.render_variable(self.config.max_input_length)
+        min_output_length = await context.render_variable(self.config.params.min_output_length)
+        num_beams         = await context.render_variable(self.config.params.num_beams)
+        length_penalty    = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping    = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
 
         tokenizer_params: Dict[str, Any] = {
             "return_tensors": "pt",
@@ -91,46 +92,57 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        from transformers import GenerationConfig
-        import torch
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+        def _generate() -> Union[List[str], List[Any]]:
+            from transformers import GenerationConfig
+            import torch
 
-        stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
+            inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+
+            stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
+
+            if streaming:
+                streamer = BatchTextIteratorStreamer(
+                    self.tokenizer,
+                    batch_size=len(texts),
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                )
+
+                def _run():
+                    with torch.inference_mode():
+                        self.model.generate(
+                            **inputs,
+                            generation_config=GenerationConfig(**params["generation"]),
+                            stopping_criteria=stopping_criteria,
+                            streamer=streamer,
+                        )
+
+                Thread(target=_run, daemon=True).start()
+
+                return [ streamer[index] for index in range(len(texts)) ]
+
+            with torch.inference_mode():
+                outputs = self.model.generate(
+                    **inputs,
+                    generation_config=GenerationConfig(**params["generation"]),
+                    stopping_criteria=stopping_criteria,
+                )
+
+            return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        results = await self._run_in_executor(_generate)
 
         if streaming:
-            streamer = BatchTextIteratorStreamer(
-                self.tokenizer,
-                batch_size=len(texts),
-                skip_prompt=True,
-                skip_special_tokens=True,
-            )
+            # Wrap each per-prompt sync iterator so the caller can consume it
+            # with ``async for`` on the caller's loop.
+            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
-            def _run():
-                with torch.inference_mode():
-                    self.model.generate(
-                        **inputs,
-                        generation_config=GenerationConfig(**params["generation"]),
-                        stopping_criteria=stopping_criteria,
-                        streamer=streamer,
-                    )
-
-            Thread(target=_run, daemon=True).start()
-
-            return [ streamer[index] for index in range(len(texts)) ]
-
-        with torch.inference_mode():
-            outputs = self.model.generate(
-                **inputs,
-                generation_config=GenerationConfig(**params["generation"]),
-                stopping_criteria=stopping_criteria,
-            )
-
-        return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return results
 
     def _build_stopping_criteria(
         self,
@@ -151,13 +163,8 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextGenerationTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForCausalLM

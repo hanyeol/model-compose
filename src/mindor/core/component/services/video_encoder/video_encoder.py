@@ -23,10 +23,26 @@ class VideoEncoderComponent(ComponentService):
     def _create_service(self, driver: VideoEncoderDriver) -> VideoEncoderService:
         try:
             if driver not in VideoEncoderServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return VideoEncoderServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported video encoder driver: {driver}")
+
+    def _load_driver_module(self, driver: VideoEncoderDriver) -> None:
+        """Import the module that registers the given video encoder driver.
+
+        Convention: a driver "foo-bar" (VideoEncoderDriver.value) maps to
+        mindor.core.component.services.video_encoder.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_video_encoder_service
+        decorator, populating VideoEncoderServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.video_encoder.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported video encoder driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -43,19 +59,3 @@ class VideoEncoderComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: VideoEncoderDriver) -> None:
-    """Import the module that registers the given video encoder driver.
-
-    Convention: a driver "foo-bar" (VideoEncoderDriver.value) maps to
-    mindor.core.component.services.video_encoder.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_video_encoder_service
-    decorator, populating VideoEncoderServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.video_encoder.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported video encoder driver: {driver}") from e

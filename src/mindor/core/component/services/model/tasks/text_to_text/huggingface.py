@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any, Iterator
+from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -90,56 +91,60 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> Union[List[str], List[Union[Iterator[str], AsyncIterator[str]]]]:
-        from transformers import StopStringCriteria, GenerationConfig
-        import torch
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
+        loop = asyncio.get_running_loop()
 
-        stopping_criteria = [ StopStringCriteria(self.tokenizer, stop_sequences) ] if params["stop_sequences"] else None
+        def _generate() -> Union[List[str], List[Any]]:
+            from transformers import StopStringCriteria, GenerationConfig
+            import torch
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            stopping_criteria = [ StopStringCriteria(self.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
+
+            inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+
+            if streaming:
+                streamer = BatchTextIteratorStreamer(
+                    self.tokenizer,
+                    batch_size=len(texts),
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                )
+
+                def _run():
+                    with torch.inference_mode():
+                        self.model.generate(
+                            **inputs,
+                            generation_config=GenerationConfig(**params["generation"]),
+                            stopping_criteria=stopping_criteria,
+                            streamer=streamer,
+                        )
+
+                Thread(target=_run, daemon=True).start()
+
+                return [ streamer[index] for index in range(len(texts)) ]
+
+            with torch.inference_mode():
+                outputs = self.model.generate(
+                    **inputs,
+                    generation_config=GenerationConfig(**params["generation"]),
+                    stopping_criteria=stopping_criteria,
+                )
+
+            return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        results = await self._run_in_executor(_generate)
 
         if streaming:
-            streamer = BatchTextIteratorStreamer(
-                self.tokenizer,
-                batch_size=len(texts),
-                skip_prompt=True,
-                skip_special_tokens=True,
-            )
+            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
-            def _run():
-                with torch.inference_mode():
-                    self.model.generate(
-                        **inputs,
-                        generation_config=GenerationConfig(**params["generation"]),
-                        stopping_criteria=stopping_criteria,
-                        streamer=streamer,
-                    )
-
-            Thread(target=_run, daemon=True).start()
-
-            return [ streamer[index] for index in range(len(texts)) ]
-
-        with torch.inference_mode():
-            outputs = self.model.generate(
-                **inputs,
-                generation_config=GenerationConfig(**params["generation"]),
-                stopping_criteria=stopping_criteria,
-            )
-
-        return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return results
 
 @register_model_task_service(ModelTaskType.TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextToTextTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceTextToTextTaskAction(action, self.model, self.tokenizer, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextToTextTaskAction(action, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSeq2SeqLM

@@ -9,7 +9,6 @@ from mindor.core.logger import logging
 from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from basicsr.archs.swinir_arch import SwinIR
@@ -50,45 +49,48 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    def _upscale(
+    async def _upscale(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
-        import numpy as np
+        def _upscale() -> List[PILImage.Image]:
+            import torch
+            import numpy as np
 
-        results: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
 
-        for image in images:
-            image_pixels = np.array(image).astype(np.float32) / 255.0
+            for image in images:
+                image_pixels = np.array(image).astype(np.float32) / 255.0
 
-            if len(image_pixels.shape) == 3:
-                tensor_image = torch.from_numpy(image_pixels).permute(2, 0, 1).unsqueeze(0)
-            else:
-                tensor_image = torch.from_numpy(image_pixels).unsqueeze(0).unsqueeze(0)
-
-            tensor_image = tensor_image.to(self.device)
-
-            if params["task"] == "dn":
-                pass
-
-            if params["task"] == "jpeg_car" and params["jpeg_quality"] < 100:
-                pass
-
-            with torch.no_grad():
-                if params["tile_size"] > 0:
-                    upscaled_tensor = self._tile_process(tensor_image, params["tile_size"], params["tile_overlap"], params["scale"])
+                if len(image_pixels.shape) == 3:
+                    tensor_image = torch.from_numpy(image_pixels).permute(2, 0, 1).unsqueeze(0)
                 else:
-                    upscaled_tensor = self.model(tensor_image)
+                    tensor_image = torch.from_numpy(image_pixels).unsqueeze(0).unsqueeze(0)
 
-            upscaled_tensor = upscaled_tensor.squeeze(0).permute(1, 2, 0).cpu()
-            upscaled_pixels = (upscaled_tensor.numpy() * 255.0).clip(0, 255).astype(np.uint8)
+                tensor_image = tensor_image.to(self.device)
 
-            results.append(PILImage.fromarray(upscaled_pixels))
+                if params["task"] == "dn":
+                    pass
 
-        return results
+                if params["task"] == "jpeg_car" and params["jpeg_quality"] < 100:
+                    pass
+
+                with torch.no_grad():
+                    if params["tile_size"] > 0:
+                        upscaled_tensor = self._tile_process(tensor_image, params["tile_size"], params["tile_overlap"], params["scale"])
+                    else:
+                        upscaled_tensor = self.model(tensor_image)
+
+                upscaled_tensor = upscaled_tensor.squeeze(0).permute(1, 2, 0).cpu()
+                upscaled_pixels = (upscaled_tensor.numpy() * 255.0).clip(0, 255).astype(np.uint8)
+
+                results.append(PILImage.fromarray(upscaled_pixels))
+
+            return results
+
+        return await self._run_in_executor(_upscale)
 
     def _tile_process(self, image: Tensor, tile_size: int, tile_overlap: int, scale: int) -> Tensor:
         """Process image in tiles with overlap for SwinIR."""
@@ -198,5 +200,5 @@ class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
 
         return params
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await SwinIRImageUpscaleTaskAction(action, self.model, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await SwinIRImageUpscaleTaskAction(action, self.model, self.device).run(context)

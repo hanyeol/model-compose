@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Optional, Iterator, Tuple, Any
 from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriver
 from mindor.dsl.schema.action import SentenceSplitterActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import SentenceSplitterService, register_sentence_splitter_service
 from ..base import ComponentActionContext
 from .common import SentenceSplitterAction, StreamingSentenceSplitter
-import asyncio
 
 # Sentence terminators covering common Latin, CJK, and ellipsis punctuation.
 # All are single characters, safe to detect without lookahead beyond themselves.
@@ -152,13 +152,21 @@ class NativeStreamingSentenceSplitter(StreamingSentenceSplitter):
         return chunk
 
 class NativeSentenceSplitterAction(SentenceSplitterAction):
-    def _create_splitter(self, min_chunk_length: int, max_chunk_length: Optional[int]) -> StreamingSentenceSplitter:
-        return NativeStreamingSentenceSplitter(min_chunk_length, max_chunk_length)
+    async def _create_splitter(
+        self,
+        min_chunk_length: int,
+        max_chunk_length: Optional[int],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> StreamingSentenceSplitter:
+        def _create() -> StreamingSentenceSplitter:
+            return NativeStreamingSentenceSplitter(min_chunk_length, max_chunk_length)
+
+        return await self._run_in_executor(_create)
 
 @register_sentence_splitter_service(SentenceSplitterDriver.NATIVE)
 class NativeSentenceSplitterService(SentenceSplitterService):
     def __init__(self, id: str, config: SentenceSplitterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: SentenceSplitterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await NativeSentenceSplitterAction(action).run(context, loop)
+    async def _run(self, action: SentenceSplitterActionConfig, context: ComponentActionContext) -> Any:
+        return await NativeSentenceSplitterAction(action).run(context)

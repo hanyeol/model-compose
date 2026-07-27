@@ -8,14 +8,14 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
+from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import asyncio
 
-class AudioPlaybackAction:
+class AudioPlaybackAction(ComponentAction):
     def __init__(self, config: AudioPlaybackActionConfig):
         self.config: AudioPlaybackActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -26,7 +26,7 @@ class AudioPlaybackAction:
         # AsyncIterator/StreamIterator/list/single into batches, and batch_size
         # controls the fan-out to the sink when multiple inputs arrive together.
         async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-            await self._process_batch(batch_audios, params, loop, context.cancellation_token)
+            await self._process_batch(batch_audios, params, context.cancellation_token)
 
         return None
 
@@ -49,32 +49,28 @@ class AudioPlaybackAction:
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        await asyncio.gather(*[
-            self._process(audio, params, loop, cancellation_token) for audio in audios
-        ])
+        for audio in audios:
+            await self._process(audio, params, cancellation_token)
 
     async def _process(
         self,
         audio: Optional[MediaSource],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         if audio is None:
             logging.debug("Audio playback skipped because no audio was provided.")
             return
 
-        await self._play(audio, params, loop, cancellation_token)
+        await self._play(audio, params, cancellation_token)
 
     @abstractmethod
     async def _play(
         self,
         audio: MediaSource,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         pass

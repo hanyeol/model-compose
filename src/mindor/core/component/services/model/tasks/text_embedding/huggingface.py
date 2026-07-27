@@ -10,7 +10,6 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from .common import TextEmbeddingTaskAction
-import asyncio
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -56,28 +55,30 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         self,
         texts: List[str],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
-        if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
-            return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
+        def _embed() -> List[List[float]]:
+            if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
+                return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
 
-        import torch, torch.nn.functional as F
+            import torch, torch.nn.functional as F
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-        with torch.inference_mode():
-            outputs: BaseModelOutput = self.model(**inputs)
-            last_hidden_state = outputs.last_hidden_state
+            with torch.inference_mode():
+                outputs: BaseModelOutput = self.model(**inputs)
+                last_hidden_state = outputs.last_hidden_state
 
-        attention_mask = inputs.get("attention_mask", None)
-        embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, params["pooling"])
+            attention_mask = inputs.get("attention_mask", None)
+            embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, params["pooling"])
 
-        if params["normalize"]:
-            embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
+            if params["normalize"]:
+                embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-        return embeddings.cpu().tolist()
+            return embeddings.cpu().tolist()
+
+        return await self._run_in_executor(_embed)
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
         import torch
@@ -122,13 +123,8 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
 
         await super()._load_model()
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.BERT:

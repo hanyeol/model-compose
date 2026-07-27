@@ -9,19 +9,19 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class FaceEmbeddingTaskAction:
+class FaceEmbeddingTaskAction(ComponentAction):
     def __init__(self, config: FaceEmbeddingModelActionConfig, device: Optional[torch.device]):
         self.config: FaceEmbeddingModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -33,7 +33,7 @@ class FaceEmbeddingTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._embed(batch_images, params, context.cancellation_token)
+                    batch_results = await self._embed(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -41,7 +41,7 @@ class FaceEmbeddingTaskAction:
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = self._embed(batch_images, params, context.cancellation_token)
+                batch_results = await self._embed(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -61,11 +61,11 @@ class FaceEmbeddingTaskAction:
         }
 
     @abstractmethod
-    def _embed(
+    async def _embed(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         pass
 

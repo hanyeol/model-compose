@@ -4,7 +4,6 @@ from mindor.dsl.schema.component import VideoConverterComponentConfig, VideoConv
 from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
-import asyncio
 
 class VideoConverterService(AsyncService):
     def __init__(self, id: str, config: VideoConverterComponentConfig, daemon: bool):
@@ -17,10 +16,10 @@ class VideoConverterService(AsyncService):
         return None
 
     async def run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:
-        return await self._run(action, context, asyncio.get_running_loop())
+        return await self._run(action, context)
 
     @abstractmethod
-    async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 def register_video_converter_service(driver: VideoConverterDriver):

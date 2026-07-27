@@ -10,9 +10,9 @@ from mindor.core.logger import logging
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import compose_with_alpha, has_alpha
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -22,12 +22,12 @@ _RESAMPLE_MAP = {
     "lanczos": PILImage.Resampling.LANCZOS,
 }
 
-class ImageUpscaleTaskAction:
+class ImageUpscaleTaskAction(ComponentAction):
     def __init__(self, config: ImageUpscaleModelActionConfig, device: Optional[torch.device]):
         self.config: ImageUpscaleModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -39,7 +39,7 @@ class ImageUpscaleTaskAction:
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = self._process_batch(batch_images, params, context.cancellation_token)
+                    batch_results = await self._process_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -47,23 +47,23 @@ class ImageUpscaleTaskAction:
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                results.extend(self._process_batch(batch_images, params, context.cancellation_token))
+                results.extend(await self._process_batch(batch_images, params, context.cancellation_token))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    def _process_batch(
+    async def _process_batch(
         self,
         batch_images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
         alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in batch_images ]
 
-        images = self._upscale(images, params, cancellation_token)
+        images = await self._upscale(images, params, cancellation_token)
 
         results: List[PILImage.Image] = []
 
@@ -104,11 +104,11 @@ class ImageUpscaleTaskAction:
         return image.resize(downsample_size, resample)
 
     @abstractmethod
-    def _upscale(
+    async def _upscale(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         pass
 

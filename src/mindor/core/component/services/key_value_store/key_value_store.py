@@ -22,10 +22,26 @@ class KeyValueStoreComponent(ComponentService):
     def _create_service(self, driver: KeyValueStoreDriver) -> KeyValueStoreService:
         try:
             if driver not in KeyValueStoreServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return KeyValueStoreServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported key-value store driver: {driver}")
+
+    def _load_driver_module(self, driver: KeyValueStoreDriver) -> None:
+        """Import the module that registers the given key-value store driver.
+
+        Convention: a driver "foo-bar" (KeyValueStoreDriver.value) maps to
+        mindor.core.component.services.key_value_store.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_kv_store_service decorator,
+        populating KeyValueStoreServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.key_value_store.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported key-value store driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class KeyValueStoreComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: KeyValueStoreDriver) -> None:
-    """Import the module that registers the given key-value store driver.
-
-    Convention: a driver "foo-bar" (KeyValueStoreDriver.value) maps to
-    mindor.core.component.services.key_value_store.drivers.foo_bar — either
-    a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_kv_store_service decorator,
-    populating KeyValueStoreServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.key_value_store.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported key-value store driver: {driver}") from e

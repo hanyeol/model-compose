@@ -9,7 +9,7 @@ from ..common import ObjectDetectionTaskService, ObjectDetectionTaskAction
 from ....base import ComponentActionContext
 from PIL import Image as PILImage
 from pathlib import Path
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     from ultralytics import YOLO
@@ -24,31 +24,34 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         self.model: YOLO = model
 
-    def _detect(
+    async def _detect(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+        def _detect() -> List[Dict[str, Any]]:
+            results: List[Dict[str, Any]] = []
 
-        classes = self._resolve_class_filter(params["labels"])
+            classes = self._resolve_class_filter(params["labels"])
 
-        predictions = self.model.predict(
-            source=[ image.convert("RGB") for image in images ],
-            conf=params["min_confidence"],
-            iou=params["iou_threshold"],
-            max_det=params["max_object_count"],
-            agnostic_nms=params["agnostic_nms"],
-            classes=classes,
-            verbose=False,
-        )
+            predictions = self.model.predict(
+                source=[ image.convert("RGB") for image in images ],
+                conf=params["min_confidence"],
+                iou=params["iou_threshold"],
+                max_det=params["max_object_count"],
+                agnostic_nms=params["agnostic_nms"],
+                classes=classes,
+                verbose=False,
+            )
 
-        for image, prediction in zip(images, predictions):
-            width, height = image.size
-            results.append(self._serialize(prediction, width, height, params["bounding_box_padding"]))
+            for image, prediction in zip(images, predictions):
+                width, height = image.size
+                results.append(self._serialize(prediction, width, height, params["bounding_box_padding"]))
 
-        return results
+            return results
+
+        return await self._run_in_executor(_detect)
 
     def _resolve_class_filter(self, labels: Optional[List[str]]) -> Optional[List[int]]:
         if not labels:
@@ -136,5 +139,5 @@ class YoloObjectDetectionTaskService(ObjectDetectionTaskService):
             label="object detection",
         )
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await YoloObjectDetectionTaskAction(action, self.model).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await YoloObjectDetectionTaskAction(action, self.model).run(context)

@@ -90,38 +90,41 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
         raise ValueError(f"Unknown architecture: {architecture}")
 
-    def _generate(
+    async def _generate(
         self,
         prompts: List[str],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
+        def _generate() -> List[PILImage.Image]:
+            import torch
 
-        generator: Optional[torch.Generator] = None
+            generator: Optional[torch.Generator] = None
 
-        if params["seed"] is not None:
-            generator = torch.Generator(device=self.device).manual_seed(params["seed"])
+            if params["seed"] is not None:
+                generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
-        pipeline_params = params["pipeline"]
+            pipeline_params = params["pipeline"]
 
-        if cancellation_token is not None:
-            def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
-                if cancellation_token.is_cancelled():
-                    raise PipelineCancelled()
-                return callback_kwargs
-            pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
+            if cancellation_token is not None:
+                def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
+                    if cancellation_token.is_cancelled():
+                        raise PipelineCancelled()
+                    return callback_kwargs
+                pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
 
-        try:
-            result = self.pipeline(
-                prompt=prompts,
-                generator=generator,
-                **pipeline_params,
-            )
-        except PipelineCancelled:
-            raise asyncio.CancelledError()
+            try:
+                result = self.pipeline(
+                    prompt=prompts,
+                    generator=generator,
+                    **pipeline_params,
+                )
+            except PipelineCancelled:
+                raise asyncio.CancelledError()
 
-        return list(result.images)
+            return list(result.images)
+
+        return await self._run_in_executor(_generate)
 
 class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskAction):
     config: HuggingfaceImageGenerationModelActionConfig
@@ -187,59 +190,62 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
         raise ValueError(f"Inpainting is not supported for architecture: {architecture}")
 
-    def _inpaint(
+    async def _inpaint(
         self,
         prompts: List[str],
         images: List[PILImage.Image],
         mask_images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        import torch
+        def _inpaint() -> List[PILImage.Image]:
+            import torch
 
-        generator: Optional[torch.Generator] = None
+            generator: Optional[torch.Generator] = None
 
-        if params["seed"] is not None:
-            generator = torch.Generator(device=self.device).manual_seed(params["seed"])
+            if params["seed"] is not None:
+                generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
-        pipeline_params = params["pipeline"]
+            pipeline_params = params["pipeline"]
 
-        if cancellation_token is not None:
-            def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
-                if cancellation_token.is_cancelled():
-                    raise PipelineCancelled()
-                return callback_kwargs
-            pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
+            if cancellation_token is not None:
+                def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
+                    if cancellation_token.is_cancelled():
+                        raise PipelineCancelled()
+                    return callback_kwargs
+                pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
 
-        try:
-            result = self.pipeline(
-                prompt=prompts,
-                image=images,
-                mask_image=mask_images,
-                generator=generator,
-                **pipeline_params,
-            )
-        except PipelineCancelled:
-            raise asyncio.CancelledError()
+            try:
+                result = self.pipeline(
+                    prompt=prompts,
+                    image=images,
+                    mask_image=mask_images,
+                    generator=generator,
+                    **pipeline_params,
+                )
+            except PipelineCancelled:
+                raise asyncio.CancelledError()
 
-        return list(result.images)
+            return list(result.images)
+
+        return await self._run_in_executor(_inpaint)
 
 @register_model_task_service(ModelTaskType.IMAGE_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskService[ImageGenerationActionMethod]):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "diffusers", "transformers", "accelerate", "sentencepiece", "torch" ]
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(action.method)
 
         if pipeline is None:
             raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
-            return await HuggingfaceImageGenerationGenerateTaskAction(action, self.config.architecture, pipeline, self.device).run(context, loop)
+            return await HuggingfaceImageGenerationGenerateTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
 
         if action.method == ImageGenerationActionMethod.INPAINT:
-            return await HuggingfaceImageGenerationInpaintTaskAction(action, self.config.architecture, pipeline, self.device).run(context, loop)
+            return await HuggingfaceImageGenerationInpaintTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")
 

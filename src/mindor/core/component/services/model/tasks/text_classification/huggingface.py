@@ -10,7 +10,6 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from .common import TextClassificationTaskAction
-import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
@@ -55,38 +54,40 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         labels: Optional[List[str]],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        import torch, torch.nn.functional as F
+        def _predict() -> List[Any]:
+            import torch, torch.nn.functional as F
 
-        inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-        inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
+            inputs = { k: v.to(self.device) for k, v in inputs.items() }
 
-        with torch.inference_mode():
-            outputs: SequenceClassifierOutput = self.model(**inputs)
-            logits = outputs.logits
+            with torch.inference_mode():
+                outputs: SequenceClassifierOutput = self.model(**inputs)
+                logits = outputs.logits
 
-        predictions = []
+            predictions = []
 
-        if params["return_probabilities"]:
-            probs = F.softmax(logits, dim=-1).cpu()
-            for prob in probs:
-                predicted_index = torch.argmax(prob).item()
-                predictions.append({
-                    "label":         labels[predicted_index] if labels else None,
-                    "label_id":      predicted_index,
-                    "probabilities": prob.tolist(),
-                })
-        else:
-            predicted_indices = torch.argmax(logits, dim=-1).tolist()
-            for predicted_index in predicted_indices:
-                predictions.append({
-                    "label":    labels[predicted_index] if labels else None,
-                    "label_id": predicted_index,
-                })
+            if params["return_probabilities"]:
+                probs = F.softmax(logits, dim=-1).cpu()
+                for prob in probs:
+                    predicted_index = torch.argmax(prob).item()
+                    predictions.append({
+                        "label":         labels[predicted_index] if labels else None,
+                        "label_id":      predicted_index,
+                        "probabilities": prob.tolist(),
+                    })
+            else:
+                predicted_indices = torch.argmax(logits, dim=-1).tolist()
+                for predicted_index in predicted_indices:
+                    predictions.append({
+                        "label":    labels[predicted_index] if labels else None,
+                        "label_id": predicted_index,
+                    })
 
-        return predictions
+            return predictions
+
+        return await self._run_in_executor(_predict)
 
 @register_model_task_service(ModelTaskType.TEXT_CLASSIFICATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskService):
@@ -95,13 +96,8 @@ class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskServi
 
         self.labels: Optional[List[str]] = config.labels
 
-    async def _run(
-        self,
-        action: ModelActionConfig,
-        context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop
-    ) -> Any:
-        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context, loop)
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification

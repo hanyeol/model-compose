@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GcpStorageFileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, GcpStorageFileStoreActionConfig
 from mindor.core.foundation.streaming.resources import save_stream_to_file
@@ -42,13 +42,13 @@ class GcpStorageFileStoreAction(FileStoreAction):
         self.location: GcsLocation = location
         self.base_path: Optional[str] = base_path
 
-    async def _put(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path                = await context.render_variable(self.config.path)
-        source              = await context.render_variable(self.config.source)
-        content_type        = await context.render_variable(self.config.content_type)
-        metadata            = await context.render_variable(self.config.metadata)
-        multipart_threshold = await context.render_size(self.config.multipart_threshold, _DEFAULT_MULTIPART_THRESHOLD)
-        chunk_size          = await context.render_size(self.config.chunk_size, _DEFAULT_CHUNK_SIZE)
+    async def _put(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path                = params["path"]
+        source              = params["source"]
+        content_type        = params["content_type"]
+        metadata            = params["metadata"]
+        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
+        chunk_size          = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
 
         source = await resolve_stream_resource(source) if source is not None else None
 
@@ -86,13 +86,11 @@ class GcpStorageFileStoreAction(FileStoreAction):
             "content_type": content_type,
         }
 
-    async def _get(self, context: ComponentActionContext) -> Dict[str, Any]:
-        from mindor.core.foundation.streaming.resources import ReaderStreamResource
-
-        path       = await context.render_variable(self.config.path)
-        save_to    = await context.render_variable(self.config.save_to)
-        streaming  = await context.render_variable(self.config.streaming)
-        chunk_size = await context.render_size(self.config.chunk_size)
+    async def _get(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path       = params["path"]
+        save_to    = params["save_to"]
+        streaming  = params["streaming"]
+        chunk_size = params["chunk_size"]
 
         object_name = self._resolve_object_name(path)
 
@@ -155,8 +153,8 @@ class GcpStorageFileStoreAction(FileStoreAction):
             "content": content,
         }
 
-    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path = await context.render_variable(self.config.path)
+    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path = params["path"]
 
         object_name = self._resolve_object_name(path)
 
@@ -164,10 +162,10 @@ class GcpStorageFileStoreAction(FileStoreAction):
 
         return { "path": path }
 
-    async def _exists(self, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _exists(self, params: Dict[str, Any]) -> Dict[str, Any]:
         from aiohttp import ClientResponseError
 
-        path = await context.render_variable(self.config.path)
+        path = params["path"]
 
         object_name = self._resolve_object_name(path)
 
@@ -182,12 +180,12 @@ class GcpStorageFileStoreAction(FileStoreAction):
 
         return { "path": path, "exists": exists }
 
-    async def _list(self, context: ComponentActionContext) -> Dict[str, Any]:
-        path             = await context.render_variable(self.config.path)
-        recursive        = await context.render_variable(self.config.recursive)
-        pattern          = await context.render_variable(self.config.pattern)
-        max_result_count = await context.render_variable(self.config.max_result_count)
-        next_token       = await context.render_variable(self.config.next_token)
+    async def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        path             = params["path"]
+        recursive        = params["recursive"]
+        pattern          = params["pattern"]
+        max_result_count = params["max_result_count"]
+        next_token       = params["next_token"]
 
         name_prefix = self._resolve_object_name(path) if path else (self.base_path or "")
 

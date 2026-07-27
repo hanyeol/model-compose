@@ -8,19 +8,19 @@ from mindor.dsl.schema.action import ImageBackgroundRemovalModelActionConfig, Ba
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     import torch
 
-class ImageBackgroundRemovalTaskAction:
+class ImageBackgroundRemovalTaskAction(ComponentAction):
     def __init__(self, config: ImageBackgroundRemovalModelActionConfig, device: Optional[torch.device]):
         self.config: ImageBackgroundRemovalModelActionConfig = config
         self.device: Optional[torch.device] = device
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)
 
@@ -33,7 +33,7 @@ class ImageBackgroundRemovalTaskAction:
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_images = [ self._normalize_image(image) for image in batch_images ]
-                    batch_masks = self._predict_masks(batch_images, params, context.cancellation_token)
+                    batch_masks = await self._predict_masks(batch_images, params, context.cancellation_token)
                     for image, mask in zip(batch_images, batch_masks):
                         yield self._render_output(image, mask, params["output_format"])
 
@@ -42,7 +42,7 @@ class ImageBackgroundRemovalTaskAction:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_images = [ self._normalize_image(image) for image in batch_images ]
-                batch_masks = self._predict_masks(batch_images, params, context.cancellation_token)
+                batch_masks = await self._predict_masks(batch_images, params, context.cancellation_token)
                 for image, mask in zip(batch_images, batch_masks):
                     results.append(self._render_output(image, mask, params["output_format"]))
 
@@ -74,11 +74,11 @@ class ImageBackgroundRemovalTaskAction:
         raise ValueError(f"Unsupported output format: {output_format}")
 
     @abstractmethod
-    def _predict_masks(
+    async def _predict_masks(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         pass
 

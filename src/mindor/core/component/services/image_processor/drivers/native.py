@@ -7,111 +7,150 @@ from ..base import ImageProcessorService, ImageProcessorDriver, register_image_p
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
 from PIL import Image as PILImage, ImageFilter, ImageEnhance
-import asyncio, math, io, shutil, subprocess
+import math, io, shutil, subprocess
 
 class NativeImageProcessorAction(ImageProcessorAction):
-    def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        scale_mode = params["scale_mode"]
-        original_width, original_height = image.size
-        target_width  = params["width"]  or original_width
-        target_height = params["height"] or original_height
+    async def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _resize() -> PILImage.Image:
+            scale_mode = params["scale_mode"]
+            original_width, original_height = image.size
+            target_width  = params["width"]  or original_width
+            target_height = params["height"] or original_height
 
-        if scale_mode == ImageScaleMode.FIT:
-            new_width, new_height = self._get_size_aspect_fit(target_width, target_height, original_width, original_height)
-            return image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+            if scale_mode == ImageScaleMode.FIT:
+                new_width, new_height = self._get_size_aspect_fit(target_width, target_height, original_width, original_height)
+                return image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
 
-        if scale_mode == ImageScaleMode.FILL:
-            new_width, new_height = self._get_size_aspect_fill(target_width, target_height, original_width, original_height)
-            image = image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+            if scale_mode == ImageScaleMode.FILL:
+                new_width, new_height = self._get_size_aspect_fill(target_width, target_height, original_width, original_height)
+                resized = image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
 
-            crop_box = self._get_center_crop_box(new_width, new_height, target_width, target_height)
-            return image.crop(crop_box)
+                crop_box = self._get_center_crop_box(new_width, new_height, target_width, target_height)
+                return resized.crop(crop_box)
 
-        return image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
+            return image.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
 
-    def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        x      = params["x"]
-        y      = params["y"]
-        width  = params["width"]
-        height = params["height"]
+        return await self._run_in_executor(_resize)
 
-        return image.crop((x, y, x + width, y + height))
+    async def _crop(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _crop() -> PILImage.Image:
+            x      = params["x"]
+            y      = params["y"]
+            width  = params["width"]
+            height = params["height"]
 
-    def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.rotate(-params["angle"], expand=params["expand"], resample=PILImage.Resampling.BICUBIC)
+            return image.crop((x, y, x + width, y + height))
 
-    def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        if params["direction"] == FlipDirection.HORIZONTAL:
-            return image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
-        else:
-            return image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+        return await self._run_in_executor(_crop)
 
-    def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.convert("L")
+    async def _rotate(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _rotate() -> PILImage.Image:
+            return image.rotate(-params["angle"], expand=params["expand"], resample=PILImage.Resampling.BICUBIC)
 
-    def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return image.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+        return await self._run_in_executor(_rotate)
 
-    def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Sharpness(image).enhance(params["factor"])
+    async def _flip(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _flip() -> PILImage.Image:
+            if params["direction"] == FlipDirection.HORIZONTAL:
+                return image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+            else:
+                return image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
 
-    def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Brightness(image).enhance(params["factor"])
+        return await self._run_in_executor(_flip)
 
-    def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Contrast(image).enhance(params["factor"])
+    async def _grayscale(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _grayscale() -> PILImage.Image:
+            return image.convert("L")
 
-    def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
-        return ImageEnhance.Color(image).enhance(params["factor"])
+        return await self._run_in_executor(_grayscale)
 
-    def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
-        mode       = params["mode"]
-        spacing    = params["spacing"]
-        background = params["background"]
-        images     = [ image.convert("RGBA") for image in images ]
+    async def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _blur() -> PILImage.Image:
+            return image.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
 
-        if mode == ImageConcatMode.HORIZONTAL:
-            return self._concat_horizontal(images, spacing, background)
+        return await self._run_in_executor(_blur)
 
-        if mode == ImageConcatMode.VERTICAL:
-            return self._concat_vertical(images, spacing, background)
+    async def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _sharpen() -> PILImage.Image:
+            return ImageEnhance.Sharpness(image).enhance(params["factor"])
 
-        if mode == ImageConcatMode.GRID:
-            return self._concat_grid(images, params["columns"], params["rows"], spacing, background)
+        return await self._run_in_executor(_sharpen)
 
-        raise ValueError(f"Unsupported concat mode: {mode}")
+    async def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_brightness() -> PILImage.Image:
+            return ImageEnhance.Brightness(image).enhance(params["factor"])
 
-    def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
-        background = params["background"]
-        images     = [ image.convert("RGBA") for image in images ]
+        return await self._run_in_executor(_adjust_brightness)
 
-        max_width  = max(image.width  for image in images)
-        max_height = max(image.height for image in images)
-        canvas     = PILImage.new("RGBA", (max_width, max_height), background)
+    async def _adjust_contrast(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_contrast() -> PILImage.Image:
+            return ImageEnhance.Contrast(image).enhance(params["factor"])
 
-        for image in images:
-            offset_x = (max_width  - image.width ) // 2
-            offset_y = (max_height - image.height) // 2
-            canvas.alpha_composite(image, (offset_x, offset_y))
+        return await self._run_in_executor(_adjust_contrast)
 
-        return canvas
+    async def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_saturation() -> PILImage.Image:
+            return ImageEnhance.Color(image).enhance(params["factor"])
 
-    def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
-        strategy       = params["strategy"]
-        strip_metadata = params["strip_metadata"]
+        return await self._run_in_executor(_adjust_saturation)
 
-        if strategy == ImageCompressStrategy.LOSSLESS:
-            return self._compress_lossless(image, params, strip_metadata)
+    async def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+        def _concat() -> PILImage.Image:
+            mode       = params["mode"]
+            spacing    = params["spacing"]
+            background = params["background"]
+            converted  = [ image.convert("RGBA") for image in images ]
 
-        if strategy == ImageCompressStrategy.OPTIMIZED:
-            data = self._compress_lossless(image, params, strip_metadata=False)
-            return self._compress_optimized(data, params, strip_metadata)
+            if mode == ImageConcatMode.HORIZONTAL:
+                return self._concat_horizontal(converted, spacing, background)
 
-        if strategy == ImageCompressStrategy.QUANTIZED:
-            data = self._compress_lossless(image, params, strip_metadata=False)
-            return self._compress_quantized(data, params, strip_metadata)
+            if mode == ImageConcatMode.VERTICAL:
+                return self._concat_vertical(converted, spacing, background)
 
-        raise ValueError(f"Unsupported compress strategy: {strategy}")
+            if mode == ImageConcatMode.GRID:
+                return self._concat_grid(converted, params["columns"], params["rows"], spacing, background)
+
+            raise ValueError(f"Unsupported concat mode: {mode}")
+
+        return await self._run_in_executor(_concat)
+
+    async def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+        def _merge() -> PILImage.Image:
+            background = params["background"]
+            converted  = [ image.convert("RGBA") for image in images ]
+
+            max_width  = max(image.width  for image in converted)
+            max_height = max(image.height for image in converted)
+            canvas     = PILImage.new("RGBA", (max_width, max_height), background)
+
+            for image in converted:
+                offset_x = (max_width  - image.width ) // 2
+                offset_y = (max_height - image.height) // 2
+                canvas.alpha_composite(image, (offset_x, offset_y))
+
+            return canvas
+
+        return await self._run_in_executor(_merge)
+
+    async def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
+        def _compress() -> bytes:
+            strategy       = params["strategy"]
+            strip_metadata = params["strip_metadata"]
+
+            if strategy == ImageCompressStrategy.LOSSLESS:
+                return self._compress_lossless(image, params, strip_metadata)
+
+            if strategy == ImageCompressStrategy.OPTIMIZED:
+                data = self._compress_lossless(image, params, strip_metadata=False)
+                return self._compress_optimized(data, params, strip_metadata)
+
+            if strategy == ImageCompressStrategy.QUANTIZED:
+                data = self._compress_lossless(image, params, strip_metadata=False)
+                return self._compress_quantized(data, params, strip_metadata)
+
+            raise ValueError(f"Unsupported compress strategy: {strategy}")
+
+        return await self._run_in_executor(_compress)
 
     def _concat_horizontal(self, images: List[PILImage.Image], spacing: int, background: Tuple[int, int, int, int]) -> PILImage.Image:
         total_width = sum(image.width for image in images) + spacing * (len(images) - 1)
@@ -289,8 +328,8 @@ class NativeImageProcessorService(ImageProcessorService):
 
         return requirements or None
 
-    async def _run(self, action: ImageProcessorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await NativeImageProcessorAction(action).run(context, loop)
+    async def _run(self, action: ImageProcessorActionConfig, context: ComponentActionContext) -> Any:
+        return await NativeImageProcessorAction(action).run(context)
 
     def _has_compress_strategy(self, strategy: ImageCompressStrategy) -> bool:
         for action in self.config.actions:

@@ -14,7 +14,7 @@ from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
-import asyncio, json, os
+import json, os
 
 class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
     async def _detect(
@@ -25,11 +25,10 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
-        threshold = threshold if threshold is not None else 0.5
+        resolved_threshold = threshold if threshold is not None else 0.5
 
         def _cleanup() -> None:
             if spooled:
@@ -39,9 +38,9 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
                     pass
 
         if streaming:
-            return self._stream_scenes(input_path, threshold, start_time, end_time, _cleanup, cancellation_token)
+            return self._stream_scenes(input_path, resolved_threshold, start_time, end_time, _cleanup, cancellation_token)
 
-        return await self._collect_scenes(input_path, threshold, start_time, end_time, _cleanup, cancellation_token)
+        return await self._collect_scenes(input_path, resolved_threshold, start_time, end_time, _cleanup, cancellation_token)
 
     async def _collect_scenes(
         self,
@@ -116,7 +115,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> Tuple[List[int], float]:
         import numpy as np
 
-        predictions = self._predict(input_path)
+        predictions = await self._run_in_executor(self._predict, input_path)
         frame_rate  = await self._get_frame_rate(input_path)
 
         start_frame = int(start_time * frame_rate) if start_time is not None else 0
@@ -183,5 +182,5 @@ class TransNetV2VideoSceneDetectorService(VideoSceneDetectorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "transnetv2" ]
 
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await TransNetV2VideoSceneDetectorAction(action).run(context, loop)
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
+        return await TransNetV2VideoSceneDetectorAction(action).run(context)

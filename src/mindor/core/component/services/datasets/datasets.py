@@ -1,139 +1,60 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
 from typing import Optional, List, Any
-from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod, DatasetsProvider
+from mindor.dsl.schema.component import DatasetsComponentConfig, DatasetsDriver
+from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .providers import HuggingfaceDatasetsProvider, LocalDatasetsProvider
-from .utils import format_template_example
-import asyncio
-
-if TYPE_CHECKING:
-    from datasets import Dataset
-
-class DatasetsAction:
-    def __init__(self, config: DatasetsActionConfig):
-        self.config: DatasetsActionConfig = config
-
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        is_direct_output = not self.config.output or self.config.output == "${result}"
-
-        result = await self._dispatch(self.config.method, context)
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    async def _dispatch(self, method: DatasetsActionMethod, context: ComponentActionContext) -> Dataset:
-        if method == DatasetsActionMethod.LOAD:
-            return await self._load(context)
-
-        if method == DatasetsActionMethod.CONCAT:
-            return await self._concat(context)
-
-        if method == DatasetsActionMethod.SELECT:
-            return await self._select(context)
-
-        if method == DatasetsActionMethod.MAP:
-            return await self._map(context)
-
-        raise ValueError(f"Unsupported datasets action method: {method}")
-
-    async def _load(self, context: ComponentActionContext) -> Dataset:
-        fraction = await context.render_variable(self.config.fraction)
-        shuffle  = await context.render_variable(self.config.shuffle)
-
-        dataset = await self._load_dataset(context)
-
-        if shuffle:
-            dataset = dataset.shuffle()
-
-        if isinstance(fraction, float) and fraction < 1.0:
-            sample_size = max(int(len(dataset) * fraction), 1)
-            dataset = dataset.select(range(sample_size))
-
-        return dataset
-
-    async def _load_dataset(self, context: ComponentActionContext) -> Dataset:
-        if self.config.provider == DatasetsProvider.HUGGINGFACE:
-            return await HuggingfaceDatasetsProvider(self.config).load(context)
-
-        if self.config.provider == DatasetsProvider.LOCAL:
-            return await LocalDatasetsProvider(self.config).load(context)
-
-        raise ValueError(f"Unsupported dataset provider: {self.config.provider}")
-
-    async def _concat(self, context: ComponentActionContext) -> Dataset:
-        from datasets import Dataset, concatenate_datasets
-
-        datasets  = await context.render_variable(self.config.datasets)
-        direction = await context.render_variable(self.config.direction)
-        info      = await context.render_variable(self.config.info)
-        split     = await context.render_variable(self.config.split)
-
-        for dataset in datasets:
-            if not isinstance(dataset, Dataset):
-                raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
-
-        return concatenate_datasets(
-            datasets,
-            info=info,
-            split=split,
-            axis=0 if direction == "vertical" else 1
-        )
-
-    async def _select(self, context: ComponentActionContext) -> Dataset:
-        from datasets import Dataset
-
-        dataset = await context.render_variable(self.config.dataset)
-        axis    = await context.render_variable(self.config.axis)
-        indices = await context.render_variable(self.config.indices)
-        columns = await context.render_variable(self.config.columns)
-
-        if not isinstance(dataset, Dataset):
-            raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
-
-        if axis == "rows":
-            if indices is None:
-                raise ValueError("indices must be provided when axis='rows'")
-            return dataset.select([ int(index) for index in indices ])
-
-        if axis == "columns":
-            if columns is None:
-                raise ValueError("columns must be provided when axis='columns'")
-            return dataset.select_columns(columns)
-
-        raise ValueError(f"Unsupported axis: {axis}")
-
-    async def _map(self, context: ComponentActionContext) -> Dataset:
-        from datasets import Dataset
-
-        dataset        = await context.render_variable(self.config.dataset)
-        template       = await context.render_variable(self.config.template)
-        output_column  = await context.render_variable(self.config.output_column)
-        remove_columns = await context.render_variable(self.config.remove_columns)
-
-        if not isinstance(dataset, Dataset):
-            raise TypeError(f"Expected Dataset instance, but got {type(dataset).__name__}")
-
-        def _format_example(example):
-            return { output_column: format_template_example(template, example) }
-
-        return dataset.map(_format_example, remove_columns=remove_columns)
+from .base import DatasetsService, DatasetsServiceRegistry
+import importlib
 
 @register_component(ComponentType.DATASETS)
 class DatasetsComponent(ComponentService):
     def __init__(
         self,
         id: str,
-        config: DatasetsActionConfig,
+        config: DatasetsComponentConfig,
         global_configs: ComponentGlobalConfigs,
         daemon: bool
     ):
         super().__init__(id, config, global_configs, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "datasets" ]
+        self.service: DatasetsService = self._create_service(self.config.driver)
 
-    async def _run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:
-        return await self.run_in_thread(DatasetsAction(action).run, context, asyncio.get_running_loop())
+    def _create_service(self, driver: DatasetsDriver) -> DatasetsService:
+        try:
+            if driver not in DatasetsServiceRegistry:
+                self._load_driver_module(driver)
+            return DatasetsServiceRegistry[driver](self.id, self.config, self.daemon)
+        except KeyError:
+            raise ValueError(f"Unsupported datasets driver: {driver}")
+
+    def _load_driver_module(self, driver: DatasetsDriver) -> None:
+        """Import the module that registers the given datasets driver.
+
+        Convention: a driver "foo-bar" (DatasetsDriver.value) maps to
+        mindor.core.component.services.datasets.drivers.foo_bar — either
+        a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_datasets_service decorator,
+        populating DatasetsServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.datasets.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported datasets driver: {driver}") from e
+
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return self.service.get_setup_requirements()
+
+    async def _start(self) -> None:
+        await self.service.start()
+
+        await super()._start()
+
+    async def _stop(self) -> None:
+        await super()._stop()
+
+        await self.service.stop()
+
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        return await self.service.run(action, context)

@@ -36,7 +36,6 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         end_time: Optional[float],
         max_frame_count: Optional[int],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await self._resolve_input_path(video)
@@ -89,28 +88,6 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             return self._stream_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
 
         return await self._collect_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
-
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        if video.format and video.format.lower() in _STREAMABLE_INPUT_FORMATS:
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
 
     async def _collect_frames(
         self,
@@ -333,6 +310,28 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         return image, buffer[end:]
 
+    async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(video.stream, FileStreamResource):
+            return video.stream.path, False
+
+        if video.format in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
+
+        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
+
+        return spooled_path, True
+
 @register_video_frame_extractor_service(VideoFrameExtractorDriver.FFMPEG)
 class FFmpegVideoFrameExtractorService(VideoFrameExtractorService):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
@@ -341,5 +340,5 @@ class FFmpegVideoFrameExtractorService(VideoFrameExtractorService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
-    async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegVideoFrameExtractorAction(action).run(context, loop)
+    async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegVideoFrameExtractorAction(action).run(context)

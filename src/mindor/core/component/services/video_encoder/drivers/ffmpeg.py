@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, AsyncIterable
 from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
 from mindor.dsl.schema.action import VideoEncoderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
@@ -18,6 +19,19 @@ from ..base import VideoEncoderService, register_video_encoder_service
 from ..base import ComponentActionContext
 from .common import VideoEncoderAction
 import asyncio, io, os
+
+_DEFAULT_FORMAT = "mp4"
+
+# Fallback (video_codec, audio_codec) when the encoder config leaves them unset.
+_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
+    "mp4":  ("libx264",    "aac"),
+    "m4v":  ("libx264",    "aac"),
+    "mov":  ("libx264",    "aac"),
+    "mkv":  ("libx264",    "aac"),
+    "webm": ("libvpx-vp9", "libopus"),
+    "avi":  ("mpeg4",      "libmp3lame"),
+    "ogv":  ("libtheora",  "libvorbis"),
+}
 
 # Input container formats safe to feed through ffmpeg pipe:0. Other formats
 # (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
@@ -43,14 +57,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         self,
         video: MediaSource,
         audio: Optional[MediaSource],
-        params: Dict[str, Any],
+        encoding: VideoAudioEncodingParams,
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        format = params["format"]
+        format = self._resolve_container_format(encoding)
 
-        if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
+        if streaming and format not in _STREAMABLE_OUTPUT_FORMATS:
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
@@ -89,7 +102,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             command.extend([ "-i", audio_input ])
             command.extend([ "-map", "0:v", "-map", "1:a" ])
 
-        for option, value in self._resolve_encoding_options(params, has_audio=audio_input is not None).items():
+        for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
 
         if audio_input is not None:
@@ -120,12 +133,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         self,
         frames: List[PILImage.Image],
         audio: Optional[MediaSource],
-        params: Dict[str, Any],
+        encoding: VideoAudioEncodingParams,
+        frame_rate: Optional[float],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        format, frame_rate = params["format"], params["frame_rate"] or 30
+        format = encoding.format or _DEFAULT_FORMAT
+        frame_rate = frame_rate or 30
 
         if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
@@ -157,7 +171,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             command.extend([ "-i", audio_input ])
             command.extend([ "-map", "0:v", "-map", "1:a" ])
 
-        for option, value in self._resolve_encoding_options(params, has_audio=audio_input is not None).items():
+        for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
 
         if audio_input is not None:
@@ -182,87 +196,6 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             return await self._encode_to_stream(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
 
         return await self._encode_to_file(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before encoding")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
-
-    @staticmethod
-    def _resolve_input_source(
-        media: MediaSource,
-        media_path: Optional[str],
-        stdin_owner: Optional[MediaSource],
-        fd_channels: List[SubprocessStreamChannel],
-    ) -> Tuple[str, Optional[MediaSource]]:
-        """Assign one input to a file path, `pipe:0`, or an inherited descriptor.
-
-        `media_path` is the result of `_resolve_input_path` — a real path if the
-        source was spooled or already on disk, or None if it should be fed as a
-        live stream. Live streams take stdin (`pipe:0`) first; any further one
-        rides an inherited fd, which is POSIX-only.
-        """
-        if media_path is not None:
-            return media_path, stdin_owner
-
-        if stdin_owner is None:
-            return "pipe:0", media
-
-        if not _SUPPORTS_FD_INPUT:
-            raise RuntimeError(
-                "Multiple live streams are not supported on this platform; "
-                "spool one input to a file before encoding."
-            )
-
-        channel = SubprocessStreamChannel(media.stream)
-        fd_channels.append(channel)
-
-        return f"pipe:{channel.read_fd}", stdin_owner
-
-    def _resolve_encoding_options(self, params: Dict[str, Any], has_audio: bool) -> Dict[str, str]:
-        options: Dict[str, str] = {}
-
-        if params["video_codec"]:
-            options["-c:v"] = params["video_codec"]
-
-        if params["video_bitrate"]:
-            options["-b:v"] = params["video_bitrate"]
-
-        if params["resolution"]:
-            options["-s"] = params["resolution"]
-
-        if params["fps"]:
-            options["-r"] = str(params["fps"])
-
-        # yuv420p ensures broad player compatibility for image-derived streams.
-        if params["video_codec"] in ("libx264", "libx265"):
-            options["-pix_fmt"] = "yuv420p"
-
-        if has_audio:
-            if params["audio_codec"]:
-                options["-c:a"] = params["audio_codec"]
-
-            if params["audio_bitrate"]:
-                options["-b:a"] = params["audio_bitrate"]
-
-        return options
 
     async def _encode_to_file(
         self,
@@ -413,10 +346,121 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
+    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
+        """
+        Decide how ffmpeg should read the input.
+
+        - FileStreamResource: use its path directly (no spooling).
+        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
+        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
+
+        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if source.format in _STREAMABLE_INPUT_FORMATS:
+            return None, False
+
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before encoding")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
+
+    @staticmethod
+    def _resolve_input_source(
+        media: MediaSource,
+        media_path: Optional[str],
+        stdin_owner: Optional[MediaSource],
+        fd_channels: List[SubprocessStreamChannel],
+    ) -> Tuple[str, Optional[MediaSource]]:
+        """Assign one input to a file path, `pipe:0`, or an inherited descriptor.
+
+        `media_path` is the result of `_resolve_input_path` — a real path if the
+        source was spooled or already on disk, or None if it should be fed as a
+        live stream. Live streams take stdin (`pipe:0`) first; any further one
+        rides an inherited fd, which is POSIX-only.
+        """
+        if media_path is not None:
+            return media_path, stdin_owner
+
+        if stdin_owner is None:
+            return "pipe:0", media
+
+        if not _SUPPORTS_FD_INPUT:
+            raise RuntimeError(
+                "Multiple live streams are not supported on this platform; "
+                "spool one input to a file before encoding."
+            )
+
+        channel = SubprocessStreamChannel(media.stream)
+        fd_channels.append(channel)
+
+        return f"pipe:{channel.read_fd}", stdin_owner
+
+    def _resolve_encoding_options(self, encoding: VideoAudioEncodingParams, has_audio: bool) -> Dict[str, str]:
+        options: Dict[str, str] = {}
+
+        video = encoding.video
+        audio = encoding.audio
+
+        video_codec = self._resolve_video_codec(encoding)
+
+        if video_codec:
+            options["-c:v"] = video_codec
+
+        if video and video.bitrate:
+            options["-b:v"] = str(video.bitrate)
+
+        if video and video.resolution:
+            options["-s"] = video.resolution
+
+        if video and video.fps is not None:
+            options["-r"] = str(video.fps)
+
+        # yuv420p ensures broad player compatibility for image-derived streams.
+        if video_codec in ("libx264", "libx265"):
+            options["-pix_fmt"] = "yuv420p"
+
+        if has_audio:
+            audio_codec = self._resolve_audio_codec(encoding)
+
+            if audio_codec:
+                options["-c:a"] = audio_codec
+
+            if audio and audio.bitrate:
+                options["-b:a"] = str(audio.bitrate)
+
+        return options
+
+    @staticmethod
+    def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
+        if encoding.format:
+            return encoding.format.lower()
+
+        return _DEFAULT_FORMAT
+
+    @staticmethod
+    def _resolve_video_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+        if encoding.video and encoding.video.codec:
+            return encoding.video.codec
+
+        default_video_codec, _ = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
+        return default_video_codec
+
+    @staticmethod
+    def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+        if encoding.audio and encoding.audio.codec:
+            return encoding.audio.codec
+
+        _, default_audio_codec = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
+        return default_audio_codec
+
 @register_video_encoder_service(VideoEncoderDriver.FFMPEG)
 class FFmpegVideoEncoderService(VideoEncoderService):
     def __init__(self, id: str, config: VideoEncoderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: VideoEncoderActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegVideoEncoderAction(action).run(context, loop)
+    async def _run(self, action: VideoEncoderActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegVideoEncoderAction(action).run(context)

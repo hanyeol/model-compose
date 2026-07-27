@@ -5,6 +5,7 @@ from collections.abc import AsyncIterable
 from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriver
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -15,6 +16,11 @@ from ..base import RtmpPublisherService, register_rtmp_publisher_service
 from ..base import ComponentActionContext
 from .common import RtmpPublisherAction
 import asyncio, os
+
+# RTMP is virtually always flv-wrapped h264/aac.
+_DEFAULT_FORMAT: str = "flv"
+_DEFAULT_VIDEO_CODEC: str = "libx264"
+_DEFAULT_AUDIO_CODEC: str = "aac"
 
 # Container formats safe to feed through ffmpeg pipe:0. Other formats
 # (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
@@ -37,9 +43,9 @@ class FFmpegRtmpPublisher:
     notice the peer (e.g. YouTube) closing the session — TCP writes keep
     succeeding into a dead socket until keepalive eventually fires.
     """
-    def __init__(self, url: str, params: Dict[str, Any]):
+    def __init__(self, url: str, encoding: VideoAudioEncodingParams):
         self.url: str = url
-        self.params: Dict[str, Any] = params
+        self.encoding: VideoAudioEncodingParams = encoding
 
     async def publish(
         self,
@@ -190,37 +196,65 @@ class FFmpegRtmpPublisher:
         for option, value in self._resolve_encoding_options(has_video=has_video, has_audio=has_audio).items():
             command.extend([ option, value ])
 
-        command.extend([ "-f", self.params["format"], self.url ])
+        command.extend([ "-f", self._resolve_container_format(self.encoding), self.url ])
 
         return command
 
     def _resolve_encoding_options(self, has_video: bool, has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}
 
+        video = self.encoding.video
+        audio = self.encoding.audio
+
         if has_video:
-            if self.params["video_codec"]:
-                options["-c:v"] = self.params["video_codec"]
+            video_codec = self._resolve_video_codec(self.encoding)
 
-            if self.params["video_bitrate"]:
-                options["-b:v"] = self.params["video_bitrate"]
+            if video_codec:
+                options["-c:v"] = video_codec
 
-            if self.params["resolution"]:
-                options["-s"] = self.params["resolution"]
+            if video and video.bitrate:
+                options["-b:v"] = str(video.bitrate)
 
-            if self.params["fps"]:
-                options["-r"] = str(self.params["fps"])
+            if video and video.resolution:
+                options["-s"] = video.resolution
 
-            if self.params["video_codec"] in ("libx264", "libx265"):
+            if video and video.fps is not None:
+                options["-r"] = str(video.fps)
+
+            if video_codec in ("libx264", "libx265"):
                 options["-pix_fmt"] = "yuv420p"
 
         if has_audio:
-            if self.params["audio_codec"]:
-                options["-c:a"] = self.params["audio_codec"]
+            audio_codec = self._resolve_audio_codec(self.encoding)
 
-            if self.params["audio_bitrate"]:
-                options["-b:a"] = self.params["audio_bitrate"]
+            if audio_codec:
+                options["-c:a"] = audio_codec
+
+            if audio and audio.bitrate:
+                options["-b:a"] = str(audio.bitrate)
 
         return options
+
+    @staticmethod
+    def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
+        if encoding.format:
+            return encoding.format.lower()
+
+        return _DEFAULT_FORMAT
+
+    @staticmethod
+    def _resolve_video_codec(encoding: VideoAudioEncodingParams) -> str:
+        if encoding.video and encoding.video.codec:
+            return encoding.video.codec
+
+        return _DEFAULT_VIDEO_CODEC
+
+    @staticmethod
+    def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> str:
+        if encoding.audio and encoding.audio.codec:
+            return encoding.audio.codec
+
+        return _DEFAULT_AUDIO_CODEC
 
 class FFmpegRtmpPublisherAction(RtmpPublisherAction):
     async def _publish(
@@ -228,8 +262,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         video: Optional[MediaSource],
         audio: Optional[MediaSource],
         url: str,
-        params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
+        encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         video_path, video_spooled = (await self._resolve_input_path(video)) if video is not None else (None, False)
@@ -245,7 +278,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                 audio_spooled = True
 
         try:
-            publisher = FFmpegRtmpPublisher(url, params)
+            publisher = FFmpegRtmpPublisher(url, encoding)
             await publisher.publish(
                 video_path if video_path is not None else video,
                 video.attrs if video is not None else None,
@@ -278,7 +311,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS:
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before publishing")
@@ -292,5 +325,5 @@ class FFmpegRtmpPublisherService(RtmpPublisherService):
     def __init__(self, id: str, config: RtmpPublisherComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegRtmpPublisherAction(action).run(context, loop)
+    async def _run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegRtmpPublisherAction(action).run(context)

@@ -10,6 +10,8 @@ class VideoEncoderConfig(BaseModel):
 class AudioEncoderConfig(BaseModel):
     codec: Optional[str] = Field(default=None, description="Audio codec (e.g. 'aac', 'libopus', 'libmp3lame').")
     bitrate: Optional[str] = Field(default=None, description="Audio bitrate (e.g. '128k', '192k').")
+    sample_rate: Optional[Union[int, str]] = Field(default=None, description="Output sample rate in Hz (e.g. 44100).")
+    channels: Optional[Union[int, str]] = Field(default=None, description="Output channel count (e.g. 1 for mono, 2 for stereo).")
 
 class VideoAudioEncodingConfig(BaseModel):
     format: Optional[str] = Field(default=None, description="Container format (e.g. 'mp4', 'webm', 'mkv').")

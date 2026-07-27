@@ -21,11 +21,11 @@ async def run_command(
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        if await kill_process(process):
+        if await kill_process(process, timeout=2.0):
             raise TimeoutError(f"Command timed out: {' '.join(command)}")
     except BaseException:
         # Includes asyncio.CancelledError: don't leave an orphaned child.
-        await kill_process(process)
+        await kill_process(process, timeout=2.0)
         raise
 
     return (stdout, stderr, process.returncode)
@@ -47,7 +47,7 @@ async def run_command_foreground(
         await process.wait()
     except BaseException:
         # Includes asyncio.CancelledError: don't leave an orphaned child.
-        await kill_process(process)
+        await kill_process(process, timeout=2.0)
         raise
 
     return process.returncode
@@ -98,17 +98,31 @@ async def run_subprocess(
 
     stdout_task = asyncio.create_task(stdout_handler(process.stdout)) if stdout_handler is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
-    
+
     stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
 
+    stdout_result: Any = None
+    stderr_result: Any = None
+
     try:
-        stdout_result = await stdout_task if stdout_task is not None else None
-        stderr_result = await stderr_task if stderr_task is not None else None
+        if stdout_task is not None:
+            stdout_result = await stdout_task
+        if stderr_task is not None:
+            stderr_result = await stderr_task
         await process.wait()
     finally:
-        await kill_process(process)
-        if stdin_feeder is not None:
-            await stdin_feeder
+        # On cancellation the handler tasks may still be blocked on `read()`. Cancel
+        # them first so their transport can close, then kill the process.
+        for task in (stdout_task, stderr_task, stdin_feeder):
+            if task is None or task.done():
+                continue
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        await kill_process(process, timeout=2.0)
 
     return process, stdout_result, stderr_result
 
@@ -168,12 +182,26 @@ async def stream_subprocess(
 
     stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
-    stdout_iterator = stdout_handler(process.stdout)
+
+    if stdout_handler is not None:
+        stdout_iterator = stdout_handler(process.stdout)
+    else:
+        # No stdout consumer: expose an async generator that silently drains the
+        # pipe so the child never blocks on backpressure. The `if False: yield`
+        # keeps this a generator function (not a coroutine) without ever yielding.
+        async def _drain_stdout() -> AsyncIterator[Any]:
+            while True:
+                chunk = await process.stdout.read(65536)
+                if not chunk:
+                    return
+                if False:  # pragma: no cover — never yields; drains only
+                    yield chunk
+        stdout_iterator = _drain_stdout()
 
     try:
         yield process, stdout_iterator, stderr_task
     finally:
-        await kill_process(process)
+        await kill_process(process, timeout=2.0)
 
         if stdin_feeder is not None:
             try:
@@ -187,12 +215,18 @@ async def stream_subprocess(
             except Exception:
                 pass
 
-async def kill_process(process: Process) -> bool:
+async def kill_process(process: Process, timeout: Optional[float] = None) -> bool:
     if process.returncode is None:
         process.kill()
         try:
-            await process.wait()
-        except Exception as e:
+            if timeout is not None:
+                # Bounded wait: `process.wait()` can hang on some platforms if
+                # the child's pipes still hold buffered data even after SIGKILL.
+                # Callers on a cancellation path can opt in to a hard cap.
+                await asyncio.wait_for(process.wait(), timeout=timeout)
+            else:
+                await process.wait()
+        except (asyncio.TimeoutError, Exception):
             pass
         return True
     else:

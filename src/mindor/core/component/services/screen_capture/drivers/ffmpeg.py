@@ -148,7 +148,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                         break
                     yield item
             finally:
-                await kill_process(process)
+                await kill_process(process, timeout=2.0)
                 reader_task.cancel()
                 try:
                     await reader_task
@@ -225,7 +225,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                         break
                     yield item
             finally:
-                await kill_process(process)
+                await kill_process(process, timeout=2.0)
                 reader_task.cancel()
                 try:
                     await reader_task
@@ -365,12 +365,12 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         pipe_read_fd, pipe_write_fd = os.pipe()
 
         try:
-            audiotee_proc = await asyncio.create_subprocess_exec(
+            audiotee_process = await asyncio.create_subprocess_exec(
                 *audiotee_command,
                 stdout=pipe_write_fd,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            ffmpeg_proc = await asyncio.create_subprocess_exec(
+            ffmpeg_process = await asyncio.create_subprocess_exec(
                 *ffmpeg_command,
                 stdin=pipe_read_fd,
                 stdout=asyncio.subprocess.PIPE,
@@ -387,7 +387,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         async def _reader() -> None:
             try:
                 while True:
-                    chunk = await ffmpeg_proc.stdout.read(65536)
+                    chunk = await ffmpeg_process.stdout.read(65536)
                     if not chunk:
                         break
                     await queue.put(chunk)
@@ -404,8 +404,8 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                         break
                     yield item
             finally:
-                await kill_process(ffmpeg_proc)
-                await kill_process(audiotee_proc)
+                await kill_process(ffmpeg_process, timeout=2.0)
+                await kill_process(audiotee_process, timeout=2.0)
                 reader_task.cancel()
                 try:
                     await reader_task

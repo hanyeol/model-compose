@@ -4,7 +4,6 @@ from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, Video
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
-import asyncio
 
 class VideoSceneDetectorService(AsyncService):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
@@ -17,10 +16,10 @@ class VideoSceneDetectorService(AsyncService):
         return None
 
     async def run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
-        return await self.run_in_thread(self._run, action, context, asyncio.get_running_loop())
+        return await self._run(action, context)
 
     @abstractmethod
-    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 def register_video_scene_detector_service(driver: VideoSceneDetectorDriver):

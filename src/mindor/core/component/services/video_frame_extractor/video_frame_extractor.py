@@ -23,10 +23,26 @@ class VideoFrameExtractorComponent(ComponentService):
     def _create_service(self, driver: VideoFrameExtractorDriver) -> VideoFrameExtractorService:
         try:
             if driver not in VideoFrameExtractorServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return VideoFrameExtractorServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported video frame extractor driver: {driver}")
+
+    def _load_driver_module(self, driver: VideoFrameExtractorDriver) -> None:
+        """Import the module that registers the given video frame extractor driver.
+
+        Convention: a driver "foo-bar" (VideoFrameExtractorDriver.value) maps to
+        mindor.core.component.services.video_frame_extractor.drivers.foo_bar —
+        either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_video_frame_extractor_service
+        decorator, populating VideoFrameExtractorServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.video_frame_extractor.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported video frame extractor driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -43,19 +59,3 @@ class VideoFrameExtractorComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: VideoFrameExtractorDriver) -> None:
-    """Import the module that registers the given video frame extractor driver.
-
-    Convention: a driver "foo-bar" (VideoFrameExtractorDriver.value) maps to
-    mindor.core.component.services.video_frame_extractor.drivers.foo_bar —
-    either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_video_frame_extractor_service
-    decorator, populating VideoFrameExtractorServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.video_frame_extractor.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported video frame extractor driver: {driver}") from e

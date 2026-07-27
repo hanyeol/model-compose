@@ -11,7 +11,7 @@ from mindor.core.logger import logging
 from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
 from ..base import ComponentActionContext
 from .common import AudioFeatureExtractorAction
-import asyncio, os
+import os
 
 if TYPE_CHECKING:
     import numpy as np
@@ -69,7 +69,7 @@ class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format and source.format.lower() in _STREAMABLE_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS:
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before decoding")
@@ -90,6 +90,5 @@ class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorService):
         self,
         action: AudioFeatureExtractorActionConfig,
         context: ComponentActionContext,
-        loop: asyncio.AbstractEventLoop,
     ) -> Any:
-        return await FFmpegAudioFeatureExtractorAction(action).run(context, loop)
+        return await FFmpegAudioFeatureExtractorAction(action).run(context)

@@ -4,7 +4,6 @@ from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublis
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation import AsyncService
 from ...context import ComponentActionContext
-import asyncio
 
 class RtmpPublisherService(AsyncService):
     def __init__(self, id: str, config: RtmpPublisherComponentConfig, daemon: bool):
@@ -17,10 +16,10 @@ class RtmpPublisherService(AsyncService):
         return None
 
     async def run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext) -> Any:
-        return await self._run(action, context, asyncio.get_running_loop())
+        return await self._run(action, context)
 
     @abstractmethod
-    async def _run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def _run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext) -> Any:
         pass
 
 def register_rtmp_publisher_service(driver: RtmpPublisherDriver):

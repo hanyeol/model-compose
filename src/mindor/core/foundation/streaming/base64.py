@@ -2,7 +2,12 @@ from typing import Optional, Any
 from collections.abc import AsyncIterator
 from .resources import StreamResource, read_stream_to_bytes
 from .resolver import resolve_stream_resource
-import base64, io
+import asyncio, base64, io
+
+# Payloads smaller than this stay on the event loop; larger ones are offloaded
+# to a thread so multi-MB base64 conversions don't stall the loop. ~40µs of
+# to_thread overhead ≈ 16 KB at typical b64 throughput (~500 MB/s).
+_OFFLOAD_THRESHOLD_BYTES = 16 * 1024
 
 class Base64StreamResource(StreamResource):
     def __init__(
@@ -25,7 +30,7 @@ class Base64StreamResource(StreamResource):
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         if not self._stream:
-            self._stream = io.BytesIO(base64.b64decode(self.data))
+            self._stream = io.BytesIO(await decode_base64(self.data))
 
         while True:
             chunk = self._stream.read(self.chunk_size)
@@ -40,10 +45,10 @@ class Base64StreamResource(StreamResource):
 
 async def encode_value_to_base64(value: Any) -> str:
     if isinstance(value, (bytes, bytearray)):
-        return base64.b64encode(bytes(value)).decode("ascii")
+        return await encode_base64(bytes(value))
 
     if isinstance(value, str):
-        return base64.b64encode(value.encode("utf-8")).decode("ascii")
+        return await encode_base64(value.encode("utf-8"))
 
     if not isinstance(value, StreamResource):
         value = await resolve_stream_resource(value)
@@ -51,4 +56,31 @@ async def encode_value_to_base64(value: Any) -> str:
     return await encode_stream_to_base64(value)
 
 async def encode_stream_to_base64(stream: StreamResource) -> str:
-    return base64.b64encode(await read_stream_to_bytes(stream)).decode("ascii")
+    return await encode_base64(await read_stream_to_bytes(stream))
+
+async def encode_base64(data: bytes) -> str:
+    if len(data) < _OFFLOAD_THRESHOLD_BYTES:
+        return base64.b64encode(data).decode("ascii")
+
+    return await asyncio.to_thread(lambda: base64.b64encode(data).decode("ascii"))
+
+async def decode_base64_value(value: Any) -> bytes:
+    if isinstance(value, str):
+        return await decode_base64(value)
+
+    if isinstance(value, (bytes, bytearray)):
+        return await decode_base64(bytes(value).decode("ascii"))
+
+    if not isinstance(value, StreamResource):
+        value = await resolve_stream_resource(value)
+
+    return await decode_base64_stream(value)
+
+async def decode_base64_stream(stream: StreamResource) -> bytes:
+    return await decode_base64((await read_stream_to_bytes(stream)).decode("ascii"))
+
+async def decode_base64(data: str) -> bytes:
+    if len(data) < _OFFLOAD_THRESHOLD_BYTES:
+        return base64.b64decode(data)
+
+    return await asyncio.to_thread(base64.b64decode, data)

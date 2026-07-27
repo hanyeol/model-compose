@@ -22,10 +22,26 @@ class AudioFeatureExtractorComponent(ComponentService):
     def _create_service(self, driver: AudioFeatureExtractorDriver) -> AudioFeatureExtractorService:
         try:
             if driver not in AudioFeatureExtractorServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return AudioFeatureExtractorServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio feature extractor driver: {driver}")
+
+    def _load_driver_module(self, driver: AudioFeatureExtractorDriver) -> None:
+        """Import the module that registers the given audio feature extractor driver.
+
+        Convention: a driver "foo-bar" (AudioFeatureExtractorDriver.value) maps to
+        mindor.core.component.services.audio_feature_extractor.drivers.foo_bar —
+        either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_audio_feature_extractor_service
+        decorator, populating AudioFeatureExtractorServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.audio_feature_extractor.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported audio feature extractor driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -42,19 +58,3 @@ class AudioFeatureExtractorComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: AudioFeatureExtractorDriver) -> None:
-    """Import the module that registers the given audio feature extractor driver.
-
-    Convention: a driver "foo-bar" (AudioFeatureExtractorDriver.value) maps to
-    mindor.core.component.services.audio_feature_extractor.drivers.foo_bar —
-    either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_audio_feature_extractor_service
-    decorator, populating AudioFeatureExtractorServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.audio_feature_extractor.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported audio feature extractor driver: {driver}") from e

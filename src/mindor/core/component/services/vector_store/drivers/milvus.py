@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
-from mindor.dsl.schema.action import VectorStoreActionConfig
+from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.foundation.variable.time import parse_duration
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
@@ -103,13 +103,38 @@ class MilvusFilterExpressionBuilder:
         return str(value)
 
 class MilvusVectorStoreAction(VectorStoreAction):
-    async def _insert(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        partition_name  = await context.render_variable(self.config.partition)
-        vector          = await context.render_variable(self.config.vector)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        metadata        = await context.render_variable(self.config.metadata)
-        batch_size      = await context.render_variable(self.config.batch_size)
+    async def _resolve_params(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(method, context)
+
+        if method in (VectorStoreActionMethod.INSERT, VectorStoreActionMethod.UPDATE, VectorStoreActionMethod.DELETE):
+            partition = await context.render_variable(self.config.partition)
+
+            params.update({
+                "partition": partition,
+            })
+
+            return params
+
+        if method == VectorStoreActionMethod.SEARCH:
+            partitions    = await context.render_variable(self.config.partitions)
+            search_params = await self._resolve_search_params(context)
+
+            params.update({
+                "partitions":    partitions,
+                "search_params": search_params,
+            })
+
+            return params
+
+        return params
+
+    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        collection_name = params["collection"]
+        partition_name  = params["partition"]
+        vector          = params["vector"]
+        vector_id       = params["vector_id"]
+        metadata        = params["metadata"]
+        batch_size      = params["batch_size"]
 
         is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
         vectors: List[List[float]] = [ vector ] if is_single_input else vector
@@ -143,13 +168,13 @@ class MilvusVectorStoreAction(VectorStoreAction):
 
         return { "ids": inserted_ids, "affected_rows": affected_rows }
 
-    async def _update(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        partition_name  = await context.render_variable(self.config.partition)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        vector          = await context.render_variable(self.config.vector)
-        metadata        = await context.render_variable(self.config.metadata)
-        batch_size      = await context.render_variable(self.config.batch_size)
+    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        collection_name = params["collection"]
+        partition_name  = params["partition"]
+        vector_id       = params["vector_id"]
+        vector          = params["vector"]
+        metadata        = params["metadata"]
+        batch_size      = params["batch_size"]
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
@@ -199,19 +224,19 @@ class MilvusVectorStoreAction(VectorStoreAction):
 
         return { "affected_rows": affected_rows }
 
-    async def _search(self, context: ComponentActionContext) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
-        collection_name = await context.render_variable(self.config.collection)
-        partition_names = await context.render_variable(self.config.partitions)
-        query           = await context.render_variable(self.config.query)
-        top_k           = await context.render_variable(self.config.top_k)
-        filter          = await context.render_variable(self.config.filter)
-        output_fields   = await context.render_variable(self.config.output_fields)
-        batch_size      = await context.render_variable(self.config.batch_size)
+    async def _search(self, params: Dict[str, Any]) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
+        collection_name = params["collection"]
+        partition_names = params["partitions"]
+        query           = params["query"]
+        top_k           = params["top_k"]
+        filter          = params["filter"]
+        output_fields   = params["output_fields"]
+        batch_size      = params["batch_size"]
+        search_params   = params["search_params"]
 
         is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
         queries: List[List[float]] = [ query ] if is_single_input else query
         filter_expr = MilvusFilterExpressionBuilder().build(filter)
-        search_params = await self._resolve_search_params(context)
         batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
         results = []
 
@@ -240,12 +265,12 @@ class MilvusVectorStoreAction(VectorStoreAction):
 
         return results[0] if is_single_input else results
 
-    async def _delete(self, context: ComponentActionContext) -> Dict[str, Any]:
-        collection_name = await context.render_variable(self.config.collection)
-        partition_name  = await context.render_variable(self.config.partition)
-        vector_id       = await context.render_variable(self.config.vector_id)
-        filter          = await context.render_variable(self.config.filter)
-        batch_size      = await context.render_variable(self.config.batch_size)
+    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        collection_name = params["collection"]
+        partition_name  = params["partition"]
+        vector_id       = params["vector_id"]
+        filter          = params["filter"]
+        batch_size      = params["batch_size"]
 
         is_single_input: bool = bool(not isinstance(vector_id, list))
         vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id

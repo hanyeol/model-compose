@@ -8,14 +8,14 @@ from mindor.dsl.schema.action import TextRerankingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
-import asyncio
 
-class TextRerankingTaskAction:
+class TextRerankingTaskAction(ComponentAction):
     def __init__(self, config: TextRerankingModelActionConfig):
         self.config: TextRerankingModelActionConfig = config
 
-    async def run(self, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         query            = await context.render_text(self.config.query)
         documents        = await context.render_variable(self.config.documents)
         document_field   = await context.render_variable(self.config.document_field) if self.config.document_field is not None else None
@@ -39,7 +39,7 @@ class TextRerankingTaskAction:
             async def _stream_output_generator():
                 async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
-                    batch_scores = await self._rerank(batch_queries, batch_texts, params, loop, context.cancellation_token)
+                    batch_scores = await self._rerank(batch_queries, batch_texts, params, context.cancellation_token)
                     for scores, original_documents in zip(batch_scores, batch_documents):
                         yield self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
 
@@ -48,7 +48,7 @@ class TextRerankingTaskAction:
             results: List[Any] = []
             async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                 batch_texts = self._extract_document_texts(batch_documents, document_field)
-                batch_scores = await self._rerank(batch_queries, batch_texts, params, loop, context.cancellation_token)
+                batch_scores = await self._rerank(batch_queries, batch_texts, params, context.cancellation_token)
                 for scores, original_documents in zip(batch_scores, batch_documents):
                     results.append(self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents))
 
@@ -119,8 +119,7 @@ class TextRerankingTaskAction:
         queries: List[str],
         documents: List[List[str]],
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
         pass
 

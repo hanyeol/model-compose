@@ -9,8 +9,8 @@ class AsyncService(ABC):
         self.daemon: bool = daemon
         self.started: bool = False
 
-        self.thread: Optional[Thread] = None
-        self.thread_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.daemon_thread: Optional[Thread] = None
+        self.daemon_loop: Optional[asyncio.AbstractEventLoop] = None
         self.daemon_task: Optional[asyncio.Task] = None
 
     async def setup(self) -> None:
@@ -27,23 +27,23 @@ class AsyncService(ABC):
     async def start(self, background: bool = False) -> None:
         if background:
             def _start_in_thread():
-                self.thread_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self.thread_loop)
-                self.thread_loop.run_until_complete(self._start())
-    
-            self.thread = Thread(target=_start_in_thread)
-            self.thread.start()
+                self.daemon_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.daemon_loop)
+                self.daemon_loop.run_until_complete(self._start())
+
+            self.daemon_thread = Thread(target=_start_in_thread)
+            self.daemon_thread.start()
         else:
             await self._start()
 
     async def stop(self) -> None:
-        if self.thread:
-            future = asyncio.run_coroutine_threadsafe(self._stop(), self.thread_loop)
+        if self.daemon_thread:
+            future = asyncio.run_coroutine_threadsafe(self._stop(), self.daemon_loop)
             future.result()
-            self.thread_loop.close()
-            self.thread_loop = None
-            self.thread.join()
-            self.thread = None
+            self.daemon_loop.close()
+            self.daemon_loop = None
+            self.daemon_thread.join()
+            self.daemon_thread = None
         else:
             await self._stop()
 
@@ -58,8 +58,8 @@ class AsyncService(ABC):
         raise TimeoutError(f"Service did not become ready within {timeout} seconds")
 
     async def wait_until_stopped(self) -> None:
-        if self.thread:
-            self.thread.join()
+        if self.daemon_thread:
+            self.daemon_thread.join()
 
         if self.daemon_task:
             await self.daemon_task
@@ -148,7 +148,7 @@ class AsyncService(ABC):
         self.started = True
 
         if self.daemon:
-            if not self.thread:
+            if not self.daemon_thread:
                 self.daemon_task = asyncio.create_task(self._serve())
             else:
                 await self._serve()

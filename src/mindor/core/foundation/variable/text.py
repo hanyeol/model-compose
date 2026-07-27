@@ -1,9 +1,9 @@
 from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
-from ..streaming.text import load_text_from_stream, load_text_from_iterator
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-import json
+from ..streaming.text import load_text_from_stream, load_text_from_iterator
+from ..streaming.json import encode_value_to_json
 
 class TextValueRenderer:
     async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
@@ -42,7 +42,7 @@ class TextValueRenderer:
         if isinstance(value, (bytes, bytearray)):
             return bytes(value).decode("utf-8", errors="replace")
 
-        if isinstance(value, (dict, list)):
-            return json.dumps(value, ensure_ascii=False, default=str)
+        if value is not None:
+            return await encode_value_to_json(value)
 
-        return str(value) if value is not None else None
+        return None

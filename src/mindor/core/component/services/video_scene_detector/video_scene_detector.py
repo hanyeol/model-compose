@@ -23,10 +23,26 @@ class VideoSceneDetectorComponent(ComponentService):
     def _create_service(self, driver: VideoSceneDetectorDriver) -> VideoSceneDetectorService:
         try:
             if driver not in VideoSceneDetectorServiceRegistry:
-                _load_driver_module(driver)
+                self._load_driver_module(driver)
             return VideoSceneDetectorServiceRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported video scene detector driver: {driver}")
+
+    def _load_driver_module(self, driver: VideoSceneDetectorDriver) -> None:
+        """Import the module that registers the given video scene detector driver.
+
+        Convention: a driver "foo-bar" (VideoSceneDetectorDriver.value) maps to
+        mindor.core.component.services.video_scene_detector.drivers.foo_bar —
+        either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
+        Importing the module triggers its @register_video_scene_detector_service
+        decorator, populating VideoSceneDetectorServiceRegistry.
+        """
+        driver_module = driver.value.replace("-", "_")
+
+        try:
+            importlib.import_module(f"mindor.core.component.services.video_scene_detector.drivers.{driver_module}")
+        except ImportError as e:
+            raise ValueError(f"Unsupported video scene detector driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return self.service.get_setup_requirements()
@@ -43,19 +59,3 @@ class VideoSceneDetectorComponent(ComponentService):
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await self.service.run(action, context)
-
-def _load_driver_module(driver: VideoSceneDetectorDriver) -> None:
-    """Import the module that registers the given video scene detector driver.
-
-    Convention: a driver "foo-bar" (VideoSceneDetectorDriver.value) maps to
-    mindor.core.component.services.video_scene_detector.drivers.foo_bar —
-    either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-    Importing the module triggers its @register_video_scene_detector_service
-    decorator, populating VideoSceneDetectorServiceRegistry.
-    """
-    driver_module = driver.value.replace("-", "_")
-
-    try:
-        importlib.import_module(f"mindor.core.component.services.video_scene_detector.drivers.{driver_module}")
-    except ImportError as e:
-        raise ValueError(f"Unsupported video scene detector driver: {driver}") from e

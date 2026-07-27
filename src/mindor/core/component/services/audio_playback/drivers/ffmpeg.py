@@ -34,7 +34,6 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         self,
         audio: MediaSource,
         params: Dict[str, Any],
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         system = platform.system()
@@ -217,5 +216,5 @@ class FFmpegAudioPlaybackService(AudioPlaybackService):
     def __init__(self, id: str, config: AudioPlaybackComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: AudioPlaybackActionConfig, context: ComponentActionContext, loop: asyncio.AbstractEventLoop) -> Any:
-        return await FFmpegAudioPlaybackAction(action).run(context, loop)
+    async def _run(self, action: AudioPlaybackActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegAudioPlaybackAction(action).run(context)

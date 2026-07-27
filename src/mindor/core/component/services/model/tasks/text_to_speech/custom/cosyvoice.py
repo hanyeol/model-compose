@@ -217,6 +217,8 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
         return [
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+            # torchaudio >=2.9 delegates audio decoding to torchcodec.
+            "torchcodec",
             "accelerate",
             "diffusers",
             "gdown",

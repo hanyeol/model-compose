@@ -177,9 +177,9 @@ class AsyncService(ABC):
     
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         if repository and repository.startswith("git+"):
-            await install_package(f"{package_spec} @ {repository}" if package_spec else repository)
+            await install_package(repository)
         elif repository and repository.endswith((".whl", ".tar.gz", ".zip")):
-            await install_package(f"{package_spec} @ {repository}" if package_spec else repository)
+            await install_package(repository)
         elif repository:
             await install_package(package_spec, ["--index-url", repository])
         else:

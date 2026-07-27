@@ -67,19 +67,19 @@ class CosyvoiceTextToSpeechTaskAction(TextToSpeechTaskAction):
     def _invoke(self, text: str, params: Dict[str, Any]) -> Any:
         pass
 
-    async def _render_reference_wav(self, context: ComponentActionContext, value: Any) -> str:
+    async def _render_reference_wav_file(self, context: ComponentActionContext, value: Any) -> str:
         """Decode the reference audio and re-emit it as a 16 kHz mono WAV
         tempfile path. CosyVoice's frontend re-reads the prompt with its own
         load_wav (which in newer torchaudio routes through torchcodec and
         breaks on tensor inputs), so we hand it a plain on-disk WAV path."""
         buffer = await context.render_audio_buffer(value, sample_rate=16000)
         pcm_bytes, channels = encode_waveform_to_pcm(buffer.waveform)
-        wav_stream = WavStreamResource(PcmStreamResource(pcm_bytes, {
+        stream = WavStreamResource(PcmStreamResource(pcm_bytes, {
             "sample_rate": str(buffer.sample_rate),
             "channels":    str(channels),
             "bit_depth":   "16",
         }))
-        return await save_stream_to_temporary_file(wav_stream, "wav")
+        return await save_stream_to_temporary_file(stream, "wav")
 
 class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
     config: CosyvoiceTextToSpeechModelGenerateActionConfig
@@ -130,7 +130,7 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        reference_audio = await self._render_reference_wav(context, self.config.reference_audio)
+        reference_audio = await self._render_reference_wav_file(context, self.config.reference_audio)
         reference_text  = await context.render_variable(self.config.reference_text)
         speed           = await context.render_variable(self.config.speed)
         text_frontend   = await context.render_variable(self.config.text_frontend)
@@ -175,7 +175,7 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         instructions    = await context.render_variable(self.config.instructions)
-        reference_audio = await self._render_reference_wav(context, self.config.reference_audio)
+        reference_audio = await self._render_reference_wav_file(context, self.config.reference_audio)
         speed           = await context.render_variable(self.config.speed)
         text_frontend   = await context.render_variable(self.config.text_frontend)
 

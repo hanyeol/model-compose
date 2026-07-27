@@ -145,7 +145,7 @@ class TestSingleVideoCollect:
     @pytest.mark.anyio
     async def test_returns_list_of_frames(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert isinstance(result, list)
         assert len(result) == 30
@@ -159,7 +159,7 @@ class TestSingleVideoStream:
     @pytest.mark.anyio
     async def test_returns_async_iterator_of_frames(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, streaming=True))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert isinstance(result, StreamChunkIterator)
 
@@ -180,7 +180,7 @@ class TestListInputCollect:
     async def test_returns_list_of_frame_lists(self, sample_videos):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_videos))
         ctx = make_context(resolved_video=[_media_source(p) for p in sample_videos])
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == len(sample_videos)
@@ -198,7 +198,7 @@ class TestListInputStream:
     async def test_returns_list_of_stream_iterators(self, sample_videos):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_videos, streaming=True))
         ctx = make_context(resolved_video=[_media_source(p) for p in sample_videos])
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == len(sample_videos)
@@ -229,7 +229,7 @@ class TestAsyncInputCollect:
         # config.video is a dummy string; ctx.render_video returns the async iterator.
         action = FFmpegVideoFrameExtractorAction(make_config(sample_videos[0]))
         ctx = make_context(resolved_video=_async_media_iter(sample_videos))
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         assert not isinstance(result, StreamChunkIterator)
@@ -250,7 +250,7 @@ class TestAsyncInputStream:
     async def test_yields_per_video_stream_iterators(self, sample_videos):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_videos[0], streaming=True))
         ctx = make_context(resolved_video=_async_media_iter(sample_videos))
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         assert not isinstance(result, StreamChunkIterator)
@@ -276,35 +276,35 @@ class TestExtractionOptions:
     @pytest.mark.anyio
     async def test_frame_interval_skips_frames(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, frame_interval=2))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert len(result) == 15
 
     @pytest.mark.anyio
     async def test_max_frame_count_limits_output(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, max_frame_count=5))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert len(result) == 5
 
     @pytest.mark.anyio
     async def test_start_time_skips_initial_frames(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, start_time="1s"))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert 19 <= len(result) <= 21
 
     @pytest.mark.anyio
     async def test_end_time_truncates_output(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, end_time="1s"))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert 9 <= len(result) <= 11
 
     @pytest.mark.anyio
     async def test_timestamps_respect_interval(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, frame_interval=3, max_frame_count=5))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         timestamps = [chunk["timestamp"] for chunk in result]
         assert timestamps == [pytest.approx(t, abs=0.05) for t in [0.0, 0.3, 0.6, 0.9, 1.2]]
@@ -313,13 +313,13 @@ class TestExtractionOptions:
     async def test_invalid_frame_interval_raises(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, frame_interval=0))
         with pytest.raises(ValueError, match="frame_interval"):
-            await action.run(make_context(), asyncio.get_running_loop())
+            await action.run(make_context())
 
     @pytest.mark.anyio
     async def test_invalid_max_frame_count_raises(self, sample_video):
         action = FFmpegVideoFrameExtractorAction(make_config(sample_video, max_frame_count=0))
         with pytest.raises(ValueError, match="max_frame_count"):
-            await action.run(make_context(), asyncio.get_running_loop())
+            await action.run(make_context())
 
 
 class TestOutputExpressionRendering:
@@ -333,7 +333,7 @@ class TestOutputExpressionRendering:
             make_config(sample_video, streaming=True, output="${result}")
         )
         ctx = make_context()
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         # Consume the stream — each iteration corresponds to one chunk passing through
         # the streaming generator (which registers `result[]`).
@@ -351,7 +351,7 @@ class TestOutputExpressionRendering:
             make_config(sample_video, output="${result}")
         )
         ctx = make_context()
-        await action.run(ctx, asyncio.get_running_loop())
+        await action.run(ctx)
 
         result_calls = [c for c in ctx.register_source.call_args_list if c.args[0] == "result"]
         assert len(result_calls) >= 1

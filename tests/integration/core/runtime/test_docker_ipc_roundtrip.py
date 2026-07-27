@@ -134,11 +134,36 @@ def _sha256(data: bytes) -> str:
 
 ECHO_WORKER_SRC = textwrap.dedent("""
     from __future__ import annotations
-    import asyncio, os, sys
+    import asyncio, struct
     from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
     from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
     from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
     from mindor.core.foundation.streaming.bytes import BytesStreamResource
+
+    # Mirror IpcMessage's wire prefix: header_len (BE u32) + binary_len (BE u32).
+    _FRAME_PREFIX = struct.Struct(">II")
+    _FRAME_PREFIX_SIZE = _FRAME_PREFIX.size
+
+
+    def _read_exactly(fd, n):
+        buf = bytearray()
+        while len(buf) < n:
+            chunk = fd.read(n - len(buf))
+            if not chunk:
+                return None
+            buf.extend(chunk)
+        return bytes(buf)
+
+
+    def _read_frame(fd):
+        prefix = _read_exactly(fd, _FRAME_PREFIX_SIZE)
+        if prefix is None:
+            return None
+        header_length, binary_length = _FRAME_PREFIX.unpack(prefix)
+        body = _read_exactly(fd, header_length + binary_length)
+        if body is None:
+            return None
+        return prefix + body
 
 
     class EchoWorker(IpcRuntimeWorker):
@@ -191,18 +216,13 @@ ECHO_WORKER_SRC = textwrap.dedent("""
             return {"unknown": cmd}
         async def _send_message(self, message):
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._write_line, message)
+            await loop.run_in_executor(None, self._write_frame, message)
         async def _recv_message(self):
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._read_line)
-        def _write_line(self, message):
-            self._ipc_out.write(message + b"\\n")
+            return await loop.run_in_executor(None, _read_frame, self._ipc_in)
+        def _write_frame(self, message):
+            self._ipc_out.write(message)
             self._ipc_out.flush()
-        def _read_line(self):
-            line = self._ipc_in.readline()
-            if not line:
-                return None
-            return line.rstrip(b"\\n")
         def _close_transport(self):
             try: self._ipc_in.close()
             except Exception: pass
@@ -214,10 +234,10 @@ ECHO_WORKER_SRC = textwrap.dedent("""
         channel = IpcStdioChannel()
         channel.setup()
         ipc_in, ipc_out = channel.ipc_in, channel.ipc_out
-        init_line = ipc_in.readline()
-        if not init_line:
+        init_frame = _read_frame(ipc_in)
+        if init_frame is None:
             raise RuntimeError("expected START, got EOF")
-        init = IpcMessage.deserialize(init_line.rstrip(b"\\n"))
+        init = IpcMessage.deserialize(init_frame)
         if init.type != IpcMessageType.START:
             raise RuntimeError(f"expected START, got {init.type}")
         worker_id = (init.payload or {}).get("component_id", "echo")

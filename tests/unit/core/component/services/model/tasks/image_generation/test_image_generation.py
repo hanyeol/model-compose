@@ -99,7 +99,7 @@ class TestSingleInput:
         action = _FakeImageGenerationAction(_make_config("${input.prompt}"))
         ctx = ComponentActionContext("r-1", { "prompt": "hello" })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, PILImage.Image)
         assert _label(result) == "hello"
@@ -110,7 +110,7 @@ class TestSingleInput:
         action = _FakeImageGenerationAction(_make_config("a cat"))
         ctx = ComponentActionContext("r-2", {})
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, PILImage.Image)
         assert _label(result) == "a cat"
@@ -122,7 +122,7 @@ class TestListInput:
         action = _FakeImageGenerationAction(_make_config("${input.prompts}"))
         ctx = ComponentActionContext("r-3", { "prompts": [ "a", "bb", "ccc", "dddd" ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert [ _label(img) for img in result ] == [ "a", "bb", "ccc", "dddd" ]
@@ -134,7 +134,7 @@ class TestListInput:
         action = _FakeImageGenerationAction(_make_config("${input.prompts}", batch_size=3))
         ctx = ComponentActionContext("r-4", { "prompts": [ "a", "b", "c", "d" ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert [ _label(img) for img in result ] == [ "a", "b", "c", "d" ]
         assert action.batches_seen == [ [ "a", "b", "c" ], [ "d" ] ]
@@ -147,7 +147,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb", "ccc" ])
         ctx = ComponentActionContext("r-5", { "prompts": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -160,7 +160,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb" ])
         ctx = ComponentActionContext("r-6", { "prompts": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -173,7 +173,7 @@ class TestOutputExpression:
         action = _FakeImageGenerationAction(_make_config("hello", output="${result}"))
         ctx = ComponentActionContext("r-7", {})
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, PILImage.Image)
         assert _label(result) == "hello"

@@ -108,7 +108,7 @@ class TestSingleQuerySingleStringDocs:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}"))
         ctx    = ComponentActionContext("r-1", { "query": "hello", "docs": [ "hi", "hello world", "goodbye", "hey!!" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # Result is the raw ranked list (not wrapped in StreamChunkIterator, not
         # wrapped in an outer list).
@@ -126,7 +126,7 @@ class TestSingleQuerySingleStringDocs:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}", output="${result}"))
         ctx    = ComponentActionContext("r-2", { "query": "hi", "docs": [ "a", "hi", "bcd" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert result[0] == { "index": 1, "score": -0.0, "document": "hi" }
@@ -145,7 +145,7 @@ class TestSingleQueryDictDocs:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}", document_field="text"))
         ctx    = ComponentActionContext("r-3", { "query": "hello", "docs": docs })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # Each result "document" field must be the original dict, not the extracted text.
         for item in result:
@@ -165,7 +165,7 @@ class TestSingleQueryDictDocs:
         loop   = asyncio.get_running_loop()
 
         with pytest.raises(ValueError, match="document_field"):
-            await action.run(ctx, loop)
+            await action.run(ctx)
 
 
 class TestTopKAndThreshold:
@@ -174,7 +174,7 @@ class TestTopKAndThreshold:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}", top_k=2))
         ctx    = ComponentActionContext("r-5", { "query": "hello", "docs": [ "hi", "hello!", "x", "hello world", "hey!!" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert len(result) == 2
 
@@ -184,7 +184,7 @@ class TestTopKAndThreshold:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}", score_threshold=-1.5))
         ctx    = ComponentActionContext("r-6", { "query": "hi", "docs": [ "a", "bc", "def", "wxyz", "verylong" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         for item in result:
             assert item["score"] >= -1.5
@@ -194,7 +194,7 @@ class TestTopKAndThreshold:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}", return_documents=False))
         ctx    = ComponentActionContext("r-7", { "query": "hi", "docs": [ "a", "hi", "bc" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         for item in result:
             assert set(item.keys()) == { "index", "score" }
@@ -213,7 +213,7 @@ class TestListQueries:
         action = _FakeRerankingAction(_make_config("${input.queries}", "${input.docs}"))
         ctx    = ComponentActionContext("r-8", { "queries": queries, "docs": docs })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # Non-streaming, list-of-queries branch: result is a plain list of ranked lists.
         assert isinstance(result, list)
@@ -251,7 +251,7 @@ class TestStreamQueries:
         action = _FakeRerankingAction(_make_config("${input.queries}", "${input.docs}"))
         ctx    = ComponentActionContext("r-9", { "queries": _query_stream(), "docs": _docs_stream() })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # Streaming branch returns an async generator (matches AsyncIterator ABC).
         assert isinstance(result, AsyncIterator)
@@ -286,7 +286,7 @@ class TestDriverBatching:
         action = _FakeRerankingAction(_make_config("${input.queries}", "${input.docs}", batch_size=2))
         ctx    = ComponentActionContext("r-10", { "queries": queries, "docs": docs })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         # Three batches expected.
         assert len(action.batches_seen) == 3
@@ -304,7 +304,7 @@ class TestParamsPropagation:
         action = _FakeRerankingAction(_make_config("${input.query}", "${input.docs}"))
         ctx    = ComponentActionContext("r-11", { "query": "hi", "docs": [ "a", "hi" ] })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         assert len(action.batches_seen) == 1
         params = action.batches_seen[0]["params"]

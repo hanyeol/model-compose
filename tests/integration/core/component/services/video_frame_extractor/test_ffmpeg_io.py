@@ -134,7 +134,7 @@ class TestSingleVideoInput:
     async def test_no_output_returns_list_of_frames(self, sample_video):
         config = _make_config()
         ctx = _make_context(sample_video)
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -143,7 +143,7 @@ class TestSingleVideoInput:
     async def test_passthrough_output_returns_list_of_frames(self, sample_video):
         config = _make_config(output="${result}")
         ctx = _make_context(sample_video, output="${result}")
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -156,7 +156,7 @@ class TestSingleVideoInput:
         # over the non-streaming unit result.
         config = _make_config(output="${result[]}")
         ctx = _make_context(sample_video, output="${result[]}")
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -166,7 +166,7 @@ class TestListVideoInput:
     async def test_list_no_output_returns_list_of_frame_lists(self, sample_video):
         config = _make_config()
         ctx = _make_context([sample_video, sample_video])
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -179,7 +179,7 @@ class TestListVideoInput:
         # only meaningful for streaming unit results, the rendered value is None here.
         config = _make_config(output="${result[]}")
         ctx = _make_context([sample_video, sample_video], output="${result[]}")
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -190,7 +190,7 @@ class TestStreamingOption:
         # B + streaming=true → AsyncIterator[F] wrapped in StreamChunkIterator.
         config = _make_config(streaming=True)
         ctx = _make_context(sample_video)
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         frames = await _collect(result)
@@ -201,7 +201,7 @@ class TestStreamingOption:
         # List[B] + streaming=true → List[StreamChunkIterator] (one stream per video).
         config = _make_config(streaming=True)
         ctx = _make_context([sample_video, sample_video])
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -231,7 +231,7 @@ class TestStreamInput:
 
         config = _make_config()
         ctx = _make_context(_make_iter)
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -249,7 +249,7 @@ class TestStreamInput:
 
         config = _make_config(streaming=True)
         ctx = _make_context(_make_iter)
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
 
@@ -269,7 +269,7 @@ class TestBatchSize:
         config = _make_config(batch_size=batch_size)
         videos = [sample_video] * 3
         ctx = _make_context(videos)
-        result = await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -282,11 +282,11 @@ class TestErrors:
         config = _make_config(frame_interval=0)
         ctx = _make_context(sample_video)
         with pytest.raises(ValueError, match="frame_interval"):
-            await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoFrameExtractorAction(config).run(ctx)
 
     @pytest.mark.anyio
     async def test_invalid_max_frame_count(self, sample_video):
         config = _make_config(max_frame_count=0)
         ctx = _make_context(sample_video)
         with pytest.raises(ValueError, match="max_frame_count"):
-            await FFmpegVideoFrameExtractorAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoFrameExtractorAction(config).run(ctx)

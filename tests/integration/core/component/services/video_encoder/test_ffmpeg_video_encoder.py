@@ -6,6 +6,9 @@ Covers:
   - Encoding options (codec / bitrate / resolution / format)
   - Streaming output (opt-in, fallback for non-streamable formats)
   - Error propagation
+  - Live-stream inputs: pipe:0 (single stream), pipe:<fd> inheritance (two
+    live streams on POSIX), and the spool fallback for non-streamable inputs
+  - Cancellation propagation via CancellationToken
 """
 
 import asyncio
@@ -13,6 +16,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from collections.abc import AsyncIterator
 from typing import Any, Callable, List, Optional
 
@@ -24,8 +29,12 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_encoder.drivers.ffmpeg import (
     FFmpegVideoEncoderAction,
 )
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.dsl.schema.action import VideoEncoderActionConfig
 from mindor.dsl.schema.action.impl.media import (
     AudioEncoderConfig,
@@ -96,6 +105,10 @@ def _make_context(
         return create_audio_source(a)
 
     async def render_image_array(value):
+        # `_encode_from_frames` is entered only when the resolved value is
+        # (or contains) `ImageArrayValue`. Callers still pass raw lists of
+        # PIL images for convenience; wrap them here so the encoder's
+        # dispatch in `_process` picks the frames path.
         target = frames_value if frames_value is not None else value
         if callable(target) and not isinstance(target, (list, str)):
             src = target()
@@ -103,10 +116,11 @@ def _make_context(
 
             async def _map():
                 async for chunk in src:
-                    yield chunk
+                    yield ImageArrayValue(list(chunk))
             return _map()
-        # value is expected to already be a list-of-lists of PIL images
-        return target
+        # `target` is a list-of-lists of PIL images (one inner list per
+        # ImageArrayValue).
+        return [ImageArrayValue(list(inner)) for inner in target]
 
     async def render_video(value):
         target = video_value if video_value is not None else value
@@ -269,7 +283,7 @@ class TestEncodeFromFrames:
         config = _make_config(frames="${prev.frames}", frame_rate=12)
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -298,7 +312,7 @@ class TestEncodeFromFrames:
             audio_value=sample_audio_path,
         )
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result[0])
         try:
@@ -313,7 +327,7 @@ class TestEncodeFromFrames:
         config = _make_config(frames="${frames}", frame_rate=6)
         ctx = _make_context(frames_value=[seq_a, seq_b])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -332,7 +346,7 @@ class TestEncodeFromFrames:
         config = _make_config(frames="${stream}", frame_rate=12)
         ctx = _make_context(frames_value=_make_iter)
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -351,7 +365,7 @@ class TestEncodeFromVideo:
         config = _make_config(video="${prev.video}")
         ctx = _make_context(video_value=sample_mp4_path)
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert isinstance(result, VideoStreamResource)
         out_path = await _drain_resource_to_file(result)
@@ -374,7 +388,7 @@ class TestEncodeFromVideo:
             audio_value=sample_audio_path,
         )
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -387,7 +401,7 @@ class TestEncodeFromVideo:
         config = _make_config(video="${videos}")
         ctx = _make_context(video_value=[sample_mp4_path, sample_mp4_path])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -410,7 +424,7 @@ class TestEncodingOptions:
         )
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert result[0].format == "webm"
         out_path = await _drain_resource_to_file(result[0])
@@ -433,7 +447,7 @@ class TestEncodingOptions:
         )
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result[0])
         try:
@@ -459,7 +473,7 @@ class TestStreamingOutput:
         )
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert result[0].format == "webm"
         # Streamable output: source is NOT a FileStreamResource
@@ -483,7 +497,7 @@ class TestStreamingOutput:
         )
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         # mp4 is not streamable → falls back to file output (warning logged)
         assert isinstance(result[0].source, FileStreamResource)
@@ -501,7 +515,7 @@ class TestErrorPropagation:
         ctx = _make_context(video_value=str(bogus))
 
         with pytest.raises(RuntimeError, match="ffmpeg video encoding failed"):
-            await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoEncoderAction(config).run(ctx)
 
 
 @ffmpeg_required
@@ -516,7 +530,7 @@ class TestOutputTemplate:
         )
         ctx = _make_context(frames_value=[frames])
 
-        result = await FFmpegVideoEncoderAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
 
         assert result == "encoded"
         registered = dict(c.args for c in ctx.register_source.call_args_list)
@@ -524,3 +538,220 @@ class TestOutputTemplate:
         # Registered result is a list (frames path always produces list results)
         for item in registered["result"]:
             await item.close()
+
+
+# ---------------------------------------------------------------------------
+# Live-stream input helpers
+#
+# The default `_make_context` helpers route bytes through `create_video_source`
+# / `create_audio_source`, which build a MediaSource *without* setting the
+# `format` field. That drops us into the spool path in `_resolve_input_path`
+# because the streamable check needs a format string. For the tests below we
+# want to exercise pipe:0 and pipe:<fd>, so we build MediaSources directly and
+# hand them to the render mocks.
+# ---------------------------------------------------------------------------
+
+def _sample_mpegts_bytes() -> bytes:
+    """Build a tiny mpegts video clip in memory (streamable input format)."""
+    proc = subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=12",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-f", "mpegts", "pipe:1",
+        ],
+        capture_output=True, check=True,
+    )
+    return proc.stdout
+
+
+def _sample_mp3_bytes() -> bytes:
+    """Build a tiny mp3 audio clip in memory (streamable input format)."""
+    proc = subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "sine=frequency=880:duration=1",
+            "-c:a", "libmp3lame", "-f", "mp3", "pipe:1",
+        ],
+        capture_output=True, check=True,
+    )
+    return proc.stdout
+
+
+def _make_context_with_media(
+    video: Optional[MediaSource] = None,
+    audio: Optional[MediaSource] = None,
+    cancellation_token: Optional[CancellationToken] = None,
+) -> ComponentActionContext:
+    """A context whose render_video / render_audio return the given MediaSource verbatim.
+
+    This bypasses `create_video_source(bytes)` which drops the `format` hint
+    and therefore forces the spool path. We need to keep the format so the
+    encoder actually exercises pipe:0 / pipe:<fd>.
+    """
+    ctx = MagicMock(spec=ComponentActionContext)
+    ctx.cancellation_token = cancellation_token
+
+    sources: dict = {}
+    def register_source(key: str, value: Any, scope: Any = None) -> None:
+        sources[key] = value
+    ctx.register_source = MagicMock(side_effect=register_source)
+
+    async def render_variable(value, **kwargs):
+        if value == "${result}":
+            return sources.get("result")
+        return value
+
+    async def render_video(value):
+        return video
+
+    async def render_audio(value):
+        return audio
+
+    ctx.render_variable = AsyncMock(side_effect=render_variable)
+    ctx.render_video = AsyncMock(side_effect=render_video)
+    ctx.render_audio = AsyncMock(side_effect=render_audio)
+    return ctx
+
+
+@pytest.fixture(scope="module")
+def sample_mpegts_bytes():
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not available on PATH")
+    return _sample_mpegts_bytes()
+
+
+@pytest.fixture(scope="module")
+def sample_mp3_bytes():
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not available on PATH")
+    return _sample_mp3_bytes()
+
+
+@ffmpeg_required
+class TestLiveStreamInputs:
+    """Exercise the pipe:0 / pipe:<fd> / spool branches of _resolve_input_path
+    and _resolve_input_source with real ffmpeg processes."""
+
+    @pytest.mark.anyio
+    async def test_streamable_video_uses_pipe(self, sample_mpegts_bytes):
+        """A streamable input format (mpegts) is fed on stdin — no temp file."""
+        video = MediaSource(BytesStreamResource(sample_mpegts_bytes), format="mpegts")
+
+        config = _make_config(video="${v}")
+        ctx = _make_context_with_media(video=video)
+
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+
+        assert isinstance(result, VideoStreamResource)
+        out_path = await _drain_resource_to_file(result)
+        try:
+            info = _probe_video(out_path)
+            # Encoding succeeded and produced a real h264 stream.
+            assert info["codec_name"] == "h264"
+        finally:
+            os.unlink(out_path)
+
+    @pytest.mark.anyio
+    async def test_non_streamable_video_spools(self, sample_mp4_path):
+        """Non-streamable in-memory input (mp4 bytes) has to be spooled to disk."""
+        with open(sample_mp4_path, "rb") as f:
+            mp4_bytes = f.read()
+        video = MediaSource(BytesStreamResource(mp4_bytes), format="mp4")
+
+        config = _make_config(video="${v}")
+        ctx = _make_context_with_media(video=video)
+
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+
+        assert isinstance(result, VideoStreamResource)
+        out_path = await _drain_resource_to_file(result)
+        try:
+            info = _probe_video(out_path)
+            assert info["codec_name"] == "h264"
+        finally:
+            os.unlink(out_path)
+
+    @pytest.mark.anyio
+    async def test_dual_live_streams_use_fd_inheritance(
+        self, sample_mpegts_bytes, sample_mp3_bytes,
+    ):
+        """Two live streams: video on pipe:0, audio on pipe:<fd>.
+
+        Without fd inheritance the audio side would be spooled to a temp file
+        first; here we expect neither side to touch disk, and the resulting
+        output must contain both tracks.
+        """
+        if os.name != "posix":
+            pytest.skip("fd inheritance is POSIX-only")
+
+        video = MediaSource(BytesStreamResource(sample_mpegts_bytes), format="mpegts")
+        audio = MediaSource(BytesStreamResource(sample_mp3_bytes), format="mp3")
+
+        config = _make_config(video="${v}", audio="${a}")
+        ctx = _make_context_with_media(video=video, audio=audio)
+
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+
+        out_path = await _drain_resource_to_file(result)
+        try:
+            info = _probe_video(out_path)
+            assert info["codec_name"] == "h264"
+            # The replacement audio track survived: expect aac (default codec).
+            assert _probe_audio_codec(out_path) == "aac"
+        finally:
+            os.unlink(out_path)
+
+
+class _SlowMpegtsStream(BytesStreamResource):
+    """An mpegts source that keeps yielding chunks slowly and never ends so
+    ffmpeg stays busy long enough for the cancellation token to fire."""
+
+    def __init__(self, data: bytes, chunk_delay_s: float = 0.02, max_repeats: int = 200):
+        super().__init__(data, chunk_size=4096)
+        self._chunk_delay_s = chunk_delay_s
+        self._max_repeats = max_repeats
+
+    async def _iterate_stream(self):
+        # Loop the same mpegts payload many times with sleeps in between so
+        # the resulting encode runs for several seconds. If we ever exhaust
+        # the loop the test would time out — max_repeats is a safety upper
+        # bound, not the expected exit path.
+        for _ in range(self._max_repeats):
+            offset = 0
+            while offset < len(self.data):
+                chunk = self.data[offset : offset + self.chunk_size]
+                offset += self.chunk_size
+                await asyncio.sleep(self._chunk_delay_s)
+                yield chunk
+
+
+@ffmpeg_required
+class TestCancellation:
+    """CancellationToken should reach the running ffmpeg process and end it."""
+
+    @pytest.mark.anyio
+    async def test_cancellation_token_stops_encoding(self, sample_mpegts_bytes):
+        """Cancelling the token mid-run causes the encoder to raise
+        CancelledError instead of returning a completed VideoStreamResource."""
+        token = CancellationToken()
+
+        # Feed ffmpeg a drip-fed mpegts stream so the encode is guaranteed to
+        # still be running by the time the cancel fires (the watcher polls
+        # every 0.2s).
+        video = MediaSource(_SlowMpegtsStream(sample_mpegts_bytes), format="mpegts")
+
+        config = _make_config(video="${v}")
+        ctx = _make_context_with_media(video=video, cancellation_token=token)
+
+        async def _cancel_soon() -> None:
+            await asyncio.sleep(0.3)
+            token.cancel(reason="test")
+
+        encode_task = asyncio.create_task(
+            FFmpegVideoEncoderAction(config).run(ctx)
+        )
+        canceller = asyncio.create_task(_cancel_soon())
+
+        with pytest.raises((asyncio.CancelledError, RuntimeError)):
+            await encode_task
+        await canceller

@@ -114,7 +114,7 @@ class TestSingleImage:
         action = _FakeImageToTextAction(_make_config("${input.image}"))
         ctx = ComponentActionContext("r-1", { "image": _img("A") })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == "A:_"
         assert action.batches_seen == [ [ "A" ] ]
@@ -124,7 +124,7 @@ class TestSingleImage:
         action = _FakeImageToTextAction(_make_config("${input.image}", text_expr="${input.text}"))
         ctx = ComponentActionContext("r-2", { "image": _img("A"), "text": "describe" })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == "A:describe"
 
@@ -135,7 +135,7 @@ class TestListImage:
         action = _FakeImageToTextAction(_make_config("${input.images}"))
         ctx = ComponentActionContext("r-4", { "images": [ _img("A"), _img("B"), _img("C"), _img("D") ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == [ "A:_", "B:_", "C:_", "D:_" ]
         assert action.batches_seen == [ [ "A", "B" ], [ "C", "D" ] ]
@@ -145,7 +145,7 @@ class TestListImage:
         action = _FakeImageToTextAction(_make_config("${input.images}", text_expr="${input.texts}"))
         ctx = ComponentActionContext("r-5", { "images": [ _img("A"), _img("B") ], "texts": [ "x", "y" ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == [ "A:x", "B:y" ]
 
@@ -156,7 +156,7 @@ class TestListImage:
         loop = asyncio.get_running_loop()
 
         with pytest.raises(ValueError, match="different lengths"):
-            await action.run(ctx, loop)
+            await action.run(ctx)
 
     @pytest.mark.anyio
     async def test_list_image_with_longer_text_raises(self):
@@ -165,7 +165,7 @@ class TestListImage:
         loop = asyncio.get_running_loop()
 
         with pytest.raises(ValueError, match="different lengths"):
-            await action.run(ctx, loop)
+            await action.run(ctx)
 
 
 class TestStreamImage:
@@ -175,7 +175,7 @@ class TestStreamImage:
         stream = _make_async_iter([ _img("A"), _img("B"), _img("C") ])
         ctx = ComponentActionContext("r-8", { "images": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -195,7 +195,7 @@ class TestTokenStreaming:
         )
         ctx = ComponentActionContext("r-13", { "image": _img("A") })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # Single image + streaming → single StreamChunkIterator over the row's tokens.
         assert isinstance(result, StreamChunkIterator)
@@ -210,7 +210,7 @@ class TestTokenStreaming:
         )
         ctx = ComponentActionContext("r-14", { "images": [ _img("A"), _img("B") ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -227,7 +227,7 @@ class TestTokenStreaming:
         stream = _make_async_iter([ _img("A") ])
         ctx = ComponentActionContext("r-15", { "images": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         rows = await _collect(result)

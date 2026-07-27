@@ -73,7 +73,7 @@ async def test_aiohttp_batch():
     ctx = _make_context(urls)
 
     t0 = time.perf_counter()
-    result = await action.run(ctx, asyncio.get_running_loop())
+    result = await action.run(ctx)
     elapsed = time.perf_counter() - t0
 
     print(f"  urls    : {urls}")
@@ -91,7 +91,7 @@ async def test_aiohttp_single():
     action = _make_action(selector="h1")
     ctx = _make_context("https://example.com/")
 
-    result = await action.run(ctx, asyncio.get_running_loop())
+    result = await action.run(ctx)
     print(f"  result  : {result!r}")
     assert isinstance(result, str)
     assert result and "Example Domain" in result
@@ -111,7 +111,7 @@ async def test_playwright_batch_shared_browser():
     ctx = _make_context(urls)
 
     t0 = time.perf_counter()
-    result = await action.run(ctx, asyncio.get_running_loop())
+    result = await action.run(ctx)
     elapsed = time.perf_counter() - t0
 
     print(f"  urls    : {urls}")

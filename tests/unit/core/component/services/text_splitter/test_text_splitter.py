@@ -61,7 +61,7 @@ class TestTextSplitterBasicFunctionality:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 1
         assert result[0] == "Short text"
@@ -76,7 +76,7 @@ class TestTextSplitterBasicFunctionality:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 1
         for chunk in result:
@@ -93,7 +93,7 @@ class TestTextSplitterBasicFunctionality:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -112,7 +112,7 @@ class TestTextSplitterSeparators:
             chunk_overlap=0,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -127,7 +127,7 @@ class TestTextSplitterSeparators:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 4
         assert result[0] == "abcde"
@@ -145,7 +145,7 @@ class TestTextSplitterSeparators:
             chunk_overlap=0,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -163,7 +163,7 @@ class TestTextSplitterChunkSize:
             chunk_overlap=0,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 1
 
@@ -177,7 +177,7 @@ class TestTextSplitterChunkSize:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 1
         assert result[0] == text
@@ -192,7 +192,7 @@ class TestTextSplitterChunkSize:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 1
         assert result[0] == text
@@ -212,7 +212,7 @@ class TestTextSplitterOverlap:
             chunk_overlap=3,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) >= 1
 
@@ -227,7 +227,7 @@ class TestTextSplitterOverlap:
             chunk_overlap=0,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -241,7 +241,7 @@ class TestTextSplitterOverlap:
             chunk_overlap=10
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 1
         assert result[0] == text
@@ -259,7 +259,7 @@ class TestTextSplitterEdgeCases:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 0
 
@@ -273,7 +273,7 @@ class TestTextSplitterEdgeCases:
             chunk_overlap=0
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) == 0
 
@@ -288,7 +288,7 @@ class TestTextSplitterEdgeCases:
             chunk_overlap=0,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -318,7 +318,7 @@ Another section with content."""
             chunk_overlap=10,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 0
 
@@ -332,7 +332,7 @@ Another section with content."""
             chunk_overlap=10,
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert len(result) > 1
 
@@ -352,7 +352,7 @@ class TestComprehensiveCases:
             chunk_overlap=test_case["input"]["chunk_overlap"],
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         expected = test_case["expected_output"]
         assert len(result) == len(expected)
@@ -369,7 +369,7 @@ class TestComprehensiveCases:
             chunk_overlap=test_case["input"]["chunk_overlap"],
         )
         action = TextSplitterAction(config)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         expected = test_case["expected_output"]
         assert result == expected
@@ -387,7 +387,7 @@ class TestComprehensiveCases:
                 chunk_overlap=test_case["input"]["chunk_overlap"],
             )
             action = TextSplitterAction(config)
-            result = await action.run(mock_context, asyncio.get_running_loop())
+            result = await action.run(mock_context)
 
             expected = test_case["expected_output"]
 
@@ -455,7 +455,7 @@ class TestTextSplitterStreamingInput:
         # Batch reference: same texts as a list. Returns List[List[str]] (chunks per text).
         batch_config = TextSplitterActionConfig(text=texts, **common_kwargs)
         batch_action = TextSplitterAction(batch_config)
-        batch_result = await batch_action.run(mock_context, asyncio.get_running_loop())
+        batch_result = await batch_action.run(mock_context)
 
         # Stream input + streaming=true: outer is an async iterator; each item is itself
         # an async iterator of chunks.
@@ -474,7 +474,7 @@ class TestTextSplitterStreamingInput:
         stream_mock.render_text = AsyncMock(side_effect=render_text)
         stream_mock.register_source = MagicMock()
 
-        stream_result = await stream_action.run(stream_mock, asyncio.get_running_loop())
+        stream_result = await stream_action.run(stream_mock)
         stream_collected = []
         async for inner in stream_result:
             stream_collected.append(await _collect(inner))
@@ -536,7 +536,7 @@ class TestLanguagePresets:
             chunk_size=60,
             chunk_overlap=0,
         )
-        result = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+        result = await TextSplitterAction(config).run(mock_context)
 
         # Both `class Foo:` and `class Bar:` should each start their own chunk.
         starts = [ chunk.lstrip("\n").splitlines()[0] for chunk in result ]
@@ -561,7 +561,7 @@ class TestLanguagePresets:
             chunk_size=60,
             chunk_overlap=0,
         )
-        result = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+        result = await TextSplitterAction(config).run(mock_context)
 
         joined = " || ".join(result)
         # `## Section A` and `## Section B` should each begin a new chunk.
@@ -851,7 +851,7 @@ class TestPerLanguagePresets:
             chunk_size=chunk_size,
             chunk_overlap=0,
         )
-        chunks = await TextSplitterAction(config).run(mock_context, asyncio.get_running_loop())
+        chunks = await TextSplitterAction(config).run(mock_context)
 
         # Sanity: chunk_size is tuned so splitting produces at least one chunk
         # per expected boundary (i.e. more than one chunk overall).

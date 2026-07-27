@@ -143,7 +143,7 @@ class TestSpectrumExtractor:
         config = _spectrum_config(sine_440hz_wav, fps=30, sample_rate=22050, band_count=32)
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert isinstance(result, dict)
         assert result["fps"] == 30
@@ -159,7 +159,7 @@ class TestSpectrumExtractor:
         config = _spectrum_config(sine_440hz_wav, normalize_mode="peak-percentile")
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         max_value = max(v for frame in result["frames"] for v in frame)
         min_value = min(v for frame in result["frames"] for v in frame)
@@ -173,7 +173,7 @@ class TestSpectrumExtractor:
         config = _spectrum_config(sine_440hz_wav, normalize_mode="none")
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         max_value = max(v for frame in result["frames"] for v in frame)
         # Unnormalized FFT magnitudes are >> 1 for a full-scale tone.
@@ -190,7 +190,7 @@ class TestSpectrumExtractor:
         )
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         # Average magnitude per band, then find the peak band.
         band_count = result["band_count"]
@@ -208,7 +208,7 @@ class TestSpectrumExtractor:
         config = _spectrum_config(sine_440hz_wav, frequency_scale="linear")
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert result["frame_count"] > 0
         assert result["band_count"] == 32
@@ -221,8 +221,8 @@ class TestSpectrumExtractor:
         ctx_60 = _make_context(sine_440hz_wav)
 
         loop = asyncio.get_running_loop()
-        result_30 = await FFmpegAudioFeatureExtractorAction(config_30).run(ctx_30, loop)
-        result_60 = await FFmpegAudioFeatureExtractorAction(config_60).run(ctx_60, loop)
+        result_30 = await FFmpegAudioFeatureExtractorAction(config_30).run(ctx_30)
+        result_60 = await FFmpegAudioFeatureExtractorAction(config_60).run(ctx_60)
 
         assert result_60["frame_count"] > result_30["frame_count"]
 
@@ -231,7 +231,7 @@ class TestSpectrumExtractor:
         config = _spectrum_config(silent_wav, normalize_mode="none")
         ctx = _make_context(silent_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         max_value = max((v for frame in result["frames"] for v in frame), default=0.0)
         # Silent input should produce near-zero magnitudes.
@@ -251,7 +251,7 @@ class TestSpectrumExtractor:
         )
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert result["band_count"] == 16
         assert result["fps"] == 30
@@ -264,7 +264,7 @@ class TestWaveformExtractor:
         config = _waveform_config(sine_440hz_wav, fps=30, point_count=100)
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert result["fps"] == 30
         assert result["point_count"] == 100
@@ -278,7 +278,7 @@ class TestWaveformExtractor:
         config = _waveform_config(sine_440hz_wav, summary_mode="peak", rectify=True)
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         max_value = max(v for frame in result["frames"] for v in frame)
         assert 0.4 <= max_value <= 0.55
@@ -290,8 +290,8 @@ class TestWaveformExtractor:
         rms_config  = _waveform_config(sine_440hz_wav, summary_mode="rms",  rectify=True)
         loop = asyncio.get_running_loop()
 
-        peak_result = await FFmpegAudioFeatureExtractorAction(peak_config).run(_make_context(sine_440hz_wav), loop)
-        rms_result  = await FFmpegAudioFeatureExtractorAction(rms_config ).run(_make_context(sine_440hz_wav), loop)
+        peak_result = await FFmpegAudioFeatureExtractorAction(peak_config).run(_make_context(sine_440hz_wav))
+        rms_result  = await FFmpegAudioFeatureExtractorAction(rms_config ).run(_make_context(sine_440hz_wav))
 
         max_peak = max(v for frame in peak_result["frames"] for v in frame)
         max_rms  = max(v for frame in rms_result ["frames"] for v in frame)
@@ -304,7 +304,7 @@ class TestWaveformExtractor:
         config = _waveform_config(sine_440hz_wav, summary_mode="peak", rectify=True)
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         min_value = min(v for frame in result["frames"] for v in frame)
         assert min_value >= 0.0
@@ -315,7 +315,7 @@ class TestWaveformExtractor:
         config = _waveform_config(sine_440hz_wav, summary_mode="peak", rectify=False)
         ctx = _make_context(sine_440hz_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         min_value = min(v for frame in result["frames"] for v in frame)
         max_value = max(v for frame in result["frames"] for v in frame)
@@ -328,8 +328,8 @@ class TestWaveformExtractor:
         config_s  = _waveform_config(sine_440hz_wav, window_duration="0.04s")
         loop = asyncio.get_running_loop()
 
-        result_ms = await FFmpegAudioFeatureExtractorAction(config_ms).run(_make_context(sine_440hz_wav), loop)
-        result_s  = await FFmpegAudioFeatureExtractorAction(config_s ).run(_make_context(sine_440hz_wav), loop)
+        result_ms = await FFmpegAudioFeatureExtractorAction(config_ms).run(_make_context(sine_440hz_wav))
+        result_s  = await FFmpegAudioFeatureExtractorAction(config_s ).run(_make_context(sine_440hz_wav))
 
         # 40ms == 0.04s → identical frame count.
         assert result_ms["frame_count"] == result_s["frame_count"]
@@ -339,7 +339,7 @@ class TestWaveformExtractor:
         config = _waveform_config(silent_wav)
         ctx = _make_context(silent_wav)
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         max_value = max((v for frame in result["frames"] for v in frame), default=0.0)
         assert max_value < 1e-3
@@ -352,7 +352,7 @@ class TestBatchInputs:
         config = _spectrum_config([sine_440hz_wav, sine_2khz_wav])
         ctx = _make_context([sine_440hz_wav, sine_2khz_wav])
 
-        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -371,7 +371,7 @@ class TestBatchInputs:
         )
         ctx = _make_context([sine_440hz_wav, sine_2khz_wav])
 
-        results = await FFmpegAudioFeatureExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        results = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         def peak_band(spec: dict) -> int:
             band_count = spec["band_count"]

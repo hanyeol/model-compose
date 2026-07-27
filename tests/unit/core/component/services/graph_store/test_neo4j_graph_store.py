@@ -75,7 +75,7 @@ class TestNeo4jQueryAction:
             "query": "MATCH (n:Person) RETURN n",
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         mock_session.run.assert_called_once_with(
             "MATCH (n:Person) RETURN n", parameters={}
@@ -102,7 +102,7 @@ class TestNeo4jQueryAction:
             "params": {"name": "Alice"},
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        await action.run(mock_context, asyncio.get_running_loop())
+        await action.run(mock_context)
 
         mock_session.run.assert_called_once_with(
             "MATCH (n:Person {name: $name}) RETURN n",
@@ -128,7 +128,7 @@ class TestNeo4jQueryAction:
             "output": "${result[0]}",
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        await action.run(mock_context, asyncio.get_running_loop())
+        await action.run(mock_context)
 
         mock_context.render_variable.assert_any_call("${result[0]}")
 
@@ -160,7 +160,7 @@ class TestNeo4jInsertAction:
             "nodes": {"label": "Person", "properties": {"name": "Alice", "age": 30}},
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert result["created_nodes"] == 1
         assert result["created_relationships"] == 0
@@ -189,7 +189,7 @@ class TestNeo4jInsertAction:
             ],
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert result["created_nodes"] == 2
         assert result["ids"] == ["4:abc:1", "4:abc:2"]
@@ -216,7 +216,7 @@ class TestNeo4jInsertAction:
             },
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert result["created_relationships"] == 1
         assert result["created_nodes"] == 0
@@ -243,7 +243,7 @@ class TestNeo4jDeleteAction:
             "detach": True,
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         assert result["affected_rows"] == 1
         call_args = mock_session.run.call_args
@@ -266,7 +266,7 @@ class TestNeo4jDeleteAction:
             "detach": False,
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         call_args = mock_session.run.call_args
         assert "DETACH DELETE" not in call_args[0][0]
@@ -299,7 +299,7 @@ class TestNeo4jTraverseAction:
             "relationship_types": ["KNOWS"],
         })
         action = Neo4jGraphStoreAction(config, mock_session)
-        result = await action.run(mock_context, asyncio.get_running_loop())
+        result = await action.run(mock_context)
 
         call_args = mock_session.run.call_args
         cypher = call_args[0][0]

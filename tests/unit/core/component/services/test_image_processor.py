@@ -62,7 +62,7 @@ class TestImageProcessorSingleInput:
 
         image = _make_image()
         context = ComponentActionContext("run-1", { "image": image })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PILImage.Image)
         assert result.mode == "L"
@@ -74,7 +74,7 @@ class TestImageProcessorSingleInput:
 
         image = _make_image()
         context = ComponentActionContext("run-2", { "image": image })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PILImage.Image)
         assert result.mode == "L"
@@ -89,7 +89,7 @@ class TestImageProcessorSingleInput:
 
         image = _make_image()
         context = ComponentActionContext("run-3", { "image": image })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -104,7 +104,7 @@ class TestImageProcessorSingleInput:
 
         image = _make_image(size=(16, 9))
         context = ComponentActionContext("run-4", { "image": image })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert not isinstance(result, AsyncIterator)
         # Renderer does not support attribute access on arbitrary objects, so the
@@ -122,7 +122,7 @@ class TestImageProcessorListInput:
 
         images = [ _make_image(color=(c, 0, 0)) for c in (50, 100, 150) ]
         context = ComponentActionContext("run-5", { "image": images })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -135,7 +135,7 @@ class TestImageProcessorListInput:
 
         images = [ _make_image(), _make_image() ]
         context = ComponentActionContext("run-6", { "image": images })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -150,7 +150,7 @@ class TestImageProcessorListInput:
 
         images = [ _make_image() for _ in range(4) ]
         context = ComponentActionContext("run-7", { "image": images })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -165,7 +165,7 @@ class TestImageProcessorListInput:
 
         images = [ _make_image(), _make_image() ]
         context = ComponentActionContext("run-8", { "image": images })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         # `${result.size}` on a list resolves to None because list has no `.size` attr.
         assert result is None
@@ -181,7 +181,7 @@ class TestImageProcessorStreamInput:
 
         images = [ _make_image() for _ in range(3) ]
         context = ComponentActionContext("run-9", { "image": _make_async_iter(images) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -195,7 +195,7 @@ class TestImageProcessorStreamInput:
 
         images = [ _make_image() for _ in range(3) ]
         context = ComponentActionContext("run-10", { "image": _make_async_iter(images) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -209,7 +209,7 @@ class TestImageProcessorStreamInput:
 
         images = [ _make_image() for _ in range(5) ]
         context = ComponentActionContext("run-11", { "image": _make_async_iter(images) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -226,7 +226,7 @@ class TestImageProcessorStreamInput:
 
         images = [ _make_image() for _ in range(3) ]
         context = ComponentActionContext("run-12", { "image": _make_async_iter(images) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
 
@@ -247,7 +247,7 @@ class TestImageProcessorOtherMethods:
 
         image = _make_image(size=(16, 16))
         context = ComponentActionContext("run-13", { "image": image })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PILImage.Image)
         assert result.size == (4, 4)
@@ -263,7 +263,7 @@ class TestImageProcessorOtherMethods:
 
         images = [ _make_image() for _ in range(2) ]
         context = ComponentActionContext("run-14", { "image": images })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -281,7 +281,7 @@ class TestImageProcessorOtherMethods:
 
         images = [ _make_image(size=(8, 4)) for _ in range(2) ]
         context = ComponentActionContext("run-15", { "image": _make_async_iter(images) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -301,7 +301,7 @@ class TestImageProcessorAllMethods:
         })
         image = _make_image(size=(8, 8))
         context = ComponentActionContext("run-c1", { "image": image })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
         assert result.size == (4, 4)
@@ -310,7 +310,7 @@ class TestImageProcessorAllMethods:
     async def test_grayscale(self):
         config = _grayscale_config()
         context = ComponentActionContext("run-c2", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert result.mode == "L"
 
@@ -320,7 +320,7 @@ class TestImageProcessorAllMethods:
             "method": "blur", "image": "${input.image}", "radius": 1.5,
         })
         context = ComponentActionContext("run-c3", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
 
@@ -330,7 +330,7 @@ class TestImageProcessorAllMethods:
             "method": "sharpen", "image": "${input.image}", "factor": 1.5,
         })
         context = ComponentActionContext("run-c4", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
 
@@ -343,7 +343,7 @@ class TestImageProcessorAllMethods:
             "method": method, "image": "${input.image}", "factor": 1.2,
         })
         context = ComponentActionContext(f"run-c5-{method}", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
         assert result.size == (8, 8)
@@ -354,7 +354,7 @@ class TestImageProcessorAllMethods:
             "method": "flip", "image": "${input.image}", "direction": "vertical",
         })
         context = ComponentActionContext("run-c6", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
 
@@ -375,7 +375,7 @@ class TestImageProcessorResizeModes:
         })
         image = _make_image(size=(16, 8))
         context = ComponentActionContext(f"run-r-{scale_mode}", { "image": image })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert result.size == expected_size
 
@@ -387,7 +387,7 @@ class TestImageProcessorResizeModes:
         })
         image = _make_image(size=(16, 16))
         context = ComponentActionContext("run-r-w", { "image": image })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         # height defaults to original
         assert result.size == (4, 16)
@@ -400,7 +400,7 @@ class TestImageProcessorResizeModes:
         })
         image = _make_image(size=(16, 16))
         context = ComponentActionContext("run-r-h", { "image": image })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert result.size == (16, 4)
 
@@ -416,7 +416,7 @@ class TestImageProcessorErrors:
         context = ComponentActionContext("run-e1", { "image": _make_image() })
 
         with pytest.raises(ValueError, match="'width' or 'height'"):
-            await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+            await ImageProcessorAction(config).run(context)
 
     @pytest.mark.anyio
     async def test_resize_invalid_scale_mode(self):
@@ -427,7 +427,7 @@ class TestImageProcessorErrors:
         context = ComponentActionContext("run-e2", { "image": _make_image() })
 
         with pytest.raises(ValueError, match="Invalid scale_mode"):
-            await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+            await ImageProcessorAction(config).run(context)
 
     @pytest.mark.anyio
     async def test_flip_invalid_direction(self):
@@ -437,7 +437,7 @@ class TestImageProcessorErrors:
         context = ComponentActionContext("run-e3", { "image": _make_image() })
 
         with pytest.raises(ValueError, match="Invalid flip direction"):
-            await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+            await ImageProcessorAction(config).run(context)
 
 
 class TestImageProcessorBatchSize:
@@ -451,7 +451,7 @@ class TestImageProcessorBatchSize:
         })
         images = [ _make_image() for _ in range(4) ]
         context = ComponentActionContext(f"run-b-{batch_size}", { "image": images })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, list)
         assert len(result) == 4
@@ -464,7 +464,7 @@ class TestImageProcessorBatchSize:
         })
         images = [ _make_image() for _ in range(5) ]
         context = ComponentActionContext("run-b-stream", { "image": _make_async_iter(images) })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -479,7 +479,7 @@ class TestImageProcessorEmptyInput:
     async def test_empty_list(self):
         config = _grayscale_config()
         context = ComponentActionContext("run-empty-list", { "image": [] })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert result == []
 
@@ -487,7 +487,7 @@ class TestImageProcessorEmptyInput:
     async def test_empty_stream(self):
         config = _grayscale_config()
         context = ComponentActionContext("run-empty-stream", { "image": _make_async_iter([]) })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         # Stream input + passthrough output triggers stream mode -> AsyncIterator.
         assert isinstance(result, AsyncIterator)
@@ -508,7 +508,7 @@ class TestImageProcessorVariableInterpolation:
             "method": "grayscale", "image": "${input.image}",
         })
         context = ComponentActionContext("run-v1", { "image": _make_image() })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert result.mode == "L"
 
@@ -519,7 +519,7 @@ class TestImageProcessorVariableInterpolation:
             "factor": "${input.factor}",
         })
         context = ComponentActionContext("run-v2", { "image": _make_image(), "factor": 1.5 })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
 
@@ -530,7 +530,7 @@ class TestImageProcessorVariableInterpolation:
             "direction": "${input.dir}",
         })
         context = ComponentActionContext("run-v3", { "image": _make_image(), "dir": "vertical" })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, PILImage.Image)
 
@@ -542,7 +542,7 @@ class TestImageProcessorVariableInterpolation:
         })
         images = [ _make_image() for _ in range(3) ]
         context = ComponentActionContext("run-v4", { "image": images, "bs": 2 })
-        result = await ImageProcessorAction(config).run(context, asyncio.get_running_loop())
+        result = await ImageProcessorAction(config).run(context)
 
         assert isinstance(result, list)
         assert len(result) == 3

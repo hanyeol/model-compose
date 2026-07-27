@@ -80,7 +80,7 @@ class TestSingleInput:
         action = _FakeClassificationAction(_make_config("${input.text}"))
         ctx    = ComponentActionContext("r-1", { "text": "hello" })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, dict)
         assert result == { "label": "neg", "score": 5.0 }
@@ -91,7 +91,7 @@ class TestSingleInput:
         action = _FakeClassificationAction(_make_config("${input.text}", output="${result}"))
         ctx    = ComponentActionContext("r-2", { "text": "hi" })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, dict)
         assert result["score"] == 2.0
@@ -109,7 +109,7 @@ class TestListInput:
         action = _FakeClassificationAction(_make_config("${input.texts}"))
         ctx    = ComponentActionContext("r-4", { "texts": [ "a", "bb", "ccc", "dddd" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 4
@@ -120,7 +120,7 @@ class TestListInput:
         action = _FakeClassificationAction(_make_config("${input.texts}", output="${result}"))
         ctx    = ComponentActionContext("r-5", { "texts": [ "x", "y" ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -138,7 +138,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb", "ccc" ])
         ctx    = ComponentActionContext("r-7", { "texts": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -152,7 +152,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb" ])
         ctx    = ComponentActionContext("r-8", { "texts": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -164,7 +164,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb", "ccc", "dddd" ])
         ctx    = ComponentActionContext("r-9", { "texts": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -179,7 +179,7 @@ class TestParamsPropagation:
         action = _FakeClassificationAction(_make_config("${input.text}"))
         ctx    = ComponentActionContext("r-10", { "text": "hi" })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         assert len(action.params_seen) == 1
         params = action.params_seen[0]
@@ -197,7 +197,7 @@ class TestLabelsPropagation:
         action = _FakeClassificationAction(_make_config("${input.text}"))
         ctx    = ComponentActionContext("r-11", { "text": "hi" })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         assert action.labels_seen == [ None ]
 
@@ -207,7 +207,7 @@ class TestLabelsPropagation:
         action = _FakeClassificationAction(_make_config("${input.texts}"), labels=labels)
         ctx    = ComponentActionContext("r-12", { "texts": [ "a", "bb", "ccc" ] })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         # batch_size=2 with 3 items → 2 batches; labels seen once per batch
         assert action.labels_seen == [ labels, labels ]

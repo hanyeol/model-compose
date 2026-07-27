@@ -2,8 +2,8 @@
 
 Covers:
 - ``is_audio_streamable``: dispatch predicate for PCM streaming eligibility.
-- ``load_audio_array``: MediaSource -> full waveform (with optional resample / channel).
-- ``stream_audio_array``: MediaSource -> per-frame async iterator of float32 arrays.
+- ``load_audio_buffer``: MediaSource -> full waveform (with optional resample / channel).
+- ``stream_audio_buffer``: MediaSource -> per-frame async iterator of float32 arrays.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ import pytest
 
 from mindor.core.foundation.streaming.audio import (
     is_audio_streamable,
-    load_audio_array,
-    stream_audio_array,
+    load_audio_buffer,
+    stream_audio_buffer,
 )
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
@@ -87,7 +87,9 @@ def build_wav_bytes(samples: np.ndarray, sample_rate: int, channels: int = 1, bi
 
 
 async def collect_frames(gen) -> list:
-    return [frame async for frame in gen]
+    # stream_audio_buffer now yields AudioBuffer; existing frame-array assertions
+    # keep working by unwrapping .waveform here.
+    return [buffer.waveform async for buffer in gen]
 
 
 # ---- is_audio_streamable ----
@@ -128,18 +130,18 @@ class TestIsAudioStreamable:
         assert is_audio_streamable(src) is False
 
 
-# ---- load_audio_array ----
+# ---- load_audio_buffer ----
 
 class TestLoadAudioArrayPcm:
     @pytest.mark.anyio
     async def test_pcm_s16le_mono_default(self):
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
-        waveform, sr = await load_audio_array(src)
+        waveform, sr = await load_audio_buffer(src)
         assert waveform.dtype == np.float32
         assert waveform.shape == (1000,)
         assert sr == 16000
-        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
+        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_s16le_stereo_default_is_downmix(self):
@@ -147,42 +149,42 @@ class TestLoadAudioArrayPcm:
         left = np.full(500, 1000, dtype=np.int16)
         right = np.full(500, 3000, dtype=np.int16)
         src = pcm_stereo_source(left, right)
-        waveform, sr = await load_audio_array(src)
+        waveform, sr = await load_audio_buffer(src)
         assert waveform.shape == (500,)
         assert waveform.dtype == np.float32
         assert sr == 16000
-        # Mean of (1000, 3000) = 2000, normalized to float32 by /32767.
-        assert np.allclose(waveform, 2000.0 / 32767.0)
+        # Mean of (1000, 3000) = 2000, normalized to float32 by /32768.
+        assert np.allclose(waveform, 2000.0 / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_mean_downmix(self):
         left = np.full(500, 1000, dtype=np.int16)
         right = np.full(500, 3000, dtype=np.int16)
         src = pcm_stereo_source(left, right)
-        waveform, sr = await load_audio_array(src, channel=None)
+        waveform, sr = await load_audio_buffer(src, channel=None)
         assert waveform.shape == (500,)
         assert waveform.dtype == np.float32
-        # Mean of (1000, 3000) = 2000, normalized to float32 by /32767.
-        assert np.allclose(waveform, 2000.0 / 32767.0)
+        # Mean of (1000, 3000) = 2000, normalized to float32 by /32768.
+        assert np.allclose(waveform, 2000.0 / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_left(self):
         left = np.arange(500, dtype=np.int16)
         right = np.arange(500, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right)
-        waveform, sr = await load_audio_array(src, channel=0)
+        waveform, sr = await load_audio_buffer(src, channel=0)
         assert waveform.shape == (500,)
         assert waveform.dtype == np.float32
-        assert np.allclose(waveform, left.astype(np.float32) / 32767.0)
+        assert np.allclose(waveform, left.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_right(self):
         left = np.arange(500, dtype=np.int16)
         right = np.arange(500, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right)
-        waveform, sr = await load_audio_array(src, channel=1)
+        waveform, sr = await load_audio_buffer(src, channel=1)
         assert waveform.dtype == np.float32
-        assert np.allclose(waveform, right.astype(np.float32) / 32767.0)
+        assert np.allclose(waveform, right.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_channel_out_of_range_raises(self):
@@ -190,16 +192,16 @@ class TestLoadAudioArrayPcm:
         right = np.zeros(100, dtype=np.int16)
         src = pcm_stereo_source(left, right)
         with pytest.raises(ValueError, match="channel must satisfy"):
-            await load_audio_array(src, channel=5)
+            await load_audio_buffer(src, channel=5)
 
     @pytest.mark.anyio
     async def test_mono_source_ignores_out_of_range_channel(self):
         # Mono waveform is 1-D; channel is silently ignored.
         samples = np.arange(100, dtype=np.int16)
         src = pcm_mono_source(samples)
-        waveform, _ = await load_audio_array(src, channel=5)
+        waveform, _ = await load_audio_buffer(src, channel=5)
         assert waveform.dtype == np.float32
-        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
+        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_missing_sample_rate_defaults_to_16000(self):
@@ -209,7 +211,7 @@ class TestLoadAudioArrayPcm:
             format="s16le",
             attrs={"channels": 1},
         )
-        _, sr = await load_audio_array(src)
+        _, sr = await load_audio_buffer(src)
         assert sr == 16000
 
     @pytest.mark.anyio
@@ -219,7 +221,7 @@ class TestLoadAudioArrayPcm:
         n = sr_in
         samples = (np.sin(2 * np.pi * 440 * np.arange(n) / sr_in) * 10000).astype(np.int16)
         src = pcm_mono_source(samples, sample_rate=sr_in, chunk_size=n * 2)
-        waveform, sr_out = await load_audio_array(src, sample_rate=8000)
+        waveform, sr_out = await load_audio_buffer(src, sample_rate=8000)
         assert sr_out == 8000
         assert waveform.dtype == np.float32
         # ~8000 samples with some soxr tail tolerance
@@ -229,11 +231,11 @@ class TestLoadAudioArrayPcm:
     async def test_pcm_resample_same_rate_is_noop(self):
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples, sample_rate=16000)
-        waveform, sr = await load_audio_array(src, sample_rate=16000)
+        waveform, sr = await load_audio_buffer(src, sample_rate=16000)
         assert sr == 16000
         # Integer PCM is normalized to float32 in [-1, 1] even without resampling.
         assert waveform.dtype == np.float32
-        assert np.allclose(waveform, samples.astype(np.float32) / 32767.0)
+        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
 
 
 class TestLoadAudioArrayCompressed:
@@ -242,7 +244,7 @@ class TestLoadAudioArrayCompressed:
         samples = np.arange(1600, dtype=np.int16)
         wav_bytes = build_wav_bytes(samples, sample_rate=16000, channels=1)
         src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
-        waveform, sr = await load_audio_array(src)
+        waveform, sr = await load_audio_buffer(src)
         assert sr == 16000
         # torchaudio yields (1, N) tensor for mono, our code preserves that shape
         # unless channel selection kicks in
@@ -253,21 +255,21 @@ class TestLoadAudioArrayCompressed:
         samples = np.arange(3200, dtype=np.int16)
         wav_bytes = build_wav_bytes(samples, sample_rate=32000, channels=1)
         src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
-        waveform, sr = await load_audio_array(src, sample_rate=16000)
+        waveform, sr = await load_audio_buffer(src, sample_rate=16000)
         assert sr == 16000
         assert waveform.dtype == np.float32
         # ~half length; allow tolerance for filter tail
         assert 1500 <= waveform.shape[-1] <= 1700
 
 
-# ---- stream_audio_array ----
+# ---- stream_audio_buffer ----
 
 class TestStreamAudioArrayBasic:
     @pytest.mark.anyio
     async def test_mono_default_non_overlapping(self):
         samples = np.arange(2048, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         # 2048 / 512 = 4 frames, no padding needed
         assert len(frames) == 4
         for f in frames:
@@ -279,7 +281,7 @@ class TestStreamAudioArrayBasic:
         # int16 max/min normalize to ~1.0 / ~-1.0
         samples = np.array([32767, -32768, 0, 16384] * 128, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=len(samples) * 2)
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         assert frames[0][0] == pytest.approx(32767 / 32768, rel=1e-3)
         assert frames[0][1] == pytest.approx(-32768 / 32768, rel=1e-3)
         assert frames[0][2] == 0.0
@@ -290,7 +292,7 @@ class TestStreamAudioArrayBasic:
         # 1500 samples = 2 full frames of 512 + 476 tail
         samples = np.arange(1500, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         assert len(frames) == 3
         # Last frame's trailing samples should be zero-padded
         assert frames[-1].shape == (512,)
@@ -300,7 +302,7 @@ class TestStreamAudioArrayBasic:
     async def test_pad_final_false_drops_tail(self):
         samples = np.arange(1500, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512, pad_final=False))
+        frames = await collect_frames(stream_audio_buffer(src, 512, pad_final=False))
         # Tail dropped: only 2 full frames
         assert len(frames) == 2
 
@@ -310,7 +312,7 @@ class TestStreamAudioArrayOverlap:
     async def test_hop_half_frame_produces_double_frames(self):
         samples = np.arange(2048, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512, hop_size=256))
+        frames = await collect_frames(stream_audio_buffer(src, 512, hop_size=256))
         # (2048 - 512) / 256 + 1 = 7 full frames, +tail padded = 8
         assert len(frames) == 8
 
@@ -318,7 +320,7 @@ class TestStreamAudioArrayOverlap:
     async def test_overlap_frames_share_data(self):
         samples = np.arange(2048, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512, hop_size=256))
+        frames = await collect_frames(stream_audio_buffer(src, 512, hop_size=256))
         # Overlap: last 256 samples of frame[0] == first 256 samples of frame[1]
         assert np.allclose(frames[0][256:], frames[1][:256])
 
@@ -327,7 +329,7 @@ class TestStreamAudioArrayOverlap:
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
         with pytest.raises(ValueError, match="hop_size must satisfy"):
-            async for _ in stream_audio_array(src, 512, hop_size=0):
+            async for _ in stream_audio_buffer(src, 512, hop_size=0):
                 pass
 
     @pytest.mark.anyio
@@ -335,7 +337,7 @@ class TestStreamAudioArrayOverlap:
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
         with pytest.raises(ValueError, match="hop_size must satisfy"):
-            async for _ in stream_audio_array(src, 512, hop_size=513):
+            async for _ in stream_audio_buffer(src, 512, hop_size=513):
                 pass
 
 
@@ -346,7 +348,7 @@ class TestStreamAudioArrayChunkAlignment:
         # Result should not depend on how bytes are split across chunks.
         samples = np.arange(2048, dtype=np.int16)
         src = pcm_mono_source(samples, chunk_size=chunk_size)
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         assert len(frames) == 4
         # Concatenated frames should reproduce the source (float32 normalized)
         concat = np.concatenate(frames)
@@ -359,9 +361,9 @@ class TestStreamAudioArrayChunkAlignment:
         right = np.arange(2048, dtype=np.int16) + 1000
         # 333 bytes is NOT aligned to 4 (2 chan * 2 bytes/sample)
         src = pcm_stereo_source(left, right, chunk_size=333)
-        frames_odd = await collect_frames(stream_audio_array(src, 512, channel=0))
+        frames_odd = await collect_frames(stream_audio_buffer(src, 512, channel=0))
         src = pcm_stereo_source(left, right, chunk_size=8000)
-        frames_aligned = await collect_frames(stream_audio_array(src, 512, channel=0))
+        frames_aligned = await collect_frames(stream_audio_buffer(src, 512, channel=0))
         assert len(frames_odd) == len(frames_aligned)
         for a, b in zip(frames_odd, frames_aligned):
             assert np.allclose(a, b)
@@ -373,7 +375,7 @@ class TestStreamAudioArrayChannel:
         left = np.full(2048, 1000, dtype=np.int16)
         right = np.full(2048, 3000, dtype=np.int16)
         src = pcm_stereo_source(left, right, chunk_size=500)
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         # Mean of (1000, 3000) = 2000; normalized = 2000/32768
         assert frames[0][0] == pytest.approx(2000 / 32768, rel=1e-3)
 
@@ -382,9 +384,9 @@ class TestStreamAudioArrayChannel:
         left = np.arange(2048, dtype=np.int16)
         right = np.arange(2048, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right, chunk_size=500)
-        frames_l = await collect_frames(stream_audio_array(src, 512, channel=0))
+        frames_l = await collect_frames(stream_audio_buffer(src, 512, channel=0))
         src = pcm_stereo_source(left, right, chunk_size=500)
-        frames_r = await collect_frames(stream_audio_array(src, 512, channel=1))
+        frames_r = await collect_frames(stream_audio_buffer(src, 512, channel=1))
         assert frames_l[0][0] == 0.0
         assert frames_r[0][0] == pytest.approx(1000 / 32768, rel=1e-3)
 
@@ -394,15 +396,15 @@ class TestStreamAudioArrayChannel:
         right = np.zeros(1000, dtype=np.int16)
         src = pcm_stereo_source(left, right)
         with pytest.raises(ValueError, match="channel must satisfy"):
-            async for _ in stream_audio_array(src, 512, channel=5):
+            async for _ in stream_audio_buffer(src, 512, channel=5):
                 pass
 
     @pytest.mark.anyio
     async def test_mono_ignores_invalid_channel(self):
-        # Consistent with load_audio_array: mono sources silently ignore channel.
+        # Consistent with load_audio_buffer: mono sources silently ignore channel.
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
-        frames = await collect_frames(stream_audio_array(src, 512, channel=5))
+        frames = await collect_frames(stream_audio_buffer(src, 512, channel=5))
         assert len(frames) >= 1
 
 
@@ -411,7 +413,7 @@ class TestStreamAudioArrayResample:
     async def test_native_rate_no_resampler(self):
         samples = np.arange(2048, dtype=np.int16)
         src = pcm_mono_source(samples, sample_rate=16000, chunk_size=8000)
-        frames = await collect_frames(stream_audio_array(src, 512, sample_rate=16000))
+        frames = await collect_frames(stream_audio_buffer(src, 512, sample_rate=16000))
         # No resample = source samples preserved (up to normalization)
         assert len(frames) == 4
         concat = np.concatenate(frames)
@@ -424,7 +426,7 @@ class TestStreamAudioArrayResample:
         sr_in = 48000
         samples = (np.sin(2 * np.pi * 440 * np.arange(sr_in) / sr_in) * 10000).astype(np.int16)
         src = pcm_mono_source(samples, sample_rate=sr_in, chunk_size=8000)
-        frames = await collect_frames(stream_audio_array(src, 512, sample_rate=16000))
+        frames = await collect_frames(stream_audio_buffer(src, 512, sample_rate=16000))
         total = sum(f.shape[0] for f in frames)
         # ~16000 samples, allow filter tail tolerance
         assert 15500 <= total <= 16500
@@ -438,7 +440,7 @@ class TestStreamAudioArrayResample:
             format="s16le",
             attrs={"channels": 1},
         )
-        frames = await collect_frames(stream_audio_array(src, 512, sample_rate=16000))
+        frames = await collect_frames(stream_audio_buffer(src, 512, sample_rate=16000))
         assert len(frames) == 4  # No resample path taken
 
 
@@ -447,14 +449,14 @@ class TestStreamAudioArrayValidation:
     async def test_non_pcm_format_raises(self):
         src = MediaSource(BytesStreamResource(b""), format="mp3", attrs={"sample_rate": 16000})
         with pytest.raises(ValueError, match="raw PCM source"):
-            async for _ in stream_audio_array(src, 512):
+            async for _ in stream_audio_buffer(src, 512):
                 pass
 
     @pytest.mark.anyio
     async def test_none_format_raises(self):
         src = MediaSource(BytesStreamResource(b""), attrs={"sample_rate": 16000})
         with pytest.raises(ValueError, match="raw PCM source"):
-            async for _ in stream_audio_array(src, 512):
+            async for _ in stream_audio_buffer(src, 512):
                 pass
 
 
@@ -468,7 +470,7 @@ class TestStreamAudioArrayFloat32Source:
             format="f32le",
             attrs={"sample_rate": 16000, "channels": 1},
         )
-        frames = await collect_frames(stream_audio_array(src, 512))
+        frames = await collect_frames(stream_audio_buffer(src, 512))
         # First 4 samples preserved as-is
         assert frames[0][0] == 0.5
         assert frames[0][1] == -0.25

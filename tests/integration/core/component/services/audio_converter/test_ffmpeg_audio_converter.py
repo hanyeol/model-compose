@@ -127,6 +127,12 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
 
 
 def _make_config(audio: Any = "<placeholder>", **kwargs) -> AudioConverterActionConfig:
+    # Convenience: flat `codec`/`bitrate`/`sample_rate`/`channels` kwargs are
+    # rolled into the nested `encoding` block that the DSL now expects.
+    encoding_keys = {"codec", "bitrate", "sample_rate", "channels"}
+    encoding = { key: kwargs.pop(key) for key in list(kwargs.keys()) if key in encoding_keys }
+    if encoding:
+        kwargs["encoding"] = encoding
     return AudioConverterActionConfig(audio=audio, **kwargs)
 
 
@@ -184,7 +190,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="mp3")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         assert result.format == "mp3"
@@ -202,7 +208,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="flac")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert result.format == "flac"
         out_path = await _drain_resource_to_file(result)
@@ -217,7 +223,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path)
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert result.format == "wav"
         out_path = await _drain_resource_to_file(result)
@@ -232,7 +238,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="wav", sample_rate=8000)
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -247,7 +253,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="wav", channels=2)
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -263,7 +269,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="mp3", codec="libmp3lame", bitrate="64k")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -283,7 +289,7 @@ class TestFFmpegAudioConverter:
         ctx = _make_context(str(bogus))
 
         with pytest.raises(RuntimeError, match="ffmpeg audio conversion failed"):
-            result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+            result = await FFmpegAudioConverterAction(config).run(ctx)
             await _drain_resource_to_file(result)
 
     @pytest.mark.anyio
@@ -291,7 +297,7 @@ class TestFFmpegAudioConverter:
         config = _make_config(sample_wav_path, format="mp3", output="converted")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert result == "converted"
         # 'result' source should still be registered (the AudioStreamResource).
@@ -310,7 +316,7 @@ class TestSingleInput:
         config = _make_config(format="mp3")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         assert result.format == "mp3"
@@ -321,7 +327,7 @@ class TestSingleInput:
         config = _make_config(output="${result}", format="wav")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         await result.close()
@@ -336,7 +342,7 @@ class TestListInput:
         config = _make_config(format="mp3")
         ctx = _make_context([sample_wav_path, sample_wav_path])
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -360,7 +366,7 @@ class TestStreamInput:
         config = _make_config(format="mp3")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -379,7 +385,7 @@ class TestStreamInput:
         config = _make_config(output="${result}", format="mp3")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -399,7 +405,7 @@ class TestStreamInput:
         config = _make_config(output="${result[]}", format="wav")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -421,7 +427,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp3")
         ctx = _make_context([sample_wav_path, sample_wav_path])
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -430,7 +436,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp3")
         ctx = _make_context(sample_wav_path)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -445,7 +451,7 @@ class TestBatchSize:
         config = _make_config(batch_size=batch_size, format="mp3")
         ctx = _make_context([sample_wav_path] * 3)
 
-        result = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioConverterAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -468,6 +474,6 @@ class TestErrorPropagation:
         ctx = _make_context([sample_wav_path, str(bogus)])
 
         with pytest.raises(RuntimeError, match="ffmpeg audio conversion failed"):
-            results = await FFmpegAudioConverterAction(config).run(ctx, asyncio.get_running_loop())
+            results = await FFmpegAudioConverterAction(config).run(ctx)
             for resource in results:
                 await _drain_resource_to_file(resource)

@@ -156,7 +156,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert len(result) == 30
 
@@ -166,7 +166,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert len(result) == 15
 
@@ -176,7 +176,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert len(result) == 5
 
@@ -186,7 +186,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         for chunk in result:
             assert "timestamp" in chunk
@@ -200,7 +200,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         timestamps = [chunk["timestamp"] for chunk in result]
         assert timestamps == [pytest.approx(t, abs=0.05) for t in [0.0, 0.3, 0.6, 0.9, 1.2]]
@@ -212,7 +212,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         timestamps = [chunk["timestamp"] for chunk in result]
         assert timestamps == sorted(timestamps)
@@ -227,7 +227,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         # Total 30 frames, start at frame 10 → 20 remaining (allow ±1 for seek drift).
         assert 19 <= len(result) <= 21
@@ -240,7 +240,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert 9 <= len(result) <= 11
 
@@ -251,7 +251,7 @@ class TestOpenCVCollectMode:
         ctx = make_context()
 
         with pytest.raises(ValueError, match="frame_interval"):
-            await action.run(ctx, asyncio.get_running_loop())
+            await action.run(ctx)
 
     @pytest.mark.anyio
     async def test_invalid_max_frame_count_raises(self, sample_video):
@@ -260,7 +260,7 @@ class TestOpenCVCollectMode:
         ctx = make_context()
 
         with pytest.raises(ValueError, match="max_frame_count"):
-            await action.run(ctx, asyncio.get_running_loop())
+            await action.run(ctx)
 
     @pytest.mark.anyio
     async def test_registers_result_source(self, sample_video):
@@ -268,7 +268,7 @@ class TestOpenCVCollectMode:
         action = OpenCVVideoFrameExtractorAction(config)
         ctx = make_context()
 
-        await action.run(ctx, asyncio.get_running_loop())
+        await action.run(ctx)
 
         result_calls = [c for c in ctx.register_source.call_args_list if c.args[0] == "result"]
         assert len(result_calls) == 1
@@ -282,7 +282,7 @@ class TestOpenCVSingleVideoStream:
     @pytest.mark.anyio
     async def test_returns_async_iterator_of_frames(self, sample_video):
         action = OpenCVVideoFrameExtractorAction(make_config(sample_video, streaming=True))
-        result = await action.run(make_context(), asyncio.get_running_loop())
+        result = await action.run(make_context())
 
         assert isinstance(result, StreamChunkIterator)
 
@@ -301,7 +301,7 @@ class TestOpenCVListInputCollect:
     async def test_returns_list_of_frame_lists(self, sample_videos):
         action = OpenCVVideoFrameExtractorAction(make_config(sample_videos))
         ctx = make_context(resolved_video=[_media_source(p) for p in sample_videos])
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == len(sample_videos)
@@ -317,7 +317,7 @@ class TestOpenCVListInputStream:
     async def test_returns_list_of_stream_iterators(self, sample_videos):
         action = OpenCVVideoFrameExtractorAction(make_config(sample_videos, streaming=True))
         ctx = make_context(resolved_video=[_media_source(p) for p in sample_videos])
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == len(sample_videos)
@@ -340,7 +340,7 @@ class TestOpenCVAsyncInputCollect:
     async def test_yields_per_video_frame_lists(self, sample_videos):
         action = OpenCVVideoFrameExtractorAction(make_config(sample_videos[0]))
         ctx = make_context(resolved_video=_async_media_iter(sample_videos))
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         assert not isinstance(result, StreamChunkIterator)
@@ -359,7 +359,7 @@ class TestOpenCVAsyncInputStream:
     async def test_yields_per_video_stream_iterators(self, sample_videos):
         action = OpenCVVideoFrameExtractorAction(make_config(sample_videos[0], streaming=True))
         ctx = make_context(resolved_video=_async_media_iter(sample_videos))
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         assert not isinstance(result, StreamChunkIterator)

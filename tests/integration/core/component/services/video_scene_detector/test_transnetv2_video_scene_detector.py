@@ -116,7 +116,7 @@ class TestInputPathResolution:
         ctx = _make_context(source)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert observed_paths == [sample_video], "FileStreamResource path should pass through unchanged"
         assert isinstance(result, list)
@@ -139,7 +139,7 @@ class TestInputPathResolution:
         ctx = _make_context(source)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(observed_paths) == 1
         # Spooled path must differ from the original input fixture.
@@ -172,7 +172,7 @@ class TestInputPathResolution:
         monkeypatch.setattr(tn_mod, "save_stream_to_temporary_file", tracking_save)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert spooled_paths, "expected at least one spooled temp file"
         for path in spooled_paths:
@@ -195,7 +195,7 @@ class TestResultBuilding:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 1
 
@@ -213,7 +213,7 @@ class TestResultBuilding:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) >= 2
 
@@ -229,7 +229,7 @@ class TestResultBuilding:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         scene = result[0]
         for key in ("index", "start", "end", "start_frame", "end_frame", "duration"):
@@ -260,7 +260,7 @@ class TestTimeFiltering:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 1
 
@@ -279,7 +279,7 @@ class TestTimeFiltering:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 1
 
@@ -298,7 +298,7 @@ class TestTimeFiltering:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) >= 2
 
@@ -314,6 +314,6 @@ class TestTimeFiltering:
         ctx = _make_context(sample_video)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
-            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await TransNetV2VideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 0

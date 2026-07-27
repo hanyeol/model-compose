@@ -65,9 +65,15 @@ class TestIpcMessage:
         message = IpcMessage(type=IpcMessageType.STATUS, payload={"status": "ready"})
         raw = message.serialize()
         assert isinstance(raw, bytes)
-        decoded = json.loads(raw.decode("utf-8"))
+        # Frame: 8-byte prefix (header_len + binary_len) + JSON header + binary trailer.
+        # Skip the prefix and decode just the JSON header.
+        import struct
+        header_len, binary_len = struct.unpack_from(">II", raw, 0)
+        header = raw[8:8 + header_len].decode("utf-8")
+        decoded = json.loads(header)
         assert decoded["type"] == "status"
         assert decoded["payload"] == {"status": "ready"}
+        assert binary_len == 0
 
     def test_serialize_no_trailing_newline(self):
         message = IpcMessage(type=IpcMessageType.STOP)

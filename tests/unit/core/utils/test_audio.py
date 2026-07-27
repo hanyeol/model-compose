@@ -6,7 +6,7 @@ import wave
 
 import pytest
 
-from mindor.core.utils.audio import encode_waveform_to_pcm16
+from mindor.core.utils.audio import encode_waveform_to_pcm
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 
 
@@ -36,27 +36,27 @@ async def collect_stream_chunks(stream):
     return chunks
 
 
-# ---- encode_waveform_to_pcm16 ----
+# ---- encode_waveform_to_pcm ----
 
-class TestEncodeWaveformToPcm16:
+class TestEncodeWaveformToPcm:
     def test_mono_float32(self):
         import numpy as np
         samples = np.array([0.0, 0.5, -0.5], dtype=np.float32)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 1
         assert len(frames) == 3 * 2  # 3 samples * int16
 
         decoded = np.frombuffer(frames, dtype="<i2")
         assert decoded[0] == 0
-        assert decoded[1] == int(0.5 * 32767)
-        assert decoded[2] == int(-0.5 * 32767)
+        assert decoded[1] == int(0.5 * 32768)
+        assert decoded[2] == int(-0.5 * 32768)
 
     def test_stereo_samples_first_layout(self):
         """(samples, channels) layout is kept as-is."""
         import numpy as np
         samples = np.array([[0.0, 0.0], [0.5, -0.5], [1.0, -1.0]], dtype=np.float32)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 2
         assert len(frames) == 3 * 2 * 2  # 3 frames * 2 channels * int16
@@ -66,7 +66,7 @@ class TestEncodeWaveformToPcm16:
         import numpy as np
         # (2 channels, 100 samples) — 2 <= 8 and 2 < 100 → transpose
         samples = np.random.randn(2, 100).astype(np.float32)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 2
         assert len(frames) == 100 * 2 * 2
@@ -76,14 +76,14 @@ class TestEncodeWaveformToPcm16:
         import numpy as np
         # 20 rows, 5 columns — 20 > 8, so treated as 5-channel with 20 samples
         samples = np.zeros((20, 5), dtype=np.float32)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 5
 
     def test_int16_passthrough(self):
         import numpy as np
         samples = np.array([100, 200, -100], dtype=np.int16)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 1
         assert len(frames) == 3 * 2
@@ -91,19 +91,19 @@ class TestEncodeWaveformToPcm16:
         assert (decoded == samples).all()
 
     def test_float_clipping(self):
-        """Floats outside [-1.0, 1.0] are clipped before int16 scaling."""
+        """Floats outside [-1.0, 1.0] are clipped, then scaled by 2^15 and clamped to int16 range."""
         import numpy as np
         samples = np.array([2.0, -2.0, 0.5], dtype=np.float32)
-        frames, _ = encode_waveform_to_pcm16(samples)
+        frames, _ = encode_waveform_to_pcm(samples)
 
         decoded = np.frombuffer(frames, dtype="<i2")
-        assert decoded[0] == 32767            # clipped to +1.0 -> max int16
-        assert decoded[1] == -32767           # clipped to -1.0 -> -max int16 (not -32768: scaling uses 32767)
-        assert decoded[2] == int(0.5 * 32767)
+        assert decoded[0] == 32767            # +1.0 * 32768 clamped to int16 max
+        assert decoded[1] == -32768           # -1.0 * 32768 fits int16 min exactly
+        assert decoded[2] == int(0.5 * 32768)
 
     def test_python_list_input(self):
         """Plain Python list is accepted via np.asarray."""
-        frames, channels = encode_waveform_to_pcm16([[0.0, 0.25, 0.5], [0.0, -0.25, -0.5]])
+        frames, channels = encode_waveform_to_pcm([[0.0, 0.25, 0.5], [0.0, -0.25, -0.5]])
 
         assert channels == 2
         assert len(frames) == 3 * 2 * 2
@@ -111,13 +111,13 @@ class TestEncodeWaveformToPcm16:
     def test_3d_input_raises(self):
         import numpy as np
         with pytest.raises(ValueError, match="mono or stereo"):
-            encode_waveform_to_pcm16(np.zeros((2, 3, 4), dtype=np.float32))
+            encode_waveform_to_pcm(np.zeros((2, 3, 4), dtype=np.float32))
 
     def test_torch_tensor_input(self):
         """Torch tensors are converted via detach/cpu/numpy duck-typing."""
         torch = pytest.importorskip("torch")
         samples = torch.tensor([0.0, 0.5, -0.5], dtype=torch.float32)
-        frames, channels = encode_waveform_to_pcm16(samples)
+        frames, channels = encode_waveform_to_pcm(samples)
 
         assert channels == 1
         assert len(frames) == 3 * 2
@@ -128,7 +128,7 @@ class TestEncodeWaveformToPcm16:
 @pytest.mark.anyio
 async def test_wav_stream_resource_emits_header_then_samples():
     """Streaming WAV: first chunk is the 44-byte RIFF header, the rest is PCM verbatim."""
-    frames, channels = encode_waveform_to_pcm16(
+    frames, channels = encode_waveform_to_pcm(
         [[0.0, 0.25, 0.5], [0.0, -0.25, -0.5]]
     )
     stream = WavStreamResource(PcmStreamResource(frames, {
@@ -149,7 +149,7 @@ async def test_wav_stream_resource_emits_header_then_samples():
 @pytest.mark.anyio
 async def test_wav_stream_resource_header_fields_match_attrs():
     """The emitted WAV header encodes the sample_rate / channels / bit_depth from attrs."""
-    frames, channels = encode_waveform_to_pcm16(
+    frames, channels = encode_waveform_to_pcm(
         [[0.0, 0.25, 0.5], [0.0, -0.25, -0.5]]
     )
     stream = WavStreamResource(PcmStreamResource(frames, {

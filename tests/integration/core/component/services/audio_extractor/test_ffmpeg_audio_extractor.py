@@ -138,7 +138,13 @@ def _make_context(source_value: Any) -> ComponentActionContext:
 
 
 def _make_config(output: Any = None, **kwargs) -> AudioExtractorActionConfig:
+    # Convenience: flat `codec`/`bitrate`/`sample_rate`/`channels` kwargs are
+    # rolled into the nested `encoding` block that the DSL now expects.
+    encoding_keys = {"codec", "bitrate", "sample_rate", "channels"}
+    encoding = { key: kwargs.pop(key) for key in list(kwargs.keys()) if key in encoding_keys }
     payload = {"source": "<placeholder>", **kwargs}
+    if encoding:
+        payload["encoding"] = encoding
     if output is not None:
         payload["output"] = output
     return AudioExtractorActionConfig(**payload)
@@ -198,7 +204,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="mp3")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         assert result.format == "mp3"
@@ -216,7 +222,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="wav")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert result.format == "wav"
         out_path = await _drain_resource_to_file(result)
@@ -231,7 +237,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="flac")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert result.format == "flac"
         out_path = await _drain_resource_to_file(result)
@@ -246,7 +252,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config()
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert result.format == "mp3"
         out_path = await _drain_resource_to_file(result)
@@ -262,7 +268,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="mp3", track=0)
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -276,7 +282,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="mp3", codec="libmp3lame", bitrate="64k")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -296,7 +302,7 @@ class TestFFmpegAudioExtractor:
         ctx = _make_context(str(bogus))
 
         with pytest.raises(RuntimeError, match="ffmpeg audio extraction failed"):
-            result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+            result = await FFmpegAudioExtractorAction(config).run(ctx)
             await _drain_resource_to_file(result)
 
     @pytest.mark.anyio
@@ -304,7 +310,7 @@ class TestFFmpegAudioExtractor:
         config = _make_config(format="mp3", output="extracted")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert result == "extracted"
         # 'result' source should still be registered (the AudioStreamResource).
@@ -325,7 +331,7 @@ class TestInputPathResolution:
         config = _make_config(format="mp3")
         ctx = _make_context(source)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         await result.close()
@@ -337,7 +343,7 @@ class TestInputPathResolution:
         config = _make_config(format="wav")
         ctx = _make_context(source)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         assert result.format == "wav"
@@ -357,7 +363,7 @@ class TestInputPathResolution:
         config = _make_config(format="mp3")
         ctx = _make_context(source)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         out_path = await _drain_resource_to_file(result)
@@ -376,7 +382,7 @@ class TestInputPathResolution:
         config = _make_config(format="mp3")
         ctx = _make_context(source)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         await result.close()
@@ -387,7 +393,7 @@ class TestInputPathResolution:
         config = _make_config(format="mp3")
         ctx = _make_context(sample_video_path)  # bare string
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         await result.close()
@@ -413,7 +419,7 @@ class TestInputPathResolution:
 
         monkeypatch.setattr(ffmpeg_mod, "save_stream_to_temporary_file", tracking_save)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
         # With stream-backed output, cleanup runs in the generator's finally; trigger
         # full consumption first so the spool file is reliably removed.
         out_path = await _drain_resource_to_file(result)
@@ -433,7 +439,7 @@ class TestSingleInput:
         config = _make_config(format="mp3")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         assert result.format == "mp3"
@@ -444,7 +450,7 @@ class TestSingleInput:
         config = _make_config(output="${result}", format="mp3")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AudioStreamResource)
         await result.close()
@@ -459,7 +465,7 @@ class TestListInput:
         config = _make_config(format="mp3")
         ctx = _make_context([sample_video_path, sample_video_path])
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -483,7 +489,7 @@ class TestStreamInput:
         config = _make_config(format="mp3")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -502,7 +508,7 @@ class TestStreamInput:
         config = _make_config(output="${result}", format="mp3")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -522,7 +528,7 @@ class TestStreamInput:
         config = _make_config(output="${result[]}", format="mp3")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -544,7 +550,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp3")
         ctx = _make_context([sample_video_path, sample_video_path])
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -553,7 +559,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp3")
         ctx = _make_context(sample_video_path)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -568,7 +574,7 @@ class TestBatchSize:
         config = _make_config(batch_size=batch_size, format="mp3")
         ctx = _make_context([sample_video_path] * 3)
 
-        result = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegAudioExtractorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -591,6 +597,6 @@ class TestErrorPropagation:
         ctx = _make_context([sample_video_path, str(bogus)])
 
         with pytest.raises(RuntimeError, match="ffmpeg audio extraction failed"):
-            results = await FFmpegAudioExtractorAction(config).run(ctx, asyncio.get_running_loop())
+            results = await FFmpegAudioExtractorAction(config).run(ctx)
             for resource in results:
                 await _drain_resource_to_file(resource)

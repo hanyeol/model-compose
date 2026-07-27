@@ -130,7 +130,7 @@ class TestSingleImageInput:
         action = make_action()
         context = ComponentActionContext("run-single", { "image": image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         _assert_detection_result(result, width=64, height=48)
 
@@ -139,7 +139,7 @@ class TestSingleImageInput:
         action = make_action()
         context = ComponentActionContext("run-blank", { "image": _blank_image() })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert result["poses"] == []
 
@@ -148,7 +148,7 @@ class TestSingleImageInput:
         action = make_action()
         context = ComponentActionContext("run-source", { "image": _blank_image() })
 
-        await action.run(context, asyncio.get_running_loop())
+        await action.run(context)
 
         assert "result" in context.sources["__global__"]
         assert isinstance(context.sources["__global__"]["result"], dict)
@@ -165,7 +165,7 @@ class TestListImageInput:
         action = make_action(image="${input.images}")
         context = ComponentActionContext("run-list", { "images": images })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -178,7 +178,7 @@ class TestListImageInput:
         action = make_action(image="${input.images}")
         context = ComponentActionContext("run-empty", { "images": [] })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert result == []
 
@@ -188,7 +188,7 @@ class TestListImageInput:
         action = make_action(image="${input.images}")
         context = ComponentActionContext("run-list-source", { "images": images })
 
-        await action.run(context, asyncio.get_running_loop())
+        await action.run(context)
 
         registered = context.sources["__global__"]["result"]
         assert isinstance(registered, list)
@@ -206,7 +206,7 @@ class TestAsyncIteratorInput:
         action = make_action(image="${input.stream}")
         context = ComponentActionContext("run-stream", { "stream": _make_async_iter(images) })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
 
@@ -227,7 +227,7 @@ class TestDetectionOptions:
         context = ComponentActionContext("run-bad-conf", { "image": _blank_image() })
 
         with pytest.raises(ValueError, match="min_confidence"):
-            await action.run(context, asyncio.get_running_loop())
+            await action.run(context)
 
     @pytest.mark.anyio
     async def test_invalid_max_pose_count_raises(self, make_action):
@@ -235,7 +235,7 @@ class TestDetectionOptions:
         context = ComponentActionContext("run-bad-num", { "image": _blank_image() })
 
         with pytest.raises(ValueError, match="max_pose_count"):
-            await action.run(context, asyncio.get_running_loop())
+            await action.run(context)
 
 
 # -----------------------------------------------------------------------------
@@ -276,7 +276,7 @@ class TestOutputExpressionRendering:
         action = make_action(output="${result}")
         context = ComponentActionContext("run-passthrough", { "image": _blank_image() })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         _assert_detection_result(result, width=64, height=48)
 
@@ -285,7 +285,7 @@ class TestOutputExpressionRendering:
         action = make_action(output="${result.poses}")
         context = ComponentActionContext("run-extract", { "image": _blank_image() })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert result == []
@@ -303,7 +303,7 @@ class TestRealHumanPose:
         action = make_action(min_confidence=0.5)
         context = ComponentActionContext("run-real", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         _assert_detection_result(result, width=width, height=height)
         assert len(result["poses"]) >= 1, "Expected at least one pose in the sample image"
@@ -335,7 +335,7 @@ class TestRealHumanPose:
         action = make_action(return_keypoints_3d=True)
         context = ComponentActionContext("run-real-3d", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -355,7 +355,7 @@ class TestRealHumanPose:
         action = make_action(return_segmentation_mask=True)
         context = ComponentActionContext("run-real-mask", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -372,7 +372,7 @@ class TestRealHumanPose:
         action = make_action(return_keypoints=False, return_keypoints_3d=True)
         context = ComponentActionContext("run-real-nokp", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -384,7 +384,7 @@ class TestRealHumanPose:
         action = make_action(min_confidence=0.99, min_presence_confidence=0.99)
         context = ComponentActionContext("run-real-strict", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         # Extremely strict thresholds should drop detections on most images.
         assert result["poses"] == []
@@ -400,7 +400,7 @@ class TestOpenposeAndSkeleton:
         action = make_action(return_openpose_keypoints=True)
         context = ComponentActionContext("run-op-kp", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -416,7 +416,7 @@ class TestOpenposeAndSkeleton:
         action = make_action(return_keypoints=False, return_openpose_keypoints=True)
         context = ComponentActionContext("run-op-only", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         for pose in result["poses"]:
             assert "keypoints" not in pose
@@ -428,7 +428,7 @@ class TestOpenposeAndSkeleton:
         action = make_action(return_skeleton_image=True)  # default skeleton_format='natural'
         context = ComponentActionContext("run-skel-natural", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -445,7 +445,7 @@ class TestOpenposeAndSkeleton:
         action = make_action(return_skeleton_image=True, skeleton_format="openpose")
         context = ComponentActionContext("run-skel-op", { "image": sample_pose_image })
 
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
@@ -459,4 +459,4 @@ class TestOpenposeAndSkeleton:
         context = ComponentActionContext("run-skel-bad", { "image": _blank_image() })
 
         with pytest.raises(ValueError, match="skeleton_format"):
-            await action.run(context, asyncio.get_running_loop())
+            await action.run(context)

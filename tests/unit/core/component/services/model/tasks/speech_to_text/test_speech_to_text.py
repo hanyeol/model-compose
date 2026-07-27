@@ -153,7 +153,7 @@ class TestSingleInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audio}"))
         ctx    = _make_context("hello")
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == "hello"
         assert action.batches_seen == [ [ "hello" ] ]
@@ -163,7 +163,7 @@ class TestSingleInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audio}", output="${result}"))
         ctx    = _make_context("hi")
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == "hi"
 
@@ -180,7 +180,7 @@ class TestListInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audios}"))
         ctx    = _make_context([ "a", "bb", "ccc", "dddd" ])
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == [ "a", "bb", "ccc", "dddd" ]
         # batch_size=2 -> two batches
@@ -203,7 +203,7 @@ class TestStreamInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audios}"))
         ctx    = _make_context(_make_iter)
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -219,7 +219,7 @@ class TestStreamInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audios}", output="${result}"))
         ctx    = _make_context(_make_iter)
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -233,7 +233,7 @@ class TestStreamInput:
         action = _FakeSpeechToTextAction(_make_config("${input.audios}", output="${result[]}"))
         ctx    = _make_context(_make_iter)
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -251,7 +251,7 @@ class TestTokenStreaming:
         )
         ctx    = _make_context("hello")
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # collect mode + streaming → single StreamChunkIterator over the row's tokens.
         assert isinstance(result, StreamChunkIterator)
@@ -266,7 +266,7 @@ class TestTokenStreaming:
         )
         ctx    = _make_context([ "a", "bb" ])
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         # collect mode + streaming → List[StreamChunkIterator], one per row.
         assert isinstance(result, list) and len(result) == 2
@@ -288,7 +288,7 @@ class TestTokenStreaming:
         )
         ctx    = _make_context(_make_iter)
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         rows = await _collect(result)

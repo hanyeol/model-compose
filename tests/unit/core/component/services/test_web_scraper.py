@@ -76,7 +76,7 @@ class TestSingleInput:
         ctx = _make_context("https://a.example/")
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         assert result == "Alpha"
 
@@ -88,7 +88,7 @@ class TestListInput:
         ctx = _make_context(["https://a.example/", "https://b.example/", "https://c.example/"])
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert result == ["Alpha", "Beta", "Gamma"]
@@ -105,7 +105,7 @@ class TestStreamOutputTemplate:
         ctx = _make_context(["https://a.example/", "https://b.example/"])
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
             assert not isinstance(result, AsyncIterator)
 
@@ -118,7 +118,7 @@ class TestBatchSize:
         ctx = _make_context(["https://a.example/", "https://b.example/", "https://c.example/"])
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         assert result == ["Alpha", "Beta", "Gamma"]
 
@@ -130,7 +130,7 @@ class TestExtractModes:
         ctx = _make_context("https://a.example/")
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         # Full page text extraction includes both h1 and p.
         assert "Alpha" in result
@@ -142,7 +142,7 @@ class TestExtractModes:
         ctx = _make_context("https://a.example/")
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         assert "<h1>" in result and "Alpha" in result
 
@@ -154,6 +154,6 @@ class TestNoneInput:
         ctx = _make_context([None, "https://a.example/"])
 
         with _patch_fetch_html(action):
-            result = await action.run(ctx, asyncio.get_running_loop())
+            result = await action.run(ctx)
 
         assert result == [None, "Alpha"]

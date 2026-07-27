@@ -94,7 +94,7 @@ class TestSingleInput:
         action = _FakeGenerationAction(_make_config("${input.text}"))
         ctx = ComponentActionContext("r-1", { "text": "hello" })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == "hello#0"
         assert action.batches_seen == [ [ "hello" ] ]
@@ -106,7 +106,7 @@ class TestListInput:
         action = _FakeGenerationAction(_make_config("${input.texts}"))
         ctx = ComponentActionContext("r-3", { "texts": [ "a", "bb", "ccc", "dddd" ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert result == [ "a#0", "bb#0", "ccc#0", "dddd#0" ]
         assert action.batches_seen == [ [ "a", "bb" ], [ "ccc", "dddd" ] ]
@@ -119,7 +119,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb", "ccc" ])
         ctx = ComponentActionContext("r-5", { "texts": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -133,7 +133,7 @@ class TestStreamInput:
         stream = _make_async_iter([ "a", "bb" ])
         ctx = ComponentActionContext("r-6", { "texts": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -151,7 +151,7 @@ class TestTokenStreaming:
         )
         ctx = ComponentActionContext("r-9", { "text": "hello" })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         items = await _collect(result)
@@ -165,7 +165,7 @@ class TestTokenStreaming:
         )
         ctx = ComponentActionContext("r-11", { "texts": [ "a", "bb" ] })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -182,7 +182,7 @@ class TestTokenStreaming:
         stream = _make_async_iter([ "a", "bb" ])
         ctx = ComponentActionContext("r-10", { "texts": stream })
         loop = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         rows = await _collect(result)

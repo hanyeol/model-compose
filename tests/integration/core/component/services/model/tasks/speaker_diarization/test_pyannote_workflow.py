@@ -1,5 +1,5 @@
 """Integration test for the pyannote speaker-diarization component: full
-`action.run(ctx, loop)` flow with a real pyannote pipeline, exercising the
+`action.run(ctx)` flow with a real pyannote pipeline, exercising the
 `ComponentActionContext` plumbing (render_audio, render_variable,
 register_source, streaming wrap-up).
 

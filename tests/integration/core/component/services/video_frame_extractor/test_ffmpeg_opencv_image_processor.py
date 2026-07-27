@@ -176,7 +176,7 @@ class TestExtractorToListProcessor:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
 
         assert isinstance(ext_result, list)
         assert len(ext_result) == 6
@@ -185,7 +185,7 @@ class TestExtractorToListProcessor:
 
         proc = ImageProcessorAction(_processor_config(method="grayscale"))
         proc_ctx = make_processor_context(images)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert isinstance(result, list)
         assert len(result) == 6
@@ -197,12 +197,12 @@ class TestExtractorToListProcessor:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
         images = [ frame["image"] for frame in ext_result ]
 
         proc = ImageProcessorAction(_processor_config(method="resize", width=16, height=12, scale_mode="stretch"))
         proc_ctx = make_processor_context(images)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert len(result) == 6
         assert all(item.size == (16, 12) for item in result)
@@ -213,13 +213,13 @@ class TestExtractorToListProcessor:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
         images = [ frame["image"] for frame in ext_result ]
         original_sizes = [ img.size for img in images ]
 
         proc = ImageProcessorAction(_processor_config(method="rotate", angle=90, expand=True))
         proc_ctx = make_processor_context(images)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert len(result) == 6
         # 90deg rotation with expand=True swaps dimensions.
@@ -239,7 +239,7 @@ class TestExtractorToSingleProcessor:
         ext_cfg = _extractor_config(sample_video, max_frame_count=1)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
 
         assert len(ext_result) == 1
         single = ext_result[0]["image"]
@@ -247,7 +247,7 @@ class TestExtractorToSingleProcessor:
 
         proc = ImageProcessorAction(_processor_config(method="grayscale"))
         proc_ctx = make_processor_context(single)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert isinstance(result, PILImage.Image)
         assert result.mode == "L"
@@ -258,12 +258,12 @@ class TestExtractorToSingleProcessor:
         ext_cfg = _extractor_config(sample_video, max_frame_count=1)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
         single = ext_result[0]["image"]
 
         proc = ImageProcessorAction(_processor_config(method="resize", width=8, height=6, scale_mode="stretch"))
         proc_ctx = make_processor_context(single)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert isinstance(result, PILImage.Image)
         assert result.size == (8, 6)
@@ -281,13 +281,13 @@ class TestExtractorToAsyncIteratorProcessor:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
         images = [ frame["image"] for frame in ext_result ]
 
         stream_input = _async_iter(images)
         proc = ImageProcessorAction(_processor_config(method="grayscale"))
         proc_ctx = make_processor_context(stream_input)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         # Processor sees an AsyncIterator input and passes it through to its
         # internal handling — result should be an AsyncIterator yielding processed frames.
@@ -302,13 +302,13 @@ class TestExtractorToAsyncIteratorProcessor:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
         images = [ frame["image"] for frame in ext_result ]
 
         stream_input = _async_iter(images)
         proc = ImageProcessorAction(_processor_config(method="flip", direction="horizontal"))
         proc_ctx = make_processor_context(stream_input)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -328,7 +328,7 @@ class TestExtractorMetadata:
         ext_cfg = _extractor_config(sample_video)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
 
         for frame in ext_result:
             assert "timestamp" in frame
@@ -344,7 +344,7 @@ class TestExtractorMetadata:
         ext_cfg = _extractor_config(sample_video, frame_interval=2)
         ext = driver(ext_cfg)
         ext_ctx = make_extractor_context(sample_video)
-        ext_result = await ext.run(ext_ctx, asyncio.get_running_loop())
+        ext_result = await ext.run(ext_ctx)
 
         # 6 source frames / interval 2 → 3 frames downstream.
         assert len(ext_result) == 3
@@ -352,7 +352,7 @@ class TestExtractorMetadata:
 
         proc = ImageProcessorAction(_processor_config(method="grayscale"))
         proc_ctx = make_processor_context(images)
-        result = await proc.run(proc_ctx, asyncio.get_running_loop())
+        result = await proc.run(proc_ctx)
 
         assert len(result) == 3
         assert all(item.mode == "L" for item in result)

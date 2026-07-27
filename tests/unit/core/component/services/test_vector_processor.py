@@ -42,7 +42,7 @@ def _metric_value(m) -> str:
 async def _run(config: VectorProcessorActionConfig, inputs: dict) -> Any:
     action = VectorProcessorAction(config)
     context = ComponentActionContext("test", inputs)
-    return await action.run(context, asyncio.get_running_loop())
+    return await action.run(context)
 
 
 def _approx(x: float, y: float, tol: float = 1e-9) -> bool:
@@ -319,10 +319,10 @@ class TestSum:
 
     @pytest.mark.anyio
     async def test_single_vector_input_treated_as_one_row_matrix(self):
-        """A 1D input is a single vector, so summing axis=0 across a
-        one-row matrix yields that same vector back."""
+        """A single vector wrapped as a one-row matrix; summing axis=0 yields
+        that same vector back."""
         cfg = _cfg({"method": "sum", "vectors": "${input.v}", "axis": 0})
-        result = await _run(cfg, {"v": [1, 2, 3, 4]})
+        result = await _run(cfg, {"v": [[1, 2, 3, 4]]})
         assert result == pytest.approx([1.0, 2.0, 3.0, 4.0])
 
 

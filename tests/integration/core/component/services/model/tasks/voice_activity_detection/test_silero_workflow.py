@@ -1,4 +1,4 @@
-"""Integration test for the Silero VAD component: full `action.run(ctx, loop)`
+"""Integration test for the Silero VAD component: full `action.run(ctx)`
 flow with a real Silero model, exercising the `ComponentActionContext` plumbing
 (render_audio, render_variable, register_source, streaming wrap-up).
 
@@ -34,7 +34,7 @@ silero_required = pytest.mark.skipif(
     reason="silero-vad/torch/torchaudio/soxr not available",
 )
 
-BENCHMARK_AUDIO = "benchmarks/audio-streaming-pipeline/data/test.mp3"
+BENCHMARK_AUDIO = "benchmarks/stt-embed-streaming/data/test.mp3"
 
 
 @pytest.fixture

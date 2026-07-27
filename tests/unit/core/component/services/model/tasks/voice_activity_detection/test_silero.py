@@ -28,7 +28,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_duration
 
 
-AUDIO_FILE = "benchmarks/audio-streaming-pipeline/data/test.mp3"
+AUDIO_FILE = "benchmarks/stt-embed-streaming/data/test.mp3"
 
 
 @pytest.fixture

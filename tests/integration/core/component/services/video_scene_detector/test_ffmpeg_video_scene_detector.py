@@ -137,7 +137,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config()
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -147,7 +147,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config()
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
         scene = result[0]
 
         # Required fields.
@@ -168,7 +168,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config()
         ctx = _make_context(multi_scene_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) >= 2
 
@@ -178,7 +178,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config(threshold="0.99")
         ctx = _make_context(multi_scene_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         # Still one wrapping scene (boundaries=[0, duration]), but no internal cuts.
         assert len(result) == 1
@@ -189,7 +189,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config(start_time="00:00:01.5")
         ctx = _make_context(multi_scene_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 1
 
@@ -199,7 +199,7 @@ class TestFFmpegVideoSceneDetector:
         config = _make_config(end_time="00:00:00.5")
         ctx = _make_context(multi_scene_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert len(result) == 1
 
@@ -212,14 +212,14 @@ class TestFFmpegVideoSceneDetector:
         ctx = _make_context(str(bogus))
 
         with pytest.raises(RuntimeError):
-            await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
     @pytest.mark.anyio
     async def test_output_template_overrides_return_value(self, sample_video):
         config = _make_config(output="detected")
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert result == "detected"
         registered = dict(c.args for c in ctx.register_source.call_args_list)
@@ -238,7 +238,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(source)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -252,7 +252,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(source)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -266,7 +266,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(source)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -277,7 +277,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(sample_video)  # bare string
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
 
@@ -301,7 +301,7 @@ class TestInputPathResolution:
 
         monkeypatch.setattr(ffmpeg_mod, "save_stream_to_temporary_file", tracking_save)
 
-        await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert spooled_paths, "expected at least one spooled temp file"
         for path in spooled_paths:
@@ -317,7 +317,7 @@ class TestSingleInput:
         config = _make_config()
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -327,7 +327,7 @@ class TestSingleInput:
         config = _make_config(output="${result}")
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
 
@@ -341,7 +341,7 @@ class TestListInput:
         config = _make_config()
         ctx = _make_context([sample_video, sample_video])
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -360,7 +360,7 @@ class TestStreamOutput:
         config = _make_config(output="${result[]}")
         ctx = _make_context(sample_video)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -369,7 +369,7 @@ class TestStreamOutput:
         config = _make_config(output="${result[]}")
         ctx = _make_context([sample_video, sample_video])
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -384,7 +384,7 @@ class TestBatchSize:
         config = _make_config(batch_size=batch_size)
         ctx = _make_context([sample_video] * 3)
 
-        result = await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -404,4 +404,4 @@ class TestErrorPropagation:
         ctx = _make_context([sample_video, str(bogus)])
 
         with pytest.raises(RuntimeError):
-            await FFmpegVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoSceneDetectorAction(config).run(ctx)

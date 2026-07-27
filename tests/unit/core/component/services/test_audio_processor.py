@@ -84,7 +84,7 @@ class TestAudioProcessorSingleInput:
         action = AudioProcessorAction(config)
 
         context = ComponentActionContext("run-1", { "audio": _make_pcm_source() })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PcmStreamResource)
 
@@ -94,7 +94,7 @@ class TestAudioProcessorSingleInput:
         action = AudioProcessorAction(config)
 
         context = ComponentActionContext("run-2", { "audio": _make_pcm_source() })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PcmStreamResource)
 
@@ -105,7 +105,7 @@ class TestAudioProcessorSingleInput:
         action = AudioProcessorAction(config)
 
         context = ComponentActionContext("run-3", { "audio": _make_pcm_source() })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -120,7 +120,7 @@ class TestAudioProcessorListInput:
 
         sources = [ _make_pcm_source() for _ in range(3) ]
         context = ComponentActionContext("run-4", { "audio": sources })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -133,7 +133,7 @@ class TestAudioProcessorListInput:
 
         sources = [ _make_pcm_source() for _ in range(2) ]
         context = ComponentActionContext("run-5", { "audio": sources })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -150,7 +150,7 @@ class TestAudioProcessorStreamInput:
 
         sources = [ _make_pcm_source() for _ in range(3) ]
         context = ComponentActionContext("run-6", { "audio": _make_async_iter(sources) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -164,7 +164,7 @@ class TestAudioProcessorStreamInput:
 
         sources = [ _make_pcm_source() for _ in range(3) ]
         context = ComponentActionContext("run-7", { "audio": _make_async_iter(sources) })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -186,7 +186,7 @@ class TestAudioProcessorNumpyMethods:
         # Add a strong DC offset (+0.2) to a small clean tone
         source = _make_pcm_source(amplitude=0.2)
         context = ComponentActionContext("dc-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -201,7 +201,7 @@ class TestAudioProcessorNumpyMethods:
 
         source = _make_pcm_source(amplitude=0.05)  # small so 0.1 shift is dominant
         context = ComponentActionContext("dc-2", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -216,7 +216,7 @@ class TestAudioProcessorNumpyMethods:
         # Start with a small amplitude tone
         source = _make_pcm_source(amplitude=0.05)
         context = ComponentActionContext("norm-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -234,7 +234,7 @@ class TestAudioProcessorNumpyMethods:
 
         source = _make_pcm_source(amplitude=0.3)
         context = ComponentActionContext("peak-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -250,7 +250,7 @@ class TestAudioProcessorNumpyMethods:
 
         source = _make_pcm_source(amplitude=0.95)
         context = ComponentActionContext("peak-2", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -276,7 +276,7 @@ class TestAudioProcessorNumpyMethods:
         config = _config("trim-edges", threshold=40.0)
         action = AudioProcessorAction(config)
         context = ComponentActionContext("trim-e-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         trimmed_samples = len(data) // 2  # int16
@@ -295,7 +295,7 @@ class TestAudioProcessorNumpyMethods:
         action = AudioProcessorAction(config)
 
         context = ComponentActionContext("trim-s-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
         data = await _pcm_bytes(result)
 
         # Input was 1s @ 16kHz mono int16 = 32000 bytes.
@@ -327,7 +327,7 @@ class TestAudioProcessorPedalboardMethods:
 
         source = _make_pcm_source(amplitude=0.05)
         context = ComponentActionContext("gain-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -351,7 +351,7 @@ class TestAudioProcessorPedalboardMethods:
         config = _config("highpass", cutoff=2000.0)
         action = AudioProcessorAction(config)
         context = ComponentActionContext("hp-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         out = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -374,7 +374,7 @@ class TestAudioProcessorPedalboardMethods:
         config = _config("lowpass", cutoff=500.0)
         action = AudioProcessorAction(config)
         context = ComponentActionContext("lp-1", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         data = await _pcm_bytes(result)
         out = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32767.0
@@ -396,7 +396,7 @@ class TestAudioProcessorPedalboardMethods:
 
         source = _make_pcm_source(duration_seconds=0.5)
         context = ComponentActionContext(f"{method}-smoke", { "audio": source })
-        result = await action.run(context, asyncio.get_running_loop())
+        result = await action.run(context)
 
         assert isinstance(result, PcmStreamResource)
         data = await _pcm_bytes(result)

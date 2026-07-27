@@ -131,7 +131,7 @@ class TestPySceneDetector:
         config = _make_config()
         ctx = _make_context(sample_video)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         for scene in result:
@@ -142,7 +142,7 @@ class TestPySceneDetector:
         config = _make_config()
         ctx = _make_context(multi_scene_video)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         # Multi-scene fixture should yield at least one scene with all fields populated.
         assert len(result) >= 1
@@ -158,7 +158,7 @@ class TestPySceneDetector:
         config = _make_config()
         ctx = _make_context(multi_scene_video)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         # Hard cut between solid color and testsrc.
         assert len(result) >= 2
@@ -168,7 +168,7 @@ class TestPySceneDetector:
         config = _make_config(detector="content")
         ctx = _make_context(multi_scene_video)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -184,7 +184,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(source)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
 
@@ -196,7 +196,7 @@ class TestInputPathResolution:
         config = _make_config()
         ctx = _make_context(source)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
 
@@ -219,7 +219,7 @@ class TestInputPathResolution:
 
         monkeypatch.setattr(ps_mod, "save_stream_to_temporary_file", tracking_save)
 
-        await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert spooled_paths, "expected at least one spooled temp file"
         for path in spooled_paths:
@@ -235,7 +235,7 @@ class TestSingleInput:
         config = _make_config()
         ctx = _make_context(sample_video)
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
 
@@ -249,7 +249,7 @@ class TestListInput:
         config = _make_config()
         ctx = _make_context([sample_video, sample_video])
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -266,6 +266,6 @@ class TestStreamOutput:
         config = _make_config(output="${result[]}")
         ctx = _make_context([sample_video, sample_video])
 
-        result = await PySceneVideoSceneDetectorAction(config).run(ctx, asyncio.get_running_loop())
+        result = await PySceneVideoSceneDetectorAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)

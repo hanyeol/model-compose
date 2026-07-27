@@ -241,7 +241,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, VideoStreamResource)
         assert result.format == "webm"
@@ -261,7 +261,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert result.format == "mp4"
         out_path = await _drain_resource_to_file(result)
@@ -278,7 +278,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -294,7 +294,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -315,7 +315,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -332,7 +332,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         out_path = await _drain_resource_to_file(result)
         try:
@@ -353,7 +353,7 @@ class TestFFmpegVideoConverter:
         ctx = make_context()
 
         with pytest.raises(RuntimeError, match="ffmpeg video conversion failed"):
-            await action.run(ctx, asyncio.get_running_loop())
+            await action.run(ctx)
 
     @pytest.mark.anyio
     async def test_output_template_overrides_return_value(self, sample_mp4_path):
@@ -361,7 +361,7 @@ class TestFFmpegVideoConverter:
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 
-        result = await action.run(ctx, asyncio.get_running_loop())
+        result = await action.run(ctx)
 
         assert result == "converted"
         registered = dict(c.args for c in ctx.register_source.call_args_list)
@@ -379,7 +379,7 @@ class TestSingleInput:
         config = _make_config(format="mp4")
         ctx = _make_context(sample_mp4_path)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, VideoStreamResource)
         assert result.format == "mp4"
@@ -390,7 +390,7 @@ class TestSingleInput:
         config = _make_config(output="${result}", format="mp4")
         ctx = _make_context(sample_mp4_path)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, VideoStreamResource)
         await result.close()
@@ -405,7 +405,7 @@ class TestListInput:
         config = _make_config(format="mp4")
         ctx = _make_context([sample_mp4_path, sample_mp4_path])
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -429,7 +429,7 @@ class TestStreamInput:
         config = _make_config(format="mp4")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -448,7 +448,7 @@ class TestStreamInput:
         config = _make_config(output="${result}", format="mp4")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -468,7 +468,7 @@ class TestStreamInput:
         config = _make_config(output="${result[]}", format="mp4")
         ctx = _make_context(_make_iter)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -490,7 +490,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp4")
         ctx = _make_context([sample_mp4_path, sample_mp4_path])
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -499,7 +499,7 @@ class TestStreamOutputTemplate:
         config = _make_config(output="${result[]}", format="mp4")
         ctx = _make_context(sample_mp4_path)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert not isinstance(result, AsyncIterator)
 
@@ -514,7 +514,7 @@ class TestBatchSize:
         config = _make_config(batch_size=batch_size, format="mp4")
         ctx = _make_context([sample_mp4_path] * 3)
 
-        result = await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+        result = await FFmpegVideoConverterAction(config).run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 3
@@ -536,4 +536,4 @@ class TestErrorPropagation:
         ctx = _make_context([sample_mp4_path, str(bogus)])
 
         with pytest.raises(RuntimeError, match="ffmpeg video conversion failed"):
-            await FFmpegVideoConverterAction(config).run(ctx, asyncio.get_running_loop())
+            await FFmpegVideoConverterAction(config).run(ctx)

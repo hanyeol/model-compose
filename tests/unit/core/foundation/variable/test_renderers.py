@@ -1523,25 +1523,25 @@ class TestElementWiseNonListInputRaises:
     @pytest.mark.anyio
     async def test_integer_with_str_raises(self):
         r = VariableRenderer(make_source_resolver({"v": "1"}))
-        with pytest.raises(ValueError, match="requires a list/tuple input"):
+        with pytest.raises(ValueError, match="requires a list/tuple or stream input"):
             await r.render("${v as integer[]}")
 
     @pytest.mark.anyio
     async def test_integer_with_int_raises(self):
         r = VariableRenderer(make_source_resolver({"v": 42}))
-        with pytest.raises(ValueError, match="requires a list/tuple input"):
+        with pytest.raises(ValueError, match="requires a list/tuple or stream input"):
             await r.render("${v as integer[]}")
 
     @pytest.mark.anyio
     async def test_object_with_dict_raises(self):
         r = VariableRenderer(make_source_resolver({"v": {"a": 1}}))
-        with pytest.raises(ValueError, match="requires a list/tuple input"):
+        with pytest.raises(ValueError, match="requires a list/tuple or stream input"):
             await r.render("${v as object[]}")
 
     @pytest.mark.anyio
     async def test_json_with_dict_raises(self):
         r = VariableRenderer(make_source_resolver({"v": {"a": 1}}))
-        with pytest.raises(ValueError, match="requires a list/tuple input"):
+        with pytest.raises(ValueError, match="requires a list/tuple or stream input"):
             await r.render("${v as json[]}")
 
 
@@ -1652,21 +1652,6 @@ class TestElementWiseObjectArray:
         result = await r.render("${v as object[]}")
         assert result == [{"a": 1}, {"b": 2}]
 
-
-class TestElementWiseSseRaises:
-    """`stream[]` is not allowed: stream is single by nature."""
-
-    @pytest.mark.anyio
-    async def test_event_stream_list_raises(self):
-        r = VariableRenderer(make_source_resolver({"v": ["a", "b"]}))
-        with pytest.raises(ValueError, match="is not allowed: stream"):
-            await r.render("${v as stream[]}")
-
-    @pytest.mark.anyio
-    async def test_event_stream_list_raises_even_for_non_list_input(self):
-        r = VariableRenderer(make_source_resolver({"v": "single"}))
-        with pytest.raises(ValueError, match="is not allowed: stream"):
-            await r.render("${v as stream[]}")
 
 
 class TestElementWiseMedia:

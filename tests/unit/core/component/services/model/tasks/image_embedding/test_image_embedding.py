@@ -88,7 +88,7 @@ class TestSingleInput:
         action = _FakeEmbeddingAction(_make_config("${input.image}"))
         ctx    = ComponentActionContext("r-1", { "image": _img("hello") })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert result == [ 5.0, 0.0 ]
@@ -99,7 +99,7 @@ class TestSingleInput:
         action = _FakeEmbeddingAction(_make_config("${input.image}", output="${result}"))
         ctx    = ComponentActionContext("r-2", { "image": _img("hi") })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert result == [ 2.0, 0.0 ]
@@ -121,7 +121,7 @@ class TestListInput:
             { "images": [ _img("a"), _img("bb"), _img("ccc"), _img("dddd") ] },
         )
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 4
@@ -136,7 +136,7 @@ class TestListInput:
         action = _FakeEmbeddingAction(_make_config("${input.images}", output="${result}"))
         ctx    = ComponentActionContext("r-5", { "images": [ _img("x"), _img("y") ] })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -151,7 +151,7 @@ class TestStreamInput:
         stream = _make_async_iter([ _img("a"), _img("bb"), _img("ccc") ])
         ctx    = ComponentActionContext("r-7", { "images": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -165,7 +165,7 @@ class TestStreamInput:
         stream = _make_async_iter([ _img("a"), _img("bb") ])
         ctx    = ComponentActionContext("r-8", { "images": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -177,7 +177,7 @@ class TestStreamInput:
         stream = _make_async_iter([ _img("a"), _img("bb"), _img("ccc"), _img("dddd") ])
         ctx    = ComponentActionContext("r-9", { "images": stream })
         loop   = asyncio.get_running_loop()
-        result = await action.run(ctx, loop)
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = await _collect(result)
@@ -192,7 +192,7 @@ class TestParamsPropagation:
         action = _FakeEmbeddingAction(_make_config("${input.image}"))
         ctx    = ComponentActionContext("r-10", { "image": _img("hi") })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         assert len(action.params_seen) == 1
         params = action.params_seen[0]
@@ -211,7 +211,7 @@ class TestParamsPropagation:
         action = _FakeEmbeddingAction(cfg)
         ctx    = ComponentActionContext("r-11", { "image": _img("hi") })
         loop   = asyncio.get_running_loop()
-        await action.run(ctx, loop)
+        await action.run(ctx)
 
         params = action.params_seen[0]
         assert params["pooling"] == "mean"

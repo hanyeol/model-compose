@@ -13,6 +13,22 @@ import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
 
+# Host env vars stripped from the worker subprocess to preserve venv isolation.
+# LD_LIBRARY_PATH/LD_PRELOAD/CUDA_* let the host's system CUDA shadow the venv's
+# bundled CUDA libs (e.g. torch cu128 wheel vs system CUDA 12.9), causing subtle
+# runtime errors like cuBLAS INVALID_VALUE. PYTHONPATH/PYTHONHOME leak the host
+# site-packages into the venv interpreter. Users can re-add anything they need
+# via `runtime.env` — that dict is applied after this strip.
+_EXCLUDED_HOST_ENV_VARS = frozenset({
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "CUDA_HOME",
+    "CUDA_PATH",
+    "CUDA_ROOT",
+    "PYTHONPATH",
+    "PYTHONHOME",
+})
+
 class VirtualEnvRuntime:
     """Lifecycle wrapper around a venv-isolated Python worker subprocess.
 
@@ -98,7 +114,7 @@ class VirtualEnvRuntime:
         return self._subprocess
 
     def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
-        env = dict(os.environ)
+        env = { k: v for k, v in os.environ.items() if k not in _EXCLUDED_HOST_ENV_VARS }
         env.update(self.config.env or {})
         env["PYTHONUNBUFFERED"] = "1"
         if overrides:

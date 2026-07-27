@@ -6,3 +6,4 @@ class TextToSpeechModelFamily(str, Enum):
     CHATTERBOX = "chatterbox"
     LUXTTS     = "luxtts"
     TADA       = "tada"
+    COSYVOICE  = "cosyvoice"

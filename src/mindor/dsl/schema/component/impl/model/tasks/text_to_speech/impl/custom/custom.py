@@ -5,6 +5,7 @@ from .impl.kokoro import KokoroTextToSpeechModelComponentConfig
 from .impl.chatterbox import ChatterboxTextToSpeechModelComponentConfig
 from .impl.luxtts import LuxttsTextToSpeechModelComponentConfig
 from .impl.tada import TadaTextToSpeechModelComponentConfig
+from .impl.cosyvoice import CosyvoiceTextToSpeechModelComponentConfig
 
 CustomTextToSpeechModelComponentConfig = Annotated[
     Union[
@@ -13,6 +14,7 @@ CustomTextToSpeechModelComponentConfig = Annotated[
         ChatterboxTextToSpeechModelComponentConfig,
         LuxttsTextToSpeechModelComponentConfig,
         TadaTextToSpeechModelComponentConfig,
+        CosyvoiceTextToSpeechModelComponentConfig,
     ],
     Field(discriminator="family")
 ]

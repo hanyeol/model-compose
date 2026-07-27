@@ -146,14 +146,11 @@ class VirtualEnvRuntime:
         if self.config.driver == VirtualEnvDriver.PYENV:
             version = self.config.python
             if not version:
-                raise ValueError(
-                    "VirtualEnvRuntimeConfig.python must be set when driver is 'pyenv'."
-                )
+                raise ValueError("VirtualEnvRuntimeConfig.python must be set when driver is 'pyenv'.")
+
+            logging.info(f"Creating virtualenv at {self._venv_path} (pyenv driver, python {version})")
 
             python_path = self._resolve_pyenv_python(version)
-            logging.info(
-                f"Creating virtualenv at {self._venv_path} (pyenv driver, python {version})"
-            )
             subprocess.run([str(python_path), "-m", "venv", str(self._venv_path)], check=True)
             return
 
@@ -162,29 +159,22 @@ class VirtualEnvRuntime:
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:
             installed = subprocess.check_output([ "pyenv", "versions", "--bare" ], text=True).splitlines()
-        except FileNotFoundError as e:
-            raise RuntimeError(
-                "pyenv command not found. Install pyenv or switch to driver: python."
-            ) from e
+        except FileNotFoundError:
+            raise RuntimeError("pyenv command not found. Install pyenv or switch to driver: python.")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to list pyenv versions: {e}") from e
+            raise RuntimeError(f"Failed to list pyenv versions: {e}")
 
         if version not in [ v.strip() for v in installed ]:
-            raise RuntimeError(
-                f"Python version '{version}' is not installed in pyenv. "
-                f"Run `pyenv install {version}` first."
-            )
+            raise RuntimeError(f"Python version '{version}' is not installed in pyenv. Run `pyenv install {version}` first.")
 
         try:
             pyenv_root = subprocess.check_output([ "pyenv", "root" ], text=True).strip()
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to resolve pyenv root: {e}") from e
+            raise RuntimeError(f"Failed to resolve pyenv root: {e}")
 
         python_path = Path(pyenv_root) / "versions" / version / "bin" / "python"
         if not python_path.exists():
-            raise RuntimeError(
-                f"pyenv reports {version} as installed but {python_path} does not exist."
-            )
+            raise RuntimeError(f"pyenv reports {version} as installed but {python_path} does not exist.")
         return python_path
 
     def _install_dependencies(self) -> None:

@@ -24,4 +24,8 @@ class CustomTextToSpeechTaskService:
             from .tada import TadaTextToSpeechTaskService
             return TadaTextToSpeechTaskService(id, config, daemon)
 
+        if config.family == TextToSpeechModelFamily.COSYVOICE:
+            from .cosyvoice import CosyvoiceTextToSpeechTaskService
+            return CosyvoiceTextToSpeechTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -15,7 +15,8 @@ from mindor.core.utils.shell import kill_process
 from mindor.core.logger import logging
 from ..base import ScreenCaptureService, ScreenCaptureDriver, register_screen_capture_service
 from ..base import ComponentActionContext
-from .common import ScreenCaptureAction, VideoAudioEncodingParams
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
+from .common import ScreenCaptureAction
 import asyncio, os, platform, shutil, time
 
 # Sentinel put on the chunk queue to signal end-of-stream to the consumer.

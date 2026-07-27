@@ -102,7 +102,7 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
             "torch==2.8.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.8.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchvision==0.23.0+cu128@https://download.pytorch.org/whl/cu128",
-            "flash-attn==2.8.3.post1@https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3.post1+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl",
+            "flash-attn==2.8.3.post1@https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3.post1/flash_attn-2.8.3.post1+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl",
             "nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git",
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",

@@ -146,13 +146,13 @@ class DockerImageBuilder:
             )
             self._stream_build_output(response)
         except DockerException as e:
-            raise RuntimeError(f"Failed to build image: {e}")
+            raise RuntimeError(f"Failed to build image: {e}") from e
 
     async def pull(self, tag: str) -> None:
         try:
             self._client.images.pull(tag)
         except DockerException as e:
-            raise RuntimeError(f"Failed to pull image: {e}")
+            raise RuntimeError(f"Failed to pull image: {e}") from e
 
     async def remove(self, tag: str, force: bool = False) -> None:
         try:
@@ -160,7 +160,7 @@ class DockerImageBuilder:
         except NotFound:
             pass
         except DockerException as e:
-            raise RuntimeError(f"Failed to remove image: {e}")
+            raise RuntimeError(f"Failed to remove image: {e}") from e
 
     async def exists(self, tag: str) -> bool:
         try:
@@ -168,7 +168,7 @@ class DockerImageBuilder:
         except NotFound:
             return False
         except DockerException as e:
-            raise RuntimeError(f"Failed to check image: {e}")
+            raise RuntimeError(f"Failed to check image: {e}") from e
 
     async def get_label(self, tag: str, label: str) -> Optional[str]:
         try:
@@ -177,7 +177,7 @@ class DockerImageBuilder:
         except NotFound:
             return None
         except DockerException as e:
-            raise RuntimeError(f"Failed to read image label: {e}")
+            raise RuntimeError(f"Failed to read image label: {e}") from e
 
     def _stream_build_output(self, response) -> None:
         for chunk in response:
@@ -264,7 +264,7 @@ class DockerContainerRunner:
                     tty=tty, stdin_open=stdin_open, detach=True,
                 )
         except DockerException as e:
-            raise RuntimeError(f"Failed to create container: {e}")
+            raise RuntimeError(f"Failed to create container: {e}") from e
 
     async def start(self, detach: bool) -> None:
         try:
@@ -274,7 +274,7 @@ class DockerContainerRunner:
             if not detach:
                 await self._run_foreground_container(container)
         except DockerException as e:
-            raise RuntimeError(f"Failed to start container: {e}")
+            raise RuntimeError(f"Failed to start container: {e}") from e
 
     async def stop(self, timeout: Optional[float] = None) -> None:
         try:
@@ -286,7 +286,7 @@ class DockerContainerRunner:
         except NotFound:
             pass
         except DockerException as e:
-            raise RuntimeError(f"Failed to stop container: {e}")
+            raise RuntimeError(f"Failed to stop container: {e}") from e
 
     async def remove(self, force: bool = False) -> None:
         try:
@@ -295,7 +295,7 @@ class DockerContainerRunner:
         except NotFound:
             pass
         except DockerException as e:
-            raise RuntimeError(f"Failed to remove container: {e}")
+            raise RuntimeError(f"Failed to remove container: {e}") from e
 
     async def is_running(self) -> bool:
         try:
@@ -304,7 +304,7 @@ class DockerContainerRunner:
         except NotFound:
             return False
         except DockerException as e:
-            raise RuntimeError(f"Failed to check container: {e}")
+            raise RuntimeError(f"Failed to check container: {e}") from e
 
     async def exists(self) -> bool:
         try:
@@ -313,7 +313,7 @@ class DockerContainerRunner:
         except NotFound:
             return False
         except DockerException as e:
-            raise RuntimeError(f"Failed to check container: {e}")
+            raise RuntimeError(f"Failed to check container: {e}") from e
 
     def get_container(self) -> Container:
         try:
@@ -321,7 +321,7 @@ class DockerContainerRunner:
         except NotFound:
             raise RuntimeError(f"Container '{self.container_name}' does not exist.")
         except DockerException as e:
-            raise RuntimeError(f"Failed to get container: {e}")
+            raise RuntimeError(f"Failed to get container: {e}") from e
 
     async def _run_foreground_container(self, container: Container) -> None:
         self._register_shutdown_signals()

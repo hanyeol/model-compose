@@ -41,7 +41,7 @@ class ComposeConfigLoader:
                     try:
                         config_dicts.append(yaml.safe_load(text))
                     except yaml.YAMLError as e:
-                        raise ValueError(f"YAML parsing error:\n{e}")
+                        raise ValueError(f"YAML parsing error:\n{e}") from e
             except FileNotFoundError:
                 raise FileNotFoundError(f"Config file not found: {config_file}")
 
@@ -52,7 +52,7 @@ class ComposeConfigLoader:
         try:
             return ComposeConfig.model_validate(merged_config_dict)
         except ValidationError as e:
-            raise ValueError(f"Config validation failed:\n{e.json(indent=2)}")
+            raise ValueError(f"Config validation failed:\n{e.json(indent=2)}") from e
 
     def _resolve_environment_variables(self, text: str, env: Dict[str, str]) -> str:
         matches = list(self.patterns["environment"].finditer(text))

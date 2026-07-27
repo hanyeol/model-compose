@@ -178,7 +178,7 @@ class WorkflowVariableResolver:
             try:
                 value = json.loads(self._quote_variable_references(value))
             except json.JSONDecodeError as e:
-                raise ValueError(f"Expected a JSON list, but failed to parse: {e}")
+                raise ValueError(f"Expected a JSON list, but failed to parse: {e}") from e
 
             if not isinstance(value, list):
                 raise ValueError(f"Expected a JSON list, got {type(value).__name__}")
@@ -189,7 +189,7 @@ class WorkflowVariableResolver:
             try:
                 value = json.loads(self._quote_variable_references(value))
             except json.JSONDecodeError as e:
-                raise ValueError(f"Expected a JSON value, but failed to parse: {e}")
+                raise ValueError(f"Expected a JSON value, but failed to parse: {e}") from e
 
             if type == "list" and not isinstance(value, list):
                 raise ValueError(f"Expected a JSON list, got {type(value).__name__}")

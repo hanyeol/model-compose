@@ -175,10 +175,10 @@ class VirtualEnvRuntime:
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:
             installed = subprocess.check_output([ "pyenv", "versions", "--bare" ], text=True).splitlines()
-        except FileNotFoundError:
-            raise RuntimeError("pyenv command not found. Install pyenv or switch to driver: python.")
+        except FileNotFoundError as e:
+            raise RuntimeError("pyenv command not found. Install pyenv or switch to driver: python.") from e
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to list pyenv versions: {e}")
+            raise RuntimeError(f"Failed to list pyenv versions: {e}") from e
 
         if version not in [ v.strip() for v in installed ]:
             raise RuntimeError(f"Python version '{version}' is not installed in pyenv. Run `pyenv install {version}` first.")
@@ -186,7 +186,7 @@ class VirtualEnvRuntime:
         try:
             pyenv_root = subprocess.check_output([ "pyenv", "root" ], text=True).strip()
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to resolve pyenv root: {e}")
+            raise RuntimeError(f"Failed to resolve pyenv root: {e}") from e
 
         python_path = Path(pyenv_root) / "versions" / version / "bin" / "python"
         if not python_path.exists():

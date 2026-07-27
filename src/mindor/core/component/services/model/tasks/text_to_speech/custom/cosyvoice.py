@@ -219,6 +219,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "torchaudio",
             "accelerate",
             "diffusers",
+            "gdown",
             "transformers",
             "librosa",
             "numpy",

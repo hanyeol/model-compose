@@ -231,7 +231,10 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "lightning",
             "modelscope",
             "omegaconf",
-            "onnxruntime-gpu",
+            # onnxruntime-gpu >=1.20 links CUDA 13. torch above is cu128, so
+            # pin to the last CUDA 12 compatible release to keep everything
+             # on the same CUDA major version.
+            "onnxruntime-gpu<1.20",
             "openai-whisper",
             "pyarrow",
             "pyworld",

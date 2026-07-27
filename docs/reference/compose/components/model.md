@@ -647,6 +647,167 @@ YOLOv8-pose returns **17 COCO keypoints** per detected pose (nose, eyes, ears, s
 
 List and async-stream inputs behave the same way as face detection.
 
+### Object Detection
+
+Detect objects in an image and return per-object bounding boxes with class labels and confidence scores. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `object-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `yolo`) |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads YOLOv11n (`yolo11n.pt`) to `~/.cache/models/ultralytics/`. Any Ultralytics YOLO detection or segmentation checkpoint (`.pt`) is accepted; masks from segmentation checkpoints are ignored. |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels raise an error listing available labels. If omitted, all classes are returned |
+| `min_confidence` | float | `0.25` | Minimum detection confidence threshold (0.0 - 1.0) |
+| `max_object_count` | int | `300` | Maximum detections per image (>= 1) |
+| `iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression (0.0 - 1.0) |
+| `agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |
+| `bounding_box_padding` | float | `0.0` | Expand each output bounding box outward by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes downstream to crop or SAM box prompts |
+| `batch_size` | int | `1` | Number of images to process per batch |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: object-detection
+  driver: custom
+  family: yolo
+  action:
+    image: ${input.image as image}
+    labels: [ person, dog ]
+    min_confidence: 0.4
+    bounding_box_padding: 0.05
+    output:
+      objects: ${result.objects}
+```
+
+**Result Shape:**
+
+```json
+{
+  "objects": [
+    {
+      "label": "person",
+      "label_id": 0,
+      "score": 0.87,
+      "bounding_box": [x, y, width, height]
+    }
+  ],
+  "width": 1920,
+  "height": 1080
+}
+```
+
+`bounding_box` uses top-left origin as `[x, y, width, height]` in pixel coordinates. When `bounding_box_padding > 0`, boxes are expanded before clamping to image bounds. List and async-stream inputs behave the same way as face detection.
+
+### Image Segmentation
+
+Generate per-region binary segmentation masks from an image. Supports **automatic mode** (masks every distinct region) and **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from an object-detection component). This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-segmentation` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `sam` — Meta's Segment Anything Model via Ultralytics) |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads `sam2_b.pt` to `~/.cache/models/ultralytics/`. Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam_l.pt`, `sam2_t.pt`, `sam2_b.pt`, `sam2_l.pt`, `sam2.1_*.pt`, `mobile_sam.pt`) is accepted |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `box_prompt` | `[x, y, w, h]` or `[[x, y, w, h], ...]` | `null` | Bounding-box prompt(s) that constrain segmentation. Accepts a single box or a list of boxes. If omitted, the task runs in automatic mode |
+| `min_confidence` | float | `0.5` | Minimum per-segment confidence (0.0 - 1.0) |
+| `min_area` | int | `null` | Minimum mask area in pixels. Smaller masks are filtered out. If omitted, no area filter is applied |
+| `max_segment_count` | int | `100` | Maximum segments per image (>= 1). Extra segments are dropped after sorting by score |
+| `return_mask` | bool | `true` | Include the per-segment binary mask (grayscale PNG: background `0`, segment `255`) in the result |
+| `batch_size` | int | `1` | Number of images to process per batch |
+
+**Example — automatic mode:**
+
+```yaml
+component:
+  type: model
+  task: image-segmentation
+  driver: custom
+  family: sam
+  action:
+    image: ${input.image as image}
+    min_confidence: 0.6
+    max_segment_count: 20
+    output:
+      segments: ${result.segments}
+```
+
+**Example — box-prompted (fed from object-detection):**
+
+```yaml
+jobs:
+  - id: detect
+    component: yolo-detector
+    action:
+      image: ${input.image as image}
+      bounding_box_padding: 0.1
+  - id: segment
+    component: sam-segmenter
+    action:
+      image: ${input.image as image}
+      box_prompt: ${detect.output.objects[*].bounding_box}
+```
+
+**Result Shape (automatic mode):**
+
+```json
+{
+  "segments": [
+    {
+      "score": 0.92,
+      "bounding_box": [x, y, width, height],
+      "area": 12345,
+      "mask": "<PNG>"
+    }
+  ],
+  "width": 1920,
+  "height": 1080
+}
+```
+
+**Result Shape (box-prompted mode)** adds a `prompt_index` field per segment:
+
+```json
+{
+  "segments": [
+    {
+      "score": 0.87,
+      "bounding_box": [x, y, width, height],
+      "area": 12345,
+      "mask": "<PNG>",
+      "prompt_index": 0
+    }
+  ],
+  "width": 1920,
+  "height": 1080
+}
+```
+
+- `bounding_box` — `[x, y, width, height]` derived from the returned mask, top-left origin.
+- `area` — Mask area in pixels.
+- `mask` — Binary mask as a grayscale PNG (omitted when `return_mask: false`).
+- `prompt_index` — Index into the input `box_prompt` list that this segment corresponds to (only in box-prompted mode).
+
+Segments are sorted by `score` in descending order and truncated to `max_segment_count`. List and async-stream inputs behave the same way as face detection.
+
 ### Text to Speech
 
 Generate speech audio from text using TTS models. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to select the generation method.

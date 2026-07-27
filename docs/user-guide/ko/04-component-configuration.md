@@ -24,6 +24,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `model-tokenizer` | 모델 토크나이저 | 모델 토크나이저를 사용한 토큰 인코딩, 디코딩, 카운팅 |
 | `model-trainer` | 모델 훈련 | 파인튜닝, LoRA 훈련 |
 | `datasets` | 데이터셋 로드 | 훈련/평가 데이터셋 로드 및 처리 |
+| `vector-processor` | 벡터 연산 | 임베딩 벡터에 대한 유사도·거리·top-k 랭킹·정규화·집계 연산 |
 | `vector-store` | 벡터 DB 연동 | Chroma, Milvus 등 RAG 시스템 |
 | `graph-store` | 그래프 DB 연동 | Neo4j, ArangoDB를 사용한 지식 그래프, 소셜 네트워크 |
 | `search-engine` | 풀텍스트 검색 | SQLite FTS5 기반 BM25 키워드 검색 |
@@ -35,6 +36,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, PNG 압축 등 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
 | `video-converter` | 비디오 변환 | 비디오 트랜스코딩/포맷 변환 (컨테이너, 코덱, 해상도 등) |
+| `video-encoder` | 비디오 인코딩 | PIL 프레임을 비디오로 인코딩하거나 기존 비디오를 재인코딩, 선택적 오디오 트랙 결합 (ffmpeg) |
 | `video-frame-extractor` | 비디오 프레임 추출 | 비디오를 PIL 이미지 프레임으로 디코딩하며 샘플링과 시간 범위 지원 |
 | `audio-extractor` | 오디오 추출 | 비디오/미디어에서 오디오 스트림 추출 |
 | `audio-converter` | 오디오 변환 | 오디오 트랜스코딩/포맷 변환 (코덱, 샘플레이트, 채널 등) |
@@ -42,6 +44,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
 | `web-browser` | 브라우저 자동화 | Chrome DevTools Protocol을 통한 브라우저 제어 |
 | `screen-capture` | 로컬 화면·오디오 캡처 | 데스크탑/영역/시스템·마이크 오디오를 연속 인코딩 스트림으로 방출 |
+| `rtmp-publisher` | RTMP 엔드포인트 발행 | YouTube Live, Twitch, Facebook Live 등으로 비디오·프레임·오디오 라이브 스트리밍 (ffmpeg) |
 
 ### 컴포넌트 선택 가이드
 
@@ -51,12 +54,13 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 
 **로컬 AI 모델**
 - 로컬 추론 → `model`
-- 비전 태스크 (로컬 이미지의 얼굴/포즈 감지) → `model` + `task: face-detection` 또는 `task: pose-detection` ([Model Component 레퍼런스](../../reference/compose/components/model.md) 참고)
+- 비전 태스크 (로컬 이미지의 얼굴/포즈/객체 검출 및 이미지 세그멘테이션) → `model` + `task: face-detection`, `task: pose-detection`, `task: object-detection`, `task: image-segmentation` ([Model Component 레퍼런스](../../reference/compose/components/model.md) 참고)
 - vLLM, Ollama 등 백엔드 사용 → `http-server`
 - 훈련 → `model-trainer`
 
 **데이터 처리**
 - 대화 메모리 → `model-memory`
+- 벡터 연산 (유사도, top-k, 정규화, 집계) → `vector-processor`
 - 벡터 저장 → `vector-store`
 - 그래프 저장 → `graph-store`
 - 풀텍스트 검색 → `search-engine`
@@ -65,6 +69,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 이미지 처리 → `image-processor`
 - 비디오 장면 감지 → `video-scene-detector`
 - 비디오 프레임 추출 → `video-frame-extractor`
+- 비디오 인코딩 (프레임 → 비디오, 또는 재인코딩) → `video-encoder`
 - 오디오 특징 추출 (시각화용 스펙트럼 / 파형) → `audio-feature-extractor`
 - 웹 스크래핑 → `web-scraper`
 
@@ -73,6 +78,9 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 
 **라이브 캡처**
 - 로컬 화면 / 영역 / 시스템 오디오를 라이브 소스로 → `screen-capture`
+
+**라이브 방송**
+- RTMP 엔드포인트(YouTube Live, Twitch, Facebook Live 등)로 비디오·프레임·오디오 발행 → `rtmp-publisher`
 
 **AI 에이전트**
 - 도구를 활용하는 자율 에이전트 → `agent`

@@ -7,9 +7,9 @@ The datasets component provides declarative dataset loading and transformation b
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: huggingface
     path: tatsu-lab/alpaca
     split: train
 ```
@@ -21,6 +21,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `datasets` |
+| `driver` | string | **required** | Backend driver. Currently only `huggingface`. |
 | `actions` | array | `[]` | List of dataset operations (load, concat, select, filter, map) |
 
 All dataset behavior is driven through actions; the component itself has no other top-level fields.
@@ -29,14 +30,14 @@ All dataset behavior is driven through actions; the component itself has no othe
 
 ### Load
 
-Load a dataset from a provider. The provider determines the remaining fields.
+Load a dataset. `path` is either a HuggingFace Hub repo id (e.g., `tatsu-lab/alpaca`) or a built-in builder name (`json`, `csv`, `parquet`, `text`, ...) when combined with `data_files` / `data_dir`.
 
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: huggingface
     path: tatsu-lab/alpaca
     split: train
     fraction: 0.1
@@ -45,7 +46,13 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `method` | string | **required** | Must be `load` |
-| `provider` | string | **required** | Dataset provider: `huggingface`, `local` |
+| `path` | string | **required** | HuggingFace Hub repo id (e.g., `squad`) or a built-in builder name for local files (`json`, `csv`, `parquet`, `text`, ...) |
+| `name` | string | `null` | Dataset configuration name (Hub datasets only) |
+| `revision` | string | `null` | Dataset revision/version (Hub datasets only) |
+| `token` | string | `null` | Authentication token for private Hub datasets |
+| `trust_remote_code` | boolean | `false` | Allow executing remote loader code |
+| `data_files` | string/array/object | `null` | Path to data files. Used when `path` is a built-in builder name. |
+| `data_dir` | string | `null` | Directory containing data files. Used when `path` is a built-in builder name. |
 | `split` | string | `null` | Dataset split to load (e.g., `train`, `test`, `validation`) |
 | `streaming` | boolean | `false` | Enable streaming mode for large datasets |
 | `keep_in_memory` | boolean | `false` | Keep dataset in memory |
@@ -53,24 +60,6 @@ component:
 | `save_infos` | boolean | `false` | Save dataset info to cache |
 | `fraction` | float | `null` | Fraction of dataset to load (0.0 ~ 1.0) |
 | `shuffle` | boolean | `false` | Shuffle dataset before applying fraction selection |
-
-**HuggingFace provider fields:**
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `path` | string | **required** | HuggingFace dataset name or path |
-| `name` | string | `null` | Dataset configuration name |
-| `revision` | string | `null` | Dataset revision/version to load |
-| `token` | string | `null` | Authentication token for private datasets |
-| `trust_remote_code` | boolean | `false` | Allow executing remote code for dataset loading |
-
-**Local provider fields:**
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `loader` | string | **required** | Loader type: `json`, `csv`, `parquet`, `text` |
-| `data_files` | string/array/object | `null` | Path to data files (string, list, or split mapping) |
-| `data_dir` | string | `null` | Directory containing data files |
 
 ### Concat
 
@@ -162,10 +151,10 @@ A single component can declare multiple dataset operations:
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   actions:
     - id: load
       method: load
-      provider: huggingface
       path: ${input.path}
       split: ${input.split}
       fraction: ${input.fraction}
@@ -195,10 +184,10 @@ component:
 components:
   - id: dataset
     type: datasets
+    driver: huggingface
     actions:
       - id: load
         method: load
-        provider: huggingface
         path: tatsu-lab/alpaca
         split: train
 
@@ -259,20 +248,20 @@ workflows:
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: local
-    loader: json
+    path: json
     data_files: ./data/training-set.jsonl
 ```
 
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: local
-    loader: csv
+    path: csv
     data_files:
       train: ./data/train.csv
       test: ./data/test.csv
@@ -284,9 +273,9 @@ component:
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: huggingface
     path: my-org/private-dataset
     token: ${env.HUGGINGFACE_TOKEN}
     split: train
@@ -297,9 +286,9 @@ component:
 ```yaml
 component:
   type: datasets
+  driver: huggingface
   action:
     method: load
-    provider: huggingface
     path: ${env.DATASET_PATH | tatsu-lab/alpaca}
     split: ${input.split | train}
     fraction: ${input.fraction as number | 1.0}

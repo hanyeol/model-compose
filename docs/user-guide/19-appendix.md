@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | object-detection | image-segmentation | face-embedding | music-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # Default: huggingface
     model: model-name-or-path          # Or a `{ provider, repository/path, ... }` object
 
@@ -306,16 +306,16 @@ components:
 components:
   - id: dataset-id
     type: datasets
-    provider: huggingface | local
+    driver: huggingface
 
-    # HuggingFace
-    dataset: dataset-name
+    # Load: HuggingFace Hub (path = repo id) or local (path = builder name)
+    path: dataset-name | json | csv | parquet | text
     split: train
-    subset: subset-name
+    name: subset-name              # HF Hub configuration name (optional)
 
-    # Local
-    path: ./data
-    format: json | csv | parquet
+    # Local file inputs (used with path=json/csv/parquet/text)
+    data_files: ./data/train.json
+    data_dir: ./data
 
     # Operations
     select: [ column1, column2 ]

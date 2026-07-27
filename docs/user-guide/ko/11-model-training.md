@@ -56,8 +56,8 @@ components:
 components:
   - id: dataset-loader
     type: datasets
-    provider: huggingface
-    path: tatsu-lab/alpaca          # 허깅페이스 허브 경로
+    driver: huggingface
+    path: tatsu-lab/alpaca          # 허깅페이스 허브 repo id
     split: train                    # train, test, validation 등
     fraction: 1.0                   # 전체 데이터의 비율 (0.0 ~ 1.0)
 ```
@@ -68,7 +68,7 @@ components:
 components:
   - id: dataset-loader
     type: datasets
-    provider: huggingface
+    driver: huggingface
     path: tatsu-lab/alpaca
     name: default                   # 데이터셋 설정 이름
     split: train
@@ -104,9 +104,9 @@ workflows:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: json                    # json, csv, parquet, text
-    data_files: ./data/train.json   # 파일 경로
+    driver: huggingface
+    path: json                      # 내장 로더 이름: json | csv | parquet | text
+    data_files: ./data/train.json
 ```
 
 **CSV 파일:**
@@ -115,8 +115,8 @@ components:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: csv
+    driver: huggingface
+    path: csv
     data_files:
       - ./data/train.csv
       - ./data/validation.csv
@@ -128,8 +128,8 @@ components:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: json
+    driver: huggingface
+    path: json
     data_dir: ./data/training       # 디렉토리 내 모든 JSON 파일
 ```
 
@@ -213,6 +213,7 @@ workflows:
 components:
   - id: dataset-ops
     type: datasets
+    driver: huggingface
     method: filter
     dataset: ${input.dataset}
     condition: ${input.condition}    # 필터 조건
@@ -224,6 +225,7 @@ components:
 components:
   - id: dataset-ops
     type: datasets
+    driver: huggingface
     method: map
     dataset: ${input.dataset}
     template: ${input.template}      # 데이터 변환 템플릿
@@ -757,7 +759,7 @@ output/final-model/
 components:
   - id: alpaca-loader
     type: datasets
-    provider: huggingface
+    driver: huggingface
     path: tatsu-lab/alpaca
     split: train
 
@@ -844,12 +846,13 @@ components:
 components:
   - id: local-data
     type: datasets
-    provider: local
-    loader: json
+    driver: huggingface
+    path: json
     data_files: ./data/custom_train.json
 
   - id: data-processor
     type: datasets
+    driver: huggingface
     method: map
 
   - id: custom-trainer

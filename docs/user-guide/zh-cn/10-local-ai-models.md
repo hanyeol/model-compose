@@ -258,6 +258,8 @@ model-compose 支持以下任务类型：
 | `image-upscale` | 图像放大 | 分辨率增强 |
 | `face-detection` | 人脸检测 | 人脸定位、边界框 |
 | `pose-detection` | 姿态检测 | 关键点检测、动作分析 |
+| `object-detection` | 目标检测 | 使用类别标签和边界框检测目标 |
+| `image-segmentation` | 图像分割 | 生成分区二值掩码（自动模式或框提示模式） |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
 | `music-generation` | 音乐生成 | 音乐创作、配乐 |
 
@@ -648,6 +650,44 @@ component:
   action:
     image: ${input.image as image}
 ```
+
+### 10.3.13 object-detection
+
+在图像中检测目标，返回每个目标的边界框、类别标签和置信度分数。使用 Ultralytics YOLO。
+
+```yaml
+component:
+  type: model
+  task: object-detection
+  driver: custom
+  family: yolo
+  action:
+    image: ${input.image as image}
+    labels: [ person, dog ]      # 可选：类别过滤
+    min_confidence: 0.4
+    bounding_box_padding: 0.05   # 为下游裁剪或 SAM 提示扩展每个框 5%
+```
+
+支持任意 Ultralytics YOLO 检测（或分割）`.pt` 检查点。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#object-detection)。
+
+### 10.3.14 image-segmentation
+
+从图像中生成分区二值分割掩码。支持**自动模式**（对每个不同区域生成掩码）和**框提示模式**（在用户提供的边界框周围优化掩码，例如来自 `object-detection` 的输出）。通过 Ultralytics 使用 Meta 的 Segment Anything Model (SAM)。
+
+```yaml
+component:
+  type: model
+  task: image-segmentation
+  driver: custom
+  family: sam
+  action:
+    image: ${input.image as image}
+    box_prompt: ${input.box_prompt as json}   # 可选：省略则为自动模式
+    min_confidence: 0.6
+    max_segment_count: 20
+```
+
+支持任意 Ultralytics SAM 检查点（`sam_b.pt`、`sam2_b.pt`、`mobile_sam.pt` 等）。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#image-segmentation)。
 
 ---
 

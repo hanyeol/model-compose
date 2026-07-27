@@ -56,8 +56,8 @@ The dataset component provides tools for preparing training data.
 components:
   - id: dataset-loader
     type: datasets
-    provider: huggingface
-    path: tatsu-lab/alpaca          # HuggingFace Hub path
+    driver: huggingface
+    path: tatsu-lab/alpaca          # HuggingFace Hub repo id
     split: train                    # train, test, validation, etc.
     fraction: 1.0                   # Fraction of data (0.0 ~ 1.0)
 ```
@@ -68,7 +68,7 @@ components:
 components:
   - id: dataset-loader
     type: datasets
-    provider: huggingface
+    driver: huggingface
     path: tatsu-lab/alpaca
     name: default                   # Dataset configuration name
     split: train
@@ -104,9 +104,9 @@ workflows:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: json                    # json, csv, parquet, text
-    data_files: ./data/train.json   # File path
+    driver: huggingface
+    path: json                      # Built-in loader: json | csv | parquet | text
+    data_files: ./data/train.json
 ```
 
 **CSV Files:**
@@ -115,8 +115,8 @@ components:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: csv
+    driver: huggingface
+    path: csv
     data_files:
       - ./data/train.csv
       - ./data/validation.csv
@@ -128,8 +128,8 @@ components:
 components:
   - id: local-dataset
     type: datasets
-    provider: local
-    loader: json
+    driver: huggingface
+    path: json
     data_dir: ./data/training       # All JSON files in directory
 ```
 
@@ -213,6 +213,7 @@ workflows:
 components:
   - id: dataset-ops
     type: datasets
+    driver: huggingface
     method: filter
     dataset: ${input.dataset}
     condition: ${input.condition}    # Filter condition
@@ -224,6 +225,7 @@ components:
 components:
   - id: dataset-ops
     type: datasets
+    driver: huggingface
     method: map
     dataset: ${input.dataset}
     template: ${input.template}      # Data transformation template
@@ -757,7 +759,7 @@ output/final-model/
 components:
   - id: alpaca-loader
     type: datasets
-    provider: huggingface
+    driver: huggingface
     path: tatsu-lab/alpaca
     split: train
 
@@ -844,12 +846,13 @@ components:
 components:
   - id: local-data
     type: datasets
-    provider: local
-    loader: json
+    driver: huggingface
+    path: json
     data_files: ./data/custom_train.json
 
   - id: data-processor
     type: datasets
+    driver: huggingface
     method: map
 
   - id: custom-trainer

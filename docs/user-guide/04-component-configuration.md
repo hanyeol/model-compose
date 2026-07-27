@@ -24,6 +24,7 @@ model-compose provides various component types for performing different tasks.
 | `model-tokenizer` | Model tokenization | Token encoding, decoding, counting using model tokenizers |
 | `model-trainer` | Train models | Fine-tuning, LoRA training |
 | `datasets` | Load datasets | Load and process training/evaluation datasets |
+| `vector-processor` | Vector math operations | Similarity, distance, top-k ranking, normalization, aggregation over embedding vectors |
 | `vector-store` | Vector DB integration | RAG systems with Chroma, Milvus, etc. |
 | `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
 | `search-engine` | Full-text search | BM25-ranked keyword search with SQLite FTS5 |
@@ -35,6 +36,7 @@ model-compose provides various component types for performing different tasks.
 | `image-processor` | Process images | Image transformation, resizing, PNG compression, etc. |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
+| `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
 | `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
@@ -42,6 +44,7 @@ model-compose provides various component types for performing different tasks.
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 | `screen-capture` | Capture local screen and audio | Live desktop, region, or microphone/system audio as continuous encoded streams |
+| `rtmp-publisher` | Publish to RTMP endpoints | Live-stream video, frames, or audio to YouTube Live, Twitch, Facebook Live, etc. (ffmpeg) |
 
 ### Component Selection Guide
 
@@ -51,12 +54,13 @@ model-compose provides various component types for performing different tasks.
 
 **Local AI Models**
 - Local inference → `model`
-- Vision tasks (face/pose detection on local images) → `model` with `task: face-detection` or `task: pose-detection` (see [Model Component reference](../reference/compose/components/model.md))
+- Vision tasks (face/pose/object detection or image segmentation on local images) → `model` with `task: face-detection`, `task: pose-detection`, `task: object-detection`, or `task: image-segmentation` (see [Model Component reference](../reference/compose/components/model.md))
 - vLLM, Ollama, etc. backend usage → `http-server`
 - Training → `model-trainer`
 
 **Data Processing**
 - Conversation memory → `model-memory`
+- Vector math (similarity, top-k, normalization, aggregation) → `vector-processor`
 - Vector storage → `vector-store`
 - Graph storage → `graph-store`
 - Full-text search → `search-engine`
@@ -66,6 +70,7 @@ model-compose provides various component types for performing different tasks.
 - Image processing → `image-processor`
 - Video scene detection → `video-scene-detector`
 - Video frame extraction → `video-frame-extractor`
+- Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Web scraping → `web-scraper`
 
@@ -74,6 +79,9 @@ model-compose provides various component types for performing different tasks.
 
 **Live Capture**
 - Local screen / region / system audio as a live source → `screen-capture`
+
+**Live Broadcasting**
+- Publish video / frames / audio to RTMP endpoints (YouTube Live, Twitch, Facebook Live, etc.) → `rtmp-publisher`
 
 **AI Agents**
 - Autonomous tool-using agents → `agent`

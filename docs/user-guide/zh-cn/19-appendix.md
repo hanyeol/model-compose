@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | object-detection | image-segmentation | face-embedding | music-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # 默认：huggingface
     model: model-name-or-path          # 或 `{ provider, repository/path, ... }` 对象
 
@@ -258,16 +258,16 @@ components:
 components:
   - id: dataset-id
     type: datasets
-    provider: huggingface | local
+    driver: huggingface
 
-    # HuggingFace
-    dataset: dataset-name
+    # 加载：HuggingFace Hub（path = repo id）或本地（path = 内置构建器名）
+    path: dataset-name | json | csv | parquet | text
     split: train
-    subset: subset-name
+    name: subset-name              # HF Hub 配置名（可选）
 
-    # 本地
-    path: ./data
-    format: json | csv | parquet
+    # 本地文件输入（path=json/csv/parquet/text 时使用）
+    data_files: ./data/train.json
+    data_dir: ./data
 
     # 操作
     select: [ column1, column2 ]

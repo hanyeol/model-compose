@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | face-embedding | music-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | pose-detection | object-detection | image-segmentation | face-embedding | music-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # 기본값: huggingface
     model: model-name-or-path          # 또는 `{ provider, repository/path, ... }` 객체
 
@@ -257,16 +257,16 @@ components:
 components:
   - id: dataset-id
     type: datasets
-    provider: huggingface | local
+    driver: huggingface
 
-    # HuggingFace
-    dataset: dataset-name
+    # 로드: HuggingFace Hub (path = repo id) 또는 로컬 (path = 빌더 이름)
+    path: dataset-name | json | csv | parquet | text
     split: train
-    subset: subset-name
+    name: subset-name              # HF Hub 설정 이름 (선택)
 
-    # 로컬
-    path: ./data
-    format: json | csv | parquet
+    # 로컬 파일 입력 (path=json/csv/parquet/text 사용 시)
+    data_files: ./data/train.json
+    data_dir: ./data
 
     # 조작
     select: [ column1, column2 ]

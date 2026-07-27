@@ -258,6 +258,8 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `image-upscale` | 이미지 업스케일 | 해상도 향상 |
 | `face-detection` | 얼굴 검출 | 얼굴 위치/랜드마크 |
 | `pose-detection` | 자세 검출 | 인체 관절 추정 |
+| `object-detection` | 객체 검출 | 클래스 라벨과 바운딩 박스로 객체 검출 |
+| `image-segmentation` | 이미지 세그멘테이션 | 영역별 이진 마스크 생성 (자동 또는 박스 프롬프트) |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
 | `music-generation` | 음악 생성 | 텍스트→음악 변환 |
 
@@ -609,6 +611,44 @@ component:
   action:
     image: ${input.image as image}
 ```
+
+### 10.3.12 object-detection
+
+이미지에서 객체를 검출하고, 객체별로 바운딩 박스, 클래스 라벨, 신뢰도 점수를 반환합니다. Ultralytics YOLO를 사용합니다.
+
+```yaml
+component:
+  type: model
+  task: object-detection
+  driver: custom
+  family: yolo
+  action:
+    image: ${input.image as image}
+    labels: [ person, dog ]      # 선택: 클래스 필터
+    min_confidence: 0.4
+    bounding_box_padding: 0.05   # 후속 크롭이나 SAM 프롬프트를 위해 박스를 5% 확장
+```
+
+Ultralytics YOLO 검출(또는 세그멘테이션) `.pt` 체크포인트 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#object-detection)를 참고하세요.
+
+### 10.3.13 image-segmentation
+
+이미지에서 영역별 이진 세그멘테이션 마스크를 생성합니다. **자동 모드**(모든 뚜렷한 영역을 마스크)와 **박스 프롬프트 모드**(사용자가 제공한 바운딩 박스 주변을 정밀하게 세그멘트, 예: `object-detection` 출력)를 지원합니다. Meta의 Segment Anything Model(SAM)을 Ultralytics를 통해 사용합니다.
+
+```yaml
+component:
+  type: model
+  task: image-segmentation
+  driver: custom
+  family: sam
+  action:
+    image: ${input.image as image}
+    box_prompt: ${input.box_prompt as json}   # 선택: 생략하면 자동 모드
+    min_confidence: 0.6
+    max_segment_count: 20
+```
+
+Ultralytics SAM 체크포인트(`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt` 등) 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#image-segmentation)를 참고하세요.
 
 ---
 

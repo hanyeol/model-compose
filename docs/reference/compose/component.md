@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-frame-extractor | audio-extractor | audio-converter | audio-feature-extractor | web-scraper | web-browser | screen-capture
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | audio-extractor | audio-converter | audio-feature-extractor | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -51,6 +51,7 @@ Model-compose supports the following component types:
 | `model-tokenizer` | Model tokenization (encode, decode, count) | [model-tokenizer.md](components/model-tokenizer.md) |
 | `model-trainer` | Model fine-tuning (SFT, classification, LoRA) | [model-trainer.md](components/model-trainer.md) |
 | `datasets` | Dataset loading and transformation | [datasets.md](components/datasets.md) |
+| `vector-processor` | Vector math operations (similarity, distance, top-k, normalization, aggregation) | [vector-processor.md](components/vector-processor.md) |
 | `vector-store` | Vector database operations | [vector-store.md](components/vector-store.md) |
 | `graph-store` | Graph database operations | [graph-store.md](components/graph-store.md) |
 | `search-engine` | Full-text search engine (SQLite FTS5) | [search-engine.md](components/search-engine.md) |
@@ -62,6 +63,7 @@ Model-compose supports the following component types:
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
 | `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
+| `video-encoder` | Encode PIL frames into video, or re-encode existing video, with optional audio track (ffmpeg) | [video-encoder.md](components/video-encoder.md) |
 | `video-frame-extractor` | Decode video and extract frames as images | [video-frame-extractor.md](components/video-frame-extractor.md) |
 | `audio-extractor` | Extract audio streams from media | [audio-extractor.md](components/audio-extractor.md) |
 | `audio-converter` | Audio format/codec conversion | [audio-converter.md](components/audio-converter.md) |
@@ -69,6 +71,7 @@ Model-compose supports the following component types:
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 | `screen-capture` | Live screen and system/microphone audio capture as continuous streams | [screen-capture.md](components/screen-capture.md) |
+| `rtmp-publisher` | Publish video, frames, or audio to RTMP endpoints (YouTube Live, Twitch, Facebook Live, etc.) via ffmpeg | [rtmp-publisher.md](components/rtmp-publisher.md) |
 
 ## Common Configuration Properties
 

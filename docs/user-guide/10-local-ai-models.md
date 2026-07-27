@@ -259,6 +259,8 @@ model-compose supports the following task types:
 | `voice-activity-detection` | Detect speech segments in audio | Pre-ASR silence filtering, subtitle splitting |
 | `face-detection` | Face detection | Locate faces in images |
 | `pose-detection` | Pose detection | Keypoint estimation |
+| `object-detection` | Object detection | Detect objects with class labels and bounding boxes |
+| `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `music-generation` | Music generation | Audio/music synthesis |
 
@@ -704,6 +706,44 @@ component:
   action:
     image: ${input.image as image}
 ```
+
+### 10.3.14 object-detection
+
+Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
+
+```yaml
+component:
+  type: model
+  task: object-detection
+  driver: custom
+  family: yolo
+  action:
+    image: ${input.image as image}
+    labels: [ person, dog ]      # Optional class filter
+    min_confidence: 0.4
+    bounding_box_padding: 0.05   # Grow each box by 5% for downstream crops or SAM prompts
+```
+
+Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
+
+### 10.3.15 image-segmentation
+
+Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
+
+```yaml
+component:
+  type: model
+  task: image-segmentation
+  driver: custom
+  family: sam
+  action:
+    image: ${input.image as image}
+    box_prompt: ${input.box_prompt as json}   # Optional; omit for automatic mode
+    min_confidence: 0.6
+    max_segment_count: 20
+```
+
+Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
 
 ---
 

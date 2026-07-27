@@ -16,4 +16,12 @@ class CustomTextToSpeechTaskService:
             from .chatterbox import ChatterboxTextToSpeechTaskService
             return ChatterboxTextToSpeechTaskService(id, config, daemon)
 
+        if config.family == TextToSpeechModelFamily.LUXTTS:
+            from .luxtts import LuxttsTextToSpeechTaskService
+            return LuxttsTextToSpeechTaskService(id, config, daemon)
+
+        if config.family == TextToSpeechModelFamily.TADA:
+            from .tada import TadaTextToSpeechTaskService
+            return TadaTextToSpeechTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

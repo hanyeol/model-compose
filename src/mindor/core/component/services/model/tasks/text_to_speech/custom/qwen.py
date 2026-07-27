@@ -46,7 +46,9 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         language = await context.render_variable(self.config.language)
 
-        params["language"] = self._resolve_language(language) if language else None
+        params.update({
+            "language": self._resolve_language(language) if language else None,
+        })
 
         return params
 
@@ -92,8 +94,10 @@ class QwenTextToSpeechGenerateTaskAction(QwenTextToSpeechTaskAction):
         voice        = await context.render_variable(self.config.voice)
         instructions = await context.render_variable(self.config.instructions)
 
-        params["voice"]        = voice
-        params["instructions"] = instructions
+        params.update({
+            "voice":        voice,
+            "instructions": instructions,
+        })
 
         return params
 
@@ -117,8 +121,10 @@ class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
         reference_audio = await context.render_file(self.config.reference_audio)
         reference_text  = await context.render_variable(self.config.reference_text)
 
-        params["reference_audio"] = reference_audio
-        params["reference_text"]  = reference_text
+        params.update({
+            "reference_audio": reference_audio,
+            "reference_text":  reference_text,
+        })
 
         return params
 
@@ -141,7 +147,9 @@ class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):
 
         instructions = await context.render_variable(self.config.instructions)
 
-        params["instructions"] = instructions
+        params.update({
+            "instructions": instructions,
+        })
 
         return params
 

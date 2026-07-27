@@ -82,7 +82,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
                 generation_params["length_penalty"] = length_penalty
             generation_params["early_stopping"] = early_stopping
 
-        params["tokenizer"] = tokenizer_params
+        params["tokenizer"]  = tokenizer_params
         params["generation"] = generation_params
 
         return params

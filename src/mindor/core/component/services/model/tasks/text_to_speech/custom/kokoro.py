@@ -51,13 +51,15 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        voice = await context.render_variable(self.config.voice)
-        speed = await context.render_variable(self.config.speed)
+        voice    = await context.render_variable(self.config.voice)
+        speed    = await context.render_variable(self.config.speed)
         language = await context.render_variable(self.config.language)
 
-        params["voice"] = voice or "af_heart"
-        params["speed"] = float(speed) if speed is not None else 1.0
-        params["lang_code"] = self._resolve_lang_code(language)
+        params.update({
+            "voice":     voice or "af_heart",
+            "speed":     float(speed) if speed is not None else 1.0,
+            "lang_code": self._resolve_lang_code(language),
+        })
 
         return params
 

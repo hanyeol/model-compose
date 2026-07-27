@@ -214,7 +214,22 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
         # repo root and its Matcha-TTS submodule to sys.path (or a venv .pth file).
         # We still declare the runtime deps so the environment matches what the
         # inference paths expect.
-        return [ "torch", "torchaudio", "modelscope", "hyperpyyaml", "numpy", "soundfile" ]
+        return [
+            "torch",
+            "torchaudio",
+            "modelscope",
+            "hyperpyyaml",
+            "numpy",
+            "soundfile",
+            "librosa",
+            "transformers",
+            "diffusers",
+            "accelerate",
+            "onnxruntime-gpu",
+            "conformer",
+            "openai-whisper",
+            "wetext",
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.sample_rate, self.device = self._load_pretrained_model()
@@ -231,11 +246,12 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             from cosyvoice.cli.cosyvoice import AutoModel
         except ImportError as e:
             raise RuntimeError(
-                "CosyVoice is not importable. It has no pip distribution — clone the repo "
-                "and expose it on sys.path:\n"
+                f"Failed to import cosyvoice.cli.cosyvoice: {e}\n"
+                "If the cosyvoice package itself is missing, clone the repo and add it to the venv:\n"
                 "  git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git\n"
                 "then add both the repo root and its third_party/Matcha-TTS to the venv "
-                "(e.g. via a .pth file in the venv's site-packages)."
+                "(e.g. via a .pth file in the venv's site-packages).\n"
+                "If cosyvoice is present but a dependency is missing, install it into the venv."
             ) from e
 
         if isinstance(self.config.model, HuggingfaceModelConfig):

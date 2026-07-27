@@ -13,7 +13,7 @@ import asyncio, os, shutil, subprocess, venv
 
 _PACKAGE_IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc")
 
-# Host env vars stripped from the worker subprocess to preserve venv isolation.
+# Host env vars excluded from the worker subprocess to preserve venv isolation.
 # LD_LIBRARY_PATH/LD_PRELOAD/CUDA_* let the host's system CUDA shadow the venv's
 # bundled CUDA libs (e.g. torch cu128 wheel vs system CUDA 12.9), causing subtle
 # runtime errors like cuBLAS INVALID_VALUE. PYTHONPATH/PYTHONHOME leak the host

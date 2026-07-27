@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Dict, Optional, List, Tuple, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelGenerateActionConfig
@@ -242,8 +242,9 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
 
     def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
         # CosyVoice ships an AutoModel factory that picks CosyVoice / CosyVoice2 /
-        # CosyVoice3 by looking for cosyvoice{,2,3}.yaml inside model_dir, and
-        # calls snapshot_download() itself if model_dir isn't a local path.
+        # CosyVoice3 by looking for cosyvoice{,2,3}.yaml inside model_dir. Its
+        # internal snapshot_download only supports ModelScope, so we always
+        # resolve to a local dir via mindor's HF-aware _get_model_path().
         try:
             from cosyvoice.cli.cosyvoice import AutoModel
         except ImportError as e:
@@ -256,10 +257,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
                 "If cosyvoice is present but a dependency is missing, install it into the venv."
             ) from e
 
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            model_dir = self.config.model.repository
-        else:
-            model_dir = self._get_model_path()
+        model_dir = self._get_model_path()
 
         device = self._resolve_device(self.config.device)
 

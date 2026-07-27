@@ -333,12 +333,12 @@ class IpcRuntimeProxy(ABC):
 
     @staticmethod
     def _format_error(payload: Dict[str, Any]) -> str:
-        """Compose an error message from an ERROR payload, appending the worker
-        traceback (if present) so raise sites don't lose the origin frames."""
         message = payload.get("error") or "Unknown error"
         traceback = payload.get("traceback")
+
         if traceback:
             return f"{message}\n\nWorker traceback:\n{traceback}"
+
         return message
 
     @abstractmethod

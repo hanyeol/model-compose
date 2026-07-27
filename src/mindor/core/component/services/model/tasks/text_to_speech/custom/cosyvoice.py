@@ -215,13 +215,14 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
         # We still declare the runtime deps so the environment matches what the
         # inference paths expect.
         return [
-            "torch",
-            "torchaudio",
+            "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+            "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "accelerate",
             "diffusers",
             "gdown",
             "transformers",
             "librosa",
+            "matplotlib",
             "numpy",
             "soundfile",
             "conformer",
@@ -232,6 +233,12 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "omegaconf",
             "onnxruntime-gpu",
             "openai-whisper",
+            "pyarrow",
+            "pyworld",
+            # setuptools >=81 no longer ships pkg_resources by default; CosyVoice
+            # (via its transitive deps) still does `import pkg_resources`.
+            "setuptools<81",
+            "wget",
             "inflect",
             "wetext",
         ]

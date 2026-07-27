@@ -19,10 +19,11 @@ from mindor.core.foundation.streaming.resources import save_stream_to_temporary_
 from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.event_queue import EventQueue
+from mindor.core.logger import logging
 from PIL import Image as PILImage
 from collections import deque
 import gradio as gr
-import asyncio, json, re, logging
+import asyncio, json, re
 
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
@@ -310,16 +311,18 @@ class GradioWebUIBuilder:
                     if isinstance(output, (StreamIterator, AsyncIterator)):
                         output = [ chunk async for chunk in output ]
 
+                    # Resolve first: consuming a StreamResource fires the lifecycle
+                    # callback so wait_for_completion below doesn't deadlock.
+                    if workflow.output:
+                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
+                    else:
+                        updates = [ output ]
+
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
                         log_message_queue.drain()
                         messages = log_message_queue.get(consume=False)
                         log_done = log_panel.update(messages)
-
-                    if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
-                    else:
-                        updates = [ output ]
 
                     wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
 
@@ -498,16 +501,18 @@ class GradioWebUIBuilder:
                     if isinstance(output, (StreamIterator, AsyncIterator)):
                         output = [ chunk async for chunk in output ]
 
+                    # Resolve first: consuming a StreamResource fires the lifecycle
+                    # callback so wait_for_completion below doesn't deadlock.
+                    if workflow.output:
+                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
+                    else:
+                        updates = [ output ]
+
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
                         log_message_queue.drain()
                         messages = log_message_queue.get(consume=False)
                         log_done = log_panel.update(messages)
-
-                    if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
-                    else:
-                        updates = [ output ]
 
                     wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
 

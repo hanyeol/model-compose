@@ -29,9 +29,12 @@ components:
     type: video-converter
     action:
       video: ${input.video}
-      format: ${input.format}
-      codec: ${input.codec}
-      audio_codec: ${input.audio_codec}
-      bitrate: ${input.bitrate}
-      resolution: ${input.resolution}
-      fps: ${input.fps}
+      encoding:
+        format: ${input.format}
+        video:
+          codec: ${input.codec}
+          bitrate: ${input.bitrate}
+          resolution: ${input.resolution}
+          fps: ${input.fps}
+        audio:
+          codec: ${input.audio_codec}

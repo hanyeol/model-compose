@@ -80,8 +80,8 @@
   - `max_size`: `100` — 큐가 가득 차면 publish가 오류로 실패 (블로킹 대신 명시적 실패로 백프레셔 처리)
   - `session` (각 액션에 지정): 아이템을 독립된 서브 큐로 라우팅. 생략하거나 비워두면 공유 기본 세션 사용.
 - **액션**:
-  - `enqueue` (method `publish`): 해석된 세션의 큐에 `context.input` 추가
-  - `dequeue` (method `consume`): 취소될 때까지 해당 세션의 아이템을 yield하는 AsyncIterator 반환
+  - `enqueue` (method `enqueue`): 해석된 세션의 큐에 `context.input` 추가
+  - `dequeue` (method `dequeue`): 취소될 때까지 해당 세션의 아이템을 yield하는 AsyncIterator 반환
 
 ### 파일 스토어 컴포넌트 (storage)
 - **타입**: `file-store` 컴포넌트

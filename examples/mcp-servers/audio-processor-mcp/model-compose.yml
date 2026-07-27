@@ -1,0 +1,362 @@
+controller:
+  adapter:
+    type: mcp-server
+    transport: stdio
+
+workflows:
+  - id: resample
+    title: Resample Audio
+    description: Convert the audio to a different sample rate (e.g. align 32 kHz model output to 44.1 kHz).
+    job:
+      component: audio
+      action: resample
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        sample_rate: ${input.sample_rate as number | 44100 @(description Target sample rate in Hz)}
+      output: ${output as audio/wav @(description Resampled audio as a WAV byte stream)}
+
+  - id: highpass
+    title: Apply Highpass Filter
+    description: Remove low-frequency content below a cutoff (rumble, hum, subsonic noise).
+    job:
+      component: audio
+      action: highpass
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        cutoff: ${input.cutoff as number | 80 @(description Cutoff frequency in Hz)}
+      output: ${output as audio/wav @(description Highpass-filtered audio as a WAV byte stream)}
+
+  - id: lowpass
+    title: Apply Lowpass Filter
+    description: Remove high-frequency content above a cutoff (hiss, sibilance, brightness reduction).
+    job:
+      component: audio
+      action: lowpass
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        cutoff: ${input.cutoff as number | 8000 @(description Cutoff frequency in Hz)}
+      output: ${output as audio/wav @(description Lowpass-filtered audio as a WAV byte stream)}
+
+  - id: bell
+    title: Apply Bell EQ
+    description: Boost or cut a bell-shaped band around a centre frequency (surgical tone shaping, mud/harsh cuts).
+    job:
+      component: audio
+      action: bell
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        frequency: ${input.frequency as number | 3000 @(description Centre frequency of the bell in Hz)}
+        gain: ${input.gain as number | 0 @(description Gain at the centre frequency in dB; positive boosts, negative cuts)}
+        q: ${input.q as number | 0.707 @(description Bell width; higher Q means narrower band)}
+      output: ${output as audio/wav @(description Bell-EQ processed audio as a WAV byte stream)}
+
+  - id: low-shelf
+    title: Apply Low-Shelf EQ
+    description: Boost or cut everything below a corner frequency (low-end warmth or thinning).
+    job:
+      component: audio
+      action: low-shelf
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        frequency: ${input.frequency as number | 150 @(description Shelf corner frequency in Hz)}
+        gain: ${input.gain as number | 0 @(description Shelf gain in dB; positive boosts, negative cuts)}
+        q: ${input.q as number | 0.707 @(description Shelf slope; higher Q means steeper corner)}
+      output: ${output as audio/wav @(description Low-shelf processed audio as a WAV byte stream)}
+
+  - id: high-shelf
+    title: Apply High-Shelf EQ
+    description: Boost or cut everything above a corner frequency (top-end air/sparkle or hiss taming).
+    job:
+      component: audio
+      action: high-shelf
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        frequency: ${input.frequency as number | 10000 @(description Shelf corner frequency in Hz)}
+        gain: ${input.gain as number | 0 @(description Shelf gain in dB; positive boosts, negative cuts)}
+        q: ${input.q as number | 0.707 @(description Shelf slope; higher Q means steeper corner)}
+      output: ${output as audio/wav @(description High-shelf processed audio as a WAV byte stream)}
+
+  - id: pitch-shift
+    title: Apply Pitch Shift
+    description: Shift the pitch of the audio by a number of semitones without changing its duration.
+    job:
+      component: audio
+      action: pitch-shift
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        semitones: ${input.semitones as number | 0 @(description Semitones to shift; positive raises, negative lowers)}
+      output: ${output as audio/wav @(description Pitch-shifted audio as a WAV byte stream; duration unchanged)}
+
+  - id: compressor
+    title: Apply Dynamic Range Compressor
+    description: Reduce the dynamic range so loud parts are attenuated and quiet parts stay audible.
+    job:
+      component: audio
+      action: compressor
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        threshold: ${input.threshold as number | -20 @(description Threshold in dB above which compression applies)}
+        ratio: ${input.ratio as number | 4 @(description Compression ratio, e.g. 4 for 4:1)}
+      output: ${output as audio/wav @(description Compressed audio as a WAV byte stream)}
+
+  - id: noise-gate
+    title: Apply Noise Gate
+    description: Attenuate signal below a threshold so noise floor and codec artifacts in quiet sections are cleaned up.
+    job:
+      component: audio
+      action: noise-gate
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        threshold: ${input.threshold as number | -40 @(description Threshold in dB below which the gate attenuates)}
+        ratio: ${input.ratio as number | 10 @(description Downward expansion ratio; higher is more aggressive)}
+      output: ${output as audio/wav @(description Gated audio as a WAV byte stream)}
+
+  - id: distortion
+    title: Apply Distortion
+    description: Add aggressive harmonic distortion as a creative effect (audibly crunches the signal).
+    job:
+      component: audio
+      action: distortion
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        drive: ${input.drive as number | 25 @(description Drive amount in dB; typical range 15 to 40)}
+      output: ${output as audio/wav @(description Distorted audio as a WAV byte stream)}
+
+  - id: saturation
+    title: Apply Saturation
+    description: Add subtle harmonic colour and warmth without audibly distorting (analog-style tone shaping).
+    job:
+      component: audio
+      action: saturation
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        drive: ${input.drive as number | 3 @(description Drive amount in dB; typical range 1 to 8)}
+      output: ${output as audio/wav @(description Saturated audio as a WAV byte stream)}
+
+  - id: reverb
+    title: Apply Reverb
+    description: Add reverberation, giving the audio a sense of space (room, hall).
+    job:
+      component: audio
+      action: reverb
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        room_size: ${input.room_size as number | 0.5 @(description Room size, 0.0 to 1.0)}
+        damping: ${input.damping as number | 0.5 @(description High-frequency damping, 0.0 to 1.0)}
+        wet_level: ${input.wet_level as number | 0.33 @(description Wet signal level, 0.0 to 1.0)}
+      output: ${output as audio/wav @(description Reverberated audio as a WAV byte stream)}
+
+  - id: normalize-rms
+    title: Normalize Loudness (RMS)
+    description: Bring the audio to a target RMS level with a peak cap. Suits source-to-source alignment when a full loudness meter is overkill.
+    job:
+      component: audio
+      action: normalize-rms
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        level: ${input.level as number | -20 @(description Target RMS level in dBFS)}
+        peak_limit: ${input.peak_limit as number | 0.85 @(description Peak amplitude cap after normalization, 0.0 to 1.0)}
+      output: ${output as audio/wav @(description RMS-normalized audio as a WAV byte stream)}
+
+  - id: normalize-peak
+    title: Normalize Loudness (Peak)
+    description: Scale the audio so its highest peak sits at a target dBFS. Use when headroom control matters more than perceived loudness.
+    job:
+      component: audio
+      action: normalize-peak
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        level: ${input.level as number | -1 @(description Target peak level in dBFS)}
+      output: ${output as audio/wav @(description Peak-normalized audio as a WAV byte stream)}
+
+  - id: normalize-lufs
+    title: Normalize Loudness (LUFS)
+    description: Match the audio to a target integrated loudness in LUFS (ITU-R BS.1770) with true-peak protection. Use for streaming or broadcast delivery.
+    job:
+      component: audio
+      action: normalize-lufs
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        level: ${input.level as number | -14 @(description Target integrated loudness in LUFS; -14 for streaming, -9 to -12 for punchier masters)}
+        true_peak_ceiling: ${input.true_peak_ceiling as number | -1 @(description True-peak ceiling in dBTP applied after loudness gain)}
+      output: ${output as audio/wav @(description LUFS-normalized audio as a WAV byte stream)}
+
+  - id: peak-limit-hard
+    title: Apply Peak Limit (Hard)
+    description: Cap peak amplitude with a brick-wall clip. Fast and cheap headroom safety; may introduce audible distortion on transient-heavy material.
+    job:
+      component: audio
+      action: peak-limit-hard
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        level: ${input.level as number | 0.95 @(description Peak amplitude cap, 0.0 to 1.0)}
+      output: ${output as audio/wav @(description Hard-limited audio as a WAV byte stream)}
+
+  - id: peak-limit-smooth
+    title: Apply Peak Limit (Smooth)
+    description: Cap peaks with a lookahead limiter that releases smoothly. Use for transparent mastering-grade peak control.
+    job:
+      component: audio
+      action: peak-limit-smooth
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        level: ${input.level as number | -1 @(description Ceiling in dBFS)}
+        release: ${input.release | 100ms @(description Release time, e.g. '100ms')}
+      output: ${output as audio/wav @(description Smoothly-limited audio as a WAV byte stream)}
+
+  - id: trim-silence
+    title: Trim Trailing Silence
+    description: Trim silent tails and cut overlong internal silence gaps from the audio.
+    job:
+      component: audio
+      action: trim-silence
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        threshold: ${input.threshold as number | -40 @(description Silence threshold in dBFS)}
+        min_silence: ${input.min_silence | 200ms @(description Minimum trailing silence to keep)}
+      output: ${output as audio/wav @(description Silence-trimmed audio as a WAV byte stream)}
+
+  - id: fade-in
+    title: Apply Fade-In
+    description: Apply a cosine fade-in at the start of the audio for a smooth entry.
+    job:
+      component: audio
+      action: fade-in
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        duration: ${input.duration | 20ms @(description Fade-in duration, e.g. '20ms')}
+      output: ${output as audio/wav @(description Faded-in audio as a WAV byte stream)}
+
+  - id: fade-out
+    title: Apply Fade-Out
+    description: Apply a cosine fade-out at the end of the audio to avoid abrupt endings.
+    job:
+      component: audio
+      action: fade-out
+      input:
+        audio: ${input.audio as audio;base64 @(description Input audio as base64-encoded bytes)}
+        duration: ${input.duration | 20ms @(description Fade-out duration, e.g. '20ms')}
+      output: ${output as audio/wav @(description Faded-out audio as a WAV byte stream)}
+
+components:
+  - id: audio
+    type: audio-processor
+    actions:
+      - id: resample
+        method: resample
+        audio: ${input.audio}
+        sample_rate: ${input.sample_rate}
+
+      - id: highpass
+        method: highpass
+        audio: ${input.audio}
+        cutoff: ${input.cutoff}
+
+      - id: lowpass
+        method: lowpass
+        audio: ${input.audio}
+        cutoff: ${input.cutoff}
+
+      - id: bell
+        method: bell
+        audio: ${input.audio}
+        frequency: ${input.frequency}
+        gain: ${input.gain}
+        q: ${input.q}
+
+      - id: low-shelf
+        method: low-shelf
+        audio: ${input.audio}
+        frequency: ${input.frequency}
+        gain: ${input.gain}
+        q: ${input.q}
+
+      - id: high-shelf
+        method: high-shelf
+        audio: ${input.audio}
+        frequency: ${input.frequency}
+        gain: ${input.gain}
+        q: ${input.q}
+
+      - id: pitch-shift
+        method: pitch-shift
+        audio: ${input.audio}
+        semitones: ${input.semitones}
+
+      - id: compressor
+        method: compressor
+        audio: ${input.audio}
+        threshold: ${input.threshold}
+        ratio: ${input.ratio}
+
+      - id: noise-gate
+        method: noise-gate
+        audio: ${input.audio}
+        threshold: ${input.threshold}
+        ratio: ${input.ratio}
+
+      - id: distortion
+        method: distortion
+        audio: ${input.audio}
+        drive: ${input.drive}
+
+      - id: saturation
+        method: saturation
+        audio: ${input.audio}
+        drive: ${input.drive}
+
+      - id: reverb
+        method: reverb
+        audio: ${input.audio}
+        room_size: ${input.room_size}
+        damping: ${input.damping}
+        wet_level: ${input.wet_level}
+
+      - id: normalize-rms
+        method: normalize
+        mode: rms
+        audio: ${input.audio}
+        level: ${input.level}
+        peak_limit: ${input.peak_limit}
+
+      - id: normalize-peak
+        method: normalize
+        mode: peak
+        audio: ${input.audio}
+        level: ${input.level}
+
+      - id: normalize-lufs
+        method: normalize
+        mode: lufs
+        audio: ${input.audio}
+        level: ${input.level}
+        true_peak_ceiling: ${input.true_peak_ceiling}
+
+      - id: peak-limit-hard
+        method: peak-limit
+        mode: hard
+        audio: ${input.audio}
+        level: ${input.level}
+
+      - id: peak-limit-smooth
+        method: peak-limit
+        mode: smooth
+        audio: ${input.audio}
+        level: ${input.level}
+        release: ${input.release}
+
+      - id: trim-silence
+        method: trim-silence
+        audio: ${input.audio}
+        threshold: ${input.threshold}
+        min_silence: ${input.min_silence}
+
+      - id: fade-in
+        method: fade-in
+        audio: ${input.audio}
+        duration: ${input.duration}
+
+      - id: fade-out
+        method: fade-out
+        audio: ${input.audio}
+        duration: ${input.duration}

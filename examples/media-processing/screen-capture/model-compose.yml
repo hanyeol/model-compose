@@ -1,0 +1,133 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: capture-desktop-clip
+    title: Capture Desktop Clip
+    description: |
+      Capture the primary display for a short duration and save the encoded
+      video stream to a local file. Uses MPEG-TS by default so the file is
+      decodable even if the capture is interrupted.
+    jobs:
+      - id: capture
+        component: screen
+        action: desktop
+        input:
+          duration: ${input.duration}
+          framerate: ${input.framerate}
+          display: ${input.display}
+
+      - id: save
+        component: storage
+        input:
+          path: desktop-${input.filename | now}.ts
+          source: ${jobs.capture.output.video}
+        depends_on: [ capture ]
+        output:
+          file: ${output.path}
+
+  - id: capture-region-clip
+    title: Capture Screen Region
+    description: |
+      Capture a rectangular region of the primary display. Uses the native
+      cropping path of gdigrab / x11grab (or a post-decode crop filter on
+      macOS avfoundation), so only the region's pixels are encoded.
+    jobs:
+      - id: capture
+        component: screen
+        action: region
+        input:
+          duration: ${input.duration}
+          framerate: ${input.framerate}
+          display: ${input.display}
+          x: ${input.x}
+          y: ${input.y}
+          width: ${input.width}
+          height: ${input.height}
+
+      - id: save
+        component: storage
+        input:
+          path: region-${input.filename | now}.ts
+          source: ${jobs.capture.output.video}
+        depends_on: [ capture ]
+        output:
+          file: ${output.path}
+
+  - id: capture-microphone-clip
+    title: Capture Microphone Audio
+    description: |
+      Audio-only capture from the default microphone. Useful for smoke-testing
+      screen-capture without triggering the OS's Screen Recording permission
+      prompt (mic access is a separate permission).
+    jobs:
+      - id: capture
+        component: screen
+        action: microphone
+        input:
+          duration: ${input.duration}
+
+      - id: save
+        component: storage
+        input:
+          path: mic-${input.filename | now}.aac
+          source: ${jobs.capture.output.audio}
+        depends_on: [ capture ]
+        output:
+          file: ${output.path}
+
+components:
+  - id: screen
+    type: screen-capture
+    driver: ffmpeg
+    actions:
+      # Full-display capture. `duration` bounds the capture so the workflow
+      # completes; leave it `null` if a downstream consumer will close the
+      # stream itself.
+      - id: desktop
+        video_source: display
+        display: ${input.display as integer | 0}
+        framerate: ${input.framerate as number | 15}
+        include_video: true
+        include_audio: false
+        duration: ${input.duration as string | 5s}
+
+      # Region capture. On macOS the region is applied via a `-vf crop` filter
+      # after avfoundation; on Windows/Linux the region flags go straight to
+      # gdigrab / x11grab so only the region is ever encoded.
+      - id: region
+        video_source: region
+        display: ${input.display as integer | 0}
+        region:
+          x: ${input.x as integer | 0}
+          y: ${input.y as integer | 0}
+          width: ${input.width as integer | 640}
+          height: ${input.height as integer | 480}
+        framerate: ${input.framerate as number | 15}
+        include_video: true
+        include_audio: false
+        duration: ${input.duration as string | 5s}
+
+      # Microphone-only capture. Uses avfoundation on macOS, dshow on Windows,
+      # pulse on Linux. No Screen Recording permission required.
+      - id: microphone
+        include_video: false
+        include_audio: true
+        audio_source: microphone
+        duration: ${input.duration as string | 3s}
+
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./output
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+    output: ${result.path}

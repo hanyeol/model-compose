@@ -69,10 +69,11 @@ components:
     max_size: 100
     actions:
       - id: enqueue
-        method: publish
+        method: enqueue
+        item: ${input}
         session: ${input.session}
       - id: dequeue
-        method: consume
+        method: dequeue
         session: ${input.session}
 
   # Writes each consumed message to a text file under

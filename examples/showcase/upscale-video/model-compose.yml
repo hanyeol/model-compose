@@ -1,0 +1,101 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Upscale Video
+  description: |
+    Upscale every frame of a video with Real-ESRGAN and reassemble it
+    with the original audio track preserved.
+
+    Pipeline:
+      1. Split the audio track out of the input video (preserved unchanged).
+      2. Extract every frame as a still image (with its timestamp).
+      3. For each frame, run image-upscale (Real-ESRGAN x4).
+      4. Encode the upscaled frames back into a video and mux the audio in.
+  jobs:
+    - id: extract-audio
+      component: audio-extractor
+      input:
+        source: ${input.video as video}
+
+    - id: extract-frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: 1
+
+    - id: upscale-frames
+      component: upscaler
+      input:
+        image: ${jobs.extract-frames.output[*].image}
+      depends_on: [ extract-frames ]
+
+    - id: encode-video
+      component: encoder
+      input:
+        frames: ${jobs.upscale-frames.output}
+        frame_rate: ${input.frame_rate as number | 30}
+        audio: ${jobs.extract-audio.output}
+      depends_on: [ extract-audio, upscale-frames ]
+
+  output:
+    video: ${jobs.encode-video.output as video}
+
+components:
+  # ---- Split audio track out (mp3 by default; copy would require matching container) ----
+  - id: audio-extractor
+    type: audio-extractor
+    driver: ffmpeg
+    action:
+      source: ${input.source}
+      format: mp3
+
+  # ---- Extract every frame at native fps ----
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: false
+
+  # ---- Per-frame super-resolution (Real-ESRGAN 4x) ----
+  - id: upscaler
+    type: model
+    task: image-upscale
+    driver: custom
+    family: real-esrgan
+    model:
+      provider: huggingface
+      repository: ai-forever/Real-ESRGAN
+      filename: RealESRGAN_x4.pth
+    scale: 4
+    max_concurrent_count: 1
+    action:
+      image: ${input.image as image}
+      tile_size: 256
+      tile_pad_size: 24
+      tile_batch_size: 4
+
+  # ---- Reassemble upscaled frames + original audio into a video ----
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames as image}
+      frame_rate: ${input.frame_rate}
+      audio: ${input.audio}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 8M
+        audio:
+          codec: aac
+          bitrate: 192k

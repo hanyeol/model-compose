@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Detect Objects in an Image
+  description: Detect objects in an input image using an Ultralytics YOLO detection model.
+  job:
+    input: ${input}
+    output:
+      objects: ${output.objects as json}
+      width: ${output.width}
+      height: ${output.height}
+
+component:
+  type: model
+  task: object-detection
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+    path: /Users/hanyeol/Projects/nsfw_detector_annotator/models/segmentation_model.pt
+    # url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    labels: ${input.labels as list}
+    min_confidence: ${input.min_confidence | 0.25}
+    max_object_count: ${input.max_object_count | 300}
+    iou_threshold: ${input.iou_threshold | 0.7}
+    agnostic_nms: ${input.agnostic_nms as boolean | false}
+    bounding_box_padding: ${input.bounding_box_padding | 0.0}

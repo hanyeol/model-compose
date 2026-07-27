@@ -28,6 +28,7 @@ components:
     action:
       source: ${input.source}
       format: ${input.format}
-      codec: ${input.codec}
-      bitrate: ${input.bitrate}
+      encoding:
+        codec: ${input.codec}
+        bitrate: ${input.bitrate}
       track: ${input.track}

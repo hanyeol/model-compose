@@ -80,8 +80,8 @@ No environment variables are required.
   - `max_size`: `100` — publish fails with an error when the queue is full (backpressure via explicit failure rather than blocking)
   - `session` (on each action): routes items to an independent sub-queue. Omit or leave blank for the shared default session.
 - **Actions**:
-  - `enqueue` (method `publish`): appends `context.input` to the queue for the resolved session
-  - `dequeue` (method `consume`): returns an AsyncIterator that yields items from the resolved session until cancelled
+  - `enqueue` (method `enqueue`): appends `context.input` to the queue for the resolved session
+  - `dequeue` (method `dequeue`): returns an AsyncIterator that yields items from the resolved session until cancelled
 
 ### File Store Component (storage)
 - **Type**: `file-store` component

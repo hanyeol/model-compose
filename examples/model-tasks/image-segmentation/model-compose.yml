@@ -1,0 +1,36 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Segment Objects in an Image
+  description: Segment an image using Meta's Segment Anything Model (SAM). Runs automatically without prompts, or accepts box prompts.
+  job:
+    input: ${input}
+    output:
+      segments: ${output.segments as json}
+      masks: ${output.segments[*].mask as image[]}
+      width: ${output.width}
+      height: ${output.height}
+
+component:
+  type: model
+  task: image-segmentation
+  driver: custom
+  family: sam
+  model:
+    provider: local
+    url: https://github.com/ultralytics/assets/releases/download/v8.3.0/sam2_b.pt
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    box_prompt: ${input.box_prompt as json}
+    min_confidence: ${input.min_confidence | 0.5}
+    min_area: ${input.min_area as integer}
+    max_segment_count: ${input.max_segment_count | 100}
+    return_mask: ${input.return_mask as boolean | true}

@@ -1,0 +1,145 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Producer: enqueues one video source (local path or URL) per
+  # invocation. Call this workflow repeatedly to line up multiple
+  # videos; the broadcaster workflow drains them in order and streams
+  # each one to YouTube Live.
+  - id: publish-video
+    title: Enqueue a video for broadcast
+    description: |
+      Re-encode a single video source into an MPEG-TS byte stream and
+      push it onto the `video-queue`. Optionally attach an override
+      audio track that will replace the video's built-in audio at
+      broadcast time. Run this workflow (via HTTP or the webui) each
+      time you want to add a video to the broadcast queue. Leave
+      `broadcast-live` running to stream each queued video to YouTube
+      Live back-to-back.
+
+      Because the encoder emits a streamable MPEG-TS instead of a
+      spooled file, the rtmp-publisher receives it via `pipe:0`
+      without an intermediate temp file.
+    jobs:
+      - id: encode
+        component: encoder
+        input:
+          video: ${input.video as video}
+
+      - id: publish-video
+        component: video-queue
+        action: enqueue
+        input: ${jobs.encode.output}
+        depends_on: [ encode ]
+
+      - id: publish-audio
+        component: audio-queue
+        action: enqueue
+        input: ${input.audio as audio}
+
+  # Consumer: long-running workflow that reads video references from
+  # the queue and pushes them to YouTube Live via RTMP. Because
+  # rtmp-publisher accepts an AsyncIterator on its `video` field, the
+  # dequeue stream feeds it directly and videos are broadcast in
+  # sequence (each publish blocks until the video finishes).
+  #
+  # Runs until cancelled — cancel the workflow to stop the broadcast.
+  - id: broadcast-live
+    title: Broadcast queued videos to YouTube Live
+    description: |
+      Continuously dequeue video references and stream each one to
+      YouTube Live over RTMP. Start this once and leave it running;
+      use the runs API or the webui to cancel it when done. Requires
+      YOUTUBE_STREAM_KEY in the environment (see .env.sample).
+    jobs:
+      - id: subscribe-video
+        component: video-queue
+        action: dequeue
+
+      - id: subscribe-audio
+        component: audio-queue
+        action: dequeue
+
+      - id: broadcast
+        component: publisher
+        input:
+          video: ${jobs.subscribe-video.output}
+          audio: ${jobs.subscribe-audio.output}
+        depends_on: [ subscribe-video, subscribe-audio ]
+
+components:
+  # Video encoder that re-encodes each input to MPEG-TS in streaming
+  # mode, so the enqueued item is a byte stream (not a spooled file).
+  # MPEG-TS is one of the streamable input formats the rtmp-publisher
+  # accepts, so it is fed to ffmpeg via `pipe:0` on the consumer side.
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      streaming: true
+      encoding:
+        format: mpegts
+        video:
+          codec: libx264
+          bitrate: 4500k
+          resolution: 1920x1080
+          fps: 30
+        audio:
+          codec: aac
+          bitrate: 160k
+
+  # In-process queues shared between the producer and consumer
+  # workflows. Video and audio are kept in separate queues so their
+  # streams stay paired positionally (Nth video ↔ Nth audio) — each
+  # publish appends one item per queue and the consumer sees them
+  # in FIFO order.
+  - id: video-queue
+    type: data-queue
+    driver: memory
+    max_size: 100
+    actions:
+      - id: enqueue
+        method: enqueue
+        item: ${input}
+      - id: dequeue
+        method: dequeue
+
+  - id: audio-queue
+    type: data-queue
+    driver: memory
+    max_size: 100
+    actions:
+      - id: enqueue
+        method: enqueue
+        item: ${input}
+      - id: dequeue
+        method: dequeue
+
+  # RTMP publisher targeting YouTube Live. Reads the stream key from
+  # the environment so the model-compose.yml stays committable. The
+  # publish action blocks until the current video finishes streaming,
+  # which is what lets the queue-fed stream broadcast videos
+  # back-to-back without gaps between publishes.
+  - id: publisher
+    type: rtmp-publisher
+    driver: ffmpeg
+    action:
+      url: rtmp://a.rtmp.youtube.com/live2/${env.YOUTUBE_STREAM_KEY}
+      video: ${input.video}
+      audio: ${input.audio}
+      encoding:
+        video:
+          codec: libx264
+          bitrate: 4500k
+          resolution: 1920x1080
+          fps: 30
+        audio:
+          codec: aac
+          bitrate: 160k

@@ -71,8 +71,8 @@ No environment variables are required.
 - **Key options**:
   - `max_size`: `100` — publish fails with an error when the queue is full (backpressure via explicit failure rather than blocking)
 - **Actions**:
-  - `enqueue` (method `publish`): appends `context.input` to the queue
-  - `dequeue` (method `consume`): returns an AsyncIterator that yields items until cancelled
+  - `enqueue` (method `enqueue`): appends `context.input` to the queue
+  - `dequeue` (method `dequeue`): returns an AsyncIterator that yields items until cancelled
 
 ### Audio Playback Component (player)
 - **Type**: `audio-playback` component
@@ -81,7 +81,7 @@ No environment variables are required.
 - **Key options**:
   - `audio`: source(s) to play — accepts a single value, a list, or a stream
   - `sink: system`: routes to the default output device
-  - `blocking: true`: waits for each clip to finish before returning, keeping playback sequential
+  - `wait_for_finish: true`: waits for each clip to finish before returning, keeping playback sequential
 
 ## Workflow Details
 

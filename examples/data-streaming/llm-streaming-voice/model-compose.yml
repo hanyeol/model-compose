@@ -1,0 +1,160 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+# End-to-end streaming voice response, split across two workflows that
+# rendezvous through an in-process `audio-queue`:
+#
+#   generate-voice (producer, per invocation):
+#     prompt ─▶ LLM (gpt-4o, streaming tokens)
+#                └▶ sentence-splitter (token stream → sentence stream)
+#                      └▶ TTS (Kokoro, one audio segment per sentence)
+#                            └▶ audio-queue.enqueue (spread) ══╗
+#                                                              ║  (in-process FIFO,
+#                                                              ║   one segment per item)
+#   play-voice (consumer, long running):                       ║
+#     audio-queue.dequeue ═════════════════════════════════════╝
+#            └▶ audio-playback (system speaker)
+#
+# Splitting into two workflows keeps the producer and consumer independent:
+# `play-voice` runs continuously and drains whatever `generate-voice`
+# publishes, so speech starts playing as soon as the first sentence is
+# synthesized — while the LLM keeps generating the rest.
+workflows:
+  # Producer workflow. Run once per prompt; it returns as soon as the LLM
+  # response has been fully synthesized and queued.
+  - id: generate-voice
+    title: Generate speech from a prompt
+    description: |
+      Send a prompt to GPT-4o with `stream: true`, split the streaming
+      tokens into sentences, synthesize each sentence with Kokoro, and
+      push each audio segment into the `audio-queue`. Leave `play-voice`
+      running to hear the queued audio through the system speaker.
+    jobs:
+      - id: chat
+        component: openai-chat
+        input:
+          prompt: ${input.prompt as text}
+          temperature: ${input.temperature as number | 0.7}
+        output: ${output}
+
+      - id: split
+        component: splitter
+        input:
+          text: ${jobs.chat.output}
+        output: ${output}
+        depends_on: [ chat ]
+
+      - id: tts
+        component: kokoro
+        input:
+          text: ${jobs.split.output}
+        output: ${output}
+        depends_on: [ split ]
+
+      - id: enqueue
+        component: audio-queue
+        action: enqueue
+        input:
+          item: ${jobs.tts.output}
+          spread: true
+        depends_on: [ tts ]
+
+  # Consumer workflow. Long-running: start it once and leave it running
+  # while you invoke `generate-voice` as many times as you like.
+  - id: play-voice
+    title: Play queued speech
+    description: |
+      Continuously dequeue audio segments from `audio-queue` and play
+      them through the system default audio output. Runs until
+      cancelled.
+    jobs:
+      - id: dequeue
+        component: audio-queue
+        action: dequeue
+
+      - id: play
+        component: player
+        input:
+          audio: ${jobs.dequeue.output}
+        depends_on: [ dequeue ]
+
+components:
+  # GPT-4o with token streaming. `stream_format: json` parses the SSE
+  # `data:` frames as JSON and the output selector extracts the delta
+  # text, so downstream sees a stream of raw token strings.
+  - id: openai-chat
+    type: http-client
+    base_url: https://api.openai.com/v1
+    action:
+      path: /chat/completions
+      method: POST
+      headers:
+        Authorization: Bearer ${env.OPENAI_API_KEY}
+        Content-Type: application/json
+      body:
+        model: gpt-4o
+        messages:
+          - role: user
+            content: ${input.prompt}
+        temperature: ${input.temperature}
+        stream: true
+      stream_format: json
+      output: ${response[].choices[0].delta.content}
+
+  # Buffers the token stream into complete sentences. `streaming: true`
+  # emits one sentence at a time as soon as a boundary is detected.
+  - id: splitter
+    type: sentence-splitter
+    action:
+      text: ${input.text}
+      streaming: true
+
+  # Kokoro TTS on CPU. One audio segment per sentence is emitted, so the
+  # output is a stream of PCM audio segments (24 kHz mono int16).
+  - id: kokoro
+    type: model
+    task: text-to-speech
+    driver: custom
+    family: kokoro
+    model: hexgrad/Kokoro-82M
+    device: cpu
+    max_concurrent_count: 1
+    action:
+      method: generate
+      text: ${input.text}
+      voice: af_heart
+
+  # In-process FIFO shared between the two workflows. Because component
+  # instances are cached by id across workflow invocations, both
+  # `generate-voice` and `play-voice` see the same underlying queue.
+  # `enqueue` with `spread: true` drains the TTS output stream and
+  # appends each audio segment as its own item; `dequeue` returns an
+  # AsyncIterator that audio-playback drains transparently.
+  - id: audio-queue
+    type: data-queue
+    driver: memory
+    max_size: 100
+    actions:
+      - id: enqueue
+        method: enqueue
+        item: ${input.item}
+        spread: ${input.spread}
+      - id: dequeue
+        method: dequeue
+
+  # System audio playback via ffmpeg. `wait_for_finish: true` keeps
+  # segments from overlapping — the next segment starts only after the
+  # current one finishes.
+  - id: player
+    type: audio-playback
+    driver: ffmpeg
+    action:
+      audio: ${input.audio}
+      sink: system
+      wait_for_finish: true

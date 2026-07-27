@@ -28,7 +28,7 @@ workflows:
   # the queue and hands them straight to audio-playback. Because
   # audio-playback accepts an AsyncIterator on its `audio` field, the
   # dequeue stream feeds it directly and playback happens sequentially
-  # (blocking: true keeps clips from overlapping).
+  # (wait_for_finish: true keeps clips from overlapping).
   #
   # Runs until cancelled — cancel the workflow to stop consuming.
   - id: play-audio
@@ -58,17 +58,18 @@ components:
     max_size: 100
     actions:
       - id: enqueue
-        method: publish
+        method: enqueue
+        item: ${input}
       - id: dequeue
-        method: consume
+        method: dequeue
 
-  # System audio playback via ffmpeg. `blocking: true` waits for each
-  # clip to finish before returning, which is what lets the queue-fed
-  # stream play clips back-to-back without overlap.
+  # System audio playback via ffmpeg. `wait_for_finish: true` waits
+  # for each clip to finish before returning, which is what lets the
+  # queue-fed stream play clips back-to-back without overlap.
   - id: player
     type: audio-playback
     driver: ffmpeg
     action:
       audio: ${input.audio}
       sink: system
-      blocking: true
+      wait_for_finish: true

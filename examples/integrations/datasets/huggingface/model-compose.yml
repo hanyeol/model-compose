@@ -9,10 +9,10 @@ controller:
 components:
   - id: huggingface-datasets
     type: datasets
+    driver: huggingface
     actions:
       - id: load
         method: load
-        provider: huggingface
         path: ${input.path}
         split: ${input.split}
         fraction: ${input.fraction}

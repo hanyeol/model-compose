@@ -71,8 +71,8 @@
 - **关键选项**：
   - `max_size`：`100` — 队列满时 publish 会以错误失败（通过显式失败而非阻塞来实现背压）
 - **动作**：
-  - `enqueue`（method `publish`）：将 `context.input` 追加到队列
-  - `dequeue`（method `consume`）：返回 AsyncIterator，直到被取消才停止 yield 项目
+  - `enqueue`（method `enqueue`）：将 `context.input` 追加到队列
+  - `dequeue`（method `dequeue`）：返回 AsyncIterator，直到被取消才停止 yield 项目
 
 ### 音频播放组件 (player)
 - **类型**：`audio-playback` 组件
@@ -81,7 +81,7 @@
 - **关键选项**：
   - `audio`：要播放的源 — 接受单值、列表或流
   - `sink: system`：路由到默认输出设备
-  - `blocking: true`：等待每个片段结束后再返回，保持顺序播放
+  - `wait_for_finish: true`：等待每个片段结束后再返回，保持顺序播放
 
 ## 工作流详情
 

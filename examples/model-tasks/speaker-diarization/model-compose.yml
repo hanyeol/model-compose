@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speaker Diarization
+  description: Detect who spoke when in an audio file using a local pyannote diarization pipeline.
+  job:
+    input: ${input}
+    output:
+      segments: ${output as json}
+
+component:
+  type: model
+  task: speaker-diarization
+  driver: custom
+  family: pyannote
+  model:
+    provider: huggingface
+    repository: pyannote/speaker-diarization-3.1
+    token: ${env.HF_TOKEN}
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: ${input.sample_rate | 16000}
+    params:
+      num_speakers: ${input.num_speakers}
+      min_speakers: ${input.min_speakers}
+      max_speakers: ${input.max_speakers}
+      min_segment_duration: ${input.min_segment_duration | 0s}
+      merge_gap: ${input.merge_gap | 0s}

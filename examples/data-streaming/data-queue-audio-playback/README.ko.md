@@ -71,8 +71,8 @@
 - **주요 옵션**:
   - `max_size`: `100` — 큐가 가득 차면 publish가 오류로 실패 (블로킹 대신 명시적 실패로 백프레셔 처리)
 - **액션**:
-  - `enqueue` (method `publish`): `context.input`을 큐에 추가
-  - `dequeue` (method `consume`): 취소될 때까지 아이템을 yield하는 AsyncIterator 반환
+  - `enqueue` (method `enqueue`): `context.input`을 큐에 추가
+  - `dequeue` (method `dequeue`): 취소될 때까지 아이템을 yield하는 AsyncIterator 반환
 
 ### 오디오 재생 컴포넌트 (player)
 - **타입**: `audio-playback` 컴포넌트
@@ -81,7 +81,7 @@
 - **주요 옵션**:
   - `audio`: 재생할 소스 — 단일 값, 리스트, 또는 스트림 허용
   - `sink: system`: 기본 출력 장치로 라우팅
-  - `blocking: true`: 각 클립이 끝날 때까지 대기하여 순차 재생 유지
+  - `wait_for_finish: true`: 각 클립이 끝날 때까지 대기하여 순차 재생 유지
 
 ## 워크플로우 상세
 

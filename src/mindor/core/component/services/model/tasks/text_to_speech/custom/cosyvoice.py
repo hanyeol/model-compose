@@ -226,6 +226,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "conformer",
             "hyperpyyaml",
             "modelscope",
+            "omegaconf",
             "onnxruntime-gpu",
             "openai-whisper",
             "inflect",

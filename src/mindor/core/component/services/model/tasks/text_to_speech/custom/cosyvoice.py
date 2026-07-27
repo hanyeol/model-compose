@@ -226,6 +226,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             "conformer",
             "hydra-core",
             "hyperpyyaml",
+            "lightning",
             "modelscope",
             "omegaconf",
             "onnxruntime-gpu",

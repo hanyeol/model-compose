@@ -12,8 +12,6 @@ from ..base import DataQueueService, DataQueueDriver, register_data_queue_servic
 from ..base import ComponentActionContext
 import asyncio
 
-_DEFAULT_SESSION = "__default__"
-
 class MemoryDataQueueFullError(Exception):
     pass
 
@@ -77,7 +75,7 @@ class MemoryDataQueueService(DataQueueService):
         session = await context.render_variable(action.session) if action.session is not None else None
 
         if session:
-            return _DEFAULT_SESSION
+            return "__default__"
 
         return str(session)
 

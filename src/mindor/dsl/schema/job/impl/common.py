@@ -66,7 +66,7 @@ class CommonJobConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Human-readable label for this job.")
     type: JobType = Field(..., description="Type of job.")
     max_run_count: int = Field(default=25, gt=0, description="Max executions per workflow run, including routing re-runs.")
-    depends_on: List[str] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
+    depends_on: List[Union[List[str], str]] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
     interrupt: Optional[JobInterruptsConfig] = Field(default=None, description="Human-in-the-Loop interrupt points around each job run.")
     hook: Optional[JobHooksConfig] = Field(default=None, description="Inline Python hooks to run before/after each job run.")
     retry: Optional[JobRetryConfig] = Field(default=None, description="Retry policy applied to this job on failure.")
@@ -76,6 +76,13 @@ class CommonJobConfig(BaseModel):
     def validate_id(cls, value):
         if value == "__default__":
             raise ValueError("Job id cannot be '__default__'")
+        return value
+
+    @field_validator("depends_on")
+    def validate_depends_on(cls, value):
+        for item in value:
+            if isinstance(item, list) and not item:
+                raise ValueError("'depends_on' cannot contain an empty group")
         return value
 
     @field_validator("retry", mode="before")

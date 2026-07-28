@@ -29,14 +29,13 @@ class WorkflowRunner:
         routing_job_ids: Set[str] = { job_id for job in self.jobs.values() for job_id in job.get_routing_jobs() }
         routing_jobs: Dict[str, Job] = { job_id: create_job(job_id, self.jobs[job_id], self.global_configs) for job_id in routing_job_ids }
         pending_jobs: Dict[str, Job] = { job_id: create_job(job_id, job, self.global_configs) for job_id, job in self.jobs.items() if job_id not in routing_job_ids }
-        routable_job_ids: Set[str] = { job_id for job_id in self.jobs if self._is_routable_job(job_id, routing_job_ids) }
 
         workflow_time_tracker = TimeTracker()
         tracing.on_workflow_start(context.task_id, self.id, context.input, context.context.get("session_id"), context.context.get("metadata"))
         logging.info("[task-%s] Workflow '%s' started.", context.task_id, self.id)
 
         try:
-            output = await self._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
+            output = await self._run_jobs(context, pending_jobs, routing_jobs)
 
             if self.output is not None:
                 output = await context.render_variable(self.output)
@@ -75,7 +74,6 @@ class WorkflowRunner:
         context: WorkflowContext,
         pending_jobs: Dict[str, Job],
         routing_jobs: Dict[str, Job],
-        routable_job_ids: Set[str],
     ) -> Any:
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
@@ -85,7 +83,7 @@ class WorkflowRunner:
         output: Any = None
 
         while pending_jobs:
-            runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids, routable_job_ids) ]
+            runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids) ]
 
             for job in runnable_jobs:
                 if job.id not in scheduled_job_tasks:
@@ -290,24 +288,22 @@ class WorkflowRunner:
         job: Job,
         running_job_ids: Set[str],
         completed_job_ids: Set[str],
-        routable_job_ids: Set[str]
     ) -> bool:
         if job.id in running_job_ids:
             return False
 
-        if all(job_id in completed_job_ids for job_id in job.config.depends_on):
-            return True
+        for item in job.config.depends_on:
+            if isinstance(item, list):
+                if not any(job_id in completed_job_ids for job_id in item):
+                    return False
+            else:
+                if item not in completed_job_ids:
+                    return False
 
-        completed = [ job_id for job_id in job.config.depends_on if job_id in completed_job_ids ]
-        remaining = [ job_id for job_id in job.config.depends_on if job_id not in completed_job_ids ]
-
-        return bool(completed) and all(job_id in routable_job_ids for job_id in remaining)
+        return True
 
     def _is_terminal_job(self, job_id: str) -> bool:
-        return all(job_id not in job.depends_on for other_id, job in self.jobs.items() if other_id != job_id)
-
-    def _is_routable_job(self, job_id: str, routing_job_ids: Set[str]) -> bool:
-        return job_id in routing_job_ids or any(self._is_routable_job(depend_job_id, routing_job_ids) for depend_job_id in self.jobs[job_id].depends_on)
+        return all(job_id not in self._flatten_job_depends_on(job) for other_id, job in self.jobs.items() if other_id != job_id)
 
     def _get_dependent_job_ids(self, root_job_id: str, candidate_job_ids: Set[str]) -> Set[str]:
         dependents: Set[str] = set()
@@ -317,9 +313,12 @@ class WorkflowRunner:
                 return
             dependents.add(job_id)
             for other_id, other_job in self.jobs.items():
-                if job_id in other_job.depends_on:
+                if job_id in self._flatten_job_depends_on(other_job):
                     _visit(other_id)
 
         _visit(root_job_id)
 
         return dependents
+
+    def _flatten_job_depends_on(self, job: JobConfig) -> List[str]:
+        return [ job_id for item in job.depends_on for job_id in (item if isinstance(item, list) else [ item ]) ]

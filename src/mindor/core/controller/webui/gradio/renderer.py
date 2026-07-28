@@ -3,7 +3,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.component.impl.agent import AgentComponentConfig
 from mindor.dsl.schema.component.impl.workflow import WorkflowComponentConfig
-from mindor.dsl.schema.job import ComponentJobConfig, ForEachJobConfig
+from mindor.dsl.schema.job import JobConfig, ComponentJobConfig, ForEachJobConfig
 from mindor.core.workflow.schema import WorkflowSchema
 import json, zlib, base64
 
@@ -116,11 +116,11 @@ class WorkflowFlowRenderer:
             if not job.depends_on and job.id not in routing_targets:
                 lines.append(f"    {input_node} --> {prefix}{job.id}")
             else:
-                for dependent in job.depends_on:
+                for dependent in self._flatten_job_depends_on(job):
                     if dependent in job_ids:
                         lines.append(f"    {prefix}{dependent} --> {prefix}{job.id}")
 
-        dependents: Set[str] = { dependent for job in workflow_config.jobs for dependent in job.depends_on }
+        dependents: Set[str] = { dependent for job in workflow_config.jobs for dependent in self._flatten_job_depends_on(job) }
 
         for job in workflow_config.jobs:
             if job.id not in dependents and job.id not in routing_targets:
@@ -191,3 +191,6 @@ class WorkflowFlowRenderer:
         compressed = zlib.compress(contents.encode("utf-8"), 9)
         encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
         return f"https://mermaid.live/view#pako:{encoded}"
+
+    def _flatten_job_depends_on(self, job: JobConfig) -> List[str]:
+        return [ job_id for item in job.depends_on for job_id in (item if isinstance(item, list) else [ item ]) ]

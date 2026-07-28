@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Set, Annotated, A
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.dsl.schema.job import ComponentJobConfig, ForEachJobConfig, OutputJobConfig
+from mindor.dsl.schema.job import JobConfig, ComponentJobConfig, ForEachJobConfig, OutputJobConfig
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.component import ComponentResolver, ActionResolver
@@ -403,7 +403,10 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
         return variables
 
     def _is_terminal_job(self, workflow: WorkflowConfig, job_id: str) -> bool:
-        return all(job_id not in job.depends_on for job in workflow.jobs if job.id != job_id)
+        return all(job_id not in self._flatten_job_depends_on(job) for job in workflow.jobs if job.id != job_id)
+
+    def _flatten_job_depends_on(self, job: JobConfig) -> List[str]:
+        return [ job_id for item in job.depends_on for job_id in (item if isinstance(item, list) else [ item ]) ]
 
     def _any_variable(self) -> WorkflowVariable:
         return WorkflowVariable(

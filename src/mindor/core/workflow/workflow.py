@@ -1,55 +1,12 @@
 from typing import Union, Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.workflow import WorkflowConfig, JobConfig
+from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.foundation.cancellation import CancellationToken
 from .context import WorkflowContext, WorkflowDelegate
 from .interrupt import InterruptHandler
 from .notifiers import JobEventCallback, ComponentEventCallback, JobEventNotifier, ComponentEventNotifier
 from .runner import WorkflowRunner
-
-class JobGraphValidator:
-    def __init__(self, jobs: Dict[str, JobConfig]):
-        self.jobs: Dict[str, JobConfig] = jobs
-
-    def validate(self) -> None:
-        self._validate_dependency_references()
-        self._validate_has_entry_jobs()
-        self._validate_has_no_cycles()
-
-    def _validate_dependency_references(self) -> None:
-        for job_id, job in self.jobs.items():
-            for dependency_id in job.depends_on:
-                if dependency_id == job_id:
-                    raise  ValueError(f"Job '{job_id}' cannot depend on itself")
-                
-                if dependency_id not in self.jobs:
-                    raise ValueError(f"Job '{job_id}' references a non-existent job '{dependency_id}' in its depends_on list")
-
-    def _validate_has_entry_jobs(self) -> None:
-        entry_job_ids = [ job_id for job_id, job in self.jobs.items() if not job.depends_on ]
-
-        if not entry_job_ids:
-            raise ValueError("At least one job without any depends_on is required")
-
-    def _validate_has_no_cycles(self) -> None:
-        visiting, visited = set(), set()
-
-        def _assert_no_cycle(job_id: str):
-            if job_id in visiting:
-                raise ValueError(f"Job '{job_id}' is part of a dependency cycle")
-            
-            if job_id not in visited:
-                visiting.add(job_id)
-
-                for dependency_id in self.jobs[job_id].depends_on:
-                    _assert_no_cycle(dependency_id)
-
-                visiting.remove(job_id)
-                visited.add(job_id)
-        
-        for job_id in self.jobs:
-            if job_id not in visited:
-                _assert_no_cycle(job_id)
+from .validator import WorkflowValidator
 
 class WorkflowResolver:
     def __init__(self, workflows: List[WorkflowConfig]):
@@ -104,8 +61,8 @@ class Workflow:
 
         return await runner.run(context)
 
-    def validate(self) -> None:
-        JobGraphValidator(self.config.jobs).validate()
+    def validate(self) -> List[str]:
+        return WorkflowValidator(self.config, self.global_configs.components).validate()
 
 def create_workflow(id: str, config: WorkflowConfig, global_configs: ComponentGlobalConfigs) -> Workflow:
     return Workflow(id, config, global_configs)

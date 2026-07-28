@@ -120,13 +120,17 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
 
     def _load_generation_handler(self) -> AceStepHandler:
         from acestep.handler import AceStepHandler
+        import torch
 
         handler = AceStepHandler()
         handler.initialize_service(
             project_root=self._get_model_path(),
             config_path=self.config.preset,
-            device=str(self._resolve_device(self.config.device)),
+            device=self._resolve_device(self.config.device).type,
         )
+
+        if self.config.precision is not None:
+            handler.dtype = getattr(torch, self.config.precision.value)
 
         return handler
 

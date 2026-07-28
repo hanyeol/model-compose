@@ -143,6 +143,7 @@ def make_config(video, **kwargs):
 
 def _assert_frame(item: Any) -> None:
     assert isinstance(item, dict)
+    assert "number" in item and isinstance(item["number"], int) and item["number"] >= 1
     assert "image" in item and isinstance(item["image"], PILImage.Image)
     assert "timestamp" in item
 
@@ -374,3 +375,39 @@ class TestOpenCVAsyncInputStream:
 
         assert len(inner_frame_counts) == len(sample_videos)
         assert all(c > 0 for c in inner_frame_counts)
+
+
+class TestOpenCVFilenameFormat:
+    """`filename_format` attaches a `filename` key to each emitted frame."""
+
+    @pytest.mark.anyio
+    async def test_collect_emits_filename(self, sample_video):
+        action = OpenCVVideoFrameExtractorAction(
+            make_config(sample_video, max_frame_count=3, filename_format="frame-%04d.png")
+        )
+        result = await action.run(make_context())
+
+        assert isinstance(result, list) and len(result) == 3
+        assert [f["filename"] for f in result] == [
+            "frame-0001.png", "frame-0002.png", "frame-0003.png",
+        ]
+
+    @pytest.mark.anyio
+    async def test_stream_emits_filename(self, sample_video):
+        action = OpenCVVideoFrameExtractorAction(
+            make_config(sample_video, streaming=True, max_frame_count=3, filename_format="shot-%d.jpg")
+        )
+        result = await action.run(make_context())
+        frames = await _collect_async(result)
+
+        assert [f["filename"] for f in frames] == ["shot-1.jpg", "shot-2.jpg", "shot-3.jpg"]
+
+    @pytest.mark.anyio
+    async def test_no_format_omits_filename(self, sample_video):
+        action = OpenCVVideoFrameExtractorAction(
+            make_config(sample_video, max_frame_count=2)
+        )
+        result = await action.run(make_context())
+
+        for frame in result:
+            assert "filename" not in frame

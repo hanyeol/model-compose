@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.screen_capture.drivers.common import (
+from mindor.core.foundation.media.encoding import (
     AudioEncoderParams,
     VideoAudioEncodingParams,
     VideoEncoderParams,

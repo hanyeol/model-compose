@@ -35,11 +35,36 @@ def _shell_component(id: str, default: bool = False) -> Dict[str, Any]:
     }
 
 
-def _job(id: str, component: str = "c1", depends_on: List[str] = None) -> Dict[str, Any]:
+def _job(id: str, component: str = "c1", action: str = None, depends_on: List[Any] = None) -> Dict[str, Any]:
     out: Dict[str, Any] = {"id": id, "component": component}
+    if action is not None:
+        out["action"] = action
     if depends_on:
         out["depends_on"] = depends_on
     return out
+
+
+def _shell_component_with_actions(id: str, action_ids: List[str], default_action: str = None) -> Dict[str, Any]:
+    return {
+        "id": id,
+        "type": "shell",
+        "actions": [
+            {"id": aid, "command": ["echo"], **({"default": True} if aid == default_action else {})}
+            for aid in action_ids
+        ],
+    }
+
+
+def _workflow_component(id: str, action_workflows: List[str]) -> Dict[str, Any]:
+    return {
+        "id": id,
+        "type": "workflow",
+        "actions": [{"id": f"a{i}", "workflow": wf} for i, wf in enumerate(action_workflows)],
+    }
+
+
+def _http_trigger_listener(triggers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {"type": "http-trigger", "triggers": triggers}
 
 
 class TestNoErrorsOnValidConfig:
@@ -169,6 +194,36 @@ class TestJobGraphs:
         errors = ComposeValidator(config).validate()
         assert any("has no entry job" in e for e in errors)
 
+    def test_or_group_dependencies_are_valid(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[{
+                "id": "wf",
+                "jobs": [
+                    _job("root"),
+                    _job("left", depends_on=["root"]),
+                    _job("right", depends_on=["root"]),
+                    _job("merge", depends_on=[["left", "right"]]),
+                ],
+            }],
+        )
+        errors = ComposeValidator(config).validate()
+        assert errors == []
+
+    def test_missing_dependency_reference_inside_or_group(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[{
+                "id": "wf",
+                "jobs": [
+                    _job("a"),
+                    _job("b", depends_on=[["a", "ghost"]]),
+                ],
+            }],
+        )
+        errors = ComposeValidator(config).validate()
+        assert any("non-existent job 'ghost'" in e for e in errors)
+
     def test_dag_with_diamond_shape_is_valid(self):
         config = _compose(
             components=[_shell_component("c1")],
@@ -195,3 +250,134 @@ class TestEmptyWorkflowSkipped:
         # Empty `jobs` is gracefully skipped — the validator just doesn't run
         # graph checks against it.
         assert ComposeValidator(config).validate() == []
+
+
+class TestPlaceholderIdsSkippedForDuplicates:
+    """Placeholder ids (`__component__`, `__workflow__`) are skipped by the
+    duplicate detectors so single anonymous entries don't raise false positives."""
+
+    def test_placeholder_component_id_not_reported_as_duplicate(self):
+        config = _compose(
+            components=[
+                {"id": "__component__", "type": "shell", "actions": [{"id": "__action__", "command": ["echo"]}]},
+                {"id": "__component__", "type": "shell", "actions": [{"id": "__action__", "command": ["echo"]}]},
+            ],
+            workflows=[{"id": "wf", "jobs": [_job("j1", component="__default__")]}],
+        )
+        errors = ComposeValidator(config).validate()
+        assert not any("Duplicate component ID" in e for e in errors)
+
+    def test_placeholder_workflow_id_not_reported_as_duplicate(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[
+                {"id": "__workflow__", "jobs": [_job("j1")]},
+                {"id": "__workflow__", "jobs": [_job("j2")]},
+            ],
+        )
+        errors = ComposeValidator(config).validate()
+        assert not any("Duplicate workflow ID" in e for e in errors)
+
+
+class TestWorkflowReferencesInComponents:
+    """`_validate_workflow_references` — workflow-typed components pointing at workflow ids."""
+
+    def test_workflow_component_references_missing_workflow_reports_error(self):
+        config = _compose(
+            components=[_workflow_component("wc", action_workflows=["ghost"])],
+            workflows=[{"id": "wf", "jobs": [_job("j1", component="wc")]}],
+        )
+        errors = ComposeValidator(config).validate()
+        assert any(
+            "non-existent workflow 'ghost'" in e and "component 'wc'" in e
+            for e in errors
+        )
+
+    def test_workflow_component_references_existing_workflow_ok(self):
+        # Two workflows so `has_default_workflow = False`. The component action
+        # explicitly names the target workflow, so no error.
+        config = _compose(
+            components=[_workflow_component("wc", action_workflows=["wf1"])],
+            workflows=[
+                {"id": "wf1", "jobs": [_job("j1", component="__default__")]},
+                {"id": "wf2", "jobs": [_job("j1", component="__default__")]},
+            ],
+        )
+        errors = ComposeValidator(config).validate()
+        assert not any("workflow" in e and "non-existent" in e for e in errors)
+
+    def test_workflow_component_default_workflow_with_single_workflow_ok(self):
+        # Single workflow → `__default__` resolves. No error expected.
+        config = _compose(
+            components=[_workflow_component("wc", action_workflows=["__default__"])],
+            workflows=[{"id": "only", "jobs": [_job("j1", component="wc")]}],
+        )
+        errors = ComposeValidator(config).validate()
+        assert not any("default workflow" in e for e in errors)
+
+    def test_workflow_component_default_without_marker_when_multiple_reports_error(self):
+        config = _compose(
+            components=[_workflow_component("wc", action_workflows=["__default__"])],
+            workflows=[
+                {"id": "wf1", "jobs": [_job("j1", component="wc")]},
+                {"id": "wf2", "jobs": [_job("j1", component="wc")]},
+            ],
+        )
+        errors = ComposeValidator(config).validate()
+        assert any("default workflow but multiple workflows exist" in e for e in errors)
+
+
+class TestWorkflowReferencesInListeners:
+    """`_validate_workflow_references` — HTTP trigger listeners pointing at workflow ids."""
+
+    def test_http_trigger_references_missing_workflow_reports_error(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[{"id": "wf", "jobs": [_job("j1")]}],
+            listeners=[_http_trigger_listener([
+                {"path": "/x", "workflow": "ghost"},
+            ])],
+        )
+        errors = ComposeValidator(config).validate()
+        assert any(
+            "non-existent workflow 'ghost'" in e and "listeners[0].triggers[0]" in e
+            for e in errors
+        )
+
+    def test_http_trigger_references_existing_workflow_ok(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[{"id": "wf", "jobs": [_job("j1")]}],
+            listeners=[_http_trigger_listener([
+                {"path": "/x", "workflow": "wf"},
+            ])],
+        )
+        assert ComposeValidator(config).validate() == []
+
+    def test_http_trigger_default_workflow_with_single_workflow_ok(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[{"id": "only", "jobs": [_job("j1")]}],
+            listeners=[_http_trigger_listener([
+                {"path": "/x", "workflow": "__default__"},
+            ])],
+        )
+        errors = ComposeValidator(config).validate()
+        assert not any("default workflow" in e for e in errors)
+
+    def test_http_trigger_default_without_marker_when_multiple_reports_error(self):
+        config = _compose(
+            components=[_shell_component("c1")],
+            workflows=[
+                {"id": "wf1", "jobs": [_job("j1")]},
+                {"id": "wf2", "jobs": [_job("j1")]},
+            ],
+            listeners=[_http_trigger_listener([
+                {"path": "/x", "workflow": "__default__"},
+            ])],
+        )
+        errors = ComposeValidator(config).validate()
+        assert any(
+            "default workflow but multiple workflows exist" in e and "listeners[0].triggers[0]" in e
+            for e in errors
+        )

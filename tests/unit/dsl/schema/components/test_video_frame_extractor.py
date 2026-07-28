@@ -27,6 +27,15 @@ class TestVideoFrameExtractorActionConfig:
         assert config.start_time is None
         assert config.end_time is None
         assert config.max_frame_count is None
+        assert config.filename_format is None
+
+    def test_filename_format(self):
+        """Test that filename_format is accepted as a literal string."""
+        config = VideoFrameExtractorActionConfig(
+            video="/tmp/video.mp4",
+            filename_format="frame-%04d.png",
+        )
+        assert config.filename_format == "frame-%04d.png"
 
     def test_full_config(self):
         """Test full configuration with all fields."""

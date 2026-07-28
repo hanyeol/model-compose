@@ -124,6 +124,7 @@ def make_config(video, **kwargs):
 
 def _assert_frame(item: Any) -> None:
     assert isinstance(item, dict)
+    assert "number" in item and isinstance(item["number"], int) and item["number"] >= 1
     assert "image" in item and isinstance(item["image"], PILImage.Image)
     assert "timestamp" in item
 
@@ -355,3 +356,40 @@ class TestOutputExpressionRendering:
 
         result_calls = [c for c in ctx.register_source.call_args_list if c.args[0] == "result"]
         assert len(result_calls) >= 1
+
+
+class TestFilenameFormat:
+    """`filename_format` attaches a `filename` key to each emitted frame."""
+
+    @pytest.mark.anyio
+    async def test_collect_emits_filename(self, sample_video):
+        action = FFmpegVideoFrameExtractorAction(
+            make_config(sample_video, filename_format="frame-%04d.png")
+        )
+        result = await action.run(make_context())
+
+        assert isinstance(result, list) and len(result) == 30
+        assert [f["filename"] for f in result[:3]] == [
+            "frame-0001.png", "frame-0002.png", "frame-0003.png",
+        ]
+        assert result[-1]["filename"] == "frame-0030.png"
+
+    @pytest.mark.anyio
+    async def test_stream_emits_filename(self, sample_video):
+        action = FFmpegVideoFrameExtractorAction(
+            make_config(sample_video, streaming=True, filename_format="shot-%d.jpg")
+        )
+        result = await action.run(make_context())
+        frames = await _collect_async(result)
+
+        assert len(frames) == 30
+        assert frames[0]["filename"] == "shot-1.jpg"
+        assert frames[-1]["filename"] == "shot-30.jpg"
+
+    @pytest.mark.anyio
+    async def test_no_format_omits_filename(self, sample_video):
+        action = FFmpegVideoFrameExtractorAction(make_config(sample_video))
+        result = await action.run(make_context())
+
+        for frame in result:
+            assert "filename" not in frame

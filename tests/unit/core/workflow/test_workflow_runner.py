@@ -24,14 +24,30 @@ def anyio_backend():
     return "asyncio"
 
 
-def make_job_config(job_id: str, depends_on: Optional[List[str]] = None, max_run_count: int = 5) -> SimpleNamespace:
+def make_job_config(job_id: str, depends_on: Optional[List[Any]] = None, max_run_count: int = 5) -> SimpleNamespace:
+    depends_on = depends_on or []
+
+    def _groups() -> List[List[str]]:
+        return [ ([ item ] if isinstance(item, str) else list(item)) for item in depends_on ]
+
+    def _ids() -> Set[str]:
+        ids: Set[str] = set()
+        for item in depends_on:
+            if isinstance(item, str):
+                ids.add(item)
+            else:
+                ids.update(item)
+        return ids
+
     return SimpleNamespace(
         id=job_id,
-        depends_on=depends_on or [],
+        depends_on=depends_on,
         max_run_count=max_run_count,
         type=SimpleNamespace(value="mock"),
         retry=None,
         on_error=None,
+        get_dependency_groups=_groups,
+        get_dependency_ids=_ids,
     )
 
 
@@ -254,11 +270,10 @@ class TestRunJobsRewind:
             "end": end_job,
         }
         routing_jobs: Dict[str, Job] = {}
-        routable_job_ids: Set[str] = set()
 
         context = make_context()
 
-        output = await runner._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
+        output = await runner._run_jobs(context, pending_jobs, routing_jobs)
 
         assert output == "final"
         assert loop_job._call_index == 1  # first-instance loop ran once
@@ -308,12 +323,11 @@ class TestRunJobsRewind:
             "end": end_job,
         }
         routing_jobs: Dict[str, Job] = {}
-        routable_job_ids: Set[str] = set()
 
         context = make_context()
 
         with pytest.raises(RuntimeError, match="max_run_count"):
-            await runner._run_jobs(context, pending_jobs, routing_jobs, routable_job_ids)
+            await runner._run_jobs(context, pending_jobs, routing_jobs)
 
 
 class TestGetDependentJobsExtras:
@@ -380,7 +394,7 @@ class TestRunJobsBasicFlow:
         install_rewind_scripts(monkeypatch, {})
         runner = make_runner(cfg)
         context = make_context()
-        output = await runner._run_jobs(context, {"only": job}, {}, set())
+        output = await runner._run_jobs(context, {"only": job}, {})
         assert output == "done"
 
     @pytest.mark.anyio
@@ -397,7 +411,7 @@ class TestRunJobsBasicFlow:
         }
         install_rewind_scripts(monkeypatch, {})
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == "c_final"
 
     @pytest.mark.anyio
@@ -415,7 +429,7 @@ class TestRunJobsBasicFlow:
         }
         install_rewind_scripts(monkeypatch, {})
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == {"b_key": 1, "c_key": 2}
 
 
@@ -440,7 +454,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == "done"
 
     @pytest.mark.anyio
@@ -467,7 +481,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == "final"
 
     @pytest.mark.anyio
@@ -492,7 +506,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == "final"
         # a should have run exactly once, not rewound
         assert a_job._call_index == 1
@@ -522,7 +536,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         assert output == "final"
 
     @pytest.mark.anyio
@@ -543,7 +557,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), {"a": a_job, "b": b_job}, {}, set())
+        output = await runner._run_jobs(make_context(), {"a": a_job, "b": b_job}, {})
         assert output == "done"
         assert a_job._call_index == 1  # first-instance a ran once, then replaced
 
@@ -567,7 +581,7 @@ class TestRunJobsRewindScenarios:
         )
         runner = make_runner(cfg)
         with pytest.raises(RuntimeError, match="max_run_count"):
-            await runner._run_jobs(make_context(), pending, {}, set())
+            await runner._run_jobs(make_context(), pending, {})
 
     @pytest.mark.anyio
     async def test_dict_output_merge_after_rewind(self, monkeypatch):
@@ -592,7 +606,7 @@ class TestRunJobsRewindScenarios:
             },
         )
         runner = make_runner(cfg)
-        output = await runner._run_jobs(make_context(), pending, {}, set())
+        output = await runner._run_jobs(make_context(), pending, {})
         # Both b and c are terminal; their outputs are dicts and get merged.
         assert isinstance(output, dict)
         assert output.get("b_key") == 1

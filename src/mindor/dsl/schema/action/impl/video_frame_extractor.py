@@ -8,5 +8,6 @@ class VideoFrameExtractorActionConfig(CommonActionConfig):
     start_time: Optional[str] = Field(default=None, description="Start time for extraction (e.g. '00:01:00', '60s').")
     end_time: Optional[str] = Field(default=None, description="End time for extraction (e.g. '00:05:00', '300s').")
     max_frame_count: Optional[Union[int, str]] = Field(default=None, description="Maximum frames to extract. None = no limit.")
+    filename_format: Optional[str] = Field(default=None, description="Per-frame filename pattern (e.g. 'frame-%04d.png'). When set, each frame includes a 'filename' key.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input videos per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream frames one by one instead of returning a full list.")

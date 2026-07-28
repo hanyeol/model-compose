@@ -13,6 +13,7 @@ from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
+from ..filename import format_filename
 from PIL import Image as PILImage
 import asyncio, os, threading
 
@@ -26,6 +27,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
@@ -41,9 +43,27 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 pass
 
         if streaming:
-            return self._stream_frames(input_path, frame_interval, start_time, end_time, max_frame_count, _cleanup, cancellation_token)
+            return self._stream_frames(
+                input_path,
+                frame_interval,
+                start_time,
+                end_time,
+                max_frame_count,
+                filename_format,
+                _cleanup,
+                cancellation_token,
+            )
 
-        return await self._collect_frames(input_path, frame_interval, start_time, end_time, max_frame_count, _cleanup, cancellation_token)
+        return await self._collect_frames(
+            input_path,
+            frame_interval,
+            start_time,
+            end_time,
+            max_frame_count,
+            filename_format,
+            _cleanup,
+            cancellation_token,
+        )
 
     async def _collect_frames(
         self,
@@ -52,12 +72,21 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         def _collect() -> List[Dict[str, Any]]:
             try:
-                return list(self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, None))
+                return list(self._extract_frames(
+                    input_path,
+                    frame_interval,
+                    start_time,
+                    end_time,
+                    max_frame_count,
+                    filename_format,
+                    None,
+                ))
             finally:
                 cleanup()
 
@@ -70,12 +99,25 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         stop_event = threading.Event()
-        generator = self._extract_frames(input_path, frame_interval, start_time, end_time, max_frame_count, stop_event)
-        streamer = SyncGeneratorStreamer(generator, asyncio.get_running_loop(), maxsize=_FRAME_QUEUE_MAXSIZE, stop_event=stop_event)
+        streamer = SyncGeneratorStreamer(
+            self._extract_frames(
+                input_path,
+                frame_interval,
+                start_time,
+                end_time,
+                max_frame_count,
+                filename_format,
+                stop_event,
+            ),
+            asyncio.get_running_loop(),
+            maxsize=_FRAME_QUEUE_MAXSIZE,
+            stop_event=stop_event,
+        )
 
         try:
             async for frame in streamer:
@@ -91,6 +133,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         stop_event: Optional[threading.Event],
     ) -> Iterator[Dict[str, Any]]:
         import cv2
@@ -123,11 +166,17 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
 
                 if (current_frame - start_frame) % frame_interval == 0:
                     rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-                    yield {
+                    frame_count += 1
+                    frame: Dict[str, Any] = {
+                        "number": frame_count,
                         "image": PILImage.fromarray(rgb_frame),
                         "timestamp": (current_frame / fps) if fps > 0 else 0.0,
                     }
-                    frame_count += 1
+
+                    if filename_format is not None:
+                        frame["filename"] = format_filename(filename_format, frame_count)
+
+                    yield frame
 
                     if max_frame_count and frame_count >= max_frame_count:
                         break

@@ -13,6 +13,7 @@ from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
+from ..filename import format_filename
 from PIL import Image as PILImage
 from io import BytesIO
 import asyncio, os, re
@@ -35,6 +36,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
@@ -85,9 +87,25 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                     pass
 
         if streaming:
-            return self._stream_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
+            return self._stream_frames(
+                command,
+                video,
+                input_path,
+                max_frame_count,
+                filename_format,
+                _cleanup,
+                cancellation_token,
+            )
 
-        return await self._collect_frames(command, video, input_path, max_frame_count, _cleanup, cancellation_token)
+        return await self._collect_frames(
+            command,
+            video,
+            input_path,
+            max_frame_count,
+            filename_format,
+            _cleanup,
+            cancellation_token,
+        )
 
     async def _collect_frames(
         self,
@@ -95,6 +113,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         video: MediaSource,
         input_path: Optional[str],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
@@ -176,10 +195,17 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             frames = []
 
             for index, image in enumerate(images):
-                frames.append({
+                frame_count = index + 1
+                frame: Dict[str, Any] = {
+                    "number": frame_count,
                     "image": image,
-                    "timestamp": timestamps[index] if index < len(timestamps) else 0.0
-                })
+                    "timestamp": timestamps[index] if index < len(timestamps) else 0.0,
+                }
+
+                if filename_format is not None:
+                    frame["filename"] = format_filename(filename_format, frame_count)
+
+                frames.append(frame)
 
             return frames
         except asyncio.CancelledError:
@@ -201,6 +227,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         video: MediaSource,
         input_path: Optional[str],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
@@ -268,11 +295,18 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
                 async for image in images:
                     timestamp = await timestamps.get()
-                    yield {
+                    frame_count += 1
+
+                    frame: Dict[str, Any] = {
+                        "number": frame_count,
                         "image": image,
                         "timestamp": timestamp if timestamp is not None else 0.0,
                     }
-                    frame_count += 1
+
+                    if filename_format is not None:
+                        frame["filename"] = format_filename(filename_format, frame_count)
+
+                    yield frame
 
                     if max_frame_count and frame_count >= max_frame_count:
                         return

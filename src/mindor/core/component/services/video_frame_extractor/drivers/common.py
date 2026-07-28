@@ -83,6 +83,7 @@ class VideoFrameExtractorAction(ComponentAction):
             "start_time":      parse_time(start_time) if start_time is not None else None,
             "end_time":        parse_time(end_time) if end_time is not None else None,
             "max_frame_count": max_frame_count,
+            "filename_format": self.config.filename_format,
         }
 
     async def _process_batch(
@@ -114,6 +115,7 @@ class VideoFrameExtractorAction(ComponentAction):
             params["start_time"],
             params["end_time"],
             params["max_frame_count"],
+            params["filename_format"],
             streaming,
             cancellation_token,
         )
@@ -126,6 +128,7 @@ class VideoFrameExtractorAction(ComponentAction):
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
+        filename_format: Optional[str],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:

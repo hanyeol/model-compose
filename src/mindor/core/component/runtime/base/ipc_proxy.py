@@ -232,13 +232,11 @@ class IpcRuntimeProxy(ABC):
         if not stream_id:
             return
 
-        mtype = message.type
-
-        if mtype == IpcMessageType.STREAM_PULL:
+        if message.type == IpcMessageType.STREAM_PULL:
             await self._pump_outbound_chunk(stream_id)
             return
 
-        if mtype == IpcMessageType.STREAM_CHUNK:
+        if message.type == IpcMessageType.STREAM_CHUNK:
             stream = self._inbound_streams.get(stream_id)
             if stream is None or stream.closed:
                 return
@@ -248,13 +246,13 @@ class IpcRuntimeProxy(ABC):
             stream.queue.put_nowait(chunk)
             return
 
-        if mtype == IpcMessageType.STREAM_END:
+        if message.type == IpcMessageType.STREAM_END:
             stream = self._inbound_streams.pop(stream_id, None)
             if stream is not None:
                 stream.push_end()
             return
 
-        if mtype == IpcMessageType.STREAM_ABORT:
+        if message.type == IpcMessageType.STREAM_ABORT:
             stream = self._inbound_streams.pop(stream_id, None)
             if stream is not None:
                 stream.push_abort()
@@ -263,7 +261,7 @@ class IpcRuntimeProxy(ABC):
                 outbound.closed = True
             return
 
-        if mtype == IpcMessageType.STREAM_CLOSE:
+        if message.type == IpcMessageType.STREAM_CLOSE:
             outbound = self._outbound_streams.pop(stream_id, None)
             if outbound is not None:
                 outbound.closed = True

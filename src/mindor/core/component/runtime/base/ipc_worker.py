@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict, Optional, Union
 from abc import ABC, abstractmethod
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
+from mindor.core.utils.json import to_json_safe
 from .ipc_message import IpcMessage, IpcMessageType
 from .ipc_stream import IpcInboundStream, IpcOutboundStream, IpcStreamReader
 import asyncio, traceback
@@ -25,7 +26,6 @@ class IpcRuntimeWorker(ABC):
     """
     def __init__(self, worker_id: str):
         self.worker_id = worker_id
-        self.running = True
 
         self._codec: VariableCodec = VariableCodec()
         self._inbound_streams: Dict[str, IpcInboundStream] = {}
@@ -37,7 +37,7 @@ class IpcRuntimeWorker(ABC):
             await self._start()
             await self._notify_status("ready")
 
-            while self.running:
+            while True:
                 data = await self._recv_message()
                 if data is None:
                     break
@@ -72,6 +72,12 @@ class IpcRuntimeWorker(ABC):
                             target.cancel()
                     continue
 
+                if message.type == IpcMessageType.STOP:
+                    # Reply first so the parent's `request()` future resolves,
+                    # then exit the dispatch loop; shutdown runs in `finally`.
+                    await self._send_result(message.request_id, { "status": "stopped" })
+                    break
+
                 try:
                     await self._dispatch_message(message)
                 except Exception as e:
@@ -99,7 +105,7 @@ class IpcRuntimeWorker(ABC):
 
     async def _dispatch_message(self, message: IpcMessage) -> Dict[str, Any]:
         if message.type == IpcMessageType.RUN:
-            decoded_input = self._codec.decode(
+            input = self._codec.decode(
                 message.payload or {},
                 on_stream_decode=self._handle_inbound_stream,
             )
@@ -107,21 +113,17 @@ class IpcRuntimeWorker(ABC):
 
             async def _send_event(payload: Dict[str, Any]) -> None:
                 if request_id is not None:
-                    await self._send_event(request_id, payload)
+                    await self._send_event(request_id, to_json_safe(payload))
 
-            output = await self._execute_task(decoded_input, on_event=_send_event)
-            encoded_output = self._codec.encode(
+            output = await self._execute_task(input, on_event=_send_event)
+            output = self._codec.encode(
                 output,
                 on_stream_encode=self._handle_outbound_stream,
             )
-            return { "output": encoded_output }
+            return { "output": output }
 
         if message.type == IpcMessageType.HEARTBEAT:
             return { "status": "alive" }
-
-        if message.type == IpcMessageType.STOP:
-            self.running = False
-            return { "status": "stopped" }
 
         return { "status": "ignored" }
 
@@ -150,16 +152,15 @@ class IpcRuntimeWorker(ABC):
     async def _handle_stream_message(self, message: IpcMessage) -> None:
         payload = message.payload or {}
         stream_id = payload.get("stream_id")
+
         if not stream_id:
             return
 
-        mtype = message.type
-
-        if mtype == IpcMessageType.STREAM_PULL:
+        if message.type == IpcMessageType.STREAM_PULL:
             await self._pump_outbound_chunk(stream_id)
             return
 
-        if mtype == IpcMessageType.STREAM_CHUNK:
+        if message.type == IpcMessageType.STREAM_CHUNK:
             stream = self._inbound_streams.get(stream_id)
             if stream is None or stream.closed:
                 return
@@ -169,13 +170,13 @@ class IpcRuntimeWorker(ABC):
             stream.queue.put_nowait(chunk)
             return
 
-        if mtype == IpcMessageType.STREAM_END:
+        if message.type == IpcMessageType.STREAM_END:
             stream = self._inbound_streams.pop(stream_id, None)
             if stream is not None:
                 stream.push_end()
             return
 
-        if mtype == IpcMessageType.STREAM_ABORT:
+        if message.type == IpcMessageType.STREAM_ABORT:
             stream = self._inbound_streams.pop(stream_id, None)
             if stream is not None:
                 stream.push_abort()
@@ -184,7 +185,7 @@ class IpcRuntimeWorker(ABC):
                 outbound.closed = True
             return
 
-        if mtype == IpcMessageType.STREAM_CLOSE:
+        if message.type == IpcMessageType.STREAM_CLOSE:
             outbound = self._outbound_streams.pop(stream_id, None)
             if outbound is not None:
                 outbound.closed = True

@@ -9,10 +9,13 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
 from mindor.core.logger import logging
+from collections.abc import AsyncIterator
 from .context import ComponentActionContext
+from .streaming import ComponentOutputStreamIterator, StreamTerminatedEvent
 import asyncio
 
 class ActionResolver:
@@ -135,6 +138,17 @@ class ComponentService(AsyncService):
         except Exception as e:
             await context.event_notifier.notify("failed", error=str(e))
             raise
+
+        if isinstance(output, (StreamIterator, AsyncIterator)):
+            async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str]) -> None:
+                if event == "completed":
+                    await context.event_notifier.notify("completed", output=None)
+                elif event == "cancelled":
+                    await context.event_notifier.notify("cancelled")
+                else:
+                    await context.event_notifier.notify("failed", error=error)
+
+            return ComponentOutputStreamIterator(output, _on_terminated)
 
         await context.event_notifier.notify("completed", output=output)
 

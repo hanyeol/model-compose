@@ -152,7 +152,9 @@ class WorkflowVariableResolver:
             if isinstance(item, WorkflowVariableGroup):
                 items: List[WorkflowVariableConfig] = []
                 for config in self._to_variable_config_list(item.variables):
-                    if not isinstance(config, WorkflowVariableGroupConfig):
+                    if isinstance(config, WorkflowVariableGroupConfig):
+                        items.extend(config.variables)
+                    else:
                         items.append(config)
                 configs.append(WorkflowVariableGroupConfig(name=item.name, variables=items, repeat_count=item.repeat_count))
             elif item not in seen:

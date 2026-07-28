@@ -141,6 +141,19 @@ depends_on: [job-id-1, job-id-2]
 - Jobs without dependencies can run in parallel
 - Circular dependencies are not allowed
 
+**AND / OR combinations:**
+
+Top-level items are combined with **AND** — every entry must be satisfied. A nested list is an **OR group** — the entry is satisfied as soon as any one job in it completes.
+
+```yaml
+depends_on:
+  - a              # must complete
+  - [b, c]         # b OR c must complete
+  - d              # must complete
+```
+
+The example above runs when `a` AND (`b` OR `c`) AND `d` are all satisfied. Empty OR groups (`[]`) are rejected during config validation.
+
 ### Sequential Execution
 
 ```yaml
@@ -447,7 +460,7 @@ Regardless of type, every job supports the following fields:
 |-------|------|---------|-------------|
 | `id` | `string` | `"__job__"` | Unique job identifier. |
 | `name` | `string` | `null` | Human-readable label used as a group label in the web UI. |
-| `depends_on` | `string[]` | `[]` | List of job IDs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Job IDs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 | `max_run_count` | `int` | `5` | Maximum times this job may execute within one workflow run (including routing re-runs). |
 | `interrupt` | object | `null` | Human-in-the-loop interrupt points. See [Interrupts (Human-in-the-Loop)](#interrupts-human-in-the-loop) below. |
 | `hook` | object | `null` | Inline Python hooks that run before/after the job. See [Hooks](#hooks) below. |
@@ -743,7 +756,7 @@ Branch to different jobs based on a condition. Conditions are evaluated in order
 | `input` | any | `null` | Value to evaluate against the conditions. Supports variable binding. |
 | `conditions` | `IfCondition[]` | `[]` | List of conditions to evaluate in order. |
 | `otherwise` | `string` | `null` | Job ID to route to if no conditions matched. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 **IfCondition fields:**
 
@@ -813,7 +826,7 @@ Route to one of many paths based on exact value matching. Like a switch-case sta
 | `input` | any | `null` | Value to match against cases. Supports variable binding. |
 | `cases` | `SwitchCase[]` | `[]` | List of cases to evaluate. |
 | `otherwise` | `string` | `null` | Job ID to route to if no cases match. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 **SwitchCase fields:**
 
@@ -862,7 +875,7 @@ Wait for a specified duration or until a specific time. Has two modes selected b
 | `mode` | `"time-interval"` | - | Wait for a duration. |
 | `duration` | `number` or `string` | - | Time to wait — seconds as a number, or a duration string like `"5s"`, `"2m"`, `"1h"`. Supports variable binding. |
 | `output` | any | `null` | Optional output mapping. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 ```yaml
 jobs:
@@ -880,7 +893,7 @@ jobs:
 | `time` | `datetime` or `string` | - | Target date and time (ISO 8601 format). Supports variable binding. |
 | `timezone` | `string` | `null` | Timezone identifier (e.g., `"Asia/Seoul"`, `"UTC"`). |
 | `output` | any | `null` | Optional output mapping. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 ```yaml
 jobs:
@@ -900,7 +913,7 @@ Extract parts of data and restructure into a new shape. Does not execute any com
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `output` | any | `null` | Output mapping that defines the new data shape. Uses variable binding to extract values from workflow input or previous job outputs. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 ```yaml
 jobs:
@@ -922,7 +935,7 @@ Randomly select one of multiple jobs. Supports uniform (equal probability) and w
 |-------|------|---------|-------------|
 | `mode` | `"uniform"` or `"weighted"` | `"uniform"` | Routing mode. `uniform` gives equal probability; `weighted` uses the `weight` field of each route. |
 | `routings` | `Routing[]` | `[]` | List of possible routing destinations. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 **Routing fields:**
 
@@ -977,7 +990,7 @@ Run a component once per item in an input collection. Items are drawn from a lis
 | `do.input` | any | `null` | Input for each iteration; `${item}` refers to the current element. |
 | `do.output` | any | `null` | Output mapping applied to each iteration's result. |
 | `output` | any | `null` | Job-level output mapping applied to the aggregated result. |
-| `depends_on` | `string[]` | `[]` | Jobs that must complete before this job runs. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
 ```yaml
 jobs:

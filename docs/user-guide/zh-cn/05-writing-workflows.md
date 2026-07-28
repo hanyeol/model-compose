@@ -141,6 +141,19 @@ depends_on: [job-id-1, job-id-2]
 - 没有依赖关系的作业可以并行运行
 - 不允许循环依赖
 
+**AND / OR 组合：**
+
+顶层项以 **AND** 组合 —— 每一项都必须满足。嵌套列表是 **OR 组** —— 其中任一作业完成即可满足该组。
+
+```yaml
+depends_on:
+  - a              # 必须完成
+  - [b, c]         # b 或 c 完成
+  - d              # 必须完成
+```
+
+上例在 `a` AND (`b` OR `c`) AND `d` 全部满足时执行。空的 OR 组 (`[]`) 会在配置校验阶段被拒绝。
+
 ### 顺序执行
 
 ```yaml
@@ -446,7 +459,7 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 |------|------|--------|------|
 | `id` | `string` | `"__job__"` | 唯一的作业标识符。 |
 | `name` | `string` | `null` | 人类可读的标签，在 Web UI 中用作分组标签。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 | `max_run_count` | `int` | `5` | 此作业在单次工作流运行中可执行的最大次数（含路由重跑）。 |
 | `interrupt` | object | `null` | 人机协作的中断点。参见下方 [中断（人机协作）](#中断人机协作)。 |
 | `hook` | object | `null` | 在作业前/后运行的内联 Python 钩子。参见下方 [钩子](#钩子)。 |
@@ -742,7 +755,7 @@ graph LR
 | `input` | any | `null` | 用于与条件比较的评估值。支持变量绑定。 |
 | `conditions` | `IfCondition[]` | `[]` | 按顺序评估的条件列表。 |
 | `otherwise` | `string` | `null` | 没有条件匹配时路由到的作业 ID。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 **IfCondition 字段：**
 
@@ -812,7 +825,7 @@ jobs:
 | `input` | any | `null` | 与 case 比较的值。支持变量绑定。 |
 | `cases` | `SwitchCase[]` | `[]` | 要评估的 case 列表。 |
 | `otherwise` | `string` | `null` | 没有 case 匹配时路由到的作业 ID。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 **SwitchCase 字段：**
 
@@ -861,7 +874,7 @@ jobs:
 | `mode` | `"time-interval"` | - | 等待指定时长。 |
 | `duration` | `number` 或 `string` | - | 等待时间（毫秒）。支持变量绑定。 |
 | `output` | any | `null` | 可选的输出映射。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 ```yaml
 jobs:
@@ -879,7 +892,7 @@ jobs:
 | `time` | `datetime` 或 `string` | - | 目标日期和时间（ISO 8601 格式）。支持变量绑定。 |
 | `timezone` | `string` | `null` | 时区标识符（如 `"Asia/Seoul"`、`"UTC"`）。 |
 | `output` | any | `null` | 可选的输出映射。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 ```yaml
 jobs:
@@ -899,7 +912,7 @@ jobs:
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `output` | any | `null` | 定义新数据形状的输出映射。使用变量绑定从工作流输入或前一个作业的输出中提取值。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 ```yaml
 jobs:
@@ -921,7 +934,7 @@ jobs:
 |------|------|--------|------|
 | `mode` | `"uniform"` 或 `"weighted"` | `"uniform"` | 路由模式。`uniform` 为等概率；`weighted` 使用每个路由的 `weight` 字段。 |
 | `routings` | `Routing[]` | `[]` | 可能的路由目标列表。 |
-| `depends_on` | `string[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业 ID 列表。顶层项按 AND 组合，嵌套列表为 OR 组（组内任一成员完成即满足）。 |
 
 **Routing 字段：**
 

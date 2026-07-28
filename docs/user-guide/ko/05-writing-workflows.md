@@ -141,6 +141,19 @@ depends_on: [ job-id-1, job-id-2 ]
 - 의존성이 없는 작업들은 병렬로 실행 가능
 - 순환 의존성(circular dependency)은 허용되지 않음
 
+**AND / OR 조합:**
+
+최상위 항목은 **AND**로 결합되어, 모든 항목이 만족되어야 합니다. 중첩된 리스트는 **OR 그룹**으로, 그 안의 작업 중 하나라도 완료되면 만족됩니다.
+
+```yaml
+depends_on:
+  - a              # 반드시 완료
+  - [b, c]         # b 또는 c 완료
+  - d              # 반드시 완료
+```
+
+위 예제는 `a` AND (`b` OR `c`) AND `d` 가 모두 만족될 때 실행됩니다. 빈 OR 그룹(`[]`)은 설정 검증 단계에서 오류로 처리됩니다.
+
 ### 순차 실행
 
 ```yaml
@@ -447,7 +460,7 @@ model-compose는 다양한 작업 유형을 지원하기 위해 여러 Job 타�
 |------|------|--------|------|
 | `id` | `string` | `"__job__"` | 고유한 Job 식별자. |
 | `name` | `string` | `null` | 사람이 읽기 쉬운 라벨. 웹 UI에서 그룹 라벨로 사용됩니다. |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 | `max_run_count` | `int` | `5` | 하나의 워크플로우 실행 내에서 이 Job이 실행될 수 있는 최대 횟수 (라우팅에 의한 재실행 포함). |
 | `interrupt` | object | `null` | Human-in-the-Loop 인터럽트 지점. 아래 [인터럽트 (Human-in-the-Loop)](#인터럽트-human-in-the-loop) 참조. |
 | `hook` | object | `null` | Job 실행 전후에 동작하는 인라인 Python 훅. 아래 [훅](#훅) 참조. |
@@ -743,7 +756,7 @@ graph LR
 | `input` | any | `null` | 조건들과 비교할 평가 대상 값. 변수 바인딩 지원. |
 | `conditions` | `IfCondition[]` | `[]` | 순서대로 평가할 조건 목록. |
 | `otherwise` | `string` | `null` | 조건이 하나도 일치하지 않을 때 라우팅할 Job ID. |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 **IfCondition 필드:**
 
@@ -813,7 +826,7 @@ jobs:
 | `input` | any | `null` | case와 비교할 값. 변수 바인딩 지원. |
 | `cases` | `SwitchCase[]` | `[]` | 평가할 case 목록. |
 | `otherwise` | `string` | `null` | 일치하는 case가 없을 때 라우팅할 Job ID. |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 **SwitchCase 필드:**
 
@@ -862,7 +875,7 @@ jobs:
 | `mode` | `"time-interval"` | - | 지정된 시간만큼 대기. |
 | `duration` | `number` 또는 `string` | - | 대기 시간 (밀리초). 변수 바인딩 지원. |
 | `output` | any | `null` | 출력 매핑 (선택). |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 ```yaml
 jobs:
@@ -880,7 +893,7 @@ jobs:
 | `time` | `datetime` 또는 `string` | - | 대상 날짜/시간 (ISO 8601 형식). 변수 바인딩 지원. |
 | `timezone` | `string` | `null` | 타임존 식별자 (예: `"Asia/Seoul"`, `"UTC"`). |
 | `output` | any | `null` | 출력 매핑 (선택). |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 ```yaml
 jobs:
@@ -900,7 +913,7 @@ jobs:
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `output` | any | `null` | 새로운 데이터 형태를 정의하는 출력 매핑. 변수 바인딩으로 워크플로우 입력이나 이전 Job의 출력에서 값을 추출. |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 ```yaml
 jobs:
@@ -922,7 +935,7 @@ jobs:
 |------|------|--------|------|
 | `mode` | `"uniform"` 또는 `"weighted"` | `"uniform"` | 라우팅 모드. `uniform`은 동일 확률, `weighted`는 각 경로의 `weight` 필드를 사용. |
 | `routings` | `Routing[]` | `[]` | 가능한 라우팅 대상 목록. |
-| `depends_on` | `string[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 Job 실행 전에 완료되어야 하는 Job ID 목록. 최상위 항목은 AND로, 중첩 리스트는 OR 그룹으로 처리됨(그룹 내 하나만 완료되어도 만족). |
 
 **Routing 필드:**
 

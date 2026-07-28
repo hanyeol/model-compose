@@ -55,10 +55,10 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             results: List[Any] = []
             lyrics_batch = lyrics if lyrics is not None else [ None ] * len(prompts)
 
-            for prompt, song_lyrics in zip(prompts, lyrics_batch):
+            for prompt, lyrics in zip(prompts, lyrics_batch):
                 generation_params = GenerationParams(
                     caption=prompt,
-                    lyrics=song_lyrics or "",
+                    lyrics=lyrics or "",
                     duration=int(params["duration"]),
                     bpm=int(params["bpm"]),
                     keyscale=params["key_scale"] or "",

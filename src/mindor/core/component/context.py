@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Awaitable, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
@@ -24,35 +24,54 @@ if TYPE_CHECKING:
     from mindor.core.workflow.context import WorkflowContext
     from mindor.core.workflow.notifiers import ComponentEventNotifier
 
+ComponentEventPayload = Dict[str, Any]
+ComponentEventCallback = Callable[[ComponentEventPayload], Awaitable[None]]
+
 class ComponentActionEventNotifier:
-    def __init__(self, notifier: Optional[ComponentEventNotifier], component_id: Optional[str], component_type: Optional[str], job_id: Optional[str], run_id: Optional[str]):
+    def __init__(
+        self,
+        notifier: Optional[ComponentEventNotifier],
+        component_id: Optional[str],
+        component_type: Optional[str],
+        job_id: Optional[str],
+        run_id: Optional[str],
+        on_event: Optional[ComponentEventCallback] = None,
+    ):
         self.notifier: Optional[ComponentEventNotifier] = notifier
         self.component_id: Optional[str] = component_id
         self.component_type: Optional[str] = component_type
         self.job_id: Optional[str] = job_id
         self.run_id: Optional[str] = run_id
+        self.on_event: Optional[ComponentEventCallback] = on_event
 
     async def notify(
         self,
-        event: Literal[ "started", "completed", "failed", "internal" ],
+        event: Literal[ "started", "completed", "cancelled", "failed", "internal" ],
         kind: Optional[str] = None,
         input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
     ) -> None:
-        if self.notifier is None:
-            return
-        await self.notifier.notify(
-            event=event,
-            job_id=self.job_id,
-            component_id=self.component_id,
-            component_type=self.component_type,
-            run_id=self.run_id,
-            kind=kind,
-            input=input,
-            output=output,
-            error=error,
-        )
+        if self.notifier is not None:
+            await self.notifier.notify(
+                event=event,
+                job_id=self.job_id,
+                component_id=self.component_id,
+                component_type=self.component_type,
+                run_id=self.run_id,
+                kind=kind,
+                input=input,
+                output=output,
+                error=error,
+            )
+        if self.on_event is not None:
+            await self.on_event({
+                "event": event,
+                "kind": kind,
+                "input": input,
+                "output": output,
+                "error": error,
+            })
 
 class ComponentActionContext:
     def __init__(
@@ -63,6 +82,7 @@ class ComponentActionContext:
         component_id: Optional[str] = None,
         component_type: Optional[str] = None,
         job_id: Optional[str] = None,
+        on_event: Optional[ComponentEventCallback] = None,
     ):
         self.run_id: str = run_id
         self.input: Dict[str, Any] = input
@@ -70,6 +90,7 @@ class ComponentActionContext:
         self.component_id: Optional[str] = component_id
         self.component_type: Optional[str] = component_type
         self.job_id: Optional[str] = job_id
+        self.on_event: Optional[ComponentEventCallback] = on_event
         self.context: Dict[str, Any] = { "run_id": run_id }
         self.sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self.renderer: VariableRenderer = VariableRenderer(self.resolve_source)
@@ -159,5 +180,6 @@ class ComponentActionContext:
             self.component_id,
             self.component_type,
             self.job_id,
-            self.run_id
+            self.run_id,
+            on_event=self.on_event,
         )

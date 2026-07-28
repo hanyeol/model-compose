@@ -27,7 +27,7 @@ class IpcMessageType(str, Enum):
     ERROR        = "error"
     HEARTBEAT    = "heartbeat"
     STATUS       = "status"
-    LOG          = "log"
+    EVENT        = "event"
     # Stream multiplexing
     STREAM_PULL  = "stream_pull"
     STREAM_CHUNK = "stream_chunk"

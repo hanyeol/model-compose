@@ -64,7 +64,7 @@ class ComponentEventNotifier:
 
     async def notify(
         self,
-        event: Literal[ "started", "completed", "failed", "internal" ],
+        event: Literal[ "started", "completed", "cancelled", "failed", "internal" ],
         job_id: str,
         component_id: str,
         component_type: str,
@@ -83,7 +83,7 @@ class ComponentEventNotifier:
 
     def _build_payload(
         self,
-        event: Literal[ "started", "completed", "failed", "internal" ],
+        event: Literal[ "started", "completed", "cancelled", "failed", "internal" ],
         job_id: str,
         component_id: str,
         component_type: str,

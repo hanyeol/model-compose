@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, Optional, Union
 from abc import ABC, abstractmethod
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from .ipc_message import IpcMessage, IpcMessageType
@@ -103,7 +103,13 @@ class IpcRuntimeWorker(ABC):
                 message.payload or {},
                 on_stream_decode=self._handle_inbound_stream,
             )
-            output = await self._execute_task(decoded_input)
+            request_id = message.request_id
+
+            async def _send_event(payload: Dict[str, Any]) -> None:
+                if request_id is not None:
+                    await self._send_event(request_id, payload)
+
+            output = await self._execute_task(decoded_input, on_event=_send_event)
             encoded_output = self._codec.encode(
                 output,
                 on_stream_encode=self._handle_outbound_stream,
@@ -280,6 +286,13 @@ class IpcRuntimeWorker(ABC):
             payload=self._build_error_payload(error),
         ).serialize())
 
+    async def _send_event(self, request_id: str, payload: Dict[str, Any]) -> None:
+        await self._send_message(IpcMessage(
+            type=IpcMessageType.EVENT,
+            request_id=request_id,
+            payload=payload,
+        ).serialize())
+
     async def _notify_status(self, status: str) -> None:
         await self._send_message(IpcMessage(
             type=IpcMessageType.STATUS,
@@ -327,5 +340,9 @@ class IpcRuntimeWorker(ABC):
         pass
 
     @abstractmethod
-    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+    async def _execute_task(
+        self,
+        payload: Dict[str, Any],
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Any:
         pass

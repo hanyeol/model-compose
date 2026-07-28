@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 from abc import ABC, abstractmethod
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from .ipc_message import IpcMessage, IpcMessageType
 from .ipc_stream import IpcInboundStream, IpcOutboundStream, IpcStreamReader
 import asyncio, time, ulid
+
+IpcEventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
 
 class IpcRuntimeProxy(ABC):
     """
@@ -28,6 +30,7 @@ class IpcRuntimeProxy(ABC):
         self.worker_id = worker_id
 
         self._pending_requests: Dict[str, asyncio.Future] = {}
+        self._event_callbacks: Dict[str, IpcEventCallback] = {}
         self._response_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
@@ -50,7 +53,7 @@ class IpcRuntimeProxy(ABC):
     async def stop(self) -> None:
         await self._stop()
 
-    async def request(self, payload: Dict[str, Any]) -> Any:
+    async def request(self, payload: Dict[str, Any], on_event: Optional[IpcEventCallback] = None) -> Any:
         if self._loop is None:
             raise RuntimeError(f"{type(self).__name__} '{self.worker_id}' is not started")
 
@@ -71,12 +74,17 @@ class IpcRuntimeProxy(ABC):
 
         future: asyncio.Future = self._loop.create_future()
         self._pending_requests[request_id] = future
+
+        if on_event is not None:
+            self._event_callbacks[request_id] = on_event
+
         try:
             await self._send_message(message.serialize())
         except Exception as e:
             # The transport tore down between our entry check and the send —
             # normalize so callers always see ConnectionError on a dead worker.
             self._pending_requests.pop(request_id, None)
+            self._event_callbacks.pop(request_id, None)
             if self._closed_error is not None:
                 raise self._closed_error from e
             raise ConnectionError(f"send failed on worker '{self.worker_id}': {e}") from e
@@ -97,6 +105,7 @@ class IpcRuntimeProxy(ABC):
             raise
         finally:
             self._pending_requests.pop(request_id, None)
+            self._event_callbacks.pop(request_id, None)
 
     async def _wait_for_ready(self) -> None:
         """Block until the worker publishes STATUS=ready, or raise on timeout/error."""
@@ -149,11 +158,20 @@ class IpcRuntimeProxy(ABC):
                 if not message.request_id:
                     continue
 
+                payload = message.payload or {}
+
+                if message.type == IpcMessageType.EVENT:
+                    callback = self._event_callbacks.get(message.request_id)
+                    if callback is not None:
+                        try:
+                            await callback(payload)
+                        except Exception:
+                            pass
+                    continue
+
                 future = self._pending_requests.get(message.request_id)
                 if future is None or future.done():
                     continue
-
-                payload = message.payload or {}
 
                 if message.type == IpcMessageType.RESULT:
                     output = self._codec.decode(
@@ -184,6 +202,7 @@ class IpcRuntimeProxy(ABC):
             if not future.done():
                 future.set_exception(exc)
         self._pending_requests.clear()
+        self._event_callbacks.clear()
 
     def _handle_inbound_stream(self, variable: Dict[str, Any]) -> Any:
         stream_id = variable["id"]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
@@ -84,11 +84,16 @@ class ComponentRuntimeWorker(IpcRuntimeWorker):
             finally:
                 await self.component.teardown()
 
-    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+    async def _execute_task(
+        self,
+        payload: Dict[str, Any],
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Any:
         return await self.component.run(
             payload["action_id"],
             payload["run_id"],
             payload["input"],
+            on_event=on_event,
         )
 
     @abstractmethod
@@ -143,12 +148,18 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 self._response_task.cancel()
 
-    async def run(self, action_id: str, run_id: str, input_data: Dict[str, Any]) -> Any:
+    async def run(
+        self,
+        action_id: str,
+        run_id: str,
+        input_data: Dict[str, Any],
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Any:
         return await self.request({
             "action_id": action_id,
             "run_id": run_id,
             "input": input_data,
-        })
+        }, on_event=on_event)
 
     async def _send_start_message(self) -> None:
         """Attach the component config / global configs to the START message.
@@ -202,11 +213,17 @@ class ComponentRuntimeManager:
 
         await self._teardown()
 
-    async def run(self, action_id: str, run_id: str, input_data: Dict[str, Any]) -> Any:
+    async def run(
+        self,
+        action_id: str,
+        run_id: str,
+        input_data: Dict[str, Any],
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Any:
         if self._proxy is None:
             raise RuntimeError(f"Manager '{self.worker_id}' is not started")
 
-        return await self._proxy.run(action_id, run_id, input_data)
+        return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
 
     async def _teardown(self) -> None:
         """Shut down the runtime and channel. Called on both failed start and

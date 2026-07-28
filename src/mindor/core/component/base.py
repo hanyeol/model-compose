@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Awaitable, Callable, Any
 from typing_extensions import Self
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field
@@ -107,9 +107,25 @@ class ComponentService(AsyncService):
 
         await super().stop()
 
-    async def run(self, action_id: str, run_id: str, input: Dict[str, Any], workflow=None, job_id: Optional[str] = None) -> Dict[str, Any]:
+    async def run(
+        self,
+        action_id: str,
+        run_id: str,
+        input: Dict[str, Any],
+        workflow=None,
+        job_id: Optional[str] = None,
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Dict[str, Any]:
         if self._runtime_manager is not None:
-            return await self._runtime_manager.run(action_id, run_id, input)
+            # Bridge parent-side workflow event notifier into the worker via IPC.
+            # In-worker `ComponentService.run` receives these events through its own
+            # `on_event` param and re-emits them locally via the context notifier.
+            return await self._runtime_manager.run(
+                action_id,
+                run_id,
+                input,
+                on_event=self._build_runtime_event_forwarder(workflow, job_id, run_id)
+            )
 
         _, action = ActionResolver(self.config.actions).resolve(action_id)
         context = ComponentActionContext(
@@ -118,7 +134,8 @@ class ComponentService(AsyncService):
             workflow=workflow,
             component_id=self.id,
             component_type=self.config.type.value,
-            job_id=job_id
+            job_id=job_id,
+            on_event=on_event,
         )
 
         await context.event_notifier.notify("started", input=input)
@@ -207,6 +224,32 @@ class ComponentService(AsyncService):
             return ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
 
         return None
+
+    def _build_runtime_event_forwarder(
+        self,
+        workflow,
+        job_id: Optional[str],
+        run_id: str,
+    ) -> Optional[Callable[[Dict[str, Any]], Awaitable[None]]]:
+        notifier = workflow.component_event_notifier if workflow is not None else None
+
+        if notifier is None:
+            return None
+
+        async def _forward(payload: Dict[str, Any]) -> None:
+            await notifier.notify(
+                event=payload["event"],
+                job_id=job_id,
+                component_id=self.id,
+                component_type=self.config.type.value,
+                run_id=run_id,
+                kind=payload.get("kind"),
+                input=payload.get("input"),
+                output=payload.get("output"),
+                error=payload.get("error"),
+            )
+
+        return _forward
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

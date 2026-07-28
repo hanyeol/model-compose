@@ -10,14 +10,15 @@ class JobContext:
         self.workflow: WorkflowContext = workflow
         self.job_id: str = job_id
         self.is_terminal: bool = is_terminal
+
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
-        self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
+        self._renderer: VariableRenderer = VariableRenderer(self._resolve_source)
 
     def register_source(self, run_id: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(run_id or "__global__", {})[key] = source
 
     async def render_variable(self, run_id: Optional[str], value: Any, skip_decode: bool = False) -> Any:
-        return await self.renderer.render(value, run_id, skip_decode=skip_decode)
+        return await self._renderer.render(value, run_id, skip_decode=skip_decode)
 
     async def render_image(self, run_id: Optional[str], value: Any) -> Any:
         return await ImageValueRenderer().render(await self.render_variable(run_id, value))

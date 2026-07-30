@@ -40,7 +40,7 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 
         return params
 
-    async def _predict_masks(
+    async def _predict_masks_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

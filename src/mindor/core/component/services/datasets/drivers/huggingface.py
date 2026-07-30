@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..base import DatasetsService, DatasetsDriver, register_datasets_service
 from ..base import ComponentActionContext
 from .common import DatasetsAction
+import os
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -30,6 +31,11 @@ class HuggingfaceDatasetsAction(DatasetsAction):
             trust_remote_code = await context.render_variable(self.config.trust_remote_code)
             data_files        = await context.render_variable(self.config.data_files)
             data_dir          = await context.render_variable(self.config.data_dir)
+
+            if path:
+                path = os.path.expanduser(path)
+            if data_dir:
+                data_dir = os.path.expanduser(data_dir)
 
             params.update({
                 "path":              path,

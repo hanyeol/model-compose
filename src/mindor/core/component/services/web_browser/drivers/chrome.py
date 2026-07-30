@@ -3,12 +3,13 @@ from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriver
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.utils.transport.cdp_client import CdpClient
 from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
 from .utils.chrome import VideoRecorder, PageAdapter
 from PIL import Image as PILImage
-import asyncio, io
+import asyncio
 import base64, json
 
 class CdpPageAdapter(PageAdapter):
@@ -59,24 +60,20 @@ class CdpPageAdapter(PageAdapter):
         await self.client.send_command("Runtime.addBinding", { "name": name })
 
         async def _on_binding(params: Dict[str, Any]) -> None:
-            if params.get("name") != name:
-                return
-            try:
-                arg = json.loads(params["payload"])
-            except (KeyError, ValueError):
-                arg = params.get("payload")
-            await callback(None, arg)
+            if params.get("name") == name:
+                try:
+                    arg = json.loads(params["payload"])
+                except (KeyError, ValueError):
+                    arg = params.get("payload")
+                await callback(None, arg)
 
         self.client.on_event("Runtime.bindingCalled", _on_binding)
 
-    async def evaluate(self, expression: str, arg: Any = None) -> Any:
-        if arg is None:
-            wrapped = f"({expression})()"
-        else:
-            wrapped = f"({expression})({json.dumps(arg)})"
+    async def evaluate(self, expression: str, arg: Optional[Any] = None) -> Any:
+        expression = f"({expression})({json.dumps(arg) if arg is not None else ''})"
 
         result = await self.client.send_command("Runtime.evaluate", {
-            "expression": wrapped,
+            "expression": expression,
             "returnByValue": True,
             "awaitPromise": True,
         })
@@ -85,7 +82,6 @@ class CdpPageAdapter(PageAdapter):
             raise RuntimeError(f"JS error: {result['exceptionDetails']}")
 
         return result.get("result", {}).get("value")
-
 
 class ChromeBrowserSession(WebBrowserSession):
     """Browser session backed by a persistent CDP connection."""
@@ -120,6 +116,7 @@ class ChromeBrowserSession(WebBrowserSession):
                         nav_done.set_result(True)
 
             self.client.on_event(event, _on_event)
+
             try:
                 await asyncio.wait_for(nav_done, timeout=timeout)
             except asyncio.TimeoutError:
@@ -191,7 +188,7 @@ class ChromeBrowserSession(WebBrowserSession):
         result = await self.client.send_command("Page.captureScreenshot", params)
         data = base64.b64decode(result["data"])
 
-        return PILImage.open(io.BytesIO(data))
+        return await load_image_from_bytes(data)
 
     async def capture_video(
         self,

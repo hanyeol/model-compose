@@ -33,7 +33,7 @@ class FaceEmbeddingTaskAction(ComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._embed(batch_images, params, context.cancellation_token)
+                    batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -41,7 +41,7 @@ class FaceEmbeddingTaskAction(ComponentAction):
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._embed(batch_images, params, context.cancellation_token)
+                batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -61,7 +61,7 @@ class FaceEmbeddingTaskAction(ComponentAction):
         }
 
     @abstractmethod
-    async def _embed(
+    async def _embed_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

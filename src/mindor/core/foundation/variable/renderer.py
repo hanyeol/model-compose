@@ -16,7 +16,7 @@ from mindor.core.utils.url import parse_data_uri
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
-import re, aiofiles
+import re, aiofiles, os
 
 class FieldResolver:
     def __init__(self):
@@ -337,7 +337,7 @@ class VariableRenderer:
             return b"".join(chunks)
 
         if format == "path":
-            async with aiofiles.open(value, "rb") as file:
+            async with aiofiles.open(os.path.expanduser(value), "rb") as file:
                 return await file.read()
 
         if format == "base64":
@@ -359,7 +359,7 @@ class VariableRenderer:
             return UrlStreamResource(value)
 
         if format == "path":
-            return FileStreamResource(value)
+            return FileStreamResource(os.path.expanduser(value))
 
         if format == "data-uri":
             return DataUriStreamResource(value)

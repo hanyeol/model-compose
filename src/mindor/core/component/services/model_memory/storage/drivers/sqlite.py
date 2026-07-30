@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Tuple, Optional, List, Any
 from mindor.dsl.schema.component import SqliteModelMemoryStorageConfig, ModelMemoryStorageDriver
 from ..base import ModelMemoryStorage, register_model_memory_storage
-import json
+import json, os
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -21,7 +21,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
     async def setup(self) -> None:
         import aiosqlite
 
-        self.database = await aiosqlite.connect(self.config.path)
+        self.database = await aiosqlite.connect(os.path.expanduser(self.config.path))
         await self.database.execute("""
             CREATE TABLE IF NOT EXISTS model_memory_sessions (
                 session_id TEXT PRIMARY KEY,

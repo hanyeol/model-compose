@@ -240,7 +240,7 @@ class LocalFileStoreService(FileStoreService):
     def __init__(self, id: str, config: LocalFileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.base_path: str = os.path.abspath(config.base_path or os.getcwd())
+        self.base_path: str = os.path.abspath(os.path.expanduser(config.base_path) if config.base_path else os.getcwd())
 
     async def _start(self) -> None:
         os.makedirs(self.base_path, exist_ok=True)

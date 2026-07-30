@@ -51,7 +51,7 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         return params
 
-    async def _embed(
+    async def _embed_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],

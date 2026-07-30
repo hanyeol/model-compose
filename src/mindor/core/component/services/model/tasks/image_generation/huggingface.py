@@ -90,7 +90,7 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
         raise ValueError(f"Unknown architecture: {architecture}")
 
-    async def _generate(
+    async def _generate_batch(
         self,
         prompts: List[str],
         params: Dict[str, Any],
@@ -190,7 +190,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
         raise ValueError(f"Inpainting is not supported for architecture: {architecture}")
 
-    async def _inpaint(
+    async def _inpaint_batch(
         self,
         prompts: List[str],
         images: List[PILImage.Image],

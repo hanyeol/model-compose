@@ -257,7 +257,7 @@ class TextSplitterAction(ComponentAction):
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_texts, params, streaming, context.cancellation_token)
                     for result in batch_results:
-                        if isinstance(result, (StreamIterator, AsyncIterator)):
+                        if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -273,7 +273,7 @@ class TextSplitterAction(ComponentAction):
             async for batch_texts in BatchSourceIterator([ text ] if is_fragmented else text, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(batch_texts, params, streaming, context.cancellation_token)
                 for result in batch_results:
-                    if isinstance(result, (StreamIterator, AsyncIterator)):
+                    if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)

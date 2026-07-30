@@ -10,25 +10,24 @@ class MediaComponentAction(ComponentAction):
     Provides shared helpers to resolve DSL encoding configs into the normalized
     `VideoAudioEncodingParams` shape the driver/session/recorder layer expects.
     """
-
     async def _resolve_encoding_params(
-        self, context: ComponentActionContext, config: VideoAudioEncodingConfig,
+        self, context: ComponentActionContext, encoding: VideoAudioEncodingConfig,
     ) -> VideoAudioEncodingParams:
-        format = await context.render_variable(config.format) if config.format else None
+        format = await context.render_variable(encoding.format) if encoding.format else None
 
         return VideoAudioEncodingParams(
             format=format,
-            video=await self._resolve_video_encoder(context, config.video) if config.video else None,
-            audio=await self._resolve_audio_encoder(context, config.audio) if config.audio else None,
+            video=await self._resolve_video_encoder(context, encoding.video) if encoding.video else None,
+            audio=await self._resolve_audio_encoder(context, encoding.audio) if encoding.audio else None,
         )
 
     async def _resolve_video_encoder(
-        self, context: ComponentActionContext, config: VideoEncoderConfig,
+        self, context: ComponentActionContext, video: VideoEncoderConfig,
     ) -> VideoEncoderParams:
-        codec      = await context.render_variable(config.codec)      if config.codec      else None
-        bitrate    = await context.render_variable(config.bitrate)    if config.bitrate    else None
-        resolution = await context.render_variable(config.resolution) if config.resolution else None
-        fps        = await context.render_variable(config.fps)        if config.fps        else None
+        codec      = await context.render_variable(video.codec)      if video.codec      else None
+        bitrate    = await context.render_variable(video.bitrate)    if video.bitrate    else None
+        resolution = await context.render_variable(video.resolution) if video.resolution else None
+        fps        = await context.render_variable(video.fps)        if video.fps        else None
 
         return VideoEncoderParams(
             codec=codec,
@@ -38,12 +37,12 @@ class MediaComponentAction(ComponentAction):
         )
 
     async def _resolve_audio_encoder(
-        self, context: ComponentActionContext, config: AudioEncoderConfig,
+        self, context: ComponentActionContext, audio: AudioEncoderConfig,
     ) -> AudioEncoderParams:
-        codec       = await context.render_variable(config.codec)       if config.codec       else None
-        bitrate     = await context.render_variable(config.bitrate)     if config.bitrate     else None
-        sample_rate = await context.render_variable(config.sample_rate) if config.sample_rate is not None else None
-        channels    = await context.render_variable(config.channels)    if config.channels    is not None else None
+        codec       = await context.render_variable(audio.codec)       if audio.codec       else None
+        bitrate     = await context.render_variable(audio.bitrate)     if audio.bitrate     else None
+        sample_rate = await context.render_variable(audio.sample_rate) if audio.sample_rate is not None else None
+        channels    = await context.render_variable(audio.channels)    if audio.channels    is not None else None
 
         return AudioEncoderParams(
             codec=codec,

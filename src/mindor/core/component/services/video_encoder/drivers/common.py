@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, AsyncIterable
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoEncoderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -11,7 +11,6 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.image import ImageArrayValue
-from mindor.core.logger import logging
 from PIL import Image as PILImage
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
@@ -32,7 +31,7 @@ class VideoEncoderAction(MediaComponentAction):
         if is_streaming_input:
             async def _stream_output_generator():
                 async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, batch_audios, params, streaming, context.cancellation_token)
+                    batch_results = await self._encode_batch(batch_videos, batch_audios, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +39,7 @@ class VideoEncoderAction(MediaComponentAction):
         else:
             results = []
             async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, batch_audios, params, streaming, context.cancellation_token)
+                batch_results = await self._encode_batch(batch_videos, batch_audios, params, streaming, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -53,7 +52,7 @@ class VideoEncoderAction(MediaComponentAction):
         frames = await context.render_image_array(self.config.frames) if self.config.frames is not None else None
         audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
 
-        video = frames if frames is not None else video
+        video = frames if video is None else video
 
         is_single_input = not isinstance(video, (list, StreamIterator, AsyncIterator)) and not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator)) or isinstance(audio, (StreamIterator, AsyncIterator))
@@ -69,35 +68,24 @@ class VideoEncoderAction(MediaComponentAction):
             "encoding":   encoding,
         }
 
-    async def _process_batch(
+    async def _encode_batch(
         self,
         videos: List[Any],
         audios: Optional[List[MediaSource]],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Optional[VideoStreamResource]]:
-        results: List[Optional[VideoStreamResource]] = []
+    ) -> List[VideoStreamResource]:
+        results: List[VideoStreamResource] = []
+
         for index, video in enumerate(videos):
-            results.append(await self._process(video, audios[index] if audios is not None else None, params, streaming, cancellation_token))
+            audio = audios[index] if audios is not None else None
+            if isinstance(video, ImageArrayValue):
+                results.append(await self._encode_from_frames(video, audio, params["encoding"], params["frame_rate"], streaming, cancellation_token))
+            else:
+                results.append(await self._encode_from_video(video, audio, params["encoding"], streaming, cancellation_token))
+
         return results
-
-    async def _process(
-        self,
-        video: Any,
-        audio: Optional[MediaSource],
-        params: Dict[str, Any],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Optional[VideoStreamResource]:
-        if video is None:
-            logging.debug("Video encoder skipped because no input was provided.")
-            return None
-
-        if isinstance(video, ImageArrayValue):
-            return await self._encode_from_frames(video.values, audio, params["encoding"], params["frame_rate"], streaming, cancellation_token)
-
-        return await self._encode_from_video(video, audio, params["encoding"], streaming, cancellation_token)
 
     @abstractmethod
     async def _encode_from_video(
@@ -113,7 +101,7 @@ class VideoEncoderAction(MediaComponentAction):
     @abstractmethod
     async def _encode_from_frames(
         self,
-        frames: List[PILImage.Image],
+        frames: AsyncIterable[PILImage.Image],
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],

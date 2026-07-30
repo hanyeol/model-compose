@@ -75,38 +75,35 @@ class ModelTaskService(AsyncService):
         cache_dir: Optional[Path] = None,
         label: str = "model",
     ) -> str:
-        path: Optional[str] = None
-        url: Optional[str] = None
-
         if not isinstance(self.config.model, (LocalModelConfig, str)):
             raise ValueError(f"Unsupported model config type for {label}: {type(self.config.model).__name__}")
 
         path = self.config.model if isinstance(self.config.model, str) else self.config.model.path
 
-        if path == "__default__":
-            path = None
+        if path:
+            path = os.path.expanduser(path)
 
         if path and os.path.exists(path):
             return path
 
-        explicit_url = self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None
+        url = self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None
 
-        if path and not explicit_url:
+        if path and not url:
             raise FileNotFoundError(f"{label} model not found: {path}")
 
-        url = explicit_url or default_url
+        url = url or default_url
 
         if not url:
             raise FileNotFoundError(f"{label} model not found: {path}")
 
-        target = Path(path) if path else cache_dir / os.path.basename(urlparse(url).path)
+        path = Path(path) if path else cache_dir / os.path.basename(urlparse(url).path)
 
-        if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
             logging.info("Downloading %s model: %s", label, url)
-            await download_to_file(url, target)
+            await download_to_file(url, path)
 
-        return str(target)
+        return str(path)
 
     def _get_model_path(self) -> str:
         if isinstance(self.config.model, HuggingfaceModelConfig):
@@ -114,10 +111,10 @@ class ModelTaskService(AsyncService):
             return get_model_path(self.config.model)
 
         if isinstance(self.config.model, LocalModelConfig):
-            return self.config.model.path
-        
+            return os.path.expanduser(self.config.model.path) if self.config.model.path else self.config.model.path
+
         if isinstance(self.config.model, str):
-            return self.config.model
+            return os.path.expanduser(self.config.model)
 
         raise ValueError(f"Unknown model config type: {type(self.config.model)}")
 

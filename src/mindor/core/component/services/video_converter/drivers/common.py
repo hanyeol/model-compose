@@ -10,7 +10,6 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.logger import logging
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
 
@@ -30,7 +29,7 @@ class VideoConverterAction(MediaComponentAction):
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, params, context.cancellation_token)
+                    batch_results = await self._convert_batch(batch_videos, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -38,7 +37,7 @@ class VideoConverterAction(MediaComponentAction):
         else:
             results = []
             async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, params, context.cancellation_token)
+                batch_results = await self._convert_batch(batch_videos, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -53,38 +52,11 @@ class VideoConverterAction(MediaComponentAction):
             "encoding": encoding,
         }
 
-    async def _process_batch(
+    @abstractmethod
+    async def _convert_batch(
         self,
         videos: List[MediaSource],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Optional[VideoStreamResource]]:
-        results: List[Optional[VideoStreamResource]] = []
-        for video in videos:
-            results.append(await self._process(video, params, cancellation_token))
-        return results
-
-    async def _process(
-        self,
-        video: MediaSource,
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Optional[VideoStreamResource]:
-        if video is None:
-            logging.debug("Video converter skipped because no video was provided.")
-            return None
-
-        return await self._convert(
-            video,
-            params["encoding"],
-            cancellation_token,
-        )
-
-    @abstractmethod
-    async def _convert(
-        self,
-        source: MediaSource,
-        encoding: VideoAudioEncodingParams,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> VideoStreamResource:
+    ) -> List[VideoStreamResource]:
         pass

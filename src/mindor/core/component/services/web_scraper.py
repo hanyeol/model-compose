@@ -67,7 +67,7 @@ class WebScraperAction(ComponentAction):
         wait_until        = await context.render_variable(self.config.wait_until)
         wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
-        timeout           = (await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0
+        timeout           = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
 
         # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }
@@ -85,7 +85,7 @@ class WebScraperAction(ComponentAction):
             "wait_until":        wait_until,
             "wait_for":          wait_for,
             "submit":            submit,
-            "timeout":           parse_duration(timeout),
+            "timeout":           timeout,
         }
 
     async def _process_batch(

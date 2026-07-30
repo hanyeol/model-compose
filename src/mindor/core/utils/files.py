@@ -1,6 +1,7 @@
 from typing import Optional, Tuple, List, AsyncIterator
 from pathlib import PurePosixPath
 from tempfile import NamedTemporaryFile
+import aiofiles
 import asyncio, mimetypes, os
 
 async def list_dir(path: str) -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
@@ -28,6 +29,21 @@ async def walk_dir(path: str) -> AsyncIterator[Tuple[str, List[str], List[Tuple[
         yield current, dirnames, files
         for name in dirnames:
             pending.append(os.path.join(current, name))
+
+async def save_string_to_temporary_file(content: str, extension: Optional[str] = None, encoding: str = "utf-8") -> str:
+    path = create_temporary_file(extension)
+
+    async with aiofiles.open(path, "w", encoding=encoding) as file:
+        await file.write(content)
+
+    return path
+
+def create_temporary_file(extension: Optional[str] = None) -> str:
+    file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
+    path = file.name
+    file.close()
+
+    return path
 
 def is_glob_match(path: str, pattern: str) -> bool:
     path = normalize_path(path)
@@ -58,23 +74,12 @@ def is_path_within(base: str, path: str) -> bool:
 
     return absolute_path == absolute_base or absolute_path.startswith(absolute_base + os.sep)
 
-def get_file_extension(path: Optional[str]) -> Optional[str]:
-    if path:
-        extension = os.path.splitext(path)[1].lstrip(".")
-        return extension or None
+def get_file_extension(path: str) -> Optional[str]:
+    extension = os.path.splitext(path)[1].lstrip(".")
 
-    return None
+    return extension or None
 
-def guess_content_type(path: Optional[str]) -> Optional[str]:
-    if path:
-        content_type, _ = mimetypes.guess_type(path)
-        return content_type
+def guess_content_type(path: str) -> Optional[str]:
+    content_type, _ = mimetypes.guess_type(path)
 
-    return None
-
-def create_temporary_file(extension: Optional[str] = None) -> str:
-    file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
-    path = file.name
-    file.close()
-
-    return path
+    return content_type

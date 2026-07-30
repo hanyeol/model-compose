@@ -149,7 +149,7 @@ class SQLiteSearchEngineService(SearchEngineService):
         return None
 
     async def _start(self) -> None:
-        database_path = os.path.join(self.config.storage_dir, self.config.database)
+        database_path = os.path.join(os.path.expanduser(self.config.storage_dir), self.config.database)
 
         parent_dir = os.path.dirname(database_path)
         if parent_dir:

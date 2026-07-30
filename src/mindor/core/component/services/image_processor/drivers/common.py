@@ -243,10 +243,10 @@ class ImageProcessorAction(ComponentAction):
             return await self._adjust_saturation(image, params)
 
         if method == ImageProcessorActionMethod.CONCAT:
-            return await self._concat(image.values, params)
+            return await self._concat(await image.collect(), params)
 
         if method == ImageProcessorActionMethod.MERGE:
-            return await self._merge(image.values, params)
+            return await self._merge(await image.collect(), params)
 
         if method == ImageProcessorActionMethod.COMPRESS:
             return await self._compress(image, params)

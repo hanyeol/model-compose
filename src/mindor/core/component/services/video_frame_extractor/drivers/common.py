@@ -9,7 +9,6 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -30,9 +29,9 @@ class VideoFrameExtractorAction(ComponentAction):
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_videos, params, streaming, context.cancellation_token)
+                    batch_results = await self._extract_batch(batch_videos, params, streaming, context.cancellation_token)
                     for result in batch_results:
-                        if isinstance(result, (StreamIterator, AsyncIterator)):
+                        if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -46,9 +45,9 @@ class VideoFrameExtractorAction(ComponentAction):
         else:
             results = []
             async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_videos, params, streaming, context.cancellation_token)
+                batch_results = await self._extract_batch(batch_videos, params, streaming, context.cancellation_token)
                 for result in batch_results:
-                    if isinstance(result, (StreamIterator, AsyncIterator)):
+                    if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)
@@ -86,50 +85,12 @@ class VideoFrameExtractorAction(ComponentAction):
             "filename_format": self.config.filename_format,
         }
 
-    async def _process_batch(
+    @abstractmethod
+    async def _extract_batch(
         self,
         videos: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]]:
-        results: List[Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]] = []
-        for video in videos:
-            results.append(await self._process(video, params, streaming, cancellation_token))
-        return results
-
-    async def _process(
-        self,
-        video: MediaSource,
-        params: Dict[str, Any],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Optional[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
-        if video is None:
-            logging.debug("Video frame extractor skipped because no video was provided.")
-            return None
-
-        return await self._extract(
-            video,
-            params["frame_interval"],
-            params["start_time"],
-            params["end_time"],
-            params["max_frame_count"],
-            params["filename_format"],
-            streaming,
-            cancellation_token,
-        )
-
-    @abstractmethod
-    async def _extract(
-        self,
-        video: MediaSource,
-        frame_interval: int,
-        start_time: Optional[float],
-        end_time: Optional[float],
-        max_frame_count: Optional[int],
-        filename_format: Optional[str],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         pass

@@ -22,6 +22,7 @@ class ComponentType(str, Enum):
     VECTOR_PROCESSOR        = "vector-processor"
     WEB_SCRAPER             = "web-scraper"
     WEB_BROWSER             = "web-browser"
+    HTML_FRAME_RENDERER     = "html-frame-renderer"
     VIDEO_SCENE_DETECTOR    = "video-scene-detector"
     VIDEO_CONVERTER         = "video-converter"
     VIDEO_ENCODER           = "video-encoder"

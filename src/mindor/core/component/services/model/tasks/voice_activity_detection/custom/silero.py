@@ -30,7 +30,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
         self.model: Any = model
 
-    async def _detect(
+    async def _detect_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],

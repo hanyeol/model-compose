@@ -84,10 +84,10 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
             }
 
         if method == ModelTokenizerMethod.DECODE:
-            skip_special_tokens = await context.render_variable(self.config.skip_special_tokens)
+            skip_special_tokens = bool(await context.render_variable(self.config.skip_special_tokens))
 
             return {
-                "skip_special_tokens": bool(skip_special_tokens),
+                "skip_special_tokens": skip_special_tokens,
             }
 
         if method == ModelTokenizerMethod.COUNT:

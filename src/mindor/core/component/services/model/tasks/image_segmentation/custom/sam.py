@@ -24,7 +24,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
 
         self.model: SAM = model
 
-    async def _segment(
+    async def _segment_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

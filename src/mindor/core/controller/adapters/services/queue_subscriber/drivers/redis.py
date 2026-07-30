@@ -183,6 +183,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         }, default=str)
 
         result_ttl = int(parse_duration(self.config.result_ttl))
+
         if result_ttl > 0:
             await self._client.setex(result_key, result_ttl, result)
         else:

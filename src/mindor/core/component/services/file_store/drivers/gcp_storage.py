@@ -291,7 +291,7 @@ class GcpStorageFileStoreService(FileStoreService):
         client_params: Dict[str, Any] = { "session": session }
 
         if self.config.credentials_path:
-            client_params["service_file"] = self.config.credentials_path
+            client_params["service_file"] = os.path.expanduser(self.config.credentials_path)
 
         if self.location.endpoint:
             client_params["api_root"] = self.location.endpoint

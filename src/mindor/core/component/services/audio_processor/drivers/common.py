@@ -51,234 +51,234 @@ class AudioProcessorAction(ComponentAction):
 
     async def _resolve_params(self, method: AudioProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == AudioProcessorActionMethod.RESAMPLE:
-            sample_rate = await context.render_variable(self.config.sample_rate)
+            sample_rate = int(await context.render_variable(self.config.sample_rate))
 
-            return { "sample_rate": int(sample_rate) }
+            return { "sample_rate": sample_rate }
 
         if method == AudioProcessorActionMethod.HIGHPASS:
-            cutoff = await context.render_variable(self.config.cutoff)
+            cutoff = float(await context.render_variable(self.config.cutoff))
 
-            return { "cutoff": float(cutoff) }
+            return { "cutoff": cutoff }
 
         if method == AudioProcessorActionMethod.LOWPASS:
-            cutoff = await context.render_variable(self.config.cutoff)
+            cutoff = float(await context.render_variable(self.config.cutoff))
 
-            return { "cutoff": float(cutoff) }
+            return { "cutoff": cutoff }
 
         if method == AudioProcessorActionMethod.BELL:
-            frequency = await context.render_variable(self.config.frequency)
-            gain      = await context.render_variable(self.config.gain)
-            q         = await context.render_variable(self.config.q)
+            frequency = float(await context.render_variable(self.config.frequency))
+            gain      = float(await context.render_variable(self.config.gain))
+            q         = float(await context.render_variable(self.config.q))
 
             return {
-                "frequency": float(frequency),
-                "gain":      float(gain),
-                "q":         float(q),
+                "frequency": frequency,
+                "gain":      gain,
+                "q":         q,
             }
 
         if method == AudioProcessorActionMethod.LOW_SHELF:
-            frequency = await context.render_variable(self.config.frequency)
-            gain      = await context.render_variable(self.config.gain)
-            q         = await context.render_variable(self.config.q)
+            frequency = float(await context.render_variable(self.config.frequency))
+            gain      = float(await context.render_variable(self.config.gain))
+            q         = float(await context.render_variable(self.config.q))
 
             return {
-                "frequency": float(frequency),
-                "gain":      float(gain),
-                "q":         float(q),
+                "frequency": frequency,
+                "gain":      gain,
+                "q":         q,
             }
 
         if method == AudioProcessorActionMethod.HIGH_SHELF:
-            frequency = await context.render_variable(self.config.frequency)
-            gain      = await context.render_variable(self.config.gain)
-            q         = await context.render_variable(self.config.q)
+            frequency = float(await context.render_variable(self.config.frequency))
+            gain      = float(await context.render_variable(self.config.gain))
+            q         = float(await context.render_variable(self.config.q))
 
             return {
-                "frequency": float(frequency),
-                "gain":      float(gain),
-                "q":         float(q),
+                "frequency": frequency,
+                "gain":      gain,
+                "q":         q,
             }
 
         if method == AudioProcessorActionMethod.PITCH_SHIFT:
-            semitones = await context.render_variable(self.config.semitones)
+            semitones = float(await context.render_variable(self.config.semitones))
 
-            return { "semitones": float(semitones) }
+            return { "semitones": semitones }
 
         if method == AudioProcessorActionMethod.DC_SHIFT:
-            offset = await context.render_variable(self.config.offset) if self.config.offset is not None else None
+            offset = float(await context.render_variable(self.config.offset)) if self.config.offset is not None else 0.0
 
-            return { "offset": float(offset) if offset is not None else 0.0 }
+            return { "offset": offset }
 
         if method == AudioProcessorActionMethod.COMPRESSOR:
-            threshold = await context.render_variable(self.config.threshold)
-            ratio     = await context.render_variable(self.config.ratio)
-            attack    = await context.render_variable(self.config.attack)
-            release   = await context.render_variable(self.config.release)
+            threshold = float(await context.render_variable(self.config.threshold))
+            ratio     = float(await context.render_variable(self.config.ratio))
+            attack    = parse_time(await context.render_variable(self.config.attack))
+            release   = parse_time(await context.render_variable(self.config.release))
 
             return {
-                "threshold": float(threshold),
-                "ratio":     float(ratio),
-                "attack":    parse_time(attack),
-                "release":   parse_time(release),
+                "threshold": threshold,
+                "ratio":     ratio,
+                "attack":    attack,
+                "release":   release,
             }
 
         if method == AudioProcessorActionMethod.NOISE_GATE:
-            threshold = await context.render_variable(self.config.threshold)
-            ratio     = await context.render_variable(self.config.ratio)
-            attack    = await context.render_variable(self.config.attack)
-            release   = await context.render_variable(self.config.release)
+            threshold = float(await context.render_variable(self.config.threshold))
+            ratio     = float(await context.render_variable(self.config.ratio))
+            attack    = parse_time(await context.render_variable(self.config.attack))
+            release   = parse_time(await context.render_variable(self.config.release))
 
             return {
-                "threshold": float(threshold),
-                "ratio":     float(ratio),
-                "attack":    parse_time(attack),
-                "release":   parse_time(release),
+                "threshold": threshold,
+                "ratio":     ratio,
+                "attack":    attack,
+                "release":   release,
             }
 
         if method == AudioProcessorActionMethod.DISTORTION:
-            drive = await context.render_variable(self.config.drive)
+            drive = float(await context.render_variable(self.config.drive))
 
-            return { "drive": float(drive) }
+            return { "drive": drive }
 
         if method == AudioProcessorActionMethod.SATURATION:
-            drive = await context.render_variable(self.config.drive)
+            drive = float(await context.render_variable(self.config.drive))
 
-            return { "drive": float(drive) }
+            return { "drive": drive }
 
         if method == AudioProcessorActionMethod.GAIN:
-            level = await context.render_variable(self.config.level)
+            level = float(await context.render_variable(self.config.level))
 
-            return { "level": float(level) }
+            return { "level": level }
 
         if method == AudioProcessorActionMethod.CHORUS:
-            rate     = await context.render_variable(self.config.rate)
-            depth    = await context.render_variable(self.config.depth)
-            feedback = await context.render_variable(self.config.feedback)
-            delay    = await context.render_variable(self.config.delay)
-            mix      = await context.render_variable(self.config.mix)
+            rate     = float(await context.render_variable(self.config.rate))
+            depth    = float(await context.render_variable(self.config.depth))
+            feedback = float(await context.render_variable(self.config.feedback))
+            delay    = parse_time(await context.render_variable(self.config.delay))
+            mix      = float(await context.render_variable(self.config.mix))
 
             return {
-                "rate":     float(rate),
-                "depth":    float(depth),
-                "feedback": float(feedback),
-                "delay":    parse_time(delay),
-                "mix":      float(mix),
+                "rate":     rate,
+                "depth":    depth,
+                "feedback": feedback,
+                "delay":    delay,
+                "mix":      mix,
             }
 
         if method == AudioProcessorActionMethod.DELAY:
-            time     = await context.render_variable(self.config.time)
-            feedback = await context.render_variable(self.config.feedback)
-            mix      = await context.render_variable(self.config.mix)
+            time     = parse_time(await context.render_variable(self.config.time))
+            feedback = float(await context.render_variable(self.config.feedback))
+            mix      = float(await context.render_variable(self.config.mix))
 
             return {
-                "time":     parse_time(time),
-                "feedback": float(feedback),
-                "mix":      float(mix),
+                "time":     time,
+                "feedback": feedback,
+                "mix":      mix,
             }
 
         if method == AudioProcessorActionMethod.REVERB:
-            room_size = await context.render_variable(self.config.room_size)
-            damping   = await context.render_variable(self.config.damping)
-            wet_level = await context.render_variable(self.config.wet_level)
-            dry_level = await context.render_variable(self.config.dry_level)
-            width     = await context.render_variable(self.config.width)
+            room_size = float(await context.render_variable(self.config.room_size))
+            damping   = float(await context.render_variable(self.config.damping))
+            wet_level = float(await context.render_variable(self.config.wet_level))
+            dry_level = float(await context.render_variable(self.config.dry_level))
+            width     = float(await context.render_variable(self.config.width))
 
             return {
-                "room_size": float(room_size),
-                "damping":   float(damping),
-                "wet_level": float(wet_level),
-                "dry_level": float(dry_level),
-                "width":     float(width),
+                "room_size": room_size,
+                "damping":   damping,
+                "wet_level": wet_level,
+                "dry_level": dry_level,
+                "width":     width,
             }
 
         if method == AudioProcessorActionMethod.NORMALIZE:
             if self.config.mode == AudioProcessorNormalizeMode.RMS:
-                level      = await context.render_variable(self.config.level)
-                peak_limit = await context.render_variable(self.config.peak_limit)
+                level      = float(await context.render_variable(self.config.level))
+                peak_limit = float(await context.render_variable(self.config.peak_limit))
 
                 return {
                     "mode":       AudioProcessorNormalizeMode.RMS,
-                    "level":      float(level),
-                    "peak_limit": float(peak_limit),
+                    "level":      level,
+                    "peak_limit": peak_limit,
                 }
 
             if self.config.mode == AudioProcessorNormalizeMode.PEAK:
-                level = await context.render_variable(self.config.level)
+                level = float(await context.render_variable(self.config.level))
 
                 return {
                     "mode":  AudioProcessorNormalizeMode.PEAK,
-                    "level": float(level),
+                    "level": level,
                 }
 
             if self.config.mode == AudioProcessorNormalizeMode.LUFS:
-                level             = await context.render_variable(self.config.level)
-                tolerance         = await context.render_variable(self.config.tolerance)
-                max_gain          = await context.render_variable(self.config.max_gain)
-                true_peak_ceiling = await context.render_variable(self.config.true_peak_ceiling)
+                level             = float(await context.render_variable(self.config.level))
+                tolerance         = float(await context.render_variable(self.config.tolerance))
+                max_gain          = float(await context.render_variable(self.config.max_gain))
+                true_peak_ceiling = float(await context.render_variable(self.config.true_peak_ceiling))
 
                 return {
                     "mode":              AudioProcessorNormalizeMode.LUFS,
-                    "level":             float(level),
-                    "tolerance":         float(tolerance),
-                    "max_gain":          float(max_gain),
-                    "true_peak_ceiling": float(true_peak_ceiling),
+                    "level":             level,
+                    "tolerance":         tolerance,
+                    "max_gain":          max_gain,
+                    "true_peak_ceiling": true_peak_ceiling,
                 }
 
             raise ValueError(f"Unsupported normalize mode: {self.config.mode}")
 
         if method == AudioProcessorActionMethod.PEAK_LIMIT:
             if self.config.mode == AudioProcessorPeakLimitMode.HARD:
-                level = await context.render_variable(self.config.level)
+                level = float(await context.render_variable(self.config.level))
 
                 return {
                     "mode":  AudioProcessorPeakLimitMode.HARD,
-                    "level": float(level),
+                    "level": level,
                 }
 
             if self.config.mode == AudioProcessorPeakLimitMode.SMOOTH:
-                level   = await context.render_variable(self.config.level)
-                release = await context.render_variable(self.config.release)
+                level   = float(await context.render_variable(self.config.level))
+                release = parse_time(await context.render_variable(self.config.release))
 
                 return {
                     "mode":    AudioProcessorPeakLimitMode.SMOOTH,
-                    "level":   float(level),
-                    "release": parse_time(release),
+                    "level":   level,
+                    "release": release,
                 }
 
             raise ValueError(f"Unsupported peak-limit mode: {self.config.mode}")
 
         if method == AudioProcessorActionMethod.TRIM_EDGES:
-            threshold = await context.render_variable(self.config.threshold)
-            padding   = await context.render_variable(self.config.padding) if self.config.padding is not None else None
+            threshold = float(await context.render_variable(self.config.threshold))
+            padding   = parse_time(await context.render_variable(self.config.padding)) if self.config.padding is not None else 0.0
 
             return {
-                "threshold": float(threshold),
-                "padding":   parse_time(padding) if padding is not None else 0.0,
+                "threshold": threshold,
+                "padding":   padding,
             }
 
         if method == AudioProcessorActionMethod.TRIM_SILENCE:
-            window               = await context.render_variable(self.config.window)
-            threshold            = await context.render_variable(self.config.threshold)
-            min_silence          = await context.render_variable(self.config.min_silence)
-            max_internal_silence = await context.render_variable(self.config.max_internal_silence)
-            fade                 = await context.render_variable(self.config.fade)
+            window               = parse_time(await context.render_variable(self.config.window))
+            threshold            = float(await context.render_variable(self.config.threshold))
+            min_silence          = parse_time(await context.render_variable(self.config.min_silence))
+            max_internal_silence = parse_time(await context.render_variable(self.config.max_internal_silence))
+            fade                 = parse_time(await context.render_variable(self.config.fade))
 
             return {
-                "window":               parse_time(window),
-                "threshold":            float(threshold),
-                "min_silence":          parse_time(min_silence),
-                "max_internal_silence": parse_time(max_internal_silence),
-                "fade":                 parse_time(fade),
+                "window":               window,
+                "threshold":            threshold,
+                "min_silence":          min_silence,
+                "max_internal_silence": max_internal_silence,
+                "fade":                 fade,
             }
 
         if method == AudioProcessorActionMethod.FADE_IN:
-            duration = await context.render_variable(self.config.duration)
+            duration = parse_time(await context.render_variable(self.config.duration))
 
-            return { "duration": parse_time(duration) }
+            return { "duration": duration }
 
         if method == AudioProcessorActionMethod.FADE_OUT:
-            duration = await context.render_variable(self.config.duration)
+            duration = parse_time(await context.render_variable(self.config.duration))
 
-            return { "duration": parse_time(duration) }
+            return { "duration": duration }
 
         raise ValueError(f"Unsupported audio processor action method: {method}")
 

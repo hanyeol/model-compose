@@ -15,6 +15,26 @@ from .common import VideoSceneDetectorAction
 import os
 
 class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
+    async def _detect_batch(
+        self,
+        videos: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
+        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
+        for video in videos:
+            results.append(await self._detect(
+                video,
+                params["detector"],
+                params["threshold"],
+                params["start_time"],
+                params["end_time"],
+                streaming,
+                cancellation_token,
+            ))
+        return results
+
     async def _detect(
         self,
         video: MediaSource,

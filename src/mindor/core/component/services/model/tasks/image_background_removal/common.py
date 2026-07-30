@@ -33,7 +33,7 @@ class ImageBackgroundRemovalTaskAction(ComponentAction):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_images = [ self._normalize_image(image) for image in batch_images ]
-                    batch_masks = await self._predict_masks(batch_images, params, context.cancellation_token)
+                    batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
                     for image, mask in zip(batch_images, batch_masks):
                         yield self._render_output(image, mask, params["output_format"])
 
@@ -42,7 +42,7 @@ class ImageBackgroundRemovalTaskAction(ComponentAction):
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_images = [ self._normalize_image(image) for image in batch_images ]
-                batch_masks = await self._predict_masks(batch_images, params, context.cancellation_token)
+                batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
                 for image, mask in zip(batch_images, batch_masks):
                     results.append(self._render_output(image, mask, params["output_format"]))
 
@@ -74,7 +74,7 @@ class ImageBackgroundRemovalTaskAction(ComponentAction):
         raise ValueError(f"Unsupported output format: {output_format}")
 
     @abstractmethod
-    async def _predict_masks(
+    async def _predict_masks_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

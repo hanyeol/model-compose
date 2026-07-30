@@ -32,7 +32,7 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_prompts, params, context.cancellation_token)
+                    batch_results = await self._generate_batch(batch_prompts, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -40,7 +40,7 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         else:
             results: List[PILImage.Image] = []
             async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_prompts, params, context.cancellation_token)
+                batch_results = await self._generate_batch(batch_prompts, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -52,7 +52,7 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         return {}
 
     @abstractmethod
-    async def _generate(
+    async def _generate_batch(
         self,
         prompts: List[str],
         params: Dict[str, Any],
@@ -81,7 +81,7 @@ class ImageGenerationInpaintTaskAction(ComponentAction):
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    batch_results = await self._inpaint(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
+                    batch_results = await self._inpaint_batch(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -89,7 +89,7 @@ class ImageGenerationInpaintTaskAction(ComponentAction):
         else:
             results: List[PILImage.Image] = []
             async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                batch_results = await self._inpaint(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
+                batch_results = await self._inpaint_batch(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -101,7 +101,7 @@ class ImageGenerationInpaintTaskAction(ComponentAction):
         return {}
 
     @abstractmethod
-    async def _inpaint(
+    async def _inpaint_batch(
         self,
         prompts: List[str],
         images: List[PILImage.Image],

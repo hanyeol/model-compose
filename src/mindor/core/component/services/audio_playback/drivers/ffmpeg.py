@@ -30,6 +30,15 @@ _RAW_PCM_INPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
+    async def _play_batch(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> None:
+        for audio in audios:
+            await self._play(audio, params, cancellation_token)
+
     async def _play(
         self,
         audio: MediaSource,

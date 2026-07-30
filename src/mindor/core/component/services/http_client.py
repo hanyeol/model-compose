@@ -4,11 +4,12 @@ from mindor.dsl.schema.component import HttpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpClientActionConfig, HttpClientCompletionType, HttpClientCompletionConfig
 from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from mindor.core.listener import HttpCallbackListener
-from mindor.core.utils.transport.http_client import HttpClient
+from mindor.core.utils.transport.http_client import HttpClient, StreamResourcePayload
 from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -28,7 +29,7 @@ class HttpClientPollingCompletion(HttpClientCompletion):
         url_or_path = await self._resolve_url_or_path(context)
         method      = await context.render_variable(self.config.method)
         params      = await context.render_variable(self.config.params)
-        body        = await context.render_variable(self.config.body)
+        body        = await self._resolve_body(context)
         headers     = await context.render_variable(self.config.headers)
 
         interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
@@ -63,6 +64,12 @@ class HttpClientPollingCompletion(HttpClientCompletion):
 
         return await context.render_variable(self.config.endpoint)
 
+    async def _resolve_body(self, context: ComponentActionContext) -> Any:
+        body = await context.render_variable(self.config.body)
+        if isinstance(body, StreamResource):
+            return StreamResourcePayload(body)
+        return body
+
 class HttpClientCallbackCompletion(HttpClientCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
         callback_id = await context.render_variable(self.config.wait_for)
@@ -94,7 +101,7 @@ class HttpClientAction:
         url_or_path = await self._resolve_url_or_path(context)
         method      = await context.render_variable(self.config.method)
         params      = await context.render_variable(self.config.params)
-        body        = await context.render_variable(self.config.body)
+        body        = await self._resolve_body(context)
         headers     = await context.render_variable(self.config.headers)
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
@@ -133,6 +140,14 @@ class HttpClientAction:
             return await context.render_variable(self.config.path)
 
         return await context.render_variable(self.config.endpoint)
+
+    async def _resolve_body(self, context: ComponentActionContext) -> Any:
+        body = await context.render_variable(self.config.body)
+
+        if isinstance(body, StreamResource):
+            return StreamResourcePayload(body)
+
+        return body
 
     def _convert_stream_chunk(self, chunk: bytes, format: HttpEventStreamFormat) -> Any:
         if format == HttpEventStreamFormat.JSON:

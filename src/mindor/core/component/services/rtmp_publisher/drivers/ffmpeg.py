@@ -55,28 +55,18 @@ class FFmpegRtmpPublisher:
         audio_attrs: Optional[Dict[str, Any]],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        has_video = video is not None
-        has_audio = audio is not None
-
         # The first MediaSource takes stdin (`pipe:0`); any further one
         # rides an inherited descriptor.
         stdin_owner: Optional[MediaSource] = None
         fd_channels: List[SubprocessStreamChannel] = []
 
-        video_input: Optional[str] = None
-        audio_input: Optional[str] = None
-
-        if has_video:
-            video_input, stdin_owner = self._resolve_input_source(video, stdin_owner, fd_channels)
-
-        if has_audio:
-            audio_input, stdin_owner = self._resolve_input_source(audio, stdin_owner, fd_channels)
+        video_input, stdin_owner = self._resolve_input_source(video, stdin_owner, fd_channels) if video is not None else (None, stdin_owner)
+        audio_input, stdin_owner = self._resolve_input_source(audio, stdin_owner, fd_channels) if audio is not None else (None, stdin_owner)
 
         command = self._build_publish_command(video_input, video_attrs, audio_input, audio_attrs)
+        source = stdin_owner.stream if stdin_owner is not None else None
 
         logging.debug("Publishing to RTMP: %s", self.url)
-
-        source: Optional[AsyncIterable[bytes]] = stdin_owner.stream if stdin_owner is not None else None
 
         async def _on_started() -> None:
             # ffmpeg owns the read ends now; each start() drops the parent's
@@ -257,6 +247,22 @@ class FFmpegRtmpPublisher:
         return _DEFAULT_AUDIO_CODEC
 
 class FFmpegRtmpPublisherAction(RtmpPublisherAction):
+    async def _publish_batch(
+        self,
+        videos: Optional[List[MediaSource]],
+        audios: Optional[List[MediaSource]],
+        url: str,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> None:
+        video_count = len(videos) if videos is not None else (len(audios) if audios is not None else 0)
+        for index in range(video_count):
+            video = videos[index] if videos is not None else None
+            audio = audios[index] if audios is not None else None
+            if video is None and audio is None:
+                continue
+            await self._publish(video, audio, url, encoding, cancellation_token)
+
     async def _publish(
         self,
         video: Optional[MediaSource],

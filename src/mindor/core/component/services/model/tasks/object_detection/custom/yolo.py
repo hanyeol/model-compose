@@ -24,7 +24,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         self.model: YOLO = model
 
-    async def _detect(
+    async def _detect_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

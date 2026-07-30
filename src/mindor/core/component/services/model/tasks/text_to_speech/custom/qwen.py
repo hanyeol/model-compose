@@ -52,7 +52,7 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
 
         return params
 
-    async def _generate(
+    async def _generate_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],

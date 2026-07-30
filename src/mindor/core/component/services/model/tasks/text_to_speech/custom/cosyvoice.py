@@ -28,7 +28,7 @@ class CosyvoiceTextToSpeechTaskAction(TextToSpeechTaskAction):
         self.model = model
         self.sample_rate = sample_rate
 
-    async def _generate(
+    async def _generate_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],
@@ -67,7 +67,7 @@ class CosyvoiceTextToSpeechTaskAction(TextToSpeechTaskAction):
     def _invoke(self, text: str, params: Dict[str, Any]) -> Any:
         pass
 
-    async def _render_reference_audio(self, context: ComponentActionContext, value: Any) -> str:
+    async def _resolve_reference_audio(self, context: ComponentActionContext, value: Any) -> str:
         """Decode the reference audio and re-emit it as a 16 kHz mono WAV
         tempfile path. CosyVoice's frontend re-reads the prompt with its own
         load_wav (which in newer torchaudio routes through torchcodec and
@@ -105,16 +105,11 @@ class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
         # loaded model_dir includes an spk2info.pt (typically CosyVoice-300M-SFT
         # or a v2/v3 checkpoint with pre-registered zero-shot speakers).
         if not hasattr(self.model, "inference_sft"):
-            raise RuntimeError(
-                "The loaded CosyVoice model does not support the 'generate' method. "
-                "Use family=cosyvoice with a *-SFT checkpoint, or switch to method=clone."
-            )
+            raise RuntimeError("The loaded CosyVoice model does not support the 'generate' method.")
 
         available = getattr(self.model, "list_available_spks", lambda: [])()
         if available and params["voice"] not in available:
-            raise ValueError(
-                f"Unknown voice '{params['voice']}'. Available speakers: {available}"
-            )
+            raise ValueError(f"Unknown voice '{params['voice']}'. Available speakers: {available}")
 
         return self.model.inference_sft(
             tts_text=text,
@@ -130,7 +125,7 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        prompt_wav     = await self._render_prompt_wav_file(context, self.config.reference_audio)
+        prompt_wav     = await self._resolve_reference_audio(context, self.config.reference_audio)
         prompt_text    = await context.render_variable(self.config.reference_text)
         speed          = await context.render_variable(self.config.speed)
         text_frontend  = await context.render_variable(self.config.text_frontend)
@@ -173,7 +168,7 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         instructions    = await context.render_variable(self.config.instructions)
-        reference_audio = await self._render_reference_audio(context, self.config.reference_audio)
+        reference_audio = await self._resolve_reference_audio(context, self.config.reference_audio)
         speed           = await context.render_variable(self.config.speed)
         text_frontend   = await context.render_variable(self.config.text_frontend)
 

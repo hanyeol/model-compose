@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.logger import logging
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
 
@@ -25,31 +24,15 @@ class RtmpPublisherAction(MediaComponentAction):
         # Each item runs as its own publish so a peer-side disconnect
         # (e.g. YouTube ending the stream) doesn't bleed into the next one.
         async for videos, audios in BatchSourceIterator((video, audio), batch_size=1):
-            video = videos[0] if videos is not None else None
-            audio = audios[0] if audios is not None else None
-            await self._process(video, audio, url, encoding, context.cancellation_token)
+            await self._publish_batch(videos, audios, url, encoding, context.cancellation_token)
 
         return None
 
-    async def _process(
-        self,
-        video: Optional[MediaSource],
-        audio: Optional[MediaSource],
-        url: str,
-        encoding: VideoAudioEncodingParams,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
-        if video is None and audio is None:
-            logging.debug("RTMP publisher skipped because no input was provided.")
-            return
-
-        await self._publish(video, audio, url, encoding, cancellation_token)
-
     @abstractmethod
-    async def _publish(
+    async def _publish_batch(
         self,
-        video: Optional[MediaSource],
-        audio: Optional[MediaSource],
+        videos: Optional[List[MediaSource]],
+        audios: Optional[List[MediaSource]],
         url: str,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,

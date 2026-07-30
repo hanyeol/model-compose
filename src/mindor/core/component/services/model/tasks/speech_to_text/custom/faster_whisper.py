@@ -69,7 +69,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return params
 
-    async def _transcribe(
+    async def _transcribe_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],

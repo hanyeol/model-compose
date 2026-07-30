@@ -46,7 +46,7 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return params
 
-    async def _upscale(
+    async def _upscale_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

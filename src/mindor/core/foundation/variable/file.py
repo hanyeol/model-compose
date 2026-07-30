@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource, save_stream_to_temporary_file
 from ..streaming.file import FileStreamResource
 from ..streaming.iterators import StreamIterator
+import os
 
 class FileValueRenderer:
     async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
@@ -19,7 +20,7 @@ class FileValueRenderer:
 
     async def _render_element(self, value: Any) -> Optional[str]:
         if isinstance(value, FileStreamResource):
-            return value.path
+            return os.path.expanduser(value.path)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, None)

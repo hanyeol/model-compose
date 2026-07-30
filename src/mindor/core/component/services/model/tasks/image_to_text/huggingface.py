@@ -110,7 +110,7 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return params
 
-    async def _generate(
+    async def _generate_batch(
         self,
         images: List[PILImage.Image],
         prompts: Optional[List[str]],

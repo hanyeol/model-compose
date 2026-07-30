@@ -39,7 +39,7 @@ class TextRerankingTaskAction(ComponentAction):
             async def _stream_output_generator():
                 async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
-                    batch_scores = await self._rerank(batch_queries, batch_texts, params, context.cancellation_token)
+                    batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
                     for scores, original_documents in zip(batch_scores, batch_documents):
                         yield self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
 
@@ -48,7 +48,7 @@ class TextRerankingTaskAction(ComponentAction):
             results: List[Any] = []
             async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                 batch_texts = self._extract_document_texts(batch_documents, document_field)
-                batch_scores = await self._rerank(batch_queries, batch_texts, params, context.cancellation_token)
+                batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
                 for scores, original_documents in zip(batch_scores, batch_documents):
                     results.append(self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents))
 
@@ -114,7 +114,7 @@ class TextRerankingTaskAction(ComponentAction):
         return result
 
     @abstractmethod
-    async def _rerank(
+    async def _rerank_batch(
         self,
         queries: List[str],
         documents: List[List[str]],

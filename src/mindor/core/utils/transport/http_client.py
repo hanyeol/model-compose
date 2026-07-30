@@ -18,6 +18,20 @@ _DEFAULT_USER_AGENTS = {
     "Linux":   "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
 }
 
+class StreamResourcePayload(aiohttp.AsyncIterablePayload):
+    def __init__(self, stream: StreamResource, **kwargs: Any) -> None:
+        super().__init__(stream, **self._build_payload_kwargs(stream, kwargs))
+
+        if stream.size is not None:
+            self._size = stream.size
+
+    @classmethod
+    def _build_payload_kwargs(cls, stream: StreamResource, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        kwargs.setdefault("content_type", stream.content_type or "application/octet-stream")
+        if stream.filename and "filename" not in kwargs:
+            kwargs["filename"] = stream.filename
+        return kwargs
+
 class HttpClient:
     _shared_instance: Optional[HttpClient] = None
 
@@ -55,6 +69,7 @@ class HttpClient:
         streaming: bool = False
     ) -> Union[Any, Tuple[Any, int]]:
         response: aiohttp.ClientResponse = None
+
         try:
             merged_headers = { **(self.headers or {}), **(headers or {}) }
 

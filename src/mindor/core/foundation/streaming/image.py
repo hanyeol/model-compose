@@ -67,3 +67,10 @@ async def load_image_from_stream(stream: StreamResource) -> PILImage.Image:
         async for chunk in stream:
             data.extend(chunk)
     return await asyncio.to_thread(PILImage.open, io.BytesIO(data))
+
+async def load_image_from_bytes(data: bytes) -> PILImage.Image:
+    def _open():
+        image = PILImage.open(io.BytesIO(data))
+        image.load()
+        return image
+    return await asyncio.to_thread(_open)

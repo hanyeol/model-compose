@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from ..streaming.text import load_text_from_stream, load_text_from_iterator
+from ..streaming.text import TextStreamResource, load_text_from_stream, load_text_from_iterator
 from ..streaming.json import encode_value_to_json
 
 class TextValueRenderer:
@@ -32,6 +32,9 @@ class TextValueRenderer:
     async def _render_element(self, value: Any) -> Optional[str]:
         if isinstance(value, str):
             return value
+
+        if isinstance(value, TextStreamResource):
+            return value.text
 
         if isinstance(value, StreamChunkIterator) and value.is_fragmented:
             return await load_text_from_iterator(value)

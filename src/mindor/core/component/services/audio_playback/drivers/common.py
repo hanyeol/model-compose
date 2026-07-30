@@ -7,7 +7,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -26,50 +25,29 @@ class AudioPlaybackAction(ComponentAction):
         # AsyncIterator/StreamIterator/list/single into batches, and batch_size
         # controls the fan-out to the sink when multiple inputs arrive together.
         async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-            await self._process_batch(batch_audios, params, context.cancellation_token)
+            await self._play_batch(batch_audios, params, context.cancellation_token)
 
         return None
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sink            = await context.render_variable(self.config.sink)
         device          = await context.render_variable(self.config.device) if self.config.device is not None else None
-        volume          = await context.render_variable(self.config.volume)
-        duration        = await context.render_variable(self.config.duration) if self.config.duration is not None else None
-        wait_for_finish = await context.render_variable(self.config.wait_for_finish)
+        volume          = float(await context.render_variable(self.config.volume))
+        duration        = parse_time(await context.render_variable(self.config.duration)) if self.config.duration is not None else None
+        wait_for_finish = bool(await context.render_variable(self.config.wait_for_finish))
 
         return {
             "sink":            AudioPlaybackSink(sink) if not isinstance(sink, AudioPlaybackSink) else sink,
             "device":          device,
-            "volume":          float(volume),
-            "duration":        parse_time(duration) if duration is not None else None,
-            "wait_for_finish": bool(wait_for_finish),
+            "volume":          volume,
+            "duration":        duration,
+            "wait_for_finish": wait_for_finish,
         }
 
-    async def _process_batch(
+    @abstractmethod
+    async def _play_batch(
         self,
         audios: List[MediaSource],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
-        for audio in audios:
-            await self._process(audio, params, cancellation_token)
-
-    async def _process(
-        self,
-        audio: Optional[MediaSource],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> None:
-        if audio is None:
-            logging.debug("Audio playback skipped because no audio was provided.")
-            return
-
-        await self._play(audio, params, cancellation_token)
-
-    @abstractmethod
-    async def _play(
-        self,
-        audio: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:

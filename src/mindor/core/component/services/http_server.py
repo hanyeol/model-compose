@@ -4,9 +4,10 @@ from mindor.dsl.schema.component import HttpServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, HttpServerActionConfig, HttpServerCompletionType, HttpServerCompletionConfig
 from mindor.dsl.schema.transport.http import HttpEventStreamFormat
 from mindor.core.listener import HttpCallbackListener
-from mindor.core.utils.transport.http_client import HttpClient
+from mindor.core.utils.transport.http_client import HttpClient, StreamResourcePayload
 from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -27,7 +28,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
         path    = await context.render_variable(self.config.path)
         method  = await context.render_variable(self.config.method)
         params  = await context.render_variable(self.config.params)
-        body    = await context.render_variable(self.config.body)
+        body    = await self._resolve_body(context)
         headers = await context.render_variable(self.config.headers)
 
         interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
@@ -55,6 +56,12 @@ class HttpServerPollingCompletion(HttpServerCompletion):
             await asyncio.sleep(interval.total_seconds())
 
         raise TimeoutError(f"Polling timed out after {timeout}.")
+
+    async def _resolve_body(self, context: ComponentActionContext) -> Any:
+        body = await context.render_variable(self.config.body)
+        if isinstance(body, StreamResource):
+            return StreamResourcePayload(body)
+        return body
 
 class HttpServerCallbackCompletion(HttpServerCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
@@ -87,7 +94,7 @@ class HttpServerAction:
         path    = await context.render_variable(self.config.path)
         method  = await context.render_variable(self.config.method)
         params  = await context.render_variable(self.config.params)
-        body    = await context.render_variable(self.config.body)
+        body    = await self._resolve_body(context)
         headers = await context.render_variable(self.config.headers)
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
@@ -120,6 +127,14 @@ class HttpServerAction:
             context.register_source("result", result)
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else (result or response)
+
+    async def _resolve_body(self, context: ComponentActionContext) -> Any:
+        body = await context.render_variable(self.config.body)
+
+        if isinstance(body, StreamResource):
+            return StreamResourcePayload(body)
+
+        return body
 
     def _convert_stream_chunk(self, chunk: bytes, format: HttpEventStreamFormat) -> Any:
         if format == HttpEventStreamFormat.JSON:

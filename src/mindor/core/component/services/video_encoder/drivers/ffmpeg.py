@@ -83,10 +83,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         fd_channels: List[SubprocessStreamChannel] = []
 
         video_input, stdin_owner = self._resolve_input_source(video, video_path, stdin_owner, fd_channels)
-        audio_input, stdin_owner = (
-            self._resolve_input_source(audio, audio_path, stdin_owner, fd_channels)
-            if audio is not None else (None, stdin_owner)
-        )
+        audio_input, stdin_owner = self._resolve_input_source(audio, audio_path, stdin_owner, fd_channels) if audio is not None else (None, stdin_owner)
 
         command = [ "ffmpeg", "-hide_banner", "-y" ]
 
@@ -131,7 +128,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
     async def _encode_from_frames(
         self,
-        frames: List[PILImage.Image],
+        frames: AsyncIterable[PILImage.Image],
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],
@@ -184,18 +181,20 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 except FileNotFoundError:
                     pass
 
-        async def _frames_bytes() -> AsyncIterator[bytes]:
-            for frame in frames:
+        async def _source_iterator() -> AsyncIterator[bytes]:
+            async for frame in frames:
                 buffer = io.BytesIO()
                 await asyncio.to_thread(frame.save, buffer, "PNG")
                 yield buffer.getvalue()
 
-        logging.debug("Encoding %d frames to '%s'", len(frames), format)
+        source = _source_iterator()
+
+        logging.debug("Encoding frames to '%s'", format)
 
         if streaming:
-            return await self._encode_to_stream(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
+            return await self._encode_to_stream(command, source, fd_channels, format, _cleanup, cancellation_token)
 
-        return await self._encode_to_file(command, _frames_bytes(), fd_channels, format, _cleanup, cancellation_token)
+        return await self._encode_to_file(command, source, fd_channels, format, _cleanup, cancellation_token)
 
     async def _encode_to_file(
         self,

@@ -123,17 +123,22 @@ class ChunkedStreamResource(StreamResource):
 
 async def read_stream_to_buffer(stream: StreamResource) -> io.BytesIO:
     buffer = io.BytesIO()
+
     async with stream:
         async for chunk in stream:
             buffer.write(chunk)
+
     buffer.seek(0)
+
     return buffer
 
 async def read_stream_to_bytes(stream: StreamResource) -> bytes:
     chunks: List[bytes] = []
+
     async with stream:
         async for chunk in stream:
             chunks.append(chunk)
+
     return b"".join(chunks)
 
 async def save_stream_to_file(stream: StreamResource, path: str) -> None:
@@ -143,7 +148,9 @@ async def save_stream_to_file(stream: StreamResource, path: str) -> None:
 
 async def save_stream_to_temporary_file(stream: StreamResource, extension: Optional[str]) -> Optional[str]:
     path = create_temporary_file(extension)
+
     async with stream, aiofiles.open(path, "wb") as file:
         async for chunk in stream:
             await file.write(chunk)
+
     return path

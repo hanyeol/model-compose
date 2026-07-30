@@ -39,7 +39,7 @@ class ShellAction:
                 async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
                     for result in batch_results:
-                        if isinstance(result, (StreamIterator, AsyncIterator)):
+                        if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -55,7 +55,7 @@ class ShellAction:
             async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
                 for result in batch_results:
-                    if isinstance(result, (StreamIterator, AsyncIterator)):
+                    if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)
@@ -73,12 +73,12 @@ class ShellAction:
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         working_dir = await self._resolve_working_directory()
         env         = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
-        timeout     = await context.render_variable(self.config.timeout) if self.config.timeout else None
+        timeout     = parse_duration(await context.render_variable(self.config.timeout)) if self.config.timeout else None
 
         return {
             "working_dir": working_dir,
             "env":         env,
-            "timeout":     parse_duration(timeout) if timeout is not None else None,
+            "timeout":     timeout,
         }
 
     async def _process_batch(
@@ -182,6 +182,7 @@ class ShellAction:
         working_dir = self.config.working_dir
 
         if working_dir:
+            working_dir = os.path.expanduser(working_dir)
             if self.base_dir:
                 working_dir = os.path.abspath(os.path.join(self.base_dir, working_dir))
             else:

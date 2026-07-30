@@ -20,6 +20,7 @@ ActionConfig = Union[
     VectorProcessorActionConfig,
     AgentActionConfig,
     WebBrowserActionConfig,
+    HtmlFrameRendererActionConfig,
     VideoSceneDetectorActionConfig,
     VideoConverterActionConfig,
     VideoEncoderActionConfig,

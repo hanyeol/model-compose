@@ -31,11 +31,11 @@ class ImageTextToTextTaskAction(ComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images, batch_prompts in BatchSourceIterator((image, prompt), batch_size=batch_size or 1):
-                    batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, context.cancellation_token)
+                    batch_results = await self._generate_batch(batch_images, batch_prompts, system_prompt, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
-                            async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                                async for chunk in generator:
+                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                                async for chunk in result:
                                     if chunk:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -48,11 +48,11 @@ class ImageTextToTextTaskAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_images, batch_prompts in BatchSourceIterator((image, prompt), batch_size=batch_size or 1):
-                batch_results = await self._generate(batch_images, batch_prompts, system_prompt, params, streaming, context.cancellation_token)
+                batch_results = await self._generate_batch(batch_images, batch_prompts, system_prompt, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
-                        async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                            async for chunk in generator:
+                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async for chunk in result:
                                 if chunk:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -84,7 +84,7 @@ class ImageTextToTextTaskAction(ComponentAction):
         }
 
     @abstractmethod
-    async def _generate(
+    async def _generate_batch(
         self,
         images: List[PILImage.Image],
         prompts: List[str],

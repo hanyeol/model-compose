@@ -28,7 +28,7 @@ class TextClassificationTaskAction(ComponentAction):
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._predict(batch_texts, params, self.labels, context.cancellation_token)
+                    batch_results = await self._predict_batch(batch_texts, params, self.labels, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -36,7 +36,7 @@ class TextClassificationTaskAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._predict(batch_texts, params, self.labels, context.cancellation_token)
+                batch_results = await self._predict_batch(batch_texts, params, self.labels, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -54,7 +54,7 @@ class TextClassificationTaskAction(ComponentAction):
         }
 
     @abstractmethod
-    async def _predict(
+    async def _predict_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],

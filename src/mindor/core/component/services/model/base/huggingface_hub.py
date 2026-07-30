@@ -1,14 +1,17 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.component import HuggingfaceModelConfig
+import os
 
 def get_model_path(model: HuggingfaceModelConfig) -> Optional[str]:
+    cache_dir = os.path.expanduser(model.cache_dir) if model.cache_dir else None
+
     if model.filename:
         from huggingface_hub import hf_hub_download
         return hf_hub_download(
             repo_id=model.repository,
             filename=model.filename,
             revision=model.revision,
-            cache_dir=model.cache_dir,
+            cache_dir=cache_dir,
             token=model.token,
             local_files_only=model.local_files_only
         )
@@ -17,7 +20,7 @@ def get_model_path(model: HuggingfaceModelConfig) -> Optional[str]:
         return snapshot_download(
             repo_id=model.repository,
             revision=model.revision,
-            cache_dir=model.cache_dir,
+            cache_dir=cache_dir,
             token=model.token,
             local_files_only=model.local_files_only
         )

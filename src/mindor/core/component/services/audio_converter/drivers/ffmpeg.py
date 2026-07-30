@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Set, Tuple, Callable, Any
+from typing import List, Optional, Dict, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
@@ -42,6 +42,17 @@ _STREAMABLE_OUTPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegAudioConverterAction(AudioConverterAction):
+    async def _convert_batch(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[AudioStreamResource]:
+        return await asyncio.gather(*[
+            self._convert(audio, params["format"], params["encoding"], cancellation_token)
+            for audio in audios
+        ])
+
     async def _convert(
         self,
         source: MediaSource,

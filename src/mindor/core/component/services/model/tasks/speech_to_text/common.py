@@ -9,6 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.transcript import TranscriptSegment
 from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
 
@@ -33,11 +34,11 @@ class SpeechToTextTaskAction(ComponentAction):
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._transcribe(batch_audios, params, streaming, context.cancellation_token)
+                    batch_results = await self._transcribe_batch(batch_audios, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
-                            async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                                async for chunk in generator:
+                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                                async for chunk in result:
                                     if chunk:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -50,11 +51,11 @@ class SpeechToTextTaskAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._transcribe(batch_audios, params, streaming, context.cancellation_token)
+                batch_results = await self._transcribe_batch(batch_audios, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
-                        async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                            async for chunk in generator:
+                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async for chunk in result:
                                 if chunk:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -80,13 +81,13 @@ class SpeechToTextTaskAction(ComponentAction):
         }
 
     @abstractmethod
-    async def _transcribe(
+    async def _transcribe_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> List[Union[str, AsyncIterator[str], List[TranscriptSegment], AsyncIterator[TranscriptSegment]]]:
         pass
 
 class SpeechToTextTaskService(ModelTaskService):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Set, Tuple, Callable, Any
+from typing import Dict, List, Optional, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoConverterComponentConfig
 from mindor.dsl.schema.action import VideoConverterActionConfig
@@ -45,6 +45,17 @@ _STREAMABLE_OUTPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegVideoConverterAction(VideoConverterAction):
+    async def _convert_batch(
+        self,
+        videos: List[MediaSource],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[VideoStreamResource]:
+        results: List[VideoStreamResource] = []
+        for video in videos:
+            results.append(await self._convert(video, params["encoding"], cancellation_token))
+        return results
+
     async def _convert(
         self,
         source: MediaSource,
@@ -52,8 +63,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format = self._resolve_container_format(encoding)
-        video = encoding.video
-        audio = encoding.audio
+        video, audio = encoding.video, encoding.audio
 
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS

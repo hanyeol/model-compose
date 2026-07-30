@@ -9,7 +9,6 @@ from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.text import TextStreamResource
-from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -47,9 +46,9 @@ class SentenceSplitterAction(ComponentAction):
         if isinstance(text, (StreamIterator, AsyncIterator)) and not is_fragmented:
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_texts, params, streaming, context.cancellation_token)
+                    batch_results = await self._split_batch(batch_texts, params, streaming, context.cancellation_token)
                     for result in batch_results:
-                        if isinstance(result, (StreamIterator, AsyncIterator)):
+                        if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     context.register_source("result[]", chunk, scope=scope)
@@ -63,9 +62,9 @@ class SentenceSplitterAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator([ text ] if is_fragmented else text, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_texts, params, streaming, context.cancellation_token)
+                batch_results = await self._split_batch(batch_texts, params, streaming, context.cancellation_token)
                 for result in batch_results:
-                    if isinstance(result, (StreamIterator, AsyncIterator)):
+                    if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 context.register_source("result[]", chunk, scope=scope)
@@ -95,7 +94,7 @@ class SentenceSplitterAction(ComponentAction):
 
         return { "min_chunk_length": min_chunk_length, "max_chunk_length": max_chunk_length }
 
-    async def _process_batch(
+    async def _split_batch(
         self,
         texts: List[Any],
         params: Dict[str, Any],
@@ -104,24 +103,11 @@ class SentenceSplitterAction(ComponentAction):
     ) -> List[Any]:
         results: List[Any] = []
         for text in texts:
-            results.append(await self._process(text, params, streaming, cancellation_token))
+            if streaming:
+                results.append(self._stream_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token))
+            else:
+                results.append(await self._collect_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token))
         return results
-
-    async def _process(
-        self,
-        text: Any,
-        params: Dict[str, Any],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Any:
-        if text is None:
-            logging.debug("Sentence splitter skipped because no text was provided.")
-            return None
-
-        if streaming:
-            return self._stream_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token)
-
-        return await self._collect_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token)
 
     async def _collect_sentences(
         self,

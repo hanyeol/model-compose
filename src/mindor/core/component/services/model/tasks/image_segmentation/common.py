@@ -27,7 +27,7 @@ class ImageSegmentationTaskAction(ComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._segment(batch_images, params, context.cancellation_token)
+                    batch_results = await self._segment_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -35,7 +35,7 @@ class ImageSegmentationTaskAction(ComponentAction):
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._segment(batch_images, params, context.cancellation_token)
+                batch_results = await self._segment_batch(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -45,10 +45,10 @@ class ImageSegmentationTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         box_prompt        = await context.render_variable(self.config.box_prompt)
-        min_confidence    = await context.render_variable(self.config.min_confidence)
-        min_area          = await context.render_variable(self.config.min_area) if self.config.min_area is not None else None
-        max_segment_count = await context.render_variable(self.config.max_segment_count)
-        return_mask       = await context.render_variable(self.config.return_mask)
+        min_confidence    = float(await context.render_variable(self.config.min_confidence))
+        min_area          = int(await context.render_variable(self.config.min_area)) if self.config.min_area is not None else None
+        max_segment_count = int(await context.render_variable(self.config.max_segment_count))
+        return_mask       = bool(await context.render_variable(self.config.return_mask))
 
         if not 0.0 <= float(min_confidence) <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {float(min_confidence)}")
@@ -73,14 +73,14 @@ class ImageSegmentationTaskAction(ComponentAction):
 
         return {
             "box_prompts":       box_prompts,
-            "min_confidence":    float(min_confidence),
-            "min_area":          int(min_area) if min_area is not None else None,
-            "max_segment_count": int(max_segment_count),
-            "return_mask":       bool(return_mask),
+            "min_confidence":    min_confidence,
+            "min_area":          min_area,
+            "max_segment_count": max_segment_count,
+            "return_mask":       return_mask,
         }
 
     @abstractmethod
-    async def _segment(
+    async def _segment_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

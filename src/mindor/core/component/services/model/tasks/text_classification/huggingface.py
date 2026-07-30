@@ -49,7 +49,7 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
 
         return params
 
-    async def _predict(
+    async def _predict_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],

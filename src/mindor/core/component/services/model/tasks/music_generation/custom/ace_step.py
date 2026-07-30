@@ -37,7 +37,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         return params
 
-    async def _generate(
+    async def _generate_batch(
         self,
         prompts: List[str],
         lyrics: Optional[List[Optional[str]]],

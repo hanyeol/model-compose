@@ -24,7 +24,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         self.model_path: str = model_path
 
-    async def _detect(
+    async def _detect_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

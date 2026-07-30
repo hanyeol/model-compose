@@ -14,7 +14,6 @@ from ..base import ComponentActionContext
 
 class WebBrowserSession(ABC):
     """Abstract browser session exposing high-level browser actions."""
-
     @abstractmethod
     async def navigate(self, url: str, wait_until: str, timeout: float) -> Dict[str, Any]:
         pass
@@ -129,10 +128,10 @@ class WebBrowserAction(MediaComponentAction):
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
             return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
+        else:
+            context.register_source("result", result)
 
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _dispatch(
         self,

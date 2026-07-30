@@ -52,7 +52,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
         return pipeline_params
 
-    async def _diarize(
+    async def _diarize_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],

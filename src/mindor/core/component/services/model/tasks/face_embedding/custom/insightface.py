@@ -37,7 +37,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         return params
 
-    async def _embed(
+    async def _embed_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
@@ -155,7 +155,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
             else:
                 path = self.config.model
 
-            root, name = self._prepare_model_path(path)
+            root, name = self._prepare_model_path(os.path.expanduser(path))
 
             return { "name": name, "root": root }
 

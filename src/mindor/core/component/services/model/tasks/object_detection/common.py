@@ -27,7 +27,7 @@ class ObjectDetectionTaskAction(ComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_results = await self._detect(batch_images, params, context.cancellation_token)
+                    batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -35,7 +35,7 @@ class ObjectDetectionTaskAction(ComponentAction):
         else:
             results: List[Dict[str, Any]] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_results = await self._detect(batch_images, params, context.cancellation_token)
+                batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -76,7 +76,7 @@ class ObjectDetectionTaskAction(ComponentAction):
         }
 
     @abstractmethod
-    async def _detect(
+    async def _detect_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

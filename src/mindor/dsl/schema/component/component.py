@@ -24,6 +24,7 @@ ComponentConfig = Annotated[
         WebScraperComponentConfig,
         AgentComponentConfig,
         WebBrowserComponentConfig,
+        HtmlFrameRendererComponentConfig,
         VideoSceneDetectorComponentConfig,
         VideoConverterComponentConfig,
         VideoEncoderComponentConfig,

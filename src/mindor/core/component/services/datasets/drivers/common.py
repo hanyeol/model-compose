@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 from ..utils import format_template_example
+import os
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -35,6 +36,9 @@ class DatasetsAction(ComponentAction):
             keep_in_memory = await context.render_variable(self.config.keep_in_memory)
             cache_dir      = await context.render_variable(self.config.cache_dir)
             save_infos     = await context.render_variable(self.config.save_infos)
+
+            if cache_dir:
+                cache_dir = os.path.expanduser(cache_dir)
 
             return {
                 "fraction":       fraction,

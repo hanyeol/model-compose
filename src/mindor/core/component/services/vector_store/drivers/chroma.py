@@ -9,7 +9,7 @@ from mindor.core.foundation.variable.time import parse_duration
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
-import ulid
+import ulid, os
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI as ChromaClient
@@ -267,7 +267,7 @@ class ChromaVectorStoreService(VectorStoreService):
             from chromadb import PersistentClient
 
             return PersistentClient(
-                path=self.config.storage_dir,
+                path=os.path.expanduser(self.config.storage_dir),
                 **self._resolve_database_params()
             )
 

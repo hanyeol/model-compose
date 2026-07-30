@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
@@ -15,7 +16,6 @@ from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from ..filename import format_filename
 from PIL import Image as PILImage
-from io import BytesIO
 import asyncio, os, re
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
@@ -29,6 +29,27 @@ _STREAMABLE_INPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
+    async def _extract_batch(
+        self,
+        videos: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
+        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
+        for video in videos:
+            results.append(await self._extract(
+                video,
+                params["frame_interval"],
+                params["start_time"],
+                params["end_time"],
+                params["max_frame_count"],
+                params["filename_format"],
+                streaming,
+                cancellation_token,
+            ))
+        return results
+
     async def _extract(
         self,
         video: MediaSource,
@@ -131,7 +152,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 buffer += chunk
 
                 while True:
-                    image, buffer = self._extract_frame_image(buffer)
+                    image, buffer = await self._extract_frame_image(buffer)
 
                     if image is None:
                         break
@@ -246,7 +267,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 buffer += chunk
 
                 while True:
-                    image, buffer = self._extract_frame_image(buffer)
+                    image, buffer = await self._extract_frame_image(buffer)
 
                     if image is None:
                         break
@@ -324,25 +345,22 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
             cleanup()
 
-    def _extract_frame_image(self, buffer: bytes) -> Tuple[Optional[PILImage.Image], bytes]:
+    async def _extract_frame_image(self, buffer: bytes) -> Tuple[Optional[PILImage.Image], bytes]:
         """Pull one complete PNG out of `buffer`. Returns (image, remaining_buffer).
         Returns (None, buffer) if no complete PNG is in `buffer` yet."""
         start = buffer.find(_PNG_SIGNATURE)
-        
+
         if start < 0:
             return None, buffer
 
         end = buffer.find(_PNG_IEND_MARKER, start + len(_PNG_SIGNATURE))
-        
+
         if end < 0:
             return None, buffer
-        
+
         end += len(_PNG_IEND_MARKER)
 
-        image = PILImage.open(BytesIO(buffer[start:end]))
-        image.load()
-
-        return image, buffer[end:]
+        return await load_image_from_bytes(buffer[start:end]), buffer[end:]
 
     async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
         """

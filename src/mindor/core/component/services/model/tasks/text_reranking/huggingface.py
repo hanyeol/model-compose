@@ -46,7 +46,7 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
 
         return params
 
-    async def _rerank(
+    async def _rerank_batch(
         self,
         queries: List[str],
         documents: List[List[str]],

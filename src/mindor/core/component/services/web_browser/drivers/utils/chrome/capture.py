@@ -106,7 +106,7 @@ class PageAdapter(ABC):
         pass
 
     @abstractmethod
-    async def evaluate(self, expression: str, arg: Any = None) -> Any:
+    async def evaluate(self, expression: str, arg: Optional[Any] = None) -> Any:
         pass
 
 class VideoRecorder:

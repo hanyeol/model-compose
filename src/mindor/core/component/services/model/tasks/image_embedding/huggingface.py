@@ -34,7 +34,7 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
         self.processor: ProcessorMixin = processor
         self.device: torch.device = device
 
-    async def _embed(
+    async def _embed_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

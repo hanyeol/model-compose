@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Set, Tuple, Callable, Any
+from typing import Optional, Dict, List, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
@@ -42,6 +42,23 @@ _STREAMABLE_OUTPUT_FORMATS: Set[str] = {
 }
 
 class FFmpegAudioExtractorAction(AudioExtractorAction):
+    async def _extract_batch(
+        self,
+        sources: List[MediaSource],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[AudioStreamResource]:
+        results: List[AudioStreamResource] = []
+        for source in sources:
+            results.append(await self._extract(
+                source,
+                params["format"],
+                params["encoding"],
+                params["track"],
+                cancellation_token,
+            ))
+        return results
+
     async def _extract(
         self,
         source: MediaSource,

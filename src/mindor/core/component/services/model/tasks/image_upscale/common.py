@@ -63,7 +63,7 @@ class ImageUpscaleTaskAction(ComponentAction):
         images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
         alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in batch_images ]
 
-        images = await self._upscale(images, params, cancellation_token)
+        images = await self._upscale_batch(images, params, cancellation_token)
 
         results: List[PILImage.Image] = []
 
@@ -104,7 +104,7 @@ class ImageUpscaleTaskAction(ComponentAction):
         return image.resize(downsample_size, resample)
 
     @abstractmethod
-    async def _upscale(
+    async def _upscale_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

@@ -128,11 +128,11 @@ class VectorProcessorAction(ComponentAction):
             return {}
 
         if method == VectorProcessorActionMethod.TOP_K:
-            k      = await context.render_variable(self.config.k)
+            k      = int(await context.render_variable(self.config.k)) if self.config.k is not None else 1
             metric = self._as_ranking_metric(await context.render_variable(self.config.metric))
 
             return {
-                "k":      int(k) if k is not None else 1,
+                "k":      k,
                 "metric": metric,
             }
 
@@ -143,8 +143,10 @@ class VectorProcessorAction(ComponentAction):
             if threshold is None:
                 raise ValueError("'threshold' must be specified for 'threshold-filter' method")
 
+            threshold = float(threshold)
+
             return {
-                "threshold": float(threshold),
+                "threshold": threshold,
                 "metric":    metric,
             }
 
@@ -152,9 +154,9 @@ class VectorProcessorAction(ComponentAction):
             return {}
 
         if method in (VectorProcessorActionMethod.MEAN, VectorProcessorActionMethod.SUM):
-            axis = await context.render_variable(self.config.axis)
+            axis = int(await context.render_variable(self.config.axis)) if self.config.axis is not None else 0
 
-            return { "axis": int(axis) if axis is not None else 0 }
+            return { "axis": axis }
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 

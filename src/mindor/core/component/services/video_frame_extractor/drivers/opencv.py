@@ -20,6 +20,27 @@ import asyncio, os, threading
 _FRAME_QUEUE_MAXSIZE = 16
 
 class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
+    async def _extract_batch(
+        self,
+        videos: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
+        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
+        for video in videos:
+            results.append(await self._extract(
+                video,
+                params["frame_interval"],
+                params["start_time"],
+                params["end_time"],
+                params["max_frame_count"],
+                params["filename_format"],
+                streaming,
+                cancellation_token,
+            ))
+        return results
+
     async def _extract(
         self,
         video: MediaSource,

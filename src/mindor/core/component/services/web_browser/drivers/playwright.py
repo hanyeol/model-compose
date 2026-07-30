@@ -3,11 +3,11 @@ from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import PlaywrightWebBrowserComponentConfig, WebBrowserDriver
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.image import load_image_from_bytes
 from ..base import WebBrowserService, register_web_browser_service
 from .common import WebBrowserSession
 from .utils.chrome import VideoRecorder, PageAdapter
 from PIL import Image as PILImage
-import io
 
 class PlaywrightPageAdapter(PageAdapter):
     """Thin wrapper around a Playwright Page. Every method delegates directly."""
@@ -24,11 +24,8 @@ class PlaywrightPageAdapter(PageAdapter):
     ) -> None:
         await self._page.expose_binding(name, callback)
 
-    async def evaluate(self, expression: str, arg: Any = None) -> Any:
-        if arg is None:
-            return await self._page.evaluate(expression)
+    async def evaluate(self, expression: str, arg: Optional[Any] = None) -> Any:
         return await self._page.evaluate(expression, arg)
-
 
 class PlaywrightBrowserSession(WebBrowserSession):
     """Browser session backed by a Playwright page."""
@@ -93,7 +90,7 @@ class PlaywrightBrowserSession(WebBrowserSession):
         else:
             data = await self._page.screenshot(**params)
 
-        return PILImage.open(io.BytesIO(data))
+        return await load_image_from_bytes(data)
 
     async def capture_video(
         self,
@@ -222,12 +219,12 @@ class PlaywrightWebBrowserService(WebBrowserService):
     def __init__(self, id: str, config: PlaywrightWebBrowserComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self._playwright = None
-        self._browser = None             # persistent-launch or CDP-attach browser wrapper
+        self._playwright         = None
+        self._browser            = None  # persistent-launch or CDP-attach browser wrapper
         self._persistent_context = None  # non-None only for launch_persistent_context
-        self._attached = False           # True when connected via CDP; leave browser alive on close
+        self._attached           = False # True when connected via CDP; leave browser alive on close
 
-    async def create_session(self) -> PlaywrightBrowserSession:
+    async def _create_session(self) -> PlaywrightBrowserSession:
         from playwright.async_api import async_playwright
 
         if self._playwright is None:
@@ -263,7 +260,7 @@ class PlaywrightWebBrowserService(WebBrowserService):
 
         return PlaywrightBrowserSession(page)
 
-    async def close_browser(self) -> None:
+    async def _close_browser(self) -> None:
         if self._persistent_context is not None:
             await self._persistent_context.close()
             self._persistent_context = None

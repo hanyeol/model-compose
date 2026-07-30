@@ -34,11 +34,11 @@ class SpeakerDiarizationTaskAction(ComponentAction):
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                    batch_results = await self._diarize(batch_audios, params, streaming, context.cancellation_token)
+                    batch_results = await self._diarize_batch(batch_audios, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
-                            async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                                async for chunk in generator:
+                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                                async for chunk in result:
                                     if chunk:
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -51,11 +51,11 @@ class SpeakerDiarizationTaskAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
-                batch_results = await self._diarize(batch_audios, params, streaming, context.cancellation_token)
+                batch_results = await self._diarize_batch(batch_audios, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
-                        async def _stream_chunk_generator(generator=result, scope=f"stream:{id(result)}"):
-                            async for chunk in generator:
+                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async for chunk in result:
                                 if chunk:
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
@@ -70,24 +70,24 @@ class SpeakerDiarizationTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        sample_rate          = await context.render_variable(self.config.sample_rate)
-        num_speakers         = await context.render_variable(self.config.params.num_speakers) if self.config.params.num_speakers is not None else None
-        min_speakers         = await context.render_variable(self.config.params.min_speakers) if self.config.params.min_speakers is not None else None
-        max_speakers         = await context.render_variable(self.config.params.max_speakers) if self.config.params.max_speakers is not None else None
-        min_segment_duration = await context.render_variable(self.config.params.min_segment_duration)
-        merge_gap            = await context.render_variable(self.config.params.merge_gap)
+        sample_rate          = int(await context.render_variable(self.config.sample_rate))
+        num_speakers         = int(await context.render_variable(self.config.params.num_speakers)) if self.config.params.num_speakers is not None else None
+        min_speakers         = int(await context.render_variable(self.config.params.min_speakers)) if self.config.params.min_speakers is not None else None
+        max_speakers         = int(await context.render_variable(self.config.params.max_speakers)) if self.config.params.max_speakers is not None else None
+        min_segment_duration = parse_duration(await context.render_variable(self.config.params.min_segment_duration))
+        merge_gap            = parse_duration(await context.render_variable(self.config.params.merge_gap))
 
         return {
-            "sample_rate":          int(sample_rate),
-            "num_speakers":         int(num_speakers) if num_speakers is not None else None,
-            "min_speakers":         int(min_speakers) if min_speakers is not None else None,
-            "max_speakers":         int(max_speakers) if max_speakers is not None else None,
-            "min_segment_duration": parse_duration(min_segment_duration),
-            "merge_gap":            parse_duration(merge_gap),
+            "sample_rate":          sample_rate,
+            "num_speakers":         num_speakers,
+            "min_speakers":         min_speakers,
+            "max_speakers":         max_speakers,
+            "min_segment_duration": min_segment_duration,
+            "merge_gap":            merge_gap,
         }
 
     @abstractmethod
-    async def _diarize(
+    async def _diarize_batch(
         self,
         audios: List[MediaSource],
         params: Dict[str, Any],

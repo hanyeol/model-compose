@@ -1,0 +1,102 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: render
+    title: Audio Spectrum Video
+    description: |
+      Extract a per-frame frequency spectrum from an audio file and render
+      it as an equalizer MP4 with the original audio muxed back in. The
+      uploaded audio stream is fanned out via a file-store: the spectrum
+      extractor and the video encoder each read it as a URL, avoiding the
+      need to tee the upload stream.
+    jobs:
+      - id: save-audio
+        # Persist the uploaded stream once so downstream jobs can each
+        # re-read it independently.
+        component: audio-store
+        input:
+          path: ${context.task_id}/audio
+          source: ${input.audio as audio}
+        output: ${output}
+
+      - id: spectrum
+        component: extractor
+        input:
+          audio: ${jobs.save-audio.output.url as audio;url}
+          fps: ${input.fps as select/24,30,60 | 30}
+          band_count: ${input.band_count as integer | 48}
+        output: ${output as json}
+        depends_on: [ save-audio ]
+
+      - id: frames
+        component: renderer
+        input:
+          spectrum: ${jobs.spectrum.output}
+          fps: ${input.fps as select/24,30,60 | 30}
+        output: ${output}
+        depends_on: [ spectrum ]
+
+      - id: encode
+        component: encoder
+        input:
+          frames: ${jobs.frames.output}
+          frame_rate: ${input.fps as select/24,30,60 | 30}
+          audio: ${jobs.save-audio.output.url as audio;url}
+        output: ${output as video}
+        depends_on: [ frames ]
+
+components:
+  - id: audio-store
+    type: file-store
+    driver: local
+    base_path: ./output
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+
+  - id: extractor
+    type: audio-feature-extractor
+    action:
+      feature: spectrum
+      audio: ${input.audio}
+      fps: ${input.fps}
+      band_count: ${input.band_count}
+      min_frequency: 40.0
+      window_size: 2048
+      window_type: hann
+      frequency_scale: log
+      normalize_mode: peak-percentile
+
+  - id: renderer
+    type: html-frame-renderer
+    driver: playwright
+    headless: true
+    action:
+      html: ./animation.html
+      fps: ${input.fps}
+      width: 1280
+      height: 720
+      props:
+        spectrum: ${input.spectrum}
+      streaming: true
+
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      audio: ${input.audio}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 4M

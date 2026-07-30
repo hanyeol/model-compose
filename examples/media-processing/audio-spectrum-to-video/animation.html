@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #0b1220; overflow: hidden; font-family: sans-serif; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="viz" width="1280" height="720"></canvas>
+  <script>
+    // Implement the window.__renderer contract expected by model-compose's
+    // html_frame_renderer component. The page exposes `duration` and `seek(t)`
+    // on window.__renderer; the engine reads duration to count frames, then
+    // calls seek(t) once per frame and takes a screenshot after each call.
+
+    const canvas = document.getElementById("viz");
+    const ctx = canvas.getContext("2d");
+
+    // props.spectrum is the output of the audio-feature-extractor with
+    // feature=spectrum. Shape:
+    //   { frames: number[frame_count][band_count], fps, band_count,
+    //     frame_count, duration, sample_rate }
+    const spectrum = window.__renderer?.props?.spectrum ?? { frames: [], fps: 30, band_count: 0, duration: 0 };
+    const frames = spectrum.frames || [];
+    const sourceFps = spectrum.fps || 30;
+    const bandCount = spectrum.band_count || (frames[0]?.length ?? 0);
+    const totalDuration = spectrum.duration || (frames.length / sourceFps);
+
+    function pickFrame(t) {
+      if (!frames.length) return null;
+      const index = Math.min(frames.length - 1, Math.max(0, Math.floor(t * sourceFps)));
+      return frames[index];
+    }
+
+    function drawFrame(t) {
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // background
+      ctx.fillStyle = "#0b1220";
+      ctx.fillRect(0, 0, w, h);
+
+      const bands = pickFrame(t);
+      if (!bands) return;
+
+      const padX = 40;
+      const padTop = 60;
+      const padBottom = 60;
+      const usableW = w - padX * 2;
+      const usableH = h - padTop - padBottom;
+      const barGap = Math.max(2, Math.floor(usableW / bandCount * 0.2));
+      const barWidth = (usableW - barGap * (bandCount - 1)) / bandCount;
+
+      for (let i = 0; i < bandCount; i++) {
+        const amplitude = Math.min(1, Math.max(0, bands[i] ?? 0));
+        const barHeight = amplitude * usableH;
+        const x = padX + i * (barWidth + barGap);
+        const y = padTop + (usableH - barHeight);
+
+        // gradient from cool (low bands) to warm (high bands) with amplitude-driven brightness
+        const hue = 200 - (i / Math.max(1, bandCount - 1)) * 200; // 200 (cyan) → 0 (red)
+        const lightness = 40 + amplitude * 30;
+        ctx.fillStyle = `hsl(${hue}, 85%, ${lightness}%)`;
+        ctx.fillRect(x, y, barWidth, barHeight);
+      }
+
+      // progress bar at the bottom
+      const progress = totalDuration ? t / totalDuration : 0;
+      ctx.fillStyle = "#ffffff22";
+      ctx.fillRect(padX, h - 24, usableW, 4);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(padX, h - 24, usableW * progress, 4);
+    }
+
+    window.__renderer = window.__renderer || {};
+    Object.assign(window.__renderer, {
+      duration: totalDuration,
+      seek(t) {
+        drawFrame(t);
+      },
+    });
+  </script>
+</body>
+</html>

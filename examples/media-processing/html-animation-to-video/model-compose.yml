@@ -1,0 +1,54 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: render
+    title: HTML to Video
+    description: Render an HTML composition to an MP4 video via html_frame_renderer + video_encoder.
+    jobs:
+      - id: frames
+        component: renderer
+        input:
+          fps: ${input.fps as select/24,30,60 | 30}
+          title: ${input.title | Hello, model-compose!}
+        output: ${output}
+
+      - id: encode
+        component: encoder
+        input:
+          frames: ${jobs.frames.output}
+          frame_rate: ${input.fps as select/24,30,60 | 30}
+        output: ${output as video}
+        depends_on: [ frames ]
+
+components:
+  - id: renderer
+    type: html-frame-renderer
+    driver: playwright
+    headless: true
+    action:
+      html: ./animation.html
+      fps: ${input.fps}
+      width: 1280
+      height: 720
+      props:
+        title: ${input.title}
+      streaming: true
+
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 4M

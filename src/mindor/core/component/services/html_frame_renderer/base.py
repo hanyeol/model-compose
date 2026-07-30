@@ -49,12 +49,11 @@ class HtmlFrameRendererService(AsyncService):
         browser process (e.g. Playwright)."""
         pass
 
-    async def _resolve_html(self, name: str) -> UrlResource:
-        if name not in self._htmls:
-            html = next(html for html in self.config.htmls if html.name == name)
-            self._htmls[name] = await self._build_html_source(html.source)
+    async def _resolve_html(self, source: str) -> UrlResource:
+        if source not in self._htmls:
+            self._htmls[source] = await self._build_html_source(source)
 
-        return self._htmls[name]
+        return self._htmls[source]
 
     async def _build_html_source(self, source: str) -> UrlResource:
         """Turn an html source into a page URL.

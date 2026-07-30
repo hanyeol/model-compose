@@ -286,7 +286,7 @@ class TextSplitterAction(ComponentAction):
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         language      = await context.render_variable(self.config.language) if self.config.language is not None else None

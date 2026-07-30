@@ -37,7 +37,7 @@ class VideoFrameExtractorAction(ComponentAction):
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
+                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
                             yield result
 
@@ -53,23 +53,21 @@ class VideoFrameExtractorAction(ComponentAction):
                                 context.register_source("result[]", chunk, scope=scope)
                                 yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False))
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
                         results.append(result)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        frame_interval  = await context.render_variable(self.config.frame_interval)
-        start_time      = await context.render_variable(self.config.start_time) if self.config.start_time else None
-        end_time        = await context.render_variable(self.config.end_time) if self.config.end_time else None
-        max_frame_count = await context.render_variable(self.config.max_frame_count) if self.config.max_frame_count is not None else None
-
-        frame_interval  = int(frame_interval)
-        max_frame_count = int(max_frame_count) if max_frame_count is not None else None
+        frame_interval  = int(await context.render_variable(self.config.frame_interval))
+        start_time      = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
+        end_time        = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
+        max_frame_count = int(await context.render_variable(self.config.max_frame_count)) if self.config.max_frame_count is not None else None
+        filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
 
         if frame_interval < 1:
             raise ValueError(f"'frame_interval' must be >= 1, got {frame_interval}")
@@ -79,10 +77,10 @@ class VideoFrameExtractorAction(ComponentAction):
 
         return {
             "frame_interval":  frame_interval,
-            "start_time":      parse_time(start_time) if start_time is not None else None,
-            "end_time":        parse_time(end_time) if end_time is not None else None,
+            "start_time":      start_time,
+            "end_time":        end_time,
             "max_frame_count": max_frame_count,
-            "filename_format": self.config.filename_format,
+            "filename_format": filename_format,
         }
 
     @abstractmethod

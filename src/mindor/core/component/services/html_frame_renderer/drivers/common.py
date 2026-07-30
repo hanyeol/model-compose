@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator
 from PIL import Image as PILImage
@@ -28,8 +28,8 @@ class HtmlFrameRendererSession(ABC):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> AsyncIterator[PILImage.Image]:
-        """Yield one PIL Image per frame.
+    ) -> AsyncIterator[Tuple[PILImage.Image, float]]:
+        """Yield (image, timestamp) per frame.
 
         `html` is owned by the component and reused across sessions — do not
         close it here. `params` carries the shared render options resolved by
@@ -93,13 +93,14 @@ class HtmlFrameRendererAction(ComponentAction):
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        fps           = float(await context.render_variable(self.config.fps))
-        width         = int(await context.render_variable(self.config.width))
-        height        = int(await context.render_variable(self.config.height))
-        ready_timeout = parse_duration(await context.render_variable(self.config.ready_timeout))
+        fps             = float(await context.render_variable(self.config.fps))
+        width           = int(await context.render_variable(self.config.width))
+        height          = int(await context.render_variable(self.config.height))
+        ready_timeout   = parse_duration(await context.render_variable(self.config.ready_timeout))
+        filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
 
         if fps <= 0:
             raise ValueError(f"'fps' must be > 0, got {fps}")
@@ -108,10 +109,11 @@ class HtmlFrameRendererAction(ComponentAction):
             raise ValueError(f"'width' and 'height' must be > 0, got {width}x{height}")
 
         return {
-            "fps":           fps,
-            "width":         width,
-            "height":        height,
-            "ready_timeout": ready_timeout,
+            "fps":             fps,
+            "width":           width,
+            "height":          height,
+            "ready_timeout":   ready_timeout,
+            "filename_format": filename_format,
         }
 
     @abstractmethod
@@ -122,5 +124,5 @@ class HtmlFrameRendererAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[List[PILImage.Image], AsyncIterable[PILImage.Image]]]:
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
         pass

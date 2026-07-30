@@ -9,5 +9,6 @@ class HtmlFrameRendererActionConfig(CommonActionConfig):
     width: Union[int, str] = Field(default=1920, description="Viewport width in CSS pixels.")
     height: Union[int, str] = Field(default=1080, description="Viewport height in CSS pixels.")
     ready_timeout: Optional[str] = Field(default="30s", description="How long to wait for window.__renderer.seek to be defined.")
+    filename_format: Optional[str] = Field(default=None, description="Per-frame filename pattern (e.g. 'frame-%04d.png'). When set, each frame includes a 'filename' key.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input HTMLs per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream frames one by one instead of returning a full list.")

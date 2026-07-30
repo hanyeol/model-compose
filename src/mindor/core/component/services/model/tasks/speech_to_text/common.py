@@ -9,7 +9,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.transcript import TranscriptSegment
 from .....action.base import ComponentAction
 from ...base import ModelTaskService, ComponentActionContext
 
@@ -67,7 +66,7 @@ class SpeechToTextTaskAction(ComponentAction):
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         language     = await context.render_variable(self.config.language) if self.config.language else None
@@ -87,7 +86,7 @@ class SpeechToTextTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[str, AsyncIterator[str], List[TranscriptSegment], AsyncIterator[TranscriptSegment]]]:
+    ) -> List[Union[str, AsyncIterator[str], List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
         pass
 
 class SpeechToTextTaskService(ModelTaskService):

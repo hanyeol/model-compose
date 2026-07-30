@@ -9,7 +9,8 @@ class SpeechToTextParamsConfig(BaseModel):
     compression_ratio_threshold: Union[float, str] = Field(default=2.4, description="Gzip compression ratio threshold of generated tokens.")
     logprob_threshold: Union[float, str] = Field(default=-1.0, description="Log probability threshold for filtering low-confidence segments.")
     no_speech_threshold: Union[float, str] = Field(default=0.6, description="No-speech probability threshold for skipping silent segments.")
-    return_timestamps: Union[bool, str] = Field(default=False, description="Whether to return word- or segment-level timestamps.")
+    return_timestamps: Union[bool, str] = Field(default=False, description="Whether to include per-segment timestamps in the output.")
+    timestamp_level: Union[Literal[ "segment", "word" ], str] = Field(default="segment", description="Timestamp granularity when return_timestamps is enabled.")
 
 class SpeechToTextModelActionConfig(CommonModelActionConfig):
     audio: Union[Union[str, List[str]], str] = Field(..., description="Input audio file path, URL, or list of audio inputs.")

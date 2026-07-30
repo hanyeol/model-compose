@@ -68,7 +68,7 @@ class ShellAction:
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         working_dir = await self._resolve_working_directory()

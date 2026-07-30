@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import PlaywrightHtmlFrameRendererComponentConfig, HtmlFrameRendererDriver
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.image import load_image_from_bytes
+from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.url import UrlResource
 from mindor.core.logger import logging
 from ..base import HtmlFrameRendererService, register_html_frame_renderer_service
@@ -25,7 +26,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> AsyncIterator[PILImage.Image]:
+    ) -> AsyncIterator[Tuple[PILImage.Image, float]]:
         fps           = params["fps"]
         width         = params["width"]
         height        = params["height"]
@@ -46,8 +47,10 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 
         for index in range(frame_count):
-            await self._page.evaluate("(t) => window.__renderer.seek(t)", index / fps)
-            yield await load_image_from_bytes(await self._page.screenshot(type="png"))
+            timestamp = index / fps
+            await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
+            image = await load_image_from_bytes(await self._page.screenshot(type="png"))
+            yield image, timestamp
 
     async def close(self) -> None:
         try:
@@ -94,8 +97,8 @@ class PlaywrightHtmlFrameRendererAction(HtmlFrameRendererAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[List[PILImage.Image], AsyncIterable[PILImage.Image]]]:
-        results: List[Union[List[PILImage.Image], AsyncIterable[PILImage.Image]]] = []
+    ) -> List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
+        results: List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]] = []
 
         for html, props in zip(htmls, props if props is not None else [ None ] * len(htmls)):
             session = await self.session_factory()
@@ -112,10 +115,22 @@ class PlaywrightHtmlFrameRendererAction(HtmlFrameRendererAction):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> List[PILImage.Image]:
+    ) -> List[Dict[str, Any]]:
+        filename_format = params["filename_format"]
+
         try:
-            frames: List[PILImage.Image] = []
-            async for frame in session.render_frames(html, props, params):
+            frames: List[Dict[str, Any]] = []
+            async for image, timestamp in session.render_frames(html, props, params):
+                frame_count = len(frames) + 1
+                frame: Dict[str, Any] = {
+                    "number":    frame_count,
+                    "image":     image,
+                    "timestamp": timestamp,
+                }
+
+                if filename_format is not None:
+                    frame["filename"] = format_filename(filename_format, frame_count)
+
                 frames.append(frame)
             return frames
         finally:
@@ -127,9 +142,22 @@ class PlaywrightHtmlFrameRendererAction(HtmlFrameRendererAction):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> AsyncIterator[PILImage.Image]:
+    ) -> AsyncIterator[Dict[str, Any]]:
+        filename_format = params["filename_format"]
+        frame_count = 0
+
         try:
-            async for frame in session.render_frames(html, props, params):
+            async for image, timestamp in session.render_frames(html, props, params):
+                frame_count += 1
+                frame: Dict[str, Any] = {
+                    "number":    frame_count,
+                    "image":     image,
+                    "timestamp": timestamp,
+                }
+
+                if filename_format is not None:
+                    frame["filename"] = format_filename(filename_format, frame_count)
+
                 yield frame
         finally:
             await session.close()

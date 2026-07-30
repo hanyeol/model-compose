@@ -148,23 +148,23 @@ class VoiceActivityDetectionTaskAction(ComponentAction):
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sample_rate          = await context.render_variable(self.config.sample_rate)
         threshold            = await context.render_variable(self.config.params.threshold)
-        min_speech_duration  = await context.render_variable(self.config.params.min_speech_duration)
-        max_speech_duration  = await context.render_variable(self.config.params.max_speech_duration) if self.config.params.max_speech_duration is not None else None
-        min_silence_duration = await context.render_variable(self.config.params.min_silence_duration)
-        speech_padding_time  = await context.render_variable(self.config.params.speech_padding_time)
+        min_speech_duration  = parse_duration(await context.render_variable(self.config.params.min_speech_duration))
+        max_speech_duration  = parse_duration(await context.render_variable(self.config.params.max_speech_duration)) if self.config.params.max_speech_duration is not None else None
+        min_silence_duration = parse_duration(await context.render_variable(self.config.params.min_silence_duration))
+        speech_padding_time  = parse_duration(await context.render_variable(self.config.params.speech_padding_time))
 
         return {
             "sample_rate":          sample_rate,
             "threshold":            threshold,
-            "min_speech_duration":  parse_duration(min_speech_duration),
-            "max_speech_duration":  parse_duration(max_speech_duration) if max_speech_duration is not None else None,
-            "min_silence_duration": parse_duration(min_silence_duration),
-            "speech_padding_time":  parse_duration(speech_padding_time),
+            "min_speech_duration":  min_speech_duration,
+            "max_speech_duration":  max_speech_duration,
+            "min_silence_duration": min_silence_duration,
+            "speech_padding_time":  speech_padding_time,
         }
 
     @abstractmethod

@@ -59,6 +59,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
         return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
+        timestamp_level             = await context.render_variable(self.config.params.timestamp_level)
 
         params: Dict[str, Any] = {
             "num_beams": num_beams,
@@ -78,8 +79,9 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             params["logprob_threshold"] = logprob_threshold
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
+        # HF expects `return_timestamps=True` for segment-level and `"word"` for word-level.
         if return_timestamps:
-            params["return_timestamps"] = return_timestamps
+            params["return_timestamps"] = "word" if timestamp_level == "word" else True
 
         return params
 
@@ -89,14 +91,22 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         loop = asyncio.get_running_loop()
 
         # Audio preprocessing is real async IO (stream reads), so keep it on
         # the loop instead of the executor thread.
         waveforms = await self._preprocess_audio(audios)
 
-        def _transcribe() -> Union[List[str], List[Any]]:
+        generation_params: Dict[str, Any] = params["generation"]
+        return_timestamps                 = generation_params.get("return_timestamps")
+
+        # Timestamp extraction requires the full generated sequence for post-processing,
+        # so streaming timestamps are emitted after generation completes rather than
+        # token-by-token.
+        native_streaming = streaming and not return_timestamps
+
+        def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]], List[Any]]:
             import torch
 
             input_features = self.processor(
@@ -110,7 +120,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
             stopping_criteria = self._build_stopping_criteria(cancellation_token)
 
-            if streaming:
+            if native_streaming:
                 streamer = BatchTextIteratorStreamer(
                     self.processor.tokenizer,
                     batch_size=len(waveforms),
@@ -132,16 +142,106 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 return [ streamer[index] for index in range(len(waveforms)) ]
 
             with torch.inference_mode():
-                predicted_ids = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
+                if return_timestamps == "word":
+                    outputs = self.model.generate(
+                        **input_features,
+                        **params["generation"],
+                        return_dict_in_generate=True,
+                        stopping_criteria=stopping_criteria,
+                    )
+                    predicted_ids  = outputs["sequences"]
+                    word_segments  = outputs.get("segments")
+                else:
+                    predicted_ids  = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
+                    word_segments  = None
 
-            return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+            if not return_timestamps:
+                return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+
+            if return_timestamps == "word":
+                return self._decode_word_level_segments(word_segments)
+
+            return self._decode_segment_level_segments(predicted_ids)
 
         results = await self._run_in_executor(_transcribe)
 
-        if streaming:
+        if native_streaming:
             return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
+        if streaming and return_timestamps:
+            return [ self._create_segment_stream(segments) for segments in results ]
+
         return results
+
+    def _decode_segment_level_segments(self, predicted_ids: Any) -> List[List[Dict[str, Any]]]:
+        time_precision = self._get_time_precision()
+
+        results: List[List[Dict[str, Any]]] = []
+        for index in range(predicted_ids.shape[0]):
+            _, optional = self.processor.tokenizer._decode_asr(
+                [ { "tokens": predicted_ids[index:index + 1] } ],
+                return_timestamps=True,
+                return_language=False,
+                time_precision=time_precision,
+            )
+            results.append([ self._make_segment(chunk) for chunk in optional.get("chunks", []) ])
+
+        return results
+
+    def _decode_word_level_segments(self, batch_segments: Optional[List[List[Dict[str, Any]]]]) -> List[List[Dict[str, Any]]]:
+        time_precision = self._get_time_precision()
+
+        results: List[List[Dict[str, Any]]] = []
+        for segments in batch_segments or []:
+            per_audio: List[Dict[str, Any]] = []
+            for segment in segments:
+                tokens           = segment["tokens"].unsqueeze(0)
+                token_timestamps = segment["token_timestamps"].unsqueeze(0)
+
+                _, optional = self.processor.tokenizer._decode_asr(
+                    [ { "tokens": tokens, "token_timestamps": token_timestamps } ],
+                    return_timestamps="word",
+                    return_language=False,
+                    time_precision=time_precision,
+                )
+
+                words = [ self._make_word(chunk) for chunk in optional.get("chunks", []) ]
+                per_audio.append({
+                    "text":       "".join(word["text"] for word in words),
+                    "start_time": float(segment["start"]),
+                    "end_time":   float(segment["end"]),
+                    "words":      words,
+                })
+
+            results.append(per_audio)
+
+        return results
+
+    def _get_time_precision(self) -> float:
+        return self.processor.feature_extractor.chunk_length / self.model.config.max_source_positions
+
+    def _make_segment(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
+        start, end = chunk["timestamp"]
+        return {
+            "text":       chunk["text"],
+            "start_time": float(start) if start is not None else 0.0,
+            "end_time":   float(end)   if end   is not None else 0.0,
+        }
+
+    def _make_word(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
+        start, end = chunk["timestamp"]
+        return {
+            "text":       chunk["text"],
+            "start_time": float(start) if start is not None else 0.0,
+            "end_time":   float(end)   if end   is not None else 0.0,
+        }
+
+    def _create_segment_stream(self, segments: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
+        async def _stream_segment_generator():
+            for segment in segments:
+                yield segment
+
+        return _stream_segment_generator()
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []

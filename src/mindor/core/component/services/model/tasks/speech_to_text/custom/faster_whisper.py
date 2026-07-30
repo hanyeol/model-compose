@@ -50,9 +50,11 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
         return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
+        timestamp_level             = await context.render_variable(self.config.params.timestamp_level)
 
         params: Dict[str, Any] = {
             "beam_size": num_beams,
+            "return_timestamps": return_timestamps,
         }
 
         if temperature is not None:
@@ -64,7 +66,8 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             params["log_prob_threshold"] = logprob_threshold
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
-        if return_timestamps:
+        # faster-whisper always emits segment start/end; only word-level alignment needs a flag.
+        if return_timestamps and timestamp_level == "word":
             params["word_timestamps"] = True
 
         return params
@@ -75,21 +78,24 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         loop = asyncio.get_running_loop()
 
         waveforms = await self._preprocess_audio(audios)
+
+        transcribe_params = dict(params["transcribe"])
+        return_timestamps = transcribe_params.pop("return_timestamps", False)
 
         if streaming:
             # faster_whisper yields segments synchronously; wrap each iterator so
             # the caller can consume it via ``async for``.
             return [
-                SyncGeneratorStreamer(self._transcribe_stream(waveform, params["transcribe"]), loop)
+                SyncGeneratorStreamer(self._transcribe_stream(waveform, transcribe_params, return_timestamps), loop)
                 for waveform in waveforms
             ]
 
-        def _transcribe() -> List[str]:
-            return [ self._transcribe_full(waveform, params["transcribe"]) for waveform in waveforms ]
+        def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]]]:
+            return [ self._transcribe_full(waveform, transcribe_params, return_timestamps) for waveform in waveforms ]
 
         return await self._run_in_executor(_transcribe)
 
@@ -102,14 +108,43 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return waveforms
 
-    def _transcribe_full(self, waveform: np.ndarray, params: Dict[str, Any]) -> str:
+    def _transcribe_full(
+        self,
+        waveform: np.ndarray,
+        params: Dict[str, Any],
+        return_timestamps: Union[bool, str],
+    ) -> Union[str, List[Dict[str, Any]]]:
         segments, _ = self.model.transcribe(waveform, **params)
+        if return_timestamps:
+            return [ self._to_transcript_segment(segment) for segment in segments ]
         return "".join(segment.text for segment in segments)
 
-    def _transcribe_stream(self, waveform: np.ndarray, params: Dict[str, Any]) -> Iterator[str]:
+    def _transcribe_stream(
+        self,
+        waveform: np.ndarray,
+        params: Dict[str, Any],
+        return_timestamps: Union[bool, str],
+    ) -> Iterator[Union[str, Dict[str, Any]]]:
         segments, _ = self.model.transcribe(waveform, **params)
         for segment in segments:
-            yield segment.text
+            yield self._to_transcript_segment(segment) if return_timestamps else segment.text
+
+    def _to_transcript_segment(self, segment: Any) -> Dict[str, Any]:
+        words = getattr(segment, "words", None)
+        return {
+            "text":       segment.text,
+            "start_time": float(segment.start),
+            "end_time":   float(segment.end),
+            "words": [
+                {
+                    "text":        word.word,
+                    "start_time":  float(word.start),
+                    "end_time":    float(word.end),
+                    "probability": float(word.probability) if word.probability is not None else None,
+                }
+                for word in words
+            ] if words else None,
+        }
 
 class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
     config: FasterWhisperSpeechToTextModelComponentConfig

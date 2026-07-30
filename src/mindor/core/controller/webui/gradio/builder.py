@@ -1104,6 +1104,12 @@ class GradioWebUIBuilder:
         return re.sub(r"([\\`*_{}\[\]()#+!~])", r"\\\1", value)
 
     def _log_format_payload(self, value: Any) -> Optional[str]:
+        # Values may opt into a compact log representation via __log__(); this
+        # short-circuits verbose JSON dumps for payloads that would otherwise
+        # overwhelm the chatbot panel (e.g. per-frame audio features).
+        log_repr = getattr(value, "__log__", None)
+        if log_repr is not None:
+            return log_repr()
         if isinstance(value, bytes):
             return f"_(bytes, {len(value)} bytes)_"
         if isinstance(value, str):
@@ -1119,10 +1125,30 @@ class GradioWebUIBuilder:
 
     def _log_format_json(self, value: Any) -> str:
         try:
-            text = json.dumps(value, ensure_ascii=False, indent=2, default=self._log_json_default)
+            text = json.dumps(
+                self._log_json_value(value),
+                ensure_ascii=False,
+                indent=2,
+                default=self._log_json_default
+            )
         except Exception:
             text = repr(value)
         return f"```json\n{text}\n```"
+
+    def _log_json_value(self, value: Any) -> Any:
+        # Substitute any node opting into a compact log representation via
+        # __log__() before handing the tree to json.dumps. Necessary because
+        # json.dumps treats dict subclasses as plain dicts and never routes
+        # them through the ``default`` hook, so nested AudioSpectrum-style
+        # values would otherwise get dumped in full.
+        log_repr = getattr(value, "__log__", None)
+        if log_repr is not None:
+            return log_repr()
+        if isinstance(value, dict):
+            return { key: self._log_json_value(item) for key, item in value.items() }
+        if isinstance(value, list):
+            return [ self._log_json_value(item) for item in value ]
+        return value
 
     def _log_json_default(self, obj: Any) -> Any:
         if isinstance(obj, bytes):

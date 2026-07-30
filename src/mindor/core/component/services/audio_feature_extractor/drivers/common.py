@@ -16,6 +16,22 @@ from ..base import ComponentActionContext
 if TYPE_CHECKING:
     import numpy as np
 
+class AudioSpectrum(dict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioSpectrum bands={self.get('band_count')} "
+            f"frames={self.get('frame_count')} "
+            f"duration={self.get('duration', 0.0):.2f}s>"
+        )
+
+class AudioWaveform(dict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioWaveform points={self.get('point_count')} "
+            f"frames={self.get('frame_count')} "
+            f"duration={self.get('duration', 0.0):.2f}s>"
+        )
+
 class AudioFeatureExtractorAction(ComponentAction):
     def __init__(self, config: AudioFeatureExtractorActionConfig):
         self.config: AudioFeatureExtractorActionConfig = config
@@ -160,14 +176,14 @@ class AudioFeatureExtractorAction(ComponentAction):
 
         frames = self._normalize_spectrum(bands, params["normalize_mode"], params["percentile"])
 
-        return {
+        return AudioSpectrum({
             "frames": frames.tolist(),
             "fps": fps,
             "band_count": band_count,
             "frame_count": frame_count,
             "duration": frame_count / fps if fps else 0.0,
             "sample_rate": sample_rate,
-        }
+        })
 
     def _compute_waveform(self, samples: np.ndarray, params: Dict[str, Any]) -> dict:
         import numpy as np
@@ -200,14 +216,14 @@ class AudioFeatureExtractorAction(ComponentAction):
                 rms = np.sqrt((segment ** 2).mean(axis=1))
                 frames[i] = rms if rectify else rms * np.sign(segment.mean(axis=1))
 
-        return {
+        return AudioWaveform({
             "frames": frames.tolist(),
             "fps": fps,
             "point_count": point_count,
             "frame_count": frame_count,
             "duration": frame_count / fps if fps else 0.0,
             "sample_rate": sample_rate,
-        }
+        })
 
     @staticmethod
     def _compute_band_indices(frequencies: np.ndarray, band_count: int, min_frequency: float, max_frequency: float, frequency_scale: str) -> List[np.ndarray]:

@@ -133,14 +133,14 @@ class TestStreamingPcm:
     @pytest.mark.anyio
     async def test_returns_async_iterator(self, action, audio_pcm_bytes, params):
         src = _pcm_mono_source(audio_pcm_bytes)
-        results = await action._detect([src], params, streaming=True, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([src], params, streaming=True)
         assert len(results) == 1
         assert isinstance(results[0], AsyncIterator)
 
     @pytest.mark.anyio
     async def test_emits_segments_matching_batch(self, action, audio_pcm_bytes, params):
         src = _pcm_mono_source(audio_pcm_bytes)
-        results = await action._detect([src], params, streaming=True, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([src], params, streaming=True)
         segments = await _collect(results[0])
         assert len(segments) > 10
         for seg in segments:
@@ -152,12 +152,12 @@ class TestStreamingPcm:
 class TestStreamingNonPcm:
     @pytest.mark.anyio
     async def test_returns_async_iterator(self, action, params):
-        results = await action._detect([_mp3_source()], params, streaming=True, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([_mp3_source()], params, streaming=True)
         assert isinstance(results[0], AsyncIterator)
 
     @pytest.mark.anyio
     async def test_pseudo_stream_yields_batch_segments(self, action, params):
-        results = await action._detect([_mp3_source()], params, streaming=True, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([_mp3_source()], params, streaming=True)
         segments = await _collect(results[0])
         assert len(segments) > 10
         for seg in segments:
@@ -169,12 +169,12 @@ class TestStreamingNonPcm:
 class TestBatchMp3:
     @pytest.mark.anyio
     async def test_returns_list(self, action, params):
-        results = await action._detect([_mp3_source()], params, streaming=False, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([_mp3_source()], params, streaming=False)
         assert isinstance(results[0], list)
 
     @pytest.mark.anyio
     async def test_batch_shape_and_content(self, action, params):
-        results = await action._detect([_mp3_source()], params, streaming=False, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([_mp3_source()], params, streaming=False)
         segments = results[0]
         assert len(segments) > 10
         for seg in segments:
@@ -190,7 +190,7 @@ class TestBatchPcmNormalization:
     @pytest.mark.anyio
     async def test_pcm_batch_segment_count_reasonable(self, action, audio_pcm_bytes, params):
         src = _pcm_mono_source(audio_pcm_bytes)
-        results = await action._detect([src], params, streaming=False, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([src], params, streaming=False)
         segments = results[0]
         # If normalization is missing, this explodes into hundreds of segments.
         # ~86 is the expected count for our benchmark audio (~40 min).
@@ -204,11 +204,11 @@ class TestBatchPcmNormalization:
         same PCM source (both feed identical normalized samples to Silero).
         """
         src_batch = _pcm_mono_source(audio_pcm_bytes)
-        batch_res = await action._detect([src_batch], params, streaming=False, loop=asyncio.get_running_loop())
+        batch_res = await action._detect_batch([src_batch], params, streaming=False)
         batch_count = len(batch_res[0])
 
         src_online = _pcm_mono_source(audio_pcm_bytes)
-        online_res = await action._detect([src_online], params, streaming=True, loop=asyncio.get_running_loop())
+        online_res = await action._detect_batch([src_online], params, streaming=True)
         online_count = len(await _collect(online_res[0]))
 
         assert batch_count == online_count, (
@@ -223,8 +223,8 @@ class TestMixedBatch:
     async def test_per_item_routing(self, action, audio_pcm_bytes, params):
         src_pcm = _pcm_mono_source(audio_pcm_bytes)
         src_mp3 = _mp3_source()
-        results = await action._detect(
-            [src_pcm, src_mp3], params, streaming=True, loop=asyncio.get_running_loop(),
+        results = await action._detect_batch(
+            [src_pcm, src_mp3], params, streaming=True,
         )
         assert len(results) == 2
         # Both items should present as AsyncIterators regardless of source type
@@ -236,8 +236,8 @@ class TestMixedBatch:
     async def test_mixed_items_produce_independent_segments(self, action, audio_pcm_bytes, params):
         src_pcm = _pcm_mono_source(audio_pcm_bytes)
         src_mp3 = _mp3_source()
-        results = await action._detect(
-            [src_pcm, src_mp3], params, streaming=True, loop=asyncio.get_running_loop(),
+        results = await action._detect_batch(
+            [src_pcm, src_mp3], params, streaming=True,
         )
         pcm_segments = await _collect(results[0])
         mp3_segments = await _collect(results[1])
@@ -253,7 +253,7 @@ class TestOutputContract:
     async def test_segments_are_monotonic(self, action, audio_pcm_bytes, params):
         """start/end pairs should be non-overlapping and monotonically increasing."""
         src = _pcm_mono_source(audio_pcm_bytes)
-        results = await action._detect([src], params, streaming=True, loop=asyncio.get_running_loop())
+        results = await action._detect_batch([src], params, streaming=True)
         segments = await _collect(results[0])
         prev_end = -1.0
         for seg in segments:

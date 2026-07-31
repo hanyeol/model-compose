@@ -37,7 +37,7 @@ def anyio_backend():
 
 
 class _FakeClassificationAction(TextClassificationTaskAction):
-    """Deterministic ``_predict`` for testing.
+    """Deterministic ``_predict_batch`` for testing.
 
     Each text produces ``{"label": ..., "score": len(text)}`` so we can verify
     both the batching and per-item dispatch.
@@ -49,7 +49,7 @@ class _FakeClassificationAction(TextClassificationTaskAction):
         self.params_seen: List[Dict[str, Any]] = []
         self.labels_seen: List[Optional[List[str]]] = []
 
-    async def _predict(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[Any]:
+    async def _predict_batch(self, texts: List[str], params: Dict[str, Any], labels: Optional[List[str]], cancellation_token: Optional[CancellationToken] = None) -> List[Any]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         self.labels_seen.append(labels)

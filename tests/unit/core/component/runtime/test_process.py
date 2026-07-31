@@ -153,4 +153,3 @@ class TestComponentProcessRuntimeWorker:
         assert worker.request_queue is request_queue
         assert worker.response_queue is response_queue
         assert worker.component is None
-        assert worker.running is True

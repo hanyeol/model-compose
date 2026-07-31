@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mindor.core.component.services.video_frame_extractor.filename import format_filename
+from mindor.core.foundation.media.filename import format_filename
 
 
 class TestFormatFilename:

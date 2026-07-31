@@ -192,7 +192,7 @@ class TestNonStreaming:
         ctx = _make_context(synthetic_wav_path)
         action = pyannote_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         for seg in result:
@@ -204,7 +204,7 @@ class TestNonStreaming:
         ctx = _make_context([synthetic_wav_path, synthetic_wav_path])
         action = pyannote_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -224,7 +224,7 @@ class TestStreaming:
         ctx = _make_context(synthetic_wav_path)
         action = pyannote_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         collected = [seg async for seg in result]
@@ -237,7 +237,7 @@ class TestStreaming:
         ctx = _make_context([synthetic_wav_path, synthetic_wav_path])
         action = pyannote_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2

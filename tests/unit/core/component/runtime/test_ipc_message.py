@@ -18,7 +18,7 @@ class TestIpcMessageType:
         assert IpcMessageType.ERROR.value == "error"
         assert IpcMessageType.HEARTBEAT.value == "heartbeat"
         assert IpcMessageType.STATUS.value == "status"
-        assert IpcMessageType.LOG.value == "log"
+        assert IpcMessageType.EVENT.value == "event"
 
     def test_stream_members(self):
         assert IpcMessageType.STREAM_PULL.value == "stream_pull"

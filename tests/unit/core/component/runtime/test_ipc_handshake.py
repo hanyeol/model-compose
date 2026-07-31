@@ -121,11 +121,11 @@ class TestWaitForReady:
 
     @pytest.mark.anyio
     async def test_unrelated_messages_are_skipped(self):
-        """RESULT/LOG/HEARTBEAT arriving before STATUS=ready should be
+        """RESULT/EVENT/HEARTBEAT arriving before STATUS=ready should be
         ignored — only ERROR or STATUS=ready terminate the loop."""
         manager = _ScriptedManager("noisy-worker", start_timeout=1.0)
         await manager.start()
-        manager.feed(IpcMessage(type=IpcMessageType.LOG, payload={"line": "starting up"}))
+        manager.feed(IpcMessage(type=IpcMessageType.EVENT, payload={"line": "starting up"}))
         manager.feed(IpcMessage(type=IpcMessageType.HEARTBEAT))
         manager.feed(IpcMessage(type=IpcMessageType.STATUS, payload={"status": "ready"}))
         await manager._wait_for_ready()

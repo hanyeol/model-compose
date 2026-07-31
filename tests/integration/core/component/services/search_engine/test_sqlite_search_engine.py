@@ -39,7 +39,7 @@ def _connect(path: str) -> sqlite3.Connection:
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    database = sqlite3.connect(path)
+    database = sqlite3.connect(path, check_same_thread=False)
     database.row_factory = sqlite3.Row
     return database
 
@@ -54,7 +54,7 @@ async def _run_action(action_config, path: str, context):
         raise FileNotFoundError(f"Search engine database does not exist: {path}. Run an 'index' action first to create the database.")
     database = _connect(path)
     try:
-        return await SQLiteSearchEngineAction(action_config).run(context, asyncio.get_running_loop(), database)
+        return await SQLiteSearchEngineAction(action_config).run(context, database)
     finally:
         database.close()
 

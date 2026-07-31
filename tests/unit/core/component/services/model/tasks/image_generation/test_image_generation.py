@@ -59,7 +59,7 @@ class _FakeImageGenerationAction(ImageGenerationGenerateTaskAction):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
 
-    def _generate(
+    async def _generate_batch(
         self,
         prompts: List[str],
         params: Dict[str, Any],

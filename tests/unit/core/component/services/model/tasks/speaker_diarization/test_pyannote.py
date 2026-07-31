@@ -244,11 +244,10 @@ class TestDiarizeReturnShape:
 
         monkeypatch.setattr(action, "_preprocess_audio", _fake_preprocess)
 
-        results = await action._diarize(
+        results = await action._diarize_batch(
             audios=["a", "b"],
             params=_base_params(action),
-            streaming=False,
-            loop=asyncio.get_event_loop(),
+            streaming=False
         )
         assert len(results) == 2
         for per_audio in results:
@@ -268,11 +267,10 @@ class TestDiarizeReturnShape:
 
         monkeypatch.setattr(action, "_preprocess_audio", _fake_preprocess)
 
-        results = await action._diarize(
+        results = await action._diarize_batch(
             audios=["a"],
             params=_base_params(action),
-            streaming=True,
-            loop=asyncio.get_event_loop(),
+            streaming=True
         )
         assert len(results) == 1
         assert isinstance(results[0], AsyncIterator)

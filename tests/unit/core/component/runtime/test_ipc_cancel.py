@@ -100,7 +100,7 @@ class _MemWorker(IpcRuntimeWorker):
         # Signal EOF back to the proxy so its response loop exits.
         self._channel.w2p.put_nowait(None)
 
-    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+    async def _execute_task(self, payload: Dict[str, Any], on_event=None) -> Any:
         self.executed_inputs.append(payload)
         try:
             await self.release_event(payload.get("tag", "")).wait()

@@ -78,7 +78,7 @@ async def _run() -> None:
     t0 = time.perf_counter()
     ctx = ComponentActionContext("r-sdxl-1", {})
     loop = asyncio.get_running_loop()
-    result = await service._run(action_config, ctx, loop)
+    result = await service._run(action_config, ctx)
     print(f"[run]  done in {time.perf_counter() - t0:.1f}s")
 
     assert isinstance(result, PILImage.Image), f"expected PIL.Image, got {type(result).__name__}"

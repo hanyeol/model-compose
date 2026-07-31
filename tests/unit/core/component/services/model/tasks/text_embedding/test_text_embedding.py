@@ -37,7 +37,7 @@ def anyio_backend():
 
 
 class _FakeEmbeddingAction(TextEmbeddingTaskAction):
-    """Deterministic ``_embed`` for testing.
+    """Deterministic ``_embed_batch`` for testing.
 
     Each text produces ``[len(text), batch_index]`` so we can verify both the
     batching and per-item dispatch.
@@ -48,7 +48,7 @@ class _FakeEmbeddingAction(TextEmbeddingTaskAction):
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    async def _embed(self, texts: List[str], params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
+    async def _embed_batch(self, texts: List[str], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         return [ [ float(len(t)), float(i) ] for i, t in enumerate(texts) ]

@@ -173,7 +173,7 @@ ECHO_WORKER_SRC = textwrap.dedent("""
             self._ipc_out = ipc_out
         async def _start(self): pass
         async def _stop(self): pass
-        async def _execute_task(self, payload):
+        async def _execute_task(self, payload, on_event=None):
             cmd = payload["input"].get("cmd")
             if cmd == "echo":
                 return {"echoed": payload["input"]["data"]}

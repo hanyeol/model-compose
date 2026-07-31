@@ -40,13 +40,13 @@ def _label(image: PILImage.Image) -> str:
 
 
 class _FakeImageToTextAction(ImageToTextTaskAction):
-    """Deterministic `_generate` for testing.
+    """Deterministic `_generate_batch` for testing.
 
-    Matches the source contract: ``_generate(images, texts, params, streaming, loop)``.
+    Matches the source contract:
+    ``_generate_batch(images, prompts, params, streaming, cancellation_token)``.
 
-    - non-streaming → returns ``[ "<image-label>:<text or _>" for each (image, text) ]``
-    - streaming     → returns ``[ <sync iterator yielding tok-0, tok-1, ...> for each image ]``
-      (each iterator is passed into ``SyncGeneratorStreamer`` by the source.)
+    - non-streaming → returns ``[ "<image-label>:<prompt or _>" for each (image, prompt) ]``
+    - streaming     → returns ``[ <async iterator yielding tok-0, tok-1, ...> for each image ]``
     """
 
     def __init__(self, config: ImageToTextModelActionConfig, stream_chunks: int = 3):
@@ -54,30 +54,29 @@ class _FakeImageToTextAction(ImageToTextTaskAction):
         self.stream_chunks = stream_chunks
         self.batches_seen: List[List[str]] = []
 
-    async def _generate(
+    async def _generate_batch(
         self,
         images: List[PILImage.Image],
-        texts: Optional[List[str]],
+        prompts: Optional[List[str]],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[Iterator[str]]]:
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
         labels = [ _label(img) for img in images ]
         self.batches_seen.append(labels)
 
         if streaming:
             n = self.stream_chunks
-            def _stream():
+            async def _stream():
                 for i in range(n):
                     yield f"tok-{i}"
             return [ _stream() for _ in labels ]
 
-        if texts is None:
+        if prompts is None:
             return [ f"{label}:_" for label in labels ]
-        if len(texts) != len(labels):
-            raise ValueError(f"images and texts have different lengths: {len(labels)} vs {len(texts)}")
-        return [ f"{label}:{text}" for label, text in zip(labels, texts) ]
+        if len(prompts) != len(labels):
+            raise ValueError(f"images and prompts have different lengths: {len(labels)} vs {len(prompts)}")
+        return [ f"{label}:{text}" for label, text in zip(labels, prompts) ]
 
 
 def _make_config(

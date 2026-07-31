@@ -25,7 +25,7 @@ class TestHttpClientActionConfig:
         assert config.path is None
         assert config.method == "POST"
         assert config.headers == {}
-        assert config.body == {}
+        assert config.body is None
         assert config.params == {}
 
     def test_minimal_valid_config_with_path(self):

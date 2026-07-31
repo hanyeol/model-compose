@@ -43,14 +43,14 @@ class _FakeSpeechToTextAction(SpeechToTextTaskAction):
         self.stream_chunks: int = stream_chunks
         self.batches_seen: List[List[str]] = []
 
-    async def _transcribe(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> Union[List[str], List[Iterator[str]]]:
+    async def _transcribe_batch(self, audios: List[MediaSource], params: Dict[str, Any], streaming: bool, cancellation_token: Optional[CancellationToken] = None) -> Union[List[str], List[AsyncIterator[str]]]:
         labels = [ _label(a) for a in audios ]
         self.batches_seen.append(labels)
 
         if streaming:
             n = self.stream_chunks
 
-            def _stream() -> Iterator[str]:
+            async def _stream() -> AsyncIterator[str]:
                 for i in range(n):
                     yield f"tok-{i}"
 

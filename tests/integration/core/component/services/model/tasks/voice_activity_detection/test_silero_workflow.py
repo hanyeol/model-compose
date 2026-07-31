@@ -176,7 +176,7 @@ class TestNonStreamingBenchmark:
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) > 10
@@ -189,7 +189,7 @@ class TestNonStreamingBenchmark:
         ctx = _make_context([benchmark_mp3_path, benchmark_mp3_path])
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -211,7 +211,7 @@ class TestStreamingBenchmark:
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         collected = [seg async for seg in result]
@@ -225,7 +225,7 @@ class TestStreamingBenchmark:
         ctx = _make_context([benchmark_mp3_path, benchmark_mp3_path])
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -251,7 +251,7 @@ class TestSyntheticSanity:
         ctx = _make_context(synthetic_wav_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         # A 440 Hz sine may or may not fool Silero into finding "speech".
         # We only assert shape: list of dicts (possibly empty).
@@ -265,7 +265,7 @@ class TestSyntheticSanity:
         ctx = _make_context(synthetic_wav_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         collected = [seg async for seg in result]
@@ -286,7 +286,7 @@ class TestOutputTemplate:
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
         collected = [seg async for seg in result]
@@ -301,7 +301,7 @@ class TestOutputTemplate:
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) > 0

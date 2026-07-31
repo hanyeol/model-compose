@@ -96,6 +96,56 @@ class TestNativeSentenceSplitterActionContract:
         assert result == ["Hi.", "There."]
 
 
+class TestNativeSentenceSplitterActionFragmentedInput:
+    """A fragmented ``StreamChunkIterator`` (a single logical text delivered in
+    pieces) must reach the splitter unconcatenated so pieces can be fed
+    incrementally. Regression guard: before ``render_text(collect=False)``, the
+    renderer would concatenate the pieces into a single ``str`` and the
+    splitter's fragmented branch would be dead code.
+    """
+
+    from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+    @staticmethod
+    async def _pieces(*chunks):
+        for chunk in chunks:
+            yield chunk
+
+    @pytest.mark.anyio
+    async def test_fragmented_stream_produces_full_sentence_list(self):
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        fragmented = StreamChunkIterator(
+            self._pieces("The quick", " brown fox.", " Jumps over the", " lazy dog."),
+            is_fragmented=True,
+        )
+        config = NativeSentenceSplitterActionConfig(text="${input.text}")
+        context = make_action_context(input={"text": fragmented})
+
+        result = await NativeSentenceSplitterAction(config).run(context)
+
+        assert result == ["The quick brown fox.", "Jumps over the lazy dog."]
+
+    @pytest.mark.anyio
+    async def test_fragmented_stream_with_streaming_output_yields_incrementally(self):
+        # Sanity that streaming=True over a fragmented input returns a stream
+        # (not a materialized list) and produces the expected sentences.
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        fragmented = StreamChunkIterator(
+            self._pieces("Alpha.", " Beta.", " Gamma."),
+            is_fragmented=True,
+        )
+        config = NativeSentenceSplitterActionConfig(text="${input.text}", streaming=True)
+        context = make_action_context(input={"text": fragmented})
+
+        result = await NativeSentenceSplitterAction(config).run(context)
+        assert isinstance(result, StreamChunkIterator)
+
+        collected = [chunk async for chunk in result]
+        assert collected == ["Alpha.", "Beta.", "Gamma."]
+
+
 class TestNativeSentenceSplitterActionNonBlocking:
     """The sync splitter must be offloaded via `_run_in_executor`."""
 

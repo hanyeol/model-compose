@@ -162,4 +162,3 @@ class TestComponentVirtualEnvRuntimeWorker:
         assert worker.global_configs is global_configs
         assert worker.channel is sentinel_channel
         assert worker.component is None
-        assert worker.running is True

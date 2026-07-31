@@ -188,7 +188,7 @@ class TestSingleInput:
         action = clip_action_factory(_make_config())
         ctx    = _make_context(_solid((255, 0, 0)))
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert all(isinstance(x, float) for x in result)
@@ -199,7 +199,7 @@ class TestSingleInput:
         action = clip_action_factory(_make_config(normalize=True))
         ctx    = _make_context(_solid((0, 128, 255)))
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         norm = math.sqrt(sum(x * x for x in result))
         assert norm == pytest.approx(1.0, abs=1e-4)
@@ -209,7 +209,7 @@ class TestSingleInput:
         action = clip_action_factory(_make_config(normalize=False))
         ctx    = _make_context(_solid((0, 128, 255)))
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         norm = math.sqrt(sum(x * x for x in result))
         # CLIP raw image features have norms well away from 1.
@@ -227,7 +227,7 @@ class TestListInput:
             _solid((0, 0, 255)),
         ])
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list) and len(result) == 3
         assert all(isinstance(v, list) and len(v) == CLIP_EMBED_DIM for v in result)
@@ -242,7 +242,7 @@ class TestListInput:
             _gradient(),             # completely different content
         ])
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         sim_near = _cosine(result[0], result[1])
         sim_far  = _cosine(result[0], result[2])
@@ -263,7 +263,7 @@ class TestAsyncIteratorInput:
         action = clip_action_factory(_make_config(batch_size=2))
         ctx    = _make_context(_make_iter)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [ item async for item in result ]
@@ -281,8 +281,8 @@ class TestAutoArchitectureFallthrough:
     async def test_auto_matches_clip_output(self, clip_action_factory, auto_action_factory):
         image  = _solid((128, 200, 64))
 
-        explicit = await clip_action_factory(_make_config()).run(_make_context(image), asyncio.get_event_loop())
-        auto     = await auto_action_factory(_make_config()).run(_make_context(image), asyncio.get_event_loop())
+        explicit = await clip_action_factory(_make_config()).run(_make_context(image))
+        auto     = await auto_action_factory(_make_config()).run(_make_context(image))
 
         # Same model + same input → embeddings must match closely.
         for a, b in zip(explicit, auto):
@@ -305,7 +305,7 @@ class TestBatching:
         action = clip_action_factory(_make_config(batch_size=2))
         ctx    = _make_context(images)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert len(result) == 5
         assert all(len(v) == CLIP_EMBED_DIM for v in result)

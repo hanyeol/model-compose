@@ -50,7 +50,7 @@ class _FakeTextToSpeechAction(TextToSpeechTaskAction):
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    def _generate(self, texts: List[str], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[StreamResource]:
+    async def _generate_batch(self, texts: List[str], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[StreamResource]:
         self.batches_seen.append(list(texts))
         self.params_seen.append(params)
         return [ BytesStreamResource(t.encode("utf-8"), content_type="audio/pcm") for t in texts ]

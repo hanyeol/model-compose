@@ -58,7 +58,6 @@ class TestComponentProcessRuntimeWorker:
         assert worker.component_config == config
         assert worker.global_configs == global_configs
         assert worker.component is None
-        assert worker.running is True
 
 
 class TestComponentProcessRuntimeManager:

@@ -119,7 +119,7 @@ class EchoBytesWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         data = payload["input"]["data"]
         assert isinstance(data, bytes), f"expected bytes, got {type(data).__name__}"
         return { "echoed": data }
@@ -130,7 +130,7 @@ class StreamInputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         stream = payload["input"]["stream"]
         assert isinstance(stream, StreamResource), (
             f"expected StreamResource, got {type(stream).__name__}"
@@ -148,7 +148,7 @@ class StreamOutputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         size = payload["input"]["size"]
         chunk_size = payload["input"].get("chunk_size", 16)
         data = bytes((i & 0xFF) for i in range(size))

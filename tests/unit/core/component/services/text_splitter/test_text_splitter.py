@@ -28,7 +28,7 @@ def mock_context():
     # Make render_variable return the value as-is by default
     async def render_variable(value, scope=None, skip_decode=False):
         return value
-    async def render_text(value):
+    async def render_text(value, collect=True):
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
     context.render_text = AsyncMock(side_effect=render_text)
@@ -468,7 +468,7 @@ class TestTextSplitterStreamingInput:
             if value == "UNUSED":
                 return _stream_texts(texts)
             return value
-        async def render_text(value):
+        async def render_text(value, collect=True):
             return await render_variable(value)
         stream_mock.render_variable = AsyncMock(side_effect=render_variable)
         stream_mock.render_text = AsyncMock(side_effect=render_text)

@@ -86,7 +86,7 @@ async def _run() -> None:
     t0 = time.perf_counter()
     ctx = ComponentActionContext("r-emb-1", {"text": texts})
     loop = asyncio.get_running_loop()
-    result = await service._run(action_config, ctx, loop)
+    result = await service._run(action_config, ctx)
     print(f"[run]  done in {time.perf_counter() - t0:.2f}s")
 
     assert isinstance(result, list), f"expected list, got {type(result).__name__}"

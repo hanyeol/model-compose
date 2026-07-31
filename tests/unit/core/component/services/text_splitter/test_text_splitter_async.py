@@ -90,6 +90,45 @@ class TestTextSplitterActionContract:
         assert result == ["resolved via renderer"]
 
 
+class TestTextSplitterActionFragmentedInput:
+    """A fragmented ``StreamChunkIterator`` (one logical text delivered in
+    pieces) must reach the splitter unconcatenated. Regression guard: before
+    ``render_text(collect=False)`` the renderer would materialize the whole
+    text before the splitter ever saw a chunk.
+    """
+
+    @staticmethod
+    async def _pieces(*chunks):
+        for chunk in chunks:
+            yield chunk
+
+    @pytest.mark.anyio
+    async def test_fragmented_stream_splits_across_arriving_pieces(self):
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        # Split boundary "." lands mid-stream — the fragmented path in the
+        # splitter must accumulate pieces until a boundary is seen.
+        fragmented = StreamChunkIterator(
+            self._pieces("one two", " three. four", " five. six"),
+            is_fragmented=True,
+        )
+        config = TextSplitterActionConfig(
+            text="${input.text}",
+            chunk_size=10,
+            chunk_overlap=0,
+            separators=[". ", " "],
+        )
+        context = make_action_context(input={"text": fragmented})
+
+        result = await TextSplitterAction(config).run(context)
+
+        assert isinstance(result, list)
+        # We only assert full text is preserved and split occurred — the exact
+        # boundaries depend on the recursive splitter's separator scoring.
+        joined = " ".join(result).replace(".", "").split()
+        assert joined == ["one", "two", "three", "four", "five", "six"]
+
+
 class TestTextSplitterActionNonBlocking:
     @pytest.mark.anyio
     async def test_run_does_not_block_event_loop(self):

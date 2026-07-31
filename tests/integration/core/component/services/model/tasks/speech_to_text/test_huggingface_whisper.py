@@ -192,7 +192,7 @@ class TestNonStreamingBatch:
         ctx    = _make_context(sample_wav_path)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, str)
 
@@ -202,7 +202,7 @@ class TestNonStreamingBatch:
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -219,7 +219,7 @@ class TestStreamingBatch:
         ctx    = _make_context(sample_wav_path)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         # streaming=True + is_stream_mode=False (no ${result[]}) + single input
         # → StreamChunkIterator
@@ -236,7 +236,7 @@ class TestStreamingBatch:
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -263,7 +263,7 @@ class TestPassthroughOutput:
         ctx    = _make_context(sample_wav_path)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, str)
 
@@ -273,7 +273,7 @@ class TestPassthroughOutput:
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list) and len(result) == 2
         assert all(isinstance(item, str) for item in result)
@@ -289,7 +289,7 @@ class TestListInputResultShape:
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -301,7 +301,7 @@ class TestListInputResultShape:
         ctx    = _make_context(sample_wav_path)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, str)
 
@@ -311,7 +311,7 @@ class TestListInputResultShape:
         ctx    = _make_context([sample_wav_path, sample_wav_path])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -337,7 +337,7 @@ class TestAsyncIteratorInput:
         ctx    = _make_context(_make_iter)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -358,7 +358,7 @@ class TestAsyncIteratorInput:
         ctx    = _make_context(_make_iter)
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         rows = [row async for row in result]
@@ -379,7 +379,7 @@ class TestBatchRowIndependence:
         ctx    = _make_context([path_short, path_long])
         action = whisper_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list) and len(result) == 2
 

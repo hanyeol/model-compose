@@ -129,7 +129,7 @@ class TextStreamInputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         stream = payload["input"]["stream"]
         # TEXT-kind streams resolve to a StreamChunkIterator (no MIME match).
         chunks = []
@@ -146,7 +146,7 @@ class TextStreamOutputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         pieces = payload["input"]["pieces"]
 
         async def gen() -> AsyncIterator[str]:
@@ -161,7 +161,7 @@ class ObjectStreamOutputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         items = payload["input"]["items"]
 
         async def gen() -> AsyncIterator[Any]:
@@ -176,7 +176,7 @@ class AbortingOutputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         fail_after = payload["input"]["fail_after"]
         message = payload["input"]["message"]
 
@@ -194,7 +194,7 @@ class LargeBytesOutputWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         size = payload["input"]["size"]
         chunk_size = payload["input"]["chunk_size"]
         data = bytes((i & 0xFF) for i in range(size))
@@ -210,7 +210,7 @@ class StreamOutputForCloseWorker(QueueIpcWorker):
     async def _start(self): pass
     async def _stop(self): pass
 
-    async def _execute_task(self, payload):
+    async def _execute_task(self, payload, on_event=None):
         async def gen() -> AsyncIterator[str]:
             for i in range(1000):
                 await asyncio.sleep(0.005)

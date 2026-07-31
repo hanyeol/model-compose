@@ -28,13 +28,14 @@ def anyio_backend():
 
 
 class _FakeGenerationAction(TextGenerationTaskAction):
-    """Deterministic ``_generate`` for testing.
+    """Deterministic ``_generate_batch`` for testing.
 
     Matches the current source contract:
-    ``async _generate(texts, params, streaming, loop) -> List[str] | List[Iterator[str]]``.
+    ``async _generate_batch(texts, params, streaming, cancellation_token)
+      -> List[str] | List[AsyncIterator[str]]``.
 
     - non-streaming → ``[ "<text>#0" for text in texts ]``
-    - streaming     → ``[ <sync iterator yielding tok-0, tok-1, ...> for each text ]``
+    - streaming     → ``[ <async iterator yielding tok-0, tok-1, ...> for each text ]``
     """
 
     def __init__(self, config: TextGenerationModelActionConfig, stream_chunks: int = 3):
@@ -42,19 +43,18 @@ class _FakeGenerationAction(TextGenerationTaskAction):
         self.stream_chunks = stream_chunks
         self.batches_seen: List[List[str]] = []
 
-    async def _generate(
+    async def _generate_batch(
         self,
         texts: List[str],
         params: Dict[str, Any],
         streaming: bool,
-        loop: asyncio.AbstractEventLoop,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[Iterator[str]]]:
+    ) -> Union[List[str], List[AsyncIterator[str]]]:
         self.batches_seen.append(list(texts))
         if streaming:
             n = self.stream_chunks
 
-            def _stream():
+            async def _stream():
                 for i in range(n):
                     yield f"tok-{i}"
 

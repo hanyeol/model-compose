@@ -54,7 +54,7 @@ class _FakeRerankingAction(TextRerankingTaskAction):
         super().__init__(config)
         self.batches_seen: List[Dict[str, Any]] = []
 
-    async def _rerank(self, queries: List[str], documents: List[List[str]], params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
+    async def _rerank_batch(self, queries: List[str], documents: List[List[str]], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
         self.batches_seen.append({ "queries": list(queries), "documents": [ list(d) for d in documents ], "params": params })
         return [
             [ -float(abs(len(text) - len(query))) for text in texts ]

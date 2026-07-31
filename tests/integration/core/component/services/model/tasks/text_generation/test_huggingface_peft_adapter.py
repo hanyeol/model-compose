@@ -94,7 +94,7 @@ async def _load_and_generate(*, with_adapter: bool, weight: float = 1.0) -> str:
     t0 = time.perf_counter()
     ctx = ComponentActionContext("r-peft-1", {"text": prompt})
     loop = asyncio.get_running_loop()
-    result = await service._run(action_config, ctx, loop)
+    result = await service._run(action_config, ctx)
     print(f"[{label}] generate done in {time.perf_counter() - t0:.2f}s")
 
     assert isinstance(result, str), f"expected str result, got {type(result).__name__}"

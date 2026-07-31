@@ -1,16 +1,24 @@
-"""Tests for SubprocessPipeChannel (line-framed bytes transport).
+"""Tests for SubprocessPipeChannel (length-prefixed IPC frame transport).
 
-The channel adds `\\n` on send and strips it on recv; callers always work with
-unframed messages.
+Callers pass complete IPC frames whose first 8 bytes encode
+`(header_len, binary_len)` in big-endian u32. The channel writes the blob
+verbatim on `send` and reads back exactly one frame per `recv`.
 """
 
 from __future__ import annotations
 
 import os
+import struct
 
 import pytest
 
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
+
+_FRAME_PREFIX = struct.Struct(">II")
+
+
+def _ipc(header: bytes, binary: bytes = b"") -> bytes:
+    return _FRAME_PREFIX.pack(len(header), len(binary)) + header + binary
 
 
 def _make_pair():
@@ -33,8 +41,9 @@ class TestSubprocessPipeChannel:
     def test_send_recv_single_message(self):
         parent, child = _make_pair()
         try:
-            parent.send(b"hello")
-            assert child.recv() == b"hello"
+            frame = _ipc(b"hello")
+            parent.send(frame)
+            assert child.recv() == frame
         finally:
             parent.close()
             child.close()
@@ -42,11 +51,13 @@ class TestSubprocessPipeChannel:
     def test_bidirectional_send_recv(self):
         parent, child = _make_pair()
         try:
-            parent.send(b"ping")
-            assert child.recv() == b"ping"
+            ping = _ipc(b"ping")
+            pong = _ipc(b"pong")
+            parent.send(ping)
+            assert child.recv() == ping
 
-            child.send(b"pong")
-            assert parent.recv() == b"pong"
+            child.send(pong)
+            assert parent.recv() == pong
         finally:
             parent.close()
             child.close()
@@ -54,24 +65,25 @@ class TestSubprocessPipeChannel:
     def test_multiple_messages_in_order(self):
         parent, child = _make_pair()
         try:
-            parent.send(b"first")
-            parent.send(b"second")
-            parent.send(b"third")
-            assert child.recv() == b"first"
-            assert child.recv() == b"second"
-            assert child.recv() == b"third"
+            f1 = _ipc(b"first")
+            f2 = _ipc(b"second")
+            f3 = _ipc(b"third")
+            parent.send(f1)
+            parent.send(f2)
+            parent.send(f3)
+            assert child.recv() == f1
+            assert child.recv() == f2
+            assert child.recv() == f3
         finally:
             parent.close()
             child.close()
 
-    def test_channel_adds_newline_framing(self):
-        # Verify framing semantics: peer receives the message without trailing \n.
+    def test_frame_with_binary_trailer(self):
         parent, child = _make_pair()
         try:
-            parent.send(b"payload")
-            received = child.recv()
-            assert received == b"payload"
-            assert not received.endswith(b"\n")
+            frame = _ipc(b'{"type":"chunk"}', b"\x00\x01\x02\x03")
+            parent.send(frame)
+            assert child.recv() == frame
         finally:
             parent.close()
             child.close()
@@ -143,7 +155,7 @@ class TestSubprocessPipeChannel:
         b_r, b_w = os.pipe()
         try:
             with SubprocessPipeChannel(request_fd=b_r, response_fd=a_w) as ch:
-                ch.send(b"hi")  # opens fine
+                ch.send(_ipc(b"hi"))  # opens fine
             # After exit, send must raise.
             with pytest.raises(RuntimeError, match="closed"):
                 ch.send(b"x")

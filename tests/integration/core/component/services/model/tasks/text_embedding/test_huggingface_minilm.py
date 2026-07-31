@@ -142,7 +142,7 @@ class TestSingleInput:
         ctx    = _make_context("hello world")
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list)
         assert all(isinstance(x, float) for x in result)
@@ -154,7 +154,7 @@ class TestSingleInput:
         ctx    = _make_context("hello world")
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         norm = math.sqrt(sum(x * x for x in result))
         assert norm == pytest.approx(1.0, abs=1e-4)
@@ -168,7 +168,7 @@ class TestListInput:
         ctx    = _make_context([ "the cat sat on the mat", "machine learning rocks" ])
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list) and len(result) == 2
         assert all(isinstance(v, list) and len(v) == 384 for v in result)
@@ -184,7 +184,7 @@ class TestListInput:
         ])
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         sim_para = _cosine(result[0], result[1])
         sim_far  = _cosine(result[0], result[2])
@@ -206,7 +206,7 @@ class TestAsyncIteratorInput:
         ctx    = _make_context(_make_iter)
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, AsyncIterator)
         items = [item async for item in result]
@@ -223,7 +223,7 @@ class TestPooling:
         ctx    = _make_context("a test sentence")
         action = minilm_action_factory(config)
 
-        result = await action.run(ctx, asyncio.get_event_loop())
+        result = await action.run(ctx)
 
         assert isinstance(result, list) and len(result) == 384
         # Each pooling should yield something non-degenerate.

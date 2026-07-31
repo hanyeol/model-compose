@@ -79,7 +79,7 @@ class _ChannelWorker(IpcRuntimeWorker):
     async def _stop(self) -> None:
         return None
 
-    async def _execute_task(self, payload: Dict[str, Any]) -> Any:
+    async def _execute_task(self, payload: Dict[str, Any], on_event=None) -> Any:
         cmd = payload["input"].get("cmd")
         if cmd == "echo":
             return {"echoed": payload["input"]["data"]}

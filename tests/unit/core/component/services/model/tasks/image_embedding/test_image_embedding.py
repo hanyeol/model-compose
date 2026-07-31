@@ -57,7 +57,7 @@ class _FakeEmbeddingAction(ImageEmbeddingTaskAction):
         self.batches_seen: List[List[str]] = []
         self.params_seen: List[Dict[str, Any]] = []
 
-    async def _embed(self, images: List[PILImage.Image], params: Dict[str, Any], loop: asyncio.AbstractEventLoop, cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
+    async def _embed_batch(self, images: List[PILImage.Image], params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> List[List[float]]:
         labels = [ _label(img) for img in images ]
         self.batches_seen.append(labels)
         self.params_seen.append(params)

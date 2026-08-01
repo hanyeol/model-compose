@@ -119,16 +119,13 @@ def decode_pcm_to_waveform(data: bytes, format: str) -> np.ndarray:
 
     return np.frombuffer(data, dtype=get_pcm_dtype(format))
 
-def is_raw_pcm_format(format: Optional[str]) -> bool:
-    """True if `format` names a raw sample layout that np.frombuffer can decode directly.
-
-    Container formats (wav, mp3, ...) return False even though they wrap PCM samples.
-    """
-    return format in _PCM_FORMAT_NUMPY_DTYPE_MAP
-
 def get_pcm_format(bit_depth: int, default: str = "s16le") -> str:
     """Raw PCM format identifier for a given bit depth. Returns `default` if unknown."""
     return _PCM_BIT_DEPTH_FORMAT_MAP.get(int(bit_depth), default)
+
+def is_pcm_format(format: str) -> bool:
+    """True if `format` names a raw sample layout that np.frombuffer can decode directly."""
+    return format in _PCM_FORMAT_NUMPY_DTYPE_MAP
 
 def get_pcm_dtype(format: str) -> np.dtype:
     """Numpy dtype for a raw PCM format identifier. Raises ValueError if unsupported."""

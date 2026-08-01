@@ -10,7 +10,7 @@ from .file import FileStreamResource, UploadFileStreamResource
 from .media import MediaSource
 from ...utils.audio import (
     AudioBuffer,
-    is_raw_pcm_format,
+    is_pcm_format,
     get_pcm_dtype,
     get_pcm_format,
     decode_pcm_to_waveform,
@@ -224,15 +224,15 @@ class AudioDecodingStreamer:
 
         if isinstance(source.stream, FileStreamResource):
             input_path = source.stream.path
-        else:
-            if source.format and is_raw_pcm_format(source.format):
-                command.extend([ "-f", source.format ])
+        
+        if source.format and input_path is None:
+            command.extend([ "-f", source.format ])
+
+            if is_pcm_format(source.format):
                 if source.attrs.get("sample_rate"):
                     command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
                 if source.attrs.get("channels"):
                     command.extend([ "-ac", str(source.attrs["channels"]) ])
-            elif source.format:
-                command.extend([ "-f", source.format ])
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
         command.extend([ "-vn", "-f", "s16le", "-acodec", "pcm_s16le" ])
@@ -662,7 +662,7 @@ def create_audio_source(value: Any) -> MediaSource:
     raise TypeError(f"Unsupported audio source: {value.__class__.__name__}")
 
 def is_audio_streamable(source: MediaSource) -> bool:
-    if not is_raw_pcm_format(source.format):
+    if not is_pcm_format(source.format):
         return False
 
     if source.attrs.get("sample_rate") is None:

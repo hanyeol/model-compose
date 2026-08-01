@@ -69,14 +69,14 @@ class SpeechToTextTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        language     = await context.render_variable(self.config.language) if self.config.language else None
-        task         = await context.render_variable(self.config.task) if self.config.task is not None else None
-        chunk_length = await context.render_variable(self.config.chunk_length) if self.config.chunk_length is not None else None
+        language          = await context.render_variable(self.config.language) if self.config.language else None
+        return_timestamps = bool(await context.render_variable(self.config.return_timestamps))
+        timestamp_level   = await context.render_variable(self.config.timestamp_level)
 
         return {
-            "language":     language,
-            "task":         task,
-            "chunk_length": chunk_length,
+            "language":          language,
+            "return_timestamps": return_timestamps,
+            "timestamp_level":   timestamp_level,
         }
 
     @abstractmethod

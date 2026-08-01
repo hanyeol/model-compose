@@ -37,8 +37,7 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        max_input_length     = await context.render_variable(self.config.max_input_length)
-        min_output_length    = await context.render_variable(self.config.params.min_output_length)
+        min_output_length    = await context.render_variable(self.config.min_output_length)
         num_beams            = await context.render_variable(self.config.params.num_beams)
         length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
         early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
@@ -49,8 +48,8 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
             "truncation": False,
         }
 
-        if max_input_length is not None:
-            tokenizer_params["max_length"] = max_input_length
+        if params["max_input_length"] is not None:
+            tokenizer_params["max_length"] = params["max_input_length"]
             tokenizer_params["truncation"] = True
 
         generation_params: Dict[str, Any] = {

@@ -54,7 +54,7 @@ class AudioTextAlignmentTaskAction(ComponentAction):
         language          = await context.render_variable(self.config.language) if self.config.language else None
         chunk_length      = float(await context.render_variable(self.config.chunk_length))
         chunk_overlap     = parse_duration(await context.render_variable(self.config.chunk_overlap))
-        return_confidence = bool(await context.render_variable(self.config.params.return_confidence))
+        return_confidence = bool(await context.render_variable(self.config.return_confidence))
 
         if chunk_overlap >= chunk_length:
             raise ValueError(f"'chunk_overlap' ({chunk_overlap}s) must be smaller than 'chunk_length' ({chunk_length}s).")

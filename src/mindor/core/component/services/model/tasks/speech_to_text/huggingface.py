@@ -5,7 +5,7 @@ from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
-from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     def __init__(
         self,
-        config: SpeechToTextModelActionConfig,
+        config: HuggingfaceSpeechToTextModelActionConfig,
         model: PreTrainedModel,
         processor: ProcessorMixin,
         device: torch.device
@@ -40,33 +40,40 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        task              = await context.render_variable(self.config.task) if self.config.task is not None else None
+        max_output_length = await context.render_variable(self.config.max_output_length) if self.config.max_output_length is not None else None
+        chunk_length      = await context.render_variable(self.config.chunk_length) if self.config.chunk_length is not None else None
+
         generation_params: Dict[str, Any] = await self._resolve_generation_params(context)
 
         if params["language"] is not None:
             generation_params["language"] = params["language"]
-        if params["task"] is not None:
-            generation_params["task"] = params["task"]
 
-        params["generation"] = generation_params
+        if task is not None:
+            generation_params["task"] = task
+
+        if max_output_length is not None:
+            generation_params["max_new_tokens"] = max_output_length
+
+        # HF expects `return_timestamps=True` for segment-level and `"word"` for word-level.
+        if params["return_timestamps"]:
+            generation_params["return_timestamps"] = "word" if params["timestamp_level"] == "word" else True
+
+        params["generation"]   = generation_params
+        params["chunk_length"] = chunk_length
 
         return params
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_output_length           = await context.render_variable(self.config.params.max_output_length)
         num_beams                   = await context.render_variable(self.config.params.num_beams)
         temperature                 = await context.render_variable(self.config.params.temperature)
         compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
         logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
-        return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
-        timestamp_level             = await context.render_variable(self.config.params.timestamp_level)
 
         params: Dict[str, Any] = {
             "num_beams": num_beams,
         }
-
-        if max_output_length is not None:
-            params["max_new_tokens"] = max_output_length
 
         if temperature is not None:
             params["temperature"] = temperature
@@ -79,9 +86,6 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             params["logprob_threshold"] = logprob_threshold
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
-        # HF expects `return_timestamps=True` for segment-level and `"word"` for word-level.
-        if return_timestamps:
-            params["return_timestamps"] = "word" if timestamp_level == "word" else True
 
         return params
 
@@ -167,8 +171,17 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         if native_streaming:
             return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
 
+        # Timestamped generation cannot stream token-by-token, so re-emit the
+        # collected segments one by one to preserve the AsyncIterator interface
+        # expected by downstream jobs.
         if streaming and return_timestamps:
-            return [ self._create_segment_stream(segments) for segments in results ]
+            streams: List[AsyncIterator[Dict[str, Any]]] = []
+            for segments in results:
+                async def _stream_chunk_generator(segments=segments):
+                    for segment in segments:
+                        yield segment
+                streams.append(_stream_chunk_generator())
+            return streams
 
         return results
 
@@ -183,7 +196,14 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 return_language=False,
                 time_precision=time_precision,
             )
-            results.append([ self._make_segment(chunk) for chunk in optional.get("chunks", []) ])
+            results.append([
+                {
+                    "text":       chunk["text"],
+                    "start_time": float(chunk["timestamp"][0]) if chunk["timestamp"][0] is not None else 0.0,
+                    "end_time":   float(chunk["timestamp"][1]) if chunk["timestamp"][1] is not None else 0.0,
+                }
+                for chunk in optional.get("chunks", [])
+            ])
 
         return results
 
@@ -192,7 +212,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         results: List[List[Dict[str, Any]]] = []
         for segments in batch_segments or []:
-            per_audio: List[Dict[str, Any]] = []
+            result: List[Dict[str, Any]] = []
             for segment in segments:
                 tokens           = segment["tokens"].unsqueeze(0)
                 token_timestamps = segment["token_timestamps"].unsqueeze(0)
@@ -204,43 +224,28 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                     time_precision=time_precision,
                 )
 
-                words = [ self._make_word(chunk) for chunk in optional.get("chunks", []) ]
-                per_audio.append({
+                words = [
+                    {
+                        "text":       chunk["text"],
+                        "start_time": float(chunk["timestamp"][0]) if chunk["timestamp"][0] is not None else 0.0,
+                        "end_time":   float(chunk["timestamp"][1]) if chunk["timestamp"][1] is not None else 0.0,
+                    }
+                    for chunk in optional.get("chunks", [])
+                ]
+    
+                result.append({
                     "text":       "".join(word["text"] for word in words),
                     "start_time": float(segment["start"]),
                     "end_time":   float(segment["end"]),
                     "words":      words,
                 })
 
-            results.append(per_audio)
+            results.append(result)
 
         return results
 
     def _get_time_precision(self) -> float:
         return self.processor.feature_extractor.chunk_length / self.model.config.max_source_positions
-
-    def _make_segment(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
-        start, end = chunk["timestamp"]
-        return {
-            "text":       chunk["text"],
-            "start_time": float(start) if start is not None else 0.0,
-            "end_time":   float(end)   if end   is not None else 0.0,
-        }
-
-    def _make_word(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
-        start, end = chunk["timestamp"]
-        return {
-            "text":       chunk["text"],
-            "start_time": float(start) if start is not None else 0.0,
-            "end_time":   float(end)   if end   is not None else 0.0,
-        }
-
-    def _create_segment_stream(self, segments: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
-        async def _stream_segment_generator():
-            for segment in segments:
-                yield segment
-
-        return _stream_segment_generator()
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []

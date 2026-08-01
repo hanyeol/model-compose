@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Dict, Optional, List, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FunAsrSpeechToTextModelComponentConfig, HuggingfaceModelConfig
-from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, FunAsrSpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
@@ -56,29 +56,28 @@ _DEFAULT_FUN_ASR_REPO = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
 class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
     def __init__(
         self,
-        config: SpeechToTextModelActionConfig,
+        config: FunAsrSpeechToTextModelActionConfig,
         model: Any,
-        itn: bool,
+        inverse_text_normalization: bool,
         device: Optional[torch.device],
     ):
         super().__init__(config, device)
 
         self.model: Any = model
-        self.itn: bool = itn
+        self.inverse_text_normalization: bool = inverse_text_normalization
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        return_timestamps = bool(await context.render_variable(self.config.params.return_timestamps))
-
-        generation_params: Dict[str, Any] = { "itn": self.itn }
+        # Fun-ASR uses "itn" as the kwarg name for inverse text normalization.
+        generation_params: Dict[str, Any] = { "itn": self.inverse_text_normalization }
 
         language = self._resolve_language(params["language"])
+
         if language is not None:
             generation_params["language"] = language
 
         params["generation"] = generation_params
-        params["return_timestamps"] = return_timestamps
 
         return params
 
@@ -88,32 +87,45 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[List[Dict[str, Any]]]]:
-        if streaming:
-            raise NotImplementedError("Fun-ASR streaming inference is not supported yet; set streaming: false.")
-
+    ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         waveforms = await self._preprocess_audio(audios)
-
-        generation_params = params["generation"]
-        return_timestamps = params["return_timestamps"]
 
         # Fun-ASR-Nano rejects batch decoding (see model.inference_prepare); feed
         # samples one at a time and concatenate the results.
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]]]:
-            outputs: List[Any] = []
+            results: List[Any] = []
 
             for waveform in waveforms:
                 result = self.model.generate(
                     input=[ waveform ],
                     cache={},
                     batch_size=1,
-                    **generation_params,
+                    **params["generation"],
                 )[0]
-                outputs.append(self._to_segments(result) if return_timestamps else result.get("text", ""))
+                results.append(self._to_segments(result) if params["return_timestamps"] else result.get("text", ""))
 
-            return outputs
+            return results
 
-        return await self._run_in_executor(_transcribe)
+        results = await self._run_in_executor(_transcribe)
+
+        # Fun-ASR has no token-level streaming; when streaming is requested we
+        # still run the full inference per waveform and re-emit each collected
+        # result as an async iterator to preserve the interface expected by
+        # downstream jobs: segments one-by-one when timestamps are on,
+        # otherwise the full transcript as a single chunk.
+        if streaming:
+            streams: List[AsyncIterator[Any]] = []
+            for result in results:
+                async def _stream_chunk_generator(result=result):
+                    if isinstance(result, list):
+                        for segment in result:
+                            yield segment
+                    else:
+                        yield result
+                streams.append(_stream_chunk_generator())
+            return streams
+
+        return results
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[torch.Tensor]:
         # Fun-ASR-Nano only recognises str (file path) or torch.Tensor waveforms
@@ -202,4 +214,4 @@ class FunAsrSpeechToTextTaskService(SpeechToTextTaskService):
         return _DEFAULT_FUN_ASR_REPO, "hf"
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await FunAsrSpeechToTextTaskAction(action, self.model, self.config.itn, self.device).run(context)
+        return await FunAsrSpeechToTextTaskAction(action, self.model, self.config.inverse_text_normalization, self.device).run(context)

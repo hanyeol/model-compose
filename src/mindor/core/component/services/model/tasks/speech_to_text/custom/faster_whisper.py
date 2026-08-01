@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, FasterWhisperSpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
     def __init__(
         self,
-        config: SpeechToTextModelActionConfig,
+        config: FasterWhisperSpeechToTextModelActionConfig,
         model: WhisperModel,
         device: Optional[torch.device]
     ):
@@ -32,12 +32,24 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        task         = await context.render_variable(self.config.task) if self.config.task is not None else None
+        chunk_length = await context.render_variable(self.config.chunk_length) if self.config.chunk_length is not None else None
+
         transcribe_params: Dict[str, Any] = await self._resolve_transcribe_params(context)
+        transcribe_params["return_timestamps"] = params["return_timestamps"]
 
         if params["language"] is not None:
             transcribe_params["language"] = params["language"]
-        if params["task"] is not None:
-            transcribe_params["task"] = params["task"]
+
+        if task is not None:
+            transcribe_params["task"] = task
+
+        if chunk_length is not None:
+            transcribe_params["chunk_length"] = int(chunk_length)
+
+        # faster-whisper always emits segment start/end; only word-level alignment needs a flag.
+        if params["return_timestamps"] and params["timestamp_level"] == "word":
+            transcribe_params["word_timestamps"] = True
 
         params["transcribe"] = transcribe_params
 
@@ -49,12 +61,9 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
         logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
-        return_timestamps           = await context.render_variable(self.config.params.return_timestamps)
-        timestamp_level             = await context.render_variable(self.config.params.timestamp_level)
 
         params: Dict[str, Any] = {
             "beam_size": num_beams,
-            "return_timestamps": return_timestamps,
         }
 
         if temperature is not None:
@@ -66,9 +75,6 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             params["log_prob_threshold"] = logprob_threshold
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
-        # faster-whisper always emits segment start/end; only word-level alignment needs a flag.
-        if return_timestamps and timestamp_level == "word":
-            params["word_timestamps"] = True
 
         return params
 

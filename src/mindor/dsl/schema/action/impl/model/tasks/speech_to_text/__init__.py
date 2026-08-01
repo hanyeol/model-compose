@@ -1,1 +1,1 @@
-from .impl import *
+from .speech_to_text import *

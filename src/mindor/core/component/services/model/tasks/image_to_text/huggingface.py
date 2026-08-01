@@ -43,65 +43,50 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        stop_sequences = await context.render_variable(self.config.stop_sequences)
+        processor_params: Dict[str, Any] = await self._resolve_processor_params()
+        if params["max_input_length"] is not None:
+            processor_params["max_length"] = params["max_input_length"]
+            processor_params["truncation"] = True
 
-        processor_params  = await self._resolve_processor_params(context)
-        generation_params = await self._resolve_generation_params(context)
+        generation_params: Dict[str, Any] = await self._resolve_generation_params(context)
+        generation_params["num_return_sequences"] = params["num_return_sequences"]
+        generation_params["do_sample"] = params["do_sample"]
 
-        params.update({
-            "stop_sequences": stop_sequences,
-            "processor":      processor_params,
-            "generation":     generation_params,
-        })
+        if params["max_output_length"] is not None:
+            generation_params["max_new_tokens"] = params["max_output_length"]
+
+        if params["do_sample"]:
+            if params["temperature"] is not None:
+                generation_params["temperature"] = params["temperature"]
+            if params["top_k"] is not None:
+                generation_params["top_k"] = params["top_k"]
+            if params["top_p"] is not None:
+                generation_params["top_p"] = params["top_p"]
+
+        params["processor"]  = processor_params
+        params["generation"] = generation_params
 
         return params
 
-    async def _resolve_processor_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length)
-
-        params: Dict[str, Any] = {
+    async def _resolve_processor_params(self) -> Dict[str, Any]:
+        return {
             "return_tensors": "pt",
             "padding": True,
-            "truncation": False
+            "truncation": False,
         }
 
-        if max_input_length is not None:
-            params["max_length"] = max_input_length
-            params["truncation"] = True
-
-        return params
-
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_output_length    = await context.render_variable(self.config.params.max_output_length)
-        min_output_length    = await context.render_variable(self.config.params.min_output_length)
-        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
-        do_sample            = await context.render_variable(self.config.params.do_sample)
-        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
-        num_beams            = await context.render_variable(self.config.params.num_beams)
-        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        min_output_length = await context.render_variable(self.config.min_output_length)
+        num_beams         = await context.render_variable(self.config.params.num_beams)
+        length_penalty    = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping    = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
 
-        params = {
+        params: Dict[str, Any] = {
             "min_length": min_output_length,
-            "num_return_sequences": num_return_sequences,
-            "do_sample": do_sample,
             "num_beams": num_beams,
             "pad_token_id": getattr(self.processor.tokenizer, "pad_token_id", None),
             "eos_token_id": getattr(self.processor.tokenizer, "eos_token_id", None),
         }
-
-        if max_output_length is not None:
-            params["max_new_tokens"] = max_output_length
-
-        if do_sample:
-            if temperature is not None:
-                params["temperature"] = temperature
-            if top_k is not None:
-                params["top_k"] = top_k
-            if top_p is not None:
-                params["top_p"] = top_p
 
         if num_beams > 1:
             if length_penalty is not None:

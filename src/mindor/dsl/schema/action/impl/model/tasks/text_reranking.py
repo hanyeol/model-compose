@@ -13,6 +13,6 @@ class TextRerankingModelActionConfig(CommonModelActionConfig):
     top_k: Optional[Union[int, str]] = Field(default=None, description="Return only top K results. If unset, all results are returned.")
     score_threshold: Optional[Union[float, str]] = Field(default=None, description="Discard results scoring below this threshold.")
     return_documents: Union[bool, str] = Field(default=True, description="Whether to include the original document in each result.")
-    batch_size: Union[int, str] = Field(default=32, description="(query, document) pairs to score per batch.")
     max_input_length: Union[int, str] = Field(default=512, description="Maximum tokens per (query, document) pair.")
+    batch_size: Union[int, str] = Field(default=32, description="(query, document) pairs to score per batch.")
     params: TextRerankingParamsConfig = Field(default_factory=TextRerankingParamsConfig, description="Reranking parameters.")

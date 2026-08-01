@@ -9,6 +9,6 @@ class TextEmbeddingParamsConfig(BaseModel):
 
 class TextEmbeddingModelActionConfig(CommonModelActionConfig):
     text: Union[Union[str, List[str]], str] = Field(..., description="Input text to embed.")
-    batch_size: Union[int, str] = Field(default=32, description="Input texts per batch.")
     max_input_length: Union[int, str] = Field(default=512, description="Maximum tokens per input text.")
+    batch_size: Union[int, str] = Field(default=32, description="Input texts per batch.")
     params: TextEmbeddingParamsConfig = Field(default_factory=TextEmbeddingParamsConfig, description="Embedding generation parameters.")

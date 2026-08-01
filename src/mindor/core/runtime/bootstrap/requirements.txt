@@ -6,7 +6,7 @@ packaging
 docker
 aiohttp
 aiofiles
-brotlicffi
+Brotli
 requests
 fastapi
 websockets

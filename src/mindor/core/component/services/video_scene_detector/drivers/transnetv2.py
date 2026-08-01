@@ -25,6 +25,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
         results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
+
         for video in videos:
             results.append(await self._detect(
                 video,
@@ -35,6 +36,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
                 streaming,
                 cancellation_token,
             ))
+
         return results
 
     async def _detect(

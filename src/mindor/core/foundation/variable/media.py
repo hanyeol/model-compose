@@ -1,7 +1,7 @@
 from typing import List, Optional, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.media import MediaSource, create_media_source
-from ..streaming.iterators import StreamIterator
+from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
 class MediaValueRenderer:
     async def render(self, value: Any) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
@@ -9,6 +9,12 @@ class MediaValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)):

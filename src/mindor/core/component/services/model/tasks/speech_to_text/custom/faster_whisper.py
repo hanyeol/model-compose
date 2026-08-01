@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_buffer
+from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ......base import ComponentActionContext
@@ -103,7 +103,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_buffer(audio, sample_rate=16000)
+            waveform, _ = await AudioBufferStreamer(audio, sample_rate=16000, channel="mono").collect()
             waveforms.append(waveform)
 
         return waveforms

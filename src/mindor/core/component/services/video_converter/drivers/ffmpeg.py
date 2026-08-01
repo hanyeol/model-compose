@@ -52,8 +52,10 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         results: List[VideoStreamResource] = []
+
         for video in videos:
             results.append(await self._convert(video, params["encoding"], cancellation_token))
+
         return results
 
     async def _convert(

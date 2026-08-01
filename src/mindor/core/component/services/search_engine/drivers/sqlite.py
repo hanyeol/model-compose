@@ -51,6 +51,7 @@ class SQLiteSearchEngineAction(SearchEngineAction):
             search_fields = params["search_fields"]
 
             meta = self._load_meta(database, index_id)
+
             if meta is None:
                 raise LookupError(f"Index '{index_id}' does not exist.")
 

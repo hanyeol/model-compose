@@ -25,9 +25,11 @@ ModelComponentConfig = Annotated[
         FaceSwapModelComponentConfig,
         TextToSpeechModelComponentConfig,
         SpeechToTextModelComponentConfig,
+        AudioTextAlignmentModelComponentConfig,
         VoiceActivityDetectionModelComponentConfig,
         SpeakerDiarizationModelComponentConfig,
-        MusicGenerationModelComponentConfig
+        MusicGenerationModelComponentConfig,
+        MusicSourceSeparationModelComponentConfig
     ],
     Field(discriminator="task")
 ]

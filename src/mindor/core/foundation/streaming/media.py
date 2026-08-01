@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
 from .resources import StreamResource
 from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
@@ -21,7 +21,7 @@ def create_media_source(value: Any) -> MediaSource:
         return MediaSource(value.source, value.format, value.attrs)
 
     if isinstance(value, PcmStreamResource):
-        return MediaSource(value.samples, value.format, value.attrs)
+        return MediaSource(value, value.format, value.attrs)
 
     if isinstance(value, WavStreamResource):
         return MediaSource(value, "wav", value.attrs)

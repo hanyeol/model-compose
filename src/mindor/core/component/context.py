@@ -106,8 +106,8 @@ class ComponentActionContext:
     async def render_variable(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-    async def render_text(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        return await TextValueRenderer().render(await self.render_variable(value))
+    async def render_text(self, value: Any, collect: bool = True) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+        return await TextValueRenderer().render(await self.render_variable(value), collect=collect)
 
     async def render_image(self, value: Any) -> Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]:
         return await ImageValueRenderer().render(await self.render_variable(value))
@@ -118,10 +118,10 @@ class ComponentActionContext:
     async def render_audio(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
         return await AudioValueRenderer().render(await self.render_variable(value))
 
-    async def render_audio_buffer(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[int] = None) -> Union[AudioBuffer, List[AudioBuffer], AsyncIterator[AudioBuffer]]:
+    async def render_audio_buffer(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[Union[int, Literal["mono"]]] = None) -> Union[AudioBuffer, List[AudioBuffer], AsyncIterator[AudioBuffer]]:
         return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value))
 
-    async def render_audio_buffer_array(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[int] = None) -> Union[AudioBufferArrayValue, List[AudioBufferArrayValue], AsyncIterator[AudioBufferArrayValue]]:
+    async def render_audio_buffer_array(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[Union[int, Literal["mono"]]] = None) -> Union[AudioBufferArrayValue, List[AudioBufferArrayValue], AsyncIterator[AudioBufferArrayValue]]:
         return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value))
 
     async def render_video(self, value: Any) -> Union[MediaSource, List[MediaSource]]:

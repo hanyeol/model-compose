@@ -6,9 +6,8 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, SileroVoiceActivityDetectionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, VoiceActivityDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_buffer, stream_audio_buffer, is_audio_streamable
+from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ..common import VoiceActivityDetectionTaskService, VoiceActivityDetectionTaskAction, VoiceSegmenter
 
@@ -87,18 +86,14 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         waveforms: List[Union[np.ndarray, AsyncIterator[np.ndarray]]] = []
 
         for audio in audios:
-            if streaming and is_audio_streamable(audio):
+            if streaming:
                 async def _stream_waveform_generator(audio=audio):
-                    async for waveform, _  in stream_audio_buffer(audio, window_size, sample_rate=sample_rate):
+                    async for waveform, _ in AudioBufferStreamer(audio, window_size, channel="mono", sample_rate=sample_rate):
                         yield waveform
                 waveforms.append(_stream_waveform_generator())
-                continue
-
-            if streaming:
-                logging.debug("Streaming input format=%r not directly consumable; collating for frame-by-frame VAD.", audio.format)
-
-            waveform, _ = await load_audio_buffer(audio, sample_rate=sample_rate)
-            waveforms.append(waveform)
+            else:
+                waveform, _ = await AudioBufferStreamer(audio, channel="mono", sample_rate=sample_rate).collect()
+                waveforms.append(waveform)
 
         return waveforms, window_size
 

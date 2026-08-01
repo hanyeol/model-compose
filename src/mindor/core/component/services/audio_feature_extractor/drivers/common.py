@@ -116,8 +116,10 @@ class AudioFeatureExtractorAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[dict]:
         results: List[dict] = []
+
         for audio in audios:
             results.append(await self._extract(feature, audio, params, cancellation_token))
+
         return results
 
     async def _extract(

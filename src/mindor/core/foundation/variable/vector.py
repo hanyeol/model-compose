@@ -1,6 +1,6 @@
 from typing import List, Union, Any
 from collections.abc import AsyncIterator
-from ..streaming.iterators import StreamIterator
+from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
 class VectorValue:
     def __init__(self, values: List[Union[float, int]]):
@@ -16,6 +16,12 @@ class VectorValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
@@ -28,6 +34,12 @@ class VectorValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield self._render_element_array(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):

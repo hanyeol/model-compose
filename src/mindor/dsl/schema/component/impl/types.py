@@ -18,6 +18,7 @@ class ComponentType(str, Enum):
     SHELL                   = "shell"
     TEXT_SPLITTER           = "text-splitter"
     SENTENCE_SPLITTER       = "sentence-splitter"
+    TRANSCRIPT_CORRECTOR    = "transcript-corrector"
     IMAGE_PROCESSOR         = "image-processor"
     VECTOR_PROCESSOR        = "vector-processor"
     WEB_SCRAPER             = "web-scraper"

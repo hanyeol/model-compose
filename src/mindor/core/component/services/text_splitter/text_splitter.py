@@ -242,7 +242,7 @@ class TextSplitterAction(ComponentAction):
         self.config: TextSplitterActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        text       = await context.render_text(self.config.text)
+        text       = await context.render_text(self.config.text, collect=False)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
@@ -319,8 +319,10 @@ class TextSplitterAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         results: List[Any] = []
+
         for text in texts:
             results.append(await self._process(text, params, streaming, cancellation_token))
+
         return results
 
     async def _process(

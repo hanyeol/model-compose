@@ -7,7 +7,7 @@ from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, SpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_buffer
+from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
@@ -98,8 +98,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         # the loop instead of the executor thread.
         waveforms = await self._preprocess_audio(audios)
 
-        generation_params: Dict[str, Any] = params["generation"]
-        return_timestamps                 = generation_params.get("return_timestamps")
+        return_timestamps = params["generation"].get("return_timestamps")
 
         # Timestamp extraction requires the full generated sequence for post-processing,
         # so streaming timestamps are emitted after generation completes rather than
@@ -247,7 +246,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_buffer(audio, sample_rate=16000)
+            waveform, _ = await AudioBufferStreamer(audio, sample_rate=16000, channel="mono").collect()
             waveforms.append(waveform)
 
         return waveforms

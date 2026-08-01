@@ -8,7 +8,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.streaming.text import TextStreamResource
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -33,7 +32,7 @@ class SentenceSplitterAction(ComponentAction):
         self.config: SentenceSplitterActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        text       = await context.render_text(self.config.text)
+        text       = await context.render_text(self.config.text, collect=False)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
@@ -102,11 +101,13 @@ class SentenceSplitterAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         results: List[Any] = []
+
         for text in texts:
             if streaming:
                 results.append(self._stream_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token))
             else:
                 results.append(await self._collect_sentences(text, params["min_chunk_length"], params["max_chunk_length"], cancellation_token))
+
         return results
 
     async def _collect_sentences(
@@ -131,9 +132,6 @@ class SentenceSplitterAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[str]:
         splitter = await self._create_splitter(min_chunk_length, max_chunk_length, cancellation_token)
-
-        if isinstance(text, TextStreamResource):
-            text = text.text
 
         if isinstance(text, (StreamResource, StreamChunkIterator)):
             async for piece in TextDecodeIterator(text):

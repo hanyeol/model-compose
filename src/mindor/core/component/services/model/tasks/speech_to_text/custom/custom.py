@@ -8,4 +8,8 @@ class CustomSpeechToTextTaskService:
             from .faster_whisper import FasterWhisperSpeechToTextTaskService
             return FasterWhisperSpeechToTextTaskService(id, config, daemon)
 
+        if config.family == SpeechToTextModelFamily.FUN_ASR:
+            from .fun_asr import FunAsrSpeechToTextTaskService
+            return FunAsrSpeechToTextTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

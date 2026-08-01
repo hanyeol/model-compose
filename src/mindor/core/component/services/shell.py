@@ -99,10 +99,12 @@ class ShellAction:
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None
     ) -> Any:
-        if streaming:
-            return self._stream_command(command.values, params["working_dir"], params["env"], params["timeout"], cancellation_token)
+        argv = await command.collect()
 
-        return await self._run_command(command.values, params["working_dir"], params["env"], params["timeout"], cancellation_token)
+        if streaming:
+            return self._stream_command(argv, params["working_dir"], params["env"], params["timeout"], cancellation_token)
+
+        return await self._run_command(argv, params["working_dir"], params["env"], params["timeout"], cancellation_token)
 
     async def _run_command(
         self,

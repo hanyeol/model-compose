@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, PyannoteSpeakerDiarizationModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeakerDiarizationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import load_audio_buffer
+from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
 from ..common import SpeakerDiarizationTaskService, SpeakerDiarizationTaskAction
@@ -84,7 +84,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await load_audio_buffer(audio, sample_rate=sample_rate)
+            waveform, _ = await AudioBufferStreamer(audio, sample_rate=sample_rate, channel="mono").collect()
             waveforms.append(waveform)
 
         return waveforms

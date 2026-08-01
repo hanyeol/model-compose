@@ -41,6 +41,12 @@ class ImageValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element_array(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
@@ -53,6 +59,12 @@ class ImageValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)):

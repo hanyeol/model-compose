@@ -28,6 +28,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
         results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
+
         for video in videos:
             results.append(await self._extract(
                 video,
@@ -39,6 +40,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 streaming,
                 cancellation_token,
             ))
+
         return results
 
     async def _extract(

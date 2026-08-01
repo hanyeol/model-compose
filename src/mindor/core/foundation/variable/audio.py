@@ -1,6 +1,6 @@
-from typing import List, Optional, Union, Any
+from typing import List, Literal, Optional, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from ..streaming.audio import create_audio_source, load_audio_buffer
+from ..streaming.audio import create_audio_source, AudioBufferStreamer
 from ...utils.audio import AudioBuffer
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
@@ -34,6 +34,12 @@ class AudioValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)):
@@ -48,7 +54,7 @@ class AudioValueRenderer:
         return None
 
 class AudioBufferValueRenderer:
-    def __init__(self, sample_rate: Optional[int] = None, channel: Optional[int] = None):
+    def __init__(self, sample_rate: Optional[int] = None, channel: Optional[Union[int, Literal["mono"]]] = None):
         self.sample_rate = sample_rate
         self.channel = channel
 
@@ -62,6 +68,12 @@ class AudioBufferValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element_array(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
@@ -74,6 +86,12 @@ class AudioBufferValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)):
@@ -106,6 +124,6 @@ class AudioBufferValueRenderer:
             source = create_audio_source(value)
             sample_rate, channel = self.sample_rate, self.channel
 
-            return await load_audio_buffer(source, sample_rate, channel)
+            return await AudioBufferStreamer(source, sample_rate=sample_rate, channel=channel).collect()
 
         return None

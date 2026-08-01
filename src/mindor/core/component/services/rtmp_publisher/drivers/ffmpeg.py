@@ -256,11 +256,14 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         video_count = len(videos) if videos is not None else (len(audios) if audios is not None else 0)
+
         for index in range(video_count):
             video = videos[index] if videos is not None else None
             audio = audios[index] if audios is not None else None
+
             if video is None and audio is None:
                 continue
+
             await self._publish(video, audio, url, encoding, cancellation_token)
 
     async def _publish(

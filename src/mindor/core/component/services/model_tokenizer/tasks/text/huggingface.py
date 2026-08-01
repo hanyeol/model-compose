@@ -126,9 +126,11 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
         return await self._run_in_executor(_encode)
 
     async def _decode(self, token_ids: List[ArrayValue], params: Dict[str, Any]) -> List[Dict[str, str]]:
+        collected = [ await ids.collect() for ids in token_ids ]
+
         def _decode() -> List[Dict[str, str]]:
             outputs = self.tokenizer.batch_decode(
-                [ ids.values for ids in token_ids ],
+                collected,
                 skip_special_tokens=params["skip_special_tokens"],
             )
 

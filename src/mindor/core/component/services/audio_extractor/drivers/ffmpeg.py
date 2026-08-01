@@ -49,6 +49,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AudioStreamResource]:
         results: List[AudioStreamResource] = []
+
         for source in sources:
             results.append(await self._extract(
                 source,
@@ -57,6 +58,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
                 params["track"],
                 cancellation_token,
             ))
+
         return results
 
     async def _extract(

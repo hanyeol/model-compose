@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator
 from ..streaming.resources import StreamResource, save_stream_to_temporary_file
 from ..streaming.file import FileStreamResource
-from ..streaming.iterators import StreamIterator
+from ..streaming.iterators import StreamIterator, StreamChunkIterator
 import os
 
 class FileValueRenderer:
@@ -11,6 +11,12 @@ class FileValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
+
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
             return _iterate()
 
         if isinstance(value, (list, tuple)):

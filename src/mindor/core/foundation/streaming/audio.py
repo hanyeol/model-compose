@@ -199,7 +199,8 @@ class AudioDecodingStreamer:
         wrap the pair in a ``PcmStreamResource`` or consume the bytes directly.
         """
         if isinstance(source.stream, (PcmStreamResource, WavStreamResource)):
-            stream = self._try_passthrough_stream(source.stream)
+            stream = self._get_passthrough_stream(source.stream)
+
             if stream is not None:
                 return stream
 
@@ -342,7 +343,7 @@ class AudioDecodingStreamer:
 
         return _stream(), attrs
 
-    def _try_passthrough_stream(
+    def _get_passthrough_stream(
         self,
         stream: Union[PcmStreamResource, WavStreamResource],
     ) -> Optional[Tuple[AsyncIterator[bytes], Dict[str, Any]]]:

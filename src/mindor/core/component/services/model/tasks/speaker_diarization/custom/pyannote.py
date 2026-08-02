@@ -123,25 +123,25 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         for turn, _, speaker in annotation.itertracks(yield_label=True):
             segments.append({
                 "speaker":    str(speaker),
-                "start":      float(turn.start),
-                "end":        float(turn.end),
+                "start_time": float(turn.start),
+                "end_time":   float(turn.end),
                 "confidence": 1.0,
             })
 
         segments = self._merge_segments(segments, float(params["merge_gap"] or 0.0))
-        segments = [ segment for segment in segments if (segment["end"] - segment["start"]) >= float(params["min_segment_duration"] or 0.0) ]
-        segments.sort(key=lambda segment: segment["start"])
+        segments = [ segment for segment in segments if (segment["end_time"] - segment["start_time"]) >= float(params["min_segment_duration"] or 0.0) ]
+        segments.sort(key=lambda segment: segment["start_time"])
 
         return segments
 
     def _merge_segments(self, segments: List[Dict[str, Any]], merge_gap: float) -> List[Dict[str, Any]]:
         if merge_gap > 0.0 and segments:
-            segments = sorted(segments, key=lambda segment: (segment["speaker"], segment["start"]))
+            segments = sorted(segments, key=lambda segment: (segment["speaker"], segment["start_time"]))
             merged: List[Dict[str, Any]] = []
 
             for segment in segments:
-                if merged and merged[-1]["speaker"] == segment["speaker"] and segment["start"] - merged[-1]["end"] <= merge_gap:
-                    merged[-1]["end"] = max(merged[-1]["end"], segment["end"])
+                if merged and merged[-1]["speaker"] == segment["speaker"] and segment["start_time"] - merged[-1]["end_time"] <= merge_gap:
+                    merged[-1]["end_time"] = max(merged[-1]["end_time"], segment["end_time"])
                 else:
                     merged.append(dict(segment))
 

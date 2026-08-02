@@ -149,8 +149,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 end = boundaries[index + 1]
                 scenes.append({
                     "index": index,
-                    "start": format_timecode(start),
-                    "end": format_timecode(end),
+                    "start_time": format_timecode(start),
+                    "end_time": format_timecode(end),
                     "start_frame": int(start * frame_rate),
                     "end_frame": int(end * frame_rate),
                     "duration": format_timecode(end - start)
@@ -227,8 +227,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
                     yield {
                         "index": index,
-                        "start": format_timecode(prev_boundary),
-                        "end": format_timecode(end),
+                        "start_time": format_timecode(prev_boundary),
+                        "end_time": format_timecode(end),
                         "start_frame": int(prev_boundary * frame_rate),
                         "end_frame": int(end * frame_rate),
                         "duration": format_timecode(end - prev_boundary),

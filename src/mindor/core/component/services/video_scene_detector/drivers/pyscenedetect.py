@@ -80,8 +80,8 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
             for index, (start, end) in enumerate(scenes):
                 results.append({
                     "index": index,
-                    "start": start.get_timecode(),
-                    "end": end.get_timecode(),
+                    "start_time": start.get_timecode(),
+                    "end_time": end.get_timecode(),
                     "start_frame": start.get_frames(),
                     "end_frame": end.get_frames(),
                     "duration": (end - start).get_timecode()
@@ -109,8 +109,8 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
             for index, (start, end) in enumerate(scenes):
                 yield {
                     "index": index,
-                    "start": start.get_timecode(),
-                    "end": end.get_timecode(),
+                    "start_time": start.get_timecode(),
+                    "end_time": end.get_timecode(),
                     "start_frame": start.get_frames(),
                     "end_frame": end.get_frames(),
                     "duration": (end - start).get_timecode(),

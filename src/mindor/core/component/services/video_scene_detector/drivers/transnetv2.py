@@ -86,8 +86,8 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
 
                 scenes.append({
                     "index": index,
-                    "start": format_timecode(start),
-                    "end": format_timecode(end),
+                    "start_time": format_timecode(start),
+                    "end_time": format_timecode(end),
                     "start_frame": start_frame,
                     "end_frame": end_frame,
                     "duration": format_timecode(end - start)
@@ -119,8 +119,8 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
 
                 yield {
                     "index": index,
-                    "start": format_timecode(start),
-                    "end": format_timecode(end),
+                    "start_time": format_timecode(start),
+                    "end_time": format_timecode(end),
                     "start_frame": start_frame,
                     "end_frame": end_frame,
                     "duration": format_timecode(end - start),

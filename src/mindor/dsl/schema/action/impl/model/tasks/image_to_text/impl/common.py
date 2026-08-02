@@ -17,7 +17,7 @@ class ImageToTextParamsConfig(BaseModel):
 class ImageToTextModelActionConfig(CommonModelActionConfig):
     image: Union[Union[str, List[str]], str] = Field(..., description="Input image for text generation.")
     prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Optional text prompt paired with the input image.")
-    max_input_length: Union[int, str] = Field(default=1024, description="Maximum tokens per input text.")
+    max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens per input text.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens to generate. None uses the model's configured limit.")
     min_output_length: Union[int, str] = Field(default=1, description="Minimum tokens to generate.")
     batch_size: Union[int, str] = Field(default=1, description="Input images per batch.")

@@ -37,10 +37,8 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
             "return_tensors": "pt",
             "padding": True,
             "truncation": True,
+            "max_length": params["max_input_length"] or self.tokenizer.model_max_length,
         }
-
-        if params["max_input_length"] is not None:
-            tokenizer_params["max_length"] = params["max_input_length"]
 
         params["tokenizer"] = tokenizer_params
 

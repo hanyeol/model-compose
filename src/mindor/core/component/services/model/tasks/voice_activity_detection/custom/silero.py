@@ -188,8 +188,8 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         end_sample = int(timestamp["end"])
 
         return {
-            "start":      start_sample / sample_rate,
-            "end":        end_sample / sample_rate,
+            "start_time": start_sample / sample_rate,
+            "end_time":   end_sample / sample_rate,
             "confidence": self._compute_confidence(waveform, start_sample, end_sample, sample_rate),
         }
 
@@ -206,8 +206,8 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         padded_end   = min(audio_length, end_sample + pad_samples)
 
         return {
-            "start":      padded_start / sample_rate,
-            "end":        padded_end / sample_rate,
+            "start_time": padded_start / sample_rate,
+            "end_time":   padded_end / sample_rate,
             "confidence": float(sum(probs) / len(probs)) if probs else 0.0,
         }
 

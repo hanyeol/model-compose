@@ -38,12 +38,9 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
         tokenizer_params: Dict[str, Any] = {
             "return_tensors": "pt",
             "padding": True,
-            "truncation": False,
+            "truncation": True,
+            "max_length": params["max_input_length"] or self.tokenizer.model_max_length,
         }
-
-        if params["max_input_length"] is not None:
-            tokenizer_params["max_length"] = params["max_input_length"]
-            tokenizer_params["truncation"] = True
 
         params["tokenizer"] = tokenizer_params
 

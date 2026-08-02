@@ -32,9 +32,9 @@ component:
         content: ${input.system_prompt}
       - role: user
         content: ${input.user_prompt}
+    max_output_length: 1024
+    streaming: true
     params:
-      max_output_length: 1024
       do_sample: true
       temperature: 0.7
       top_p: 0.9
-    streaming: true

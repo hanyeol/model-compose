@@ -26,7 +26,7 @@ workflow:
       do:
         component: storage
         input:
-          path: frame-${item.timestamp}.png
+          path: ${item.filename}
           source: ${item.image as image/png}
       output: ${output as stream/json}
       depends_on: [ extract-frames ]
@@ -43,6 +43,7 @@ components:
     action:
       video: ${input.video}
       frame_interval: ${input.frame_interval}
+      filename_format: frame-%04d.png
       streaming: true
 
   - id: storage

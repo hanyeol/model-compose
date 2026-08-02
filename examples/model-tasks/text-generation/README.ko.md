@@ -156,8 +156,8 @@ graph TD
 
 ### 추가 매개변수 (사용자 정의 가능)
 ```yaml
+max_output_length: 32768
 params:
-  max_output_length: 32768
   temperature: 0.7          # 무작위성 제어 (0.0-1.0)
   top_p: 0.9               # Nucleus 샘플링 매개변수
   top_k: 50                # Top-k 샘플링 매개변수
@@ -206,8 +206,8 @@ component:
   model: HuggingFaceTB/SmolLM3-3B
   action:
     text: ${input.prompt as text}
+    max_output_length: 1024
     params:
-      max_output_length: 1024
       temperature: ${input.temperature as number | 0.7}
       top_p: ${input.top_p as number | 0.9}
       do_sample: true
@@ -228,8 +228,7 @@ component:
       ${input.instruction}
 
       ### Response:
-    params:
-      max_output_length: 2048
+    max_output_length: 2048
 ```
 
 ## API 기반 솔루션과 비교

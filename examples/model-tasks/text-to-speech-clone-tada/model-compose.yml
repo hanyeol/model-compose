@@ -1,0 +1,31 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8083
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8084
+
+workflow:
+  title: Text to Speech with Voice Cloning (HumeAI TADA)
+  description: Voice cloning using HumeAI TADA (Text-Acoustic Dual Alignment) at 24kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: tada
+  # Use HumeAI/tada-3b-ml for multilingual voices.
+  model: HumeAI/tada-1b
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text as text}
+    output: ${result as audio/wav}

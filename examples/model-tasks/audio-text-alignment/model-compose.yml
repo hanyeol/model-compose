@@ -1,0 +1,31 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Audio Text Alignment
+  description: Align a reference transcript to an audio file and return per-word timestamps using a local Wav2Vec2 CTC model.
+  job:
+    input: ${input}
+    output:
+      segments: ${output}
+
+component:
+  type: model
+  task: audio-text-alignment
+  driver: huggingface
+  architecture: wav2vec2
+  model: facebook/wav2vec2-base-960h
+  device: mps
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    text: ${input.text}
+    chunk_length: ${input.chunk_length | 30s}
+    chunk_overlap: ${input.chunk_overlap | 1s}
+    return_confidence: true

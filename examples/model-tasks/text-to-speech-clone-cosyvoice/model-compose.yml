@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8083
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8084
+
+workflow:
+  title: Text to Speech with Voice Cloning (CosyVoice2)
+  description: Zero-shot voice cloning using CosyVoice2 (FunAudioLLM) at 24kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: cosyvoice
+  # Switch to FunAudioLLM/Fun-CosyVoice3-0.5B-2512 for CosyVoice3, or to
+  # iic/CosyVoice-300M-SFT if you want method=generate with built-in speakers.
+  model: FunAudioLLM/CosyVoice2-0.5B
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    # Omit reference_text to fall back to cross-lingual (no transcript needed).
+    reference_text: ${input.reference_text as text | ""}
+    output: ${result as audio/wav}

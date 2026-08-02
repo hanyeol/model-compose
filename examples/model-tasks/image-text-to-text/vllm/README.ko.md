@@ -181,8 +181,8 @@ component:
   action:
     image: ${input.image as image}
     prompt: ${input.prompt as text}
+    max_output_length: 2048
     params:
-      max_output_length: 2048
       do_sample: false
 ```
 

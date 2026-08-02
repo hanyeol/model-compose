@@ -33,5 +33,4 @@ component:
     stop_timeout: 15s
   action:
     text: ${input.text}
-    params:
-      return_probabilities: true
+    return_probabilities: true

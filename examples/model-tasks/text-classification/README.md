@@ -185,8 +185,7 @@ component:
   labels: ["negative", "neutral", "positive"]
   action:
     text: ${input.text}
-    params:
-      return_probabilities: true
+    return_probabilities: true
 ```
 
 ### Popular Classification Models
@@ -221,8 +220,8 @@ component:
   labels: [ "non-toxic", "toxic" ]
   action:
     text: ${input.text}
+    return_probabilities: true
     params:
-      return_probabilities: true
       device: auto
       max_length: 512
       truncation: true
@@ -239,8 +238,7 @@ component:
   labels: [ "non-toxic", "toxic" ]
   action:
     text: ${input.texts}  # Array of strings
-    params:
-      return_probabilities: true
+    return_probabilities: true
 ```
 
 ### Multi-Model Classification Pipeline

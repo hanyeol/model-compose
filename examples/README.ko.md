@@ -205,7 +205,7 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 스트리밍 입출력.
 
 - [video-to-frames](./data-streaming/video-to-frames/) — 비디오 프레임 스트리밍
-- [dir-videos-to-frames](./data-streaming/dir-videos-to-frames/) — 디렉터리 내 모든 비디오 프레임 스트리밍
+- [video-to-frames-bulk](./data-streaming/video-to-frames-bulk/) — 디렉터리 내 모든 비디오 프레임 스트리밍
 - [youtube-live-chat](./data-streaming/youtube-live-chat/) — YouTube 라이브 채팅 스트리밍
 
 ### Job Flow

@@ -1,0 +1,62 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech to Text with Reference Correction
+  description: |
+    Transcribe an audio file with the Fun-ASR multilingual model — which is
+    trained on lyrics and rap in addition to speech — and then align the
+    STT segments to a known reference script. Recognition typos are replaced
+    with the reference wording while the STT-derived timestamps are preserved
+    — the output is ready to serve as subtitles or a corrected transcript.
+  jobs:
+    - id: transcribe
+      component: stt
+      input:
+        audio: ${input.audio as audio}
+        language: ${input.language as select/en,ko | en}
+      output: ${output}
+
+    - id: correct
+      component: corrector
+      input:
+        transcript: ${jobs.transcribe.output}
+        reference: ${input.reference as text}
+      output: ${output}
+      depends_on: [ transcribe ]
+
+components:
+  - id: stt
+    type: model
+    task: speech-to-text
+    driver: custom
+    family: fun-asr
+    model: FunAudioLLM/Fun-ASR-MLT-Nano-2512   # 31-language variant; includes Korean and is trained on lyrics/rap
+    device: cpu   # FunASR has no MPS backend on macOS; use 'cuda' on NVIDIA
+    inverse_text_normalization: true
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio}
+      language: ${input.language}   # ISO codes (ko, en, ja, ...) are mapped to Fun-ASR's native names internally
+      return_timestamps: true
+      timestamp_level: segment
+
+  - id: corrector
+    type: transcript-corrector
+    action:
+      transcript: ${input.transcript}
+      reference: ${input.reference}
+      # Word-level alignment works for space-delimited scripts (English,
+      # Korean, most European languages). Switch to 'character' for CJK
+      # without whitespace.
+      granularity: word
+      # Skip segments whose best reference span match is below this
+      # similarity — leaves obvious mis-recognitions untouched instead of
+      # forcing a wrong replacement.
+      match_threshold: 0.5

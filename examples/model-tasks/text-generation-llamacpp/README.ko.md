@@ -127,8 +127,7 @@ component:
   context_length: 4096
   action:
     text: ${input.prompt as text}
-    params:
-      max_output_length: 1024
+    max_output_length: 1024
 ```
 
 ### 다른 모델 사용
@@ -153,9 +152,8 @@ component:
 component:
   action:
     text: ${input.prompt as text}
+    max_output_length: 2048
     streaming: true
-    params:
-      max_output_length: 2048
 ```
 
 ## 시스템 요구사항

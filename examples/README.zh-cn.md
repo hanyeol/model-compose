@@ -205,7 +205,7 @@ HUGGINGFACE_TOKEN=your-token-here
 流式输入/输出。
 
 - [video-to-frames](./data-streaming/video-to-frames/) — 视频帧流式传输
-- [dir-videos-to-frames](./data-streaming/dir-videos-to-frames/) — 目录内所有视频的帧流式传输
+- [video-to-frames-bulk](./data-streaming/video-to-frames-bulk/) — 目录内所有视频的帧流式传输
 - [youtube-live-chat](./data-streaming/youtube-live-chat/) — YouTube 实时聊天消息流式传输
 
 ### Job Flow

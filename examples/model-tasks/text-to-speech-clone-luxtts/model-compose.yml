@@ -1,0 +1,29 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8083
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8084
+
+workflow:
+  title: Text to Speech with Voice Cloning (LuxTTS)
+  description: Zero-shot voice cloning using LuxTTS (ZipVoice) at 48kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: luxtts
+  model: YatharthS/LuxTTS
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    output: ${result as audio/wav}

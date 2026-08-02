@@ -22,5 +22,4 @@ component:
   max_concurrent_count: 1
   action:
     text: ${input.prompt as text}
-    params:
-      max_output_length: 32768
+    max_output_length: 32768

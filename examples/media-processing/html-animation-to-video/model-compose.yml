@@ -40,6 +40,7 @@ components:
       props:
         title: ${input.title}
       streaming: true
+      output: ${result[].image}
 
   - id: encoder
     type: video-encoder

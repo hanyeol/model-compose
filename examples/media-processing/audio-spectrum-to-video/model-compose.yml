@@ -87,6 +87,7 @@ components:
       props:
         spectrum: ${input.spectrum}
       streaming: true
+      output: ${result[].image}
 
   - id: encoder
     type: video-encoder

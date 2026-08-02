@@ -205,7 +205,7 @@ Audio, video, and image processing components.
 Streaming inputs/outputs.
 
 - [video-to-frames](./data-streaming/video-to-frames/) — Stream video frames
-- [dir-videos-to-frames](./data-streaming/dir-videos-to-frames/) — Stream frames across all videos in a directory
+- [video-to-frames-bulk](./data-streaming/video-to-frames-bulk/) — Stream frames across all videos in a directory
 - [youtube-live-chat](./data-streaming/youtube-live-chat/) — Stream YouTube live chat messages
 
 ### Job Flow

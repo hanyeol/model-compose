@@ -1,0 +1,31 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Source Separation
+  description: Extract the vocal stem from a music track using a local Demucs v4 model.
+  job:
+    input: ${input}
+    output: ${output as audio/wav}
+
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: demucs
+  model: htdemucs_ft
+  device: cpu   # switch to 'cuda' on NVIDIA GPUs; MPS is unsupported for htdemucs_ft (see README)
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    sample_rate: ${input.sample_rate | 44100}
+    params:
+      stems: [vocals]
+      overlap: ${input.overlap | 0.25}
+      shifts: ${input.shifts | 1}

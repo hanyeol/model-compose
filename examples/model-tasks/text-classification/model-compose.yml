@@ -23,5 +23,4 @@ component:
   max_concurrent_count: 1
   action:
     text: ${input.text}
-    params:
-      return_probabilities: true
+    return_probabilities: true

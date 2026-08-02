@@ -64,7 +64,7 @@ workflows:
           input:
             # Group frames by the source video's relative path so runs
             # across multiple videos don't collide in the output tree.
-            path: ${input.video_path}/frame-${item.timestamp}.png
+            path: ${input.video_path}/${item.filename}
             source: ${item.image as image/png}
         depends_on: [ extract-frames ]
 
@@ -96,6 +96,7 @@ components:
     action:
       video: ${input.video}
       frame_interval: ${input.frame_interval}
+      filename_format: frame-%04d.png
       streaming: true
 
   # Writes a single file to the local output directory.

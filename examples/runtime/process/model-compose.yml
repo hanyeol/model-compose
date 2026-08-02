@@ -33,5 +33,4 @@ component:
       TOKENIZERS_PARALLELISM: "false"
   action:
     text: ${input.text}
-    params:
-      return_probabilities: true
+    return_probabilities: true

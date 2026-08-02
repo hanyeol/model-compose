@@ -38,5 +38,4 @@ component:
       - ./.hf-cache:/root/.cache/huggingface
   action:
     text: ${input.text}
-    params:
-      return_probabilities: true
+    return_probabilities: true

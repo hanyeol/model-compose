@@ -204,11 +204,11 @@ component:
   action:
     audio: ${input.audio as audio}
     language: ${input.language}
+    return_timestamps: true
     params:
       num_beams: 5
       temperature: 0.0
       no_speech_threshold: 0.6
-      return_timestamps: true
 ```
 
 ### Batch Processing

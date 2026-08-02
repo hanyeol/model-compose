@@ -161,8 +161,8 @@ component:
   action:
     image: ${input.image as image}
     prompt: ${input.prompt as text}
+    max_output_length: 512
     params:
-      max_output_length: 512
       do_sample: true
       temperature: 0.7
       top_p: 0.9

@@ -30,7 +30,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         self,
         audios: List[MediaSource],
         spans: List[ArrayValue],
-        params: Dict[str, Any],
+        merge: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AsyncIterator[AudioStreamResource]]:
         results: List[AsyncIterator[AudioStreamResource]] = []
@@ -38,15 +38,15 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         for audio, spans in zip(audios, spans):
             input_path, spooled = await self._resolve_input_path(audio)
             format = await self._resolve_format(audio, input_path)
-            clip_iter = self._clip(input_path, spooled, self._iterate_spans(spans), format, cancellation_token)
+            clips = self._clip(input_path, spooled, self._iterate_spans(spans), format, cancellation_token)
 
-            if params["merge"]:
-                async def _merge(clip_iter=clip_iter, format=format):
-                    yield await self._merge(clip_iter, format, cancellation_token)
+            if merge:
+                async def _merge(clips=clips, format=format):
+                    yield await self._merge(clips, format, cancellation_token)
 
                 results.append(_merge())
             else:
-                results.append(clip_iter)
+                results.append(clips)
 
         return results
 

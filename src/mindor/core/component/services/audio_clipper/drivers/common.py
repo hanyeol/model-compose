@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioClipperActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.array import ArrayValue, ArrayValueRenderer
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -21,9 +21,8 @@ class AudioClipperAction(ComponentAction):
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)
         span       = await context.render_variable(self.config.span)
+        merge      = await context.render_scalar(self.config.merge, bool, False)
         batch_size = await context.render_variable(self.config.batch_size)
-
-        params = await self._resolve_params(context)
 
         # A single span dict collapses the per-audio result into a scalar clip;
         # a list returns the iterator as-is. Sniff the raw shape here because
@@ -31,14 +30,14 @@ class AudioClipperAction(ComponentAction):
         is_single_span = isinstance(span, dict)
         spans = ArrayValue([ span ]) if is_single_span else await context.render_array(self.config.span)
 
-        is_single_output = is_single_span or params["merge"]
+        is_single_output = is_single_span or merge
         is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios, batch_spans in BatchSourceIterator((audio, spans), batch_size=batch_size or 1):
-                    batch_results = await self._clip_batch(batch_audios, batch_spans, params, context.cancellation_token)
+                    batch_results = await self._clip_batch(batch_audios, batch_spans, merge, context.cancellation_token)
                     for result in batch_results:
                         yield await self._collapse(result) if is_single_output else result
 
@@ -46,7 +45,7 @@ class AudioClipperAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_audios, batch_spans in BatchSourceIterator((audio, spans), batch_size=batch_size or 1):
-                batch_results = await self._clip_batch(batch_audios, batch_spans, params, context.cancellation_token)
+                batch_results = await self._clip_batch(batch_audios, batch_spans, merge, context.cancellation_token)
                 for result in batch_results:
                     results.append(await self._collapse(result) if is_single_output else result)
 
@@ -66,13 +65,6 @@ class AudioClipperAction(ComponentAction):
         if first is None:
             raise ValueError("'span' must contain at least one entry")
         return first
-
-    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        merge = await context.render_scalar(self.config.merge, bool, False)
-
-        return {
-            "merge": merge,
-        }
 
     @staticmethod
     async def _iterate_spans(spans: ArrayValue) -> AsyncIterator[Dict[str, float]]:
@@ -95,7 +87,7 @@ class AudioClipperAction(ComponentAction):
         self,
         audios: List[MediaSource],
         spans: List[ArrayValue],
-        params: Dict[str, Any],
+        merge: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AsyncIterator[AudioStreamResource]]:
         """Return, per input audio, an async iterator of clips."""

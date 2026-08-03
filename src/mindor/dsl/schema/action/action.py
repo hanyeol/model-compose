@@ -23,6 +23,7 @@ ActionConfig = Union[
     WebBrowserActionConfig,
     HtmlFrameRendererActionConfig,
     VideoSceneDetectorActionConfig,
+    VideoClipperActionConfig,
     VideoConverterActionConfig,
     VideoEncoderActionConfig,
     VideoFrameExtractorActionConfig,

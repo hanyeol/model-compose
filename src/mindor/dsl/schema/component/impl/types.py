@@ -25,6 +25,7 @@ class ComponentType(str, Enum):
     WEB_BROWSER             = "web-browser"
     HTML_FRAME_RENDERER     = "html-frame-renderer"
     VIDEO_SCENE_DETECTOR    = "video-scene-detector"
+    VIDEO_CLIPPER           = "video-clipper"
     VIDEO_CONVERTER         = "video-converter"
     VIDEO_ENCODER           = "video-encoder"
     VIDEO_FRAME_EXTRACTOR   = "video-frame-extractor"

@@ -25,6 +25,7 @@ from .html_frame_renderer import *
 from .video_converter import *
 from .video_encoder import *
 from .video_scene_detector import *
+from .video_clipper import *
 from .video_frame_extractor import *
 from .screen_capture import *
 from .rtmp_publisher import *

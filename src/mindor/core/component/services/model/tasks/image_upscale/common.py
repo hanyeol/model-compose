@@ -11,7 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import compose_with_alpha, has_alpha
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -111,6 +111,3 @@ class ImageUpscaleTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         pass
-
-class ImageUpscaleTaskService(ModelTaskService):
-    pass

@@ -5,18 +5,14 @@ from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloObjectDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import ObjectDetectionTaskService, ObjectDetectionTaskAction
-from ....base import ComponentActionContext
+from ..common import ObjectDetectionTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
-from pathlib import Path
-import os
 
 if TYPE_CHECKING:
     from ultralytics import YOLO
     from ultralytics.engine.results import Results
     import numpy as np
-
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "ultralytics"
 
 class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
     def __init__(self, config: YoloObjectDetectionModelActionConfig, model: YOLO):
@@ -115,7 +111,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         return [ x1, y1, x2 - x1, y2 - y1 ]
 
-class YoloObjectDetectionTaskService(ObjectDetectionTaskService):
+class YoloObjectDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -127,17 +123,11 @@ class YoloObjectDetectionTaskService(ObjectDetectionTaskService):
     async def _load_model(self) -> None:
         from ultralytics import YOLO
 
-        model_path = await self._resolve_model_path()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         self.model = YOLO(model_path)
 
     async def _unload_model(self) -> None:
         self.model = None
-
-    async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            label="object detection",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await YoloObjectDetectionTaskAction(action, self.model).run(context)

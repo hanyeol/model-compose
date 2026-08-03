@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.iterators import StreamChunkIterator, Stre
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_duration
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 
 if TYPE_CHECKING:
     import torch
@@ -95,6 +95,3 @@ class SpeakerDiarizationTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         pass
-
-class SpeakerDiarizationTaskService(ModelTaskService):
-    pass

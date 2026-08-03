@@ -1,7 +1,7 @@
 import os
 
 # Platform-specific relative path prefixes
-RELATIVE_PATH_PREFIXES = (
+_RELATIVE_PATH_PREFIXES = (
     f".{os.sep}",   # Current directory (e.g., ./ or .\)
     f"..{os.sep}",  # Parent directory (e.g., ../ or ..\)
     f"~{os.sep}",   # Home directory (e.g., ~/ or ~\)
@@ -9,7 +9,7 @@ RELATIVE_PATH_PREFIXES = (
 
 def is_local_path(path: str) -> bool:
     # Check for explicit relative path prefixes (platform-independent)
-    if path.startswith(RELATIVE_PATH_PREFIXES):
+    if path.startswith(_RELATIVE_PATH_PREFIXES):
         return True
 
     # Check for absolute path for Unix-style

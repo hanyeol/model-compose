@@ -235,8 +235,14 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
 
 @register_model_task_service(ModelTaskType.AUDIO_TEXT_ALIGNMENT, ModelDriver.HUGGINGFACE)
 class HuggingfaceAudioTextAlignmentTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceAudioTextAlignmentTaskAction(action, self.model, self.processor, self.device).run(context)
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [
+            "transformers>=4.21.0",
+            "torch",
+            "torchaudio>=2.1",
+            "accelerate",
+            "soxr",
+        ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceAudioTextAlignmentModelArchitecture.AUTO:
@@ -260,11 +266,5 @@ class HuggingfaceAudioTextAlignmentTaskService(HuggingfaceMultimodalModelTaskSer
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
-        return [
-            "transformers>=4.21.0",
-            "torch",
-            "torchaudio>=2.1",
-            "accelerate",
-            "soxr",
-        ]
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceAudioTextAlignmentTaskAction(action, self.model, self.processor, self.device).run(context)

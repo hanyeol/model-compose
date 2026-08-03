@@ -2,20 +2,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, DemucsMusicSourceSeparationModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, DemucsMusicSourceSeparationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import MusicSourceSeparationTaskService, MusicSourceSeparationTaskAction
+from ....base import ModelTaskService
+from ..common import MusicSourceSeparationTaskAction
 
 if TYPE_CHECKING:
     import numpy as np
     import torch
-
-_DEFAULT_DEMUCS_MODEL = "htdemucs_ft"
 
 class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def __init__(
@@ -124,7 +123,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         return stems
 
-class DemucsMusicSourceSeparationTaskService(MusicSourceSeparationTaskService):
+class DemucsMusicSourceSeparationTaskService(ModelTaskService):
     config: DemucsMusicSourceSeparationModelComponentConfig
 
     def __init__(self, id: str, config: DemucsMusicSourceSeparationModelComponentConfig, daemon: bool):
@@ -139,22 +138,21 @@ class DemucsMusicSourceSeparationTaskService(MusicSourceSeparationTaskService):
         return [ "demucs", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model, self.model_sample_rate, self.model_sources, self.device = self._load_pretrained_model()
+        self.model, self.model_sample_rate, self.model_sources, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.model_sources = []
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, int, List[str], torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[Any, int, List[str], torch.device]:
         from demucs.pretrained import get_model
 
         device = self._resolve_device(self.config.device)
-        name = self._resolve_model_name()
-        model = get_model(name)
+        model = get_model(self.config.model.name)
 
         if model is None:
-            raise RuntimeError(f"Failed to load Demucs model '{name}'.")
+            raise RuntimeError(f"Failed to load Demucs model '{self.config.model.name}'.")
 
         model.to(device)
         model.eval()
@@ -163,19 +161,6 @@ class DemucsMusicSourceSeparationTaskService(MusicSourceSeparationTaskService):
         sources = list(getattr(model, "sources", [ "drums", "bass", "other", "vocals" ]))
 
         return model, sample_rate, sources, device
-
-    def _resolve_model_name(self) -> str:
-        model = self.config.model
-
-        if isinstance(model, str):
-            return model
-
-        if isinstance(model, HuggingfaceModelConfig):
-            # Demucs pretrained loader takes the model name, not the HF repo path.
-            # If the caller passed a repo like 'facebook/htdemucs_ft', keep the tail as the name.
-            return model.repository.rsplit("/", 1)[-1]
-
-        return _DEFAULT_DEMUCS_MODEL
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await DemucsMusicSourceSeparationTaskAction(

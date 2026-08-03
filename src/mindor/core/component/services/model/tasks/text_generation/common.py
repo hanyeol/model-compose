@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 
 class TextGenerationTaskAction(ComponentAction):
     def __init__(self, config: TextGenerationModelActionConfig):
@@ -104,6 +104,3 @@ class TextGenerationTaskAction(ComponentAction):
             SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning.
         """
         pass
-
-class TextGenerationTaskService(ModelTaskService):
-    pass

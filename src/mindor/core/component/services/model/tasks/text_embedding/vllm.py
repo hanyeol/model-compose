@@ -67,8 +67,13 @@ class VllmTextEmbeddingTaskService(VllmModelTaskService):
     async def _load_model(self) -> None:
         from vllm import AsyncEngineArgs, AsyncLLMEngine
 
-        model_path = self._get_model_path()
-        params = self._get_model_params()
+        model_path = await self._provision_model(self.config.model)
+        params = self._get_model_params(self.config.model)
+        options = self._get_model_options(self.config)
+
+        if options:
+            params.update(options)
+
         params.setdefault("task", "embed")
 
         logging.info(f"Component '{self.id}': loading vLLM embedding model from '{model_path}'")

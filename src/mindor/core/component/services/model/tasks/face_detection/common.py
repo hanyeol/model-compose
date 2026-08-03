@@ -9,7 +9,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 from PIL import Image as PILImage
 
 class FaceDetectionTaskAction(ComponentAction):
@@ -64,6 +64,3 @@ class FaceDetectionTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         pass
-
-class FaceDetectionTaskService(ModelTaskService):
-    pass

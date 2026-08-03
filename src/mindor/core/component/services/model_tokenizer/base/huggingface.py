@@ -13,12 +13,13 @@ class HuggingfaceModelTokenizerTaskService(ModelTokenizerTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "transformers" ]
 
-    def _load_tokenizer(self) -> None:
-        self.tokenizer = self._load_pretrained_tokenizer()
+    async def _load_tokenizer(self) -> None:
+        self.tokenizer = await self._load_pretrained_tokenizer()
 
-    def _load_pretrained_tokenizer(self) -> Any:
+    async def _load_pretrained_tokenizer(self) -> Any:
         tokenizer_cls = self._get_tokenizer_class()
-        tokenizer = tokenizer_cls.from_pretrained(self._get_model_path(), **self._get_tokenizer_params())
+        model_path = await self._provision_model(self.config.model)
+        tokenizer = tokenizer_cls.from_pretrained(model_path, **self._get_tokenizer_params())
 
         if tokenizer.pad_token is None:
             logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")

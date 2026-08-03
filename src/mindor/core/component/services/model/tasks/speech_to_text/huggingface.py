@@ -268,8 +268,14 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context)
+    def get_setup_requirements(self) -> Optional[List[str]]:
+        return [
+            "transformers>=4.21.0",
+            "torch",
+            "torchaudio",
+            "accelerate",
+            "soxr",
+        ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:
@@ -293,11 +299,5 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
-        return [
-            "transformers>=4.21.0",
-            "torch",
-            "torchaudio",
-            "accelerate",
-            "soxr",
-        ]
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context)

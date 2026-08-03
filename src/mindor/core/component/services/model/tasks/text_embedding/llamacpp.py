@@ -49,15 +49,20 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)
 class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context)
-
     async def _load_model(self) -> None:
         from llama_cpp import Llama
 
-        model_path = self._get_model_path()
-        params = self._get_model_params()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+        params = self._get_model_params(self.config.model)
+        options = self._get_model_options(self.config)
+
+        if options:
+            params.update(options)
+
         params["embedding"] = True
 
         logging.info(f"Component '{self.id}': loading llama.cpp embedding model from '{model_path}'")
         self.model = Llama(model_path=model_path, **params)
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await LlamaCppTextEmbeddingTaskAction(action, self.model).run(context)

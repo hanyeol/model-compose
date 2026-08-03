@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, PeftAdapterConfig, HuggingfaceModelConfig, DeviceMode
+from typing import Type, Optional, Dict, List, Tuple, Any
+from pydantic import BaseModel
+from mindor.dsl.schema.component import ModelComponentConfig, PeftAdapterConfig, ModelConfig, HuggingfaceModelConfig, ModelPrecision, DeviceMode
 from mindor.core.logger import logging
 from ..common import ModelTaskService
 
@@ -14,34 +15,48 @@ class HuggingfaceModelTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _load_pretrained_model(self) -> PreTrainedModel:
+    async def _load_pretrained_model(self) -> Tuple[PreTrainedModel, str]:
         model_cls = self._get_model_class()
-        model = model_cls.from_pretrained(self._get_model_path(self.config), **self._get_model_params(self.config))
+        params = self._get_model_params(self.config.model)
+        options = self._get_model_options(self.config)
+
+        if options:
+            params.update(options)
+
+        if self.config.device_mode != DeviceMode.SINGLE:
+            params["device_map"] = self.config.device_mode.value
+
+        model_path = await self._provision_model(self.config.model)
+        model = model_cls.from_pretrained(model_path, **params)
 
         if len(self.config.peft_adapters or []) > 0:
-            model = self._load_peft_adapters(model, self.config.peft_adapters)
+            model = await self._load_peft_adapters(model, self.config.peft_adapters)
 
         if self.config.device_mode == DeviceMode.SINGLE:
             model = model.to(self._resolve_device(self.config.device))
 
-        return model
+        return model, model_path
 
-    def _load_peft_adapters(self, base_model: PreTrainedModel, adapter_configs: List[PeftAdapterConfig]) -> PreTrainedModel:
+    async def _load_peft_adapters(self, base_model: PreTrainedModel, adapter_configs: List[PeftAdapterConfig]) -> PreTrainedModel:
         from peft import PeftModel
 
         names, weights = self._build_peft_adapter_lists(adapter_configs)
+        peft_model_path = await self._provision_model(adapter_configs[0].model)
         peft_model = PeftModel.from_pretrained(
             base_model,
-            self._get_model_path(adapter_configs[0]),
+            peft_model_path,
             adapter_name=names[0],
-            **self._get_model_params(adapter_configs[0])
+            **self._get_model_params(adapter_configs[0].model),
+            **self._get_model_options(adapter_configs[0]),
         )
 
         for index in range(1, len(adapter_configs)):
+            peft_model_path = await self._provision_model(adapter_configs[index].model)
             peft_model.load_adapter(
-                self._get_model_path(adapter_configs[index]),
+                peft_model_path,
                 adapter_name=names[index],
-                **self._get_model_params(adapter_configs[index])
+                **self._get_model_params(adapter_configs[index].model),
+                **self._get_model_options(adapter_configs[index]),
             )
 
         multiple_adapters = len(adapter_configs) > 1
@@ -72,42 +87,41 @@ class HuggingfaceModelTaskService(ModelTaskService):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         raise NotImplementedError("Model class loader not implemented.")
 
-    def _get_model_path(self, config: Union[ModelComponentConfig, PeftAdapterConfig]) -> str:
-        if isinstance(config.model, HuggingfaceModelConfig):
-            return config.model.repository
-
-        return config.model.path
-
-    def _get_model_params(self, config: Union[ModelComponentConfig, PeftAdapterConfig]) -> Dict[str, Any]:
+    def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(config.model, HuggingfaceModelConfig):
-            if config.model.filename:
-                params["filename"] = config.model.filename
+        if isinstance(model, HuggingfaceModelConfig):
+            if model.revision:
+                params["revision"] = model.revision
 
-            if config.model.revision:
-                params["revision"] = config.model.revision
+            if model.cache_dir:
+                params["cache_dir"] = model.cache_dir
 
-            if config.model.cache_dir:
-                params["cache_dir"] = config.model.cache_dir
-
-            if config.model.local_files_only:
+            if model.local_files_only:
                 params["local_files_only"] = True
 
-            if config.model.token:
-                params["token"] = config.model.token
-
-        if not isinstance(config, PeftAdapterConfig):
-            if config.device_mode != DeviceMode.SINGLE:
-                params["device_map"] = config.device_mode.value
-
-        if config.precision is not None:
-            params["torch_dtype"] = getattr(torch, config.precision.value)
-
-        if config.low_cpu_mem_usage:
-            params["low_cpu_mem_usage"] = True
+            if model.token:
+                params["token"] = model.token
 
         return params
+
+    def _get_model_options(self, config: BaseModel, default_dtype: Optional[torch.dtype] = None) -> Dict[str, Any]:
+        import torch
+
+        options: Dict[str, Any] = {}
+
+        if default_dtype is not None:
+            options["torch_dtype"] = default_dtype
+
+        precision = getattr(config, "precision", None)
+
+        if precision is not None and precision != ModelPrecision.AUTO:
+            options["torch_dtype"] = getattr(torch, precision.value)
+
+        if getattr(config, "low_cpu_mem_usage", False):
+            options["low_cpu_mem_usage"] = True
+
+        return options
 
     def _get_model_device(self, model: PreTrainedModel) -> torch.device:
         return next(model.parameters()).device

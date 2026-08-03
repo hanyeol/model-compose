@@ -6,8 +6,8 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
-from ....base import ComponentActionContext
+from ..common import ImageUpscaleTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return await self._run_in_executor(_upscale)
 
-class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
+class RealEsrganImageUpscaleTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -89,18 +89,20 @@ class RealEsrganImageUpscaleTaskService(ImageUpscaleTaskService):
         return [ "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git", "torch", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[RealESRGAN, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[RealESRGAN, torch.device]:
         from RealESRGAN import RealESRGAN
 
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
+
         model = RealESRGAN(device=device, scale=self.config.scale)
-        model.load_weights(self._get_model_path())
+        model.load_weights(model_path)
 
         return model, device
 

@@ -3,12 +3,13 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
-from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture
+from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, VaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
 from .common import ImageGenerationGenerateTaskAction, ImageGenerationInpaintTaskAction
+from mindor.core.logger import logging
 from PIL import Image as PILImage
 import asyncio
 
@@ -235,20 +236,6 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "diffusers", "transformers", "accelerate", "sentencepiece", "torch" ]
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        pipeline = self.pipelines.get(action.method)
-
-        if pipeline is None:
-            raise ValueError(f"No pipeline loaded for method: {action.method}")
-
-        if action.method == ImageGenerationActionMethod.GENERATE:
-            return await HuggingfaceImageGenerationGenerateTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
-
-        if action.method == ImageGenerationActionMethod.INPAINT:
-            return await HuggingfaceImageGenerationInpaintTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
-
-        raise ValueError(f"Unknown method: {action.method}")
-
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:
             if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
@@ -283,3 +270,53 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
             return torch.float16
 
         return torch.bfloat16
+
+    async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
+        submodules: Dict[str, Any] = {}
+
+        if self.config.vae is not None:
+            submodules["vae"] = await self._load_pretrained_vae_model(self.config.vae, device, dtype)
+
+        return submodules
+
+    async def _load_pretrained_vae_model(self, vae: VaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
+        model_class = self._get_vae_model_class()
+
+        params = self._get_model_params(vae.model)
+        options = self._get_model_options(vae, default_dtype=dtype)
+
+        if options:
+            params.update(options)
+
+        model_path = await self._provision_model(vae.model)
+
+        logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
+        return model_class.from_pretrained(model_path, **params).to(device)
+
+    def _get_vae_model_class(self) -> Type[Any]:
+        if self.config.architecture in (
+            HuggingfaceImageGenerationModelArchitecture.SDXL,
+            HuggingfaceImageGenerationModelArchitecture.FLUX,
+        ):
+            from diffusers import AutoencoderKL
+            return AutoencoderKL
+
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
+            from diffusers import AutoencoderKLHunyuanImage
+            return AutoencoderKLHunyuanImage
+
+        raise ValueError(f"VAE override is not supported for architecture: {self.config.architecture}")
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        pipeline = self.pipelines.get(action.method)
+
+        if pipeline is None:
+            raise ValueError(f"No pipeline loaded for method: {action.method}")
+
+        if action.method == ImageGenerationActionMethod.GENERATE:
+            return await HuggingfaceImageGenerationGenerateTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
+
+        if action.method == ImageGenerationActionMethod.INPAINT:
+            return await HuggingfaceImageGenerationInpaintTaskAction(action, self.config.architecture, pipeline, self.device).run(context)
+
+        raise ValueError(f"Unknown method: {action.method}")

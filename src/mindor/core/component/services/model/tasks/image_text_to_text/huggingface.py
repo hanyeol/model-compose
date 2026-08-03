@@ -184,9 +184,6 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceImageTextToTextTaskAction(action, self.model, self.processor, self.device).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.AUTO:
             from transformers import AutoModelForVision2Seq
@@ -248,3 +245,6 @@ class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskServic
             return InternVLProcessor
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageTextToTextTaskAction(action, self.model, self.processor, self.device).run(context)

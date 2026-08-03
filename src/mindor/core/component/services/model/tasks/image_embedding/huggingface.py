@@ -96,9 +96,6 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.IMAGE_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageEmbeddingTaskService(HuggingfaceMultimodalModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceImageEmbeddingTaskAction(action, self.config.architecture, self.model, self.processor, self.device).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageEmbeddingModelArchitecture.AUTO:
             from transformers import AutoModel
@@ -136,3 +133,6 @@ class HuggingfaceImageEmbeddingTaskService(HuggingfaceMultimodalModelTaskService
             return AutoImageProcessor
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageEmbeddingTaskAction(action, self.config.architecture, self.model, self.processor, self.device).run(context)

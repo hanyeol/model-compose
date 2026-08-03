@@ -2,23 +2,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
-from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazePosePoseDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
+from ..common import PoseDetectionTaskAction
 from ..utils import openpose, blazepose, topology
-from ....base import ComponentActionContext
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
-import os
 
 if TYPE_CHECKING:
     from mediapipe.tasks.python.vision import PoseLandmarkerResult
     from mediapipe.tasks.python.components.containers import NormalizedLandmark
     from mediapipe import Image as MPImage
-
-_DEFAULT_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "mediapipe"
 
 class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
     def __init__(self, config: BlazePosePoseDetectionModelActionConfig, model_path: str):
@@ -146,7 +141,7 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
         array = np.squeeze(image.numpy_view())  # float32 [0, 1]
         return PILImage.fromarray((array * 255).astype(np.uint8), mode="L")
 
-class BlazePosePoseDetectionTaskService(PoseDetectionTaskService):
+class BlazePosePoseDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -156,17 +151,10 @@ class BlazePosePoseDetectionTaskService(PoseDetectionTaskService):
         return [ "mediapipe" ]
 
     async def _load_model(self) -> None:
-        self.model_path = await self._resolve_model_path()
+        self.model_path = await self._provision_model(self.config.model, prefetch=True)
 
     async def _unload_model(self) -> None:
         self.model_path = None
-
-    async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            default_url=_DEFAULT_MODEL_URL,
-            label="pose detection",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await BlazePosePoseDetectionTaskAction(action, self.model_path).run(context)

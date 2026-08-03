@@ -16,7 +16,7 @@ class CommonModelTokenizerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TOKENIZER]
     task: ModelTokenizerTaskType = Field(..., description="Type of task the tokenizer performs.")
     driver: ModelTokenizerDriver = Field(default=ModelTokenizerDriver.HUGGINGFACE, description="Tokenizer driver to use.")
-    model: Union[str, ModelConfig] = Field(..., description="Model source configuration for the tokenizer.")
+    model: ModelConfig = Field(..., description="Model source configuration for the tokenizer.")
     use_fast: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
 
     @model_validator(mode="before")
@@ -33,5 +33,10 @@ class CommonModelTokenizerComponentConfig(CommonComponentConfig):
     def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
-            model["provider"] = ModelProvider.HUGGINGFACE
+            if "repository" in model:
+                model["provider"] = ModelProvider.HUGGINGFACE
+            elif "name" in model:
+                model["provider"] = ModelProvider.NAMED
+            else:
+                model["provider"] = ModelProvider.LOCAL
         return values

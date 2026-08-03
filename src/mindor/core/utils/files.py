@@ -38,8 +38,8 @@ async def save_string_to_temporary_file(content: str, extension: Optional[str] =
 
     return path
 
-def create_temporary_file(extension: Optional[str] = None) -> str:
-    file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, delete=False)
+def create_temporary_file(extension: Optional[str] = None, dir: Optional[str] = None) -> str:
+    file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, dir=dir, delete=False)
     path = file.name
     file.close()
 

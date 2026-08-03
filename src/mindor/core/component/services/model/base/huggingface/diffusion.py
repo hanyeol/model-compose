@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Generic, TypeVar, Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.core.logger import logging
-from ..common import ModelTaskService
+from .base import HuggingfaceModelTaskService
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
@@ -12,34 +12,39 @@ if TYPE_CHECKING:
 
 TMethod = TypeVar("TMethod")
 
-class HuggingfaceDiffusionPipelineTaskService(ModelTaskService, Generic[TMethod]):
+class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Generic[TMethod]):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.pipelines: Optional[Dict[TMethod, DiffusionPipeline]] = None
+        self.pipelines: Optional[Dict[Optional[TMethod], DiffusionPipeline]] = None
         self.device: Optional[torch.device] = None
 
     async def _load_model(self) -> None:
-        methods = list({ action.method for action in self.config.actions })
-        self.pipelines, self.device = self._load_pretrained_pipelines(methods)
+        methods = list({ getattr(action, "method", None) for action in self.config.actions })
+        self.pipelines, self.device = await self._load_pretrained_pipelines(methods)
 
     async def _unload_model(self) -> None:
         self.pipelines = None
         self.device = None
 
-    def _load_pretrained_pipelines(self, methods: List[TMethod]) -> Tuple[Dict[TMethod, DiffusionPipeline], torch.device]:
+    async def _load_pretrained_pipelines(self, methods: List[Optional[TMethod]]) -> Tuple[Dict[Optional[TMethod], DiffusionPipeline], torch.device]:
+        model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
+        dtype = self._get_pipeline_dtype(device)
 
-        params = self._get_pipeline_params()
-        params["torch_dtype"] = self._get_pipeline_dtype(device)
+        params = self._get_model_params(self.config.model)
+        params["torch_dtype"] = dtype
 
-        source = self._get_pipeline_source()
+        submodules = await self._load_pipeline_submodules(device, dtype)
+
+        if submodules:
+            params.update(submodules)
 
         base_pipeline_cls = self._get_pipeline_class(None)
-        logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {source}")
-        base_pipeline = base_pipeline_cls.from_pretrained(source, **params).to(device)
+        logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {model_path}")
+        base_pipeline = base_pipeline_cls.from_pretrained(model_path, **params).to(device)
 
-        pipelines: Dict[TMethod, DiffusionPipeline] = {}
+        pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
 
         for method in methods:
             pipeline_cls = self._get_pipeline_class(method)
@@ -52,29 +57,11 @@ class HuggingfaceDiffusionPipelineTaskService(ModelTaskService, Generic[TMethod]
 
         return pipelines, device
 
+    async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
+        return {}
+
     def _get_pipeline_class(self, method: Optional[TMethod]) -> Type[DiffusionPipeline]:
         raise NotImplementedError("Pipeline class loader not implemented.")
-
-    def _get_pipeline_source(self) -> str:
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            return self.config.model.repository
-
-        return self.config.model.path
-
-    def _get_pipeline_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
-            if self.config.model.cache_dir:
-                params["cache_dir"] = self.config.model.cache_dir
-            if self.config.model.token:
-                params["token"] = self.config.model.token
-            if self.config.model.local_files_only:
-                params["local_files_only"] = bool(self.config.model.local_files_only)
-
-        return params
 
     def _get_pipeline_dtype(self, device: torch.device) -> torch.dtype:
         import torch

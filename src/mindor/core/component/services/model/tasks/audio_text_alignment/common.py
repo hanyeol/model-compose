@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_duration
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 
 if TYPE_CHECKING:
     import torch
@@ -75,6 +75,3 @@ class AudioTextAlignmentTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[Dict[str, Any]]]:
         pass
-
-class AudioTextAlignmentTaskService(ModelTaskService):
-    pass

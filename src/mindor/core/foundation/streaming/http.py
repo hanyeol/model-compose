@@ -10,7 +10,7 @@ class HttpStreamResource(StreamResource):
         content_type: Optional[str] = None,
         filename: Optional[str] = None
     ):
-        super().__init__(content_type, filename)
+        super().__init__(content_type, filename, size=self._parse_content_length(response))
 
         self.response: aiohttp.ClientResponse = response
         self.stream: aiohttp.StreamReader = response.content
@@ -29,6 +29,20 @@ class HttpStreamResource(StreamResource):
             if not chunk:
                 break
             yield chunk
+
+    @staticmethod
+    def _parse_content_length(response: aiohttp.ClientResponse) -> Optional[int]:
+        # Only trust Content-Length when the body is delivered as-is; chunked
+        # or compressed responses report the encoded length, which won't match
+        # what we write to disk.
+        if response.headers.get("Transfer-Encoding", "").lower() == "chunked":
+            return None
+        if response.headers.get("Content-Encoding"):
+            return None
+        try:
+            return int(response.headers["Content-Length"])
+        except (KeyError, ValueError):
+            return None
 
 class HttpEventStreamResource(StreamResource):
     def __init__(self, response: aiohttp.ClientResponse):

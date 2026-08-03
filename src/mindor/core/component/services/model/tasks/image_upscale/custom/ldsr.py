@@ -1,17 +1,16 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, LocalModelConfig
+from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.logger import logging
 from ....base import ComponentActionContext
-from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
+from ....base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
+from ..common import ImageUpscaleTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
-    from diffusers import LDMSuperResolutionPipeline
+    from diffusers import DiffusionPipeline, LDMSuperResolutionPipeline
     import torch
 
 class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
@@ -77,67 +76,17 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return await self._run_in_executor(_upscale)
 
-class LdsrImageUpscaleTaskService(ImageUpscaleTaskService):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
-        super().__init__(id, config, daemon)
-
-        self.pipeline: Optional[LDMSuperResolutionPipeline] = None
-        self.device: Optional[torch.device] = None
-
+class LdsrImageUpscaleTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "diffusers", "transformers", "accelerate", "torch" ]
 
-    async def _load_model(self) -> None:
-        self.pipeline, self.device = self._load_pretrained_pipeline()
-
-    async def _unload_model(self) -> None:
-        self.pipeline = None
-        self.device = None
-
-    def _load_pretrained_pipeline(self) -> Tuple[LDMSuperResolutionPipeline, torch.device]:
+    def _get_pipeline_class(self, method: None) -> Type[DiffusionPipeline]:
         from diffusers import LDMSuperResolutionPipeline
+        return LDMSuperResolutionPipeline
+
+    def _get_accelerated_dtype(self) -> torch.dtype:
         import torch
-
-        device = self._resolve_device(self.config.device)
-        torch_dtype = torch.float16 if device.type in ("cuda", "mps") else torch.float32
-
-        params = self._resolve_pipeline_params()
-        params["torch_dtype"] = torch_dtype
-
-        source = self._resolve_pipeline_source()
-        logging.info(f"Component '{self.id}': loading LDM super-resolution pipeline from {source}")
-
-        pipeline = LDMSuperResolutionPipeline.from_pretrained(source, **params)
-        pipeline = pipeline.to(device)
-
-        return pipeline, device
-
-    def _resolve_pipeline_source(self) -> str:
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            return self.config.model.repository
-
-        if isinstance(self.config.model, LocalModelConfig):
-            return self.config.model.path
-
-        if isinstance(self.config.model, str):
-            return self.config.model
-
-        raise ValueError(f"Unsupported model config type for LDSR: {type(self.config.model).__name__}")
-
-    def _resolve_pipeline_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
-            if self.config.model.cache_dir:
-                params["cache_dir"] = self.config.model.cache_dir
-            if self.config.model.token:
-                params["token"] = self.config.model.token
-            if self.config.model.local_files_only:
-                params["local_files_only"] = bool(self.config.model.local_files_only)
-
-        return params
+        return torch.float16
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await LdsrImageUpscaleTaskAction(action, self.pipeline, self.device).run(context)
+        return await LdsrImageUpscaleTaskAction(action, self.pipelines[None], self.device).run(context)

@@ -194,7 +194,13 @@ class HttpClient:
     def _default_user_agent() -> str:
         return _DEFAULT_USER_AGENTS.get(platform.system(), _DEFAULT_USER_AGENTS["Linux"])
 
-async def create_stream_with_url(url: str) -> StreamResource:
+async def create_stream_with_url(
+    url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[Any] = None,
+    timeout: Optional[float] = None,
+) -> StreamResource:
     parsed = urlparse(url)
 
     if parsed.scheme == "file":
@@ -202,4 +208,10 @@ async def create_stream_with_url(url: str) -> StreamResource:
         path = url2pathname(parsed.path)
         return FileStreamResource(path)
 
-    return await HttpClient.get_shared_instance().request(url)
+    return await HttpClient.get_shared_instance().request(
+        url,
+        method=method,
+        headers=headers,
+        body=body,
+        timeout=timeout,
+    )

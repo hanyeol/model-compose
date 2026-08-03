@@ -5,7 +5,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 if TYPE_CHECKING:
     from transformers import StoppingCriteria
 
-def create_cancellation_criteria(cancellation_token: CancellationToken) -> "StoppingCriteria":
+def create_cancellation_criteria(cancellation_token: CancellationToken) -> StoppingCriteria:
     from transformers import StoppingCriteria
 
     class CancellationCriteria(StoppingCriteria):

@@ -10,7 +10,8 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
 
 if TYPE_CHECKING:
     import torch
@@ -109,7 +110,7 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
 
         return _KOKORO_DEFAULT_LANG_CODE
 
-class KokoroTextToSpeechTaskService(TextToSpeechTaskService):
+class KokoroTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -2,14 +2,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, MdxNetMusicSourceSeparationModelComponentConfig, HuggingfaceModelConfig, LocalModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, MdxNetMusicSourceSeparationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import MusicSourceSeparationTaskService, MusicSourceSeparationTaskAction
+from ....base import ModelTaskService
+from ..common import MusicSourceSeparationTaskAction
 
 if TYPE_CHECKING:
     import numpy as np
@@ -211,7 +212,7 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         return np.stack(channels, axis=0)
 
-class MdxNetMusicSourceSeparationTaskService(MusicSourceSeparationTaskService):
+class MdxNetMusicSourceSeparationTaskService(ModelTaskService):
     config: MdxNetMusicSourceSeparationModelComponentConfig
 
     def __init__(self, id: str, config: MdxNetMusicSourceSeparationModelComponentConfig, daemon: bool):
@@ -235,40 +236,20 @@ class MdxNetMusicSourceSeparationTaskService(MusicSourceSeparationTaskService):
     async def _load_onnx_session(self) -> Tuple[Any, str, torch.device]:
         import onnxruntime as ort
 
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
-        model_path = await self._resolve_onnx_path()
 
         providers: List[str] = []
+
         if device.type == "cuda":
             providers.append("CUDAExecutionProvider")
+
         providers.append("CPUExecutionProvider")
 
         session = ort.InferenceSession(model_path, providers=providers)
         input_name = session.get_inputs()[0].name
 
         return session, input_name, device
-
-    async def _resolve_onnx_path(self) -> str:
-        model = self.config.model
-
-        if isinstance(model, HuggingfaceModelConfig):
-            from ....base.huggingface_hub import get_model_path
-            base_path = get_model_path(model)
-
-            if model.filename:
-                import os
-                return os.path.join(base_path, model.filename)
-
-            return base_path
-
-        if isinstance(model, LocalModelConfig):
-            return await self._resolve_local_model(label="MDX-Net")
-
-        if isinstance(model, str):
-            import os
-            return os.path.expanduser(model)
-
-        raise ValueError(f"Unsupported model config type for MDX-Net: {type(model).__name__}")
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await MdxNetMusicSourceSeparationTaskAction(

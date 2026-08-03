@@ -2,21 +2,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
-from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazeFaceFaceDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import FaceDetectionTaskService, FaceDetectionTaskAction
-from ....base import ComponentActionContext
+from ..common import FaceDetectionTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
-import os
 
 if TYPE_CHECKING:
     from mediapipe.tasks.python.vision import FaceDetectorResult
     from mediapipe.tasks.python.components.containers import NormalizedKeypoint
-
-_DEFAULT_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "mediapipe"
 
 class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
     def __init__(self, config: BlazeFaceFaceDetectionModelActionConfig, model_path: str):
@@ -89,7 +84,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         return landmarks
 
-class BlazeFaceFaceDetectionTaskService(FaceDetectionTaskService):
+class BlazeFaceFaceDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -99,17 +94,10 @@ class BlazeFaceFaceDetectionTaskService(FaceDetectionTaskService):
         return [ "mediapipe" ]
 
     async def _load_model(self) -> None:
-        self.model_path = await self._resolve_model_path()
+        self.model_path = await self._provision_model(self.config.model, prefetch=True)
 
     async def _unload_model(self) -> None:
         self.model_path = None
-
-    async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            default_url=_DEFAULT_MODEL_URL,
-            label="face detection",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await BlazeFaceFaceDetectionTaskAction(action, self.model_path).run(context)

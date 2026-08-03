@@ -8,8 +8,8 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
-from ....base import ComponentActionContext
-from ..common import MusicGenerationTaskService, MusicGenerationTaskAction
+from ....base import ComponentActionContext, ModelTaskService
+from ..common import MusicGenerationTaskAction
 
 if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
@@ -91,7 +91,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
+class AceStepMusicGenerationTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -113,18 +113,18 @@ class AceStepMusicGenerationTaskService(MusicGenerationTaskService):
         if isinstance(self.config.model, HuggingfaceModelConfig):
             raise ValueError("ACE-Step does not support HuggingFace Hub models. Use a local model path instead.")
 
-        self.handler = self._load_generation_handler()
+        self.handler = await self._load_generation_handler()
 
     async def _unload_model(self) -> None:
         self.handler = None
 
-    def _load_generation_handler(self) -> AceStepHandler:
+    async def _load_generation_handler(self) -> AceStepHandler:
         from acestep.handler import AceStepHandler
         import torch
 
         handler = AceStepHandler()
         handler.initialize_service(
-            project_root=self._get_model_path(),
+            project_root=await self._provision_model(self.config.model, prefetch=True),
             config_path=self.config.preset,
             device=self._resolve_device(self.config.device).type,
         )

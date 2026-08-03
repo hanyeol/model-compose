@@ -142,9 +142,6 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextToTextTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextToTextTaskAction(action, self.model, self.tokenizer, self.device).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSeq2SeqLM
         return AutoModelForSeq2SeqLM
@@ -152,3 +149,6 @@ class HuggingfaceTextToTextTaskService(HuggingfaceLanguageModelTaskService):
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer
         return AutoTokenizer
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextToTextTaskAction(action, self.model, self.tokenizer, self.device).run(context)

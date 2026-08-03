@@ -1,9 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
 from pydantic import BaseModel, Field
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from mindor.dsl.utils.path import is_local_path
+from mindor.dsl.schema.common.url import UrlFetchConfig
 from ...common import CommonComponentConfig, ComponentType
+import os
 
 class ModelTaskType(str, Enum):
     TEXT_GENERATION          = "text-generation"
@@ -42,6 +44,7 @@ class ModelDriver(str, Enum):
 class ModelProvider(str, Enum):
     HUGGINGFACE = "huggingface"
     LOCAL       = "local"
+    NAMED       = "named"
 
 class ModelFormat(str, Enum):
     PYTORCH     = "pytorch"
@@ -87,25 +90,63 @@ class HuggingfaceModelConfig(CommonModelConfig):
     filename: Optional[str] = Field(default=None, description="Specific file within the repository.")
     revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
     cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
+    allow_patterns: Optional[List[str]] = Field(default=None, description="Glob patterns for which files to include when downloading the snapshot from HuggingFace Hub.")
     local_files_only: Union[bool, str] = Field(default=False, description="Force loading from local files only.")
     token: Optional[str] = Field(default=None, description="HuggingFace access token for private models.")
 
+    @field_validator("cache_dir", mode="after")
+    def expand_cache_dir(cls, value: Optional[str]) -> Optional[str]:
+        return os.path.expanduser(value) if value else value
+
 class LocalModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.LOCAL]
-    path: Optional[str] = Field(default=None, description="Local file path to the model.")
-    url: Optional[str] = Field(default=None, description="URL to download the model from when the local file is missing.")
-    format: ModelFormat = Field(default=ModelFormat.PYTORCH, description="Model file format.")
+    path: Optional[str] = Field(default=None, description="Local path to the model file or directory.")
+    url: Optional[UrlFetchConfig] = Field(default=None, description="Fetch config used when the local path is missing.")
+    bundled: bool = Field(default=False, description="Whether the downloaded file is an archive to extract into 'path'.")
+
+    @field_validator("path", mode="after")
+    def expand_path(cls, value: Optional[str]) -> Optional[str]:
+        return os.path.expanduser(value) if value else value
+
+    @model_validator(mode="before")
+    def inflate_url(cls, values: Dict[str, Any]):
+        url = values.get("url")
+        if isinstance(url, str):
+            values["url"] = { "endpoint": url }
+        return values
 
     @model_validator(mode="after")
-    def _require_source(self):
+    def apply_default_path(self):
+        if not self.path and self.url:
+            filename = os.path.basename(self.url.endpoint)
+            subdir = self._cache_subdir()
+            if subdir:
+                self.path = os.path.join(self.get_cache_dir(), subdir, filename)
+            else:
+                self.path = os.path.join(self.get_cache_dir(), filename)
+        return self
+
+    @model_validator(mode="after")
+    def validate_path_or_url(self):
         if not self.path and not self.url:
             raise ValueError("LocalModelConfig requires 'path' or 'url'.")
         return self
+
+    def get_cache_dir(self) -> str:
+        return os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "models")
+
+    def _cache_subdir(self) -> Optional[str]:
+        return None
+
+class NamedModelConfig(CommonModelConfig):
+    provider: Literal[ModelProvider.NAMED]
+    name: str = Field(..., description="Driver-provided pretrained model name.")
 
 ModelConfig = Annotated[
     Union[
         HuggingfaceModelConfig,
         LocalModelConfig,
+        NamedModelConfig,
     ],
     Field(discriminator="provider")
 ]
@@ -118,7 +159,7 @@ class ModelQuantizationConfig(BaseModel):
 class PeftAdapterConfig(BaseModel):
     type: PeftAdapterType = Field(..., description="Type of the adapter.")
     name: Optional[str] = Field(default=None, description="Name for the adapter.")
-    model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
+    model: ModelConfig = Field(..., description="Model repository or local file path.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight/scale (0.0-1.0).")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
     quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
@@ -138,7 +179,12 @@ class PeftAdapterConfig(BaseModel):
     def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
-            model["provider"] = ModelProvider.HUGGINGFACE
+            if "repository" in model:
+                model["provider"] = ModelProvider.HUGGINGFACE
+            elif "name" in model:
+                model["provider"] = ModelProvider.NAMED
+            else:
+                model["provider"] = ModelProvider.LOCAL
         return values
 
     @model_validator(mode="before")
@@ -156,7 +202,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Type of task the model performs.")
     driver: ModelDriver = Field(..., description="Model inference framework driver to use.")
-    model: Union[str, ModelConfig] = Field(..., description="Model source configuration.")
+    model: ModelConfig = Field(..., description="Model repository or local file path.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
     device: str = Field(default="auto", description="Computation device to use ('auto' picks cuda > mps > cpu; ignored when device_mode is 'auto').")
     runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime specification hints for the model.")
@@ -181,7 +227,12 @@ class CommonModelComponentConfig(CommonComponentConfig):
     def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
-            model["provider"] = ModelProvider.HUGGINGFACE
+            if "repository" in model:
+                model["provider"] = ModelProvider.HUGGINGFACE
+            elif "name" in model:
+                model["provider"] = ModelProvider.NAMED
+            else:
+                model["provider"] = ModelProvider.LOCAL
         return values
 
     @model_validator(mode="before")

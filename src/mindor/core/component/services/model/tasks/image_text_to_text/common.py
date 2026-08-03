@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 from PIL import Image as PILImage
 
 class ImageTextToTextTaskAction(ComponentAction):
@@ -98,6 +98,3 @@ class ImageTextToTextTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
         pass
-
-class ImageTextToTextTaskService(ModelTaskService):
-    pass

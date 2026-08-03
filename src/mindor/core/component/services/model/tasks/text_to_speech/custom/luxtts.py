@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import LuxttsTextToSpeechModelCloneActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -10,7 +10,8 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
 import os
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ class LuxttsTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class LuxttsTextToSpeechTaskService(TextToSpeechTaskService):
+class LuxttsTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -103,30 +104,25 @@ class LuxttsTextToSpeechTaskService(TextToSpeechTaskService):
         return [ "zipvoice", "torch", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, Any]:
+    async def _load_pretrained_model(self) -> Tuple[Any, Any]:
         from zipvoice.luxvoice import LuxTTS
 
         # zipvoice's LuxTTS takes an HF repo id directly for `model_path` and
         # handles the download itself.
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            model_path = self.config.model.repository
-        else:
-            model_path = self._get_model_path()
-
+        model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
-        device_str = str(device)
 
         if device.type == "cpu":
             threads = min(os.cpu_count() or 4, 8)
-            model = LuxTTS(model_path=model_path, device=device_str, threads=threads)
+            model = LuxTTS(model_path=model_path, device=str(device), threads=threads)
         else:
-            model = LuxTTS(model_path=model_path, device=device_str)
+            model = LuxTTS(model_path=model_path, device=str(device))
 
         return model, device
 

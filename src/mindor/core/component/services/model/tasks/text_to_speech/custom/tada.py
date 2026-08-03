@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import TadaTextToSpeechModelCloneActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -11,7 +11,9 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
+from ....utils.provision import HuggingfaceModelDownloader
 
 if TYPE_CHECKING:
     import torch
@@ -97,7 +99,7 @@ class TadaTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class TadaTextToSpeechTaskService(TextToSpeechTaskService):
+class TadaTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -109,53 +111,51 @@ class TadaTextToSpeechTaskService(TextToSpeechTaskService):
         return [ "tada-tts", "descript-audio-codec", "transformers", "torch", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
-        self.model, self.encoder, self.device = self._load_pretrained_model()
+        self.model, self.encoder, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.encoder = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, Any, Any]:
+    async def _load_pretrained_model(self) -> Tuple[Any, Any, Any]:
+        from tada.modules.aligner import AlignerConfig
+        from tada.modules.encoder import Encoder
+        from tada.modules.tada import TadaForCausalLM, TadaConfig
         import torch
-        from huggingface_hub import snapshot_download
 
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            model_repo = self.config.model.repository
-        else:
-            model_repo = self._get_model_path()
-
+        # LM weights: for HF sources the schema's default allow_patterns keeps
+        # the download to relevant files; local paths are used as-is.
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
-
-        # Ensure both the codec and the LM weights are on disk. TADA's
-        # from_pretrained() paths trigger HF downloads, but pre-fetching gives
-        # us a single point to control allow_patterns and observe failures.
-        snapshot_download(
-            repo_id=_TADA_CODEC_REPO,
-            allow_patterns=["*.safetensors", "*.json", "*.txt", "*.bin"],
-        )
-        snapshot_download(
-            repo_id=model_repo,
-            allow_patterns=["*.safetensors", "*.json", "*.txt", "*.bin", "*.model"],
-        )
+        dtype = self._resolve_model_dtype(device)
 
         # TADA hardcodes "meta-llama/Llama-3.2-1B" as its tokenizer source,
         # which is gated. Pull the tokenizer from an ungated mirror and
         # inject its local path into the Aligner + Tada configs.
-        tokenizer_source = getattr(self.config, "tokenizer_source", "unsloth/Llama-3.2-1B")
-        tokenizer_path = snapshot_download(
-            repo_id=tokenizer_source,
-            allow_patterns=["tokenizer*", "special_tokens*"],
+        tokenizer_path = await HuggingfaceModelDownloader().download(
+            repo_id=self.config.tokenizer,
+            allow_patterns=[ "tokenizer*", "special_tokens*" ],
         )
 
-        from tada.modules.aligner import AlignerConfig
         AlignerConfig.tokenizer_name = tokenizer_path
+        encoder = Encoder.from_pretrained(_TADA_CODEC_REPO, subfolder="encoder").to(device).eval()
 
-        from tada.modules.encoder import Encoder
-        from tada.modules.tada import TadaForCausalLM, TadaConfig
+        config = TadaConfig.from_pretrained(model_path)
+        config.tokenizer_name = tokenizer_path
 
-        # bf16 on CUDA/XPU when supported, float32 elsewhere. MPS is unstable
-        # for flow matching; users on Apple Silicon should stick to CPU.
+        model = TadaForCausalLM.from_pretrained(
+            model_path,
+            config=config,
+            torch_dtype=dtype,
+        ).to(device).eval()
+
+        return model, encoder, device
+
+    def _resolve_model_dtype(self, device: torch.device) -> torch.dtype:
+        import torch
+
+        # MPS is unstable for flow matching; users on Apple Silicon should stick to CPU.
         if device.type == "cuda":
             try:
                 use_bf16 = torch.cuda.is_bf16_supported()
@@ -165,19 +165,8 @@ class TadaTextToSpeechTaskService(TextToSpeechTaskService):
             use_bf16 = True
         else:
             use_bf16 = False
-        model_dtype = torch.bfloat16 if use_bf16 else torch.float32
 
-        encoder = Encoder.from_pretrained(_TADA_CODEC_REPO, subfolder="encoder").to(device).eval()
-
-        config = TadaConfig.from_pretrained(model_repo)
-        config.tokenizer_name = tokenizer_path
-        model = TadaForCausalLM.from_pretrained(
-            model_repo,
-            config=config,
-            torch_dtype=model_dtype,
-        ).to(device).eval()
-
-        return model, encoder, device
+        return torch.bfloat16 if use_bf16 else torch.float32
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.CLONE:

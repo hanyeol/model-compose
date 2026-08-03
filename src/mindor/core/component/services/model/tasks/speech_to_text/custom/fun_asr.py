@@ -9,7 +9,8 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
-from ..common import SpeechToTextTaskService, SpeechToTextTaskAction
+from ....base import ModelTaskService
+from ..common import SpeechToTextTaskAction
 
 if TYPE_CHECKING:
     import torch
@@ -50,8 +51,6 @@ _LANGUAGE_CODE_MAP: Dict[str, str] = {
     "sl":  "斯洛文尼亚文",
     "sv":  "瑞典文",
 }
-
-_DEFAULT_FUN_ASR_REPO = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
 
 class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
     def __init__(
@@ -168,7 +167,7 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
             }
         ]
 
-class FunAsrSpeechToTextTaskService(SpeechToTextTaskService):
+class FunAsrSpeechToTextTaskService(ModelTaskService):
     config: FunAsrSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: FunAsrSpeechToTextModelComponentConfig, daemon: bool):
@@ -181,37 +180,26 @@ class FunAsrSpeechToTextTaskService(SpeechToTextTaskService):
         return [ "funasr>=1.3.26", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
         from funasr import AutoModel
 
+        model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
-        source, hub = self._resolve_source_and_hub()
 
         model = AutoModel(
-            model=source,
-            hub=hub,
+            model=model_path,
+            hub="hf",
             trust_remote_code=True,
             device=f"{device.type}:{device.index}" if device.index is not None else device.type,
         )
 
         return model, device
-
-    def _resolve_source_and_hub(self) -> Tuple[str, str]:
-        model = self.config.model
-
-        if isinstance(model, HuggingfaceModelConfig):
-            return model.repository, "hf"
-
-        if isinstance(model, str):
-            return model, "hf"
-
-        return _DEFAULT_FUN_ASR_REPO, "hf"
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await FunAsrSpeechToTextTaskAction(action, self.model, self.config.inverse_text_normalization, self.device).run(context)

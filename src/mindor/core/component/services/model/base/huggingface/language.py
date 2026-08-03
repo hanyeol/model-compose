@@ -28,8 +28,8 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         ]
 
     async def _load_model(self) -> None:
-        self.model = self._load_pretrained_model()
-        self.tokenizer = self._load_pretrained_tokenizer()
+        self.model, model_path = await self._load_pretrained_model()
+        self.tokenizer = await self._load_pretrained_tokenizer(model_path)
         self.device = self._get_model_device(self.model)
 
     async def _unload_model(self) -> None:
@@ -37,9 +37,9 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         self.tokenizer = None
         self.device = None
 
-    def _load_pretrained_tokenizer(self) -> Optional[PreTrainedTokenizer]:
+    async def _load_pretrained_tokenizer(self, model_path: str) -> Optional[PreTrainedTokenizer]:
         tokenizer_cls = self._get_tokenizer_class()
-        tokenizer = tokenizer_cls.from_pretrained(self._get_model_path(self.config), **self._get_tokenizer_params())
+        tokenizer = tokenizer_cls.from_pretrained(model_path, **self._get_tokenizer_params())
 
         if tokenizer.pad_token is None:
             logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")

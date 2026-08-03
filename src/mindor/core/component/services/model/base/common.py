@@ -3,15 +3,14 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Mapping, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.foundation import AsyncService
-from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
-from pathlib import Path
-from urllib.parse import urlparse
-import asyncio, os
+from ..utils.provision import ModelProvisioner
+from ..utils.device import DeviceResolver
+import asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -23,6 +22,8 @@ class ModelTaskService(AsyncService):
         self.id: str = id
         self.config: ModelComponentConfig = config
 
+        self._model_provisioner: ModelProvisioner = ModelProvisioner()
+        self._device_resolver: DeviceResolver = DeviceResolver()
         self._model_loaded: bool = False
         self._model_load_lock: asyncio.Lock = asyncio.Lock()
 
@@ -43,6 +44,7 @@ class ModelTaskService(AsyncService):
             self._model_loaded = True
         else:
             logging.info(f"Component '{self.id}': model will be loaded on demand")
+
         await super()._start()
 
     async def _stop(self) -> None:
@@ -69,71 +71,11 @@ class ModelTaskService(AsyncService):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-    async def _resolve_local_model(
-        self,
-        default_url: Optional[str] = None,
-        cache_dir: Optional[Path] = None,
-        label: str = "model",
-    ) -> str:
-        if not isinstance(self.config.model, (LocalModelConfig, str)):
-            raise ValueError(f"Unsupported model config type for {label}: {type(self.config.model).__name__}")
-
-        path = self.config.model if isinstance(self.config.model, str) else self.config.model.path
-
-        if path:
-            path = os.path.expanduser(path)
-
-        if path and os.path.exists(path):
-            return path
-
-        url = self.config.model.url if isinstance(self.config.model, LocalModelConfig) else None
-
-        if path and not url:
-            raise FileNotFoundError(f"{label} model not found: {path}")
-
-        url = url or default_url
-
-        if not url:
-            raise FileNotFoundError(f"{label} model not found: {path}")
-
-        path = Path(path) if path else cache_dir / os.path.basename(urlparse(url).path)
-
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            logging.info("Downloading %s model: %s", label, url)
-            await download_to_file(url, path)
-
-        return str(path)
-
-    def _get_model_path(self) -> str:
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            from .huggingface_hub import get_model_path
-            return get_model_path(self.config.model)
-
-        if isinstance(self.config.model, LocalModelConfig):
-            return os.path.expanduser(self.config.model.path) if self.config.model.path else self.config.model.path
-
-        if isinstance(self.config.model, str):
-            return os.path.expanduser(self.config.model)
-
-        raise ValueError(f"Unknown model config type: {type(self.config.model)}")
+    async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> str:
+        return await self._model_provisioner.provision(model, prefetch=prefetch)
 
     def _resolve_device(self, device: str) -> torch.device:
-        import torch
-
-        if device == "auto":
-            if torch.cuda.is_available():
-                return torch.device("cuda")
-            if torch.backends.mps.is_available():
-                return torch.device("mps")
-            return torch.device("cpu")
-
-        try:
-            return torch.device(device)
-        except:
-            logging.warning(f"Invalid device '{device}', falling back to 'cpu'")
-
-        return torch.device("cpu")
+        return self._device_resolver.resolve(device)
 
     def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
         checkpoint = torch.load(model_path, map_location="cpu")

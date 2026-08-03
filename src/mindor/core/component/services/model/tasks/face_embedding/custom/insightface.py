@@ -2,12 +2,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, LocalModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbeddingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ..common import FaceEmbeddingTaskService, FaceEmbeddingTaskAction
-from ....base import ComponentActionContext
+from ..common import FaceEmbeddingTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
 import os, shutil
 
@@ -117,7 +117,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     def _gender_to_label(self, gender: int) -> str:
         return "male" if gender == 1 else "female"
 
-class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
+class InsightfaceFaceEmbeddingTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -127,41 +127,29 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
         return [ "insightface", "opencv-python", "onnxruntime" ]
 
     async def _load_model(self) -> None:
-        self.model = self._load_pretrained_model()
+        self.model = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
 
-    def _load_pretrained_model(self) -> FaceAnalysis:
+    async def _load_pretrained_model(self) -> FaceAnalysis:
         from insightface.app import FaceAnalysis
 
-        params = self._resolve_model_params()
+        root, name = await self._provision_model(self.config.model, prefetch=True)
+        params = { "name": name, "root": root }
 
         try:
             model = FaceAnalysis(**params)
         except:
-            self._fix_wrong_model_path(params)
+            self._fix_wrong_model_path(root, name)
             model = FaceAnalysis(**params)
 
         model.prepare(ctx_id=self._get_device_id())
 
         return model
 
-    def _resolve_model_params(self) -> Dict[str, Any]:
-        if isinstance(self.config.model, (LocalModelConfig, str)):
-            if isinstance(self.config.model, LocalModelConfig):
-                # TODO: process local storage
-                path = self.config.model.path
-            else:
-                path = self.config.model
-
-            root, name = self._prepare_model_path(os.path.expanduser(path))
-
-            return { "name": name, "root": root }
-
-        raise ValueError(f"Unsupported model type: {type(self.config.model)}")
-
-    def _prepare_model_path(self, path: str) -> Tuple[str, str]:
+    async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> Tuple[str, str]:
+        path = await super()._provision_model(model, prefetch=prefetch)
         root = os.path.dirname(path)
         name = os.path.basename(path)
 
@@ -174,8 +162,7 @@ class InsightfaceFaceEmbeddingTaskService(FaceEmbeddingTaskService):
 
         return (root, name)
 
-    def _fix_wrong_model_path(self, params: Dict[str, Any]) -> None:
-        root, name = params["root"], params["name"]
+    def _fix_wrong_model_path(self, root: str, name: str) -> None:
         model_dir = os.path.join(root, "models", name)
         wrong_model_dir = os.path.join(model_dir, name)
 

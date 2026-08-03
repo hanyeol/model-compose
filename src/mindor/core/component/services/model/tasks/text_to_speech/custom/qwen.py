@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
@@ -15,7 +15,8 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
 
 if TYPE_CHECKING:
     import torch
@@ -160,7 +161,7 @@ class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):
             instruct=params["instructions"],
         )
 
-class QwenTextToSpeechTaskService(TextToSpeechTaskService):
+class QwenTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -171,26 +172,23 @@ class QwenTextToSpeechTaskService(TextToSpeechTaskService):
         return [ "transformers", "qwen_tts", "torch", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
         from qwen_tts import Qwen3TTSModel
         import torch
 
         # qwen_tts handles model downloading internally via from_pretrained(),
         # so pass the repo ID directly instead of a snapshot_download() path.
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            model_id = self.config.model.repository
-        else:
-            model_id = self._get_model_path()
-
+        model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
+
         model = Qwen3TTSModel.from_pretrained(
-            model_id,
+            model_path,
             device_map=device,
             dtype=torch.bfloat16,
             trust_remote_code=True,

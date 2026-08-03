@@ -93,9 +93,6 @@ class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskServi
 
         self.labels: Optional[List[str]] = config.labels
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification
         return AutoModelForSequenceClassification
@@ -103,3 +100,6 @@ class HuggingfaceTextClassificationTaskService(HuggingfaceLanguageModelTaskServi
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer
         return AutoTokenizer
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context)

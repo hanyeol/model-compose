@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceModelConfig
 from .base import HuggingfaceModelTaskService
 
 if TYPE_CHECKING:
@@ -26,8 +26,8 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         ]
 
     async def _load_model(self) -> None:
-        self.model = self._load_pretrained_model()
-        self.processor = self._load_pretrained_processor()
+        self.model, model_path = await self._load_pretrained_model()
+        self.processor = await self._load_pretrained_processor(model_path)
         self.device = self._get_model_device(self.model)
 
     async def _unload_model(self) -> None:
@@ -35,31 +35,31 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         self.processor = None
         self.device = None
 
-    def _load_pretrained_processor(self) -> Optional[ProcessorMixin]:
+    async def _load_pretrained_processor(self, model_path: str) -> Optional[ProcessorMixin]:
         processor_cls = self._get_processor_class()
 
         if not processor_cls:
             return None
 
-        return processor_cls.from_pretrained(self._get_model_path(self.config), **self._get_processor_params())
+        return processor_cls.from_pretrained(model_path, **self._get_processor_params(self.config.model))
 
     def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
         return None
 
-    def _get_processor_params(self) -> Dict[str, Any]:
+    def _get_processor_params(self, model: ModelConfig) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
+        if isinstance(model, HuggingfaceModelConfig):
+            if model.revision:
+                params["revision"] = model.revision
 
-            if self.config.model.cache_dir:
-                params["cache_dir"] = self.config.model.cache_dir
+            if model.cache_dir:
+                params["cache_dir"] = model.cache_dir
 
-            if self.config.model.local_files_only:
+            if model.local_files_only:
                 params["local_files_only"] = True
 
-            if self.config.model.token:
-                params["token"] = self.config.model.token
+            if model.token:
+                params["token"] = model.token
 
         return params

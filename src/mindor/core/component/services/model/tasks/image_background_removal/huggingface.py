@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageBackgroundRemovalModelActionConfig
-from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelComponentConfig, PeftAdapterConfig
+from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -83,9 +83,6 @@ class HuggingfaceImageBackgroundRemovalTaskService(HuggingfaceMultimodalModelTas
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "transformers", "torch", "torchvision", "accelerate", "timm", "kornia" ]
 
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceImageBackgroundRemovalTaskAction(action, self.model, self.device).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO:
             from transformers import AutoModelForImageSegmentation
@@ -93,9 +90,12 @@ class HuggingfaceImageBackgroundRemovalTaskService(HuggingfaceMultimodalModelTas
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
-    def _get_model_params(self, config: Union[ModelComponentConfig, PeftAdapterConfig]) -> Dict[str, Any]:
-        params = super()._get_model_params(config)
+    def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
+        params = super()._get_model_params(model)
 
         params["trust_remote_code"] = True
 
         return params
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceImageBackgroundRemovalTaskAction(action, self.model, self.device).run(context)

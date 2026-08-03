@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 
 class TextRerankingTaskAction(ComponentAction):
     def __init__(self, config: TextRerankingModelActionConfig):
@@ -122,6 +122,3 @@ class TextRerankingTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
         pass
-
-class TextRerankingTaskService(ModelTaskService):
-    pass

@@ -2,13 +2,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, LocalModelConfig
+from pydantic import BaseModel
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceModelConfig, ModelQuantizationType
+from mindor.dsl.schema.component.impl.model.tasks.base.vllm import VllmEngineOptionsConfig
 from mindor.core.logger import logging
 from .common import ModelTaskService
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+_BITSANDBYTES_QUANT_TYPES = {
+    ModelQuantizationType.INT8,
+    ModelQuantizationType.INT4,
+    ModelQuantizationType.FP4,
+    ModelQuantizationType.NF4,
+}
 
 class VllmModelTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -23,8 +32,12 @@ class VllmModelTaskService(ModelTaskService):
     async def _load_model(self) -> None:
         from vllm import AsyncEngineArgs, AsyncLLMEngine
 
-        model_path = self._get_model_path()
-        params = self._get_model_params()
+        model_path = await self._provision_model(self.config.model)
+        params = self._get_model_params(self.config.model)
+        options = self._get_model_options(self.config)
+
+        if options:
+            params.update(options)
 
         logging.info(f"Component '{self.id}': loading vLLM model from '{model_path}'")
 
@@ -37,16 +50,16 @@ class VllmModelTaskService(ModelTaskService):
         from transformers import AutoTokenizer
 
         tokenizer_path = params.get("tokenizer") or model_path
-        tokenizer_kwargs: Dict[str, Any] = {}
+        tokenizer_params: Dict[str, Any] = {}
 
         if params.get("trust_remote_code"):
-            tokenizer_kwargs["trust_remote_code"] = True
+            tokenizer_params["trust_remote_code"] = True
         if params.get("tokenizer_revision"):
-            tokenizer_kwargs["revision"] = params["tokenizer_revision"]
+            tokenizer_params["revision"] = params["tokenizer_revision"]
         elif params.get("revision"):
-            tokenizer_kwargs["revision"] = params["revision"]
+            tokenizer_params["revision"] = params["revision"]
 
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_kwargs)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_params)
 
     async def _unload_model(self) -> None:
         if self.engine is not None:
@@ -73,67 +86,38 @@ class VllmModelTaskService(ModelTaskService):
         except Exception:
             pass
 
-    def _get_model_path(self) -> str:
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            return self.config.model.repository
-
-        if isinstance(self.config.model, LocalModelConfig):
-            return self.config.model.path
-
-        if isinstance(self.config.model, str):
-            return self.config.model
-
-        raise ValueError(f"Unknown model config type: {type(self.config.model)}")
-
-    def _get_model_params(self) -> Dict[str, Any]:
+    def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision is not None:
-                params["revision"] = self.config.model.revision
-            if self.config.model.cache_dir is not None:
-                params["download_dir"] = self.config.model.cache_dir
-            if self.config.model.token is not None:
-                params["hf_token"] = self.config.model.token
+        if isinstance(model, HuggingfaceModelConfig):
+            if model.revision is not None:
+                params["revision"] = model.revision
 
-        precision = getattr(self.config, "precision", None)
-        if precision is not None:
-            params["dtype"] = self._map_precision(precision)
+            if model.cache_dir is not None:
+                params["download_dir"] = model.cache_dir
 
-        quantization = getattr(self.config, "quantization", None)
-        if quantization is not None:
-            if hasattr(quantization, "type"):
-                mapped = self._map_quantization(quantization.type)
-                if mapped is not None:
-                    params["quantization"] = mapped
-            elif isinstance(quantization, str):
-                params["quantization"] = quantization
-
-        options = getattr(self.config, "options", None)
-        if options is not None:
-            for field, value in options.model_dump(exclude_none=True).items():
-                params[field] = value
+            if model.token is not None:
+                params["hf_token"] = model.token
 
         return params
 
-    def _map_precision(self, precision: Any) -> str:
-        from mindor.dsl.schema.component import ModelPrecision
+    def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:
+        options: Dict[str, Any] = {}
 
-        mapping = {
-            ModelPrecision.AUTO: "auto",
-            ModelPrecision.FLOAT32: "float32",
-            ModelPrecision.FLOAT16: "float16",
-            ModelPrecision.BFLOAT16: "bfloat16",
-        }
-        return mapping.get(precision, "auto")
+        precision = getattr(config, "precision", None)
 
-    def _map_quantization(self, q_type: Any) -> Optional[str]:
-        from mindor.dsl.schema.component import ModelQuantizationType
+        if precision is not None:
+            options["dtype"] = precision.value
 
-        mapping = {
-            ModelQuantizationType.INT8: "bitsandbytes",
-            ModelQuantizationType.INT4: "bitsandbytes",
-            ModelQuantizationType.FP4: "bitsandbytes",
-            ModelQuantizationType.NF4: "bitsandbytes",
-        }
-        return mapping.get(q_type)
+        quantization = getattr(config, "quantization", None)
+
+        if quantization is not None and quantization.type in _BITSANDBYTES_QUANT_TYPES:
+            options["quantization"] = "bitsandbytes"
+
+        engine_options = getattr(config, "options", None)
+
+        if isinstance(engine_options, VllmEngineOptionsConfig):
+            for field, value in engine_options.model_dump(exclude_none=True).items():
+                options[field] = value
+
+        return options

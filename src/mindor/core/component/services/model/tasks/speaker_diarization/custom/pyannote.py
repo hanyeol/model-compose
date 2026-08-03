@@ -9,14 +9,13 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
-from ..common import SpeakerDiarizationTaskService, SpeakerDiarizationTaskAction
+from ....base import ModelTaskService
+from ..common import SpeakerDiarizationTaskAction
 import asyncio
 
 if TYPE_CHECKING:
     import numpy as np
     import torch
-
-_DEFAULT_PYANNOTE_REPO = "pyannote/speaker-diarization-3.1"
 
 class PipelineCancelled(Exception):
     pass
@@ -149,7 +148,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
         return segments
 
-class PyannoteSpeakerDiarizationTaskService(SpeakerDiarizationTaskService):
+class PyannoteSpeakerDiarizationTaskService(ModelTaskService):
     config: PyannoteSpeakerDiarizationModelComponentConfig
 
     def __init__(self, id: str, config: PyannoteSpeakerDiarizationModelComponentConfig, daemon: bool):
@@ -162,37 +161,27 @@ class PyannoteSpeakerDiarizationTaskService(SpeakerDiarizationTaskService):
         return [ "pyannote.audio", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.pipeline, self.device = self._load_pretrained_pipeline()
+        self.pipeline, self.device = await self._load_pretrained_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
         self.device = None
 
-    def _load_pretrained_pipeline(self) -> Tuple[Any, torch.device]:
+    async def _load_pretrained_pipeline(self) -> Tuple[Any, torch.device]:
         from pyannote.audio import Pipeline
-        import torch
 
+        model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
-        source, token = self._resolve_source_and_token()
-        pipeline = Pipeline.from_pretrained(source, token=token)
+
+        token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
+        pipeline = Pipeline.from_pretrained(model_path, token=token)
 
         if pipeline is None:
-            raise RuntimeError(f"Failed to load pyannote pipeline '{source}'. Verify the HuggingFace token has access to the gated model.")
+            raise RuntimeError(f"Failed to load pyannote pipeline '{model_path}'. Verify the HuggingFace token has access to the gated model.")
 
         pipeline.to(device)
 
         return pipeline, device
-
-    def _resolve_source_and_token(self) -> Tuple[str, Optional[str]]:
-        model = self.config.model
-
-        if isinstance(model, HuggingfaceModelConfig):
-            return model.repository, model.token
-
-        if isinstance(model, str):
-            return model, None
-
-        return _DEFAULT_PYANNOTE_REPO, None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await PyannoteSpeakerDiarizationTaskAction(action, self.pipeline, self.device).run(context)

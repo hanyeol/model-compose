@@ -113,15 +113,16 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
     async def _load_model(self) -> None:
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
             from sentence_transformers import SentenceTransformer
+
+            model_path = await self._provision_model(self.config.model)
             device = self._resolve_device(self.config.device)
-            self.model = SentenceTransformer(self._get_model_path(self.config), device=str(device.type))
+
+            self.model = SentenceTransformer(model_path, device=str(device.type))
             self.device = device
+
             return
 
         await super()._load_model()
-
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.BERT:
@@ -138,3 +139,6 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
 
         from transformers import AutoTokenizer
         return AutoTokenizer
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context)

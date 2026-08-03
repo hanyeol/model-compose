@@ -14,7 +14,9 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamR
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_temporary_file
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
+import os
 
 if TYPE_CHECKING:
     import torch
@@ -201,7 +203,7 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
             text_frontend=params["text_frontend"],
         )
 
-class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
+class CosyvoiceTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -251,17 +253,17 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
         ]
 
     async def _load_model(self) -> None:
-        self.model, self.sample_rate, self.device = self._load_pretrained_model()
+        self.model, self.sample_rate, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
+    async def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
         # CosyVoice ships an AutoModel factory that picks CosyVoice / CosyVoice2 /
         # CosyVoice3 by looking for cosyvoice{,2,3}.yaml inside model_dir. Its
         # internal snapshot_download only supports ModelScope, so we always
-        # resolve to a local dir via mindor's HF-aware _get_model_path().
+        # resolve to a local dir via mindor's HF-aware _provision_model().
         try:
             from cosyvoice.cli.cosyvoice import AutoModel
         except ImportError as e:
@@ -274,8 +276,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
                 "If cosyvoice is present but a dependency is missing, install it into the venv."
             ) from e
 
-        model_dir = self._get_model_path()
-
+        model_dir = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         # jit/trt/vllm/fp16 are CUDA-only; AutoModel warns and silently disables
@@ -287,8 +288,7 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
 
         # AutoModel returns CosyVoice / CosyVoice2 / CosyVoice3. Only v2/v3
         # accept load_vllm, so pass it conditionally by peeking at the yaml.
-        import os
-        kwargs: Dict[str, Any] = {
+        params: Dict[str, Any] = {
             "model_dir": model_dir,
             "load_jit":  load_jit,
             "load_trt":  load_trt,
@@ -299,13 +299,13 @@ class CosyvoiceTextToSpeechTaskService(TextToSpeechTaskService):
             os.path.exists(os.path.join(resolved_dir, "cosyvoice2.yaml")) or
             os.path.exists(os.path.join(resolved_dir, "cosyvoice3.yaml"))
         ):
-            kwargs["load_vllm"] = load_vllm
+            params["load_vllm"] = load_vllm
         elif load_vllm:
             # We don't yet know the version (AutoModel will download); attempt
             # anyway and let AutoModel raise a clear TypeError if unsupported.
-            kwargs["load_vllm"] = load_vllm
+            params["load_vllm"] = load_vllm
 
-        model = AutoModel(**kwargs)
+        model = AutoModel(**params)
         sample_rate = int(getattr(model, "sample_rate", 24000))
 
         return model, sample_rate, device

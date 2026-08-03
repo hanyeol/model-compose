@@ -10,7 +10,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 
 if TYPE_CHECKING:
     import torch
@@ -88,6 +88,3 @@ class SpeechToTextTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[str, AsyncIterator[str], List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
         pass
-
-class SpeechToTextTaskService(ModelTaskService):
-    pass

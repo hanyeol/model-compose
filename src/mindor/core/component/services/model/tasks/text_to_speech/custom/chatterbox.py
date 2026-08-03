@@ -12,7 +12,8 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ..common import TextToSpeechTaskService, TextToSpeechTaskAction
+from ....base import ModelTaskService
+from ..common import TextToSpeechTaskAction
 
 if TYPE_CHECKING:
     import torch
@@ -93,7 +94,7 @@ class ChatterboxTextToSpeechCloneTaskAction(ChatterboxTextToSpeechTaskAction):
 
         return params
 
-class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
+class ChatterboxTextToSpeechTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -104,13 +105,13 @@ class ChatterboxTextToSpeechTaskService(TextToSpeechTaskService):
         return [ "chatterbox-tts", "torch", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, Any]:
+    async def _load_pretrained_model(self) -> Tuple[Any, Any]:
         from chatterbox.tts import ChatterboxTTS
 
         device = self._resolve_device(self.config.device)

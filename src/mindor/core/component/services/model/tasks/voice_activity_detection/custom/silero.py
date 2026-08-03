@@ -9,7 +9,8 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from ......base import ComponentActionContext
-from ..common import VoiceActivityDetectionTaskService, VoiceActivityDetectionTaskAction, VoiceSegmenter
+from ....base import ModelTaskService
+from ..common import VoiceActivityDetectionTaskAction, VoiceSegmenter
 
 if TYPE_CHECKING:
     import numpy as np
@@ -237,7 +238,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
         return float(sum(probs) / len(probs)) if probs else 0.0
 
-class SileroVoiceActivityDetectionTaskService(VoiceActivityDetectionTaskService):
+class SileroVoiceActivityDetectionTaskService(ModelTaskService):
     config: SileroVoiceActivityDetectionModelComponentConfig
 
     def __init__(self, id: str, config: SileroVoiceActivityDetectionModelComponentConfig, daemon: bool):
@@ -250,13 +251,13 @@ class SileroVoiceActivityDetectionTaskService(VoiceActivityDetectionTaskService)
         return [ "silero-vad", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
         from silero_vad import load_silero_vad
 
         device = self._resolve_device(self.config.device)

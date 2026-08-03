@@ -10,7 +10,8 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ......base import ComponentActionContext
-from ..common import SpeechToTextTaskService, SpeechToTextTaskAction
+from ....base import ModelTaskService
+from ..common import SpeechToTextTaskAction
 import asyncio
 
 if TYPE_CHECKING:
@@ -152,7 +153,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             ] if words else None,
         }
 
-class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
+class FasterWhisperSpeechToTextTaskService(ModelTaskService):
     config: FasterWhisperSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: FasterWhisperSpeechToTextModelComponentConfig, daemon: bool):
@@ -165,17 +166,18 @@ class FasterWhisperSpeechToTextTaskService(SpeechToTextTaskService):
         return [ "faster-whisper", "torch", "torchaudio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[WhisperModel, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[WhisperModel, torch.device]:
         from faster_whisper import WhisperModel
 
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
-        model_path = self._get_model_path()
+
         model = WhisperModel(model_path, device=str(device.type), compute_type=self.config.compute_type)
 
         return model, device

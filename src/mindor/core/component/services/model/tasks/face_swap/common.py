@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from .....action.base import ComponentAction
-from ...base import ModelTaskService, ComponentActionContext
+from ...base import ComponentActionContext
 from PIL import Image as PILImage
 
 class FaceSwapTaskAction(ComponentAction):
@@ -79,6 +79,3 @@ class FaceSwapTaskAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         pass
-
-class FaceSwapTaskService(ModelTaskService):
-    pass

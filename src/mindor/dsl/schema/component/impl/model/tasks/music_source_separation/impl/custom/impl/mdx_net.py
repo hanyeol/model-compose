@@ -8,5 +8,5 @@ from .....common import ModelDriver, ModelConfig
 class MdxNetMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparationModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[MusicSourceSeparationModelFamily.MDX_NET]
-    model: Union[str, ModelConfig] = Field(..., description="MDX-Net ONNX model source. Point to a HuggingFace repository (e.g. 'seanghay/uvr_models') and use 'filename' to select the specific .onnx file (e.g. 'UVR-MDX-NET-Voc_FT.onnx').")
+    model: ModelConfig = Field(..., description="Model repository or local file path. Use 'filename' to select a specific .onnx file within an HF repository.")
     actions: List[MusicSourceSeparationModelActionConfig] = Field(default_factory=list)

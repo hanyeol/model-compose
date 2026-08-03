@@ -6,8 +6,8 @@ from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceSwapModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import FaceSwapTaskService, FaceSwapTaskAction
-from ....base import ComponentActionContext
+from ..common import FaceSwapTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
 import os
 
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from insightface.app.common import Face
     from insightface.model_zoo.inswapper import INSwapper
 
-_DEFAULT_SWAPPER_URL = "https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx"
 _CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "insightface"
 
 class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
@@ -106,7 +105,7 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         return await self._run_in_executor(_swap)
 
-class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
+class InsightfaceFaceSwapTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -117,7 +116,7 @@ class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
         return [ "insightface", "opencv-python", "onnxruntime" ]
 
     async def _load_model(self) -> None:
-        swapper_path = await self._resolve_swapper_path()
+        swapper_path = await self._provision_model(self.config.model, prefetch=True)
         self.analyzer = self._load_analyzer()
         self.swapper = self._load_swapper(swapper_path)
 
@@ -133,19 +132,13 @@ class InsightfaceFaceSwapTaskService(FaceSwapTaskService):
 
         analyzer = FaceAnalysis(name=self.config.detector_model, root=detector_root)
         analyzer.prepare(ctx_id=0, det_size=(640, 640))
+
         return analyzer
 
     def _load_swapper(self, swapper_path: str) -> INSwapper:
         from insightface.model_zoo import get_model
 
         return get_model(swapper_path, download=False, download_zip=False)
-
-    async def _resolve_swapper_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            default_url=_DEFAULT_SWAPPER_URL,
-            label="face swap",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await InsightfaceFaceSwapTaskAction(action, self.analyzer, self.swapper).run(context)

@@ -83,9 +83,6 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_RERANKING, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextRerankingTaskService(HuggingfaceLanguageModelTaskService):
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextRerankingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
-
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification
         return AutoModelForSequenceClassification
@@ -93,3 +90,6 @@ class HuggingfaceTextRerankingTaskService(HuggingfaceLanguageModelTaskService):
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer
         return AutoTokenizer
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await HuggingfaceTextRerankingTaskAction(action, self.model, self.tokenizer, self.device).run(context)

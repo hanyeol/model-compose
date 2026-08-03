@@ -2,23 +2,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
-from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import PoseDetectionTaskService, PoseDetectionTaskAction
+from ..common import PoseDetectionTaskAction
 from ..utils import openpose, coco
-from ....base import ComponentActionContext
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
-import os
 
 if TYPE_CHECKING:
     from ultralytics import YOLO
     from ultralytics.engine.results import Results
     import numpy as np
-
-_DEFAULT_MODEL_URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt"
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "ultralytics"
 
 class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
     def __init__(self, config: YoloPoseDetectionModelActionConfig, model: YOLO):
@@ -116,7 +111,7 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
         x1, y1, x2, y2 = box_xyxy
         return [ int(x1), int(y1), int(x2 - x1), int(y2 - y1) ]
 
-class YoloPoseDetectionTaskService(PoseDetectionTaskService):
+class YoloPoseDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -128,18 +123,11 @@ class YoloPoseDetectionTaskService(PoseDetectionTaskService):
     async def _load_model(self) -> None:
         from ultralytics import YOLO
 
-        model_path = await self._resolve_model_path()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         self.model = YOLO(model_path)
 
     async def _unload_model(self) -> None:
         self.model = None
-
-    async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            default_url=_DEFAULT_MODEL_URL,
-            label="pose detection",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await YoloPoseDetectionTaskAction(action, self.model).run(context)

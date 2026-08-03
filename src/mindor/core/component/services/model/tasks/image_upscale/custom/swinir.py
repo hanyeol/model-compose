@@ -6,8 +6,8 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SwinIRImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ..common import ImageUpscaleTaskService, ImageUpscaleTaskAction
-from ....base import ComponentActionContext
+from ..common import ImageUpscaleTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -166,7 +166,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return output
 
-class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
+class SwinIRImageUpscaleTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -177,19 +177,21 @@ class SwinIRImageUpscaleTaskService(ImageUpscaleTaskService):
         return [ "basicsr", "torch", "torchvision", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
-        self.model, self.device = self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
 
-    def _load_pretrained_model(self) -> Tuple[SwinIR, torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[SwinIR, torch.device]:
         from basicsr.archs.swinir_arch import SwinIR
 
-        model = SwinIR(**self._get_model_params())
-        self._load_model_checkpoint(model, self._get_model_path())
-
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
+
+        model = SwinIR(**self._get_model_params())
+        self._load_model_checkpoint(model, model_path)
+
         model = model.to(device)
         model.eval()
 

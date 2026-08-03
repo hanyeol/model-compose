@@ -5,18 +5,14 @@ from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SamImageSegmentationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..common import ImageSegmentationTaskService, ImageSegmentationTaskAction
-from ....base import ComponentActionContext
+from ..common import ImageSegmentationTaskAction
+from ....base import ComponentActionContext, ModelTaskService
 from PIL import Image as PILImage
-from pathlib import Path
-import os
 
 if TYPE_CHECKING:
     from ultralytics import SAM
     from ultralytics.engine.results import Results
     import numpy as np
-
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "models" / "ultralytics"
 
 class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
     def __init__(self, config: SamImageSegmentationModelActionConfig, model: SAM):
@@ -134,7 +130,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
     def _mask_to_pil_image(self, mask: np.ndarray) -> PILImage.Image:
         return PILImage.fromarray((mask.astype("uint8") * 255), mode="L")
 
-class SamImageSegmentationTaskService(ImageSegmentationTaskService):
+class SamImageSegmentationTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -146,17 +142,11 @@ class SamImageSegmentationTaskService(ImageSegmentationTaskService):
     async def _load_model(self) -> None:
         from ultralytics import SAM
 
-        model_path = await self._resolve_model_path()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         self.model = SAM(model_path)
 
     async def _unload_model(self) -> None:
         self.model = None
-
-    async def _resolve_model_path(self) -> str:
-        return await self._resolve_local_model(
-            cache_dir=_CACHE_DIR,
-            label="image segmentation",
-        )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await SamImageSegmentationTaskAction(action, self.model).run(context)

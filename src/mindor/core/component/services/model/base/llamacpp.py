@@ -2,7 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig, LocalModelConfig
+from pydantic import BaseModel
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.component.impl.model.tasks.base.llamacpp import LlamaCppEngineOptionsConfig
 from mindor.core.logger import logging
 from .common import ModelTaskService
@@ -22,8 +23,12 @@ class LlamaCppModelTaskService(ModelTaskService):
     async def _load_model(self) -> None:
         from llama_cpp import Llama
 
-        model_path = self._get_model_path()
-        params = self._get_model_params()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+        params = self._get_model_params(self.config.model)
+        options = self._get_model_options(self.config)
+
+        if options:
+            params.update(options)
 
         logging.info(f"Component '{self.id}': loading llama.cpp model from '{model_path}'")
         self.model = Llama(model_path=model_path, **params)
@@ -31,30 +36,21 @@ class LlamaCppModelTaskService(ModelTaskService):
     async def _unload_model(self) -> None:
         self.model = None
 
-    def _get_model_path(self) -> str:
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            from .huggingface_hub import get_model_path
-            return get_model_path(self.config.model)
+    def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
+        return {}
 
-        if isinstance(self.config.model, LocalModelConfig):
-            return self.config.model.path
-
-        if isinstance(self.config.model, str):
-            return self.config.model
-
-        raise ValueError(f"Unknown model config type: {type(self.config.model)}")
-
-    def _get_model_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
+    def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:
+        options: Dict[str, Any] = {}
 
         if self._resolve_device(self.config.device).type != "cpu":
-            params["n_gpu_layers"] = -1
+            options["n_gpu_layers"] = -1
 
-        options = getattr(self.config, "options", None)
-        if isinstance(options, LlamaCppEngineOptionsConfig):
-            for field, value in options.model_dump(exclude_none=True).items():
-                params[field] = value
+        engine_options = getattr(config, "options", None)
 
-        params.setdefault("verbose", False)
+        if isinstance(engine_options, LlamaCppEngineOptionsConfig):
+            for field, value in engine_options.model_dump(exclude_none=True).items():
+                options[field] = value
 
-        return params
+        options.setdefault("verbose", False)
+
+        return options

@@ -117,7 +117,6 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `audio` | audio | Yes | - | Input audio file (MP3, WAV, FLAC, etc.) |
-| `sample_rate` | integer | No | `16000` | Target sample rate; input is resampled if needed |
 | `num_speakers` | integer | No | `null` | Exact number of speakers if known; overrides min/max |
 | `min_speakers` | integer | No | `null` | Minimum number of speakers to consider |
 | `max_speakers` | integer | No | `null` | Maximum number of speakers to consider |
@@ -142,9 +141,9 @@ The workflow output is a flat JSON array of speaker turns.
 ```json
 {
   "segments": [
-    { "speaker": "SPEAKER_00", "start": 0.50, "end": 3.20, "confidence": 1.0 },
-    { "speaker": "SPEAKER_01", "start": 3.40, "end": 7.10, "confidence": 1.0 },
-    { "speaker": "SPEAKER_00", "start": 7.20, "end": 9.85, "confidence": 1.0 }
+    { "speaker": "SPEAKER_00", "start_time": 0.50, "end_time": 3.20, "confidence": 1.0 },
+    { "speaker": "SPEAKER_01", "start_time": 3.40, "end_time": 7.10, "confidence": 1.0 },
+    { "speaker": "SPEAKER_00", "start_time": 7.20, "end_time": 9.85, "confidence": 1.0 }
   ]
 }
 ```

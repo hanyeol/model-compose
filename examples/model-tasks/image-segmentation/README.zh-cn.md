@@ -144,7 +144,7 @@ model:
 |---|---|---|---|
 | `image` | image | （必需） | 输入图像 |
 | `box_prompt` | `[x, y, w, h]` 或 `[[x, y, w, h], ...]` | `null` | 框提示。省略时以自动模式运行 |
-| `min_confidence` | float | `0.5` | 最小分割置信度 |
-| `min_area` | int | `null` | 最小掩码面积（像素，用作噪声过滤） |
 | `max_segment_count` | int | `100` | 每张图像的最大分割数 |
 | `return_mask` | bool | `true` | 以 PNG 返回每个分割的二值掩码 |
+| `params.min_confidence` | float | `0.5` | 最小分割置信度 |
+| `params.min_area` | int | `null` | 最小掩码面积（像素，用作噪声过滤） |

@@ -97,7 +97,8 @@ component:
   action:
     image: ${input.image as image}
     labels: [ your_class_a, your_class_b ]
-    min_confidence: 0.3
+    params:
+      min_confidence: 0.3
 ```
 
 세그멘테이션 체크포인트(`yolo11*-seg.pt` 등)도 지원됩니다 - 경계 상자만 읽고 마스크는 무시됩니다.
@@ -108,8 +109,8 @@ component:
 |---|---|---|---|
 | `image` | image | (필수) | 입력 이미지 |
 | `labels` | list[str] | `null` | 이 클래스 레이블로 감지 제한. 알 수 없는 레이블은 즉시 실패 |
-| `min_confidence` | float | `0.25` | 최소 감지 신뢰도 |
 | `max_object_count` | int | `300` | 이미지당 최대 감지 수 |
-| `iou_threshold` | float | `0.7` | 비최대 억제를 위한 IoU 임계값 |
-| `agnostic_nms` | bool | `false` | 모든 레이블에 대해 클래스 불가지론적 NMS 수행 |
 | `bounding_box_padding` | float | `0.0` | 각 경계 상자를 모든 방향으로 너비/높이 비율만큼 확장 (예: `0.1` = 10%). 이미지 경계로 제한됨. 상자를 크롭이나 SAM 박스 프롬프트에 전달할 때 유용 |
+| `params.min_confidence` | float | `0.25` | 최소 감지 신뢰도 |
+| `params.iou_threshold` | float | `0.7` | 비최대 억제를 위한 IoU 임계값 |
+| `params.agnostic_nms` | bool | `false` | 모든 레이블에 대해 클래스 불가지론적 NMS 수행 |

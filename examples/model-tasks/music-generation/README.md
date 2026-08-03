@@ -139,6 +139,7 @@ component:
 action:
   prompt: ${input.prompt as text}
   lyrics: ${input.lyrics as text}
+  seed: 42
   params:
     duration: 60
     bpm: 140
@@ -146,7 +147,6 @@ action:
     time_signature: 3/4
     inference_steps: 32
     guidance_scale: 7.5
-    seed: 42
 ```
 
 ### Using Higher Quality Preset

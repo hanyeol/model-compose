@@ -118,7 +118,6 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |-----------|------|----------|---------|-------------|
 | `audio` | audio | 是 | - | 输入音乐文件（MP3、WAV、FLAC 等） |
-| `sample_rate` | integer | 否 | `44100` | 目标采样率；如有必要输入将被重采样 |
 | `overlap` | float | 否 | `0.25` | 分块之间的重叠比率 (0.0-0.99)；越高越干净但越慢 |
 | `shifts` | integer | 否 | `1` | 随机偏移平均次数；越高越干净但越慢 |
 
@@ -171,7 +170,7 @@ component:
   action:
     audio: ${input.audio as audio}
     params:
-      stems: [vocals]   # 或 [vocals, instrumental]
+      stems: [ vocals ]   # 或 [vocals, instrumental]
 ```
 
 MDX-Net 人声模型产生 `vocals` 音轨；互补的 `instrumental` 音轨通过从原始混音中减去得到。设置要求：`onnxruntime`、`torch`、`numpy`、`soxr`。
@@ -204,7 +203,7 @@ components:
     action:
       audio: ${input.audio as audio}
       params:
-        stems: [vocals]
+        stems: [ vocals ]
 
   - id: whisper
     type: model

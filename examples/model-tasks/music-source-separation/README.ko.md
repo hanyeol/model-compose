@@ -118,7 +118,6 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `audio` | audio | 예 | - | 입력 음악 파일 (MP3, WAV, FLAC 등) |
-| `sample_rate` | integer | 아니오 | `44100` | 대상 샘플 레이트; 필요 시 입력이 리샘플링됨 |
 | `overlap` | float | 아니오 | `0.25` | 청크 간 오버랩 비율 (0.0-0.99); 높을수록 더 깨끗하지만 느림 |
 | `shifts` | integer | 아니오 | `1` | 임의 이동 평균 횟수; 높을수록 더 깨끗하지만 느림 |
 
@@ -171,7 +170,7 @@ component:
   action:
     audio: ${input.audio as audio}
     params:
-      stems: [vocals]   # 또는 [vocals, instrumental]
+      stems: [ vocals ]   # 또는 [vocals, instrumental]
 ```
 
 MDX-Net 보컬 모델은 `vocals` 스템을 생성합니다; 보완적인 `instrumental` 스템은 원본 믹스에서 뺄셈으로 파생됩니다. 설정 요구사항: `onnxruntime`, `torch`, `numpy`, `soxr`.
@@ -204,7 +203,7 @@ components:
     action:
       audio: ${input.audio as audio}
       params:
-        stems: [vocals]
+        stems: [ vocals ]
 
   - id: whisper
     type: model

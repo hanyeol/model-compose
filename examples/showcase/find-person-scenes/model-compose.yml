@@ -144,10 +144,11 @@ components:
     model: ./models/antelopev2
     action:
       image: ${input.image}
-      face_detection: true
-      alignment: true
-      normalize_embeddings: true
       max_num_faces: 5
+      params:
+        face_detection: true
+        alignment: true
+        normalize_embeddings: true
 
   # ---- Scene detection ----
   - id: scene-detector

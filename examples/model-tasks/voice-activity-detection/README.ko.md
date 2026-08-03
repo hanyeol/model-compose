@@ -137,9 +137,9 @@ Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허�
 ```json
 {
   "segments": [
-    { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
-    { "start": 47.07, "end": 150.02, "confidence": 0.937 },
-    { "start": 151.10, "end": 175.24, "confidence": 0.949 }
+    { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+    { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 },
+    { "start_time": 151.10, "end_time": 175.24, "confidence": 0.949 }
   ]
 }
 ```

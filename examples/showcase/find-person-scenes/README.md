@@ -181,7 +181,7 @@ For a video with 30 detected scenes where the target person appears in 4 of them
 {
   "matched_scenes": [
     {
-      "scene": { "start": "00:00:12.500", "end": "00:00:18.200" },
+      "scene": { "start_time": "00:00:12.500", "end_time": "00:00:18.200" },
       "score": 0.72,
       "timestamp": 14.0,
       "bounding_box": [420, 180, 560, 340]
@@ -189,7 +189,7 @@ For a video with 30 detected scenes where the target person appears in 4 of them
     ...
   ],
   "all_scenes": [
-    { "start": "00:00:00.000", "end": "00:00:04.100" },
+    { "start_time": "00:00:00.000", "end_time": "00:00:04.100" },
     ...
   ]
 }

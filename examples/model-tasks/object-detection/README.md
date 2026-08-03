@@ -97,7 +97,8 @@ component:
   action:
     image: ${input.image as image}
     labels: [ your_class_a, your_class_b ]
-    min_confidence: 0.3
+    params:
+      min_confidence: 0.3
 ```
 
 Segmentation checkpoints (`yolo11*-seg.pt`, etc.) are also supported — only the bounding boxes are read; the masks are ignored.
@@ -108,8 +109,8 @@ Segmentation checkpoints (`yolo11*-seg.pt`, etc.) are also supported — only th
 |---|---|---|---|
 | `image` | image | (required) | Input image |
 | `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels fail fast |
-| `min_confidence` | float | `0.25` | Minimum detection confidence |
 | `max_object_count` | int | `300` | Maximum detections per image |
-| `iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression |
-| `agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |
 | `bounding_box_padding` | float | `0.0` | Expand each bounding box by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes to crop or SAM box prompts |
+| `params.min_confidence` | float | `0.25` | Minimum detection confidence |
+| `params.iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression |
+| `params.agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |

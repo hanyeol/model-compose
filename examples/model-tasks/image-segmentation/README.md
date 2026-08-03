@@ -144,7 +144,7 @@ Available Ultralytics SAM checkpoints: `sam_b.pt`, `sam_l.pt`, `sam2_t.pt`, `sam
 |---|---|---|---|
 | `image` | image | (required) | Input image |
 | `box_prompt` | `[x, y, w, h]` or `[[x, y, w, h], ...]` | `null` | Box prompt(s). If omitted, runs in automatic mode |
-| `min_confidence` | float | `0.5` | Minimum segment confidence |
-| `min_area` | int | `null` | Minimum mask area in pixels (noise filter) |
 | `max_segment_count` | int | `100` | Maximum segments per image |
 | `return_mask` | bool | `true` | Return per-segment binary mask as PNG |
+| `params.min_confidence` | float | `0.5` | Minimum segment confidence |
+| `params.min_area` | int | `null` | Minimum mask area in pixels (noise filter) |

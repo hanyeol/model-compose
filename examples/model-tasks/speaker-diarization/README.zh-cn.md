@@ -117,7 +117,6 @@ graph TD
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `audio` | audio | 是 | - | 输入音频文件(MP3、WAV、FLAC 等) |
-| `sample_rate` | integer | 否 | `16000` | 目标采样率,必要时会重采样 |
 | `num_speakers` | integer | 否 | `null` | 已知说话人数时的精确值,优先于 min/max |
 | `min_speakers` | integer | 否 | `null` | 考虑的最小说话人数 |
 | `max_speakers` | integer | 否 | `null` | 考虑的最大说话人数 |
@@ -142,9 +141,9 @@ duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字秒。
 ```json
 {
   "segments": [
-    { "speaker": "SPEAKER_00", "start": 0.50, "end": 3.20, "confidence": 1.0 },
-    { "speaker": "SPEAKER_01", "start": 3.40, "end": 7.10, "confidence": 1.0 },
-    { "speaker": "SPEAKER_00", "start": 7.20, "end": 9.85, "confidence": 1.0 }
+    { "speaker": "SPEAKER_00", "start_time": 0.50, "end_time": 3.20, "confidence": 1.0 },
+    { "speaker": "SPEAKER_01", "start_time": 3.40, "end_time": 7.10, "confidence": 1.0 },
+    { "speaker": "SPEAKER_00", "start_time": 7.20, "end_time": 9.85, "confidence": 1.0 }
   ]
 }
 ```

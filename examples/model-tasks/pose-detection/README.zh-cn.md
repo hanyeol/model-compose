@@ -134,7 +134,7 @@ graph TD
 |-----------|------|----------|---------|-------------|
 | `image` | image | 是 | - | 输入图像文件（JPEG、PNG 等） |
 | `max_pose_count` | int | 否 | 1 | 每张图像检测的最大姿态数 |
-| `min_confidence` | float | 否 | 0.5 | 最小姿态检测置信度（0.0 - 1.0） |
+| `params.min_confidence` | float | 否 | 0.5 | 最小姿态检测置信度（0.0 - 1.0） |
 | `return_keypoints_3d` | bool | 否 | false | 包含真实 3D 关键点（以髋部为中心，以米为单位） |
 | `return_segmentation_mask` | bool | 否 | false | 为每个姿态包含 PNG 编码的分割掩码 |
 
@@ -226,7 +226,8 @@ component:
   action:
     image: ${input.image as image}
     max_pose_count: 5
-    min_confidence: 0.4
+    params:
+      min_confidence: 0.4
 ```
 
 将 `model` 指向更重的 YOLO 检查点以获得更高精度：

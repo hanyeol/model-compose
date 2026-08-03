@@ -117,7 +117,6 @@ graph TD
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |----------|------|------|--------|------|
 | `audio` | audio | 예 | - | 입력 오디오 파일 (MP3, WAV, FLAC 등) |
-| `sample_rate` | integer | 아니오 | `16000` | 목표 샘플링 레이트. 필요 시 리샘플링됨 |
 | `num_speakers` | integer | 아니오 | `null` | 화자 수를 알고 있을 때의 정확한 값. min/max보다 우선 |
 | `min_speakers` | integer | 아니오 | `null` | 고려할 최소 화자 수 |
 | `max_speakers` | integer | 아니오 | `null` | 고려할 최대 화자 수 |
@@ -142,9 +141,9 @@ duration 필드는 `"250ms"`, `"0.5s"` 또는 초 단위 숫자를 받을 수 �
 ```json
 {
   "segments": [
-    { "speaker": "SPEAKER_00", "start": 0.50, "end": 3.20, "confidence": 1.0 },
-    { "speaker": "SPEAKER_01", "start": 3.40, "end": 7.10, "confidence": 1.0 },
-    { "speaker": "SPEAKER_00", "start": 7.20, "end": 9.85, "confidence": 1.0 }
+    { "speaker": "SPEAKER_00", "start_time": 0.50, "end_time": 3.20, "confidence": 1.0 },
+    { "speaker": "SPEAKER_01", "start_time": 3.40, "end_time": 7.10, "confidence": 1.0 },
+    { "speaker": "SPEAKER_00", "start_time": 7.20, "end_time": 9.85, "confidence": 1.0 }
   ]
 }
 ```

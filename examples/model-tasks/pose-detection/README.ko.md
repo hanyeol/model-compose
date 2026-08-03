@@ -134,7 +134,7 @@ graph TD
 |-----------|------|----------|---------|-------------|
 | `image` | image | 예 | - | 입력 이미지 파일 (JPEG, PNG 등) |
 | `max_pose_count` | int | 아니요 | 1 | 이미지당 검출할 최대 자세 수 |
-| `min_confidence` | float | 아니요 | 0.5 | 최소 자세 검출 신뢰도 (0.0 - 1.0) |
+| `params.min_confidence` | float | 아니요 | 0.5 | 최소 자세 검출 신뢰도 (0.0 - 1.0) |
 | `return_keypoints_3d` | bool | 아니요 | false | 실제 3D 키포인트 포함 (엉덩이 중심, 미터) |
 | `return_segmentation_mask` | bool | 아니요 | false | 자세별 PNG 인코딩 세그멘테이션 마스크 포함 |
 
@@ -226,7 +226,8 @@ component:
   action:
     image: ${input.image as image}
     max_pose_count: 5
-    min_confidence: 0.4
+    params:
+      min_confidence: 0.4
 ```
 
 더 무거운 YOLO 체크포인트로 정확도를 높이려면:

@@ -30,8 +30,9 @@ component:
   action:
     image: ${input.image as image}
     labels: ${input.labels as list}
-    min_confidence: ${input.min_confidence | 0.25}
     max_object_count: ${input.max_object_count | 300}
-    iou_threshold: ${input.iou_threshold | 0.7}
-    agnostic_nms: ${input.agnostic_nms as boolean | false}
     bounding_box_padding: ${input.bounding_box_padding | 0.0}
+    params:
+      min_confidence: ${input.min_confidence | 0.25}
+      iou_threshold: ${input.iou_threshold | 0.7}
+      agnostic_nms: ${input.agnostic_nms as boolean | false}

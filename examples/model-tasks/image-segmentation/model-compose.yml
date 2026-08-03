@@ -30,7 +30,8 @@ component:
   action:
     image: ${input.image as image}
     box_prompt: ${input.box_prompt as json}
-    min_confidence: ${input.min_confidence | 0.5}
-    min_area: ${input.min_area as integer}
     max_segment_count: ${input.max_segment_count | 100}
     return_mask: ${input.return_mask as boolean | true}
+    params:
+      min_confidence: ${input.min_confidence | 0.5}
+      min_area: ${input.min_area as integer}

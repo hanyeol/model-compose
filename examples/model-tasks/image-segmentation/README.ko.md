@@ -144,7 +144,7 @@ model:
 |---|---|---|---|
 | `image` | image | (필수) | 입력 이미지 |
 | `box_prompt` | `[x, y, w, h]` 또는 `[[x, y, w, h], ...]` | `null` | 박스 프롬프트. 생략하면 자동 모드로 실행 |
-| `min_confidence` | float | `0.5` | 세그먼트 최소 신뢰도 |
-| `min_area` | int | `null` | 픽셀 단위 최소 마스크 면적 (노이즈 필터) |
 | `max_segment_count` | int | `100` | 이미지당 최대 세그먼트 수 |
 | `return_mask` | bool | `true` | 세그먼트별 이진 마스크를 PNG로 반환 |
+| `params.min_confidence` | float | `0.5` | 세그먼트 최소 신뢰도 |
+| `params.min_area` | int | `null` | 픽셀 단위 최소 마스크 면적 (노이즈 필터) |

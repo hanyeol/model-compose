@@ -146,7 +146,7 @@ graph TD
 |-----------|------|----------|---------|-------------|
 | `image` | image | Yes | - | Input image file (JPEG, PNG, etc.) |
 | `max_pose_count` | int | No | 1 | Maximum number of poses to detect per image |
-| `min_confidence` | float | No | 0.5 | Minimum pose-detection confidence (0.0 - 1.0) |
+| `params.min_confidence` | float | No | 0.5 | Minimum pose-detection confidence (0.0 - 1.0) |
 | `return_keypoints_3d` | bool | No | false | Include real-world 3D keypoints (hip-centered, meters) |
 | `return_segmentation_mask` | bool | No | false | Include a PNG-encoded segmentation mask per pose |
 | `return_skeleton_image` | bool | No | false | Render a per-pose skeleton image on a black canvas |
@@ -261,7 +261,8 @@ component:
   action:
     image: ${input.image as image}
     max_pose_count: 5
-    min_confidence: 0.4
+    params:
+      min_confidence: 0.4
 ```
 
 Point `model` at a heavier YOLO checkpoint for higher accuracy:

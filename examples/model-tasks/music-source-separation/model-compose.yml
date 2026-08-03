@@ -24,8 +24,7 @@ component:
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}
-    sample_rate: ${input.sample_rate | 44100}
     params:
-      stems: [vocals]
+      stems: [ vocals ]
       overlap: ${input.overlap | 0.25}
       shifts: ${input.shifts | 1}

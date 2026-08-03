@@ -118,7 +118,6 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `audio` | audio | Yes | - | Input music file (MP3, WAV, FLAC, etc.) |
-| `sample_rate` | integer | No | `44100` | Target sample rate; input is resampled if needed |
 | `overlap` | float | No | `0.25` | Overlap ratio between chunks (0.0-0.99); higher = cleaner, slower |
 | `shifts` | integer | No | `1` | Random-shift averaging count; higher = cleaner, slower |
 
@@ -171,7 +170,7 @@ component:
   action:
     audio: ${input.audio as audio}
     params:
-      stems: [vocals]   # or [vocals, instrumental]
+      stems: [ vocals ]   # or [vocals, instrumental]
 ```
 
 MDX-Net vocal models produce a `vocals` stem; the complementary `instrumental` stem is derived by subtraction from the original mix. Setup requirements: `onnxruntime`, `torch`, `numpy`, `soxr`.
@@ -204,7 +203,7 @@ components:
     action:
       audio: ${input.audio as audio}
       params:
-        stems: [vocals]
+        stems: [ vocals ]
 
   - id: whisper
     type: model

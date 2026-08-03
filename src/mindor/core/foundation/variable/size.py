@@ -25,4 +25,8 @@ def parse_size(value: Union[str, int, float]) -> int:
     if value.endswith("B"):
         return int(float(value[:-1]))
 
-    raise ValueError(f"Unsupported size format: {value}")
+    # Bare numeric strings ("1024", "2048.0") are treated as bytes.
+    try:
+        return int(float(value))
+    except ValueError:
+        raise ValueError(f"Unsupported size format: {value}")

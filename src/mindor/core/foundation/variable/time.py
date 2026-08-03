@@ -22,7 +22,11 @@ def parse_duration(value: Union[str, float, int]) -> float:
     if value.endswith("d"):
         return timedelta(days=float(value[:-1])).total_seconds()
 
-    raise ValueError(f"Unsupported duration format: {value}")
+    # Bare numeric strings ("30", "1.5") are treated as seconds.
+    try:
+        return timedelta(seconds=float(value)).total_seconds()
+    except ValueError:
+        raise ValueError(f"Unsupported duration format: {value}")
 
 def parse_datetime(value: Union[str, datetime], timezone: Optional[str]) -> datetime:
     time = datetime.fromisoformat(value) if isinstance(value, str) else value

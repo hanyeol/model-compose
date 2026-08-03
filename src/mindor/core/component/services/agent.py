@@ -42,7 +42,13 @@ class AgentAction:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
                     model_input = await self._render_model_input(context, messages or initial_messages, tools)
-                    response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input, workflow=context.workflow, job_id=context.job_id)
+                    response = await self.model_component.run(
+                        self.component_config.model.action,
+                        ulid.ulid(),
+                        model_input,
+                        workflow=context.workflow,
+                        job_id=context.job_id
+                    )
                     response = await self._render_model_response(context, response)
 
                     assistant_message = await self._build_assistant_message(response)
@@ -64,7 +70,13 @@ class AgentAction:
         else:
             for _ in range(max_iteration_count):
                 model_input = await self._render_model_input(context, messages or initial_messages, tools)
-                response = await self.model_component.run(self.component_config.model.action, ulid.ulid(), model_input, workflow=context.workflow, job_id=context.job_id)
+                response = await self.model_component.run(
+                    self.component_config.model.action,
+                    ulid.ulid(),
+                    model_input,
+                    workflow=context.workflow,
+                    job_id=context.job_id
+                )
                 response = await self._render_model_response(context, response)
 
                 assistant_message = await self._build_assistant_message(response)

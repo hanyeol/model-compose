@@ -164,16 +164,16 @@ All workflows return a flat list of detected scenes.
 [
   {
     "index": 0,
-    "start": "00:00:00.000",
-    "end": "00:00:12.345",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:12.345",
     "start_frame": 0,
     "end_frame": 370,
     "duration": "00:00:12.345"
   },
   {
     "index": 1,
-    "start": "00:00:12.345",
-    "end": "00:00:28.678",
+    "start_time": "00:00:12.345",
+    "end_time": "00:00:28.678",
     "start_frame": 370,
     "end_frame": 860,
     "duration": "00:00:16.333"

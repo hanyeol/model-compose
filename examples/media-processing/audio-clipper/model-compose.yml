@@ -1,0 +1,55 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: clip-single
+    title: Clip Single Span
+    description: Extract a single time range from an audio file
+    job:
+      component: clipper
+      action: clip-single
+      output:
+        audio: ${output as audio}
+
+  - id: clip-multiple
+    title: Clip Multiple Spans
+    description: Extract multiple time ranges from an audio file and return them as a list
+    job:
+      component: clipper
+      action: clip-multiple
+      output:
+        audios: ${output as audio[]}
+
+  - id: clip-and-merge
+    title: Clip and Merge
+    description: Extract multiple time ranges and concatenate them into a single audio file
+    job:
+      component: clipper
+      action: clip-and-merge
+      output:
+        audio: ${output as audio}
+
+components:
+  - id: clipper
+    type: audio-clipper
+    actions:
+      - id: clip-single
+        audio: ${input.audio as audio}
+        span:
+          start_time: ${input.start_time | 0s}
+          end_time: ${input.end_time | 10s}
+
+      - id: clip-multiple
+        audio: ${input.audio as audio}
+        span: ${input.spans as json}
+
+      - id: clip-and-merge
+        audio: ${input.audio as audio}
+        span: ${input.spans as json}
+        merge: true

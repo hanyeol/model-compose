@@ -1,0 +1,55 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: clip-single
+    title: Clip Single Span
+    description: Extract a single time range from a video file
+    job:
+      component: clipper
+      action: clip-single
+      output:
+        video: ${output as video}
+
+  - id: clip-multiple
+    title: Clip Multiple Spans
+    description: Extract multiple time ranges from a video file and return them as a list
+    job:
+      component: clipper
+      action: clip-multiple
+      output:
+        videos: ${output as video[]}
+
+  - id: clip-and-merge
+    title: Clip and Merge
+    description: Extract multiple time ranges and concatenate them into a single video file
+    job:
+      component: clipper
+      action: clip-and-merge
+      output:
+        video: ${output as video}
+
+components:
+  - id: clipper
+    type: video-clipper
+    actions:
+      - id: clip-single
+        video: ${input.video as video}
+        span:
+          start_time: ${input.start_time | 0s}
+          end_time: ${input.end_time | 10s}
+
+      - id: clip-multiple
+        video: ${input.video as video}
+        span: ${input.spans as json}
+
+      - id: clip-and-merge
+        video: ${input.video as video}
+        span: ${input.spans as json}
+        merge: true

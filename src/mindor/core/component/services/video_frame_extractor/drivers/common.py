@@ -8,7 +8,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.variable.time import parse_time
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -63,10 +62,10 @@ class VideoFrameExtractorAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        frame_interval  = int(await context.render_variable(self.config.frame_interval))
-        start_time      = parse_time(await context.render_variable(self.config.start_time)) if self.config.start_time else None
-        end_time        = parse_time(await context.render_variable(self.config.end_time)) if self.config.end_time else None
-        max_frame_count = int(await context.render_variable(self.config.max_frame_count)) if self.config.max_frame_count is not None else None
+        frame_interval  = await context.render_scalar(self.config.frame_interval, int)
+        start_time      = await context.render_time(self.config.start_time)
+        end_time        = await context.render_time(self.config.end_time)
+        max_frame_count = await context.render_scalar(self.config.max_frame_count, int)
         filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
 
         if frame_interval < 1:

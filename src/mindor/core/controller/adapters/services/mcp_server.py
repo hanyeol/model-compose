@@ -220,7 +220,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                 resource=BlobResourceContents(
                     uri=f"resource://{task_id}/{name or 'output'}",
                     mimeType="application/octet-stream",
-                    blob=await encode_value_to_base64(value),
+                    blob= await encode_value_to_base64(value),
                 ),
             )
 

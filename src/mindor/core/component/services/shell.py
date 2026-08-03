@@ -7,7 +7,6 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.shell import run_command_foreground, run_command
-from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
@@ -73,7 +72,7 @@ class ShellAction:
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         working_dir = await self._resolve_working_directory()
         env         = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
-        timeout     = parse_duration(await context.render_variable(self.config.timeout)) if self.config.timeout else None
+        timeout     = await context.render_duration(self.config.timeout) if self.config.timeout else None
 
         return {
             "working_dir": working_dir,

@@ -50,9 +50,9 @@ class FaceEmbeddingTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        face_detection       = bool(await context.render_variable(self.config.face_detection))
-        alignment            = bool(await context.render_variable(self.config.alignment))
-        normalize_embeddings = bool(await context.render_variable(self.config.normalize_embeddings))
+        face_detection       = await context.render_scalar(self.config.face_detection, bool)
+        alignment            = await context.render_scalar(self.config.alignment, bool)
+        normalize_embeddings = await context.render_scalar(self.config.normalize_embeddings, bool)
 
         return {
             "face_detection":       face_detection,

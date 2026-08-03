@@ -6,7 +6,6 @@ from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSin
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.variable.time import parse_time
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -32,9 +31,9 @@ class AudioPlaybackAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sink            = await context.render_variable(self.config.sink)
         device          = await context.render_variable(self.config.device) if self.config.device is not None else None
-        volume          = float(await context.render_variable(self.config.volume))
-        duration        = parse_time(await context.render_variable(self.config.duration)) if self.config.duration is not None else None
-        wait_for_finish = bool(await context.render_variable(self.config.wait_for_finish))
+        volume          = await context.render_scalar(self.config.volume, float)
+        duration        = await context.render_time(self.config.duration, None)
+        wait_for_finish = await context.render_scalar(self.config.wait_for_finish, bool)
 
         return {
             "sink":            AudioPlaybackSink(sink) if not isinstance(sink, AudioPlaybackSink) else sink,

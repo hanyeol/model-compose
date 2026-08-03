@@ -6,7 +6,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.rate_limit import RateLimiter
-from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.logger import logging
 from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -61,13 +60,13 @@ class WebScraperAction(ComponentAction):
         selector          = await context.render_variable(self.config.selector) if self.config.selector else None
         xpath             = await context.render_variable(self.config.xpath) if self.config.xpath else None
         extract_mode      = await context.render_variable(self.config.extract_mode)
-        attribute         = await context.render_variable(self.config.attribute) if self.config.attribute else None
+        attribute         = await context.render_string(self.config.attribute)
         multiple          = await context.render_variable(self.config.multiple)
         enable_javascript = await context.render_variable(self.config.enable_javascript)
         wait_until        = await context.render_variable(self.config.wait_until)
-        wait_for          = await context.render_variable(self.config.wait_for) if self.config.wait_for else None
+        wait_for          = await context.render_string(self.config.wait_for)
         submit            = await context.render_variable(self.config.submit) if self.config.submit else None
-        timeout           = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 60.0)
+        timeout           = await context.render_duration(self.config.timeout, self.timeout or 60.0)
 
         # Merge headers and cookies: component defaults + action overrides
         merged_headers = { **self.headers, **headers }

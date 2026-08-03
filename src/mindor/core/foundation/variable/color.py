@@ -1,13 +1,6 @@
-from typing import Optional, Tuple, Union, Any
+from typing import Tuple, Union
 
 Color = Tuple[int, int, int, int]
-
-class ColorValueRenderer:
-    async def render(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
-        if isinstance(value, (str, list, tuple)):
-            return parse_color(value)
-
-        return default
 
 def parse_color(value: Union[str, list, tuple]) -> Color:
     if isinstance(value, (list, tuple)):

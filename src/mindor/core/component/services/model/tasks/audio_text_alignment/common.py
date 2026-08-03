@@ -9,7 +9,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.variable.time import parse_duration
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
@@ -51,10 +50,10 @@ class AudioTextAlignmentTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        language          = await context.render_variable(self.config.language) if self.config.language else None
-        chunk_length      = float(await context.render_variable(self.config.chunk_length))
-        chunk_overlap     = parse_duration(await context.render_variable(self.config.chunk_overlap))
-        return_confidence = bool(await context.render_variable(self.config.return_confidence))
+        language          = await context.render_string(self.config.language)
+        chunk_length      = await context.render_scalar(self.config.chunk_length, float)
+        chunk_overlap     = await context.render_duration(self.config.chunk_overlap)
+        return_confidence = await context.render_scalar(self.config.return_confidence, bool)
 
         if chunk_overlap >= chunk_length:
             raise ValueError(f"'chunk_overlap' ({chunk_overlap}s) must be smaller than 'chunk_length' ({chunk_length}s).")

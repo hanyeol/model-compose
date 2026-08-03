@@ -99,7 +99,7 @@ class HttpCallbackListener(ListenerService):
         return _handler
 
     async def _is_callback_succeeded(self, callback: HttpCallbackConfig, context: HttpCallbackContext) -> bool:
-        status = (await context.render_variable(callback.status)) if callback.status else None
+        status = await context.render_string(callback.status)
 
         if status:
             if status in (callback.success_when or []):

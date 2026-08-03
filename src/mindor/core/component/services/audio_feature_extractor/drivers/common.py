@@ -9,7 +9,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.variable.time import parse_duration
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -65,18 +64,18 @@ class AudioFeatureExtractorAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, feature: AudioFeature, context: ComponentActionContext) -> Dict[str, Any]:
-        sample_rate = int(await context.render_variable(self.config.sample_rate))
-        fps         = int(await context.render_variable(self.config.fps))
+        sample_rate = await context.render_scalar(self.config.sample_rate, int)
+        fps         = await context.render_scalar(self.config.fps, int)
 
         if feature == AudioFeature.SPECTRUM:
-            band_count      = int(await context.render_variable(self.config.band_count))
-            min_frequency   = float(await context.render_variable(self.config.min_frequency))
-            max_frequency   = float(await context.render_variable(self.config.max_frequency)) if self.config.max_frequency is not None else None
-            window_size     = int(await context.render_variable(self.config.window_size))
+            band_count      = await context.render_scalar(self.config.band_count, int)
+            min_frequency   = await context.render_scalar(self.config.min_frequency, float)
+            max_frequency   = await context.render_scalar(self.config.max_frequency, float)
+            window_size     = await context.render_scalar(self.config.window_size, int)
             window_type     = await context.render_variable(self.config.window_type)
             frequency_scale = await context.render_variable(self.config.frequency_scale)
             normalize_mode  = await context.render_variable(self.config.normalize_mode)
-            percentile      = float(await context.render_variable(self.config.percentile))
+            percentile      = await context.render_scalar(self.config.percentile, float)
 
             return {
                 "sample_rate":     sample_rate,
@@ -92,10 +91,10 @@ class AudioFeatureExtractorAction(ComponentAction):
             }
 
         if feature == AudioFeature.WAVEFORM:
-            point_count     = int(await context.render_variable(self.config.point_count))
-            window_duration = parse_duration(await context.render_variable(self.config.window_duration))
+            point_count     = await context.render_scalar(self.config.point_count, int)
+            window_duration = await context.render_duration(self.config.window_duration)
             summary_mode    = await context.render_variable(self.config.summary_mode)
-            rectify         = bool(await context.render_variable(self.config.rectify))
+            rectify         = await context.render_scalar(self.config.rectify, bool)
 
             return {
                 "sample_rate":     sample_rate,

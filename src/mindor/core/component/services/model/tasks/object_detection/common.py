@@ -45,11 +45,11 @@ class ObjectDetectionTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         labels               = await context.render_variable(self.config.labels)
-        min_confidence       = float(await context.render_variable(self.config.min_confidence))
-        max_object_count     = int(await context.render_variable(self.config.max_object_count))
-        iou_threshold        = float(await context.render_variable(self.config.iou_threshold))
-        agnostic_nms         = bool(await context.render_variable(self.config.agnostic_nms))
-        bounding_box_padding = float(await context.render_variable(self.config.bounding_box_padding))
+        min_confidence       = await context.render_scalar(self.config.min_confidence, float)
+        max_object_count     = await context.render_scalar(self.config.max_object_count, int)
+        iou_threshold        = await context.render_scalar(self.config.iou_threshold, float)
+        agnostic_nms         = await context.render_scalar(self.config.agnostic_nms, bool)
+        bounding_box_padding = await context.render_scalar(self.config.bounding_box_padding, float)
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")

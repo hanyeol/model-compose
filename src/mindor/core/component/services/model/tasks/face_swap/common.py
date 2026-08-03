@@ -50,8 +50,8 @@ class FaceSwapTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        swap_all_faces = bool(await context.render_variable(self.config.swap_all_faces))
-        face_index     = int(await context.render_variable(self.config.face_index))
+        swap_all_faces = await context.render_scalar(self.config.swap_all_faces, bool)
+        face_index     = await context.render_scalar(self.config.face_index, int)
 
         if face_index < 0:
             raise ValueError(f"'face_index' must be >= 0, got {face_index}")

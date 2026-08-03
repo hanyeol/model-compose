@@ -53,7 +53,7 @@ class MusicSourceSeparationTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        sample_rate        = int(await context.render_variable(self.config.sample_rate))
+        sample_rate        = await context.render_scalar(self.config.sample_rate, int)
         stems              = await context.render_variable(self.config.params.stems)
         output_sample_rate = await context.render_variable(self.config.params.output_sample_rate)
         overlap            = await context.render_variable(self.config.params.overlap)

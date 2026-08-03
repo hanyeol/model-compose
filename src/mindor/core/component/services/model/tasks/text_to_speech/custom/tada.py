@@ -40,7 +40,7 @@ class TadaTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
 
         reference_audio = await context.render_file(self.config.reference_audio)
         reference_text  = await context.render_variable(self.config.reference_text)
-        seed            = int(await context.render_variable(self.config.seed)) if self.config.seed is not None else None
+        seed            = await context.render_scalar(self.config.seed, int)
 
         params.update({
             "reference_audio": reference_audio,

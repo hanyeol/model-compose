@@ -7,7 +7,6 @@ from mindor.dsl.schema.action import (
     ScreenCaptureVideoSource,
     ScreenCaptureAudioSource,
 )
-from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.enum import coerce_enum
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
@@ -29,13 +28,13 @@ class ScreenCaptureAction(MediaComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         video_source  = coerce_enum(await context.render_variable(self.config.video_source), ScreenCaptureVideoSource, "video_source")
         audio_source  = coerce_enum(await context.render_variable(self.config.audio_source), ScreenCaptureAudioSource, "audio_source")
-        include_video = bool(await context.render_variable(self.config.include_video))
-        include_audio = bool(await context.render_variable(self.config.include_audio))
-        display       = int(await context.render_variable(self.config.display))
+        include_video = await context.render_scalar(self.config.include_video, bool)
+        include_audio = await context.render_scalar(self.config.include_audio, bool)
+        display       = await context.render_scalar(self.config.display, int)
         region        = await self._resolve_region(context) if self.config.region is not None else None
-        framerate     = float(await context.render_variable(self.config.framerate))
+        framerate     = await context.render_scalar(self.config.framerate, float)
         encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
-        duration      = parse_time(await context.render_variable(self.config.duration)) if self.config.duration is not None else None
+        duration      = await context.render_time(self.config.duration, None)
 
         if framerate <= 0:
             raise ValueError(f"'framerate' must be > 0, got {framerate}")
@@ -59,10 +58,10 @@ class ScreenCaptureAction(MediaComponentAction):
         }
 
     async def _resolve_region(self, context: ComponentActionContext) -> Dict[str, int]:
-        x      = int(await context.render_variable(self.config.region.x))
-        y      = int(await context.render_variable(self.config.region.y))
-        width  = int(await context.render_variable(self.config.region.width))
-        height = int(await context.render_variable(self.config.region.height))
+        x      = await context.render_scalar(self.config.region.x, int)
+        y      = await context.render_scalar(self.config.region.y, int)
+        width  = await context.render_scalar(self.config.region.width, int)
+        height = await context.render_scalar(self.config.region.height, int)
 
         if width <= 0 or height <= 0:
             raise ValueError(f"region size must be > 0, got width={width}, height={height}")

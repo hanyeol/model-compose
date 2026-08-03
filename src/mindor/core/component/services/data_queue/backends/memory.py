@@ -41,7 +41,7 @@ class MemoryDataQueueService(DataQueueService):
 
     async def _enqueue(self, action: MemoryDataQueueEnqueueActionConfig, context: ComponentActionContext) -> None:
         item   = await context.render_variable(action.item)
-        spread = bool(await context.render_variable(action.spread))
+        spread = await context.render_scalar(action.spread, bool)
 
         session = await self._resolve_session(action, context)
         queue = self._get_or_create_queue(session)

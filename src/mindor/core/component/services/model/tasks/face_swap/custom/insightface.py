@@ -30,7 +30,7 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        detection_threshold = float(await context.render_variable(self.config.detection_threshold))
+        detection_threshold = await context.render_scalar(self.config.detection_threshold, float)
 
         if not 0.0 <= detection_threshold <= 1.0:
             raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {detection_threshold}")

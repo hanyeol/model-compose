@@ -45,10 +45,10 @@ class ImageSegmentationTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         box_prompt        = await context.render_variable(self.config.box_prompt)
-        min_confidence    = float(await context.render_variable(self.config.min_confidence))
-        min_area          = int(await context.render_variable(self.config.min_area)) if self.config.min_area is not None else None
-        max_segment_count = int(await context.render_variable(self.config.max_segment_count))
-        return_mask       = bool(await context.render_variable(self.config.return_mask))
+        min_confidence    = await context.render_scalar(self.config.min_confidence, float)
+        min_area          = await context.render_scalar(self.config.min_area, int)
+        max_segment_count = await context.render_scalar(self.config.max_segment_count, int)
+        return_mask       = await context.render_scalar(self.config.return_mask, bool)
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")

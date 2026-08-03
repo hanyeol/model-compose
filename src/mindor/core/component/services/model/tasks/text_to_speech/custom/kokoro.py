@@ -53,7 +53,7 @@ class KokoroTextToSpeechGenerateTaskAction(TextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         voice     = (await context.render_variable(self.config.voice)) or "af_heart"
-        speed     = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
+        speed     = await context.render_scalar(self.config.speed, float, 1.0)
         lang_code = self._resolve_lang_code(await context.render_variable(self.config.language))
 
         params.update({

@@ -7,7 +7,6 @@ from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMet
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
-from mindor.core.foundation.variable.time import parse_duration
 from PIL import Image as PILImage
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
@@ -115,7 +114,7 @@ class WebBrowserAction(MediaComponentAction):
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
-        timeout = parse_duration((await context.render_variable(self.config.timeout) if self.config.timeout else self.timeout) or 30.0)
+        timeout = await context.render_duration(self.config.timeout, self.timeout or 30.0)
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
@@ -162,8 +161,8 @@ class WebBrowserAction(MediaComponentAction):
             selector     = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath        = await context.render_variable(self.config.xpath) if self.config.xpath else None
             extract_mode = await context.render_variable(self.config.extract_mode)
-            attribute    = await context.render_variable(self.config.attribute) if self.config.attribute else None
-            multiple     = bool(await context.render_variable(self.config.multiple))
+            attribute    = await context.render_string(self.config.attribute)
+            multiple     = await context.render_scalar(self.config.multiple, bool)
 
             if selector:
                 if isinstance(selector, dict):
@@ -183,7 +182,7 @@ class WebBrowserAction(MediaComponentAction):
 
         if method == WebBrowserActionMethod.SCREENSHOT:
             selector  = await context.render_variable(self.config.selector) if self.config.selector else None
-            full_page = bool(await context.render_variable(self.config.full_page))
+            full_page = await context.render_scalar(self.config.full_page, bool)
             format    = await context.render_variable(self.config.format)
             quality   = await context.render_variable(self.config.quality) if self.config.quality is not None else None
 
@@ -193,10 +192,10 @@ class WebBrowserAction(MediaComponentAction):
         if method == WebBrowserActionMethod.CAPTURE_VIDEO:
             url                 = await context.render_variable(self.config.url) if self.config.url else None
             selector            = await context.render_variable(self.config.selector) if self.config.selector else None
-            include_video_track = bool(await context.render_variable(self.config.include_video_track))
-            include_audio_track = bool(await context.render_variable(self.config.include_audio_track))
+            include_video_track = await context.render_scalar(self.config.include_video_track, bool)
+            include_audio_track = await context.render_scalar(self.config.include_audio_track, bool)
             encoding            = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
-            duration            = parse_duration(await context.render_variable(self.config.duration)) if self.config.duration else None
+            duration            = await context.render_duration(self.config.duration) if self.config.duration else None
 
             return await session.capture_video(url, selector, include_video_track, include_audio_track, encoding, duration)
 
@@ -213,7 +212,7 @@ class WebBrowserAction(MediaComponentAction):
             selector    = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath       = await context.render_variable(self.config.xpath) if self.config.xpath else None
             text        = await context.render_variable(self.config.text)
-            clear_first = bool(await context.render_variable(self.config.clear_first))
+            clear_first = await context.render_scalar(self.config.clear_first, bool)
 
             if text is None:
                 raise ValueError("'text' must be specified for 'input-text' method")
@@ -223,8 +222,8 @@ class WebBrowserAction(MediaComponentAction):
         if method == WebBrowserActionMethod.SCROLL:
             selector = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath    = await context.render_variable(self.config.xpath) if self.config.xpath else None
-            x        = int(await context.render_variable(self.config.x)) if self.config.x is not None else None
-            y        = int(await context.render_variable(self.config.y)) if self.config.y is not None else None
+            x        = await context.render_scalar(self.config.x, int)
+            y        = await context.render_scalar(self.config.y, int)
 
             return await session.scroll(selector, xpath, x, y)
 

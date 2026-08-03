@@ -13,20 +13,20 @@ class MediaComponentAction(ComponentAction):
     async def _resolve_encoding_params(
         self, context: ComponentActionContext, encoding: VideoAudioEncodingConfig,
     ) -> VideoAudioEncodingParams:
-        format = await context.render_variable(encoding.format) if encoding.format else None
+        format = await context.render_string(encoding.format)
 
         return VideoAudioEncodingParams(
             format=format,
-            video=await self._resolve_video_encoder(context, encoding.video) if encoding.video else None,
-            audio=await self._resolve_audio_encoder(context, encoding.audio) if encoding.audio else None,
+            video= await self._resolve_video_encoder(context, encoding.video) if encoding.video else None,
+            audio= await self._resolve_audio_encoder(context, encoding.audio) if encoding.audio else None,
         )
 
     async def _resolve_video_encoder(
         self, context: ComponentActionContext, video: VideoEncoderConfig,
     ) -> VideoEncoderParams:
-        codec      = await context.render_variable(video.codec)      if video.codec      else None
-        bitrate    = await context.render_variable(video.bitrate)    if video.bitrate    else None
-        resolution = await context.render_variable(video.resolution) if video.resolution else None
+        codec      = await context.render_string(video.codec)
+        bitrate    = await context.render_string(video.bitrate)
+        resolution = await context.render_string(video.resolution)
         fps        = await context.render_variable(video.fps)        if video.fps        else None
 
         return VideoEncoderParams(
@@ -39,8 +39,8 @@ class MediaComponentAction(ComponentAction):
     async def _resolve_audio_encoder(
         self, context: ComponentActionContext, audio: AudioEncoderConfig,
     ) -> AudioEncoderParams:
-        codec       = await context.render_variable(audio.codec)       if audio.codec       else None
-        bitrate     = await context.render_variable(audio.bitrate)     if audio.bitrate     else None
+        codec       = await context.render_string(audio.codec)
+        bitrate     = await context.render_string(audio.bitrate)
         sample_rate = await context.render_variable(audio.sample_rate) if audio.sample_rate is not None else None
         channels    = await context.render_variable(audio.channels)    if audio.channels    is not None else None
 

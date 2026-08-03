@@ -8,7 +8,6 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.audio import encode_waveform_to_pcm, AudioBuffer
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
-from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 from ....action.base import ComponentAction
@@ -51,24 +50,24 @@ class AudioProcessorAction(ComponentAction):
 
     async def _resolve_params(self, method: AudioProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == AudioProcessorActionMethod.RESAMPLE:
-            sample_rate = int(await context.render_variable(self.config.sample_rate))
+            sample_rate = await context.render_scalar(self.config.sample_rate, int)
 
             return { "sample_rate": sample_rate }
 
         if method == AudioProcessorActionMethod.HIGHPASS:
-            cutoff = float(await context.render_variable(self.config.cutoff))
+            cutoff = await context.render_scalar(self.config.cutoff, float)
 
             return { "cutoff": cutoff }
 
         if method == AudioProcessorActionMethod.LOWPASS:
-            cutoff = float(await context.render_variable(self.config.cutoff))
+            cutoff = await context.render_scalar(self.config.cutoff, float)
 
             return { "cutoff": cutoff }
 
         if method == AudioProcessorActionMethod.BELL:
-            frequency = float(await context.render_variable(self.config.frequency))
-            gain      = float(await context.render_variable(self.config.gain))
-            q         = float(await context.render_variable(self.config.q))
+            frequency = await context.render_scalar(self.config.frequency, float)
+            gain      = await context.render_scalar(self.config.gain, float)
+            q         = await context.render_scalar(self.config.q, float)
 
             return {
                 "frequency": frequency,
@@ -77,9 +76,9 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.LOW_SHELF:
-            frequency = float(await context.render_variable(self.config.frequency))
-            gain      = float(await context.render_variable(self.config.gain))
-            q         = float(await context.render_variable(self.config.q))
+            frequency = await context.render_scalar(self.config.frequency, float)
+            gain      = await context.render_scalar(self.config.gain, float)
+            q         = await context.render_scalar(self.config.q, float)
 
             return {
                 "frequency": frequency,
@@ -88,9 +87,9 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.HIGH_SHELF:
-            frequency = float(await context.render_variable(self.config.frequency))
-            gain      = float(await context.render_variable(self.config.gain))
-            q         = float(await context.render_variable(self.config.q))
+            frequency = await context.render_scalar(self.config.frequency, float)
+            gain      = await context.render_scalar(self.config.gain, float)
+            q         = await context.render_scalar(self.config.q, float)
 
             return {
                 "frequency": frequency,
@@ -99,20 +98,20 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.PITCH_SHIFT:
-            semitones = float(await context.render_variable(self.config.semitones))
+            semitones = await context.render_scalar(self.config.semitones, float)
 
             return { "semitones": semitones }
 
         if method == AudioProcessorActionMethod.DC_SHIFT:
-            offset = float(await context.render_variable(self.config.offset)) if self.config.offset is not None else 0.0
+            offset = await context.render_scalar(self.config.offset, float, 0.0)
 
             return { "offset": offset }
 
         if method == AudioProcessorActionMethod.COMPRESSOR:
-            threshold = float(await context.render_variable(self.config.threshold))
-            ratio     = float(await context.render_variable(self.config.ratio))
-            attack    = parse_time(await context.render_variable(self.config.attack))
-            release   = parse_time(await context.render_variable(self.config.release))
+            threshold = await context.render_scalar(self.config.threshold, float)
+            ratio     = await context.render_scalar(self.config.ratio, float)
+            attack    = await context.render_time(self.config.attack)
+            release   = await context.render_time(self.config.release)
 
             return {
                 "threshold": threshold,
@@ -122,10 +121,10 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.NOISE_GATE:
-            threshold = float(await context.render_variable(self.config.threshold))
-            ratio     = float(await context.render_variable(self.config.ratio))
-            attack    = parse_time(await context.render_variable(self.config.attack))
-            release   = parse_time(await context.render_variable(self.config.release))
+            threshold = await context.render_scalar(self.config.threshold, float)
+            ratio     = await context.render_scalar(self.config.ratio, float)
+            attack    = await context.render_time(self.config.attack)
+            release   = await context.render_time(self.config.release)
 
             return {
                 "threshold": threshold,
@@ -135,26 +134,26 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.DISTORTION:
-            drive = float(await context.render_variable(self.config.drive))
+            drive = await context.render_scalar(self.config.drive, float)
 
             return { "drive": drive }
 
         if method == AudioProcessorActionMethod.SATURATION:
-            drive = float(await context.render_variable(self.config.drive))
+            drive = await context.render_scalar(self.config.drive, float)
 
             return { "drive": drive }
 
         if method == AudioProcessorActionMethod.GAIN:
-            level = float(await context.render_variable(self.config.level))
+            level = await context.render_scalar(self.config.level, float)
 
             return { "level": level }
 
         if method == AudioProcessorActionMethod.CHORUS:
-            rate     = float(await context.render_variable(self.config.rate))
-            depth    = float(await context.render_variable(self.config.depth))
-            feedback = float(await context.render_variable(self.config.feedback))
-            delay    = parse_time(await context.render_variable(self.config.delay))
-            mix      = float(await context.render_variable(self.config.mix))
+            rate     = await context.render_scalar(self.config.rate, float)
+            depth    = await context.render_scalar(self.config.depth, float)
+            feedback = await context.render_scalar(self.config.feedback, float)
+            delay    = await context.render_time(self.config.delay)
+            mix      = await context.render_scalar(self.config.mix, float)
 
             return {
                 "rate":     rate,
@@ -165,9 +164,9 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.DELAY:
-            time     = parse_time(await context.render_variable(self.config.time))
-            feedback = float(await context.render_variable(self.config.feedback))
-            mix      = float(await context.render_variable(self.config.mix))
+            time     = await context.render_time(self.config.time)
+            feedback = await context.render_scalar(self.config.feedback, float)
+            mix      = await context.render_scalar(self.config.mix, float)
 
             return {
                 "time":     time,
@@ -176,11 +175,11 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.REVERB:
-            room_size = float(await context.render_variable(self.config.room_size))
-            damping   = float(await context.render_variable(self.config.damping))
-            wet_level = float(await context.render_variable(self.config.wet_level))
-            dry_level = float(await context.render_variable(self.config.dry_level))
-            width     = float(await context.render_variable(self.config.width))
+            room_size = await context.render_scalar(self.config.room_size, float)
+            damping   = await context.render_scalar(self.config.damping, float)
+            wet_level = await context.render_scalar(self.config.wet_level, float)
+            dry_level = await context.render_scalar(self.config.dry_level, float)
+            width     = await context.render_scalar(self.config.width, float)
 
             return {
                 "room_size": room_size,
@@ -192,8 +191,8 @@ class AudioProcessorAction(ComponentAction):
 
         if method == AudioProcessorActionMethod.NORMALIZE:
             if self.config.mode == AudioProcessorNormalizeMode.RMS:
-                level      = float(await context.render_variable(self.config.level))
-                peak_limit = float(await context.render_variable(self.config.peak_limit))
+                level      = await context.render_scalar(self.config.level, float)
+                peak_limit = await context.render_scalar(self.config.peak_limit, float)
 
                 return {
                     "mode":       AudioProcessorNormalizeMode.RMS,
@@ -202,7 +201,7 @@ class AudioProcessorAction(ComponentAction):
                 }
 
             if self.config.mode == AudioProcessorNormalizeMode.PEAK:
-                level = float(await context.render_variable(self.config.level))
+                level = await context.render_scalar(self.config.level, float)
 
                 return {
                     "mode":  AudioProcessorNormalizeMode.PEAK,
@@ -210,10 +209,10 @@ class AudioProcessorAction(ComponentAction):
                 }
 
             if self.config.mode == AudioProcessorNormalizeMode.LUFS:
-                level             = float(await context.render_variable(self.config.level))
-                tolerance         = float(await context.render_variable(self.config.tolerance))
-                max_gain          = float(await context.render_variable(self.config.max_gain))
-                true_peak_ceiling = float(await context.render_variable(self.config.true_peak_ceiling))
+                level             = await context.render_scalar(self.config.level, float)
+                tolerance         = await context.render_scalar(self.config.tolerance, float)
+                max_gain          = await context.render_scalar(self.config.max_gain, float)
+                true_peak_ceiling = await context.render_scalar(self.config.true_peak_ceiling, float)
 
                 return {
                     "mode":              AudioProcessorNormalizeMode.LUFS,
@@ -227,7 +226,7 @@ class AudioProcessorAction(ComponentAction):
 
         if method == AudioProcessorActionMethod.PEAK_LIMIT:
             if self.config.mode == AudioProcessorPeakLimitMode.HARD:
-                level = float(await context.render_variable(self.config.level))
+                level = await context.render_scalar(self.config.level, float)
 
                 return {
                     "mode":  AudioProcessorPeakLimitMode.HARD,
@@ -235,8 +234,8 @@ class AudioProcessorAction(ComponentAction):
                 }
 
             if self.config.mode == AudioProcessorPeakLimitMode.SMOOTH:
-                level   = float(await context.render_variable(self.config.level))
-                release = parse_time(await context.render_variable(self.config.release))
+                level   = await context.render_scalar(self.config.level, float)
+                release = await context.render_time(self.config.release)
 
                 return {
                     "mode":    AudioProcessorPeakLimitMode.SMOOTH,
@@ -247,8 +246,8 @@ class AudioProcessorAction(ComponentAction):
             raise ValueError(f"Unsupported peak-limit mode: {self.config.mode}")
 
         if method == AudioProcessorActionMethod.TRIM_EDGES:
-            threshold = float(await context.render_variable(self.config.threshold))
-            padding   = parse_time(await context.render_variable(self.config.padding)) if self.config.padding is not None else 0.0
+            threshold = await context.render_scalar(self.config.threshold, float)
+            padding   = await context.render_time(self.config.padding, 0.0)
 
             return {
                 "threshold": threshold,
@@ -256,11 +255,11 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.TRIM_SILENCE:
-            window               = parse_time(await context.render_variable(self.config.window))
-            threshold            = float(await context.render_variable(self.config.threshold))
-            min_silence          = parse_time(await context.render_variable(self.config.min_silence))
-            max_internal_silence = parse_time(await context.render_variable(self.config.max_internal_silence))
-            fade                 = parse_time(await context.render_variable(self.config.fade))
+            window               = await context.render_time(self.config.window)
+            threshold            = await context.render_scalar(self.config.threshold, float)
+            min_silence          = await context.render_time(self.config.min_silence)
+            max_internal_silence = await context.render_time(self.config.max_internal_silence)
+            fade                 = await context.render_time(self.config.fade)
 
             return {
                 "window":               window,
@@ -271,12 +270,12 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.FADE_IN:
-            duration = parse_time(await context.render_variable(self.config.duration))
+            duration = await context.render_time(self.config.duration)
 
             return { "duration": duration }
 
         if method == AudioProcessorActionMethod.FADE_OUT:
-            duration = parse_time(await context.render_variable(self.config.duration))
+            duration = await context.render_time(self.config.duration)
 
             return { "duration": duration }
 

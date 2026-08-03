@@ -8,7 +8,6 @@ from PIL import Image as PILImage
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
-from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.url import UrlResource
 from ....action.base import ComponentAction
@@ -96,10 +95,10 @@ class HtmlFrameRendererAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        fps             = float(await context.render_variable(self.config.fps))
-        width           = int(await context.render_variable(self.config.width))
-        height          = int(await context.render_variable(self.config.height))
-        ready_timeout   = parse_duration(await context.render_variable(self.config.ready_timeout))
+        fps             = await context.render_scalar(self.config.fps, float)
+        width           = await context.render_scalar(self.config.width, int)
+        height          = await context.render_scalar(self.config.height, int)
+        ready_timeout   = await context.render_duration(self.config.ready_timeout)
         filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
 
         if fps <= 0:

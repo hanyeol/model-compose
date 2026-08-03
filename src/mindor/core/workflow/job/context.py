@@ -3,6 +3,7 @@ from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer
 from mindor.core.foundation.variable.audio import AudioValueRenderer
 from mindor.core.foundation.variable.video import VideoValueRenderer
+from mindor.core.foundation.variable.time import parse_duration
 from mindor.core.workflow.context import WorkflowContext
 
 class JobContext:
@@ -28,6 +29,14 @@ class JobContext:
 
     async def render_video(self, run_id: Optional[str], value: Any) -> Any:
         return await VideoValueRenderer().render(await self.render_variable(run_id, value))
+
+    async def render_duration(self, run_id: Optional[str], value: Any, default: Optional[float] = None) -> Optional[float]:
+        value = await self.render_variable(run_id, value) if value is not None else None
+
+        if value is not None:
+            return parse_duration(value)
+
+        return default
 
     async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         sources = self._sources.get(scope or "__global__", {})

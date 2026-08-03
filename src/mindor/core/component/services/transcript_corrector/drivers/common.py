@@ -84,11 +84,11 @@ class TranscriptCorrectorAction(ComponentAction):
         text_key           = await context.render_variable(self.config.text_key)
         start_time_key     = await context.render_variable(self.config.start_time_key)
         end_time_key       = await context.render_variable(self.config.end_time_key)
-        case_sensitive     = bool(await context.render_variable(self.config.case_sensitive))
-        ignore_punctuation = bool(await context.render_variable(self.config.ignore_punctuation))
-        window_multiplier  = float(await context.render_variable(self.config.window_multiplier)) if self.config.window_multiplier is not None else None
-        min_window_tokens  = int(await context.render_variable(self.config.min_window_tokens)) if self.config.min_window_tokens is not None else None
-        match_threshold    = float(await context.render_variable(self.config.match_threshold)) if self.config.match_threshold is not None else None
+        case_sensitive     = await context.render_scalar(self.config.case_sensitive, bool)
+        ignore_punctuation = await context.render_scalar(self.config.ignore_punctuation, bool)
+        window_multiplier  = await context.render_scalar(self.config.window_multiplier, float)
+        min_window_tokens  = await context.render_scalar(self.config.min_window_tokens, int)
+        match_threshold    = await context.render_scalar(self.config.match_threshold, float)
 
         if isinstance(reference, list):
             reference = " ".join(reference)

@@ -46,9 +46,9 @@ class AudioExtractorAction(MediaComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        format   = await context.render_variable(self.config.format) if self.config.format else "mp3"
+        format   = await context.render_string(self.config.format, "mp3")
         encoding = await self._resolve_audio_encoder(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
-        track    = int(await context.render_variable(self.config.track)) if self.config.track is not None else None
+        track    = await context.render_scalar(self.config.track, int)
 
         return {
             "format":   format,

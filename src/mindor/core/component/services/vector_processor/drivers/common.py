@@ -128,7 +128,7 @@ class VectorProcessorAction(ComponentAction):
             return {}
 
         if method == VectorProcessorActionMethod.TOP_K:
-            k      = int(await context.render_variable(self.config.k)) if self.config.k is not None else 1
+            k      = await context.render_scalar(self.config.k, int, 1)
             metric = self._as_ranking_metric(await context.render_variable(self.config.metric))
 
             return {
@@ -154,7 +154,7 @@ class VectorProcessorAction(ComponentAction):
             return {}
 
         if method in (VectorProcessorActionMethod.MEAN, VectorProcessorActionMethod.SUM):
-            axis = int(await context.render_variable(self.config.axis)) if self.config.axis is not None else 0
+            axis = await context.render_scalar(self.config.axis, int, 0)
 
             return { "axis": axis }
 

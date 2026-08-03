@@ -77,7 +77,7 @@ class HttpClient:
                 merged_headers["User-Agent"] = self._default_user_agent()
 
             response = await self._request_with_session(
-                session=await self._get_session(),
+                session= await self._get_session(),
                 url_or_path=url_or_path,
                 method=method,
                 params={ k: v for k, v in params.items() if v is not None } if params else None,

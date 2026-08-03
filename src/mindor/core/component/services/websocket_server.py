@@ -23,7 +23,7 @@ class WebSocketServerAction:
         format    = await context.render_variable(self.config.receive.format)
         collect   = await context.render_variable(self.config.receive.collect)
         streaming = await context.render_variable(self.config.receive.streaming)
-        timeout   = parse_duration(await context.render_variable(self.config.receive.timeout)) if self.config.receive.timeout else None
+        timeout   = await context.render_duration(self.config.receive.timeout) if self.config.receive.timeout else None
 
         if collect and streaming:
             raise ValueError("'collect' and 'streaming' cannot both be set.")

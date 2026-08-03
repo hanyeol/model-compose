@@ -10,7 +10,6 @@ from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.variable.time import parse_duration
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timezone
@@ -32,8 +31,8 @@ class HttpClientPollingCompletion(HttpClientCompletion):
         body        = await self._resolve_body(context)
         headers     = await context.render_variable(self.config.headers)
 
-        interval = parse_duration((await context.render_variable(self.config.interval)) or 5.0)
-        timeout  = parse_duration((await context.render_variable(self.config.timeout)) or 300.0)
+        interval = await context.render_duration(self.config.interval, 5.0)
+        timeout  = await context.render_duration(self.config.timeout, 300.0)
         deadline = datetime.now(timezone.utc) + timeout
 
         await asyncio.sleep(interval.total_seconds())
@@ -42,7 +41,7 @@ class HttpClientPollingCompletion(HttpClientCompletion):
             response, status_code = await client.request(url_or_path, method, params, body, headers, raise_on_error=False)
             context.register_source("result", response)
 
-            status = (await context.render_variable(self.config.status)) if self.config.status else None
+            status = await context.render_string(self.config.status)
             if status:
                 if status in (self.config.success_when or []):
                     return response

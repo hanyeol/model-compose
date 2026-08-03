@@ -90,8 +90,8 @@ class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         voice         = await context.render_variable(self.config.voice)
-        speed         = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
-        text_frontend = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
+        speed         = await context.render_scalar(self.config.speed, float, 1.0)
+        text_frontend = await context.render_scalar(self.config.text_frontend, bool, True)
 
         params.update({
             "voice":         voice,
@@ -129,8 +129,8 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
 
         prompt_wav     = await self._resolve_reference_audio(context, self.config.reference_audio)
         prompt_text    = await context.render_variable(self.config.reference_text)
-        speed          = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
-        text_frontend  = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
+        speed          = await context.render_scalar(self.config.speed, float, 1.0)
+        text_frontend  = await context.render_scalar(self.config.text_frontend, bool, True)
 
         params.update({
             "prompt_wav":    prompt_wav,
@@ -171,8 +171,8 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
 
         instructions    = await context.render_variable(self.config.instructions)
         reference_audio = await self._resolve_reference_audio(context, self.config.reference_audio)
-        speed           = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
-        text_frontend   = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
+        speed           = await context.render_scalar(self.config.speed, float, 1.0)
+        text_frontend   = await context.render_scalar(self.config.text_frontend, bool, True)
 
         params.update({
             "instructions":    instructions,

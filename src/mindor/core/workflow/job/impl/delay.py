@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.job import DelayJobConfig, DelayJobMode
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.foundation.variable.time import parse_duration, parse_datetime
+from mindor.core.foundation.variable.time import parse_datetime
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
@@ -39,7 +39,7 @@ class DelayJob(Job):
         raise ValueError(f"Unsupported delay mode: {mode}")
 
     async def _delay_for_time_interval(self, context: JobContext) -> Any:
-        duration = parse_duration((await context.render_variable(None, self.config.duration)) or 0.0)
+        duration = await context.render_duration(None, self.config.duration, 0.0)
 
         job_time_tracker = TimeTracker()
         logging.debug("[task-%s] Delay started for time interval: %d seconds.", context.workflow.task_id, int(duration))

@@ -124,7 +124,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
 
         handler = AceStepHandler()
         handler.initialize_service(
-            project_root=await self._provision_model(self.config.model, prefetch=True),
+            project_root= await self._provision_model(self.config.model, prefetch=True),
             config_path=self.config.preset,
             device=self._resolve_device(self.config.device).type,
         )

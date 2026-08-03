@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Awaitable, Callable, Any
+from typing import Type, TypeVar, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Awaitable, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
@@ -11,8 +11,9 @@ from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.foundation.variable.media import MediaValueRenderer
 from mindor.core.foundation.variable.file import FileValueRenderer
 from mindor.core.foundation.variable.text import TextValueRenderer
-from mindor.core.foundation.variable.size import SizeValueRenderer
-from mindor.core.foundation.variable.color import ColorValueRenderer, Color
+from mindor.core.foundation.variable.size import parse_size
+from mindor.core.foundation.variable.time import parse_duration, parse_time
+from mindor.core.foundation.variable.color import parse_color, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue, VectorArrayValue
 from mindor.core.foundation.streaming.media import MediaSource
@@ -23,6 +24,8 @@ from PIL import Image as PILImage
 if TYPE_CHECKING:
     from mindor.core.workflow.context import WorkflowContext
     from mindor.core.workflow.notifiers import ComponentEventNotifier
+
+ScalarT = TypeVar("ScalarT")
 
 ComponentEventPayload = Dict[str, Any]
 ComponentEventCallback = Callable[[ComponentEventPayload], Awaitable[None]]
@@ -104,7 +107,7 @@ class ComponentActionContext:
         self.sources.setdefault(scope or "__global__", {})[key] = source
 
     async def render_variable(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
-        return await self.renderer.render(value, scope, skip_decode=skip_decode)
+        return await self.renderer.render(value, scope, skip_decode=skip_decode) if value is not None else None
 
     async def render_text(self, value: Any, collect: bool = True) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await TextValueRenderer().render(await self.render_variable(value), collect=collect)
@@ -142,11 +145,53 @@ class ComponentActionContext:
     async def render_array(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
         return await ArrayValueRenderer().render(await self.render_variable(value))
 
+    async def render_scalar(self, value: Any, cast: Callable[[Any], ScalarT], default: Optional[ScalarT] = None) -> Optional[ScalarT]:
+        value = await self.render_variable(value) if value is not None else None
+
+        if value is not None:
+            return cast(value)
+
+        return default
+
+    async def render_string(self, value: Any, default: Optional[str] = None) -> Optional[str]:
+        value = await self.render_variable(value) if value is not None else None
+
+        if value:
+            return value
+
+        return default
+
     async def render_size(self, value: Any, default: Optional[int] = None) -> Optional[int]:
-        return await SizeValueRenderer().render(await self.render_variable(value), default)
+        value = await self.render_variable(value) if value is not None else None
+
+        if isinstance(value, (str, int, float)):
+            return parse_size(value)
+
+        return default
+
+    async def render_duration(self, value: Any, default: Optional[float] = None) -> Optional[float]:
+        value = await self.render_variable(value) if value is not None else None
+
+        if value is not None:
+            return parse_duration(value)
+
+        return default
+
+    async def render_time(self, value: Any, default: Optional[float] = None) -> Optional[float]:
+        value = await self.render_variable(value) if value is not None else None
+
+        if value is not None:
+            return parse_time(value)
+
+        return default
 
     async def render_color(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
-        return await ColorValueRenderer().render(await self.render_variable(value), default)
+        value = await self.render_variable(value) if value is not None else None
+
+        if isinstance(value, (str, list, tuple)):
+            return parse_color(value)
+
+        return default
 
     async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         sources = self.sources.get(scope or "__global__", {})

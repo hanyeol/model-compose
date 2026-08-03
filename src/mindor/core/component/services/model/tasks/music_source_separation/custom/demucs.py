@@ -91,7 +91,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         estimates = estimates.squeeze(0).cpu()
 
         selected_stems = self._resolve_selected_stems(params["stems"])
-        output_rate = params["output_sample_rate"] or self.model_sample_rate
+        output_rate = params["sample_rate"] or self.model_sample_rate
 
         return self._build_result(estimates, selected_stems, output_rate)
 

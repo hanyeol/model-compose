@@ -53,21 +53,19 @@ class MusicSourceSeparationTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        sample_rate        = await context.render_scalar(self.config.sample_rate, int)
-        stems              = await context.render_variable(self.config.params.stems)
-        output_sample_rate = await context.render_variable(self.config.params.output_sample_rate)
-        overlap            = await context.render_variable(self.config.params.overlap)
-        shifts             = await context.render_variable(self.config.params.shifts)
+        stems       = await context.render_variable(self.config.params.stems)
+        sample_rate = await context.render_variable(self.config.params.sample_rate)
+        overlap     = await context.render_variable(self.config.params.overlap)
+        shifts      = await context.render_variable(self.config.params.shifts)
 
         if isinstance(stems, str):
             stems = [ s.strip() for s in stems.split(",") if s.strip() ]
 
         return {
-            "sample_rate":        sample_rate,
-            "stems":              list(stems) if stems else [ "vocals" ],
-            "output_sample_rate": int(output_sample_rate) if output_sample_rate is not None else None,
-            "overlap":            float(overlap) if overlap is not None else None,
-            "shifts":             int(shifts) if shifts is not None else None,
+            "stems":       list(stems) if stems else [ "vocals" ],
+            "sample_rate": int(sample_rate) if sample_rate is not None else None,
+            "overlap":     float(overlap) if overlap is not None else None,
+            "shifts":      int(shifts) if shifts is not None else None,
         }
 
     @abstractmethod

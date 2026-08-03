@@ -69,7 +69,7 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         vocals = self._run_mdx(stereo)
 
         selected_stems = list(params["stems"])
-        output_rate = params["output_sample_rate"] or _MDX_SAMPLE_RATE
+        output_rate = params["sample_rate"] or _MDX_SAMPLE_RATE
 
         stems: Dict[str, PcmStreamResource] = {}
 

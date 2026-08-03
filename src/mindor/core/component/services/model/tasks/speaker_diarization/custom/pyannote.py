@@ -58,33 +58,33 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
-        waveforms = await self._preprocess_audio(audios, params["sample_rate"])
+        waveforms = await self._preprocess_audio(audios)
 
         def _diarize() -> List[List[Dict[str, Any]]]:
             return [
-                self._collect_segments(waveform, params["sample_rate"], params, cancellation_token)
-                for waveform in waveforms
+                self._collect_segments(waveform, sample_rate, params, cancellation_token)
+                for waveform, sample_rate in waveforms
             ]
 
-        all_segments = await self._run_in_executor(_diarize)
+        segments_list = await self._run_in_executor(_diarize)
 
         if streaming:
             results = []
-            for segments in all_segments:
+            for segments in segments_list:
                 async def _stream_chunk_generator(segments=segments):
                     for segment in segments:
                         yield segment
                 results.append(_stream_chunk_generator())
             return results
 
-        return all_segments
+        return segments_list
 
-    async def _preprocess_audio(self, audios: List[MediaSource], sample_rate: int) -> List[np.ndarray]:
-        waveforms: List[np.ndarray] = []
+    async def _preprocess_audio(self, audios: List[MediaSource]) -> List[Tuple[np.ndarray, int]]:
+        waveforms: List[Tuple[np.ndarray, int]] = []
 
         for audio in audios:
-            waveform, _ = await AudioBufferStreamer(audio, sample_rate=sample_rate, channel="mono").collect()
-            waveforms.append(waveform)
+            waveform, sample_rate = await AudioBufferStreamer(audio, channel="mono").collect()
+            waveforms.append((waveform, sample_rate))
 
         return waveforms
 

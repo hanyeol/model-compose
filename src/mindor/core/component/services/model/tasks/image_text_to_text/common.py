@@ -69,12 +69,12 @@ class ImageTextToTextTaskAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length     = await context.render_variable(self.config.max_input_length)
         max_output_length    = await context.render_variable(self.config.max_output_length)
-        num_return_sequences = await context.render_variable(self.config.params.num_return_sequences)
+        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
         do_sample            = await context.render_variable(self.config.params.do_sample)
         temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
         top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
         top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
-        stop_sequences       = await context.render_variable(self.config.params.stop_sequences)
+        stop_sequences       = await context.render_variable(self.config.stop_sequences)
 
         return {
             "max_input_length":     max_input_length,

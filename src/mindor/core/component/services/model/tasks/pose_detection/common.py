@@ -46,15 +46,15 @@ class PoseDetectionTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_pose_count            = await context.render_scalar(self.config.max_pose_count, int)
-        min_confidence            = await context.render_scalar(self.config.min_confidence, float)
-        min_presence_confidence   = await context.render_scalar(self.config.min_presence_confidence, float)
-        min_tracking_confidence   = await context.render_scalar(self.config.min_tracking_confidence, float)
         return_keypoints          = await context.render_scalar(self.config.return_keypoints, bool)
         return_keypoints_3d       = await context.render_scalar(self.config.return_keypoints_3d, bool)
         return_openpose_keypoints = await context.render_scalar(self.config.return_openpose_keypoints, bool)
         return_segmentation_mask  = await context.render_scalar(self.config.return_segmentation_mask, bool)
         return_skeleton_image     = await context.render_scalar(self.config.return_skeleton_image, bool)
         skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
+        min_confidence            = await context.render_scalar(self.config.params.min_confidence, float)
+        min_presence_confidence   = await context.render_scalar(self.config.params.min_presence_confidence, float)
+        min_tracking_confidence   = await context.render_scalar(self.config.params.min_tracking_confidence, float)
 
         if skeleton_format not in ("natural", "openpose"):
             raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")

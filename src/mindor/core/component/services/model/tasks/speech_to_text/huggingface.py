@@ -68,7 +68,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         num_beams                   = await context.render_variable(self.config.params.num_beams)
         temperature                 = await context.render_variable(self.config.params.temperature)
         compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
-        logprob_threshold           = await context.render_variable(self.config.params.logprob_threshold)
+        log_prob_threshold          = await context.render_variable(self.config.params.log_prob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
 
         params: Dict[str, Any] = {
@@ -82,8 +82,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         if compression_ratio_threshold is not None:
             params["compression_ratio_threshold"] = compression_ratio_threshold
-        if logprob_threshold is not None:
-            params["logprob_threshold"] = logprob_threshold
+        if log_prob_threshold is not None:
+            params["logprob_threshold"] = log_prob_threshold
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
 

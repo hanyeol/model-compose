@@ -5,7 +5,6 @@ from .common import CommonHuggingfaceImageGenerationModelActionConfig, CommonHug
 
 class HunyuanImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
     num_inference_steps: Union[int, str] = Field(default=50, description="Number of denoising steps.")
-    negative_prompt: Optional[Union[str, list]] = Field(default=None, description="Negative prompt(s) describing what to avoid.")
     distilled_guidance_scale: Union[float, str] = Field(default=3.25, description="Distilled guidance scale (Hunyuan-Image uses adaptive projected mix guidance).")
 
 class HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):

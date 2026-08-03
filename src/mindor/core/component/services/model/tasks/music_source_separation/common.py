@@ -59,7 +59,7 @@ class MusicSourceSeparationTaskAction(ComponentAction):
         shifts      = await context.render_variable(self.config.params.shifts)
 
         if isinstance(stems, str):
-            stems = [ s.strip() for s in stems.split(",") if s.strip() ]
+            stems = [ stem.strip() for stem in stems.split(",") if stem.strip() ]
 
         return {
             "stems":       list(stems) if stems else [ "vocals" ],

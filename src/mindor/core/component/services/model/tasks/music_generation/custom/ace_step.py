@@ -28,7 +28,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         time_signature  = await context.render_variable(self.config.params.time_signature)
         inference_steps = await context.render_variable(self.config.params.inference_steps)
         guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
-        seed            = await context.render_variable(self.config.params.seed)
+        seed            = await context.render_variable(self.config.seed)
 
         params["time_signature"]  = time_signature
         params["inference_steps"] = inference_steps

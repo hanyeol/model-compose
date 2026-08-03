@@ -9,11 +9,9 @@ from .common import (
 )
 
 class SdxlHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
-    negative_prompt: Optional[Union[str, list]] = Field(default=None, description="Negative prompt(s) describing what to avoid.")
     guidance_scale: Union[float, str] = Field(default=7.5, description="Classifier-free guidance scale.")
 
 class SdxlHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationInpaintParamsConfig):
-    negative_prompt: Optional[Union[str, list]] = Field(default=None, description="Negative prompt(s) describing what to avoid.")
     guidance_scale: Union[float, str] = Field(default=7.5, description="Classifier-free guidance scale.")
 
 class SdxlHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):

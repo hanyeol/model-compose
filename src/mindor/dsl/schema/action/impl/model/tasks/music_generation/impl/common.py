@@ -10,5 +10,6 @@ class CommonMusicGenerationParamsConfig(BaseModel):
 class CommonMusicGenerationModelActionConfig(CommonModelActionConfig):
     prompt: Union[str, List[str]] = Field(..., description="Text description of the music style, genre, mood, and instrumentation.")
     lyrics: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Song lyrics.")
+    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for reproducibility. Ignored by drivers that don't expose a seed control.")
     batch_size: Union[int, str] = Field(default=1, description="Prompts per batch.")
     params: CommonMusicGenerationParamsConfig = Field(default_factory=CommonMusicGenerationParamsConfig, description="Music generation parameters.")

@@ -4,10 +4,6 @@ from ...common import CommonImageGenerationModelActionConfig, CommonImageGenerat
 
 class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     num_inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps.")
-    width: Union[int, str] = Field(default=1024, description="Output image width in pixels.")
-    height: Union[int, str] = Field(default=1024, description="Output image height in pixels.")
-    num_images_per_prompt: Union[int, str] = Field(default=1, description="Number of images to generate per prompt.")
-    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for deterministic generation.")
 
 class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
     strength: Union[float, str] = Field(default=1.0, description="Noise strength for the input image.")

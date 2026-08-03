@@ -41,7 +41,7 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         pipeline_params.update(await self._resolve_architecture_params(self.architecture, context))
 
-        seed = await context.render_variable(self.config.params.seed)
+        seed = await context.render_variable(self.config.seed)
 
         params["pipeline"] = pipeline_params
         params["seed"] = int(seed) if seed is not None else None
@@ -50,9 +50,9 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
-        width                 = await context.render_variable(self.config.params.width)
-        height                = await context.render_variable(self.config.params.height)
-        num_images_per_prompt = await context.render_variable(self.config.params.num_images_per_prompt)
+        width                 = await context.render_variable(self.config.width)
+        height                = await context.render_variable(self.config.height)
+        num_images_per_prompt = await context.render_variable(self.config.num_images_per_prompt)
 
         return {
             "num_inference_steps":   int(num_inference_steps),
@@ -63,7 +63,7 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
-            negative_prompt = await context.render_variable(self.config.params.negative_prompt)
+            negative_prompt = await context.render_variable(self.config.negative_prompt)
             guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
 
             return {
@@ -81,7 +81,7 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
-            negative_prompt          = await context.render_variable(self.config.params.negative_prompt)
+            negative_prompt          = await context.render_variable(self.config.negative_prompt)
             distilled_guidance_scale = await context.render_variable(self.config.params.distilled_guidance_scale)
 
             return {
@@ -148,7 +148,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         pipeline_params.update(await self._resolve_architecture_params(self.architecture, context))
 
-        seed = await context.render_variable(self.config.params.seed)
+        seed = await context.render_variable(self.config.seed)
 
         params["pipeline"] = pipeline_params
         params["seed"] = int(seed) if seed is not None else None
@@ -157,9 +157,9 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
-        width                 = await context.render_variable(self.config.params.width)
-        height                = await context.render_variable(self.config.params.height)
-        num_images_per_prompt = await context.render_variable(self.config.params.num_images_per_prompt)
+        width                 = await context.render_variable(self.config.width)
+        height                = await context.render_variable(self.config.height)
+        num_images_per_prompt = await context.render_variable(self.config.num_images_per_prompt)
         strength              = await context.render_variable(self.config.params.strength)
 
         return {
@@ -172,7 +172,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
-            negative_prompt = await context.render_variable(self.config.params.negative_prompt)
+            negative_prompt = await context.render_variable(self.config.negative_prompt)
             guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
 
             return {

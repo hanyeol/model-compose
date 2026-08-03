@@ -45,7 +45,7 @@ class FaceDetectionTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_confidence   = await context.render_scalar(self.config.min_confidence, float)
+        min_confidence   = await context.render_scalar(self.config.params.min_confidence, float)
         return_landmarks = await context.render_scalar(self.config.return_landmarks, bool)
 
         if not 0.0 <= min_confidence <= 1.0:

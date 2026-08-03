@@ -575,14 +575,9 @@ class GradioWebUIBuilder:
                 outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ]
             )
 
-            def _on_media_rendered(task_id):
-                # Streaming yields keep `task_state` populated with the
-                # in-flight task_id, so per-chunk `change` events fired while
-                # a stream is feeding this media component are treated as
-                # progress, not completion. `task_state` is cleared to None
-                # by every terminal yield in _run_workflow / _resume_workflow,
-                # so non-streaming media loads are still recognized here.
-                if task_id is not None:
+            def _on_media_rendered(task_id, value):
+                # Skip clear-to-None transitions and in-flight streaming chunks
+                if value is None or task_id is not None:
                     return [
                         gr.skip(),
                         gr.skip(),
@@ -599,7 +594,7 @@ class GradioWebUIBuilder:
             for component in media_components:
                 component.change(
                     fn=_on_media_rendered,
-                    inputs=[ task_state ],
+                    inputs=[ task_state, component ],
                     outputs=[ run_button, cancel_button, task_state, *log_components ],
                 )
 

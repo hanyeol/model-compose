@@ -32,8 +32,8 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         detection_threshold = float(await context.render_variable(self.config.detection_threshold))
 
-        if not 0.0 <= float(detection_threshold) <= 1.0:
-            raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {float(detection_threshold)}")
+        if not 0.0 <= detection_threshold <= 1.0:
+            raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {detection_threshold}")
 
         params["detection_threshold"] = detection_threshold
         params["detection_size"]      = tuple(self.config.detection_size)

@@ -27,13 +27,13 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        return_landmarks  = await context.render_variable(self.config.return_landmarks)
-        return_gender_age = await context.render_variable(self.config.return_gender_age)
-        max_num_faces     = await context.render_variable(self.config.max_num_faces)
+        return_landmarks  = bool(await context.render_variable(self.config.return_landmarks))
+        return_gender_age = bool(await context.render_variable(self.config.return_gender_age))
+        max_num_faces     = int(await context.render_variable(self.config.max_num_faces))
 
-        params["return_landmarks"]  = bool(return_landmarks)
-        params["return_gender_age"] = bool(return_gender_age)
-        params["max_num_faces"]     = int(max_num_faces)
+        params["return_landmarks"]  = return_landmarks
+        params["return_gender_age"] = return_gender_age
+        params["max_num_faces"]     = max_num_faces
 
         return params
 

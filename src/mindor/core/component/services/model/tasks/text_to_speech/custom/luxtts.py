@@ -29,23 +29,23 @@ class LuxttsTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         reference_audio    = await context.render_file(self.config.reference_audio)
-        reference_duration = await context.render_variable(self.config.reference_duration)
-        reference_rms      = await context.render_variable(self.config.reference_rms)
-        num_steps          = await context.render_variable(self.config.num_steps)
-        guidance_scale     = await context.render_variable(self.config.guidance_scale)
-        t_shift            = await context.render_variable(self.config.t_shift)
-        speed              = await context.render_variable(self.config.speed)
-        seed               = await context.render_variable(self.config.seed)
+        reference_duration = int(await context.render_variable(self.config.reference_duration)) if self.config.reference_duration is not None else 5
+        reference_rms      = float(await context.render_variable(self.config.reference_rms)) if self.config.reference_rms is not None else 0.01
+        num_steps          = int(await context.render_variable(self.config.num_steps)) if self.config.num_steps is not None else 4
+        guidance_scale     = float(await context.render_variable(self.config.guidance_scale)) if self.config.guidance_scale is not None else 3.0
+        t_shift            = float(await context.render_variable(self.config.t_shift)) if self.config.t_shift is not None else 0.5
+        speed              = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
+        seed               = int(await context.render_variable(self.config.seed)) if self.config.seed is not None else None
 
         params.update({
             "reference_audio":    reference_audio,
-            "reference_duration": int(reference_duration) if reference_duration is not None else 5,
-            "reference_rms":      float(reference_rms) if reference_rms is not None else 0.01,
-            "num_steps":          int(num_steps) if num_steps is not None else 4,
-            "guidance_scale":     float(guidance_scale) if guidance_scale is not None else 3.0,
-            "t_shift":            float(t_shift) if t_shift is not None else 0.5,
-            "speed":              float(speed) if speed is not None else 1.0,
-            "seed":               int(seed) if seed is not None else None,
+            "reference_duration": reference_duration,
+            "reference_rms":      reference_rms,
+            "num_steps":          num_steps,
+            "guidance_scale":     guidance_scale,
+            "t_shift":            t_shift,
+            "speed":              speed,
+            "seed":               seed,
         })
 
         return params

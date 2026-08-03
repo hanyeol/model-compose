@@ -50,14 +50,14 @@ class ImageSegmentationTaskAction(ComponentAction):
         max_segment_count = int(await context.render_variable(self.config.max_segment_count))
         return_mask       = bool(await context.render_variable(self.config.return_mask))
 
-        if not 0.0 <= float(min_confidence) <= 1.0:
-            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {float(min_confidence)}")
+        if not 0.0 <= min_confidence <= 1.0:
+            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
 
-        if int(max_segment_count) < 1:
-            raise ValueError(f"'max_segment_count' must be >= 1, got {int(max_segment_count)}")
+        if max_segment_count < 1:
+            raise ValueError(f"'max_segment_count' must be >= 1, got {max_segment_count}")
 
-        if min_area is not None and int(min_area) < 0:
-            raise ValueError(f"'min_area' must be >= 0, got {int(min_area)}")
+        if min_area is not None and min_area < 0:
+            raise ValueError(f"'min_area' must be >= 0, got {min_area}")
 
         box_prompts: Optional[List[List[Union[int, float]]]] = None
 

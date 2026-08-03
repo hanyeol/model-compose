@@ -45,34 +45,34 @@ class ObjectDetectionTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         labels               = await context.render_variable(self.config.labels)
-        min_confidence       = await context.render_variable(self.config.min_confidence)
-        max_object_count     = await context.render_variable(self.config.max_object_count)
-        iou_threshold        = await context.render_variable(self.config.iou_threshold)
-        agnostic_nms         = await context.render_variable(self.config.agnostic_nms)
-        bounding_box_padding = await context.render_variable(self.config.bounding_box_padding)
+        min_confidence       = float(await context.render_variable(self.config.min_confidence))
+        max_object_count     = int(await context.render_variable(self.config.max_object_count))
+        iou_threshold        = float(await context.render_variable(self.config.iou_threshold))
+        agnostic_nms         = bool(await context.render_variable(self.config.agnostic_nms))
+        bounding_box_padding = float(await context.render_variable(self.config.bounding_box_padding))
 
-        if not 0.0 <= float(min_confidence) <= 1.0:
-            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {float(min_confidence)}")
+        if not 0.0 <= min_confidence <= 1.0:
+            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
 
-        if not 0.0 <= float(iou_threshold) <= 1.0:
-            raise ValueError(f"'iou_threshold' must be between 0.0 and 1.0, got {float(iou_threshold)}")
+        if not 0.0 <= iou_threshold <= 1.0:
+            raise ValueError(f"'iou_threshold' must be between 0.0 and 1.0, got {iou_threshold}")
 
-        if int(max_object_count) < 1:
-            raise ValueError(f"'max_object_count' must be >= 1, got {int(max_object_count)}")
+        if max_object_count < 1:
+            raise ValueError(f"'max_object_count' must be >= 1, got {max_object_count}")
 
-        if float(bounding_box_padding) < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {float(bounding_box_padding)}")
+        if bounding_box_padding < 0.0:
+            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
 
         if labels is not None and not isinstance(labels, list):
             labels = [ labels ]
 
         return {
             "labels":               [ str(label) for label in labels ] if labels else None,
-            "min_confidence":       float(min_confidence),
-            "max_object_count":     int(max_object_count),
-            "iou_threshold":        float(iou_threshold),
-            "agnostic_nms":         bool(agnostic_nms),
-            "bounding_box_padding": float(bounding_box_padding),
+            "min_confidence":       min_confidence,
+            "max_object_count":     max_object_count,
+            "iou_threshold":        iou_threshold,
+            "agnostic_nms":         agnostic_nms,
+            "bounding_box_padding": bounding_box_padding,
         }
 
     @abstractmethod

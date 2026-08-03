@@ -84,11 +84,11 @@ class TranscriptCorrectorAction(ComponentAction):
         text_key           = await context.render_variable(self.config.text_key)
         start_time_key     = await context.render_variable(self.config.start_time_key)
         end_time_key       = await context.render_variable(self.config.end_time_key)
-        case_sensitive     = await context.render_variable(self.config.case_sensitive)
-        ignore_punctuation = await context.render_variable(self.config.ignore_punctuation)
-        window_multiplier  = await context.render_variable(self.config.window_multiplier)
-        min_window_tokens  = await context.render_variable(self.config.min_window_tokens)
-        match_threshold    = await context.render_variable(self.config.match_threshold)
+        case_sensitive     = bool(await context.render_variable(self.config.case_sensitive))
+        ignore_punctuation = bool(await context.render_variable(self.config.ignore_punctuation))
+        window_multiplier  = float(await context.render_variable(self.config.window_multiplier)) if self.config.window_multiplier is not None else None
+        min_window_tokens  = int(await context.render_variable(self.config.min_window_tokens)) if self.config.min_window_tokens is not None else None
+        match_threshold    = float(await context.render_variable(self.config.match_threshold)) if self.config.match_threshold is not None else None
 
         if isinstance(reference, list):
             reference = " ".join(reference)
@@ -109,16 +109,16 @@ class TranscriptCorrectorAction(ComponentAction):
             raise ValueError("'match_threshold' must be between 0.0 and 1.0")
 
         return {
-            "reference": reference,
-            "granularity": TranscriptGranularity(granularity) if isinstance(granularity, str) else granularity,
-            "text_key": text_key,
-            "start_time_key": start_time_key,
-            "end_time_key": end_time_key,
-            "case_sensitive": bool(case_sensitive),
-            "ignore_punctuation": bool(ignore_punctuation),
-            "window_multiplier": float(window_multiplier),
-            "min_window_tokens": int(min_window_tokens),
-            "match_threshold": float(match_threshold),
+            "reference":          reference,
+            "granularity":        TranscriptGranularity(granularity) if isinstance(granularity, str) else granularity,
+            "text_key":           text_key,
+            "start_time_key":     start_time_key,
+            "end_time_key":       end_time_key,
+            "case_sensitive":     case_sensitive,
+            "ignore_punctuation": ignore_punctuation,
+            "window_multiplier":  window_multiplier,
+            "min_window_tokens":  min_window_tokens,
+            "match_threshold":    match_threshold,
         }
 
     async def _correct_batch(

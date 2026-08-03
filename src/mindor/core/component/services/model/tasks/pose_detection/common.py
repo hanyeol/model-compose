@@ -45,42 +45,42 @@ class PoseDetectionTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_pose_count            = await context.render_variable(self.config.max_pose_count)
-        min_confidence            = await context.render_variable(self.config.min_confidence)
-        min_presence_confidence   = await context.render_variable(self.config.min_presence_confidence)
-        min_tracking_confidence   = await context.render_variable(self.config.min_tracking_confidence)
-        return_keypoints          = await context.render_variable(self.config.return_keypoints)
-        return_keypoints_3d       = await context.render_variable(self.config.return_keypoints_3d)
-        return_openpose_keypoints = await context.render_variable(self.config.return_openpose_keypoints)
-        return_segmentation_mask  = await context.render_variable(self.config.return_segmentation_mask)
-        return_skeleton_image     = await context.render_variable(self.config.return_skeleton_image)
-        skeleton_format           = await context.render_variable(self.config.skeleton_format)
+        max_pose_count            = int(await context.render_variable(self.config.max_pose_count))
+        min_confidence            = float(await context.render_variable(self.config.min_confidence))
+        min_presence_confidence   = float(await context.render_variable(self.config.min_presence_confidence))
+        min_tracking_confidence   = float(await context.render_variable(self.config.min_tracking_confidence))
+        return_keypoints          = bool(await context.render_variable(self.config.return_keypoints))
+        return_keypoints_3d       = bool(await context.render_variable(self.config.return_keypoints_3d))
+        return_openpose_keypoints = bool(await context.render_variable(self.config.return_openpose_keypoints))
+        return_segmentation_mask  = bool(await context.render_variable(self.config.return_segmentation_mask))
+        return_skeleton_image     = bool(await context.render_variable(self.config.return_skeleton_image))
+        skeleton_format           = str(await context.render_variable(self.config.skeleton_format))
 
-        if str(skeleton_format) not in ("natural", "openpose"):
-            raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {str(skeleton_format)!r}")
+        if skeleton_format not in ("natural", "openpose"):
+            raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
 
-        if int(max_pose_count) < 1:
-            raise ValueError(f"'max_pose_count' must be >= 1, got {int(max_pose_count)}")
+        if max_pose_count < 1:
+            raise ValueError(f"'max_pose_count' must be >= 1, got {max_pose_count}")
 
         for name, value in [
-            ("min_confidence",          float(min_confidence)),
-            ("min_presence_confidence", float(min_presence_confidence)),
-            ("min_tracking_confidence", float(min_tracking_confidence)),
+            ("min_confidence",          min_confidence),
+            ("min_presence_confidence", min_presence_confidence),
+            ("min_tracking_confidence", min_tracking_confidence),
         ]:
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"'{name}' must be between 0.0 and 1.0, got {value}")
 
         return {
-            "max_pose_count":            int(max_pose_count),
-            "min_confidence":            float(min_confidence),
-            "min_presence_confidence":   float(min_presence_confidence),
-            "min_tracking_confidence":   float(min_tracking_confidence),
-            "return_keypoints":          bool(return_keypoints),
-            "return_keypoints_3d":       bool(return_keypoints_3d),
-            "return_openpose_keypoints": bool(return_openpose_keypoints),
-            "return_segmentation_mask":  bool(return_segmentation_mask),
-            "return_skeleton_image":     bool(return_skeleton_image),
-            "skeleton_format":           str(skeleton_format),
+            "max_pose_count":            max_pose_count,
+            "min_confidence":            min_confidence,
+            "min_presence_confidence":   min_presence_confidence,
+            "min_tracking_confidence":   min_tracking_confidence,
+            "return_keypoints":          return_keypoints,
+            "return_keypoints_3d":       return_keypoints_3d,
+            "return_openpose_keypoints": return_openpose_keypoints,
+            "return_segmentation_mask":  return_segmentation_mask,
+            "return_skeleton_image":     return_skeleton_image,
+            "skeleton_format":           skeleton_format,
         }
 
     @abstractmethod

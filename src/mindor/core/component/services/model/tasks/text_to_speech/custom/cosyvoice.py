@@ -90,13 +90,13 @@ class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
         params = await super()._resolve_params(context)
 
         voice         = await context.render_variable(self.config.voice)
-        speed         = await context.render_variable(self.config.speed)
-        text_frontend = await context.render_variable(self.config.text_frontend)
+        speed         = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
+        text_frontend = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
 
         params.update({
             "voice":         voice,
-            "speed":         float(speed) if speed is not None else 1.0,
-            "text_frontend": bool(text_frontend) if text_frontend is not None else True,
+            "speed":         speed,
+            "text_frontend": text_frontend,
         })
 
         return params
@@ -129,14 +129,14 @@ class CosyvoiceTextToSpeechCloneTaskAction(CosyvoiceTextToSpeechTaskAction):
 
         prompt_wav     = await self._resolve_reference_audio(context, self.config.reference_audio)
         prompt_text    = await context.render_variable(self.config.reference_text)
-        speed          = await context.render_variable(self.config.speed)
-        text_frontend  = await context.render_variable(self.config.text_frontend)
+        speed          = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
+        text_frontend  = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
 
         params.update({
             "prompt_wav":    prompt_wav,
             "prompt_text":   prompt_text,
-            "speed":         float(speed) if speed is not None else 1.0,
-            "text_frontend": bool(text_frontend) if text_frontend is not None else True,
+            "speed":         speed,
+            "text_frontend": text_frontend,
         })
 
         return params
@@ -171,14 +171,14 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
 
         instructions    = await context.render_variable(self.config.instructions)
         reference_audio = await self._resolve_reference_audio(context, self.config.reference_audio)
-        speed           = await context.render_variable(self.config.speed)
-        text_frontend   = await context.render_variable(self.config.text_frontend)
+        speed           = float(await context.render_variable(self.config.speed)) if self.config.speed is not None else 1.0
+        text_frontend   = bool(await context.render_variable(self.config.text_frontend)) if self.config.text_frontend is not None else True
 
         params.update({
             "instructions":    instructions,
             "reference_audio": reference_audio,
-            "speed":           float(speed) if speed is not None else 1.0,
-            "text_frontend":   bool(text_frontend) if text_frontend is not None else True,
+            "speed":           speed,
+            "text_frontend":   text_frontend,
         })
 
         return params

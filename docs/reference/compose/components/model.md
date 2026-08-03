@@ -92,13 +92,13 @@ component:
   model: HuggingFaceTB/SmolLM3-3B
   action:
     prompt: ${input.prompt}
+    max_output_length: 2048
+    num_return_sequences: 1
     params:
-      max_output_length: 2048
       temperature: 0.8
       top_p: 0.9
       top_k: 50
       do_sample: true
-      num_return_sequences: 1
     output:
       generated_text: ${response.generated_text}
 ```
@@ -109,13 +109,14 @@ component:
 |-----------|------|---------|-------------|
 | `max_output_length` | integer | `1024` | Maximum tokens to generate |
 | `min_output_length` | integer | `1` | Minimum tokens to generate |
-| `temperature` | float | `1.0` | Sampling temperature (creativity) |
-| `top_p` | float | `0.9` | Nucleus sampling threshold |
-| `top_k` | integer | `50` | Top-K sampling limit |
-| `num_beams` | integer | `1` | Beam search width |
-| `do_sample` | boolean | `true` | Enable sampling vs greedy |
+| `num_return_sequences` | integer | `1` | Number of generated sequences to return |
 | `stop_sequences` | array | `null` | Stop generation sequences |
 | `batch_size` | integer | `1` | Batch processing size |
+| `params.temperature` | float | `1.0` | Sampling temperature (creativity) |
+| `params.top_p` | float | `0.9` | Nucleus sampling threshold |
+| `params.top_k` | integer | `50` | Top-K sampling limit |
+| `params.num_beams` | integer | `1` | Beam search width |
+| `params.do_sample` | boolean | `true` | Enable sampling vs greedy |
 
 ### Chat Completion
 
@@ -218,7 +219,7 @@ component:
 | `score_threshold` | float | `null` | Drop any result whose score is below this threshold. |
 | `return_documents` | bool | `true` | Include the original document under `document` in each result. Set to `false` to return only `index` and `score`. |
 | `batch_size` | integer | `32` | Number of (query, document) pairs the driver scores in a single forward pass. |
-| `max_input_length` | integer | `512` | Maximum tokens per (query, document) pair; longer pairs are truncated. |
+| `max_input_length` | integer | `null` | Maximum tokens per (query, document) pair; longer pairs are truncated. Defaults to the tokenizer's `model_max_length`. |
 | `params.normalize` | bool | `true` | Apply sigmoid to raw logits so scores are in `[0, 1]`. Set to `false` to return raw logits. |
 
 **Result Shape:**
@@ -358,12 +359,13 @@ Same generation parameter shape as text-generation, but defaults favor determini
 |-----------|------|---------|-------------|
 | `max_output_length` | integer | `null` | Maximum tokens to generate |
 | `min_output_length` | integer | `1` | Minimum tokens to generate |
-| `num_beams` | integer | `4` | Beam search width |
-| `length_penalty` | float | `1.0` | Length penalty for beam search |
-| `early_stopping` | boolean | `true` | Stop when all beams finish |
-| `do_sample` | boolean | `false` | Enable sampling (turn on for creative rewriting) |
-| `temperature`/`top_k`/`top_p` | — | — | Only used when `do_sample: true` |
+| `num_return_sequences` | integer | `1` | Number of generated sequences to return |
 | `stop_sequences` | array | `null` | Stop generation sequences |
+| `params.num_beams` | integer | `4` | Beam search width |
+| `params.length_penalty` | float | `1.0` | Length penalty for beam search |
+| `params.early_stopping` | boolean | `true` | Stop when all beams finish |
+| `params.do_sample` | boolean | `false` | Enable sampling (turn on for creative rewriting) |
+| `params.temperature`/`params.top_k`/`params.top_p` | — | — | Only used when `params.do_sample: true` |
 
 ### Image-to-Text
 
@@ -497,9 +499,9 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
-| `min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0) |
 | `return_landmarks` | bool | `false` | Include the 6 facial keypoints (eyes, nose, mouth, ears) in the result |
 | `batch_size` | int | `1` | Number of images to process per batch |
+| `params.min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0) |
 
 **Example:**
 
@@ -511,8 +513,9 @@ component:
   family: blazeface
   action:
     image: ${input.image as image}
-    min_confidence: 0.6
     return_landmarks: true
+    params:
+      min_confidence: 0.6
     output:
       faces: ${result.detections}
 ```
@@ -554,16 +557,16 @@ Detect human bodies in an image and return per-pose keypoints (2D, optionally 3D
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `max_pose_count` | int | `1` | Maximum number of poses to detect per image (>= 1) |
-| `min_confidence` | float | `0.5` | Minimum pose-detection confidence threshold (0.0 - 1.0) |
 | `return_keypoints` | bool | `true` | Include 2D pose keypoints (pixel coordinates) in the result |
 | `batch_size` | int | `1` | Number of images to process per batch |
+| `params.min_confidence` | float | `0.5` | Minimum pose-detection confidence threshold (0.0 - 1.0) |
 
 **Family-Specific Fields:**
 
 | Field | `blazepose` | `yolo` | Description |
 |-------|:-----------:|:------:|-------------|
-| `min_presence_confidence` | ✓ | – | Minimum keypoint-presence confidence (0.0 - 1.0) |
-| `min_tracking_confidence` | ✓ | – | Minimum tracking confidence. Reserved for future video running mode. |
+| `params.min_presence_confidence` | ✓ | – | Minimum keypoint-presence confidence (0.0 - 1.0) |
+| `params.min_tracking_confidence` | ✓ | – | Minimum tracking confidence. Reserved for future video running mode. |
 | `return_keypoints_3d` | ✓ | – | Include real-world 3D keypoints in meters (hip-centered) |
 | `return_segmentation_mask` | ✓ | – | Include per-pose grayscale segmentation mask (PIL image) |
 
@@ -580,8 +583,9 @@ component:
   action:
     image: ${input.image as image}
     max_pose_count: 2
-    min_confidence: 0.6
     return_keypoints_3d: true
+    params:
+      min_confidence: 0.6
     output:
       poses: ${result.poses}
 ```
@@ -597,7 +601,8 @@ component:
   action:
     image: ${input.image as image}
     max_pose_count: 5
-    min_confidence: 0.4
+    params:
+      min_confidence: 0.4
     output:
       poses: ${result.poses}
 ```
@@ -666,12 +671,12 @@ Detect objects in an image and return per-object bounding boxes with class label
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels raise an error listing available labels. If omitted, all classes are returned |
-| `min_confidence` | float | `0.25` | Minimum detection confidence threshold (0.0 - 1.0) |
 | `max_object_count` | int | `300` | Maximum detections per image (>= 1) |
-| `iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression (0.0 - 1.0) |
-| `agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |
 | `bounding_box_padding` | float | `0.0` | Expand each output bounding box outward by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes downstream to crop or SAM box prompts |
 | `batch_size` | int | `1` | Number of images to process per batch |
+| `params.min_confidence` | float | `0.25` | Minimum detection confidence threshold (0.0 - 1.0) |
+| `params.iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression (0.0 - 1.0) |
+| `params.agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |
 
 **Example:**
 
@@ -684,8 +689,9 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]
-    min_confidence: 0.4
     bounding_box_padding: 0.05
+    params:
+      min_confidence: 0.4
     output:
       objects: ${result.objects}
 ```
@@ -728,11 +734,11 @@ Generate per-region binary segmentation masks from an image. Supports **automati
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `box_prompt` | `[x, y, w, h]` or `[[x, y, w, h], ...]` | `null` | Bounding-box prompt(s) that constrain segmentation. Accepts a single box or a list of boxes. If omitted, the task runs in automatic mode |
-| `min_confidence` | float | `0.5` | Minimum per-segment confidence (0.0 - 1.0) |
-| `min_area` | int | `null` | Minimum mask area in pixels. Smaller masks are filtered out. If omitted, no area filter is applied |
 | `max_segment_count` | int | `100` | Maximum segments per image (>= 1). Extra segments are dropped after sorting by score |
 | `return_mask` | bool | `true` | Include the per-segment binary mask (grayscale PNG: background `0`, segment `255`) in the result |
 | `batch_size` | int | `1` | Number of images to process per batch |
+| `params.min_confidence` | float | `0.5` | Minimum per-segment confidence (0.0 - 1.0) |
+| `params.min_area` | int | `null` | Minimum mask area in pixels. Smaller masks are filtered out. If omitted, no area filter is applied |
 
 **Example — automatic mode:**
 
@@ -744,8 +750,9 @@ component:
   family: sam
   action:
     image: ${input.image as image}
-    min_confidence: 0.6
     max_segment_count: 20
+    params:
+      min_confidence: 0.6
     output:
       segments: ${result.segments}
 ```
@@ -962,9 +969,9 @@ component:
 
 ```json
 [
-  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
-  { "start": 47.07, "end": 150.02, "confidence": 0.937 },
-  { "start": 151.10, "end": 175.24, "confidence": 0.949 }
+  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 },
+  { "start_time": 151.10, "end_time": 175.24, "confidence": 0.949 }
 ]
 ```
 
@@ -999,19 +1006,19 @@ component:
     
     - id: generate-factual
       prompt: ${input.factual_prompt}
+      max_output_length: 1024
       params:
         temperature: 0.3
         top_p: 0.8
-        max_output_length: 1024
       output:
         factual_text: ${response.generated_text}
     
     - id: generate-code
       prompt: "Generate Python code:\n${input.code_prompt}"
+      max_output_length: 1024
+      stop_sequences: [ "```", "\n\n\n" ]
       params:
         temperature: 0.1
-        stop_sequences: [ "```", "\n\n\n" ]
-        max_output_length: 1024
       output:
         generated_code: ${response.generated_text}
 ```
@@ -1131,10 +1138,10 @@ component:
   model: codegen-350M
   action:
     prompt: "def ${input.function_name}(${input.parameters}):\n"
+    max_output_length: 512
+    stop_sequences: [ "\ndef ", "\nclass ", "\n\n" ]
     params:
-      max_output_length: 512
       temperature: 0.2
-      stop_sequences: [ "\ndef ", "\nclass ", "\n\n" ]
     output:
       generated_function: ${response.generated_text}
 ```

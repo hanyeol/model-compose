@@ -38,9 +38,11 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `video-converter` | 视频转换 | 视频转码/格式转换（容器、编解码器、分辨率等） |
 | `video-encoder` | 视频编码 | 将 PIL 帧编码为视频，或对现有视频进行再编码，支持可选音轨（ffmpeg） |
 | `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
+| `video-clipper` | 视频片段裁剪 | 通过 ffmpeg 流复制无损裁剪视频中一个或多个时间范围 |
 | `audio-extractor` | 音频提取 | 从视频/媒体中提取音频流 |
 | `audio-converter` | 音频转换 | 音频转码/格式转换（编解码器、采样率、声道等） |
 | `audio-feature-extractor` | 音频特征提取 | 用于可视化的每帧频谱带 / 波形点 |
+| `audio-clipper` | 音频片段裁剪 | 通过 ffmpeg 流复制无损裁剪音频中一个或多个时间范围 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
 | `screen-capture` | 本地屏幕与音频采集 | 将桌面/区域/系统或麦克风音频作为连续编码流实时输出 |
@@ -70,6 +72,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 视频场景检测 → `video-scene-detector`
 - 视频帧提取 → `video-frame-extractor`
 - 视频编码（帧 → 视频，或再编码）→ `video-encoder`
+- 视频 / 音频裁剪（无损裁切时间范围）→ `video-clipper` / `audio-clipper`
 - 音频特征提取（可视化用频谱 / 波形）→ `audio-feature-extractor`
 - 网页抓取 → `web-scraper`
 

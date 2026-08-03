@@ -38,9 +38,11 @@ model-compose provides various component types for performing different tasks.
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
+| `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
 | `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
+| `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 | `screen-capture` | Capture local screen and audio | Live desktop, region, or microphone/system audio as continuous encoded streams |
@@ -71,6 +73,7 @@ model-compose provides various component types for performing different tasks.
 - Video scene detection → `video-scene-detector`
 - Video frame extraction → `video-frame-extractor`
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
+- Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Web scraping → `web-scraper`
 

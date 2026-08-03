@@ -517,9 +517,9 @@ component:
   model: black-forest-labs/FLUX.1-dev
   action:
     prompt: ${input.prompt as text}
+    width: 1024
+    height: 1024
     params:
-      width: 1024
-      height: 1024
       num_inference_steps: 50
 ```
 
@@ -683,8 +683,8 @@ Result shape (flat list of speech segments, silent regions omitted):
 
 ```json
 [
-  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
-  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
 ]
 ```
 
@@ -720,8 +720,9 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # Optional class filter
-    min_confidence: 0.4
     bounding_box_padding: 0.05   # Grow each box by 5% for downstream crops or SAM prompts
+    params:
+      min_confidence: 0.4
 ```
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
@@ -739,8 +740,9 @@ component:
   action:
     image: ${input.image as image}
     box_prompt: ${input.box_prompt as json}   # Optional; omit for automatic mode
-    min_confidence: 0.6
     max_segment_count: 20
+    params:
+      min_confidence: 0.6
 ```
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.

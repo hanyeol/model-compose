@@ -461,9 +461,9 @@ component:
   model: black-forest-labs/FLUX.1-dev
   action:
     prompt: ${input.prompt as text}
+    width: 1024
+    height: 1024
     params:
-      width: 1024
-      height: 1024
       num_inference_steps: 50
 ```
 
@@ -627,8 +627,8 @@ Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
 
 ```json
 [
-  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
-  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
 ]
 ```
 
@@ -664,8 +664,9 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # 可选：类别过滤
-    min_confidence: 0.4
     bounding_box_padding: 0.05   # 为下游裁剪或 SAM 提示扩展每个框 5%
+    params:
+      min_confidence: 0.4
 ```
 
 支持任意 Ultralytics YOLO 检测（或分割）`.pt` 检查点。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#object-detection)。
@@ -683,8 +684,9 @@ component:
   action:
     image: ${input.image as image}
     box_prompt: ${input.box_prompt as json}   # 可选：省略则为自动模式
-    min_confidence: 0.6
     max_segment_count: 20
+    params:
+      min_confidence: 0.6
 ```
 
 支持任意 Ultralytics SAM 检查点（`sam_b.pt`、`sam2_b.pt`、`mobile_sam.pt` 等）。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#image-segmentation)。

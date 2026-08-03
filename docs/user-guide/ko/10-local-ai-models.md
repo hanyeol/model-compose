@@ -422,9 +422,9 @@ component:
   model: black-forest-labs/FLUX.1-dev
   action:
     prompt: ${input.prompt as text}
+    width: 1024
+    height: 1024
     params:
-      width: 1024
-      height: 1024
       num_inference_steps: 50
 ```
 
@@ -588,8 +588,8 @@ Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허�
 
 ```json
 [
-  { "start": 0.124, "end": 44.58,  "confidence": 0.916 },
-  { "start": 47.07, "end": 150.02, "confidence": 0.937 }
+  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
 ]
 ```
 
@@ -625,8 +625,9 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # 선택: 클래스 필터
-    min_confidence: 0.4
     bounding_box_padding: 0.05   # 후속 크롭이나 SAM 프롬프트를 위해 박스를 5% 확장
+    params:
+      min_confidence: 0.4
 ```
 
 Ultralytics YOLO 검출(또는 세그멘테이션) `.pt` 체크포인트 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#object-detection)를 참고하세요.
@@ -644,8 +645,9 @@ component:
   action:
     image: ${input.image as image}
     box_prompt: ${input.box_prompt as json}   # 선택: 생략하면 자동 모드
-    min_confidence: 0.6
     max_segment_count: 20
+    params:
+      min_confidence: 0.6
 ```
 
 Ultralytics SAM 체크포인트(`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt` 등) 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#image-segmentation)를 참고하세요.

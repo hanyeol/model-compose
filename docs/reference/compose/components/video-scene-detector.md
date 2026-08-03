@@ -110,16 +110,16 @@ All drivers return a flat list of detected scenes. In streaming mode each scene 
 [
   {
     "index": 0,
-    "start": "00:00:00.000",
-    "end": "00:00:12.345",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:12.345",
     "start_frame": 0,
     "end_frame": 370,
     "duration": "00:00:12.345"
   },
   {
     "index": 1,
-    "start": "00:00:12.345",
-    "end": "00:00:28.678",
+    "start_time": "00:00:12.345",
+    "end_time": "00:00:28.678",
     "start_frame": 370,
     "end_frame": 860,
     "duration": "00:00:16.333"
@@ -132,8 +132,8 @@ All drivers return a flat list of detected scenes. In streaming mode each scene 
 | Field | Type | Description |
 |-------|------|-------------|
 | `index` | integer | Scene index (0-based) |
-| `start` | string | Scene start timecode (HH:MM:SS.mmm) |
-| `end` | string | Scene end timecode (HH:MM:SS.mmm) |
+| `start_time` | string | Scene start timecode (HH:MM:SS.mmm) |
+| `end_time` | string | Scene end timecode (HH:MM:SS.mmm) |
 | `start_frame` | integer | Scene start frame number |
 | `end_frame` | integer | Scene end frame number |
 | `duration` | string | Scene duration timecode |

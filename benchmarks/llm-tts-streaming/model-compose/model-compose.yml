@@ -14,14 +14,14 @@ workflow:
       component: llm
       input:
         prompt: ${input.prompt}
-      output: ${output as stream/text}
+      output: ${output}
 
     - id: split
       component: splitter
       depends_on: [ llm ]
       input:
         text: ${jobs.llm.output}
-      output: ${output as stream/text}
+      output: ${output }
 
     - id: tts
       component: tts
@@ -29,7 +29,7 @@ workflow:
       input:
         text: ${jobs.split.output}
       output: ${output}
-  output: ${jobs.tts.output as stream}
+  output: ${jobs.tts.output}
 
 components:
   - id: llm
@@ -41,10 +41,10 @@ components:
     max_concurrent_count: 1
     action:
       prompt: ${input.prompt as text}
+      max_output_length: 512
       streaming: true
       params:
         do_sample: false
-        max_output_length: 512
 
   - id: splitter
     type: sentence-splitter

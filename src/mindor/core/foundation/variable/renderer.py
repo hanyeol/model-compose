@@ -175,7 +175,7 @@ class VariableRenderer:
 
         for m in reversed(matches):
             key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
-            index = self._parse_index(index)
+            index = self._parse_index(index) if index else None
             is_list = bool(is_list)
 
             if attrs:
@@ -412,15 +412,15 @@ class VariableRenderer:
         return parts
 
     @staticmethod
-    def _parse_index(raw: Optional[str]) -> Optional[Union[int, slice]]:
-        if not raw:
-            return None
-        if ":" in raw:
-            start_str, stop_str = raw.split(":", 1)
-            start = int(start_str) if start_str else None
-            stop = int(stop_str) if stop_str else None
+    def _parse_index(expression: str) -> Union[int, slice]:
+        if ":" in expression:
+            start, stop = expression.split(":", 1)
+            start = int(start) if start else None
+            stop  = int(stop) if stop else None
+
             return slice(start, stop)
-        return int(raw)
+
+        return int(expression)
 
     def _is_spread_expression(self, text: str) -> bool:
         return self.patterns["spread"].fullmatch(text) is not None

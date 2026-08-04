@@ -13,6 +13,8 @@ from ..streaming.video import VideoStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
+from mindor.core.evaluator.condition import evaluate_condition
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
@@ -80,6 +82,7 @@ class VariableRenderer:
         }
 
         self._item_stack: List[Any] = []
+        self._index_stack: List[int] = []
 
     async def render(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
         return await self._render_element(value, scope, skip_decode)
@@ -102,7 +105,14 @@ class VariableRenderer:
         return value
 
     async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
-        source = await self._render_element(entries["*"], scope, skip_decode)
+        source, where = None, None
+        value = entries["*"]
+
+        if isinstance(value, dict):
+            source = await self._render_element(value.get("input"), scope, skip_decode)
+            where = value.get("where")
+        else:
+            source = await self._render_element(value, scope, skip_decode)
 
         if source is None:
             return []
@@ -110,35 +120,61 @@ class VariableRenderer:
         template = { key: value for key, value in entries.items() if key != "*" }
 
         if isinstance(source, (list, tuple)):
-            if not template:
+            if not template and where is None:
                 return list(source)
 
             values: List[Any] = []
 
-            for item in source:
+            for index, item in enumerate(source):
                 self._item_stack.append(item)
+                self._index_stack.append(index)
                 try:
-                    values.append(await self._render_dict(template, scope, skip_decode))
+                    if where is not None and not await self._matches_where(where, scope, skip_decode):
+                        continue
+                    if template:
+                        values.append(await self._render_dict(template, scope, skip_decode))
+                    else:
+                        values.append(item)
                 finally:
                     self._item_stack.pop()
+                    self._index_stack.pop()
 
             return values
 
         if isinstance(source, (StreamIterator, AsyncIterable)):
-            if not template:
+            if not template and where is None:
                 return source
 
             async def _iterate() -> AsyncIterator[Any]:
+                index = 0
                 async for item in source:
                     self._item_stack.append(item)
+                    self._index_stack.append(index)
                     try:
-                        yield await self._render_dict(template, scope, skip_decode)
+                        if where is not None and not await self._matches_where(where, scope, skip_decode):
+                            continue
+                        if template:
+                            yield await self._render_dict(template, scope, skip_decode)
+                        else:
+                            yield item
                     finally:
                         self._item_stack.pop()
+                        self._index_stack.pop()
+                        index += 1
 
             return StreamChunkIterator(_iterate())
 
         raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
+
+    async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
+        if isinstance(where, dict):
+            input = await self._render_element(where.get("input"), scope, skip_decode)
+            value = await self._render_element(where.get("value"), scope, skip_decode)
+            operator = ConditionOperator(where.get("operator", ConditionOperator.EQ.value))
+
+            return evaluate_condition(operator, input, value)
+
+        raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
 
     async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
         values = {}
@@ -207,6 +243,9 @@ class VariableRenderer:
             if index is not None and isinstance(value, list):
                 return value[index]
             return value
+
+        if key == "index" and self._index_stack:
+            return self._index_stack[-1]
 
         return await self.source_resolver(key, index, scope)
 

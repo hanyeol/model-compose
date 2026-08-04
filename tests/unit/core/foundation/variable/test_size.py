@@ -24,10 +24,14 @@ class TestParseSize:
         assert parse_size("3.5MB") == int(3.5 * 1024 ** 2)
         assert parse_size("1.5GB") == int(1.5 * 1024 ** 3)
 
+    def test_bare_numeric_string_is_bytes(self):
+        assert parse_size("1048576") == 1048576
+        assert parse_size("2048.0") == 2048
+
 
 class TestParseSizeErrors:
 
-    @pytest.mark.parametrize("bad", ["abc", "", "50X", "M50", "1048576", "50m", "  50M  "])
+    @pytest.mark.parametrize("bad", ["abc", "", "50X", "M50", "50m", "  50M  "])
     def test_malformed(self, bad):
         with pytest.raises(ValueError):
             parse_size(bad)

@@ -360,6 +360,13 @@ class _FakeCtx:
     async def render_variable(self, scope, value, skip_decode=False):
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
+    async def render_duration(self, scope, value, default=None):
+        from mindor.core.foundation.variable.time import parse_duration
+        value = await self.render_variable(scope, value) if value is not None else None
+        if value is not None:
+            return parse_duration(value)
+        return default
+
     async def _resolve_source(self, key, index, scope):
         sources = self._sources.get(scope or "__global__", {})
         if key in sources:

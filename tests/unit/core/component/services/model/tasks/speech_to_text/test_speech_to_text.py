@@ -22,7 +22,10 @@ from mindor.core.component.services.model.tasks.speech_to_text.common import Spe
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from pydantic import TypeAdapter
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
+
+_SpeechToTextModelActionConfigAdapter = TypeAdapter(SpeechToTextModelActionConfig)
 
 
 @pytest.fixture
@@ -83,7 +86,7 @@ def _make_config(
     }
     if output is not None:
         raw["output"] = output
-    return SpeechToTextModelActionConfig.model_validate(raw)
+    return _SpeechToTextModelActionConfigAdapter.validate_python(raw)
 
 
 def _make_context(audio_value: Any) -> ComponentActionContext:

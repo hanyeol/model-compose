@@ -46,9 +46,9 @@ def _build_component_config(*, with_adapter: bool, weight: float = 1.0) -> Any:
         "actions": [
             {
                 "prompt": "${input.text}",
+                "max_output_length": 16,
                 "batch_size": 1,
                 "params": {
-                    "max_output_length": 16,
                     "do_sample": False,
                 },
             }

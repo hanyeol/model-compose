@@ -174,11 +174,11 @@ def _make_config(
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"speaker", "start", "end", "confidence"}
+    assert set(seg.keys()) == {"speaker", "start_time", "end_time", "confidence"}
     assert isinstance(seg["speaker"], str)
-    assert isinstance(seg["start"], float)
-    assert isinstance(seg["end"], float)
-    assert seg["end"] > seg["start"]
+    assert isinstance(seg["start_time"], float)
+    assert isinstance(seg["end_time"], float)
+    assert seg["end_time"] > seg["start_time"]
     assert 0.0 <= seg["confidence"] <= 1.0
 
 

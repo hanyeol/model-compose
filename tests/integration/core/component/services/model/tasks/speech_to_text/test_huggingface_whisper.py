@@ -25,7 +25,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
-from mindor.dsl.schema.action import SpeechToTextModelActionConfig
+from mindor.dsl.schema.action import HuggingfaceSpeechToTextModelActionConfig
 
 
 transformers_required = pytest.mark.skipif(
@@ -97,7 +97,7 @@ def whisper_action_factory():
     model = model.to(device)
     model.eval()
 
-    def _factory(config: SpeechToTextModelActionConfig) -> HuggingfaceSpeechToTextTaskAction:
+    def _factory(config: HuggingfaceSpeechToTextModelActionConfig) -> HuggingfaceSpeechToTextTaskAction:
         return HuggingfaceSpeechToTextTaskAction(config, model, processor, device)
 
     return _factory
@@ -152,6 +152,26 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_audio = AsyncMock(side_effect=render_audio)
+
+    async def render_scalar(value, cast, default=None):
+        if value is None:
+            return default
+        return cast(value)
+
+    async def render_time(value, default=None):
+        if value is None:
+            return default
+        from mindor.core.foundation.variable.time import parse_time
+        return parse_time(value)
+
+    async def render_string(value, default=None):
+        if value is None or value == "":
+            return default
+        return value
+
+    ctx.render_scalar = AsyncMock(side_effect=render_scalar)
+    ctx.render_time = AsyncMock(side_effect=render_time)
+    ctx.render_string = AsyncMock(side_effect=render_string)
     return ctx
 
 
@@ -164,22 +184,22 @@ def _make_config(
     language: str = "en",
     task: str = "transcribe",
     max_output_length: int = 16,
-) -> SpeechToTextModelActionConfig:
+) -> HuggingfaceSpeechToTextModelActionConfig:
     payload: dict = {
         "audio": audio,
         "streaming": streaming,
         "batch_size": batch_size,
         "language": language,
         "task": task,
+        "max_output_length": max_output_length,
         "params": {
-            "max_output_length": max_output_length,
             "num_beams": 1,
             "temperature": 0.0,
         },
     }
     if output is not None:
         payload["output"] = output
-    return SpeechToTextModelActionConfig.model_validate(payload)
+    return HuggingfaceSpeechToTextModelActionConfig.model_validate(payload)
 
 
 @transformers_required

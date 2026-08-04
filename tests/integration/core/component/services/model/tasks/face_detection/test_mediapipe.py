@@ -88,9 +88,9 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 @pytest.fixture(scope="module")
 def mediapipe_model_path() -> str:
     """Resolve (download if needed) the default BlazeFace .tflite model once per module."""
-    service = BlazeFaceFaceDetectionTaskService(id="face-detection", config=_make_component_config(), daemon=False)
+    service = BlazeFaceFaceDetectionTaskService(id="face-detection", config=_make_component_config(model={}), daemon=False)
     try:
-        return asyncio.run(service._resolve_model_path())
+        return asyncio.run(service._provision_model(service.config.model))
     except (URLError, TimeoutError, OSError) as e:
         pytest.skip(f"Unable to fetch MediaPipe face detection model: {e}")
 
@@ -222,7 +222,7 @@ class TestAsyncIteratorInput:
 class TestDetectionOptions:
     @pytest.mark.anyio
     async def test_invalid_min_confidence_raises(self, make_action):
-        action = make_action(min_confidence=1.5)
+        action = make_action(params={ "min_confidence": 1.5 })
         context = ComponentActionContext("run-bad-conf", { "image": _blank_image() })
 
         with pytest.raises(ValueError, match="min_confidence"):
@@ -245,16 +245,23 @@ class TestModelResolution:
             config=_make_component_config(model=mediapipe_model_path),
             daemon=False,
         )
-        assert asyncio.run(service._resolve_model_path()) == mediapipe_model_path
+        assert asyncio.run(service._provision_model(service.config.model)) == mediapipe_model_path
 
-    def test_missing_local_model_path_raises(self):
+    def test_missing_local_model_path_triggers_url_download(self, tmp_path):
+        # When the local path does not exist, the resolver falls back to the
+        # URL-based downloader; an unreachable URL surfaces the download failure.
+        target = tmp_path / "model.tflite"
         service = BlazeFaceFaceDetectionTaskService(
             id="face-detection",
-            config=_make_component_config(model="/nonexistent/model.tflite"),
+            config=_make_component_config(model={
+                "path": str(target),
+                "url": "http://127.0.0.1:1/blaze_face.tflite",
+            }),
             daemon=False,
         )
-        with pytest.raises(FileNotFoundError):
-            asyncio.run(service._resolve_model_path())
+        with pytest.raises((URLError, OSError)):
+            asyncio.run(service._provision_model(service.config.model))
+        assert not target.exists()
 
 
 # -----------------------------------------------------------------------------
@@ -291,7 +298,7 @@ class TestRealHumanFace:
     async def test_detects_face_in_real_portrait(self, make_action, sample_face_image):
         width, height = sample_face_image.size
 
-        action = make_action(min_confidence=0.5)
+        action = make_action(params={ "min_confidence": 0.5 })
         context = ComponentActionContext("run-real", { "image": sample_face_image })
 
         result = await action.run(context)
@@ -328,7 +335,7 @@ class TestRealHumanFace:
 
     @pytest.mark.anyio
     async def test_high_confidence_threshold_filters_results(self, make_action, sample_face_image):
-        action = make_action(min_confidence=0.99)
+        action = make_action(params={ "min_confidence": 0.99 })
         context = ComponentActionContext("run-real-strict", { "image": sample_face_image })
 
         result = await action.run(context)

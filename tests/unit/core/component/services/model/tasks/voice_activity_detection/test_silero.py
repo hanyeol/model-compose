@@ -120,11 +120,11 @@ async def _collect(async_iter: AsyncIterator[dict]) -> List[dict]:
 
 
 def _assert_segment_shape(seg: dict) -> None:
-    assert set(seg.keys()) == {"start", "end", "confidence"}
-    assert isinstance(seg["start"], float)
-    assert isinstance(seg["end"], float)
+    assert set(seg.keys()) == {"start_time", "end_time", "confidence"}
+    assert isinstance(seg["start_time"], float)
+    assert isinstance(seg["end_time"], float)
     assert 0.0 <= seg["confidence"] <= 1.0
-    assert seg["end"] > seg["start"]
+    assert seg["end_time"] > seg["start_time"]
 
 
 # ---- Path 1: streaming=True + streamable PCM ----
@@ -257,7 +257,7 @@ class TestOutputContract:
         segments = await _collect(results[0])
         prev_end = -1.0
         for seg in segments:
-            assert seg["start"] >= prev_end - 0.5, (
-                f"segments overlap: {seg['start']} < {prev_end}"
+            assert seg["start_time"] >= prev_end - 0.5, (
+                f"segments overlap: {seg['start_time']} < {prev_end}"
             )
-            prev_end = seg["end"]
+            prev_end = seg["end_time"]

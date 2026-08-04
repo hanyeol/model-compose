@@ -17,8 +17,8 @@ import numpy as np
 import pytest
 
 from mindor.core.foundation.streaming.audio import (
-    load_audio_buffer,
-    stream_audio_buffer,
+    AudioBufferStreamer,
+    PcmStreamResource,
 )
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
@@ -71,11 +71,12 @@ def _build_stereo_pcm_source(
     interleaved = np.empty(n * 2, dtype=np.int16)
     interleaved[0::2] = left
     interleaved[1::2] = right
-    return MediaSource(
+    attrs = {"sample_rate": sample_rate, "channels": 2, "bit_depth": 16}
+    pcm = PcmStreamResource(
         ChunkedStreamResource(interleaved.tobytes(), chunk_size),
-        format="s16le",
-        attrs={"sample_rate": sample_rate, "channels": 2},
+        attrs=attrs,
     )
+    return MediaSource(pcm, format=pcm.format, attrs=attrs)
 
 
 def _build_wav_source(seconds: float = 4.0, sample_rate: int = 48000) -> MediaSource:
@@ -94,15 +95,15 @@ def _build_wav_source(seconds: float = 4.0, sample_rate: int = 48000) -> MediaSo
     return MediaSource(BytesStreamResource(buf.getvalue()), format="wav")
 
 
-# ---- load_audio_buffer: non-blocking ----
+# ---- AudioBufferStreamer.collect(): non-blocking ----
 
-class TestLoadAudioArrayDoesNotBlock:
+class TestCollectDoesNotBlock:
     @pytest.mark.anyio
     async def test_large_pcm_decode_and_resample_does_not_block(self):
         src = _build_stereo_pcm_source(seconds=4.0, sample_rate=48000)
 
         result = await assert_does_not_block(
-            load_audio_buffer(src, sample_rate=16000),
+            AudioBufferStreamer(src, sample_rate=16000, channel="mono").collect(),
         )
 
         assert isinstance(result, AudioBuffer)
@@ -117,13 +118,13 @@ class TestLoadAudioArrayDoesNotBlock:
         src = _build_wav_source(seconds=4.0, sample_rate=48000)
 
         result = await assert_does_not_block(
-            load_audio_buffer(src, sample_rate=16000),
+            AudioBufferStreamer(src, sample_rate=16000, channel="mono").collect(),
         )
 
         assert isinstance(result, AudioBuffer)
         assert result.sample_rate == 16000
         assert result.waveform.dtype == np.float32
-        # torchaudio decodes to (1, N) or (N,); after resample to 16k ~= 64000 samples.
+        # 4s @ 16k mono ~= 64_000 samples after decode + resample.
         total = result.waveform.shape[-1]
         assert 63_000 <= total <= 65_000
 
@@ -140,7 +141,9 @@ class TestLoadAudioArrayDoesNotBlock:
             sleep_finished_at.append(time.monotonic())
 
         start = time.monotonic()
-        decode_task = asyncio.create_task(load_audio_buffer(src, sample_rate=16000))
+        decode_task = asyncio.create_task(
+            AudioBufferStreamer(src, sample_rate=16000, channel="mono").collect()
+        )
         sleep_task = asyncio.create_task(timed_sleep())
 
         await sleep_task
@@ -159,7 +162,7 @@ class TestLoadAudioArrayDoesNotBlock:
         assert result.sample_rate == 16000
 
 
-# ---- stream_audio_buffer: non-blocking ----
+# ---- AudioBufferStreamer: non-blocking ----
 
 class TestStreamAudioArrayDoesNotBlock:
     @pytest.mark.anyio
@@ -171,19 +174,20 @@ class TestStreamAudioArrayDoesNotBlock:
 
         frames = await assert_does_not_block(
             collect_async(
-                stream_audio_buffer(src, frame_size=frame_size, sample_rate=16000),
+                AudioBufferStreamer(src, frame_size=frame_size, sample_rate=16000),
             ),
         )
 
         # 3s @ 16k ~= 48_000 samples across frames of 1024 => ~47 frames plus a padded tail.
+        # Stereo source with default channel handling preserves both channels per frame.
         assert len(frames) >= 40
         for f in frames:
-            assert f.waveform.shape == (frame_size,)
+            assert f.waveform.shape == (2, frame_size)
             assert f.waveform.dtype == np.float32
             assert f.sample_rate == 16000
 
         # Sanity: total samples close to expected 16k * 3s.
-        total = sum(f.waveform.shape[0] for f in frames)
+        total = sum(f.waveform.shape[-1] for f in frames)
         # frames are all frame_size (padded), so total is a multiple of frame_size >= 48000.
         assert total >= 48_000
         # Should not have wildly over-produced either.
@@ -197,16 +201,14 @@ class TestStreamAudioArrayDoesNotBlock:
         n = int(seconds * sample_rate)
         # Mono s16le so frame math is trivial (n samples => ceil(n / frame_size) frames).
         samples = np.arange(n, dtype=np.int16)
-        src = MediaSource(
-            ChunkedStreamResource(samples.tobytes(), 4096),
-            format="s16le",
-            attrs={"sample_rate": sample_rate, "channels": 1},
-        )
+        attrs = {"sample_rate": sample_rate, "channels": 1, "bit_depth": 16}
+        pcm = PcmStreamResource(ChunkedStreamResource(samples.tobytes(), 4096), attrs=attrs)
+        src = MediaSource(pcm, format=pcm.format, attrs=attrs)
         frame_size = 1024
 
         frames = await assert_does_not_block(
             collect_async(
-                stream_audio_buffer(src, frame_size=frame_size, sample_rate=sample_rate),
+                AudioBufferStreamer(src, frame_size=frame_size, sample_rate=sample_rate),
             ),
         )
 

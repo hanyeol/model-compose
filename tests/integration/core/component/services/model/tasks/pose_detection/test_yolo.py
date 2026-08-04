@@ -93,9 +93,9 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 @pytest.fixture(scope="module")
 def yolo_model_path() -> str:
     """Resolve (download if needed) the default YOLO pose weights once per module."""
-    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(), daemon=False)
+    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(model={}), daemon=False)
     try:
-        return asyncio.run(service._resolve_model_path())
+        return asyncio.run(service._provision_model(service.config.model))
     except (URLError, TimeoutError, OSError) as e:
         pytest.skip(f"Unable to fetch YOLO pose detection model: {e}")
 
@@ -234,7 +234,7 @@ class TestYoloValidators:
 class TestDetectionOptions:
     @pytest.mark.anyio
     async def test_invalid_min_confidence_raises(self, make_action):
-        action = make_action(min_confidence=1.5)
+        action = make_action(params={ "min_confidence": 1.5 })
         context = ComponentActionContext("run-bad-conf", { "image": _blank_image() })
 
         with pytest.raises(ValueError, match="min_confidence"):
@@ -263,16 +263,23 @@ class TestModelResolution:
             config=_make_component_config(model=yolo_model_path),
             daemon=False,
         )
-        assert asyncio.run(service._resolve_model_path()) == yolo_model_path
+        assert asyncio.run(service._provision_model(service.config.model)) == yolo_model_path
 
-    def test_missing_local_model_path_raises(self):
+    def test_missing_local_model_path_triggers_url_download(self, tmp_path):
+        # When the local path does not exist, the resolver falls back to the
+        # URL-based downloader; an unreachable URL surfaces the download failure.
+        target = tmp_path / "pose_model.pt"
         service = YoloPoseDetectionTaskService(
             id="pose-detection",
-            config=_make_component_config(model="/nonexistent/pose_model.pt"),
+            config=_make_component_config(model={
+                "path": str(target),
+                "url": "http://127.0.0.1:1/yolov8n-pose.pt",
+            }),
             daemon=False,
         )
-        with pytest.raises(FileNotFoundError):
-            asyncio.run(service._resolve_model_path())
+        with pytest.raises((URLError, OSError)):
+            asyncio.run(service._provision_model(service.config.model))
+        assert not target.exists()
 
 
 # -----------------------------------------------------------------------------
@@ -284,7 +291,7 @@ class TestRealHumanPose:
     async def test_detects_pose_in_real_image(self, make_action, sample_pose_image):
         width, height = sample_pose_image.size
 
-        action = make_action(min_confidence=0.5)
+        action = make_action(params={ "min_confidence": 0.5 })
         context = ComponentActionContext("run-real", { "image": sample_pose_image })
 
         result = await action.run(context)

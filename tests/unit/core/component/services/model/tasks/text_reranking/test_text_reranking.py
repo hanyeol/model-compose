@@ -311,4 +311,4 @@ class TestParamsPropagation:
         # Driver-agnostic params surfaced from the base resolver.
         assert set(params.keys()) >= { "normalize", "max_input_length" }
         assert params["normalize"] is True
-        assert params["max_input_length"] == 512
+        assert params["max_input_length"] is None

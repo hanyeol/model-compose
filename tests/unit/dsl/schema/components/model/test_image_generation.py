@@ -83,12 +83,12 @@ class TestArchitectureDefaults:
         cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {
             "actions": [{"prompt": "a cat"}],
         }))
-        p = cfg.actions[0].params
-        assert p.num_inference_steps == 30
-        assert p.guidance_scale == 7.5
-        assert p.width == 1024
-        assert p.height == 1024
-        assert p.negative_prompt is None
+        action = cfg.actions[0]
+        assert action.params.num_inference_steps == 30
+        assert action.params.guidance_scale == 7.5
+        assert action.width == 1024
+        assert action.height == 1024
+        assert action.negative_prompt is None
 
     def test_flux_defaults(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("flux", {

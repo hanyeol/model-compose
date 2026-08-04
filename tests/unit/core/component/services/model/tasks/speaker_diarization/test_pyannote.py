@@ -80,11 +80,11 @@ def action():
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"speaker", "start", "end", "confidence"}
+    assert set(seg.keys()) == {"speaker", "start_time", "end_time", "confidence"}
     assert isinstance(seg["speaker"], str)
-    assert isinstance(seg["start"], float)
-    assert isinstance(seg["end"], float)
-    assert seg["end"] > seg["start"]
+    assert isinstance(seg["start_time"], float)
+    assert isinstance(seg["end_time"], float)
+    assert seg["end_time"] > seg["start_time"]
     assert 0.0 <= seg["confidence"] <= 1.0
 
 
@@ -108,44 +108,44 @@ def _base_params(action, **overrides) -> dict:
 class TestMergeSegments:
     def test_no_merge_when_gap_is_zero(self, action):
         segments = [
-            {"speaker": "SPEAKER_00", "start": 0.0, "end": 1.0, "confidence": 1.0},
-            {"speaker": "SPEAKER_00", "start": 1.2, "end": 2.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_00", "start_time": 0.0, "end_time": 1.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_00", "start_time": 1.2, "end_time": 2.0, "confidence": 1.0},
         ]
         merged = action._merge_segments(segments, merge_gap=0.0)
         assert len(merged) == 2
 
     def test_merges_same_speaker_within_gap(self, action):
         segments = [
-            {"speaker": "SPEAKER_00", "start": 0.0, "end": 1.0, "confidence": 1.0},
-            {"speaker": "SPEAKER_00", "start": 1.2, "end": 2.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_00", "start_time": 0.0, "end_time": 1.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_00", "start_time": 1.2, "end_time": 2.0, "confidence": 1.0},
         ]
         merged = action._merge_segments(segments, merge_gap=0.5)
         assert len(merged) == 1
-        assert merged[0]["start"] == 0.0
-        assert merged[0]["end"] == 2.0
+        assert merged[0]["start_time"] == 0.0
+        assert merged[0]["end_time"] == 2.0
 
     def test_never_merges_across_speakers(self, action):
         segments = [
-            {"speaker": "SPEAKER_00", "start": 0.0, "end": 1.0, "confidence": 1.0},
-            {"speaker": "SPEAKER_01", "start": 1.1, "end": 2.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_00", "start_time": 0.0, "end_time": 1.0, "confidence": 1.0},
+            {"speaker": "SPEAKER_01", "start_time": 1.1, "end_time": 2.0, "confidence": 1.0},
         ]
         merged = action._merge_segments(segments, merge_gap=1.0)
         assert len(merged) == 2
 
     def test_multiple_merges_per_speaker(self, action):
         segments = [
-            {"speaker": "A", "start": 0.0, "end": 1.0, "confidence": 1.0},
-            {"speaker": "A", "start": 1.1, "end": 2.0, "confidence": 1.0},
-            {"speaker": "A", "start": 2.1, "end": 3.0, "confidence": 1.0},
+            {"speaker": "A", "start_time": 0.0, "end_time": 1.0, "confidence": 1.0},
+            {"speaker": "A", "start_time": 1.1, "end_time": 2.0, "confidence": 1.0},
+            {"speaker": "A", "start_time": 2.1, "end_time": 3.0, "confidence": 1.0},
         ]
         merged = action._merge_segments(segments, merge_gap=0.2)
         assert len(merged) == 1
-        assert merged[0]["end"] == 3.0
+        assert merged[0]["end_time"] == 3.0
 
     def test_gap_larger_than_threshold_not_merged(self, action):
         segments = [
-            {"speaker": "A", "start": 0.0, "end": 1.0, "confidence": 1.0},
-            {"speaker": "A", "start": 5.0, "end": 6.0, "confidence": 1.0},
+            {"speaker": "A", "start_time": 0.0, "end_time": 1.0, "confidence": 1.0},
+            {"speaker": "A", "start_time": 5.0, "end_time": 6.0, "confidence": 1.0},
         ]
         merged = action._merge_segments(segments, merge_gap=0.5)
         assert len(merged) == 2
@@ -213,7 +213,7 @@ class TestCollectSegments:
         ])
         waveform = np.zeros(16000, dtype=np.float32)
         segments = action._collect_segments(waveform, sample_rate=16000, params=_base_params(action))
-        starts = [seg["start"] for seg in segments]
+        starts = [seg["start_time"] for seg in segments]
         assert starts == sorted(starts)
 
     def test_forwards_pipeline_params_to_pipeline(self, action):
@@ -239,8 +239,9 @@ class TestDiarizeReturnShape:
     async def test_streaming_false_returns_list_of_lists(self, action, monkeypatch):
         action.pipeline = _FakePyannotePipeline([(_Turn(0.0, 1.0), "SPEAKER_00")])
 
-        async def _fake_preprocess(audios, sample_rate):
-            return [np.zeros(16000, dtype=np.float32), np.zeros(16000, dtype=np.float32)]
+        async def _fake_preprocess(audios):
+            return [(np.zeros(16000, dtype=np.float32), 16000),
+                    (np.zeros(16000, dtype=np.float32), 16000)]
 
         monkeypatch.setattr(action, "_preprocess_audio", _fake_preprocess)
 
@@ -262,8 +263,8 @@ class TestDiarizeReturnShape:
             (_Turn(1.5, 2.5), "SPEAKER_01"),
         ])
 
-        async def _fake_preprocess(audios, sample_rate):
-            return [np.zeros(16000, dtype=np.float32)]
+        async def _fake_preprocess(audios):
+            return [(np.zeros(16000, dtype=np.float32), 16000)]
 
         monkeypatch.setattr(action, "_preprocess_audio", _fake_preprocess)
 

@@ -128,6 +128,33 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_audio = AsyncMock(side_effect=render_audio)
+
+    async def render_scalar(value, cast, default=None):
+        if value is None:
+            return default
+        return cast(value)
+
+    async def render_time(value, default=None):
+        if value is None:
+            return default
+        from mindor.core.foundation.variable.time import parse_time
+        return parse_time(value)
+
+    async def render_duration(value, default=None):
+        if value is None:
+            return default
+        from mindor.core.foundation.variable.time import parse_duration
+        return parse_duration(value)
+
+    async def render_string(value, default=None):
+        if value is None or value == "":
+            return default
+        return value
+
+    ctx.render_scalar = AsyncMock(side_effect=render_scalar)
+    ctx.render_time = AsyncMock(side_effect=render_time)
+    ctx.render_duration = AsyncMock(side_effect=render_duration)
+    ctx.render_string = AsyncMock(side_effect=render_string)
     return ctx
 
 
@@ -157,11 +184,11 @@ def _make_config(
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"start", "end", "confidence"}
-    assert isinstance(seg["start"], float)
-    assert isinstance(seg["end"], float)
+    assert set(seg.keys()) == {"start_time", "end_time", "confidence"}
+    assert isinstance(seg["start_time"], float)
+    assert isinstance(seg["end_time"], float)
     assert 0.0 <= seg["confidence"] <= 1.0
-    assert seg["end"] > seg["start"]
+    assert seg["end_time"] > seg["start_time"]
 
 
 # ---- Non-streaming: benchmark audio ----

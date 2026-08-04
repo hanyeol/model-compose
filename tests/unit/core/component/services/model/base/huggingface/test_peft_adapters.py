@@ -2,8 +2,8 @@
 
 Covers two layers:
 
-1. Helper methods (``_build_peft_adapter_lists``, ``_get_model_path``,
-   ``_get_model_params``) — pure logic, no external deps.
+1. Helper methods (``_build_peft_adapter_lists``, ``_resolve_model``,
+   ``_get_model_params``, ``_get_model_options``) — pure logic, no external deps.
 2. Integration of ``_load_peft_adapters`` against a fake ``peft.PeftModel`` that
    records ``from_pretrained`` / ``load_adapter`` / ``add_weighted_adapter`` /
    ``set_adapter`` calls. Exercises the single-adapter, multi-adapter, and
@@ -12,6 +12,7 @@ Covers two layers:
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from typing import Any, Dict, List, Tuple
@@ -146,16 +147,19 @@ class TestBuildPeftAdapterLists:
         assert weights == [1.0, 1.0, 1.0]
 
 
-class TestGetModelPath:
+class TestResolveModel:
     def test_huggingface_returns_repository(self):
         service = _make_service()
         adapter = _make_adapter_config(model="org/lora-adapter")
-        assert service._get_model_path(adapter) == "org/lora-adapter"
+        assert asyncio.run(service._provision_model(adapter.model)) == "org/lora-adapter"
 
-    def test_local_returns_path(self):
+    def test_local_returns_path(self, tmp_path):
+        # Local paths that exist on disk are returned verbatim.
+        local = tmp_path / "adapter.bin"
+        local.write_bytes(b"")
         service = _make_service()
-        adapter = _make_adapter_config(model="./local-adapter")
-        assert service._get_model_path(adapter) == "./local-adapter"
+        adapter = _make_adapter_config(model=str(local))
+        assert asyncio.run(service._provision_model(adapter.model)) == str(local)
 
 
 class TestGetModelParamsForAdapter:
@@ -166,7 +170,7 @@ class TestGetModelParamsForAdapter:
     def test_minimal_adapter_emits_no_params(self):
         service = _make_service()
         adapter = _make_adapter_config()
-        assert service._get_model_params(adapter) == {}
+        assert service._get_model_params(adapter.model) == {}
 
     def test_passes_optional_huggingface_fields(self):
         service = _make_service()
@@ -178,7 +182,7 @@ class TestGetModelParamsForAdapter:
             "local_files_only": True,
             "token": "hf_xyz",
         })
-        params = service._get_model_params(adapter)
+        params = service._get_model_params(adapter.model)
         assert params == {
             "revision": "v2",
             "cache_dir": "/cache",
@@ -189,7 +193,8 @@ class TestGetModelParamsForAdapter:
     def test_low_cpu_mem_usage_included_when_truthy(self):
         service = _make_service()
         adapter = _make_adapter_config(low_cpu_mem_usage=True)
-        assert service._get_model_params(adapter) == {"low_cpu_mem_usage": True}
+        # low_cpu_mem_usage lives in options (per-config), not model params.
+        assert service._get_model_options(adapter) == {"low_cpu_mem_usage": True}
 
     def test_adapter_does_not_set_device_map(self):
         """Adapter loading must not inject ``device_map`` — the base model has
@@ -198,7 +203,8 @@ class TestGetModelParamsForAdapter:
         """
         service = _make_service()
         adapter = _make_adapter_config()
-        assert "device_map" not in service._get_model_params(adapter)
+        assert "device_map" not in service._get_model_params(adapter.model)
+        assert "device_map" not in service._get_model_options(adapter)
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +218,7 @@ class TestLoadPeftAdaptersSingle:
         adapter = _make_adapter_config(name="solo", model="org/lora-solo")
         sentinel_base = object()
 
-        peft_model = service._load_peft_adapters(sentinel_base, [adapter])
+        peft_model = asyncio.run(service._load_peft_adapters(sentinel_base, [adapter]))
 
         assert isinstance(peft_model, _FakePeftModel)
         assert peft_model.base_model is sentinel_base
@@ -223,7 +229,7 @@ class TestLoadPeftAdaptersSingle:
     def test_single_non_unit_weight_triggers_weighted_merge(self, fake_peft_module):
         service = _make_service()
         adapter = _make_adapter_config(name="solo", weight=0.5)
-        peft_model = service._load_peft_adapters(object(), [adapter])
+        peft_model = asyncio.run(service._load_peft_adapters(object(), [adapter]))
 
         assert peft_model.weighted_adapters == [(["solo"], [0.5], "blended_adapter")]
         assert peft_model.active_adapter == "blended_adapter"
@@ -237,7 +243,7 @@ class TestLoadPeftAdaptersMultiple:
             _make_adapter_config(name="domain", model="org/domain", weight=0.4),
             _make_adapter_config(name="tone", model="org/tone", weight=1.0),
         ]
-        peft_model = service._load_peft_adapters(object(), adapters)
+        peft_model = asyncio.run(service._load_peft_adapters(object(), adapters))
 
         # First adapter loads via from_pretrained, remaining via load_adapter.
         assert peft_model.loaded == [
@@ -253,7 +259,7 @@ class TestLoadPeftAdaptersMultiple:
     def test_default_names_are_synthesized_for_multi_adapter(self, fake_peft_module):
         service = _make_service()
         adapters = [_make_adapter_config(model="org/a"), _make_adapter_config(model="org/b")]
-        peft_model = service._load_peft_adapters(object(), adapters)
+        peft_model = asyncio.run(service._load_peft_adapters(object(), adapters))
 
         names = [entry[1] for entry in peft_model.loaded]
         assert names == ["peft_adapter_0", "peft_adapter_1"]
@@ -281,7 +287,7 @@ class TestLoadPeftAdaptersForwardsParams:
                 },
             ),
         ]
-        peft_model = service._load_peft_adapters(object(), adapters)
+        peft_model = asyncio.run(service._load_peft_adapters(object(), adapters))
 
         assert peft_model.loaded[0] == ("org/style", "style", {"revision": "main"})
         assert peft_model.loaded[1] == ("org/domain", "domain", {"cache_dir": "/cache"})

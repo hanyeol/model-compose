@@ -1978,30 +1978,6 @@ class TestFileValueRenderer:
 
 
 # ============================
-# SizeValueRenderer
-# ============================
-
-class TestSizeValueRenderer:
-    @pytest.mark.anyio
-    async def test_int_passes_through(self):
-        from mindor.core.foundation.variable.size import SizeValueRenderer
-        result = await SizeValueRenderer().render(1024)
-        assert result == 1024
-
-    @pytest.mark.anyio
-    async def test_string_size_parsed(self):
-        from mindor.core.foundation.variable.size import SizeValueRenderer
-        result = await SizeValueRenderer().render("1KB")
-        assert result == 1024
-
-    @pytest.mark.anyio
-    async def test_none_returns_default(self):
-        from mindor.core.foundation.variable.size import SizeValueRenderer
-        result = await SizeValueRenderer().render(None, default=512)
-        assert result == 512
-
-
-# ============================
 # AudioValueRenderer / VideoValueRenderer
 # ============================
 

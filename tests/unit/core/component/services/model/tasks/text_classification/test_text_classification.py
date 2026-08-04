@@ -185,7 +185,7 @@ class TestParamsPropagation:
         params = action.params_seen[0]
         # Driver-agnostic params surfaced from the base resolver.
         assert set(params.keys()) >= { "max_input_length", "return_probabilities" }
-        assert params["max_input_length"] == 512
+        assert params["max_input_length"] is None
         assert params["return_probabilities"] is False
 
 

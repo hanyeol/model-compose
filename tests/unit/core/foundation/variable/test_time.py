@@ -35,9 +35,8 @@ class TestParseDuration:
         with pytest.raises(ValueError, match="Unsupported duration format"):
             parse_duration("1y")
 
-    def test_unitless_string_raises(self):
-        with pytest.raises(ValueError):
-            parse_duration("30")
+    def test_unitless_string_is_seconds(self):
+        assert parse_duration("30") == 30.0
 
 
 class TestParseTime:

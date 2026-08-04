@@ -190,4 +190,4 @@ class TestParamsPropagation:
         assert set(params.keys()) >= { "pooling", "normalize", "max_input_length" }
         assert params["pooling"] == "mean"
         assert params["normalize"] is True
-        assert params["max_input_length"] == 512
+        assert params["max_input_length"] is None

@@ -118,6 +118,26 @@ def _make_context(video_value: Any) -> ComponentActionContext:
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_video = AsyncMock(side_effect=render_video)
+
+    async def render_scalar(value, cast, default=None):
+        if value is None:
+            return default
+        return cast(value)
+
+    async def render_time(value, default=None):
+        if value is None:
+            return default
+        from mindor.core.foundation.variable.time import parse_time
+        return parse_time(value)
+
+    async def render_string(value, default=None):
+        if value is None or value == "":
+            return default
+        return value
+
+    ctx.render_scalar = AsyncMock(side_effect=render_scalar)
+    ctx.render_time = AsyncMock(side_effect=render_time)
+    ctx.render_string = AsyncMock(side_effect=render_string)
     return ctx
 
 
@@ -151,15 +171,15 @@ class TestFFmpegVideoSceneDetector:
         scene = result[0]
 
         # Required fields.
-        for key in ("index", "start", "end", "start_frame", "end_frame", "duration"):
+        for key in ("index", "start_time", "end_time", "start_frame", "end_frame", "duration"):
             assert key in scene, f"missing field: {key}"
 
         # Types & formats.
         assert isinstance(scene["index"], int)
         assert isinstance(scene["start_frame"], int)
         assert isinstance(scene["end_frame"], int)
-        assert _TIMECODE_PATTERN.match(scene["start"]), f"bad start: {scene['start']}"
-        assert _TIMECODE_PATTERN.match(scene["end"]), f"bad end: {scene['end']}"
+        assert _TIMECODE_PATTERN.match(scene["start_time"]), f"bad start_time: {scene['start_time']}"
+        assert _TIMECODE_PATTERN.match(scene["end_time"]), f"bad end_time: {scene['end_time']}"
         assert _TIMECODE_PATTERN.match(scene["duration"]), f"bad duration: {scene['duration']}"
 
     @pytest.mark.anyio

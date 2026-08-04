@@ -21,7 +21,7 @@ import re, aiofiles, os
 class FieldResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
-            "keypath": re.compile(r"[-_\w]+|\[-?\d+\]|\[\*\]"),
+            "keypath": re.compile(r"[-_\w]+|\[-?\d*:-?\d*\]|\[-?\d+\]|\[\*\]"),
         }
 
     def resolve(self, object: Any, path: Optional[str], default: Any = None) -> Any:
@@ -41,10 +41,17 @@ class FieldResolver:
             if segment.startswith("["):
                 if not isinstance(value, list):
                     return default
-                i = int(segment[1:-1])
-                if not -len(value) <= i < len(value):
-                    return default
-                value = value[i]
+                inner = segment[1:-1]
+                if ":" in inner:
+                    start_str, stop_str = inner.split(":", 1)
+                    start = int(start_str) if start_str else None
+                    stop = int(stop_str) if stop_str else None
+                    value = value[start:stop]
+                else:
+                    i = int(inner)
+                    if not -len(value) <= i < len(value):
+                        return default
+                    value = value[i]
             else:
                 if not isinstance(value, dict):
                     return default
@@ -55,13 +62,13 @@ class FieldResolver:
         return value
 
 class VariableRenderer:
-    def __init__(self, source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]]):
-        self.source_resolver: Callable[[str, Optional[int], Optional[str]], Awaitable[Any]] = source_resolver
+    def __init__(self, source_resolver: Callable[[str, Optional[Union[int, slice]], Optional[str]], Awaitable[Any]]):
+        self.source_resolver: Callable[[str, Optional[Union[int, slice]], Optional[str]], Awaitable[Any]] = source_resolver
         self.field_resolver: FieldResolver = FieldResolver()
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                                                                # ${
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?[0-9]+)\])?                                             # key: input, result[], result[0], result[-1], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?\d*:-?\d*|-?\d+)\])?                                    # key: input, result[], result[0], result[-1], result[1:], result[:5], result[1:5], etc.
                     (?:\.([^\s|}]+))?                                                                                   # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;\[}]+)(\[\])?(?:/([^\s;\[}]+)(?:\[((?:\$\{[^}]*\}|[^\]])*)\])?)?(?:;([^\s}]+))?)? # type[]/subtype[attrs];format (attrs may contain nested ${...})
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?                                       # default value after `|`
@@ -168,7 +175,7 @@ class VariableRenderer:
 
         for m in reversed(matches):
             key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
-            index = int(index) if index else None
+            index = self._parse_index(index)
             is_list = bool(is_list)
 
             if attrs:
@@ -194,7 +201,7 @@ class VariableRenderer:
 
         return text
 
-    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[Union[int, slice]], scope: Optional[str]) -> Any:
         if key == "item" and self._item_stack:
             value = self._item_stack[-1]
             if index is not None and isinstance(value, list):
@@ -377,7 +384,8 @@ class VariableRenderer:
 
         return attrs
 
-    def _split_attrs(self, value: str) -> List[str]:
+    @staticmethod
+    def _split_attrs(value: str) -> List[str]:
         parts: List[str] = []
         start, depth = 0, 0
         index, length = 0, len(value)
@@ -402,6 +410,17 @@ class VariableRenderer:
         parts.append(value[start:])
 
         return parts
+
+    @staticmethod
+    def _parse_index(raw: Optional[str]) -> Optional[Union[int, slice]]:
+        if not raw:
+            return None
+        if ":" in raw:
+            start_str, stop_str = raw.split(":", 1)
+            start = int(start_str) if start_str else None
+            stop = int(stop_str) if stop_str else None
+            return slice(start, stop)
+        return int(raw)
 
     def _is_spread_expression(self, text: str) -> bool:
         return self.patterns["spread"].fullmatch(text) is not None

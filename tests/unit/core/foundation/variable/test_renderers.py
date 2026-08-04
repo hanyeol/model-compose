@@ -3169,3 +3169,172 @@ class TestRenderMapEdgeCases:
             {"id": 1, "flag": True, "count": 42, "none": None},
             {"id": 2, "flag": True, "count": 42, "none": None},
         ]
+
+
+# ============================
+# slice indexing — FieldResolver (path segments)
+# ============================
+
+class TestFieldResolverSlice:
+    """Test Python-style [start:stop] slicing inside path segments."""
+
+    def test_slice_open_start(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[1:]") == [20, 30, 40, 50]
+
+    def test_slice_open_stop(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[:3]") == [10, 20, 30]
+
+    def test_slice_closed_range(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[1:4]") == [20, 30, 40]
+
+    def test_slice_negative_start(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[-2:]") == [40, 50]
+
+    def test_slice_negative_stop(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[:-1]") == [10, 20, 30, 40]
+
+    def test_slice_both_negative(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30, 40, 50]}, "xs[-3:-1]") == [30, 40]
+
+    def test_slice_full_copy(self):
+        r = FieldResolver()
+        result = r.resolve({"xs": [10, 20, 30]}, "xs[:]")
+        assert result == [10, 20, 30]
+
+    def test_slice_out_of_range_clamps_empty(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30]}, "xs[100:200]") == []
+
+    def test_slice_stop_beyond_length_clamped(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30]}, "xs[1:99]") == [20, 30]
+
+    def test_slice_start_before_zero_clamped(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30]}, "xs[-99:2]") == [10, 20]
+
+    def test_slice_on_non_list_returns_default(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": "not a list"}, "xs[1:]", default="fallback") == "fallback"
+
+    def test_slice_followed_by_field(self):
+        """Slice can appear mid-path; subsequent segments apply to the sliced result…
+        but only field access works on the list itself, so this is a resolver limitation
+        we document by asserting the current behavior."""
+        r = FieldResolver()
+        # Slicing to a sub-list, then trying to access a dict key on the list → default
+        assert r.resolve({"xs": [{"v": 1}, {"v": 2}]}, "xs[0:1].v", default=None) is None
+
+    def test_nested_slice_in_path(self):
+        r = FieldResolver()
+        data = {"msgs": [{"blocks": [{"t": "a"}, {"t": "b"}, {"t": "c"}]}]}
+        assert r.resolve(data, "msgs[0].blocks[1:]") == [{"t": "b"}, {"t": "c"}]
+
+    # ---- regression: existing indexing still works ----
+
+    def test_single_positive_index_still_works(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30]}, "xs[0]") == 10
+
+    def test_single_negative_index_still_works(self):
+        r = FieldResolver()
+        assert r.resolve({"xs": [10, 20, 30]}, "xs[-1]") == 30
+
+    def test_broadcast_still_works(self):
+        r = FieldResolver()
+        data = {"xs": [{"v": 1}, {"v": 2}, {"v": 3}]}
+        assert r.resolve(data, "xs[*].v") == [1, 2, 3]
+
+
+# ============================
+# slice indexing — VariableRenderer (${key[slice]} and ${key.path[slice]})
+# ============================
+
+class TestVariableRendererSlice:
+    """Test [start:stop] slicing in ${...} interpolation."""
+
+    @pytest.mark.anyio
+    async def test_key_slice_open_start(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3, 4, 5]}))
+        assert await renderer.render("${output[1:]}") == [2, 3, 4, 5]
+
+    @pytest.mark.anyio
+    async def test_key_slice_open_stop(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3, 4, 5]}))
+        assert await renderer.render("${output[:3]}") == [1, 2, 3]
+
+    @pytest.mark.anyio
+    async def test_key_slice_closed_range(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3, 4, 5]}))
+        assert await renderer.render("${output[1:4]}") == [2, 3, 4]
+
+    @pytest.mark.anyio
+    async def test_key_slice_negative_start(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3, 4, 5]}))
+        assert await renderer.render("${output[-2:]}") == [4, 5]
+
+    @pytest.mark.anyio
+    async def test_key_slice_negative_stop(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3, 4, 5]}))
+        assert await renderer.render("${output[:-1]}") == [1, 2, 3, 4]
+
+    @pytest.mark.anyio
+    async def test_key_slice_full_copy(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3]}))
+        assert await renderer.render("${output[:]}") == [1, 2, 3]
+
+    @pytest.mark.anyio
+    async def test_path_slice(self):
+        renderer = VariableRenderer(make_source_resolver({"nested": {"items": ["a", "b", "c", "d"]}}))
+        assert await renderer.render("${nested.items[1:]}") == ["b", "c", "d"]
+
+    @pytest.mark.anyio
+    async def test_path_slice_negative(self):
+        renderer = VariableRenderer(make_source_resolver({"nested": {"items": ["a", "b", "c", "d"]}}))
+        assert await renderer.render("${nested.items[:-1]}") == ["a", "b", "c"]
+
+    @pytest.mark.anyio
+    async def test_slice_out_of_range_returns_empty(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [1, 2, 3]}))
+        assert await renderer.render("${output[100:200]}") == []
+
+    @pytest.mark.anyio
+    async def test_slice_in_map_template(self):
+        """Slice is usable inside a '*' template that iterates outer data."""
+        renderer = VariableRenderer(make_source_resolver({
+            "records": [
+                {"tags": ["a", "b", "c", "d"]},
+                {"tags": ["x", "y", "z"]},
+            ],
+        }))
+        result = await renderer.render({
+            "*": "${records}",
+            "first_two": "${item.tags[:2]}",
+        })
+        assert result == [
+            {"first_two": ["a", "b"]},
+            {"first_two": ["x", "y"]},
+        ]
+
+    # ---- regression: existing single-index interpolation still works ----
+
+    @pytest.mark.anyio
+    async def test_single_index_still_works(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [10, 20, 30]}))
+        assert await renderer.render("${output[0]}") == 10
+
+    @pytest.mark.anyio
+    async def test_single_negative_index_still_works(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [10, 20, 30]}))
+        assert await renderer.render("${output[-1]}") == 30
+
+    @pytest.mark.anyio
+    async def test_no_index_still_works(self):
+        renderer = VariableRenderer(make_source_resolver({"output": [10, 20, 30]}))
+        assert await renderer.render("${output}") == [10, 20, 30]

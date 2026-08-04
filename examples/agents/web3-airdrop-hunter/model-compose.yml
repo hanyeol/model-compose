@@ -139,10 +139,10 @@ components:
           type: function
           function: ${item}
       output:
-        role: ${response.role}
-        content: ${response.content}
+        role: ${output.role}
+        content: ${output.content}
         tool_calls:
-          "*": ${response.tool_calls}
+          "*": ${output.tool_calls}
           id: ${item.id}
           name: ${item.function.name}
           arguments: ${item.function.arguments}

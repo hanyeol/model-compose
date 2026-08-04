@@ -1,5 +1,5 @@
 from typing import Optional, Union, Dict, List, Any
-from mindor.dsl.schema.component import AgentComponentConfig
+from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
@@ -15,22 +15,25 @@ class AgentAction:
     def __init__(
         self,
         config: AgentActionConfig,
-        component_config: AgentComponentConfig,
         model_component: ComponentService,
+        model_config: AgentModelConfig,
         tools: Dict[str, Union[WorkflowTool, ModelTool]],
-        tool_schemas: List[Dict[str, Any]]
+        tool_schemas: List[Dict[str, Any]],
+        instructions: Optional[str],
+        max_iteration_count: int
     ):
         self.config: AgentActionConfig = config
-        self.component_config: AgentComponentConfig = component_config
         self.model_component: ComponentService = model_component
+        self.model_config: AgentModelConfig = model_config
         self.tools: Dict[str, Union[WorkflowTool, ModelTool]] = tools
         self.tool_schemas: List[Dict[str, Any]] = tool_schemas
+        self.instructions: Optional[str] = instructions
+        self.max_iteration_count: int = max_iteration_count
 
     async def run(self, context: ComponentActionContext) -> Any:
-        max_iteration_count = await context.render_variable(self.config.max_iteration_count) if self.config.max_iteration_count else None
+        max_iteration_count = await context.render_scalar(self.config.max_iteration_count, int, self.max_iteration_count)
         streaming           = await context.render_variable(self.config.streaming)
 
-        max_iteration_count = max_iteration_count or self.component_config.max_iteration_count
         tools = self.tool_schemas if self.tool_schemas else None
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -41,11 +44,11 @@ class AgentAction:
         if streaming:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
-                    model_input = await self._render_model_input(context, messages or initial_messages, tools)
+                    input = await self._render_model_input(context, messages or initial_messages, tools)
                     response = await self.model_component.run(
-                        self.component_config.model.action,
+                        self.model_config.action,
                         ulid.ulid(),
-                        model_input,
+                        input,
                         workflow=context.workflow,
                         job_id=context.job_id
                     )
@@ -69,11 +72,11 @@ class AgentAction:
             return _stream_message_generator()
         else:
             for _ in range(max_iteration_count):
-                model_input = await self._render_model_input(context, messages or initial_messages, tools)
+                input = await self._render_model_input(context, messages or initial_messages, tools)
                 response = await self.model_component.run(
-                    self.component_config.model.action,
+                    self.model_config.action,
                     ulid.ulid(),
-                    model_input,
+                    input,
                     workflow=context.workflow,
                     job_id=context.job_id
                 )
@@ -97,28 +100,31 @@ class AgentAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else messages
 
     async def _build_initial_messages(self, context: ComponentActionContext) -> List[Dict[str, Any]]:
+        system_role, user_role = self.model_config.roles.system, self.model_config.roles.user
         messages: List[Dict[str, Any]] = []
 
-        if self.component_config.instructions:
-            instructions = await context.render_variable(self.component_config.instructions)
-            messages.append({ "role": "system", "content": instructions })
+        if self.instructions:
+            instructions = await context.render_variable(self.instructions)
+            messages.append({ "role": system_role, "content": instructions })
 
         if self.config.prompt:
             prompt = await context.render_variable(self.config.prompt)
-            messages.append({ "role": "user", "content": prompt })
+            messages.append({ "role": user_role, "content": prompt })
 
         return messages
 
     async def _build_assistant_message(self, response: Any) -> Dict[str, Any]:
+        assitant_role = getattr(response, "role", self.model_config.roles.assistant)
+
         if isinstance(response, dict):
-            message: Dict[str, Any] = { "role": "assistant" }
+            message: Dict[str, Any] = { "role": assitant_role }
             if "content" in response:
                 message["content"] = response["content"]
             if "tool_calls" in response:
                 message["tool_calls"] = response["tool_calls"]
             return message
 
-        return { "role": "assistant", "content": str(response) }
+        return { "role": assitant_role, "content": str(response) }
 
     async def _render_model_input(
         self,
@@ -131,16 +137,16 @@ class AgentAction:
         if tools:
             context.register_source("tools", tools)
 
-        return await context.render_variable(self.component_config.model.input)
+        return await context.render_variable(self.model_config.input)
 
     async def _render_model_response(
         self,
         context: ComponentActionContext,
         response: Any
     ) -> Any:
-        if self.component_config.model.output:
-            context.register_source("response", response)
-            return await context.render_variable(self.component_config.model.output)
+        if self.model_config.output:
+            context.register_source("output", response)
+            return await context.render_variable(self.model_config.output)
 
         return response
 
@@ -167,7 +173,9 @@ class AgentAction:
         workflow_messages = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
         external_messages = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
 
+        tool_role = self.model_config.roles.tool
         messages: List[Dict[str, Any]] = []
+
         for tool_call, tool_kind in zip(tool_calls, tool_kinds):
             if tool_kind == "workflow":
                 messages.append(next(workflow_messages))
@@ -175,9 +183,10 @@ class AgentAction:
                 messages.append(next(external_messages))
             else:
                 messages.append({
-                    "role": "tool",
+                    "role": tool_role,
                     "tool_call_id": tool_call.get("id", ""),
-                    "content": f"Error: Unknown tool '{tool_call.get('name', '')}'"
+                    "content": f"Error: Unknown tool '{tool_call.get('name', '')}'",
+                    "is_error": True,
                 })
 
         return messages
@@ -187,17 +196,28 @@ class AgentAction:
         tool_calls: List[Dict[str, Any]],
         context: ComponentActionContext
     ) -> List[Dict[str, Any]]:
+        tool_role = self.model_config.roles.tool
+
         async def _execute_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
             tool_name = tool_call["name"]
             tool_arguments = tool_call.get("arguments", {})
+            call_id = tool_call.get("id", "")
 
-            if isinstance(tool_arguments, str):
-                tool_arguments = json.loads(tool_arguments)
+            try:
+                if isinstance(tool_arguments, str):
+                    tool_arguments = json.loads(tool_arguments)
 
-            result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
-            content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
+                result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
+                content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
 
-            return { "role": "tool", "tool_call_id": tool_call.get("id", ""), "content": content }
+                return { "role": tool_role, "tool_call_id": call_id, "content": content }
+            except Exception as e:
+                return {
+                    "role": tool_role,
+                    "tool_call_id": call_id,
+                    "content": f"{type(e).__name__}: {e}",
+                    "is_error": True,
+                }
 
         return list(await asyncio.gather(*[ _execute_tool_call(tool_call) for tool_call in tool_calls ]))
 
@@ -233,6 +253,7 @@ class AgentAction:
 
         answer = await context.workflow.interrupt_handler.interrupt(point)
         tool_results = answer if isinstance(answer, dict) else {}
+        tool_role = self.model_config.roles.tool
 
         messages: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
@@ -240,9 +261,14 @@ class AgentAction:
             if call_id in tool_results:
                 result = tool_results[call_id]
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
+                messages.append({ "role": tool_role, "tool_call_id": call_id, "content": content })
             else:
-                content = f"Error: no result provided for tool_call '{call_id}'"
-            messages.append({ "role": "tool", "tool_call_id": call_id, "content": content })
+                messages.append({
+                    "role": tool_role,
+                    "tool_call_id": call_id,
+                    "content": f"Error: no result provided for tool_call '{call_id}'",
+                    "is_error": True,
+                })
 
         return messages
 
@@ -260,6 +286,8 @@ class AgentAction:
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):
+    config: AgentComponentConfig
+
     def __init__(
         self,
         id: str,
@@ -278,9 +306,6 @@ class AgentComponent(ComponentService):
         self.tools, self.tool_schemas = await self._generate_tools()
 
         await super()._start()
-
-    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await AgentAction(action, self.config, self.model_component, self.tools, self.tool_schemas).run(context)
 
     async def _generate_tools(self) -> tuple[Dict[str, Union[WorkflowTool, ModelTool]], List[Dict[str, Any]]]:
         workflow_schemas = create_workflow_schemas(self.global_configs.workflows, self.global_configs.components)
@@ -313,8 +338,22 @@ class AgentComponent(ComponentService):
         return tools, tool_schemas
 
     async def _run_workflow(self, workflow_id: str, input: Any, context: Optional[WorkflowContext] = None) -> Any:
-        workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
-        task_id = context.task_id if context else ulid.ulid()
-        interrupt_handler = context.interrupt_handler if context else None
+        if context.workflow_delegate is None:
+            workflow = create_workflow(*WorkflowResolver(self.global_configs.workflows).resolve(workflow_id), self.global_configs)
+            task_id = context.task_id if context else ulid.ulid()
+            interrupt_handler = context.interrupt_handler if context else None
 
-        return await workflow.run(task_id, input, interrupt_handler)
+            return await workflow.run(task_id, input, interrupt_handler)
+
+        return await context.workflow_delegate(workflow_id, input, context.interrupt_handler)
+
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        return await AgentAction(
+            action,
+            self.model_component,
+            self.config.model,
+            self.tools,
+            self.tool_schemas,
+            self.config.instructions,
+            self.config.max_iteration_count
+        ).run(context)

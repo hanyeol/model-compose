@@ -1,13 +1,26 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
-from mindor.dsl.schema.action import AgentActionConfig, AgentModelConfig
+from mindor.dsl.schema.action import AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from .common import ComponentType, CommonComponentConfig
+
+class AgentMessageRolesConfig(BaseModel):
+    system: str = Field(default="system", description="Role name used for system/instruction messages.")
+    user: str = Field(default="user", description="Role name used for user/prompt messages.")
+    assistant: str = Field(default="assistant", description="Role name used for assistant/model responses.")
+    tool: str = Field(default="tool", description="Role name used for tool-result messages.")
+
+class AgentModelConfig(BaseModel):
+    component: str = Field(..., description="ID of the component to use for LLM calls.")
+    action: str = Field(default="__default__", description="ID of the action to invoke on the component.")
+    input: Dict[str, Any] = Field(default_factory=dict, description="Input mapping from agent internal state to component input.")
+    output: Optional[Any] = Field(default=None, description="Mapping from component response to a ChatCompletionMessage-shaped dict.")
+    roles: AgentMessageRolesConfig = Field(default_factory=AgentMessageRolesConfig, description="Role name overrides for models that use non-standard role labels (e.g. Gemini's 'model').")
 
 class AgentComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AGENT]
     model: AgentModelConfig = Field(..., description="LLM model configuration for this agent.")
     instructions: Optional[str] = Field(default=None, description="Behavioral guidelines and identity, applied as a system message.")
     tools: List[Union[str, ModelTool]] = Field(default_factory=list, description="Workflow IDs or tool schemas.")
-    max_iteration_count: int = Field(default=10, description="Maximum ReAct loop iterations.")
+    max_iteration_count: int = Field(default=32, description="Maximum ReAct loop iterations.")
     actions: List[AgentActionConfig] = Field(default_factory=list)

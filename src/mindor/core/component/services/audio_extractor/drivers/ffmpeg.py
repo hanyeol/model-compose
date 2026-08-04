@@ -110,7 +110,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
 
     async def _extract_to_file(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,

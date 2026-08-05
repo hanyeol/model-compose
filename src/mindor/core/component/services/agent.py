@@ -1,5 +1,5 @@
 from typing import Optional, Union, Dict, List, Any
-from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig
+from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig, ChatMessageFormat
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
@@ -54,10 +54,11 @@ class AgentAction:
                     )
                     response = await self._render_model_response(context, response)
 
-                    assistant_message = await self._build_assistant_message(response)
-                    messages.append(assistant_message)
-                    await context.event_notifier.notify("internal", kind="message", output=assistant_message)
-                    yield assistant_message
+                    assistant_messages = await self._build_assistant_messages(response)
+                    for assistant_message in assistant_messages:
+                        messages.append(assistant_message)
+                        await context.event_notifier.notify("internal", kind="message", output=assistant_message)
+                        yield assistant_message
 
                     tool_calls = self._extract_tool_calls(response)
                     if not tool_calls:
@@ -82,9 +83,10 @@ class AgentAction:
                 )
                 response = await self._render_model_response(context, response)
 
-                assistant_message = await self._build_assistant_message(response)
-                messages.append(assistant_message)
-                await context.event_notifier.notify("internal", kind="message", output=assistant_message)
+                assistant_messages = await self._build_assistant_messages(response)
+                for assistant_message in assistant_messages:
+                    messages.append(assistant_message)
+                    await context.event_notifier.notify("internal", kind="message", output=assistant_message)
 
                 tool_calls = self._extract_tool_calls(response)
                 if not tool_calls:
@@ -104,24 +106,33 @@ class AgentAction:
 
         if self.instructions:
             instructions = await context.render_variable(self.instructions)
-            messages.append({ "role": "system", "content": instructions })
+            messages.extend(self._build_text_messages("system", instructions))
 
         if self.config.prompt:
             prompt = await context.render_variable(self.config.prompt)
-            messages.append({ "role": "user", "content": prompt })
+            messages.extend(self._build_text_messages("user", prompt))
 
         return messages
 
-    async def _build_assistant_message(self, response: Any) -> Dict[str, Any]:
-        if isinstance(response, dict):
-            message: Dict[str, Any] = { "role": "assistant" }
-            if "content" in response:
-                message["content"] = response["content"]
-            if "tool_calls" in response:
-                message["tool_calls"] = response["tool_calls"]
-            return message
+    async def _build_assistant_messages(self, response: Any) -> List[Dict[str, Any]]:
+        text = self._extract_content(response)
+        tool_calls = self._extract_tool_calls(response) or []
 
-        return { "role": "assistant", "content": str(response) }
+        items: List[Dict[str, Any]] = []
+        if text is not None and text != "":
+            items.append({ "type": "text", "text": text if isinstance(text, str) else str(text) })
+        for call in tool_calls:
+            items.append({
+                "type": "tool_call",
+                "id": call.get("id", ""),
+                "name": call.get("name", ""),
+                "arguments": self._normalize_tool_arguments(call.get("arguments", {})),
+            })
+
+        if not items:
+            items.append({ "type": "text", "text": "" })
+
+        return self._pack_messages("assistant", items)
 
     async def _render_model_input(
         self,
@@ -167,25 +178,24 @@ class AgentAction:
             else:
                 tool_kinds.append("unknown")
 
-        workflow_messages = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
-        external_messages = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
+        workflow_items = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
+        external_items = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
 
-        messages: List[Dict[str, Any]] = []
-
+        items: List[Dict[str, Any]] = []
         for tool_call, tool_kind in zip(tool_calls, tool_kinds):
             if tool_kind == "workflow":
-                messages.append(next(workflow_messages))
+                items.append(next(workflow_items))
             elif tool_kind == "external":
-                messages.append(next(external_messages))
+                items.append(next(external_items))
             else:
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.get("id", ""),
+                items.append({
+                    "type": "tool_result",
+                    "id": tool_call.get("id", ""),
                     "content": f"Error: Unknown tool '{tool_call.get('name', '')}'",
                     "is_error": True,
                 })
 
-        return messages
+        return self._pack_messages("tool", items)
 
     async def _execute_workflow_tool_calls(
         self,
@@ -194,21 +204,18 @@ class AgentAction:
     ) -> List[Dict[str, Any]]:
         async def _execute_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
             tool_name = tool_call["name"]
-            tool_arguments = tool_call.get("arguments", {})
+            tool_arguments = self._normalize_tool_arguments(tool_call.get("arguments", {}))
             call_id = tool_call.get("id", "")
 
             try:
-                if isinstance(tool_arguments, str):
-                    tool_arguments = json.loads(tool_arguments)
-
                 result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
 
-                return { "role": "tool", "tool_call_id": call_id, "content": content }
+                return { "type": "tool_result", "id": call_id, "content": content }
             except Exception as e:
                 return {
-                    "role": "tool",
-                    "tool_call_id": call_id,
+                    "type": "tool_result",
+                    "id": call_id,
                     "content": f"{type(e).__name__}: {e}",
                     "is_error": True,
                 }
@@ -248,26 +255,26 @@ class AgentAction:
         answer = await context.workflow.interrupt_handler.interrupt(point)
         tool_results = answer if isinstance(answer, dict) else {}
 
-        messages: List[Dict[str, Any]] = []
+        items: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
             call_id = tool_call.get("id", "")
             if call_id in tool_results:
                 result = tool_results[call_id]
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
-                messages.append({ "role": "tool", "tool_call_id": call_id, "content": content })
+                items.append({ "type": "tool_result", "id": call_id, "content": content })
             else:
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": call_id,
+                items.append({
+                    "type": "tool_result",
+                    "id": call_id,
                     "content": f"Error: no result provided for tool_call '{call_id}'",
                     "is_error": True,
                 })
 
-        return messages
+        return items
 
     def _extract_content(self, response: Any) -> Any:
         if isinstance(response, dict):
-            return response.get("content", response)
+            return response.get("content")
 
         return response
 
@@ -276,6 +283,24 @@ class AgentAction:
             return response.get("tool_calls")
 
         return None
+
+    def _normalize_tool_arguments(self, arguments: Any) -> Dict[str, Any]:
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                return {}
+
+        return arguments if isinstance(arguments, dict) else {}
+
+    def _build_text_messages(self, role: str, text: str) -> List[Dict[str, Any]]:
+        return self._pack_messages(role, [{ "type": "text", "text": text }])
+
+    def _pack_messages(self, role: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if self.model_config.message_format == ChatMessageFormat.PLAIN:
+            return [ { "role": role, **item } for item in items ]
+
+        return [ { "role": role, "blocks": items } ]
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):

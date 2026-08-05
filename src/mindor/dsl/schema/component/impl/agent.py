@@ -1,14 +1,20 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from enum import Enum
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from .common import ComponentType, CommonComponentConfig
+
+class ChatMessageFormat(str, Enum):
+    BLOCK = "block"
+    PLAIN = "plain"
 
 class AgentModelConfig(BaseModel):
     component: str = Field(..., description="ID of the component to use for LLM calls.")
     action: str = Field(default="__default__", description="ID of the action to invoke on the component.")
     input: Dict[str, Any] = Field(default_factory=dict, description="Input mapping from agent internal state to component input.")
     output: Optional[Any] = Field(default=None, description="Mapping from component response to a ChatCompletionMessage-shaped dict.")
+    message_format: ChatMessageFormat = Field(default=ChatMessageFormat.BLOCK, description="Canonical chat message form used by this agent: 'block' groups typed items under a single role; 'plain' emits one typed item per message.")
 
 class AgentComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AGENT]

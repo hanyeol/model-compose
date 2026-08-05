@@ -14,16 +14,16 @@ class FilterJobConditionConfig(BaseModel):
     not_: Optional[FilterJobConditionConfig] = Field(default=None, alias="not", description="Logical NOT — inverts the nested predicate.")
 
     @model_validator(mode="after")
-    def validate_shape(self):
-        logical = [ k for k, v in [("all", self.all), ("any", self.any), ("not", self.not_)] if v is not None ]
-        has_leaf = self.input is not None
+    def validate_predicate_form(self):
+        combinators = [ key for key, value in [ ("all", self.all), ("any", self.any), ("not", self.not_) ] if value is not None ]
+        is_leaf_condition = self.input is not None or self.value is not None
 
-        if len(logical) > 1:
-            raise ValueError(f"Filter condition may use at most one of `all`, `any`, `not`; got {logical}.")
-        if logical and has_leaf:
-            raise ValueError(f"Filter condition mixes leaf predicate (`input`) with logical operator `{logical[0]}`; use one or the other.")
-        if not logical and not has_leaf:
-            raise ValueError("Filter condition requires either `input` (leaf) or one of `all`/`any`/`not` (logical).")
+        if len(combinators) > 1:
+            raise ValueError(f"Filter condition may use at most one of `all`, `any`, `not`; got {combinators}.")
+        if combinators and is_leaf_condition:
+            raise ValueError(f"Filter condition mixes leaf predicate (`input`/`value`) with combinator `{combinators[0]}`; use one or the other.")
+        if not combinators and not is_leaf_condition:
+            raise ValueError("Filter condition requires either a leaf predicate (`input`/`value`) or one of `all`/`any`/`not`.")
 
         return self
 

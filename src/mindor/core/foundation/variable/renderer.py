@@ -253,7 +253,12 @@ class VariableRenderer:
                         self._index_stack.pop()
                         index += 1
 
-            return StreamChunkIterator(_iterate())
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(source, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=source.is_fragmented)
+
+            return _iterate()
 
         raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
 

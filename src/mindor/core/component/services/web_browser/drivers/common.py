@@ -126,7 +126,7 @@ class WebBrowserAction(MediaComponentAction):
                     context.register_source("result[]", chunk, scope=scope)
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=False)
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
         else:
             context.register_source("result", result)
 

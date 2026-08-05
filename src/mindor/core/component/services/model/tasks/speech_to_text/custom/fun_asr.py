@@ -208,10 +208,10 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
             "device": f"{device.type}:{device.index}" if device.index is not None else device.type,
         }
 
-        if self.config.vad is not None:
+        if self.config.voice_activity_detection is not None:
             # FunASR wires vad_model + vad_kwargs together. Everything except
             # the model identifier itself is passed as vad_kwargs.
-            vad_params = self.config.vad.model_dump(exclude_none=True)
+            vad_params = self.config.voice_activity_detection.model_dump(exclude_none=True)
             params["vad_model"] = vad_params.pop("model")
             # FunASR expects max_single_segment_time in milliseconds; accept
             # human-readable durations ('30s', '1.5m') from the config side.
@@ -219,6 +219,14 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
                 vad_params["max_single_segment_time"] = int(parse_duration(vad_params["max_single_segment_time"]) * 1000)
             if vad_params:
                 params["vad_kwargs"] = vad_params
+
+        if self.config.punctuation is not None:
+            # Punctuation model drives sentence splitting; sentence_info is
+            # only populated in the result when this is wired up.
+            punc_params = self.config.punctuation.model_dump(exclude_none=True)
+            params["punc_model"] = punc_params.pop("model")
+            if punc_params:
+                params["punc_kwargs"] = punc_params
 
         model = AutoModel(**params)
 

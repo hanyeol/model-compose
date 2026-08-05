@@ -5,7 +5,7 @@ from ...common import CommonMusicSourceSeparationModelComponentConfig
 from .common import MusicSourceSeparationModelFamily
 from .....common import ModelDriver, ModelProvider, NamedModelConfig
 
-_DEFAULT_DEMUCS_MODEL = "htdemucs_ft"
+_DEFAULT_MODEL = "htdemucs_ft"
 
 class DemucsMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparationModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
@@ -17,5 +17,5 @@ class DemucsMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparatio
     def inflate_model(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, str) or model is None:
-            values["model"] = { "provider": ModelProvider.NAMED, "name": model or _DEFAULT_DEMUCS_MODEL }
+            values["model"] = { "provider": ModelProvider.NAMED, "name": model or _DEFAULT_MODEL }
         return values

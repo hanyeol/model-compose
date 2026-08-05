@@ -113,17 +113,15 @@ class AgentAction:
         return messages
 
     async def _build_assistant_message(self, response: Any) -> Dict[str, Any]:
-        assitant_role = getattr(response, "role", "assistant")
-
         if isinstance(response, dict):
-            message: Dict[str, Any] = { "role": assitant_role }
+            message: Dict[str, Any] = { "role": "assistant" }
             if "content" in response:
                 message["content"] = response["content"]
             if "tool_calls" in response:
                 message["tool_calls"] = response["tool_calls"]
             return message
 
-        return { "role": assitant_role, "content": str(response) }
+        return { "role": "assistant", "content": str(response) }
 
     async def _render_model_input(
         self,

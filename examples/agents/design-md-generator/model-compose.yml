@@ -582,10 +582,11 @@ workflows:
         component: css-property-extractor
         input:
           instructions: ${input.instructions @(description Instructions for CSS property extraction, e.g. "Extract all design token custom properties from the page")}
-        output: ${output[-1].content as text}
+        output: ${output[-1].blocks[0].text as text}
 
       - id: filter-tokens
         component: gpt-4o
+        action: text
         input:
           messages:
             - role: system
@@ -622,7 +623,7 @@ workflows:
 
                 ${jobs.extract-tokens.output}
         depends_on: [ extract-tokens ]
-        output: ${output.content as text}
+        output: ${output}
 
   - id: inspect-component-styles
     #private: true
@@ -635,7 +636,7 @@ workflows:
       component: component-inspector
       input:
         instructions: ${input.instructions @(description Natural-language instructions describing which components to inspect, e.g. "Extract styles for the hero section, navigation bar, pricing cards, and footer")}
-      output: ${output[-1].content as text}
+      output: ${output[-1].blocks[0].text as text}
 
   - id: synthesize-design-md
     #private: true
@@ -646,6 +647,7 @@ workflows:
       structure, tokens, and component style data.
     job:
       component: gpt-4o
+      action: text
       input:
         messages:
           - role: system
@@ -811,7 +813,7 @@ workflows:
               Use ONLY the data below — do not invent or approximate any values.
 
               ${input.analysis @(description All extracted design data as a formatted string)}
-      output: ${output.content as text}
+      output: ${output}
 
   # ---------------------------------------------------------------------------
   # Browser tool workflows (tools for sub-agents)
@@ -1428,19 +1430,84 @@ components:
   - id: gpt-4o
     type: http-client
     base_url: https://api.openai.com/v1
-    action:
-      path: /chat/completions
-      method: POST
-      headers:
-        Authorization: Bearer ${env.OPENAI_API_KEY}
-        Content-Type: application/json
-        Accept-Encoding: gzip, deflate
-      body:
-        model: gpt-4o
-        max_tokens: 16384
-        messages: ${input.messages}
-        tools: ${input.tools}
-      output: ${response.choices[0].message}
+    actions:
+      # Canonical block-form input (used by agent components). Translates messages
+      # and tools to OpenAI Chat Completions wire format and returns a dict the
+      # agent's ReAct loop can consume directly.
+      - id: chat
+        default: true
+        path: /chat/completions
+        method: POST
+        headers:
+          Authorization: Bearer ${env.OPENAI_API_KEY}
+          Content-Type: application/json
+          Accept-Encoding: gzip, deflate
+        body:
+          model: gpt-4o
+          max_tokens: 16384
+          # Canonical (block form) messages → OpenAI Chat Completions wire format.
+          # Default shape is {role, content} for system/user; assistant and tool
+          # override selectively via "?".
+          messages:
+            "*": ${input.messages}
+            role: ${item.role}
+            content: ${item.blocks[0].text}
+            "?":
+              - input: ${item.role}
+                value: assistant
+                if_true:
+                  content:
+                    "?":
+                      input: ${item.blocks[0].type}
+                      value: text
+                      if_true: ${item.blocks[0].text}
+                  tool_calls:
+                    "*":
+                      input: ${item.blocks}
+                      where:
+                        input: ${item.type}
+                        value: tool_call
+                    id: ${item.id}
+                    type: function
+                    function:
+                      name: ${item.name}
+                      arguments: ${item.arguments as text}
+              - input: ${item.role}
+                value: tool
+                if_true:
+                  tool_call_id: ${item.blocks[0].id}
+                  content: ${item.blocks[0].content}
+          # Canonical tool schemas → OpenAI's function-tool wrapper.
+          tools:
+            "*": ${input.tools}
+            type: function
+            function: ${item}
+        # OpenAI response → dict the agent consumes.
+        output:
+          content: ${response.choices[0].message.content}
+          tool_calls:
+            "*": ${response.choices[0].message.tool_calls}
+            id: ${item.id}
+            name: ${item.function.name}
+            arguments: ${item.function.arguments as json}
+
+      # Plain text-in, text-out. Direct jobs that just want to send a prompt
+      # (or a fully-formed messages list) and get the assistant's reply back
+      # use this action; nothing about `messages`/`tools` is rewritten.
+      # Returns the assistant message content as a plain string.
+      - id: text
+        path: /chat/completions
+        method: POST
+        headers:
+          Authorization: Bearer ${env.OPENAI_API_KEY}
+          Content-Type: application/json
+          Accept-Encoding: gzip, deflate
+        body:
+          model: gpt-4o
+          max_tokens: 16384
+          messages: ${input.messages}
+          tools: ${input.tools}
+        output: ${response.choices[0].message.content as text}
 
   # ---------------------------------------------------------------------------
   # Agents
@@ -1503,28 +1570,8 @@ components:
     model:
       component: gpt-4o
       input:
-        messages:
-          "*": ${messages}
-          "...": ${item}
-          tool_calls:
-            "*": ${item.tool_calls}
-            id: ${item.id}
-            type: function
-            function:
-              name: ${item.name}
-              arguments: ${item.arguments}
-        tools:
-          "*": ${tools}
-          type: function
-          function: ${item}
-      output:
-        role: ${output.role}
-        content: ${output.content}
-        tool_calls:
-          "*": ${output.tool_calls}
-          id: ${item.id}
-          name: ${item.function.name}
-          arguments: ${item.function.arguments}
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - extract-computed-styles
       - extract-page-html
@@ -1585,28 +1632,8 @@ components:
     model:
       component: gpt-4o
       input:
-        messages:
-          "*": ${messages}
-          "...": ${item}
-          tool_calls:
-            "*": ${item.tool_calls}
-            id: ${item.id}
-            type: function
-            function:
-              name: ${item.name}
-              arguments: ${item.arguments}
-        tools:
-          "*": ${tools}
-          type: function
-          function: ${item}
-      output:
-        role: ${response.role}
-        content: ${response.content}
-        tool_calls:
-          "*": ${response.tool_calls}
-          id: ${item.id}
-          name: ${item.function.name}
-          arguments: ${item.function.arguments}
+        messages: ${messages}
+        tools: ${tools}
     tools:
       - extract-css-custom-properties
     max_iteration_count: 3

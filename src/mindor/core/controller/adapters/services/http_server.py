@@ -7,6 +7,7 @@ from typing_extensions import Self
 from pydantic import BaseModel, Field, ValidationError
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
+from mindor.core.utils.transport.http_client import request_with_url
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -25,7 +26,7 @@ from fastapi.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from PIL import Image as PILImage
 from datetime import datetime, timezone
-import uvicorn, json, ulid, asyncio, inspect, functools
+import uvicorn, json, ulid, asyncio, inspect, functools, logging
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
@@ -38,6 +39,8 @@ class WorkflowRunBody(BaseModel):
     wait_for_completion: bool = True
     output_only: bool = False
     subscribe_task: bool = False
+    callback_url: Optional[str] = None
+    callback_headers: Optional[Dict[str, str]] = None
 
 class WorkflowResumeBody(BaseModel):
     job_id: str
@@ -412,6 +415,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self.websocket_manager: WebSocketManager = WebSocketManager()
         self.websocket_router: WebSocketRouter = WebSocketRouter()
 
+        self._task_callbacks: Dict[str, Tuple[str, Dict[str, str]]] = {}
+
         self._configure_server()
         self._configure_http_routes()
         if self.config.websocket is not False:
@@ -469,6 +474,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             if body.output_only and not body.wait_for_completion:
                 raise HTTPException(status_code=400, detail="output_only=true requires wait_for_completion=true.")
 
+            if body.callback_url and body.wait_for_completion:
+                raise HTTPException(status_code=400, detail="callback_url requires wait_for_completion=false")
+
+            if body.callback_url and body.subscribe_task:
+                raise HTTPException(status_code=400, detail="callback_url and subscribe_task are mutually exclusive")
+
             session_id = request.query_params.get("session_id")
 
             if body.subscribe_task:
@@ -488,6 +499,11 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 )
             except ShutdownError:
                 raise HTTPException(status_code=503, detail="Service is shutting down")
+
+            if body.callback_url:
+                self._task_callbacks[state.task_id] = (
+                    body.callback_url, { "Content-Type": "application/json", **(body.callback_headers or {}) },
+                )
 
             if body.subscribe_task and session_id:
                 self.websocket_manager.subscribe_task(session_id, state.task_id)
@@ -761,6 +777,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 )
             )
 
+        if event.event in ("completed", "failed", "cancelled"):
+            callback = self._task_callbacks.pop(event.task_id, None)
+
+            if callback:
+                await self._send_task_callback(event, *callback)
+
     async def _on_job_event(self, event: JobEvent) -> None:
         if self.websocket_manager.has_task_subscribers(event.task_id):
             await self.websocket_manager.broadcast_task_message(
@@ -770,6 +792,19 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     data=JobEventResult.to_dict(event)
                 )
             )
+
+    async def _send_task_callback(self, event: TaskEvent, callback_url: str, headers: Dict[str, str]) -> None:
+        try:
+            payload = TaskEventResult.from_instance(event).model_dump(exclude_none=True, mode="json")
+            await request_with_url(
+                callback_url,
+                method="POST",
+                body=payload,
+                headers=headers,
+                raise_on_error=False,
+            )
+        except Exception:
+            logging.warning("Failed to deliver task callback for %s to %s", event.task_id, callback_url, exc_info=True)
 
     def _resolve_workflow_id(self, workflow_id: str) -> Optional[str]:
         if workflow_id == "__default__":

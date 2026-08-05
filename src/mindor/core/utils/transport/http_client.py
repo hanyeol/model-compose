@@ -4,6 +4,7 @@ from typing import Union, Optional, Dict, Tuple, Any
 from .http_request import build_request_body, parse_options_header
 from mindor.core.foundation.streaming.http import HttpStreamResource, HttpEventStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.url import encode_url
 from requests.structures import CaseInsensitiveDict
 from urllib.parse import urlparse, unquote
@@ -194,6 +195,25 @@ class HttpClient:
     def _default_user_agent() -> str:
         return _DEFAULT_USER_AGENTS.get(platform.system(), _DEFAULT_USER_AGENTS["Linux"])
 
+async def request_with_url(
+    url: str,
+    method: str = "GET",
+    params: Optional[Dict[str, Any]] = None,
+    body: Optional[Any] = None,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: Optional[float] = None,
+    raise_on_error: bool = True,
+) -> Union[Any, Tuple[Any, int]]:
+    return await HttpClient.get_shared_instance().request(
+        url,
+        method=method,
+        params=params,
+        body=body,
+        headers=headers,
+        timeout=timeout,
+        raise_on_error=raise_on_error,
+    )
+
 async def create_stream_with_url(
     url: str,
     method: str = "GET",
@@ -201,12 +221,10 @@ async def create_stream_with_url(
     body: Optional[Any] = None,
     timeout: Optional[float] = None,
 ) -> StreamResource:
-    parsed = urlparse(url)
+    parsed_url = urlparse(url)
 
-    if parsed.scheme == "file":
-        from mindor.core.foundation.streaming.file import FileStreamResource
-        path = url2pathname(parsed.path)
-        return FileStreamResource(path)
+    if parsed_url.scheme == "file":
+        return FileStreamResource(url2pathname(parsed_url.path))
 
     return await HttpClient.get_shared_instance().request(
         url,

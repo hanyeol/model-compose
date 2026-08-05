@@ -141,10 +141,10 @@ class LocalModelDownloader:
         raise ValueError(f"Unsupported archive format: {archive_path.name}")
 
     def _archive_suffix(self, url: str) -> str:
-        lowered = urlparse(url).path.lower()
+        path = urlparse(url).path.lower()
 
         for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
-            if lowered.endswith(suffix):
+            if path.endswith(suffix):
                 return suffix
 
         raise ValueError(f"Unsupported archive format for bundled model url: {url}")

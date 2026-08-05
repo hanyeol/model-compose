@@ -103,8 +103,6 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
-        loop = asyncio.get_running_loop()
-
         def _generate() -> Union[List[str], List[Any]]:
             from transformers import GenerationConfig
             import torch
@@ -147,7 +145,7 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         results = await self._run_in_executor(_generate)
 
         if streaming:
-            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
+            return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
         return results
 

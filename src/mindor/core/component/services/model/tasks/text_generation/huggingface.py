@@ -93,8 +93,6 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
-        loop = asyncio.get_running_loop()
-
         def _generate() -> Union[List[str], List[Any]]:
             from transformers import GenerationConfig
             import torch
@@ -139,7 +137,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         if streaming:
             # Wrap each per-prompt sync iterator so the caller can consume it
             # with ``async for`` on the caller's loop.
-            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
+            return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
         return results
 

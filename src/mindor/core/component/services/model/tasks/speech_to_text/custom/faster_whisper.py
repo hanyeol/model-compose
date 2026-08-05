@@ -86,8 +86,6 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
-        loop = asyncio.get_running_loop()
-
         waveforms = await self._preprocess_audio(audios)
 
         transcribe_params = dict(params["transcribe"])
@@ -97,7 +95,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             # faster_whisper yields segments synchronously; wrap each iterator so
             # the caller can consume it via ``async for``.
             return [
-                SyncGeneratorStreamer(self._transcribe_stream(waveform, transcribe_params, return_timestamps), loop)
+                SyncGeneratorStreamer(self._transcribe_stream(waveform, transcribe_params, return_timestamps), asyncio.get_running_loop())
                 for waveform in waveforms
             ]
 

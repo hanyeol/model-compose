@@ -55,13 +55,11 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
-        loop = asyncio.get_running_loop()
-
         if streaming:
             # llama_cpp yields tokens synchronously; wrap each per-prompt generator
             # with SyncGeneratorStreamer so the caller can consume it via async for.
             return [
-                SyncGeneratorStreamer(self._stream_text(prompt, params["generation"], cancellation_token), loop)
+                SyncGeneratorStreamer(self._stream_text(prompt, params["generation"], cancellation_token), asyncio.get_running_loop())
                 for prompt in texts
             ]
 

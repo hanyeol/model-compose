@@ -96,18 +96,11 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
-        loop = asyncio.get_running_loop()
-
         # Audio preprocessing is real async IO (stream reads), so keep it on
         # the loop instead of the executor thread.
         waveforms = await self._preprocess_audio(audios)
 
         return_timestamps = params["generation"].get("return_timestamps")
-
-        # Timestamp extraction requires the full generated sequence for post-processing,
-        # so streaming timestamps are emitted after generation completes rather than
-        # token-by-token.
-        native_streaming = streaming and not return_timestamps
 
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]], List[Any]]:
             import torch
@@ -123,7 +116,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
             stopping_criteria = self._build_stopping_criteria(cancellation_token)
 
-            if native_streaming:
+            if streaming and not return_timestamps:
                 streamer = BatchTextIteratorStreamer(
                     self.processor.tokenizer,
                     batch_size=len(waveforms),
@@ -134,7 +127,12 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 def _run():
                     try:
                         with torch.inference_mode():
-                            self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria, streamer=streamer)
+                            self.model.generate(
+                                **input_features,
+                                **params["generation"],
+                                stopping_criteria=stopping_criteria,
+                                streamer=streamer
+                            )
                     except BaseException:
                         logging.exception("Whisper streaming generate failed")
                     finally:
@@ -168,8 +166,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         results = await self._run_in_executor(_transcribe)
 
-        if native_streaming:
-            return [ SyncGeneratorStreamer(streamer, loop) for streamer in results ]
+        if streaming and not return_timestamps:
+            return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
         # Timestamped generation cannot stream token-by-token, so re-emit the
         # collected segments one by one to preserve the AsyncIterator interface

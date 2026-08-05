@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, FunAsrSpeechToTextModelA
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.variable.time import parse_duration
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import SpeechToTextTaskAction
@@ -101,7 +102,13 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
                     batch_size=1,
                     **params["generation"],
                 )[0]
-                results.append(self._to_segments(result) if params["return_timestamps"] else result.get("text", ""))
+                if params["return_timestamps"]:
+                    # Fun-ASR waveforms are resampled to 16 kHz mono in _preprocess_audio,
+                    # so length / 16000 is the audio duration in seconds — used as the
+                    # fallback end_time when the model does not return sentence_info.
+                    results.append(self._to_segments(result, float(waveform.shape[-1]) / 16000.0))
+                else:
+                    results.append(result.get("text", ""))
 
             return results
 
@@ -143,9 +150,11 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
         # Fun-ASR expects Chinese names ("韩文" etc.); translate ISO codes.
         return _LANGUAGE_CODE_MAP.get(language.split("-")[0]) if language else None
 
-    def _to_segments(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _to_segments(self, result: Dict[str, Any], duration: float) -> List[Dict[str, Any]]:
         # sentence_info is only populated when diarization is enabled; the base
-        # model falls back to a single segment covering the whole utterance.
+        # model falls back to a single segment covering the whole utterance —
+        # in that case we stamp end_time with the input audio duration so
+        # downstream consumers still get a usable time range.
         sentence_info = result.get("sentence_info")
         if sentence_info:
             return [
@@ -162,7 +171,7 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
             {
                 "text":       result.get("text", ""),
                 "start_time": 0.0,
-                "end_time":   0.0,
+                "end_time":   duration,
                 "words":      None,
             }
         ]
@@ -192,12 +201,26 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        model = AutoModel(
-            model=model_path,
-            hub="hf",
-            trust_remote_code=True,
-            device=f"{device.type}:{device.index}" if device.index is not None else device.type,
-        )
+        params: Dict[str, Any] = {
+            "model": model_path,
+            "hub": "hf",
+            "trust_remote_code": True,
+            "device": f"{device.type}:{device.index}" if device.index is not None else device.type,
+        }
+
+        if self.config.vad is not None:
+            # FunASR wires vad_model + vad_kwargs together. Everything except
+            # the model identifier itself is passed as vad_kwargs.
+            vad_params = self.config.vad.model_dump(exclude_none=True)
+            params["vad_model"] = vad_params.pop("model")
+            # FunASR expects max_single_segment_time in milliseconds; accept
+            # human-readable durations ('30s', '1.5m') from the config side.
+            if "max_single_segment_time" in vad_params:
+                vad_params["max_single_segment_time"] = int(parse_duration(vad_params["max_single_segment_time"]) * 1000)
+            if vad_params:
+                params["vad_kwargs"] = vad_params
+
+        model = AutoModel(**params)
 
         return model, device
 

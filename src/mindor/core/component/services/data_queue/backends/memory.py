@@ -75,9 +75,9 @@ class MemoryDataQueueService(DataQueueService):
         session = await context.render_variable(action.session) if action.session is not None else None
 
         if session:
-            return "__default__"
+            return str(session)
 
-        return str(session)
+        return "__default__"
 
     def _get_or_create_queue(self, session: str) -> asyncio.Queue:
         queue = self._sessions.get(session)

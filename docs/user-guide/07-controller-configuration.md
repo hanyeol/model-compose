@@ -154,6 +154,8 @@ Request body parameters:
 - `input` (object, optional): Workflow input data
 - `wait_for_completion` (boolean, default: true): If true, waits until completion; if false, returns task_id immediately
 - `output_only` (boolean, default: false): If true, returns only output data (requires wait_for_completion=true)
+- `callback_url` (string, optional): URL to receive a completion event via HTTP POST. Requires `wait_for_completion=false`; mutually exclusive with `subscribe_task`
+- `callback_headers` (object, optional): Extra HTTP headers to include on the callback request (e.g. `Authorization`)
 
 ##### Synchronous Execution (Default)
 
@@ -232,6 +234,45 @@ Response example:
   "status": "pending"
 }
 ```
+
+##### Callback (Webhook) Mode
+
+Instead of polling `GET /api/tasks/{task_id}`, you can receive a completion notification by supplying a `callback_url`. When the task reaches a terminal state (`completed`, `failed`, or `cancelled`), the server sends an HTTP `POST` to that URL with the task event payload.
+
+Callback mode requires `wait_for_completion: false` and is mutually exclusive with `subscribe_task` (WebSocket subscription). Delivery is best-effort: failures are logged on the server but do not affect the workflow, and there is no automatic retry.
+
+Request example:
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "chat",
+    "input": {
+      "prompt": "Hello, AI!"
+    },
+    "wait_for_completion": false,
+    "callback_url": "https://client.example.com/webhooks/model-compose",
+    "callback_headers": {
+      "Authorization": "Bearer YOUR_TOKEN"
+    }
+  }'
+```
+
+Callback payload (POSTed to `callback_url`):
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "workflow_id": "chat",
+  "event": "completed",
+  "status": "completed",
+  "output": {
+    "message": "Hello! How can I help you today?"
+  },
+  "elapsed": 1.42
+}
+```
+
+The `event` field is one of `completed`, `failed`, or `cancelled`. Non-terminal events (e.g. `started`, `interrupted`) are not sent to the callback URL.
 
 #### Get Task Status
 ```

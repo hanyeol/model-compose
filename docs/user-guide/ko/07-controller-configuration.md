@@ -153,6 +153,8 @@ POST /api/workflows/runs
 - `input` (object, optional): 워크플로우 입력 데이터
 - `wait_for_completion` (boolean, default: true): true면 완료될 때까지 대기, false면 즉시 task_id 반환
 - `output_only` (boolean, default: false): true면 출력 데이터만 반환 (wait_for_completion=true 필요)
+- `callback_url` (string, optional): 완료 이벤트를 HTTP POST로 받을 URL. `wait_for_completion=false` 필요, `subscribe_task`와 상호 배타
+- `callback_headers` (object, optional): 콜백 요청에 추가할 HTTP 헤더 (예: `Authorization`)
 
 ##### 동기 실행 (기본)
 
@@ -231,6 +233,45 @@ curl -X POST http://localhost:8080/api/workflows/runs \
   "status": "pending"
 }
 ```
+
+##### 콜백 (Webhook) 모드
+
+`GET /api/tasks/{task_id}` 폴링 대신, `callback_url`을 지정하면 완료 알림을 push로 받을 수 있습니다. Task가 terminal 상태(`completed`, `failed`, `cancelled`)에 도달하면 서버가 해당 URL로 task 이벤트 payload를 HTTP `POST`로 전송합니다.
+
+콜백 모드는 `wait_for_completion: false`를 요구하며, `subscribe_task`(WebSocket 구독)와 상호 배타적입니다. 전송은 best-effort로 수행되며 실패해도 워크플로우에 영향을 주지 않고 서버 로그에만 기록됩니다. 자동 재시도는 없습니다.
+
+요청 예시:
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "chat",
+    "input": {
+      "prompt": "Hello, AI!"
+    },
+    "wait_for_completion": false,
+    "callback_url": "https://client.example.com/webhooks/model-compose",
+    "callback_headers": {
+      "Authorization": "Bearer YOUR_TOKEN"
+    }
+  }'
+```
+
+콜백 payload (`callback_url`로 POST 전송됨):
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "workflow_id": "chat",
+  "event": "completed",
+  "status": "completed",
+  "output": {
+    "message": "Hello! How can I help you today?"
+  },
+  "elapsed": 1.42
+}
+```
+
+`event` 필드는 `completed`, `failed`, `cancelled` 중 하나입니다. 그 외의 이벤트(예: `started`, `interrupted`)는 콜백 URL로 전송되지 않습니다.
 
 #### Task 상태 조회
 ```

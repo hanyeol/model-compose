@@ -153,6 +153,8 @@ POST /api/workflows/runs
 - `input` (object, 可选): 工作流输入数据
 - `wait_for_completion` (boolean, 默认: true): 如果为 true，等待完成；如果为 false，立即返回 task_id
 - `output_only` (boolean, 默认: false): 如果为 true，仅返回输出数据（需要 wait_for_completion=true）
+- `callback_url` (string, 可选): 通过 HTTP POST 接收完成事件的 URL。需要 `wait_for_completion=false`；与 `subscribe_task` 互斥
+- `callback_headers` (object, 可选): 附加到回调请求上的 HTTP 头（例如 `Authorization`）
 
 ##### 同步执行（默认）
 
@@ -231,6 +233,45 @@ curl -X POST http://localhost:8080/api/workflows/runs \
   "status": "pending"
 }
 ```
+
+##### 回调 (Webhook) 模式
+
+除了轮询 `GET /api/tasks/{task_id}` 之外，您可以通过提供 `callback_url` 接收完成通知。当任务达到终止状态（`completed`、`failed` 或 `cancelled`）时，服务器会向该 URL 发送带有任务事件负载的 HTTP `POST` 请求。
+
+回调模式需要 `wait_for_completion: false`，并且与 `subscribe_task`（WebSocket 订阅）互斥。发送采用尽力而为（best-effort）方式：失败仅记录在服务器日志中，不会影响工作流，也没有自动重试。
+
+请求示例：
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "chat",
+    "input": {
+      "prompt": "Hello, AI!"
+    },
+    "wait_for_completion": false,
+    "callback_url": "https://client.example.com/webhooks/model-compose",
+    "callback_headers": {
+      "Authorization": "Bearer YOUR_TOKEN"
+    }
+  }'
+```
+
+回调负载（POST 到 `callback_url`）：
+```json
+{
+  "task_id": "01JBQR5KSXM8HNXF7N9VYW3K2T",
+  "workflow_id": "chat",
+  "event": "completed",
+  "status": "completed",
+  "output": {
+    "message": "Hello! How can I help you today?"
+  },
+  "elapsed": 1.42
+}
+```
+
+`event` 字段为 `completed`、`failed` 或 `cancelled` 之一。非终止事件（如 `started`、`interrupted`）不会发送到回调 URL。
 
 #### 获取任务状态
 ```

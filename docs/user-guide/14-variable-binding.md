@@ -439,9 +439,153 @@ Use `object[]/` for simple field picking. Use map expressions when you need to a
 
 ---
 
-## 14.10 Practical Examples
+## 14.10 Conditionals (`"?"`)
 
-### 14.10.1 OpenAI API Call
+A conditional evaluates one or more predicates and emits the first matching branch. Use the `"?"` key inside a dict; its value is a single condition object or a list of them (evaluated top-to-bottom, first match wins).
+
+### 14.10.1 Single Condition
+
+```yaml
+role:
+  "?":
+    input: ${item.role}
+    value: tool
+    if_true: user               # matched → "user"
+    if_false: ${item.role}      # else → pass through original role
+```
+
+**Fields inside each condition:**
+
+| Field | Required | Default | Notes |
+|-------|:--------:|---------|-------|
+| `input` | yes | — | Value being tested; usually a `${...}` expression. |
+| `operator` | no | `eq` | One of `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not-in`, `starts-with`, `ends-with`, `match`. |
+| `value` | usually | — | Right-hand side of the comparison. Optional for operators that take none. |
+| `if_true` | no | — | Value to emit when the condition matches. |
+| `if_false` | no | — | Value to emit when it does not match. If omitted and the condition fails, the whole `"?"` contributes nothing (see below). |
+
+### 14.10.2 Multiple Conditions (First Match Wins)
+
+```yaml
+content:
+  "*": ${item.blocks}
+  "?":
+    - input: ${item.type}
+      value: text
+      if_true: { type: text, text: ${item.text} }
+    - input: ${item.type}
+      value: tool_call
+      if_true: { type: tool_use, id: ${item.id}, name: ${item.name}, input: ${item.arguments} }
+    - input: ${item.type}
+      value: tool_result
+      if_true: { type: tool_result, tool_use_id: ${item.id}, content: ${item.content} }
+```
+
+Each block type is rewritten by the first branch it matches; unmatched blocks (none of the three types) contribute nothing to the surrounding dict.
+
+### 14.10.3 Value-Position vs Sibling-Position
+
+The behavior of `"?"` depends on whether the parent dict has other keys.
+
+- **Sibling position** — `"?"` sits next to other keys. The chosen branch **must resolve to a dict**, and its fields are merged into the parent (like `"..."` spread).
+
+  ```yaml
+  "...": ${item}                # start with all of item's fields
+  "?":                          # then override selectively
+    input: ${item.role}
+    value: tool
+    if_true: { role: user }
+  ```
+
+- **Value position** — `"?"` is the sole key in its dict. The chosen branch **replaces the dict** as the parent field's value. Wrap a conditional in a dict when you need one in a value position.
+
+  ```yaml
+  status:
+    "?":
+      input: ${jobs.probe.output.ok}
+      value: true
+      if_true: healthy
+      if_false: down
+  ```
+
+### 14.10.4 When No Branch Matches
+
+If no condition matches and no `if_false` is given, `"?"` emits nothing:
+
+- In **sibling position** → no fields are added to the parent dict.
+- In **value position** → the parent field is omitted from its dict (no `null` is emitted).
+
+This makes `"?"` useful for optional decoration without adding empty fields.
+
+### 14.10.5 Notes
+
+- `"?"` is **not a filter for map items** — it always contributes to every iterated element (merge, replace, or omit). To drop items from a list, filter with `"*"`'s `where` clause.
+- Evaluation stops at the first matching condition when a list is used.
+
+---
+
+## 14.11 Join Operator (`"+"`)
+
+The `"+"` key concatenates a list of homogeneous parts into a single value. The join kind is determined by the element type: strings concatenate, lists extend, dicts merge (later keys win). It is useful for stitching together multiple `"*"` map results, optional pieces, and literal fragments without needing a separate transform step.
+
+### 14.11.1 Basic Forms
+
+```yaml
+# String concat
+greeting:
+  "+": ["Hello, ", "${input.name}", "!"]
+
+# List extend
+tools:
+  "+":
+    - ${input.builtin_tools}
+    - ${input.custom_tools}
+
+# Dict merge (right-wins)
+headers:
+  "+":
+    - ${env.default_headers}
+    - Authorization: Bearer ${env.API_KEY}
+```
+
+### 14.11.2 Composing with Map Expressions
+
+Common use case: run several `"*"` maps over the same source and concatenate the projections into one list. This replaces per-branch discrimination that would otherwise need chained `"?"` conditions.
+
+```yaml
+# Canonical assistant blocks → OpenAI assistant message fields.
+content:
+  "+":
+    - "*":
+        input: ${item.blocks}
+        where: { input: ${item.type}, value: text }
+      type: text
+      text: ${item.text}
+    - "*":
+        input: ${item.blocks}
+        where: { input: ${item.type}, value: tool_call }
+      type: tool_use
+      id: ${item.id}
+      name: ${item.name}
+      input: ${item.arguments}
+```
+
+### 14.11.3 Rules
+
+- The `"+"` value must resolve to a list — either a literal YAML list or a single `${...}` expression that resolves to one. Anything else raises `TypeError`.
+- **`None` elements are skipped.** This lets you fold in optional pieces (`${maybe_missing}`, `{ "?": {...} }`) without extra wiring.
+- **Empty result** (no elements, or every element resolved to `None`) → the whole `"+"` renders as `None`. Chain with `| default` at the surrounding call site to substitute a placeholder.
+- **Homogeneous types** — every surviving element must be the same kind (all `str`, all `list`, or all `dict`); mixing raises `TypeError`. This is intentional: the semantics differ per kind, so mixed inputs would be ambiguous.
+  - `str` elements → concatenated with no separator (insert your own literals as separators).
+  - `list` elements → extended (`[1, 2] + [3] → [1, 2, 3]`).
+  - `dict` elements → merged with later keys winning, same semantics as `"..."`.
+- `"+"` is a **key only** and must be the sole key in its dict. `{ "+": [...], "other": 1 }` is treated as a regular dict literal, not a join.
+
+---
+
+## 14.12 Practical Examples
+
+### 14.12.1 OpenAI API Call
 
 ```yaml
 body:
@@ -455,7 +599,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.10.2 Image Processing Pipeline
+### 14.12.2 Image Processing Pipeline
 
 ```yaml
 jobs:
@@ -473,7 +617,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.10.3 Streaming Response
+### 14.12.3 Streaming Response
 
 ```yaml
 workflow:
@@ -488,7 +632,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.10.4 Vector Search Result Format
+### 14.12.4 Vector Search Result Format
 
 ```yaml
 component:
@@ -498,7 +642,7 @@ component:
 # Result: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.10.5 Conditional Default Values
+### 14.12.5 Conditional Default Values
 
 ```yaml
 component:

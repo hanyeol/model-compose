@@ -439,9 +439,153 @@ messages:
 
 ---
 
-## 14.10 实用示例
+## 14.10 条件表达式 (`"?"`)
 
-### 14.10.1 OpenAI API 调用
+条件表达式计算一个或多个条件，并发出第一个匹配的分支。在字典中使用 `"?"` 键，其值可以是单个条件对象或多个条件对象的列表（列表从上到下求值，首个匹配者胜出）。
+
+### 14.10.1 单条件
+
+```yaml
+role:
+  "?":
+    input: ${item.role}
+    value: tool
+    if_true: user               # 匹配 → "user"
+    if_false: ${item.role}      # 否则 → 沿用原 role
+```
+
+**每个条件的字段：**
+
+| 字段 | 必填 | 默认 | 说明 |
+|------|:----:|------|------|
+| `input` | 是 | — | 待求值的值，通常是 `${...}` 表达式。 |
+| `operator` | 否 | `eq` | `eq`、`neq`、`gt`、`gte`、`lt`、`lte`、`in`、`not-in`、`starts-with`、`ends-with`、`match` 之一。 |
+| `value` | 通常 | — | 比较右侧的值。对于不需要右侧值的运算符可省略。 |
+| `if_true` | 否 | — | 条件匹配时发出的值。 |
+| `if_false` | 否 | — | 条件不匹配时发出的值。若省略且条件失败，整个 `"?"` 不贡献任何值（见下文）。 |
+
+### 14.10.2 多条件（首个匹配胜出）
+
+```yaml
+content:
+  "*": ${item.blocks}
+  "?":
+    - input: ${item.type}
+      value: text
+      if_true: { type: text, text: ${item.text} }
+    - input: ${item.type}
+      value: tool_call
+      if_true: { type: tool_use, id: ${item.id}, name: ${item.name}, input: ${item.arguments} }
+    - input: ${item.type}
+      value: tool_result
+      if_true: { type: tool_result, tool_use_id: ${item.id}, content: ${item.content} }
+```
+
+每种块类型由首个匹配的分支重写；三种类型都不匹配的块对上层字典不贡献任何内容。
+
+### 14.10.3 值位置 vs 兄弟位置
+
+`"?"` 的行为取决于父字典中是否有其他键。
+
+- **兄弟位置** — `"?"` 与其他键并存。所选分支**必须解析为字典**，其字段会被合并进父字典（如同 `"..."` 展开）。
+
+  ```yaml
+  "...": ${item}                # 先合入 item 的所有字段
+  "?":                          # 再有选择地覆盖
+    input: ${item.role}
+    value: tool
+    if_true: { role: user }
+  ```
+
+- **值位置** — `"?"` 是其字典中唯一的键。所选分支会**替换该字典**成为父字段的值。若要在值位置使用条件，请将其包装在字典中。
+
+  ```yaml
+  status:
+    "?":
+      input: ${jobs.probe.output.ok}
+      value: true
+      if_true: healthy
+      if_false: down
+  ```
+
+### 14.10.4 没有匹配的分支时
+
+若无条件匹配且未提供 `if_false`，`"?"` 不发出任何内容：
+
+- **兄弟位置** → 父字典中不添加任何字段。
+- **值位置** → 父字段从其字典中被省略（不会发出 `null`）。
+
+这一特性使得 `"?"` 可用于可选装饰，而不会额外添加空字段。
+
+### 14.10.5 注意
+
+- `"?"` **不是映射项过滤器** — 它总是对每个迭代元素有贡献（合并、替换或省略）。要从列表中丢弃条目，请使用 `"*"` 的 `where` 子句进行过滤。
+- 用列表提供多条件时，评估在首个匹配处停止。
+
+---
+
+## 14.11 合并运算符 (`"+"`)
+
+`"+"` 键将同类的多个片段合并为单个值。合并方式由元素类型决定：字符串拼接、列表扩展、字典合并（后者胜出）。适合把多个 `"*"` 映射结果、可选片段和字面片段拼在一起，而无需单独的变换步骤。
+
+### 14.11.1 基本形式
+
+```yaml
+# 字符串拼接
+greeting:
+  "+": ["Hello, ", "${input.name}", "!"]
+
+# 列表扩展
+tools:
+  "+":
+    - ${input.builtin_tools}
+    - ${input.custom_tools}
+
+# 字典合并（后者胜出）
+headers:
+  "+":
+    - ${env.default_headers}
+    - Authorization: Bearer ${env.API_KEY}
+```
+
+### 14.11.2 与映射表达式组合
+
+常见用途：对同一源运行多个 `"*"` 映射，然后将它们的投影拼成一个列表。相比链式 `"?"` 分支更加清晰。
+
+```yaml
+# 规范 assistant 块 → OpenAI assistant 消息字段。
+content:
+  "+":
+    - "*":
+        input: ${item.blocks}
+        where: { input: ${item.type}, value: text }
+      type: text
+      text: ${item.text}
+    - "*":
+        input: ${item.blocks}
+        where: { input: ${item.type}, value: tool_call }
+      type: tool_use
+      id: ${item.id}
+      name: ${item.name}
+      input: ${item.arguments}
+```
+
+### 14.11.3 规则
+
+- `"+"` 的值必须解析为列表 — 可以是字面 YAML 列表，也可以是解析为列表的 `${...}` 表达式。其他值会抛出 `TypeError`。
+- **`None` 元素被跳过。** 这样可以直接放入可选片段（`${maybe_missing}`、`{ "?": {...} }`），无需额外处理。
+- **结果为空**（没有元素或全部解析为 `None`）→ 整个 `"+"` 渲染为 `None`。如需占位值，请在外层调用点用 `| default` 追加。
+- **类型一致** — 存活的元素必须全部为同种类型（全 `str`、全 `list` 或全 `dict`）；混用会抛出 `TypeError`。这是有意为之：不同类型的合并语义不同，混合会引起歧义。
+  - `str` 元素 → 无分隔符拼接（如需分隔符请以字面量插入）。
+  - `list` 元素 → 扩展（`[1, 2] + [3] → [1, 2, 3]`）。
+  - `dict` 元素 → 后者胜出的合并，与 `"..."` 相同语义。
+- `"+"` 是**仅限键**的运算符，且必须是其字典中的唯一键。`{ "+": [...], "other": 1 }` 会被当作普通字典字面量，不触发合并。
+
+---
+
+## 14.12 实用示例
+
+### 14.12.1 OpenAI API 调用
 
 ```yaml
 body:
@@ -455,7 +599,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.10.2 图像处理流水线
+### 14.12.2 图像处理流水线
 
 ```yaml
 jobs:
@@ -473,7 +617,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.10.3 流式响应
+### 14.12.3 流式响应
 
 ```yaml
 workflow:
@@ -488,7 +632,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.10.4 向量搜索结果格式
+### 14.12.4 向量搜索结果格式
 
 ```yaml
 component:
@@ -498,7 +642,7 @@ component:
 # 结果: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.10.5 条件默认值
+### 14.12.5 条件默认值
 
 ```yaml
 component:

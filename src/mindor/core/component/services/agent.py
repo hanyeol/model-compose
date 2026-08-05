@@ -1,5 +1,5 @@
 from typing import Optional, Union, Dict, List, Any
-from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig, ChatMessageFormat
+from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
@@ -60,7 +60,7 @@ class AgentAction:
                         await context.event_notifier.notify("internal", kind="message", output=assistant_message)
                         yield assistant_message
 
-                    tool_calls = self._extract_tool_calls(response)
+                    tool_calls = response.get("tool_calls")
                     if not tool_calls:
                         break
 
@@ -88,7 +88,7 @@ class AgentAction:
                     messages.append(assistant_message)
                     await context.event_notifier.notify("internal", kind="message", output=assistant_message)
 
-                tool_calls = self._extract_tool_calls(response)
+                tool_calls = response.get("tool_calls")
                 if not tool_calls:
                     break
 
@@ -114,25 +114,27 @@ class AgentAction:
 
         return messages
 
-    async def _build_assistant_messages(self, response: Any) -> List[Dict[str, Any]]:
-        text = self._extract_content(response)
-        tool_calls = self._extract_tool_calls(response) or []
+    async def _build_assistant_messages(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        text = response.get("content")
+        tool_calls = response.get("tool_calls") or []
 
-        items: List[Dict[str, Any]] = []
-        if text is not None and text != "":
-            items.append({ "type": "text", "text": text if isinstance(text, str) else str(text) })
+        blocks: List[Dict[str, Any]] = []
+
+        if text:
+            blocks.append({ "type": "text", "text": text })
+
         for call in tool_calls:
-            items.append({
+            blocks.append({
                 "type": "tool_call",
                 "id": call.get("id", ""),
                 "name": call.get("name", ""),
-                "arguments": self._normalize_tool_arguments(call.get("arguments", {})),
+                "arguments": call.get("arguments", {}),
             })
 
-        if not items:
-            items.append({ "type": "text", "text": "" })
+        if not blocks:
+            blocks.append({ "type": "text", "text": "" })
 
-        return self._pack_messages("assistant", items)
+        return self._format_messages("assistant", blocks)
 
     async def _render_model_input(
         self,
@@ -178,24 +180,28 @@ class AgentAction:
             else:
                 tool_kinds.append("unknown")
 
-        workflow_items = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
-        external_items = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
+        workflow_blocks = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
+        external_blocks = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
 
-        items: List[Dict[str, Any]] = []
+        blocks: List[Dict[str, Any]] = []
         for tool_call, tool_kind in zip(tool_calls, tool_kinds):
             if tool_kind == "workflow":
-                items.append(next(workflow_items))
+                blocks.append(next(workflow_blocks))
             elif tool_kind == "external":
-                items.append(next(external_items))
+                blocks.append(next(external_blocks))
             else:
-                items.append({
+                blocks.append({
                     "type": "tool_result",
                     "id": tool_call.get("id", ""),
                     "content": f"Error: Unknown tool '{tool_call.get('name', '')}'",
                     "is_error": True,
                 })
 
-        return self._pack_messages("tool", items)
+        messages: List[Dict[str, Any]] = []
+        for block in blocks:
+            messages.extend(self._format_messages("tool", [block]))
+
+        return messages
 
     async def _execute_workflow_tool_calls(
         self,
@@ -204,7 +210,7 @@ class AgentAction:
     ) -> List[Dict[str, Any]]:
         async def _execute_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
             tool_name = tool_call["name"]
-            tool_arguments = self._normalize_tool_arguments(tool_call.get("arguments", {}))
+            tool_arguments = tool_call.get("arguments", {})
             call_id = tool_call.get("id", "")
 
             try:
@@ -255,52 +261,28 @@ class AgentAction:
         answer = await context.workflow.interrupt_handler.interrupt(point)
         tool_results = answer if isinstance(answer, dict) else {}
 
-        items: List[Dict[str, Any]] = []
+        blocks: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
             call_id = tool_call.get("id", "")
             if call_id in tool_results:
                 result = tool_results[call_id]
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
-                items.append({ "type": "tool_result", "id": call_id, "content": content })
+                blocks.append({ "type": "tool_result", "id": call_id, "content": content })
             else:
-                items.append({
+                blocks.append({
                     "type": "tool_result",
                     "id": call_id,
                     "content": f"Error: no result provided for tool_call '{call_id}'",
                     "is_error": True,
                 })
 
-        return items
-
-    def _extract_content(self, response: Any) -> Any:
-        if isinstance(response, dict):
-            return response.get("content")
-
-        return response
-
-    def _extract_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
-        if isinstance(response, dict):
-            return response.get("tool_calls")
-
-        return None
-
-    def _normalize_tool_arguments(self, arguments: Any) -> Dict[str, Any]:
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                return {}
-
-        return arguments if isinstance(arguments, dict) else {}
+        return blocks
 
     def _build_text_messages(self, role: str, text: str) -> List[Dict[str, Any]]:
-        return self._pack_messages(role, [{ "type": "text", "text": text }])
+        return self._format_messages(role, [{ "type": "text", "text": text }])
 
-    def _pack_messages(self, role: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if self.model_config.message_format == ChatMessageFormat.PLAIN:
-            return [ { "role": role, **item } for item in items ]
-
-        return [ { "role": role, "blocks": items } ]
+    def _format_messages(self, role: str, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [ { "role": role, "blocks": blocks } ]
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):

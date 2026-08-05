@@ -95,6 +95,8 @@ class VariableRenderer:
             return await self._render_element(value.model_dump(by_alias=True), scope, skip_decode)
 
         if isinstance(value, dict):
+            if "?" in value and len(value) == 1:
+                return await self._render_conditional(value["?"], scope, skip_decode)
             if "*" in value:
                 return await self._render_map(value, scope, skip_decode)
             return await self._render_dict(value, scope, skip_decode)
@@ -103,6 +105,93 @@ class VariableRenderer:
             return await self._render_list(value, scope, skip_decode)
 
         return value
+
+    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
+        values = {}
+
+        for key, value in entries.items():
+            if key == "...":
+                value = await self._render_element(value, scope, skip_decode)
+                if isinstance(value, dict) or value is None:
+                    values.update(value or {})
+                else:
+                    raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
+            elif key == "?":
+                result = await self._render_conditional(value, scope, skip_decode)
+                if result is None:
+                    continue
+                if not isinstance(result, dict):
+                    raise TypeError(f"Conditional `?` as a sibling key must resolve to a dict, got {type(result).__name__}")
+                values.update(result)
+            else:
+                values[key] = await self._render_element(value, scope, skip_decode)
+
+        return values
+
+    async def _render_list(self, entries: list, scope: Optional[str], skip_decode: bool) -> list:
+        values = []
+
+        for item in entries:
+            if isinstance(item, str) and self._is_spread_expression(item):
+                value = await self._render_text(item[3:], scope, skip_decode)
+                if isinstance(value, (list, tuple)) or value is None:
+                    values.extend(value or [])
+                else:
+                    raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
+            else:
+                values.append(await self._render_element(item, scope, skip_decode))
+
+        return values
+
+    async def _render_text(self, text: str, scope: Optional[str], skip_decode: bool) -> Any:
+        matches = list(self.patterns["variable"].finditer(text))
+
+        for m in reversed(matches):
+            key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
+            index = self._parse_index(index) if index else None
+            is_list = bool(is_list)
+
+            if attrs:
+                attrs = await self._render_attrs(attrs, scope)
+
+            try:
+                value = self.field_resolver.resolve(await self._resolve_source(key, index, scope), path)
+            except Exception:
+                value = None
+
+            if value is None and default is not None:
+                value = await self._render_element(default, scope, skip_decode)
+
+            if type and value is not None:
+                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format, skip_decode)
+
+            start, end = m.span()
+
+            if start == 0 and end == len(text):
+                return value
+
+            text = text[:start] + (str(value) if value is not None else "") + text[end:]
+
+        return text
+
+    async def _render_conditional(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
+        conditions = entries if isinstance(entries, list) else [entries]
+
+        for condition in conditions:
+            if not isinstance(condition, dict):
+                raise TypeError(f"Conditional `?` entry must be a dict, got {type(condition).__name__}")
+
+            input = await self._render_element(condition.get("input"), scope, skip_decode)
+            value = await self._render_element(condition.get("value"), scope, skip_decode)
+            operator = ConditionOperator(condition.get("operator", ConditionOperator.EQ.value))
+
+            if evaluate_condition(operator, input, value):
+                return await self._render_element(condition.get("if_true"), scope, skip_decode)
+
+            if "if_false" in condition:
+                return await self._render_element(condition["if_false"], scope, skip_decode)
+
+        return None
 
     async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
         source, where = None, None
@@ -175,67 +264,6 @@ class VariableRenderer:
             return evaluate_condition(operator, input, value)
 
         raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
-
-    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
-        values = {}
-
-        for key, value in entries.items():
-            if key == "...":
-                value = await self._render_element(value, scope, skip_decode)
-                if isinstance(value, dict) or value is None:
-                    values.update(value or {})
-                else:
-                    raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
-            else:
-                values[key] = await self._render_element(value, scope, skip_decode)
-
-        return values
-
-    async def _render_list(self, entries: list, scope: Optional[str], skip_decode: bool) -> list:
-        values = []
-
-        for item in entries:
-            if isinstance(item, str) and self._is_spread_expression(item):
-                value = await self._render_text(item[3:], scope, skip_decode)
-                if isinstance(value, (list, tuple)) or value is None:
-                    values.extend(value or [])
-                else:
-                    raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
-            else:
-                values.append(await self._render_element(item, scope, skip_decode))
-
-        return values
-
-    async def _render_text(self, text: str, scope: Optional[str], skip_decode: bool) -> Any:
-        matches = list(self.patterns["variable"].finditer(text))
-
-        for m in reversed(matches):
-            key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
-            index = self._parse_index(index) if index else None
-            is_list = bool(is_list)
-
-            if attrs:
-                attrs = await self._render_attrs(attrs, scope)
-
-            try:
-                value = self.field_resolver.resolve(await self._resolve_source(key, index, scope), path)
-            except Exception:
-                value = None
-
-            if value is None and default is not None:
-                value = await self._render_element(default, scope, skip_decode)
-
-            if type and value is not None:
-                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format, skip_decode)
-
-            start, end = m.span()
-
-            if start == 0 and end == len(text):
-                return value
-
-            text = text[:start] + (str(value) if value is not None else "") + text[end:]
-
-        return text
 
     async def _resolve_source(self, key: str, index: Optional[Union[int, slice]], scope: Optional[str]) -> Any:
         if key == "item" and self._item_stack:

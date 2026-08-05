@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Set, Tuple, Callable, Any
+from typing import Optional, Union, Dict, List, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioClipperComponentConfig
 from mindor.dsl.schema.action import AudioClipperActionConfig
@@ -31,24 +31,44 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         audios: List[MediaSource],
         spans: List[ArrayValue],
         merge: bool,
+        is_single_span: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[AsyncIterator[AudioStreamResource]]:
-        results: List[AsyncIterator[AudioStreamResource]] = []
+    ) -> List[Union[AsyncIterator[AudioStreamResource], AudioStreamResource]]:
+        results: List[Union[AsyncIterator[AudioStreamResource], AudioStreamResource]] = []
 
         for audio, spans in zip(audios, spans):
             input_path, spooled = await self._resolve_input_path(audio)
             format = await self._resolve_format(audio, input_path)
-            clips = self._clip(input_path, spooled, self._iterate_spans(spans), format, cancellation_token)
+
+            clips = self._clip(
+                input_path,
+                spooled,
+                self._iterate_spans(spans),
+                format,
+                cancellation_token
+            )
 
             if merge:
-                async def _merge(clips=clips, format=format):
-                    yield await self._merge(clips, format, cancellation_token)
-
-                results.append(_merge())
+                results.append(await self._merge(clips, format, cancellation_token))
+            elif is_single_span:
+                results.append(await self._first_clip(clips))
             else:
                 results.append(clips)
 
         return results
+
+    @staticmethod
+    async def _first_clip(clips: AsyncIterator[AudioStreamResource]) -> AudioStreamResource:
+        """Pull the single clip out of a one-element iterator produced when the
+        caller passed a single span."""
+        first: Optional[AudioStreamResource] = None
+        async for clip in clips:
+            if first is not None:
+                raise RuntimeError("expected a single clip but the iterator produced more than one")
+            first = clip
+        if first is None:
+            raise ValueError("'span' must contain at least one entry")
+        return first
 
     async def _clip(
         self,
@@ -107,9 +127,9 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
                 try:
                     if is_streamable_output:
-                        clip = await self._clip_to_stream(command, format, _release, cancellation_token)
+                        clip = await self._run_to_stream(command, format, _release, cancellation_token)
                     else:
-                        clip = await self._clip_to_file(command, format, _release, cancellation_token)
+                        clip = await self._run_to_file(command, format, _release, cancellation_token)
                 except BaseException:
                     # cleanup wasn't invoked on this iteration; roll back the refcount.
                     pending_count -= 1
@@ -187,14 +207,14 @@ class FFmpegAudioClipperAction(AudioClipperAction):
             ]
 
             if is_streamable_output:
-                return await self._clip_to_stream(concat_command, format, _cleanup, cancellation_token)
+                return await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
 
-            return await self._clip_to_file(concat_command, format, _cleanup, cancellation_token)
+            return await self._run_to_file(concat_command, format, _cleanup, cancellation_token)
         except BaseException:
             _cleanup()
             raise
 
-    async def _clip_to_file(
+    async def _run_to_file(
         self,
         command: List[str],
         format: str,
@@ -205,8 +225,45 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         output_path = create_temporary_file(format)
         command = command + [ "-y", output_path ]
 
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            None,
+            stderr_handler=lambda r: r.read(),
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            await self._run_process(command, None, cancellation_token, "audio clip")
+            try:
+                process, _, error = await process_task
+
+                if process.returncode != 0:
+                    error_message = error.decode("utf-8", errors="replace") if error else ""
+                    raise RuntimeError(f"ffmpeg audio clip failed (exit code {process.returncode}): {error_message}")
+            except asyncio.CancelledError:
+                logging.info("Audio clip cancelled")
+                raise
+            finally:
+                if watcher_task is not None and not watcher_task.done():
+                    watcher_task.cancel()
+                    try:
+                        await watcher_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
         except BaseException:
             cleanup()
             raise
@@ -217,7 +274,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
         return AudioStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
-    async def _clip_to_stream(
+    async def _run_to_stream(
         self,
         command: list,
         format: str,
@@ -282,52 +339,6 @@ class FFmpegAudioClipperAction(AudioClipperAction):
                 cleanup()
 
         return AudioStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _run_process(
-        self,
-        command: list,
-        stdin_source: Any,
-        cancellation_token: Optional[CancellationToken],
-        stage: str,
-    ) -> None:
-        # run_subprocess only reacts to asyncio cancellation, but our
-        # CancellationToken is a threading.Event that has to be polled.
-        # Wrap the ffmpeg run in a task and cancel it when the token fires;
-        # run_subprocess then kills the process on its way out.
-        process_task = asyncio.create_task(run_subprocess(
-            command,
-            stdin_source,
-            stderr_handler=lambda r: r.read(),
-        ))
-
-        watcher_task: Optional[asyncio.Task] = None
-
-        if cancellation_token is not None:
-            async def _watch_cancellation() -> None:
-                while not cancellation_token.is_cancelled():
-                    if process_task.done():
-                        return
-                    await asyncio.sleep(0.2)
-                process_task.cancel()
-
-            watcher_task = asyncio.create_task(_watch_cancellation())
-
-        try:
-            process, _, error = await process_task
-
-            if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace") if error else ""
-                raise RuntimeError(f"ffmpeg {stage} failed (exit code {process.returncode}): {error_message}")
-        except asyncio.CancelledError:
-            logging.info("%s cancelled", stage.capitalize())
-            raise
-        finally:
-            if watcher_task is not None and not watcher_task.done():
-                watcher_task.cancel()
-                try:
-                    await watcher_task
-                except (asyncio.CancelledError, Exception):
-                    pass
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
         """

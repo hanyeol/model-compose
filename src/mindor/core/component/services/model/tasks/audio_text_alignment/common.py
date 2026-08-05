@@ -51,7 +51,7 @@ class AudioTextAlignmentTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         language          = await context.render_string(self.config.language)
-        chunk_length      = await context.render_scalar(self.config.chunk_length, float)
+        chunk_length      = await context.render_duration(self.config.chunk_length)
         chunk_overlap     = await context.render_duration(self.config.chunk_overlap)
         return_confidence = await context.render_scalar(self.config.return_confidence, bool)
 

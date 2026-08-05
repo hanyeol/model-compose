@@ -171,6 +171,11 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
     def _forward_chunk(self, waveform: np.ndarray) -> torch.Tensor:
         import torch
 
+        # AudioBufferStreamer yields (channels, samples); Wav2Vec2's feature extractor
+        # expects a 1-D mono waveform per example, so squeeze the channel axis.
+        if waveform.ndim == 2:
+            waveform = waveform[0] if waveform.shape[0] == 1 else waveform.mean(axis=0)
+
         inputs = self.processor(
             waveform,
             sampling_rate=self.sample_rate,

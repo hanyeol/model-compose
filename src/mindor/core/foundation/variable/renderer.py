@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from ..streaming.resources import StreamResource
 from ..streaming.file import UploadFileStreamResource, FileStreamResource
 from ..streaming.base64 import Base64StreamResource, encode_value_to_base64, decode_base64_value
-from ..streaming.json import decode_json_value
+from ..streaming.json import decode_json_value, encode_value_to_json
 from ..streaming.bytes import BytesStreamResource
 from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, StreamIterator, StreamChunkIterator
 from ..streaming.image import load_image_from_stream, ImageStreamResource
@@ -18,7 +18,7 @@ from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
-import re, aiofiles, os
+import re, aiofiles, os, json
 
 class FieldResolver:
     def __init__(self):
@@ -97,6 +97,8 @@ class VariableRenderer:
         if isinstance(value, dict):
             if "?" in value and len(value) == 1:
                 return await self._render_conditional(value["?"], scope, skip_decode)
+            if "+" in value and len(value) == 1:
+                return await self._render_join(value["+"], scope, skip_decode)
             if "*" in value:
                 return await self._render_map(value, scope, skip_decode)
             return await self._render_dict(value, scope, skip_decode)
@@ -255,6 +257,54 @@ class VariableRenderer:
 
         raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
 
+    async def _render_join(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
+        parts = await self._render_element(entries, scope, skip_decode)
+
+        if parts is None:
+            return None
+
+        if not isinstance(parts, (list, tuple)):
+            raise TypeError(f"Join `+` must resolve to a list, got {type(parts).__name__}")
+
+        parts = [ part for part in parts if part is not None ]
+
+        if not parts:
+            return None
+
+        kinds = { self._kind_of(part) for part in parts }
+
+        if len(kinds) > 1:
+            raise TypeError(f"Join `+` requires uniform element types, got {sorted(kinds)}")
+
+        kind = next(iter(kinds))
+
+        if kind == "str":
+            return "".join(parts)
+
+        if kind == "list":
+            result: List[Any] = []
+            for part in parts:
+                result.extend(part)
+            return result
+
+        if kind == "dict":
+            result: Dict[str, Any] = {}
+            for part in parts:
+                result.update(part)
+            return result
+
+        raise TypeError(f"Join `+` cannot combine values of type {kind}")
+
+    @staticmethod
+    def _kind_of(value: Any) -> str:
+        if isinstance(value, str):
+            return "str"
+        if isinstance(value, (list, tuple)):
+            return "list"
+        if isinstance(value, dict):
+            return "dict"
+        return type(value).__name__
+
     async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
         if not isinstance(where, dict):
             raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
@@ -318,6 +368,9 @@ class VariableRenderer:
 
         if type in [ "json", "object", "list" ] and isinstance(value, (str, bytes)):
             value = await decode_json_value(value)
+
+        if type in [ "string", "text" ] and isinstance(value, (dict, list, tuple)):
+            value = await encode_value_to_json(value)
 
         if type in [ "string", "text", "markdown" ]:
             if isinstance(value, bytes):

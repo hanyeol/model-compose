@@ -153,8 +153,13 @@ class TestStreamChunkIterator:
         assert chunks == ["a", "b", "c"]
 
     @pytest.mark.anyio
-    async def test_skips_none_chunks(self):
+    async def test_passes_through_none_chunks_when_not_fragmented(self):
         chunks = await _collect(StreamChunkIterator(_async_iter(["a", None, "b", None, "c"])))
+        assert chunks == ["a", None, "b", None, "c"]
+
+    @pytest.mark.anyio
+    async def test_skips_none_chunks_when_fragmented(self):
+        chunks = await _collect(StreamChunkIterator(_async_iter(["a", None, "b", None, "c"]), is_fragmented=True))
         assert chunks == ["a", "b", "c"]
 
 

@@ -23,8 +23,9 @@ class StreamChunkIterator(StreamIterator):
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
-            if chunk is not None:
-                yield chunk
+            if chunk is None and self.is_fragmented:
+                continue
+            yield chunk
 
 class StreamEncodingIterator(StreamIterator):
     def __init__(

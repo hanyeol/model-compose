@@ -13,7 +13,7 @@ from ..streaming.video import VideoStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
-from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.evaluator.condition import evaluate_condition, evaluate_where
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
@@ -256,14 +256,16 @@ class VariableRenderer:
         raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
 
     async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
-        if isinstance(where, dict):
-            input = await self._render_element(where.get("input"), scope, skip_decode)
-            value = await self._render_element(where.get("value"), scope, skip_decode)
-            operator = ConditionOperator(where.get("operator", ConditionOperator.EQ.value))
+        if not isinstance(where, dict):
+            raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
 
+        async def _evaluate_condition(condition: Any) -> bool:
+            input = await self._render_element(condition.get("input"), scope, skip_decode)
+            value = await self._render_element(condition.get("value"), scope, skip_decode)
+            operator = ConditionOperator(condition.get("operator", ConditionOperator.EQ.value))
             return evaluate_condition(operator, input, value)
 
-        raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
+        return await evaluate_where(where, _evaluate_condition)
 
     async def _resolve_source(self, key: str, index: Optional[Union[int, slice]], scope: Optional[str]) -> Any:
         if key == "item" and self._item_stack:

@@ -100,21 +100,20 @@ class AgentAction:
             return (await context.render_variable(self.config.output)) if not is_direct_output else messages
 
     async def _build_initial_messages(self, context: ComponentActionContext) -> List[Dict[str, Any]]:
-        system_role, user_role = self.model_config.roles.system, self.model_config.roles.user
         messages: List[Dict[str, Any]] = []
 
         if self.instructions:
             instructions = await context.render_variable(self.instructions)
-            messages.append({ "role": system_role, "content": instructions })
+            messages.append({ "role": "system", "content": instructions })
 
         if self.config.prompt:
             prompt = await context.render_variable(self.config.prompt)
-            messages.append({ "role": user_role, "content": prompt })
+            messages.append({ "role": "user", "content": prompt })
 
         return messages
 
     async def _build_assistant_message(self, response: Any) -> Dict[str, Any]:
-        assitant_role = getattr(response, "role", self.model_config.roles.assistant)
+        assitant_role = getattr(response, "role", "assistant")
 
         if isinstance(response, dict):
             message: Dict[str, Any] = { "role": assitant_role }
@@ -173,7 +172,6 @@ class AgentAction:
         workflow_messages = iter(await self._execute_workflow_tool_calls(workflow_calls, context)) if workflow_calls else iter(())
         external_messages = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
 
-        tool_role = self.model_config.roles.tool
         messages: List[Dict[str, Any]] = []
 
         for tool_call, tool_kind in zip(tool_calls, tool_kinds):
@@ -183,7 +181,7 @@ class AgentAction:
                 messages.append(next(external_messages))
             else:
                 messages.append({
-                    "role": tool_role,
+                    "role": "tool",
                     "tool_call_id": tool_call.get("id", ""),
                     "content": f"Error: Unknown tool '{tool_call.get('name', '')}'",
                     "is_error": True,
@@ -196,8 +194,6 @@ class AgentAction:
         tool_calls: List[Dict[str, Any]],
         context: ComponentActionContext
     ) -> List[Dict[str, Any]]:
-        tool_role = self.model_config.roles.tool
-
         async def _execute_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
             tool_name = tool_call["name"]
             tool_arguments = tool_call.get("arguments", {})
@@ -210,10 +206,10 @@ class AgentAction:
                 result = await self.tools[tool_name].function(**tool_arguments, context=context.workflow)
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
 
-                return { "role": tool_role, "tool_call_id": call_id, "content": content }
+                return { "role": "tool", "tool_call_id": call_id, "content": content }
             except Exception as e:
                 return {
-                    "role": tool_role,
+                    "role": "tool",
                     "tool_call_id": call_id,
                     "content": f"{type(e).__name__}: {e}",
                     "is_error": True,
@@ -253,7 +249,6 @@ class AgentAction:
 
         answer = await context.workflow.interrupt_handler.interrupt(point)
         tool_results = answer if isinstance(answer, dict) else {}
-        tool_role = self.model_config.roles.tool
 
         messages: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
@@ -261,10 +256,10 @@ class AgentAction:
             if call_id in tool_results:
                 result = tool_results[call_id]
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)
-                messages.append({ "role": tool_role, "tool_call_id": call_id, "content": content })
+                messages.append({ "role": "tool", "tool_call_id": call_id, "content": content })
             else:
                 messages.append({
-                    "role": tool_role,
+                    "role": "tool",
                     "tool_call_id": call_id,
                     "content": f"Error: no result provided for tool_call '{call_id}'",
                     "is_error": True,

@@ -4,18 +4,11 @@ from mindor.dsl.schema.action import AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from .common import ComponentType, CommonComponentConfig
 
-class AgentMessageRolesConfig(BaseModel):
-    system: str = Field(default="system", description="Role name used for system/instruction messages.")
-    user: str = Field(default="user", description="Role name used for user/prompt messages.")
-    assistant: str = Field(default="assistant", description="Role name used for assistant/model responses.")
-    tool: str = Field(default="tool", description="Role name used for tool-result messages.")
-
 class AgentModelConfig(BaseModel):
     component: str = Field(..., description="ID of the component to use for LLM calls.")
     action: str = Field(default="__default__", description="ID of the action to invoke on the component.")
     input: Dict[str, Any] = Field(default_factory=dict, description="Input mapping from agent internal state to component input.")
     output: Optional[Any] = Field(default=None, description="Mapping from component response to a ChatCompletionMessage-shaped dict.")
-    roles: AgentMessageRolesConfig = Field(default_factory=AgentMessageRolesConfig, description="Role name overrides for models that use non-standard role labels (e.g. Gemini's 'model').")
 
 class AgentComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AGENT]

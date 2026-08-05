@@ -239,6 +239,69 @@ class TestConvertJson:
 
 
 # ============================
+# text / string / markdown conversion
+# ============================
+
+class TestConvertText:
+    """Test that `as text` / `as string` / `as markdown` produce string output for various inputs."""
+
+    @pytest.mark.anyio
+    async def test_string_passthrough(self):
+        renderer = VariableRenderer(make_source_resolver({"v": "hello"}))
+        assert await renderer.render("${v as text}") == "hello"
+
+    @pytest.mark.anyio
+    async def test_bytes_utf8_decoded(self):
+        renderer = VariableRenderer(make_source_resolver({"v": "안녕".encode("utf-8")}))
+        assert await renderer.render("${v as text}") == "안녕"
+
+    @pytest.mark.anyio
+    async def test_int_stringified(self):
+        renderer = VariableRenderer(make_source_resolver({"v": 42}))
+        assert await renderer.render("${v as text}") == "42"
+
+    @pytest.mark.anyio
+    async def test_bool_stringified(self):
+        renderer = VariableRenderer(make_source_resolver({"v": True}))
+        assert await renderer.render("${v as text}") == "True"
+
+    @pytest.mark.anyio
+    async def test_dict_serialized_as_json(self):
+        """dicts are JSON-encoded, not Python-repr'd — needed for OpenAI-style JSON strings."""
+        renderer = VariableRenderer(make_source_resolver({"v": {"city": "SF", "unit": "C"}}))
+        assert await renderer.render("${v as text}") == '{"city": "SF", "unit": "C"}'
+
+    @pytest.mark.anyio
+    async def test_list_serialized_as_json(self):
+        renderer = VariableRenderer(make_source_resolver({"v": [1, "two", {"k": 3}]}))
+        assert await renderer.render("${v as text}") == '[1, "two", {"k": 3}]'
+
+    @pytest.mark.anyio
+    async def test_dict_json_preserves_non_ascii(self):
+        renderer = VariableRenderer(make_source_resolver({"v": {"city": "서울"}}))
+        assert await renderer.render("${v as text}") == '{"city": "서울"}'
+
+    @pytest.mark.anyio
+    async def test_as_string_alias(self):
+        renderer = VariableRenderer(make_source_resolver({"v": {"a": 1}}))
+        assert await renderer.render("${v as string}") == '{"a": 1}'
+
+    @pytest.mark.anyio
+    async def test_as_markdown_keeps_python_repr(self):
+        """`as markdown` is for prose, not data — dicts fall back to str() rather than JSON encoding."""
+        renderer = VariableRenderer(make_source_resolver({"v": {"a": 1}}))
+        assert await renderer.render("${v as markdown}") == "{'a': 1}"
+
+    @pytest.mark.anyio
+    async def test_dict_with_non_json_native_falls_back_to_str(self):
+        """encode_value_to_json uses `default=str`, so non-JSON-native values (datetime, etc.)
+        are stringified rather than raising."""
+        import datetime
+        renderer = VariableRenderer(make_source_resolver({"v": {"t": datetime.datetime(2026, 1, 1)}}))
+        assert await renderer.render("${v as text}") == '{"t": "2026-01-01 00:00:00"}'
+
+
+# ============================
 # object[] conversion
 # ============================
 
@@ -3338,3 +3401,690 @@ class TestVariableRendererSlice:
     async def test_no_index_still_works(self):
         renderer = VariableRenderer(make_source_resolver({"output": [10, 20, 30]}))
         assert await renderer.render("${output}") == [10, 20, 30]
+
+
+# ============================
+# `*` full form ({input, where}) — filter predicate
+# ============================
+
+class TestMapWhere:
+    """Test `*` full form with `where` predicate filtering."""
+
+    @pytest.mark.anyio
+    async def test_shorthand_still_works(self):
+        """Shorthand `"*": ${list}` continues to work unchanged."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({"*": "${xs}", "v": "${item}"})
+        assert result == [{"v": 1}, {"v": 2}, {"v": 3}]
+
+    @pytest.mark.anyio
+    async def test_full_form_no_where_matches_shorthand(self):
+        """`{input: ..., no where}` behaves identically to shorthand."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}"},
+            "v": "${item}",
+        })
+        assert result == [{"v": 1}, {"v": 2}, {"v": 3}]
+
+    @pytest.mark.anyio
+    async def test_where_eq(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "users": [{"name": "a", "role": "admin"}, {"name": "b", "role": "user"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${users}", "where": {"input": "${item.role}", "value": "admin"}},
+            "name": "${item.name}",
+        })
+        assert result == [{"name": "a"}]
+
+    @pytest.mark.anyio
+    async def test_where_neq(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "users": [{"name": "a", "role": "admin"}, {"name": "b", "role": "user"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${users}", "where": {"input": "${item.role}", "operator": "neq", "value": "admin"}},
+            "name": "${item.name}",
+        })
+        assert result == [{"name": "b"}]
+
+    @pytest.mark.anyio
+    async def test_where_gt(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3, 4, 5]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "gt", "value": 3}},
+            "v": "${item}",
+        })
+        assert result == [{"v": 4}, {"v": 5}]
+
+    @pytest.mark.anyio
+    async def test_where_gte(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3, 4, 5]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "gte", "value": 3}},
+            "v": "${item}",
+        })
+        assert result == [{"v": 3}, {"v": 4}, {"v": 5}]
+
+    @pytest.mark.anyio
+    async def test_where_lt(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3, 4, 5]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "lt", "value": 3}},
+            "v": "${item}",
+        })
+        assert result == [{"v": 1}, {"v": 2}]
+
+    @pytest.mark.anyio
+    async def test_where_in(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"tag": "news"}, {"tag": "tech"}, {"tag": "sports"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {"input": "${item.tag}", "operator": "in", "value": ["news", "sports"]}},
+            "t": "${item.tag}",
+        })
+        assert result == [{"t": "news"}, {"t": "sports"}]
+
+    @pytest.mark.anyio
+    async def test_where_not_in(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"tag": "news"}, {"tag": "tech"}, {"tag": "sports"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {"input": "${item.tag}", "operator": "not-in", "value": ["news", "sports"]}},
+            "t": "${item.tag}",
+        })
+        assert result == [{"t": "tech"}]
+
+    @pytest.mark.anyio
+    async def test_where_match(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"path": "/api/x"}, {"path": "/api/y"}, {"path": "/static/z"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {"input": "${item.path}", "operator": "match", "value": "^/api"}},
+            "p": "${item.path}",
+        })
+        assert result == [{"p": "/api/x"}, {"p": "/api/y"}]
+
+    @pytest.mark.anyio
+    async def test_where_all_filtered_returns_empty(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "gt", "value": 100}},
+            "v": "${item}",
+        })
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_where_none_filtered_returns_all(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "lt", "value": 100}},
+            "v": "${item}",
+        })
+        assert result == [{"v": 1}, {"v": 2}, {"v": 3}]
+
+    @pytest.mark.anyio
+    async def test_where_with_no_template_returns_raw_items(self):
+        """When there are no sibling template keys, where-filtered items are returned as-is."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3, 4, 5]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${item}", "operator": "gte", "value": 3}},
+        })
+        assert result == [3, 4, 5]
+
+    @pytest.mark.anyio
+    async def test_index_scope(self):
+        """${index} is bound to the current iteration position."""
+        renderer = VariableRenderer(make_source_resolver({"xs": ["a", "b", "c"]}))
+        result = await renderer.render({
+            "*": "${xs}",
+            "v": "${item}",
+            "i": "${index}",
+        })
+        assert result == [{"v": "a", "i": 0}, {"v": "b", "i": 1}, {"v": "c", "i": 2}]
+
+    @pytest.mark.anyio
+    async def test_where_uses_index(self):
+        """Predicate can reference ${index}."""
+        renderer = VariableRenderer(make_source_resolver({"xs": ["a", "b", "c", "d", "e"]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"input": "${index}", "operator": "gte", "value": 2}},
+            "v": "${item}",
+        })
+        assert result == [{"v": "c"}, {"v": "d"}, {"v": "e"}]
+
+    @pytest.mark.anyio
+    async def test_where_default_operator_is_eq(self):
+        """Omitted operator defaults to eq."""
+        renderer = VariableRenderer(make_source_resolver({
+            "users": [{"role": "admin"}, {"role": "user"}],
+        }))
+        result = await renderer.render({
+            "*": {"input": "${users}", "where": {"input": "${item.role}", "value": "user"}},
+            "r": "${item.role}",
+        })
+        assert result == [{"r": "user"}]
+
+    @pytest.mark.anyio
+    async def test_full_form_missing_input_returns_empty(self):
+        """A dict `*` value with no `input` key resolves to None source → empty list."""
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({
+            "*": {"where": {"input": "${item}", "value": 1}},
+            "v": "${item}",
+        })
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_streaming_source_with_where(self):
+        """Where predicate applies to streaming source lazily."""
+        async def stream():
+            for i in [1, 2, 3, 4, 5]:
+                yield i
+
+        renderer = VariableRenderer(make_source_resolver({}))
+        # Manually inject the stream
+        async def custom_resolver(key, index=None, scope=None):
+            if key == "s":
+                return stream()
+            return None
+        r = VariableRenderer(custom_resolver)
+        result = await r.render({
+            "*": {"input": "${s}", "where": {"input": "${item}", "operator": "gte", "value": 3}},
+            "v": "${item}",
+        })
+        collected = await collect_async(result)
+        assert collected == [{"v": 3}, {"v": 4}, {"v": 5}]
+
+
+# ============================
+# `?` conditional
+# ============================
+
+class TestConditional:
+    """Test `?` conditional key in dict templates."""
+
+    # ---- value-position: `?` as the only key ----
+
+    @pytest.mark.anyio
+    async def test_value_position_scalar_if_true(self):
+        renderer = VariableRenderer(make_source_resolver({"input": "admin"}))
+        result = await renderer.render({
+            "role": {"?": {"input": "${input}", "value": "admin", "if_true": "user", "if_false": "guest"}},
+        })
+        assert result == {"role": "user"}
+
+    @pytest.mark.anyio
+    async def test_value_position_scalar_if_false(self):
+        renderer = VariableRenderer(make_source_resolver({"input": "other"}))
+        result = await renderer.render({
+            "role": {"?": {"input": "${input}", "value": "admin", "if_true": "user", "if_false": "guest"}},
+        })
+        assert result == {"role": "guest"}
+
+    @pytest.mark.anyio
+    async def test_value_position_list_result(self):
+        renderer = VariableRenderer(make_source_resolver({"input": "x"}))
+        result = await renderer.render({
+            "tags": {"?": {"input": "${input}", "value": "x", "if_true": [1, 2, 3]}},
+        })
+        assert result == {"tags": [1, 2, 3]}
+
+    @pytest.mark.anyio
+    async def test_value_position_dict_result(self):
+        renderer = VariableRenderer(make_source_resolver({"input": "x"}))
+        result = await renderer.render({
+            "meta": {"?": {"input": "${input}", "value": "x", "if_true": {"a": 1, "b": 2}}},
+        })
+        assert result == {"meta": {"a": 1, "b": 2}}
+
+    @pytest.mark.anyio
+    async def test_value_position_no_match_no_else_omits_field(self):
+        """When ? has no match and no if_false, the enclosing key gets None → whole dict shows null."""
+        renderer = VariableRenderer(make_source_resolver({"input": "other"}))
+        result = await renderer.render({
+            "tags": {"?": {"input": "${input}", "value": "x", "if_true": ["news"]}},
+        })
+        # No match, no if_false → result is None
+        assert result == {"tags": None}
+
+    # ---- sibling position: `?` alongside other keys ----
+
+    @pytest.mark.anyio
+    async def test_sibling_dict_result_merges(self):
+        """`?` result dict is merged into the enclosing dict."""
+        renderer = VariableRenderer(make_source_resolver({"input": "a"}))
+        result = await renderer.render({
+            "role": "user",
+            "?": {"input": "${input}", "value": "a", "if_true": {"meta": "yes"}},
+        })
+        assert result == {"role": "user", "meta": "yes"}
+
+    @pytest.mark.anyio
+    async def test_sibling_no_match_no_else_no_merge(self):
+        """When ? matches nothing and no if_false, sibling merge is skipped entirely."""
+        renderer = VariableRenderer(make_source_resolver({"input": "other"}))
+        result = await renderer.render({
+            "role": "user",
+            "?": {"input": "${input}", "value": "a", "if_true": {"meta": "yes"}},
+        })
+        assert result == {"role": "user"}
+
+    @pytest.mark.anyio
+    async def test_sibling_list_result_raises(self):
+        """`?` as sibling must resolve to a dict; list result is a TypeError."""
+        renderer = VariableRenderer(make_source_resolver({"input": "x"}))
+        with pytest.raises(TypeError):
+            await renderer.render({
+                "role": "user",
+                "?": {"input": "${input}", "value": "x", "if_true": [1, 2, 3]},
+            })
+
+    @pytest.mark.anyio
+    async def test_sibling_scalar_result_raises(self):
+        """`?` as sibling must resolve to a dict; scalar result is a TypeError."""
+        renderer = VariableRenderer(make_source_resolver({"input": "x"}))
+        with pytest.raises(TypeError):
+            await renderer.render({
+                "role": "user",
+                "?": {"input": "${input}", "value": "x", "if_true": "admin"},
+            })
+
+    # ---- multi-condition (list of conditions) ----
+
+    @pytest.mark.anyio
+    async def test_multi_condition_first_match_wins(self):
+        renderer = VariableRenderer(make_source_resolver({"type": "b"}))
+        result = await renderer.render({
+            "kind": {"?": [
+                {"input": "${type}", "value": "a", "if_true": "first"},
+                {"input": "${type}", "value": "b", "if_true": "second"},
+                {"input": "${type}", "value": "c", "if_true": "third"},
+            ]},
+        })
+        assert result == {"kind": "second"}
+
+    @pytest.mark.anyio
+    async def test_multi_condition_no_match_returns_none(self):
+        renderer = VariableRenderer(make_source_resolver({"type": "z"}))
+        result = await renderer.render({
+            "kind": {"?": [
+                {"input": "${type}", "value": "a", "if_true": "first"},
+                {"input": "${type}", "value": "b", "if_true": "second"},
+            ]},
+        })
+        assert result == {"kind": None}
+
+    @pytest.mark.anyio
+    async def test_multi_condition_first_condition_if_false_returns_fallback(self):
+        """First condition's if_false acts as immediate fallback (matches if job semantics)."""
+        renderer = VariableRenderer(make_source_resolver({"type": "z"}))
+        result = await renderer.render({
+            "kind": {"?": [
+                {"input": "${type}", "value": "a", "if_true": "first", "if_false": "fallback"},
+                {"input": "${type}", "value": "z", "if_true": "second"},
+            ]},
+        })
+        assert result == {"kind": "fallback"}
+
+    # ---- interaction with `*` map ----
+
+    @pytest.mark.anyio
+    async def test_map_with_sibling_conditional(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"type": "a", "v": "A"}, {"type": "b", "v": "B"}],
+        }))
+        result = await renderer.render({
+            "*": "${items}",
+            "name": "${item.v}",
+            "?": [
+                {"input": "${item.type}", "value": "a", "if_true": {"category": "first"}},
+                {"input": "${item.type}", "value": "b", "if_true": {"category": "second"}},
+            ],
+        })
+        assert result == [
+            {"name": "A", "category": "first"},
+            {"name": "B", "category": "second"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_map_with_conditional_no_match_omits_merge(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"type": "a"}, {"type": "z"}],
+        }))
+        result = await renderer.render({
+            "*": "${items}",
+            "type": "${item.type}",
+            "?": {"input": "${item.type}", "value": "a", "if_true": {"tag": "first"}},
+        })
+        assert result == [
+            {"type": "a", "tag": "first"},
+            {"type": "z"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_map_with_conditional_list_result_raises(self):
+        renderer = VariableRenderer(make_source_resolver({
+            "items": [{"type": "a"}],
+        }))
+        with pytest.raises(TypeError):
+            await renderer.render({
+                "*": "${items}",
+                "type": "${item.type}",
+                "?": {"input": "${item.type}", "value": "a", "if_true": [1, 2, 3]},
+            })
+
+    @pytest.mark.anyio
+    async def test_conditional_uses_item_scope(self):
+        """? inside * template sees ${item}."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [10, 20, 30]}))
+        result = await renderer.render({
+            "*": "${xs}",
+            "label": {"?": {"input": "${item}", "operator": "gt", "value": 15, "if_true": "big", "if_false": "small"}},
+        })
+        assert result == [{"label": "small"}, {"label": "big"}, {"label": "big"}]
+
+    # ---- operator variants ----
+
+    @pytest.mark.anyio
+    async def test_default_operator_is_eq(self):
+        renderer = VariableRenderer(make_source_resolver({"x": "a"}))
+        result = await renderer.render({
+            "r": {"?": {"input": "${x}", "value": "a", "if_true": "match"}},
+        })
+        assert result == {"r": "match"}
+
+    @pytest.mark.anyio
+    async def test_operator_neq(self):
+        renderer = VariableRenderer(make_source_resolver({"x": "a"}))
+        result = await renderer.render({
+            "r": {"?": {"input": "${x}", "operator": "neq", "value": "b", "if_true": "diff"}},
+        })
+        assert result == {"r": "diff"}
+
+    @pytest.mark.anyio
+    async def test_operator_in(self):
+        renderer = VariableRenderer(make_source_resolver({"x": "b"}))
+        result = await renderer.render({
+            "r": {"?": {"input": "${x}", "operator": "in", "value": ["a", "b", "c"], "if_true": "yes"}},
+        })
+        assert result == {"r": "yes"}
+
+    # ---- nesting ----
+
+    @pytest.mark.anyio
+    async def test_nested_conditional(self):
+        """? inside another ?'s if_true is evaluated when the outer branch fires."""
+        renderer = VariableRenderer(make_source_resolver({"type": "b"}))
+        result = await renderer.render({
+            "kind": {"?": {
+                "input": "${type}",
+                "operator": "neq",
+                "value": "a",
+                "if_true": {"?": {"input": "${type}", "value": "b", "if_true": "beta", "if_false": "other"}},
+                "if_false": "alpha",
+            }},
+        })
+        assert result == {"kind": "beta"}
+
+    @pytest.mark.anyio
+    async def test_conditional_with_map_inside_if_true(self):
+        """? containing a * map in its if_true branch produces a list."""
+        renderer = VariableRenderer(make_source_resolver({"mode": "expand", "xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "items": {"?": {
+                "input": "${mode}",
+                "value": "expand",
+                "if_true": {"*": "${xs}", "v": "${item}"},
+                "if_false": [],
+            }},
+        })
+        assert result == {"items": [{"v": 1}, {"v": 2}, {"v": 3}]}
+
+
+# ============================
+# `where` composition (all / any / not)
+# ============================
+
+class TestWhereComposition:
+    """Test all/any/not logical operators in `*` where predicates."""
+
+    @pytest.fixture
+    def items_source(self):
+        return {
+            "items": [
+                {"role": "user", "type": "text"},
+                {"role": "user", "type": "image"},
+                {"role": "assistant", "type": "text"},
+                {"role": "bot", "type": "text"},
+            ],
+        }
+
+    @pytest.mark.anyio
+    async def test_all(self, items_source):
+        renderer = VariableRenderer(make_source_resolver(items_source))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {
+                "all": [
+                    {"input": "${item.role}", "value": "user"},
+                    {"input": "${item.type}", "value": "text"},
+                ],
+            }},
+            "r": "${item.role}", "t": "${item.type}",
+        })
+        assert result == [{"r": "user", "t": "text"}]
+
+    @pytest.mark.anyio
+    async def test_any(self, items_source):
+        renderer = VariableRenderer(make_source_resolver(items_source))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {
+                "any": [
+                    {"input": "${item.role}", "value": "user"},
+                    {"input": "${item.role}", "value": "assistant"},
+                ],
+            }},
+            "r": "${item.role}",
+        })
+        assert result == [{"r": "user"}, {"r": "user"}, {"r": "assistant"}]
+
+    @pytest.mark.anyio
+    async def test_not(self, items_source):
+        renderer = VariableRenderer(make_source_resolver(items_source))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {
+                "not": {"input": "${item.role}", "value": "bot"},
+            }},
+            "r": "${item.role}",
+        })
+        assert result == [{"r": "user"}, {"r": "user"}, {"r": "assistant"}]
+
+    @pytest.mark.anyio
+    async def test_nested_all_any_not(self, items_source):
+        """(NOT bot) AND (text OR image)"""
+        renderer = VariableRenderer(make_source_resolver(items_source))
+        result = await renderer.render({
+            "*": {"input": "${items}", "where": {
+                "all": [
+                    {"not": {"input": "${item.role}", "value": "bot"}},
+                    {"any": [
+                        {"input": "${item.type}", "value": "text"},
+                        {"input": "${item.type}", "value": "image"},
+                    ]},
+                ],
+            }},
+            "r": "${item.role}", "t": "${item.type}",
+        })
+        assert result == [
+            {"r": "user", "t": "text"},
+            {"r": "user", "t": "image"},
+            {"r": "assistant", "t": "text"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_all_empty_matches_everything(self):
+        """all: [] is vacuously true (Python `all()` convention)."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"all": []}},
+            "v": "${item}",
+        })
+        assert result == [{"v": 1}, {"v": 2}, {"v": 3}]
+
+    @pytest.mark.anyio
+    async def test_any_empty_matches_nothing(self):
+        """any: [] is vacuously false (Python `any()` convention)."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {"any": []}},
+            "v": "${item}",
+        })
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_all_short_circuits(self):
+        """all stops at first False; later leaves don't need to render successfully."""
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        # Second condition would fail comparison, but first eliminates everything first.
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {
+                "all": [
+                    {"input": "${item}", "operator": "gt", "value": 100},
+                    {"input": "${item}", "value": 999},
+                ],
+            }},
+            "v": "${item}",
+        })
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_nested_not_of_not(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": [1, 2, 3]}))
+        result = await renderer.render({
+            "*": {"input": "${xs}", "where": {
+                "not": {"not": {"input": "${item}", "value": 2}},
+            }},
+            "v": "${item}",
+        })
+        assert result == [{"v": 2}]
+
+
+# ============================
+# Join operator ("+")
+# ============================
+
+class TestRenderJoin:
+    """Test the `+` join operator combining string / list / dict parts."""
+
+    @pytest.mark.anyio
+    async def test_join_strings_concatenates(self):
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"+": ["hello, ", "world"]})
+        assert result == "hello, world"
+
+    @pytest.mark.anyio
+    async def test_join_lists_extends(self):
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"+": [[1, 2], [3, 4], [5]]})
+        assert result == [1, 2, 3, 4, 5]
+
+    @pytest.mark.anyio
+    async def test_join_dicts_merges_right_wins(self):
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"+": [{"a": 1, "b": 2}, {"b": 99, "c": 3}]})
+        assert result == {"a": 1, "b": 99, "c": 3}
+
+    @pytest.mark.anyio
+    async def test_join_none_elements_are_skipped(self):
+        renderer = VariableRenderer(make_source_resolver({"missing": None}))
+        result = await renderer.render({"+": ["a", "${missing}", "b"]})
+        assert result == "ab"
+
+    @pytest.mark.anyio
+    async def test_join_all_none_returns_none(self):
+        renderer = VariableRenderer(make_source_resolver({"x": None, "y": None}))
+        result = await renderer.render({"+": ["${x}", "${y}"]})
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_join_empty_array_returns_none(self):
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"+": []})
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_join_source_resolving_to_none_returns_none(self):
+        renderer = VariableRenderer(make_source_resolver({"missing": None}))
+        result = await renderer.render({"+": "${missing}"})
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_join_source_resolving_to_list(self):
+        renderer = VariableRenderer(make_source_resolver({"xs": ["a", "b", "c"]}))
+        result = await renderer.render({"+": "${xs}"})
+        assert result == "abc"
+
+    @pytest.mark.anyio
+    async def test_join_mixed_types_raises(self):
+        renderer = VariableRenderer(make_source_resolver({}))
+        with pytest.raises(TypeError, match="uniform element types"):
+            await renderer.render({"+": ["a", [1, 2]]})
+
+    @pytest.mark.anyio
+    async def test_join_non_list_source_raises(self):
+        renderer = VariableRenderer(make_source_resolver({"x": {"a": 1}}))
+        with pytest.raises(TypeError, match="must resolve to a list"):
+            await renderer.render({"+": "${x}"})
+
+    @pytest.mark.anyio
+    async def test_join_composes_with_map_results(self):
+        """Two `*` maps produce lists which are concatenated via `+`."""
+        renderer = VariableRenderer(make_source_resolver({
+            "blocks": [
+                {"type": "text", "text": "hi"},
+                {"type": "tool_call", "id": "a"},
+                {"type": "text", "text": "there"},
+                {"type": "tool_call", "id": "b"},
+            ],
+        }))
+        result = await renderer.render({
+            "+": [
+                {
+                    "*": {"input": "${blocks}", "where": {"input": "${item.type}", "value": "text"}},
+                    "kind": "T",
+                    "value": "${item.text}",
+                },
+                {
+                    "*": {"input": "${blocks}", "where": {"input": "${item.type}", "value": "tool_call"}},
+                    "kind": "C",
+                    "value": "${item.id}",
+                },
+            ],
+        })
+        assert result == [
+            {"kind": "T", "value": "hi"},
+            {"kind": "T", "value": "there"},
+            {"kind": "C", "value": "a"},
+            {"kind": "C", "value": "b"},
+        ]
+
+    @pytest.mark.anyio
+    async def test_join_used_as_field_value(self):
+        """`+` can appear as any dict value, not only at top level."""
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({
+            "role": "assistant",
+            "content": {"+": ["Let me check ", "the weather."]},
+        })
+        assert result == {"role": "assistant", "content": "Let me check the weather."}
+
+    @pytest.mark.anyio
+    async def test_join_key_not_alone_is_treated_as_regular_dict(self):
+        """`+` alongside other keys is not a join — it's just a literal `+` key."""
+        renderer = VariableRenderer(make_source_resolver({}))
+        result = await renderer.render({"+": ["a", "b"], "other": 1})
+        assert result == {"+": ["a", "b"], "other": 1}

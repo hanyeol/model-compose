@@ -38,6 +38,7 @@ def reset_component_instances():
 
 
 # Mock LLM: parses the messages list from argv[1] (Python repr / literal form).
+# Messages arrive in canonical `block` form: {role, blocks: [{type, ...}]}.
 # If any prior message has role=tool, emit a final content message; otherwise
 # emit a tool_call for `get_weather`.
 MOCK_LLM_SCRIPT = (
@@ -45,7 +46,8 @@ MOCK_LLM_SCRIPT = (
     "messages = ast.literal_eval(sys.argv[1])\n"
     "tool_msg = next((m for m in messages if m.get('role') == 'tool'), None)\n"
     "if tool_msg is not None:\n"
-    "    print(json.dumps({'content': 'weather=' + tool_msg['content']}))\n"
+    "    result = next(b for b in tool_msg['blocks'] if b.get('type') == 'tool_result')\n"
+    "    print(json.dumps({'content': 'weather=' + result['content']}))\n"
     "else:\n"
     "    print(json.dumps({\n"
     "        'tool_calls': [\n"
@@ -156,15 +158,21 @@ class TestAgentExternalToolInterrupt:
 
             assert final.status == TaskStatus.COMPLETED, f"Expected COMPLETED, got {final.status}: {final.error}"
 
-            # The agent returns the full messages list by default. The last assistant
-            # message should reflect the injected tool result.
+            # The agent returns the full messages list by default in canonical
+            # `block` form. The last assistant message should carry a text block
+            # reflecting the injected tool result.
             messages = final.output if isinstance(final.output, list) else []
             assistant_final = next(
-                (m for m in reversed(messages) if m.get("role") == "assistant" and m.get("content")),
+                (m for m in reversed(messages) if m.get("role") == "assistant" and m.get("blocks")),
                 None,
             )
             assert assistant_final is not None, f"No final assistant message in: {messages}"
-            assert "weather=" in assistant_final["content"]
-            assert "21" in assistant_final["content"]
+            text_block = next(
+                (b for b in assistant_final["blocks"] if b.get("type") == "text"),
+                None,
+            )
+            assert text_block is not None, f"No text block in: {assistant_final}"
+            assert "weather=" in text_block["text"]
+            assert "21" in text_block["text"]
         finally:
             await controller.stop()

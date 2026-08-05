@@ -358,3 +358,109 @@ class TestFilterScalarInput:
         assert result == 42
 
 
+# ---------------------------------------------------------------------------
+# `where` composition: all / any / not
+# ---------------------------------------------------------------------------
+class TestFilterWhereComposition:
+    @pytest.mark.anyio
+    async def test_all_matches_intersection(self):
+        workflow = {
+            "id": "wf",
+            "jobs": [
+                {
+                    "id": "keep",
+                    "type": "filter",
+                    "input": [
+                        {"role": "user", "type": "text"},
+                        {"role": "user", "type": "image"},
+                        {"role": "assistant", "type": "text"},
+                    ],
+                    "where": {
+                        "all": [
+                            {"input": "${item.role}", "value": "user"},
+                            {"input": "${item.type}", "value": "text"},
+                        ],
+                    },
+                },
+            ],
+        }
+        result = await _run_workflow(_build_compose(workflow), "wf", {})
+        assert await _collect(result) == [{"role": "user", "type": "text"}]
+
+    @pytest.mark.anyio
+    async def test_any_matches_union(self):
+        workflow = {
+            "id": "wf",
+            "jobs": [
+                {
+                    "id": "keep",
+                    "type": "filter",
+                    "input": [
+                        {"role": "user"},
+                        {"role": "assistant"},
+                        {"role": "bot"},
+                    ],
+                    "where": {
+                        "any": [
+                            {"input": "${item.role}", "value": "user"},
+                            {"input": "${item.role}", "value": "assistant"},
+                        ],
+                    },
+                },
+            ],
+        }
+        result = await _run_workflow(_build_compose(workflow), "wf", {})
+        assert await _collect(result) == [{"role": "user"}, {"role": "assistant"}]
+
+    @pytest.mark.anyio
+    async def test_not_inverts(self):
+        workflow = {
+            "id": "wf",
+            "jobs": [
+                {
+                    "id": "keep",
+                    "type": "filter",
+                    "input": [{"role": "user"}, {"role": "bot"}, {"role": "assistant"}],
+                    "where": {
+                        "not": {"input": "${item.role}", "value": "bot"},
+                    },
+                },
+            ],
+        }
+        result = await _run_workflow(_build_compose(workflow), "wf", {})
+        assert await _collect(result) == [{"role": "user"}, {"role": "assistant"}]
+
+    @pytest.mark.anyio
+    async def test_nested_composition(self):
+        """(NOT bot) AND (text OR image)"""
+        workflow = {
+            "id": "wf",
+            "jobs": [
+                {
+                    "id": "keep",
+                    "type": "filter",
+                    "input": [
+                        {"role": "user", "type": "text"},
+                        {"role": "user", "type": "image"},
+                        {"role": "user", "type": "audio"},
+                        {"role": "bot", "type": "text"},
+                    ],
+                    "where": {
+                        "all": [
+                            {"not": {"input": "${item.role}", "value": "bot"}},
+                            {"any": [
+                                {"input": "${item.type}", "value": "text"},
+                                {"input": "${item.type}", "value": "image"},
+                            ]},
+                        ],
+                    },
+                },
+            ],
+        }
+        result = await _run_workflow(_build_compose(workflow), "wf", {})
+        assert await _collect(result) == [
+            {"role": "user", "type": "text"},
+            {"role": "user", "type": "image"},
+        ]
+
+

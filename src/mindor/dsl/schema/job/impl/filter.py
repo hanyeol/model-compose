@@ -14,7 +14,7 @@ class FilterJobConditionConfig(BaseModel):
     not_: Optional[FilterJobConditionConfig] = Field(default=None, alias="not", description="Logical NOT — inverts the nested predicate.")
 
     @model_validator(mode="after")
-    def validate_predicate_form(self):
+    def validate_predicates(self):
         combinators = [ key for key, value in [ ("all", self.all), ("any", self.any), ("not", self.not_) ] if value is not None ]
         is_leaf_condition = self.input is not None or self.value is not None
 

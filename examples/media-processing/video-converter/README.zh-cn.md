@@ -49,7 +49,6 @@
    **使用 API：**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "video=@input.mov" \
      -F "format=mp4" \
      -F "codec=libx264" \

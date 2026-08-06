@@ -59,7 +59,6 @@ Unlike cloud-based background removal APIs (remove.bg, Photoroom), local model e
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "image=@/path/to/your/input-image.jpg"
    ```
 

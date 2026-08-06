@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import AudioPlaybackService, register_audio_playback_service
@@ -20,13 +21,6 @@ import asyncio, os, platform
 # first so ffmpeg can seek for moov atoms, indexes, etc.
 _STREAMABLE_INPUT_FORMATS: Set[str] = {
     "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
-
-# Raw PCM formats have no container signature — ffmpeg cannot autodetect them,
-# so the input options must declare -f/-ar/-ac explicitly. They are always
-# streamable through pipe:0 (no seek required).
-_RAW_PCM_INPUT_FORMATS: Set[str] = {
-    "u8", "s16le", "s24le", "s32le", "f32le", "f64le",
 }
 
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
@@ -53,7 +47,18 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         if params["duration"] is not None:
             command.extend([ "-t", str(params["duration"]) ])
 
-        command.extend(self._build_audio_input_options(audio))
+        if is_pcm_format(audio.format):
+            command.extend([ "-f", audio.format ])
+
+            if audio.attrs.get("sample_rate"):
+                command.extend([ "-ar", str(audio.attrs["sample_rate"]) ])
+            else:
+                raise ValueError(f"Raw PCM source {audio.format!r} requires 'sample_rate' in attrs")
+            if audio.attrs.get("channels"):
+                command.extend([ "-ac", str(audio.attrs["channels"]) ])
+            else:
+                raise ValueError(f"Raw PCM source {audio.format!r} requires 'channels' in attrs")
+
         command.extend([ "-i", audio_path if audio_path is not None else "pipe:0" ])
 
         if params["volume"] != 1.0:
@@ -163,7 +168,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS or source.format in _RAW_PCM_INPUT_FORMATS:
+        if source.format in _STREAMABLE_INPUT_FORMATS or is_pcm_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before playback")
@@ -171,26 +176,6 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
 
         return spooled_path, True
-
-    def _build_audio_input_options(self, source: MediaSource) -> List[str]:
-        if source.format in _RAW_PCM_INPUT_FORMATS:
-            # Raw PCM has no container header, so ffmpeg needs -f/-ar/-ac up front
-            # to know how to decode the bytes. `sample_rate` and `channels` come
-            # from the PcmStreamResource attrs the producer set at synthesis time.
-            options: List[str] = [ "-f", source.format ]
-
-            sample_rate = source.attrs.get("sample_rate") if source.attrs else None
-            channels = source.attrs.get("channels") if source.attrs else None
-
-            if sample_rate is not None:
-                options.extend([ "-ar", str(sample_rate) ])
-
-            if channels is not None:
-                options.extend([ "-ac", str(channels) ])
-
-            return options
-
-        return []
 
     def _build_audio_output_options(
         self,

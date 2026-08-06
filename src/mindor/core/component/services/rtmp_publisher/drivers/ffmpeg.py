@@ -9,6 +9,7 @@ from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
@@ -52,6 +53,7 @@ class FFmpegRtmpPublisher:
         video: Optional[Union[MediaSource, str]],
         video_attrs: Optional[Dict[str, Any]],
         audio: Optional[Union[MediaSource, str]],
+        audio_format: Optional[str],
         audio_attrs: Optional[Dict[str, Any]],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
@@ -63,7 +65,7 @@ class FFmpegRtmpPublisher:
         video_input, stdin_owner = self._resolve_input_source(video, stdin_owner, fd_channels) if video is not None else (None, stdin_owner)
         audio_input, stdin_owner = self._resolve_input_source(audio, stdin_owner, fd_channels) if audio is not None else (None, stdin_owner)
 
-        command = self._build_publish_command(video_input, video_attrs, audio_input, audio_attrs)
+        command = self._build_publish_command(video_input, video_attrs, audio_input, audio_format, audio_attrs)
         source = stdin_owner.stream if stdin_owner is not None else None
 
         logging.debug("Publishing to RTMP: %s", self.url)
@@ -155,6 +157,7 @@ class FFmpegRtmpPublisher:
         video_input: Optional[str],
         video_attrs: Optional[Dict[str, Any]],
         audio_input: Optional[str],
+        audio_format: Optional[str],
         audio_attrs: Optional[Dict[str, Any]],
     ) -> List[str]:
         """Build the ffmpeg command that publishes to RTMP.
@@ -175,11 +178,20 @@ class FFmpegRtmpPublisher:
             command.extend([ "-i", video_input ])
 
         if has_audio:
-            if audio_attrs and audio_attrs.get("sample_rate"):
-                command.extend([ "-ar", str(audio_attrs["sample_rate"]) ])
-            if audio_attrs and audio_attrs.get("channels"):
-                command.extend([ "-ac", str(audio_attrs["channels"]) ])
+            if audio_format and is_pcm_format(audio_format):
+                command.extend([ "-f", audio_format ])
+
+                if audio_attrs and audio_attrs.get("sample_rate"):
+                    command.extend([ "-ar", str(audio_attrs["sample_rate"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {audio_format!r} requires 'sample_rate' in attrs")
+                if audio_attrs and audio_attrs.get("channels"):
+                    command.extend([ "-ac", str(audio_attrs["channels"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {audio_format!r} requires 'channels' in attrs")
+
             command.extend([ "-i", audio_input ])
+
             if has_video:
                 command.extend([ "-map", "0:v", "-map", "1:a", "-shortest" ])
 
@@ -292,6 +304,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                 video_path if video_path is not None else video,
                 video.attrs if video is not None else None,
                 audio_path if audio_path is not None else audio,
+                audio.format if audio is not None else None,
                 audio.attrs if audio is not None else None,
                 cancellation_token,
             )

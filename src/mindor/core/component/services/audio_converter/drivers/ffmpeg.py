@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.utils.audio import is_pcm_format
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -67,10 +68,16 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])
-        if source.attrs.get("sample_rate"):
-            command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
-        if source.attrs.get("channels"):
-            command.extend([ "-ac", str(source.attrs["channels"]) ])
+
+            if is_pcm_format(source.format):
+                if source.attrs.get("sample_rate"):
+                    command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {source.format!r} requires 'sample_rate' in attrs")
+                if source.attrs.get("channels"):
+                    command.extend([ "-ac", str(source.attrs["channels"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {source.format!r} requires 'channels' in attrs")
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 

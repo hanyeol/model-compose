@@ -365,6 +365,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             return video.format.lower()
 
         _, extension = os.path.splitext(input_path)
+
         if extension:
             return extension.lstrip(".").lower()
 

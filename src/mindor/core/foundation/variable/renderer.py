@@ -18,7 +18,7 @@ from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
-import re, aiofiles, os, json
+import re, aiofiles, os
 
 class FieldResolver:
     def __init__(self):

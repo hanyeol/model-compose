@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Set, Tuple, Callable, Any
+from typing import Optional, Union, Dict, List, Set, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoClipperComponentConfig
 from mindor.dsl.schema.action import VideoClipperActionConfig
@@ -32,19 +32,23 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         spans: List[ArrayValue],
         merge: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[AsyncIterator[VideoStreamResource]]:
-        results: List[AsyncIterator[VideoStreamResource]] = []
+    ) -> List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]]:
+        results: List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]] = []
 
         for video, spans in zip(videos, spans):
             input_path, spooled = await self._resolve_input_path(video)
             format = await self._resolve_format(video, input_path)
-            clips = self._clip(input_path, spooled, self._iterate_spans(spans), format, cancellation_token)
+
+            clips = self._clip(
+                input_path,
+                spooled,
+                self._iterate_spans(spans),
+                format,
+                cancellation_token,
+            )
 
             if merge:
-                async def _merge(clips=clips, format=format):
-                    yield await self._merge(clips, format, cancellation_token)
-
-                results.append(_merge())
+                results.append(await self._merge(clips, format, cancellation_token))
             else:
                 results.append(clips)
 
@@ -57,7 +61,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         spans: AsyncIterator[Dict[str, float]],
         format: str,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> AsyncIterator[VideoStreamResource]:
+    ) -> AsyncIterator[Dict[str, Any]]:
         """Yield one VideoStreamResource per span, seeking into a shared input file.
 
         The input has already been materialized to a file by the caller so each
@@ -81,7 +85,6 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 except FileNotFoundError:
                     pass
 
-        clip_yielded = False
         try:
             async for span in spans:
                 start_time = span["start_time"]
@@ -109,19 +112,15 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
                 try:
                     if is_streamable_output:
-                        clip = await self._clip_to_stream(command, format, _release, cancellation_token)
+                        clip = await self._run_to_stream(command, format, _release, cancellation_token)
                     else:
-                        clip = await self._clip_to_file(command, format, _release, cancellation_token)
+                        clip = await self._run_to_file(command, format, _release, cancellation_token)
                 except BaseException:
                     # cleanup wasn't invoked on this iteration; roll back the refcount.
                     pending_count -= 1
                     raise
 
-                clip_yielded = True
-                yield clip
-
-            if not clip_yielded:
-                raise ValueError("'span' must contain at least one entry")
+                yield { "video": clip, "start_time": start_time, "end_time": end_time }
         finally:
             # After the span iterator is exhausted, allow the last clip's cleanup
             # to remove the spool file. If no clips remain in flight, remove it now.
@@ -134,19 +133,24 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
     async def _merge(
         self,
-        clips: AsyncIterator[VideoStreamResource],
+        clips: AsyncIterator[Dict[str, Any]],
         format: str,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> VideoStreamResource:
-        """Concatenate an async stream of clips into a single VideoStreamResource.
+    ) -> Dict[str, Any]:
+        """Concatenate an async stream of clips into a single video, carrying
+        along each source span so callers can recover per-input positions.
 
         Each incoming clip is drained to a temp file as it arrives; once the
         clip iterator is exhausted, ffmpeg's concat demuxer stitches the files
         together with -c copy (no re-encoding). Clips must share the same
         codec/container for -c copy to work — that's guaranteed here because
         they all come from the same _clip() call.
+
+        Returns `{video, times: [{start_time, end_time}, ...]}`; when the clip
+        iterator produced nothing, `video` is None and `times` is empty.
         """
         clip_paths: List[str] = []
+        times: List[Dict[str, float]] = []
         concat_list_path: Optional[str] = None
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
@@ -166,13 +170,14 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             async for clip in clips:
                 clip_path = create_temporary_file(format)
                 clip_paths.append(clip_path)
+                times.append({ "start_time": clip["start_time"], "end_time": clip["end_time"] })
 
                 with open(clip_path, "wb") as f:
-                    async for chunk in clip:
+                    async for chunk in clip["video"]:
                         f.write(chunk)
 
             if not clip_paths:
-                raise ValueError("'span' must contain at least one entry")
+                return { "video": None, "times": [] }
 
             concat_list_path = create_temporary_file("txt")
             with open(concat_list_path, "w", encoding="utf-8") as f:
@@ -189,14 +194,16 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             ]
 
             if is_streamable_output:
-                return await self._clip_to_stream(concat_command, format, _cleanup, cancellation_token)
+                video = await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
+            else:
+                video = await self._run_to_file(concat_command, format, _cleanup, cancellation_token)
 
-            return await self._clip_to_file(concat_command, format, _cleanup, cancellation_token)
+            return { "video": video, "times": times }
         except BaseException:
             _cleanup()
             raise
 
-    async def _clip_to_file(
+    async def _run_to_file(
         self,
         command: List[str],
         format: str,
@@ -207,8 +214,45 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         output_path = create_temporary_file(format)
         command = command + [ "-y", output_path ]
 
+        # run_subprocess only reacts to asyncio cancellation, but our
+        # CancellationToken is a threading.Event that has to be polled.
+        # Wrap the ffmpeg run in a task and cancel it when the token fires;
+        # run_subprocess then kills the process on its way out.
+        process_task = asyncio.create_task(run_subprocess(
+            command,
+            None,
+            stderr_handler=lambda r: r.read(),
+        ))
+
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if process_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+                process_task.cancel()
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
         try:
-            await self._run_process(command, None, cancellation_token, "video clip")
+            try:
+                process, _, error = await process_task
+
+                if process.returncode != 0:
+                    error_message = error.decode("utf-8", errors="replace") if error else ""
+                    raise RuntimeError(f"ffmpeg video clip failed (exit code {process.returncode}): {error_message}")
+            except asyncio.CancelledError:
+                logging.info("Video clip cancelled")
+                raise
+            finally:
+                if watcher_task is not None and not watcher_task.done():
+                    watcher_task.cancel()
+                    try:
+                        await watcher_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
         except BaseException:
             cleanup()
             raise
@@ -219,7 +263,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
         return VideoStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
-    async def _clip_to_stream(
+    async def _run_to_stream(
         self,
         command: list,
         format: str,
@@ -284,52 +328,6 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _run_process(
-        self,
-        command: list,
-        stdin_source: Any,
-        cancellation_token: Optional[CancellationToken],
-        stage: str,
-    ) -> None:
-        # run_subprocess only reacts to asyncio cancellation, but our
-        # CancellationToken is a threading.Event that has to be polled.
-        # Wrap the ffmpeg run in a task and cancel it when the token fires;
-        # run_subprocess then kills the process on its way out.
-        process_task = asyncio.create_task(run_subprocess(
-            command,
-            stdin_source,
-            stderr_handler=lambda r: r.read(),
-        ))
-
-        watcher_task: Optional[asyncio.Task] = None
-
-        if cancellation_token is not None:
-            async def _watch_cancellation() -> None:
-                while not cancellation_token.is_cancelled():
-                    if process_task.done():
-                        return
-                    await asyncio.sleep(0.2)
-                process_task.cancel()
-
-            watcher_task = asyncio.create_task(_watch_cancellation())
-
-        try:
-            process, _, error = await process_task
-
-            if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace") if error else ""
-                raise RuntimeError(f"ffmpeg {stage} failed (exit code {process.returncode}): {error_message}")
-        except asyncio.CancelledError:
-            logging.info("%s cancelled", stage.capitalize())
-            raise
-        finally:
-            if watcher_task is not None and not watcher_task.done():
-                watcher_task.cancel()
-                try:
-                    await watcher_task
-                except (asyncio.CancelledError, Exception):
-                    pass
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
         """

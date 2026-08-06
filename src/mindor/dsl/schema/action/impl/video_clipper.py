@@ -10,4 +10,5 @@ class VideoClipperActionConfig(CommonActionConfig):
     video: Union[str, List[str]] = Field(..., description="Video source(s).")
     span: Union[VideoSpanConfig, List[VideoSpanConfig], str] = Field(..., description="One or more time spans to clip out of each video source. A single span object yields a single clip; a list yields one clip per span.")
     merge: Union[bool, str] = Field(default=False, description="If true, concatenate all clips per source into a single video; otherwise return a list of clips.")
+    return_timestamp: Union[bool, str] = Field(default=False, description="If true, each clip carries its source span alongside the video.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input sources per batch.")

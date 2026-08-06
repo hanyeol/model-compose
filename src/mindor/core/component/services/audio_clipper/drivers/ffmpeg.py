@@ -361,6 +361,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
             return audio.format.lower()
 
         _, extension = os.path.splitext(input_path)
+
         if extension:
             return extension.lstrip(".").lower()
 

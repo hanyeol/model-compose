@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Iterator, Tuple, Any
+from typing import Optional, Dict, List, Set, Iterator, Tuple, Any
 from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriver
 from mindor.dsl.schema.action import TranscriptCorrectorActionConfig
 from mindor.dsl.schema.action.impl.transcript_corrector.impl.common import TranscriptGranularity
@@ -14,6 +14,16 @@ import regex, unicodedata
 # tokenization across scripts that use whitespace between words.
 _WORD_PATTERN = regex.compile(r"[\p{L}\p{M}\p{N}]+", flags=regex.UNICODE)
 
+# Sentence terminators covering common Latin, CJK, and ellipsis punctuation,
+# plus newline. Used to detect sentence boundaries when estimating gaps so
+# each emitted gap segment is one sentence.
+_SENTENCE_TERMINATORS: frozenset = frozenset(".!?。！？…\n")
+
+# Fallback speaking rates used when the flush gap has no known duration.
+# Word granularity: ~2.5 words/second. Character granularity: ~10 chars/second.
+_ESTIMATED_TOKENS_PER_SECOND_WORD: float = 2.5
+_ESTIMATED_TOKENS_PER_SECOND_CHAR: float = 10.0
+
 class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
     """Segment-level streaming corrector.
 
@@ -23,11 +33,19 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
     whose text is the reference span verbatim and whose timestamps are the STT
     segment's own. The reference cursor advances past the matched span.
 
+    Gap coverage: reference text that sits between two consecutive matched
+    anchors (or before the first / after the last anchor) is emitted as
+    additional segments marked ``estimated: true``, so callers get complete
+    coverage of the reference even where the STT missed. Each estimated
+    segment is one sentence, cut at sentence terminators (``.``, ``!``,
+    ``?``, ``。``, ``！``, ``？``, ``…``, ``\\n``) in the reference source.
+    Time is split across the gap in proportion to each sentence's token count.
+
     Design choices per user requirements:
     - Whole-segment replacement (matched STT text is replaced by the reference span).
     - Segments below threshold are skipped (not emitted, not fallback-passed-through).
-    - Segments arriving after the reference is exhausted are skipped.
-    - Leftover reference at flush time is discarded.
+    - Reference gaps are filled with `estimated: true` segments so the full
+      reference is always present in the output.
     """
     def __init__(
         self,
@@ -54,24 +72,30 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
         self._granularity: TranscriptGranularity = granularity
 
         # Reference is tokenized once. We keep two parallel views:
-        # - ``_ref_display[i]``: the original token verbatim (for the corrected output)
-        # - ``_ref_normalized[i]``: normalized form used only for similarity scoring
-        self._ref_display: List[str] = self._tokenize(reference)
-        self._ref_normalized: List[str] = [ self._normalize(token) for token in self._ref_display ]
+        # - ``_display_tokens[i]``: the original token verbatim (for the corrected output)
+        # - ``_match_tokens[i]``: normalized form used only for similarity scoring
+        # ``_sentence_break_after`` records token indices that end a sentence in the
+        # reference — used as gap segment boundaries so each estimated segment is
+        # exactly one sentence.
+        self._display_tokens: List[str]
+        self._sentence_break_after: Set[int]
+        self._display_tokens, self._sentence_break_after = self._tokenize_with_sentence_breaks(reference)
+        self._match_tokens: List[str] = [ self._normalize_token(token) for token in self._display_tokens ]
 
         # Some tokens can normalize to empty (pure punctuation). Precompute a list of
         # indices whose normalized form is non-empty — those are the only candidates
-        # for anchor matching. Original ordering/spacing is still driven by _ref_display.
-        self._matchable_indices: List[int] = [ index for index, token in enumerate(self._ref_normalized) if token ]
+        # for anchor matching. Original ordering/spacing is still driven by _display_tokens.
+        self._matchable_indices: List[int] = [ index for index, token in enumerate(self._match_tokens) if token ]
 
-        self._ref_cursor: int = 0                # Position in _ref_display for the next search window start.
-        self._matchable_cursor: int = 0          # Position in _matchable_indices >= _ref_cursor.
+        self._token_cursor: int = 0         # Position in _display_tokens for the next search window start.
+        self._matchable_cursor: int = 0   # Position in _matchable_indices >= _token_cursor.
+        self._last_end_time: float = 0.0  # Wall-clock end of the most recently emitted segment (matched or estimated).
 
     def feed(self, segment: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         if not isinstance(segment, dict):
             return
 
-        # Reference already exhausted: user chose to skip further STT.
+        # Reference already exhausted: nothing more to correct.
         if self._matchable_cursor >= len(self._matchable_indices):
             return
 
@@ -79,13 +103,13 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
         if not isinstance(text, str) or not text.strip():
             return
 
-        stt_tokens = [ self._normalize(token) for token in self._tokenize(text) ]
-        stt_tokens = [ token for token in stt_tokens if token ]
+        tokens = [ self._normalize_token(token) for token in self._tokenize(text) ]
+        tokens = [ token for token in tokens if token ]
 
-        if not stt_tokens:
+        if not tokens:
             return
 
-        window_size = max(self.min_window_tokens, int(len(stt_tokens) * self.window_multiplier))
+        window_size = max(self.min_window_tokens, int(len(tokens) * self.window_multiplier))
         candidate_end = min(len(self._matchable_indices), self._matchable_cursor + window_size)
         candidates = self._matchable_indices[self._matchable_cursor:candidate_end]
 
@@ -93,34 +117,174 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
             return
 
         match = self._find_best_span(
-            haystack=[ self._ref_normalized[index] for index in candidates ],
-            needle=stt_tokens,
+            haystack=[ self._match_tokens[index] for index in candidates ],
+            needle=tokens,
         )
 
         if match is None:
             return
 
         local_start, local_end, _ = match
-        # Map candidate-local indices back to _ref_display indices.
+        # Map candidate-local indices back to _display_tokens indices.
         matched_start = candidates[local_start]
         matched_end   = candidates[local_end - 1] + 1  # exclusive
 
-        corrected_text = self._detokenize(self._ref_display[matched_start:matched_end])
+        anchor_start_time = segment.get(self.start_time_key)
+        anchor_end_time   = segment.get(self.end_time_key)
+
+        # Any reference tokens between the previous anchor and this one form a
+        # gap: fill them in with estimated segments so the output covers the
+        # full reference.
+        if matched_start > self._token_cursor and isinstance(anchor_start_time, (int, float)):
+            for gap_segment in self._estimate_gap(
+                self._token_cursor,
+                matched_start,
+                self._last_end_time,
+                float(anchor_start_time),
+            ):
+                yield gap_segment
+
+        corrected_text = self._detokenize(self._display_tokens[matched_start:matched_end])
 
         result = dict(segment)
         result[self.text_key] = corrected_text
         # start/end keys are preserved from the STT segment as-is (see design notes).
 
         # Advance cursors past the matched region.
-        self._ref_cursor = matched_end
+        self._token_cursor = matched_end
         while self._matchable_cursor < len(self._matchable_indices) and self._matchable_indices[self._matchable_cursor] < matched_end:
             self._matchable_cursor += 1
+
+        if isinstance(anchor_end_time, (int, float)):
+            self._last_end_time = float(anchor_end_time)
 
         yield result
 
     def flush(self) -> Iterator[Dict[str, Any]]:
-        # Leftover reference is discarded by design.
-        return iter(())
+        # Emit any reference tokens left after the final anchor as estimated
+        # segments. The true audio end is unknown here, so segment durations
+        # default to `gap_segment_duration` each rather than fitting into a
+        # known window.
+        if self._token_cursor >= len(self._display_tokens):
+            return
+
+        for gap_segment in self._estimate_gap(
+            self._token_cursor,
+            len(self._display_tokens),
+            self._last_end_time,
+            end_time=None,
+        ):
+            yield gap_segment
+
+        self._token_cursor = len(self._display_tokens)
+        self._matchable_cursor = len(self._matchable_indices)
+
+    def _estimate_gap(
+        self,
+        token_start: int,
+        token_end: int,
+        start_time: float,
+        end_time: Optional[float],
+    ) -> Iterator[Dict[str, Any]]:
+        """Emit one estimated segment per sentence in ``[token_start, token_end)``.
+        Sentence boundaries come from ``_sentence_break_after``; each detected
+        sentence is emitted as its own segment.
+
+        When ``end_time`` is known (a gap between two anchors), the gap window
+        is distributed across sentences in proportion to their token count.
+        When ``end_time`` is None (flush after the last anchor), each sentence
+        gets a duration estimated from its token count and a fallback speaking
+        rate.
+        """
+        if token_end <= token_start:
+            return
+
+        # Cut the gap into sentence groups. A sentence ends at the first
+        # terminator seen; the final group has no trailing terminator and just
+        # runs to token_end.
+        sentence_groups: List[Tuple[int, int]] = []  # inclusive-exclusive token ranges
+        sentence_start = token_start
+        for index in range(token_start, token_end):
+            if index in self._sentence_break_after or index == token_end - 1:
+                sentence_groups.append((sentence_start, index + 1))
+                sentence_start = index + 1
+
+        if not sentence_groups:
+            return
+
+        total_tokens = token_end - token_start
+
+        if end_time is not None:
+            total_duration = max(0.0, end_time - start_time)
+            if total_duration <= 0:
+                return
+        else:
+            total_duration = None
+
+        rate = _ESTIMATED_TOKENS_PER_SECOND_CHAR \
+            if self._granularity == TranscriptGranularity.CHARACTER \
+            else _ESTIMATED_TOKENS_PER_SECOND_WORD
+
+        cursor_time = start_time
+        for group_index, (group_start, group_end) in enumerate(sentence_groups):
+            group_tokens = self._display_tokens[group_start:group_end]
+
+            if total_duration is not None:
+                sentence_duration = total_duration * len(group_tokens) / total_tokens
+            else:
+                sentence_duration = len(group_tokens) / rate
+
+            sentence_start_time = cursor_time
+            # Clamp the last sentence's end to the exact gap boundary so
+            # floating-point drift doesn't leak past `end_time`.
+            if end_time is not None and group_index == len(sentence_groups) - 1:
+                sentence_end_time = end_time
+            else:
+                sentence_end_time = cursor_time + sentence_duration
+
+            yield {
+                self.text_key:       self._detokenize(group_tokens),
+                self.start_time_key: round(sentence_start_time, 2),
+                self.end_time_key:   round(sentence_end_time, 2),
+                "estimated":         True,
+            }
+
+            cursor_time = sentence_end_time
+
+        self._last_end_time = cursor_time
+
+    def _tokenize_with_sentence_breaks(self, text: str) -> Tuple[List[str], Set[int]]:
+        """Tokenize like ``_tokenize`` while also collecting the token indices
+        that end a sentence in the source. A sentence ends at any character in
+        ``_SENTENCE_TERMINATORS`` (Latin/CJK punctuation, ellipsis, newline).
+        The break set is later used as hard boundaries when estimating gaps
+        so each emitted gap segment is one sentence."""
+        tokens: List[str] = []
+        sentence_break_after: Set[int] = set()
+
+        if self._granularity == TranscriptGranularity.CHARACTER:
+            for char in text:
+                if char in _SENTENCE_TERMINATORS:
+                    if tokens:
+                        sentence_break_after.add(len(tokens) - 1)
+                elif not char.isspace():
+                    tokens.append(char)
+            return tokens, sentence_break_after
+
+        cursor = 0
+        for match in _WORD_PATTERN.finditer(text):
+            start, end = match.span()
+            if tokens and any(ch in _SENTENCE_TERMINATORS for ch in text[cursor:start]):
+                sentence_break_after.add(len(tokens) - 1)
+            tokens.append(match.group(0))
+            cursor = end
+
+        # Any terminator between the last matched token and end of text also
+        # closes the final sentence.
+        if tokens and any(ch in _SENTENCE_TERMINATORS for ch in text[cursor:]):
+            sentence_break_after.add(len(tokens) - 1)
+
+        return tokens, sentence_break_after
 
     def _tokenize(self, text: str) -> List[str]:
         if self._granularity == TranscriptGranularity.CHARACTER:
@@ -135,7 +299,7 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
 
         return " ".join(tokens)
 
-    def _normalize(self, token: str) -> str:
+    def _normalize_token(self, token: str) -> str:
         token = unicodedata.normalize("NFKC", token)
 
         if not self.case_sensitive:
@@ -165,26 +329,27 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
             return None
 
         n = len(needle)
-        needle_str = "".join(needle)
-        if not needle_str:
+        needle = "".join(needle)
+
+        if not needle:
             return None
 
         length_options = sorted({ max(1, n - 2), max(1, n - 1), n, n + 1, n + 2 })
-
         best: Optional[Tuple[int, int, float]] = None
 
-        for span_len in length_options:
-            if span_len > len(haystack):
+        for span_length in length_options:
+            if span_length > len(haystack):
                 continue
 
-            for start in range(0, len(haystack) - span_len + 1):
-                end = start + span_len
-                span_str = "".join(haystack[start:end])
-                if not span_str:
+            for start in range(0, len(haystack) - span_length + 1):
+                end = start + span_length
+                span = "".join(haystack[start:end])
+
+                if not span:
                     continue
 
-                distance = Levenshtein.distance(needle_str, span_str)
-                denom = max(len(needle_str), len(span_str))
+                distance = Levenshtein.distance(needle, span)
+                denom = max(len(needle), len(span))
                 score = 1.0 - (distance / denom) if denom > 0 else 0.0
 
                 if score < self.match_threshold:
@@ -192,6 +357,7 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
 
                 if best is None or score > best[2]:
                     best = (start, end, score)
+
                     if score == 1.0:
                         return best
 
@@ -203,7 +369,7 @@ class NativeTranscriptCorrectorService(TranscriptCorrectorService):
         super().__init__(id, config, daemon)
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return ["rapidfuzz", "regex"]
+        return [ "rapidfuzz", "regex" ]
 
     async def _run(self, action: TranscriptCorrectorActionConfig, context: ComponentActionContext) -> Any:
         return await NativeTranscriptCorrectorAction(action).run(context)

@@ -739,12 +739,12 @@ class GradioWebUIBuilder:
             return gr.Image(label=label, interactive=False)
 
         if variable.type == WorkflowVariableType.AUDIO:
-            return gr.Audio(label=label)
+            return gr.Audio(label=label, interactive=False)
 
         if variable.type == WorkflowVariableType.VIDEO:
             if variable.is_list:
                 return gr.Gallery(label=label, interactive=False)
-            return gr.Video(label=label)
+            return gr.Video(label=label, interactive=False)
 
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label, interactive=False)

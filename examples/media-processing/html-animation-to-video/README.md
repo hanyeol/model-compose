@@ -60,9 +60,9 @@ cd examples/media-processing/html-animation-to-video
    Via the Gradio UI at http://localhost:8081, or via HTTP:
 
    ```bash
-   curl -X POST http://localhost:8080/api/render \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H 'Content-Type: application/json' \
-     -d '{"input": {"fps": 30}}'
+     -d '{"workflow_id": "render", "input": {"fps": 30}}'
    ```
 
 The response contains a path to the produced `.mp4`.

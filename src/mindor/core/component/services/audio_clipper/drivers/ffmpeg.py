@@ -31,10 +31,9 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         audios: List[MediaSource],
         spans: List[ArrayValue],
         merge: bool,
-        is_single_span: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[AsyncIterator[AudioStreamResource], AudioStreamResource]]:
-        results: List[Union[AsyncIterator[AudioStreamResource], AudioStreamResource]] = []
+    ) -> List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]]:
+        results: List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]] = []
 
         for audio, spans in zip(audios, spans):
             input_path, spooled = await self._resolve_input_path(audio)
@@ -45,30 +44,15 @@ class FFmpegAudioClipperAction(AudioClipperAction):
                 spooled,
                 self._iterate_spans(spans),
                 format,
-                cancellation_token
+                cancellation_token,
             )
 
             if merge:
                 results.append(await self._merge(clips, format, cancellation_token))
-            elif is_single_span:
-                results.append(await self._first_clip(clips))
             else:
                 results.append(clips)
 
         return results
-
-    @staticmethod
-    async def _first_clip(clips: AsyncIterator[AudioStreamResource]) -> AudioStreamResource:
-        """Pull the single clip out of a one-element iterator produced when the
-        caller passed a single span."""
-        first: Optional[AudioStreamResource] = None
-        async for clip in clips:
-            if first is not None:
-                raise RuntimeError("expected a single clip but the iterator produced more than one")
-            first = clip
-        if first is None:
-            raise ValueError("'span' must contain at least one entry")
-        return first
 
     async def _clip(
         self,
@@ -77,7 +61,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         spans: AsyncIterator[Dict[str, float]],
         format: str,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> AsyncIterator[AudioStreamResource]:
+    ) -> AsyncIterator[Dict[str, Any]]:
         """Yield one AudioStreamResource per span, seeking into a shared input file.
 
         The input has already been materialized to a file by the caller so each
@@ -101,7 +85,6 @@ class FFmpegAudioClipperAction(AudioClipperAction):
                 except FileNotFoundError:
                     pass
 
-        clip_yielded = False
         try:
             async for span in spans:
                 start_time = span["start_time"]
@@ -135,11 +118,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
                     pending_count -= 1
                     raise
 
-                clip_yielded = True
-                yield clip
-
-            if not clip_yielded:
-                raise ValueError("'span' must contain at least one entry")
+                yield { "audio": clip, "start_time": start_time, "end_time": end_time }
         finally:
             # After the span iterator is exhausted, allow the last clip's cleanup
             # to remove the spool file. If no clips remain in flight, remove it now.
@@ -152,19 +131,24 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
     async def _merge(
         self,
-        clips: AsyncIterator[AudioStreamResource],
+        clips: AsyncIterator[Dict[str, Any]],
         format: str,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> AudioStreamResource:
-        """Concatenate an async stream of clips into a single AudioStreamResource.
+    ) -> Dict[str, Any]:
+        """Concatenate an async stream of clips into a single audio, carrying
+        along each source span so callers can recover per-input positions.
 
         Each incoming clip is drained to a temp file as it arrives; once the
         clip iterator is exhausted, ffmpeg's concat demuxer stitches the files
         together with -c copy (no re-encoding). Clips must share the same
         codec/container for -c copy to work — that's guaranteed here because
         they all come from the same _clip() call.
+
+        Returns `{audio, times: [{start_time, end_time}, ...]}`; when the clip
+        iterator produced nothing, `audio` is None and `times` is empty.
         """
         clip_paths: List[str] = []
+        times: List[Dict[str, float]] = []
         concat_list_path: Optional[str] = None
         is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
@@ -184,13 +168,14 @@ class FFmpegAudioClipperAction(AudioClipperAction):
             async for clip in clips:
                 clip_path = create_temporary_file(format)
                 clip_paths.append(clip_path)
+                times.append({ "start_time": clip["start_time"], "end_time": clip["end_time"] })
 
                 with open(clip_path, "wb") as f:
-                    async for chunk in clip:
+                    async for chunk in clip["audio"]:
                         f.write(chunk)
 
             if not clip_paths:
-                raise ValueError("'span' must contain at least one entry")
+                return { "audio": None, "times": [] }
 
             concat_list_path = create_temporary_file("txt")
             with open(concat_list_path, "w", encoding="utf-8") as f:
@@ -207,9 +192,11 @@ class FFmpegAudioClipperAction(AudioClipperAction):
             ]
 
             if is_streamable_output:
-                return await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
+                audio = await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
+            else:
+                audio = await self._run_to_file(concat_command, format, _cleanup, cancellation_token)
 
-            return await self._run_to_file(concat_command, format, _cleanup, cancellation_token)
+            return { "audio": audio, "times": times }
         except BaseException:
             _cleanup()
             raise

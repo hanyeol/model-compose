@@ -21,9 +21,10 @@ class SpeechToTextTaskAction(ComponentAction):
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:
-        audio      = await context.render_audio(self.config.audio)
-        batch_size = await context.render_variable(self.config.batch_size)
-        streaming  = await context.render_variable(self.config.streaming)
+        audio       = await context.render_audio(self.config.audio)
+        batch_size  = await context.render_variable(self.config.batch_size)
+        streaming   = await context.render_variable(self.config.streaming)
+        time_offset = await context.render_duration(self.config.time_offset, 0.0)
 
         params = await self._resolve_params(context)
 
@@ -39,12 +40,13 @@ class SpeechToTextTaskAction(ComponentAction):
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     if chunk:
+                                        chunk = self._apply_time_offset(chunk, time_offset)
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            yield self._apply_time_offset(result, time_offset)
 
             return _stream_output_generator()
         else:
@@ -56,17 +58,36 @@ class SpeechToTextTaskAction(ComponentAction):
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 if chunk:
+                                    chunk = self._apply_time_offset(chunk, time_offset)
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(result)
+                        results.append(self._apply_time_offset(result, time_offset))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
+
+    @staticmethod
+    def _apply_time_offset(value: Any, offset: float) -> Any:
+        """Shift `start_time` / `end_time` on a segment dict (or a list of them)
+        by `offset` seconds. Non-timestamped outputs (plain strings from
+        return_timestamps=False) pass through unchanged."""
+        if not offset:
+            return value
+        if isinstance(value, dict):
+            shifted = dict(value)
+            if "start_time" in shifted:
+                shifted["start_time"] = shifted["start_time"] + offset
+            if "end_time" in shifted:
+                shifted["end_time"] = shifted["end_time"] + offset
+            return shifted
+        if isinstance(value, list):
+            return [ SpeechToTextTaskAction._apply_time_offset(item, offset) for item in value ]
+        return value
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         language          = await context.render_string(self.config.language)

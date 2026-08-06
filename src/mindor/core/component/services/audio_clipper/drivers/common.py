@@ -9,7 +9,6 @@ from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
@@ -19,10 +18,11 @@ class AudioClipperAction(ComponentAction):
         self.config: AudioClipperActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        audio      = await context.render_audio(self.config.audio)
-        span       = await context.render_variable(self.config.span)
-        merge      = await context.render_scalar(self.config.merge, bool, False)
-        batch_size = await context.render_variable(self.config.batch_size)
+        audio            = await context.render_audio(self.config.audio)
+        span             = await context.render_variable(self.config.span)
+        merge            = await context.render_scalar(self.config.merge, bool, False)
+        return_timestamp = await context.render_scalar(self.config.return_timestamp, bool, False)
+        batch_size       = await context.render_variable(self.config.batch_size)
 
         # A single span dict yields a scalar clip; a list/stream yields an
         # iterator of clips. Sniff the raw shape here because ArrayValue erases
@@ -37,17 +37,17 @@ class AudioClipperAction(ComponentAction):
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_audios, batch_spans in BatchSourceIterator((audio, spans), batch_size=batch_size or 1):
-                    batch_results = await self._clip_batch(batch_audios, batch_spans, merge, is_single_span, context.cancellation_token)
+                    batch_results = await self._clip_batch(batch_audios, batch_spans, merge, context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        yield await self._format_result(result, merge, is_single_span, return_timestamp)
 
             return _stream_output_generator()
         else:
             results: List[Any] = []
             async for batch_audios, batch_spans in BatchSourceIterator((audio, spans), batch_size=batch_size or 1):
-                batch_results = await self._clip_batch(batch_audios, batch_spans, merge, is_single_span, context.cancellation_token)
+                batch_results = await self._clip_batch(batch_audios, batch_spans, merge, context.cancellation_token)
                 for result in batch_results:
-                    results.append(result)
+                    results.append(await self._format_result(result, merge, is_single_span, return_timestamp))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -70,19 +70,53 @@ class AudioClipperAction(ComponentAction):
 
             yield { "start_time": start_time, "end_time": end_time }
 
+    @staticmethod
+    async def _format_result(result: Any, merge: bool, is_single_span: bool, return_timestamp: bool) -> Any:
+        """Collapse or unwrap the driver's raw per-audio result according to
+        what the caller actually asked for:
+          - merge: result is `{audio, times: [...]}` (with `audio=None,
+            times=[]` when the iterator produced nothing).
+          - is_single_span: result is a one-element async iterator of clips;
+            pull the one out.
+          - otherwise: result is an async iterator of `{audio, start_time,
+            end_time}` clips.
+        When `return_timestamp` is off, strip the span metadata down to just
+        the audio.
+        """
+        if merge:
+            return result if return_timestamp else result["audio"]
+
+        if is_single_span:
+            first_clip: Optional[Dict[str, Any]] = None
+            async for clip in result:
+                first_clip = clip
+                break
+            if first_clip is None:
+                return None
+            return first_clip if return_timestamp else first_clip["audio"]
+
+        if return_timestamp:
+            return result
+
+        async def _unwrap_audio(source=result):
+            async for clip in source:
+                yield clip["audio"]
+
+        return _unwrap_audio()
+
     @abstractmethod
     async def _clip_batch(
         self,
         audios: List[MediaSource],
         spans: List[ArrayValue],
         merge: bool,
-        is_single_span: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[AsyncIterator[AudioStreamResource], AudioStreamResource]]:
-        """Return, per input audio, either an async iterator of clips or a
-        single clip. A single clip is returned when the caller collapses the
-        result to a scalar — that is, either `merge=True` (all spans stitched
-        into one clip) or `is_single_span=True` (only one span was requested).
-        Otherwise, an async iterator of clips (one per span) is returned.
+    ) -> List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]]:
+        """Return, per input audio, either an async iterator of clips (per
+        span, one at a time) or, when `merge=True`, a single dict of the
+        stitched result. Per-span clips carry their source span as
+        `{audio, start_time, end_time}`; a merged clip carries all covered
+        spans as `{audio, times: [{start_time, end_time}, ...]}`. Callers
+        collapse/project further as needed.
         """
         pass

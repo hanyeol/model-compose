@@ -8,6 +8,7 @@ class AudioSpanConfig(BaseModel):
 
 class AudioClipperActionConfig(CommonActionConfig):
     audio: Union[str, List[str]] = Field(..., description="Audio source(s).")
-    span: Union[AudioSpanConfig, List[AudioSpanConfig], str] = Field(..., description="One or more time spans to clip out of each audio source. A single span object yields a single clip; a list yields one clip per span.")
-    merge: Union[bool, str] = Field(default=False, description="If true, concatenate all clips per source into a single audio; otherwise return a list of clips.")
+    span: Union[AudioSpanConfig, List[AudioSpanConfig], str] = Field(..., description="Time span(s) to clip. A single object yields one clip; a list yields one per span.")
+    merge: Union[bool, str] = Field(default=False, description="If true, concatenate all clips into a single audio.")
+    return_timestamp: Union[bool, str] = Field(default=False, description="If true, each clip carries its source span alongside the audio.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input sources per batch.")

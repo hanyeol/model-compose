@@ -268,47 +268,63 @@ class VariableRenderer:
         if parts is None:
             return None
 
-        if not isinstance(parts, (list, tuple)):
-            raise TypeError(f"Join `+` must resolve to a list, got {type(parts).__name__}")
+        # Promote a list whose elements contain a stream to a lazy stream so
+        # the stream branch below handles per-chunk unrolling uniformly.
+        if isinstance(parts, (list, tuple)) and any(isinstance(part, (StreamIterator, AsyncIterable)) for part in parts):
+            async def _stream_from_parts(parts=parts):
+                for part in parts:
+                    if part is not None:
+                        yield part
+            parts = StreamChunkIterator(_stream_from_parts(), is_fragmented=True)
 
-        parts = [ part for part in parts if part is not None ]
+        if isinstance(parts, (list, tuple)):
+            parts = [ part for part in parts if part is not None ]
 
-        if not parts:
-            return None
+            if not parts:
+                return None
 
-        kinds = { self._kind_of(part) for part in parts }
+            if isinstance(parts[0], (list, tuple)):
+                result: List[Any] = []
+                for part in parts:
+                    result.extend(part)
+                return result
 
-        if len(kinds) > 1:
-            raise TypeError(f"Join `+` requires uniform element types, got {sorted(kinds)}")
+            if isinstance(parts[0], dict):
+                result: Dict[str, Any] = {}
+                for part in parts:
+                    result.update(part)
+                return result
 
-        kind = next(iter(kinds))
+            if isinstance(parts[0], str):
+                return "".join(parts)
 
-        if kind == "str":
-            return "".join(parts)
+            raise TypeError(f"Join `+` cannot combine values of type {type(parts[0]).__name__}")
 
-        if kind == "list":
-            result: List[Any] = []
-            for part in parts:
-                result.extend(part)
-            return result
+        if isinstance(parts, (StreamIterator, AsyncIterable)):
+            async def _iterate() -> AsyncIterator[Any]:
+                async for chunk in parts:
+                    if isinstance(chunk, (list, tuple)):
+                        for item in chunk:
+                            yield item
+                        continue
 
-        if kind == "dict":
-            result: Dict[str, Any] = {}
-            for part in parts:
-                result.update(part)
-            return result
+                    if isinstance(chunk, (StreamIterator, AsyncIterable)):
+                        async for item in chunk:
+                            yield item
+                        continue
 
-        raise TypeError(f"Join `+` cannot combine values of type {kind}")
+                    if isinstance(chunk, (str, dict)):
+                        yield chunk
+                        continue
 
-    @staticmethod
-    def _kind_of(value: Any) -> str:
-        if isinstance(value, str):
-            return "str"
-        if isinstance(value, (list, tuple)):
-            return "list"
-        if isinstance(value, dict):
-            return "dict"
-        return type(value).__name__
+            # Preserve the StreamChunkIterator type so downstream isinstance
+            # checks still recognize it.
+            if isinstance(parts, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=parts.is_fragmented)
+
+            return _iterate()
+
+        raise TypeError(f"Join `+` source must resolve to a list or iterator, got {type(parts).__name__}")
 
     async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
         if not isinstance(where, dict):

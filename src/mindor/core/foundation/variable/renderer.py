@@ -317,12 +317,9 @@ class VariableRenderer:
                         yield chunk
                         continue
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
-            if isinstance(parts, StreamChunkIterator):
-                return StreamChunkIterator(_iterate(), is_fragmented=parts.is_fragmented)
-
-            return _iterate()
+            # `+` collapses its inputs into one logical value, so the result
+            # is always a fragmented stream — an array delivered in pieces.
+            return StreamChunkIterator(_iterate(), is_fragmented=True)
 
         raise TypeError(f"Join `+` source must resolve to a list or iterator, got {type(parts).__name__}")
 

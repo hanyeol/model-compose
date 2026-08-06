@@ -41,10 +41,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         waveforms = await self._preprocess_audio(audios)
 
         def _separate() -> List[Any]:
-            return [
-                self._separate(waveform, params)
-                for waveform in waveforms
-            ]
+            return [ self._separate(waveform, params) for waveform in waveforms ]
 
         return await self._run_in_executor(_separate)
 

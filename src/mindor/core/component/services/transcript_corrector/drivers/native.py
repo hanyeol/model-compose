@@ -87,7 +87,7 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
         # for anchor matching. Original ordering/spacing is still driven by _display_tokens.
         self._matchable_indices: List[int] = [ index for index, token in enumerate(self._match_tokens) if token ]
 
-        self._token_cursor: int = 0         # Position in _display_tokens for the next search window start.
+        self._token_cursor: int = 0       # Position in _display_tokens for the next search window start.
         self._matchable_cursor: int = 0   # Position in _matchable_indices >= _token_cursor.
         self._last_end_time: float = 0.0  # Wall-clock end of the most recently emitted segment (matched or estimated).
 
@@ -162,9 +162,9 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
 
     def flush(self) -> Iterator[Dict[str, Any]]:
         # Emit any reference tokens left after the final anchor as estimated
-        # segments. The true audio end is unknown here, so segment durations
-        # default to `gap_segment_duration` each rather than fitting into a
-        # known window.
+        # segments. The true audio end is unknown here, so each sentence's
+        # duration is estimated from its token count and a fallback speaking
+        # rate rather than fitting into a known window.
         if self._token_cursor >= len(self._display_tokens):
             return
 

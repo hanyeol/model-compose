@@ -78,7 +78,6 @@ cd examples/media-processing/audio-spectrum-to-video
 
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H 'Content-Type: multipart/form-data' \
      -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
      -F 'input.fps=30' \

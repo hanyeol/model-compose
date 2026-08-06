@@ -83,7 +83,6 @@ Have an audio file ready (mp3, wav, flac, ogg, opus, or aac).
 
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H 'Content-Type: multipart/form-data' \
      -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
      -F 'input.fps=30' \

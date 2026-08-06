@@ -77,8 +77,9 @@ cd examples/media-processing/audio-spectrum-to-video
    通过 http://localhost:8081 的 Gradio UI 或 HTTP：
 
    ```bash
-   curl -X POST http://localhost:8080/api/render \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H 'Content-Type: multipart/form-data' \
+     -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
      -F 'input.fps=30' \
      -F 'input.band_count=48'

@@ -53,7 +53,6 @@
    **API 사용:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "input={\"file\": \"@audio\"}" \
      -F "audio=@sample_audio.mp3"
    ```

@@ -52,7 +52,6 @@ The strategy is:
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F 'input={"similarity_threshold": 0.4, "frame_interval": 15};type=application/json' \
      -F 'target_face=@./target.jpg' \
      -F 'video=@./video.mp4'

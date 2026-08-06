@@ -82,9 +82,7 @@ Have an audio file ready (mp3, wav, flac, ogg, opus, or aac).
    Via the Gradio UI at http://localhost:8081, or via HTTP:
 
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
-     -H 'Content-Type: multipart/form-data' \
-     -F 'workflow_id=render' \
+   curl -X POST http://localhost:8080/api/render \
      -F 'input.audio=@./song.mp3' \
      -F 'input.fps=30' \
      -F 'input.band_count=48'

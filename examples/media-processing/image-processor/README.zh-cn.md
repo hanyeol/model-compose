@@ -47,7 +47,6 @@
    ```bash
    # 调整图像大小
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=resize" \
      -F "image=@input.png" \
      -F "width=800" \
@@ -56,14 +55,12 @@
 
    # 应用高斯模糊
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=blur" \
      -F "image=@input.png" \
      -F "radius=5.0"
 
    # 转换为灰度
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=grayscale" \
      -F "image=@input.png"
    ```

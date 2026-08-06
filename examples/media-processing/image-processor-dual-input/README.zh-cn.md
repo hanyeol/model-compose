@@ -57,7 +57,6 @@
 
    # 文件上传
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=resize-from-upload" \
      -F "image=@photo.jpg" \
      -F "width=512" \

@@ -232,8 +232,12 @@ class AudioDecodingStreamer:
             if is_pcm_format(source.format):
                 if source.attrs.get("sample_rate"):
                     command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {source.format!r} requires 'sample_rate' in attrs")
                 if source.attrs.get("channels"):
                     command.extend([ "-ac", str(source.attrs["channels"]) ])
+                else:
+                    raise ValueError(f"Raw PCM source {source.format!r} requires 'channels' in attrs")
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
         command.extend([ "-vn", "-f", "s16le", "-acodec", "pcm_s16le" ])
@@ -310,20 +314,24 @@ class AudioDecodingStreamer:
                 source_sample_rate = int(source_sample_rate)
                 source_channels = int(waveform.shape[0])
 
-                sr = sample_rate if sample_rate is not None else source_sample_rate
-                if sr != source_sample_rate:
+                target_sample_rate = sample_rate if sample_rate is not None else source_sample_rate
+
+                if target_sample_rate != source_sample_rate:
                     import soxr
                     # soxr expects (samples, channels) interleaved; round-trip via transpose.
-                    waveform = soxr.resample(waveform.T, source_sample_rate, sr).T
+                    waveform = soxr.resample(waveform.T, source_sample_rate, target_sample_rate).T
 
-                if channels is not None and channels != source_channels:
-                    if channels == 1:
+                target_channels = channels if channels is not None else source_channels
+
+                if target_channels != source_channels:
+                    if target_channels == 1:
                         waveform = waveform.mean(axis=0, keepdims=True)
                     else:
-                        raise ValueError(f"torchaudio fallback: cannot upmix from {source_channels} to {channels} channels")
+                        raise ValueError(f"torchaudio fallback: cannot upmix from {source_channels} to {target_channels} channels")
 
-                pcm_bytes, out_channels = encode_waveform_to_pcm(waveform, format="s16le")
-                return pcm_bytes, sr, out_channels
+                pcm_bytes, _ = encode_waveform_to_pcm(waveform, format="s16le")
+
+                return pcm_bytes, target_sample_rate, target_channels
 
             pcm_bytes, _, _ = await asyncio.to_thread(_decode)
 

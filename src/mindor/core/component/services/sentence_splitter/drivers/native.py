@@ -31,7 +31,7 @@ class NativeStreamingSentenceSplitter(StreamingSentenceSplitter):
         self.min_chunk_length: int = min_chunk_length
         self.max_chunk_length: Optional[int] = max_chunk_length
 
-        self._pending_text: str = ""       # Text received but not yet cut into a sentence.
+        self._pending_text: str = ""  # Text received but not yet cut into a sentence.
         self._chunk_buffer: str = ""  # Sentences accumulated waiting for min_chunk_length.
 
     def feed(self, text: str) -> Iterator[str]:

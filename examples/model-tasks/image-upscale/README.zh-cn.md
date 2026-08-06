@@ -59,7 +59,6 @@
    **使用 API：**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "image=@/path/to/your/low-resolution-image.jpg"
    ```
 

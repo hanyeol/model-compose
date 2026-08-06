@@ -52,14 +52,12 @@ The output is a JSON payload with a `frames` array. Each entry is one video fram
    ```bash
    # Spectrum (default workflow)
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "audio=@song.mp3" \
      -F "fps=30" \
      -F "band_count=32"
 
    # Waveform
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=waveform" \
      -F "audio=@song.mp3" \
      -F "fps=30" \

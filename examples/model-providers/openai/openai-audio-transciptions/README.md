@@ -53,7 +53,6 @@ This workflow provides advanced speech-to-text capabilities that:
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "input={\"file\": \"@audio\"}" \
      -F "audio=@sample_audio.mp3"
    ```

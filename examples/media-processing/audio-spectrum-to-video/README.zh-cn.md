@@ -78,7 +78,6 @@ cd examples/media-processing/audio-spectrum-to-video
 
    ```bash
    curl -X POST http://localhost:8080/api/render \
-     -H 'Content-Type: multipart/form-data' \
      -F 'input.audio=@./song.mp3' \
      -F 'input.fps=30' \
      -F 'input.band_count=48'

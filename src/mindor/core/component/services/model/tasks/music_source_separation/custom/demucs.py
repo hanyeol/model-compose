@@ -42,7 +42,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         def _separate() -> List[Any]:
             return [
-                self._separate_one(waveform, params)
+                self._separate(waveform, params)
                 for waveform in waveforms
             ]
 
@@ -53,13 +53,13 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         for audio in audios:
             # channel=None keeps the original layout so stereo mixes stay stereo;
-            # mono comes back as (samples,) and is expanded in _separate_one below.
+            # mono comes back as (samples,) and is expanded in _separate below.
             waveform, _ = await AudioBufferStreamer(audio, sample_rate=self.model_sample_rate).collect()
             waveforms.append(waveform)
 
         return waveforms
 
-    def _separate_one(self, waveform: np.ndarray, params: Dict[str, Any]) -> Any:
+    def _separate(self, waveform: np.ndarray, params: Dict[str, Any]) -> Any:
         import numpy as np
         import torch
         from demucs.apply import apply_model

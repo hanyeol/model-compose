@@ -300,8 +300,8 @@ class AudioDecodingStreamer:
         return _stream(), attrs
 
     def _decode_with_torchaudio(self, source: MediaSource) -> Tuple[AsyncIterator[bytes], Dict[str, Any]]:
-        sample_rate = self._sample_rate
-        channels = self._channels
+        sample_rate = self._sample_rate or int(source.attrs.get("sample_rate") or 0) or None
+        channels = self._channels or int(source.attrs.get("channels") or 0) or None
 
         async def _stream() -> AsyncIterator[bytes]:
             data = await read_stream_to_bytes(source.stream)
@@ -345,8 +345,8 @@ class AudioDecodingStreamer:
         # caller didn't specify them, fall back to source hints or common defaults.
         attrs: Dict[str, Any] = {
             "bit_depth": 16,
-            "sample_rate": sample_rate or int(source.attrs.get("sample_rate") or 0) or 16000,
-            "channels": channels or int(source.attrs.get("channels") or 0) or 1,
+            "sample_rate": sample_rate or 16000,
+            "channels": channels or 1,
         }
 
         return _stream(), attrs

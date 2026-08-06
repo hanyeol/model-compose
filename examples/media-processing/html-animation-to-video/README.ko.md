@@ -59,9 +59,9 @@ cd examples/media-processing/html-animation-to-video
    http://localhost:8081의 Gradio UI 또는 HTTP로:
 
    ```bash
-   curl -X POST http://localhost:8080/api/render \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H 'Content-Type: application/json' \
-     -d '{"input": {"fps": 30}}'
+     -d '{"workflow_id": "render", "input": {"fps": 30}}'
    ```
 
 응답에는 생성된 `.mp4`의 경로가 포함됩니다.

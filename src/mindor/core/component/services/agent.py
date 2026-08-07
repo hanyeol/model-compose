@@ -52,15 +52,13 @@ class AgentAction:
                         workflow=context.workflow,
                         job_id=context.job_id
                     )
-                    response = await self._render_model_response(context, response)
 
-                    assistant_messages = await self._build_assistant_messages(response)
-                    for assistant_message in assistant_messages:
-                        messages.append(assistant_message)
-                        await context.event_notifier.notify("internal", kind="message", output=assistant_message)
-                        yield assistant_message
+                    assistant_message = await self._render_model_response(context, response)
+                    messages.append(assistant_message)
+                    await context.event_notifier.notify("internal", kind="message", output=assistant_message)
+                    yield assistant_message
 
-                    tool_calls = response.get("tool_calls")
+                    tool_calls = self._extract_tool_calls(assistant_message)
                     if not tool_calls:
                         break
 
@@ -81,14 +79,12 @@ class AgentAction:
                     workflow=context.workflow,
                     job_id=context.job_id
                 )
-                response = await self._render_model_response(context, response)
 
-                assistant_messages = await self._build_assistant_messages(response)
-                for assistant_message in assistant_messages:
-                    messages.append(assistant_message)
-                    await context.event_notifier.notify("internal", kind="message", output=assistant_message)
+                assistant_message = await self._render_model_response(context, response)
+                messages.append(assistant_message)
+                await context.event_notifier.notify("internal", kind="message", output=assistant_message)
 
-                tool_calls = response.get("tool_calls")
+                tool_calls = self._extract_tool_calls(assistant_message)
                 if not tool_calls:
                     break
 
@@ -114,27 +110,16 @@ class AgentAction:
 
         return messages
 
-    async def _build_assistant_messages(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        text = response.get("content")
-        tool_calls = response.get("tool_calls") or []
-
-        blocks: List[Dict[str, Any]] = []
-
-        if text:
-            blocks.append({ "type": "text", "text": text })
-
-        for call in tool_calls:
-            blocks.append({
-                "type": "tool_call",
-                "id": call.get("id", ""),
-                "name": call.get("name", ""),
-                "arguments": call.get("arguments", {}),
-            })
-
-        if not blocks:
-            blocks.append({ "type": "text", "text": "" })
-
-        return self._format_messages("assistant", blocks)
+    def _extract_tool_calls(self, message: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": block.get("id", ""),
+                "name": block.get("name", ""),
+                "arguments": block.get("arguments", {}),
+            }
+            for block in (message.get("content") or [])
+            if block.get("type") == "tool_call"
+        ]
 
     async def _render_model_input(
         self,
@@ -282,7 +267,7 @@ class AgentAction:
         return self._format_messages(role, [{ "type": "text", "text": text }])
 
     def _format_messages(self, role: str, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return [ { "role": role, "blocks": blocks } ]
+        return [ { "role": role, "content": blocks } ]
 
 @register_component(ComponentType.AGENT)
 class AgentComponent(ComponentService):

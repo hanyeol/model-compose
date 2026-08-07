@@ -53,7 +53,6 @@ This workflow provides AI-powered image variation capabilities that:
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "input={\"image\": \"@image\"}" \
      -F "image=@source_image.png"
    ```

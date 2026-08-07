@@ -51,7 +51,6 @@
    **API 사용:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F 'input={"frame_rate": 30};type=application/json' \
      -F 'video=@./video.mp4'
    ```

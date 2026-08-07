@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Set, Tuple, Union, Callable, Any
+from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
@@ -11,6 +11,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
@@ -21,12 +22,6 @@ import asyncio, os, re
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 _PNG_SIGNATURE    = b"\x89PNG\r\n\x1a\n"
 _PNG_IEND_MARKER  = b"IEND\xaeB`\x82"
-
-# Container formats safe to feed through ffmpeg pipe:0. Other formats (mp4/mov/mkv/webm/avi/...) or
-# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "mpegts", "ts", "flv", "ogg", "webm",
-}
 
 class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
     async def _extract_batch(
@@ -377,7 +372,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         if isinstance(video.stream, FileStreamResource):
             return video.stream.path, False
 
-        if video.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_video_format(video.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")

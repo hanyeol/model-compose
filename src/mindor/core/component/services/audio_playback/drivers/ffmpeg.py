@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List, Set, Dict, Tuple, Any
+from typing import Optional, List, Dict, Tuple, Any
 from collections.abc import AsyncIterable
 from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriver
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
@@ -8,20 +8,14 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_pcm_format
+from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import AudioPlaybackService, register_audio_playback_service
 from ..base import ComponentActionContext
 from .common import AudioPlaybackAction
 import asyncio, os, platform
-
-# Input container formats safe to feed through ffmpeg pipe:0. Other formats
-# (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
-# first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
 
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
     async def _play_batch(
@@ -168,7 +162,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS or is_pcm_format(source.format):
+        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before playback")
@@ -194,14 +188,16 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         # Windows: WASAPI is exposed via ffmpeg's "wasapi" output muxer;
         #          the url is the device name ("default" for the OS default).
         if system == "Windows":
-            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
-            return [ "-f", "wasapi", target ]
+            if sink == AudioPlaybackSink.DEVICE and device is not None:
+                return [ "-f", "wasapi", str(device) ]
+            return [ "-f", "wasapi", "default" ]
 
         # Linux: PulseAudio is exposed via the "pulse" muxer; the url is a
         #        sink name ("default" for the OS default).
         if system == "Linux":
-            target = str(device) if sink == AudioPlaybackSink.DEVICE and device is not None else "default"
-            return [ "-f", "pulse", target ]
+            if sink == AudioPlaybackSink.DEVICE and device is not None:
+                return [ "-f", "pulse", str(device) ]
+            return [ "-f", "pulse", "default" ]
 
         raise NotImplementedError(f"Audio playback is not supported on platform: {system}")
 

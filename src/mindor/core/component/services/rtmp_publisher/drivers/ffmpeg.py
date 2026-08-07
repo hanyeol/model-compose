@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Set, Tuple, Any
+from typing import Optional, Union, List, Dict, Tuple, Any
 from collections.abc import AsyncIterable
 from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriver
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
@@ -9,7 +9,8 @@ from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_pcm_format
+from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
@@ -22,13 +23,6 @@ import asyncio, os
 _DEFAULT_FORMAT: str = "flv"
 _DEFAULT_VIDEO_CODEC: str = "libx264"
 _DEFAULT_AUDIO_CODEC: str = "aac"
-
-# Container formats safe to feed through ffmpeg pipe:0. Other formats
-# (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
-# first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
 
 # `pass_fds` and inherited pipe descriptors are POSIX-only; Windows can't
 # hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
@@ -333,7 +327,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before publishing")

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Set, List, Tuple, Any
+from typing import TYPE_CHECKING, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
@@ -15,12 +16,6 @@ import os
 
 if TYPE_CHECKING:
     import numpy as np
-
-# Container formats safe to feed through ffmpeg pipe:0. Other formats (m4a/mp4-wrapped/...) or
-# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
 
 class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
     async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> np.ndarray:
@@ -69,7 +64,7 @@ class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_audio_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before decoding")

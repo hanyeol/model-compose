@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Union, Dict, List, Set, Tuple, Callable, Any
+from typing import Optional, Union, Dict, List, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoClipperComponentConfig
 from mindor.dsl.schema.action import VideoClipperActionConfig
@@ -11,19 +11,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.shell import run_command, run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import VideoClipperService, VideoClipperDriver, register_video_clipper_service
 from ..base import ComponentActionContext
 from .common import VideoClipperAction
 import asyncio, os, json
-
-# Output container formats that can be written to ffmpeg's stdout (no post-write seek).
-# Others (mp4/mov/mkv/avi/...) need a real file path with seeking for moov atom placement
-# or other container fix-ups.
-_STREAMABLE_OUTPUT_FORMATS: Set[str] = {
-    "mpegts", "ts", "flv", "ogg", "webm",
-}
 
 class FFmpegVideoClipperAction(VideoClipperAction):
     async def _clip_batch(
@@ -108,10 +102,8 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
                 pending_count += 1
 
-                is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
-
                 try:
-                    if is_streamable_output:
+                    if is_streamable_video_format(format):
                         clip = await self._run_to_stream(command, format, _release, cancellation_token)
                     else:
                         clip = await self._run_to_file(command, format, _release, cancellation_token)
@@ -152,7 +144,6 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         clip_paths: List[str] = []
         times: List[Dict[str, float]] = []
         concat_list_path: Optional[str] = None
-        is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
         def _cleanup() -> None:
             for path in clip_paths:
@@ -193,7 +184,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 "-c", "copy",
             ]
 
-            if is_streamable_output:
+            if is_streamable_video_format(format):
                 video = await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
             else:
                 video = await self._run_to_file(concat_command, format, _cleanup, cancellation_token)

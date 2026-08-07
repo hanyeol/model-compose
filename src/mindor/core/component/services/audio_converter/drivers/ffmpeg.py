@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Set, Tuple, Callable, Any
+from typing import List, Optional, Dict, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioConverterComponentConfig
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
-from mindor.core.utils.audio import is_pcm_format
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -27,19 +27,6 @@ _FORMAT_CODEC_MAP: dict[str, str] = {
     "m4a":  "aac",
     "opus": "libopus",
     "ogg":  "libvorbis",
-}
-
-# Container formats safe to feed through ffmpeg pipe:0. Other formats (m4a/mp4-wrapped/...) or
-# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
-
-# Output container formats that can be written to ffmpeg's stdout (no post-write seek).
-# Others (m4a/mp4-wrapped/...) need a real file path with seeking for moov atom placement
-# or other container fix-ups.
-_STREAMABLE_OUTPUT_FORMATS: Set[str] = {
-    "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
 
 class FFmpegAudioConverterAction(AudioConverterAction):
@@ -62,7 +49,6 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         input_path, spooled = await self._resolve_input_path(source)
-        is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
 
         command = [ "ffmpeg", "-hide_banner" ]
 
@@ -98,14 +84,9 @@ class FFmpegAudioConverterAction(AudioConverterAction):
                 except FileNotFoundError:
                     pass
 
-        logging.debug(
-            "Converting audio to '%s' format (%s input, %s output)",
-            format,
-            "path" if input_path else "pipe",
-            "stream" if is_streamable_output else "file",
-        )
+        logging.debug("Converting audio to '%s' (%s input)", format, "path" if input_path else "pipe")
 
-        if is_streamable_output:
+        if is_streamable_audio_format(format):
             return await self._convert_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
         return await self._convert_to_file(command, source, input_path, format, _cleanup, cancellation_token)
@@ -253,7 +234,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_audio_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")

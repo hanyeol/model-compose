@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Set, Tuple, Callable, Any
+from typing import Dict, List, Optional, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoConverterComponentConfig
 from mindor.dsl.schema.action import VideoConverterActionConfig
@@ -12,6 +12,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ..base import VideoConverterService, VideoConverterDriver, register_video_converter_service
 from ..base import ComponentActionContext
@@ -29,19 +30,6 @@ _FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
     "webm": ("libvpx-vp9", "libopus"),
     "avi":  ("mpeg4",      "libmp3lame"),
     "ogv":  ("libtheora",  "libvorbis"),
-}
-
-# Container formats safe to feed through ffmpeg pipe:0. Other formats (mp4/mov/mkv/avi/...) or
-# unknown formats are spooled to a temp file first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "mpegts", "ts", "flv", "ogg", "webm",
-}
-
-# Output container formats that can be written to ffmpeg's stdout (no post-write seek).
-# Others (mp4/mov/mkv/avi/...) need a real file path with seeking — typically for moov atom
-# placement, index tables, +faststart, etc.
-_STREAMABLE_OUTPUT_FORMATS: Set[str] = {
-    "mpegts", "ts", "flv", "ogg", "webm",
 }
 
 class FFmpegVideoConverterAction(VideoConverterAction):
@@ -68,7 +56,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         video, audio = encoding.video, encoding.audio
 
         input_path, spooled = await self._resolve_input_path(source)
-        is_streamable_output = format.lower() in _STREAMABLE_OUTPUT_FORMATS
+        is_streamable_output = is_streamable_video_format(format.lower())
 
         command = [ "ffmpeg", "-hide_banner" ]
 
@@ -258,7 +246,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_video_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")

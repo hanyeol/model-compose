@@ -1,11 +1,15 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Optional, Dict
+from typing import Union, Tuple, Optional, Dict, Set
 
 if TYPE_CHECKING:
     import numpy as np
     import torch
+
+_PCM_FORMATS: Set[str] = {
+    "u8", "s16le", "s24le", "s32le", "f32le", "f64le",
+}
 
 _PCM_BIT_DEPTH_FORMAT_MAP: Dict[int, str] = {
      8: "u8",
@@ -21,6 +25,13 @@ _PCM_FORMAT_NUMPY_DTYPE_MAP: Dict[str, str] = {
     "s32le": "<i4",
     "f32le": "<f4",
     "f64le": "<f8",
+}
+
+# Audio container formats whose headers sit at the front of the stream, so
+# ffmpeg can decode them straight off pipe:0 without needing to seek. Formats
+# like m4a/mp4 keep the moov atom at the end and must be spooled to a file.
+_STREAMABLE_AUDIO_FORMATS: Set[str] = {
+    "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
 
 class AudioBuffer:
@@ -119,13 +130,17 @@ def decode_pcm_to_waveform(data: bytes, format: str) -> np.ndarray:
 
     return np.frombuffer(data, dtype=get_pcm_dtype(format))
 
-def get_pcm_format(bit_depth: int, default: str = "s16le") -> str:
-    """Raw PCM format identifier for a given bit depth. Returns `default` if unknown."""
-    return _PCM_BIT_DEPTH_FORMAT_MAP.get(int(bit_depth), default)
+def is_streamable_audio_format(format: Optional[str]) -> bool:
+    """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""
+    return format in _STREAMABLE_AUDIO_FORMATS or format in _PCM_FORMATS
 
 def is_pcm_format(format: str) -> bool:
     """True if `format` names a raw sample layout that np.frombuffer can decode directly."""
-    return format in _PCM_FORMAT_NUMPY_DTYPE_MAP
+    return format in _PCM_FORMATS
+
+def get_pcm_format_for_bit_depth(bit_depth: int, default: str = "s16le") -> str:
+    """Raw PCM format identifier for a given bit depth. Returns `default` if unknown."""
+    return _PCM_BIT_DEPTH_FORMAT_MAP.get(int(bit_depth), default)
 
 def get_pcm_dtype(format: str) -> np.dtype:
     """Numpy dtype for a raw PCM format identifier. Raises ValueError if unsupported."""

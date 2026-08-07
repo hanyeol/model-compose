@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple, List, Dict, Callable, Any
+from typing import Optional, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
 from mindor.dsl.schema.action import VideoEncoderActionConfig
@@ -11,6 +11,8 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
+from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -33,20 +35,6 @@ _FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
     "ogv":  ("libtheora",  "libvorbis"),
 }
 
-# Input container formats safe to feed through ffmpeg pipe:0. Other formats
-# (mp4/mov/mkv/webm/avi/...) or unknown formats are spooled to a temp file
-# first so ffmpeg can seek for moov atoms, indexes, etc.
-_STREAMABLE_INPUT_FORMATS: Set[str] = {
-    "flv", "mpegts", "ts", "mp3", "wav", "flac", "ogg", "opus", "aac",
-}
-
-# Output container formats that can be written to ffmpeg's stdout (no post-write seek).
-# Others (mp4/mov/mkv/avi/...) need a real file path with seeking — typically for moov atom
-# placement, index tables, +faststart, etc.
-_STREAMABLE_OUTPUT_FORMATS: Set[str] = {
-    "mpegts", "ts", "flv", "ogg", "webm",
-}
-
 # `pass_fds` and inherited pipe descriptors are POSIX-only; Windows can't
 # hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
 # the second live stream to a temp file so ffmpeg reads it as a file input.
@@ -63,7 +51,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
     ) -> VideoStreamResource:
         format = self._resolve_container_format(encoding)
 
-        if streaming and format not in _STREAMABLE_OUTPUT_FORMATS:
+        if streaming and not is_streamable_video_format(format):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
@@ -138,7 +126,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         format = encoding.format or _DEFAULT_FORMAT
         frame_rate = frame_rate or 30
 
-        if streaming and format.lower() not in _STREAMABLE_OUTPUT_FORMATS:
+        if streaming and not is_streamable_video_format(format.lower()):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
@@ -358,7 +346,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
 
-        if source.format in _STREAMABLE_INPUT_FORMATS:
+        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
             return None, False
 
         logging.debug("ffmpeg input is not streamable; spooling to a temp file before encoding")

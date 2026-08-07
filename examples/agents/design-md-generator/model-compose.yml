@@ -582,7 +582,7 @@ workflows:
         component: css-property-extractor
         input:
           instructions: ${input.instructions @(description Instructions for CSS property extraction, e.g. "Extract all design token custom properties from the page")}
-        output: ${output[-1].blocks[0].text as text}
+        output: ${output[-1].content[0].text as text}
 
       - id: filter-tokens
         component: gpt-4o
@@ -636,7 +636,7 @@ workflows:
       component: component-inspector
       input:
         instructions: ${input.instructions @(description Natural-language instructions describing which components to inspect, e.g. "Extract styles for the hero section, navigation bar, pricing cards, and footer")}
-      output: ${output[-1].blocks[0].text as text}
+      output: ${output[-1].content[0].text as text}
 
   - id: synthesize-design-md
     #private: true
@@ -1451,19 +1451,19 @@ components:
           messages:
             "*": ${input.messages}
             role: ${item.role}
-            content: ${item.blocks[0].text}
+            content: ${item.content[0].text}
             "?":
               - input: ${item.role}
                 value: assistant
                 if_true:
                   content:
                     "?":
-                      input: ${item.blocks[0].type}
+                      input: ${item.content[0].type}
                       value: text
-                      if_true: ${item.blocks[0].text}
+                      if_true: ${item.content[0].text}
                   tool_calls:
                     "*":
-                      input: ${item.blocks}
+                      input: ${item.content}
                       where:
                         input: ${item.type}
                         value: tool_call
@@ -1475,21 +1475,30 @@ components:
               - input: ${item.role}
                 value: tool
                 if_true:
-                  tool_call_id: ${item.blocks[0].id}
-                  content: ${item.blocks[0].content}
+                  tool_call_id: ${item.content[0].id}
+                  content: ${item.content[0].content}
           # Canonical tool schemas → OpenAI's function-tool wrapper.
           tools:
             "*": ${input.tools}
             type: function
             function: ${item}
-        # OpenAI response → dict the agent consumes.
+        # OpenAI response → canonical assistant message the agent consumes.
         output:
-          content: ${response.choices[0].message.content}
-          tool_calls:
-            "*": ${response.choices[0].message.tool_calls}
-            id: ${item.id}
-            name: ${item.function.name}
-            arguments: ${item.function.arguments as json}
+          role: assistant
+          content:
+            "+":
+              - "?":
+                  input: ${response.choices[0].message.content}
+                  operator: neq
+                  value: null
+                  if_true:
+                    - type: text
+                      text: ${response.choices[0].message.content}
+              - "*": ${response.choices[0].message.tool_calls}
+                type: tool_call
+                id: ${item.id}
+                name: ${item.function.name}
+                arguments: ${item.function.arguments as json}
 
       # Plain text-in, text-out. Direct jobs that just want to send a prompt
       # (or a fully-formed messages list) and get the assistant's reply back

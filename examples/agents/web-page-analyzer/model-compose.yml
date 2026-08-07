@@ -17,7 +17,7 @@ workflows:
       input:
         question: ${input.question as text}
       output:
-        answer: ${output[-1].blocks[0].text as markdown}
+        answer: ${output[-1].content[0].text as markdown}
         messages: ${output as json}
 
   - id: fetch-page
@@ -97,19 +97,19 @@ components:
         messages:
           "*": ${input.messages}
           role: ${item.role}
-          content: ${item.blocks[0].text}
+          content: ${item.content[0].text}
           "?":
             - input: ${item.role}
               value: assistant
               if_true:
                 content:
                   "?":
-                    input: ${item.blocks[0].type}
+                    input: ${item.content[0].type}
                     value: text
-                    if_true: ${item.blocks[0].text}
+                    if_true: ${item.content[0].text}
                 tool_calls:
                   "*":
-                    input: ${item.blocks}
+                    input: ${item.content}
                     where:
                       input: ${item.type}
                       value: tool_call
@@ -121,21 +121,31 @@ components:
             - input: ${item.role}
               value: tool
               if_true:
-                tool_call_id: ${item.blocks[0].id}
-                content: ${item.blocks[0].content}
+                tool_call_id: ${item.content[0].id}
+                content: ${item.content[0].content}
         # Canonical tool schemas → OpenAI's function-tool wrapper.
         tools:
           "*": ${input.tools}
           type: function
           function: ${item}
       # OpenAI response → dict the agent consumes.
+      # OpenAI response → canonical assistant message the agent consumes.
       output:
-        content: ${response.choices[0].message.content}
-        tool_calls:
-          "*": ${response.choices[0].message.tool_calls}
-          id: ${item.id}
-          name: ${item.function.name}
-          arguments: ${item.function.arguments as json}
+        role: assistant
+        content:
+          "+":
+            - "?":
+                input: ${response.choices[0].message.content}
+                operator: neq
+                value: null
+                if_true:
+                  - type: text
+                    text: ${response.choices[0].message.content}
+            - "*": ${response.choices[0].message.tool_calls}
+              type: tool_call
+              id: ${item.id}
+              name: ${item.function.name}
+              arguments: ${item.function.arguments as json}
 
   - id: page-scraper
     type: web-scraper

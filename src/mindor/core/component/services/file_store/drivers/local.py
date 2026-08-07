@@ -11,7 +11,7 @@ from mindor.core.utils.time import format_datetime_iso_string
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
 from ..base import ComponentActionContext
 from .common import FileStoreAction
-import aiofiles, os, stat as stat_module, sys, urllib.parse
+import aiofiles, os, pathlib, stat as stat_module, sys
 
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8MB — for put and save_to downloads
 _DEFAULT_STREAMING_CHUNK_SIZE = 8 * 1024  # 8KB — for streaming output, matching other StreamResources
@@ -233,7 +233,7 @@ class LocalFileStoreAction(FileStoreAction):
         return os.path.normpath(os.path.join(self.base_path, path))
 
     def _build_file_url(self, absolute_path: str) -> str:
-        return f"file://{urllib.parse.quote(os.path.abspath(absolute_path))}"
+        return pathlib.Path(absolute_path).as_uri()
 
 @register_file_store_service(FileStoreDriver.LOCAL)
 class LocalFileStoreService(FileStoreService):

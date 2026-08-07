@@ -50,7 +50,6 @@ This workflow provides an audio extraction service that:
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "source=@input.mp4" \
      -F "format=mp3" \
      -F "codec=libmp3lame" \

@@ -47,7 +47,6 @@ This workflow provides image processing capabilities that:
    ```bash
    # Resize an image
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=resize" \
      -F "image=@input.png" \
      -F "width=800" \
@@ -56,14 +55,12 @@ This workflow provides image processing capabilities that:
 
    # Apply Gaussian blur
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=blur" \
      -F "image=@input.png" \
      -F "radius=5.0"
 
    # Convert to grayscale
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -H "Content-Type: multipart/form-data" \
      -F "workflow_id=grayscale" \
      -F "image=@input.png"
    ```

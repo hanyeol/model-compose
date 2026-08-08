@@ -59,9 +59,9 @@ cd examples/media-processing/html-animation-to-video
    通过 http://localhost:8081 的 Gradio UI 或 HTTP：
 
    ```bash
-   curl -X POST http://localhost:8080/api/render \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H 'Content-Type: application/json' \
-     -d '{"input": {"fps": 30}}'
+     -d '{"workflow_id": "render", "input": {"fps": 30}}'
    ```
 
 响应中包含生成的 `.mp4` 路径。

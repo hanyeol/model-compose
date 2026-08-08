@@ -1,0 +1,56 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: inspect
+    title: Inspect Media (ffprobe)
+    description: Read container/stream metadata from an audio or video file using ffprobe
+    job:
+      component: ffprobe-inspector
+      action: inspect-full
+      output: ${output}
+
+  - id: summary
+    title: Summarize AV
+    description: Return a compact summary of the primary video/audio streams
+    job:
+      component: ffprobe-inspector
+      action: inspect-lean
+      output:
+        format:   ${output.format}
+        duration: ${output.duration}
+        size:     ${output.size}
+        video:    ${output.video_streams[0]}
+        audio:    ${output.audio_streams[0]}
+
+  - id: inspect-image
+    title: Inspect Image (exiftool)
+    description: Read EXIF/XMP/GPS metadata from an image file using exiftool
+    job:
+      component: exif-inspector
+      output: ${output}
+
+components:
+  - id: ffprobe-inspector
+    type: media-inspector
+    driver: ffmpeg
+    actions:
+      - id: inspect-full
+        media: ${input.media as file}
+
+      - id: inspect-lean
+        media: ${input.media as file}
+        return_raw: false
+
+  - id: exif-inspector
+    type: media-inspector
+    driver: exiftool
+    action:
+      media: ${input.image as file}
+      return_raw: false

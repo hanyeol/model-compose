@@ -1,0 +1,122 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Video Refiner
+  description: |
+    Detect speech regions in the input video's audio track with Silero VAD,
+    then clip out only those regions from the original video and stream the
+    clips out one by one. The pipeline runs end-to-end in streaming mode:
+    VAD emits each speech segment as soon as it is confirmed, and the
+    clipper produces the corresponding video clip on the fly (no waiting
+    for VAD to finish).
+  jobs:
+    # 1. Stash the uploaded video on the local file-store so the audio
+    #    branch and each per-segment clip can independently re-read it.
+    #    StreamResource is single-use, so without this step the raw upload
+    #    would be consumed by whichever job read it first.
+    - id: store
+      component: storage
+      input:
+        # `context.task_id` scopes storage keys per run so parallel runs
+        # don't collide. No file extension is appended: the extractor/
+        # clipper detect the container from the stream itself.
+        path: uploads/${context.task_id}
+        source: ${input.video as video}
+
+    # 2. Rip the audio track out of the stored video. The extractor reads
+    #    directly from the file on disk (no re-upload) and emits an audio
+    #    stream that flows straight into VAD.
+    - id: extract
+      component: extractor
+      input:
+        source: ${jobs.store.output.url as video;url}
+      output: ${output as audio}
+      depends_on: [ store ]
+
+    # 3. Run Silero VAD in streaming mode: each speech segment is emitted
+    #    as `{start_time, end_time, confidence}` the moment it is confirmed,
+    #    so downstream jobs can start clipping without waiting for the full
+    #    audio to be analysed.
+    - id: detect
+      component: vad
+      input:
+        audio: ${jobs.extract.output as audio}
+        threshold: ${input.threshold | 0.5}
+        min_speech_duration: ${input.min_speech_duration | 250ms}
+        min_silence_duration: ${input.min_silence_duration | 500ms}
+        speech_padding_time: ${input.speech_padding_time | 100ms}
+      depends_on: [ extract ]
+
+    # 4. Feed the VAD segment stream into the clipper and merge every
+    #    speech clip into a single refined video via ffmpeg's concat
+    #    demuxer. With merge: true the clipper waits for the full span
+    #    stream to arrive before running concat, so the output is one
+    #    ready-to-play file rather than a stream of separate clips.
+    - id: refine
+      component: clipper
+      input:
+        video: ${jobs.store.output.url as video;url}
+        span: ${jobs.detect.output}
+      output:
+        video: ${output as video}
+      depends_on: [ detect ]
+
+components:
+  # Local file-store used as a scratch area for the uploaded video. On S3
+  # or GCS you would swap the driver — see the tips section in README.md.
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./storage
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+
+  - id: extractor
+    type: audio-extractor
+    driver: ffmpeg
+    action:
+      source: ${input.source}
+      # WAV keeps the audio uncompressed for VAD; Silero downmixes/resamples
+      # to 16 kHz mono internally so no extra encoding is needed here.
+      format: wav
+
+  - id: vad
+    type: model
+    task: voice-activity-detection
+    driver: custom
+    family: silero
+    device: cpu
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio}
+      sample_rate: 16000
+      # Streaming mode: emit each confirmed speech segment immediately.
+      streaming: true
+      params:
+        threshold: ${input.threshold}
+        min_speech_duration: ${input.min_speech_duration}
+        min_silence_duration: ${input.min_silence_duration}
+        speech_padding_time: ${input.speech_padding_time}
+
+  - id: clipper
+    type: video-clipper
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      # VAD emits [{start_time, end_time, confidence}, ...] — the clipper
+      # only reads start_time/end_time, so the extra 'confidence' passes
+      # through harmlessly.
+      span: ${input.span}
+      # Concatenate all speech clips into a single refined video via
+      # ffmpeg's concat demuxer. All clips come from the same source so
+      # codec/container consistency is guaranteed.
+      merge: true

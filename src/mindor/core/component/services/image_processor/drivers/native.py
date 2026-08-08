@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageCompressStrategy
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageOverlayAnchor, ImageCompressStrategy
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
@@ -131,6 +131,36 @@ class NativeImageProcessorAction(ImageProcessorAction):
             return canvas
 
         return await self._run_in_executor(_merge)
+
+    async def _overlay(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _overlay() -> PILImage.Image:
+            canvas  = image.convert("RGBA")
+            overlay = params["overlay"].convert("RGBA")
+
+            if params["width"] is not None or params["height"] is not None:
+                width  = params["width"]  or overlay.width
+                height = params["height"] or overlay.height
+                overlay = overlay.resize((width, height), PILImage.Resampling.LANCZOS)
+
+            if params["opacity"] < 1.0:
+                alpha = overlay.split()[3].point(lambda a: int(a * params["opacity"]))
+                overlay.putalpha(alpha)
+
+            if params["anchor"] == ImageOverlayAnchor.CENTER:
+                offset_x = params["x"] - overlay.width  // 2
+                offset_y = params["y"] - overlay.height // 2
+            else:
+                offset_x = params["x"]
+                offset_y = params["y"]
+
+            canvas.alpha_composite(overlay, (offset_x, offset_y))
+
+            if image.mode != "RGBA":
+                return canvas.convert(image.mode)
+
+            return canvas
+
+        return await self._run_in_executor(_overlay)
 
     async def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
         def _compress() -> bytes:

@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageCompressStrategy
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageOverlayAnchor, ImageCompressStrategy
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
@@ -54,8 +54,8 @@ class ImageProcessorAction(ComponentAction):
 
     async def _resolve_params(self, method: ImageProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == ImageProcessorActionMethod.RESIZE:
-            width      = await context.render_variable(self.config.width) if self.config.width else None
-            height     = await context.render_variable(self.config.height) if self.config.height else None
+            width      = await context.render_scalar(self.config.width, int)
+            height     = await context.render_scalar(self.config.height, int)
             scale_mode = await context.render_variable(self.config.scale_mode)
 
             if width is None and height is None:
@@ -69,10 +69,10 @@ class ImageProcessorAction(ComponentAction):
             return { "width": width, "height": height, "scale_mode": scale_mode }
 
         if method == ImageProcessorActionMethod.CROP:
-            x      = await context.render_variable(self.config.x)
-            y      = await context.render_variable(self.config.y)
-            width  = await context.render_variable(self.config.width)
-            height = await context.render_variable(self.config.height)
+            x      = await context.render_scalar(self.config.x, int)
+            y      = await context.render_scalar(self.config.y, int)
+            width  = await context.render_scalar(self.config.width, int)
+            height = await context.render_scalar(self.config.height, int)
 
             if x is None or y is None or width is None or height is None:
                 raise ValueError("'x', 'y', 'width', and 'height' must all be specified for 'crop' method")
@@ -80,8 +80,8 @@ class ImageProcessorAction(ComponentAction):
             return { "x": x, "y": y, "width": width, "height": height }
 
         if method == ImageProcessorActionMethod.ROTATE:
-            angle  = await context.render_variable(self.config.angle)
-            expand = await context.render_variable(self.config.expand)
+            angle  = await context.render_scalar(self.config.angle, float)
+            expand = await context.render_scalar(self.config.expand, bool)
 
             if angle is None:
                 raise ValueError("'angle' must be specified for 'rotate' method")
@@ -105,7 +105,7 @@ class ImageProcessorAction(ComponentAction):
             return {}
 
         if method == ImageProcessorActionMethod.BLUR:
-            radius = await context.render_variable(self.config.radius)
+            radius = await context.render_scalar(self.config.radius, float)
 
             if radius is None:
                 raise ValueError("'radius' must be specified for 'blur' method")
@@ -113,7 +113,7 @@ class ImageProcessorAction(ComponentAction):
             return { "radius": radius }
 
         if method == ImageProcessorActionMethod.SHARPEN:
-            factor = await context.render_variable(self.config.factor)
+            factor = await context.render_scalar(self.config.factor, float)
 
             if factor is None:
                 raise ValueError("'factor' must be specified for 'sharpen' method")
@@ -121,7 +121,7 @@ class ImageProcessorAction(ComponentAction):
             return { "factor": factor }
 
         if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
-            factor = await context.render_variable(self.config.factor)
+            factor = await context.render_scalar(self.config.factor, float)
 
             if factor is None:
                 raise ValueError("'factor' must be specified for 'adjust-brightness' method")
@@ -129,7 +129,7 @@ class ImageProcessorAction(ComponentAction):
             return { "factor": factor }
 
         if method == ImageProcessorActionMethod.ADJUST_CONTRAST:
-            factor = await context.render_variable(self.config.factor)
+            factor = await context.render_scalar(self.config.factor, float)
 
             if factor is None:
                 raise ValueError("'factor' must be specified for 'adjust-contrast' method")
@@ -137,7 +137,7 @@ class ImageProcessorAction(ComponentAction):
             return { "factor": factor }
 
         if method == ImageProcessorActionMethod.ADJUST_SATURATION:
-            factor = await context.render_variable(self.config.factor)
+            factor = await context.render_scalar(self.config.factor, float)
 
             if factor is None:
                 raise ValueError("'factor' must be specified for 'adjust-saturation' method")
@@ -146,9 +146,9 @@ class ImageProcessorAction(ComponentAction):
 
         if method == ImageProcessorActionMethod.CONCAT:
             mode       = await context.render_variable(self.config.mode)
-            columns    = await context.render_variable(self.config.columns)
-            rows       = await context.render_variable(self.config.rows)
-            spacing    = await context.render_variable(self.config.spacing)
+            columns    = await context.render_scalar(self.config.columns, int)
+            rows       = await context.render_scalar(self.config.rows, int)
+            spacing    = await context.render_scalar(self.config.spacing, int)
             background = await context.render_color(self.config.background)
 
             try:
@@ -157,10 +157,10 @@ class ImageProcessorAction(ComponentAction):
                 raise ValueError(f"Invalid concat mode: {mode}")
 
             return {
-                "mode": mode,
-                "columns": columns,
-                "rows": rows,
-                "spacing": spacing or 0,
+                "mode":       mode,
+                "columns":    columns,
+                "rows":       rows,
+                "spacing":    spacing or 0,
                 "background": background,
             }
 
@@ -171,14 +171,47 @@ class ImageProcessorAction(ComponentAction):
                 "background": background,
             }
 
+        if method == ImageProcessorActionMethod.OVERLAY:
+            overlay = await context.render_image(self.config.overlay)
+            x       = await context.render_scalar(self.config.x, int)
+            y       = await context.render_scalar(self.config.y, int)
+            width   = await context.render_scalar(self.config.width, int)
+            height  = await context.render_scalar(self.config.height, int)
+            anchor  = await context.render_variable(self.config.anchor)
+            opacity = await context.render_scalar(self.config.opacity, float)
+
+            if isinstance(overlay, (list, StreamIterator, AsyncIterator)):
+                raise ValueError("'overlay' must resolve to a single image, not a batch or stream")
+
+            if x is None or y is None:
+                raise ValueError("'x' and 'y' must be specified for 'overlay' method")
+
+            try:
+                anchor = ImageOverlayAnchor(anchor)
+            except ValueError:
+                raise ValueError(f"Invalid overlay anchor: {anchor}")
+
+            if not 0.0 <= opacity <= 1.0:
+                raise ValueError(f"'opacity' must be between 0.0 and 1.0, got {opacity}")
+
+            return {
+                "overlay": overlay,
+                "x":       x,
+                "y":       y,
+                "width":   width,
+                "height":  height,
+                "anchor":  anchor,
+                "opacity": opacity,
+            }
+
         if method == ImageProcessorActionMethod.COMPRESS:
             strategy       = await context.render_variable(self.config.strategy)
-            compress_level = await context.render_variable(self.config.compress_level)
-            min_quality    = await context.render_variable(self.config.min_quality)
-            max_quality    = await context.render_variable(self.config.max_quality)
-            speed          = await context.render_variable(self.config.speed)
-            level          = await context.render_variable(self.config.level)
-            strip_metadata = await context.render_variable(self.config.strip_metadata)
+            compress_level = await context.render_scalar(self.config.compress_level, int)
+            min_quality    = await context.render_scalar(self.config.min_quality, int)
+            max_quality    = await context.render_scalar(self.config.max_quality, int)
+            speed          = await context.render_scalar(self.config.speed, int)
+            level          = await context.render_scalar(self.config.level, int)
+            strip_metadata = await context.render_scalar(self.config.strip_metadata, bool)
 
             try:
                 strategy = ImageCompressStrategy(strategy)
@@ -186,12 +219,12 @@ class ImageProcessorAction(ComponentAction):
                 raise ValueError(f"Invalid compress strategy: {strategy}")
 
             return {
-                "strategy": strategy,
+                "strategy":       strategy,
                 "compress_level": compress_level,
-                "min_quality": min_quality,
-                "max_quality": max_quality,
-                "speed": speed,
-                "level": level,
+                "min_quality":    min_quality,
+                "max_quality":    max_quality,
+                "speed":          speed,
+                "level":          level,
                 "strip_metadata": strip_metadata,
             }
 
@@ -248,6 +281,9 @@ class ImageProcessorAction(ComponentAction):
         if method == ImageProcessorActionMethod.MERGE:
             return await self._merge(await image.collect(), params)
 
+        if method == ImageProcessorActionMethod.OVERLAY:
+            return await self._overlay(image, params)
+
         if method == ImageProcessorActionMethod.COMPRESS:
             return await self._compress(image, params)
 
@@ -299,6 +335,10 @@ class ImageProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def _overlay(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod

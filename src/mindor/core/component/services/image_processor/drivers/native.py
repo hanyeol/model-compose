@@ -138,8 +138,16 @@ class NativeImageProcessorAction(ImageProcessorAction):
             overlay = params["overlay"].convert("RGBA")
 
             if params["width"] is not None or params["height"] is not None:
-                width  = params["width"]  or overlay.width
-                height = params["height"] or overlay.height
+                if params["width"] is None:
+                    height = params["height"]
+                    width  = max(1, round(overlay.width * height / overlay.height))
+                elif params["height"] is None:
+                    width  = params["width"]
+                    height = max(1, round(overlay.height * width / overlay.width))
+                else:
+                    width  = params["width"]
+                    height = params["height"]
+
                 overlay = overlay.resize((width, height), PILImage.Resampling.LANCZOS)
 
             if params["opacity"] < 1.0:

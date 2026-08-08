@@ -18,9 +18,9 @@ class TextRerankingTaskAction(ComponentAction):
     async def run(self, context: ComponentActionContext) -> Any:
         query            = await context.render_text(self.config.query)
         documents        = await context.render_variable(self.config.documents)
-        document_field   = await context.render_variable(self.config.document_field) if self.config.document_field is not None else None
-        top_k            = await context.render_variable(self.config.top_k) if self.config.top_k is not None else None
-        score_threshold  = await context.render_variable(self.config.score_threshold) if self.config.score_threshold is not None else None
+        document_field   = await context.render_variable(self.config.document_field)
+        top_k            = await context.render_variable(self.config.top_k)
+        score_threshold  = await context.render_variable(self.config.score_threshold)
         return_documents = await context.render_variable(self.config.return_documents)
         batch_size       = await context.render_variable(self.config.batch_size)
 
@@ -58,7 +58,7 @@ class TextRerankingTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length) if self.config.max_input_length is not None else None
+        max_input_length = await context.render_variable(self.config.max_input_length)
         normalize        = await context.render_variable(self.config.params.normalize)
 
         return {

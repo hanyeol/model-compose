@@ -24,6 +24,7 @@ class ModelTaskType(str, Enum):
     OBJECT_DETECTION         = "object-detection"
     FACE_DETECTION           = "face-detection"
     FACE_EMBEDDING           = "face-embedding"
+    FACE_TRACKING            = "face-tracking"
     FACE_SWAP                = "face-swap"
     POSE_DETECTION           = "pose-detection"
     TEXT_TO_SPEECH           = "text-to-speech"

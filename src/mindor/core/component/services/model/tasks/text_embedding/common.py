@@ -44,7 +44,7 @@ class TextEmbeddingTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length = await context.render_variable(self.config.max_input_length) if self.config.max_input_length is not None else None
+        max_input_length = await context.render_variable(self.config.max_input_length)
         pooling          = await context.render_variable(self.config.params.pooling)
         normalize        = await context.render_variable(self.config.params.normalize)
 

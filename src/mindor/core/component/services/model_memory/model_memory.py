@@ -89,7 +89,7 @@ class ModelMemoryAction:
             return None
 
         if method == ModelMemoryActionMethod.SAVE:
-            messages = (await context.render_variable(self.config.messages)) if self.config.messages is not None else None
+            messages = await context.render_variable(self.config.messages)
 
             if messages is not None and not isinstance(messages, list):
                 raise TypeError(f"'messages' must be a list after rendering, got {type(messages).__name__}")

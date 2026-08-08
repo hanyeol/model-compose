@@ -34,9 +34,9 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        input_size = await context.render_variable(self.config.params.input_size)
+        input_size = await context.render_scalar(self.config.params.input_size, int)
 
-        params["input_size"] = int(input_size)
+        params["input_size"] = input_size
 
         return params
 

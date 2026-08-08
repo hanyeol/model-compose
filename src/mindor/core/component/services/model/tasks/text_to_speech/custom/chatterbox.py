@@ -29,17 +29,17 @@ class ChatterboxTextToSpeechTaskAction(TextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        exaggeration = await context.render_variable(self.config.exaggeration)
-        cfg_weight   = await context.render_variable(self.config.cfg_weight)
-        temperature  = await context.render_variable(self.config.temperature)
+        exaggeration = await context.render_scalar(self.config.exaggeration, float)
+        cfg_weight   = await context.render_scalar(self.config.cfg_weight, float)
+        temperature  = await context.render_scalar(self.config.temperature, float)
 
         generation_params: Dict[str, Any] = {}
         if exaggeration is not None:
-            generation_params["exaggeration"] = float(exaggeration)
+            generation_params["exaggeration"] = exaggeration
         if cfg_weight is not None:
-            generation_params["cfg_weight"] = float(cfg_weight)
+            generation_params["cfg_weight"] = cfg_weight
         if temperature is not None:
-            generation_params["temperature"] = float(temperature)
+            generation_params["temperature"] = temperature
 
         params["generation"] = generation_params
 

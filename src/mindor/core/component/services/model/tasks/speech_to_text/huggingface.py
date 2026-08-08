@@ -40,9 +40,9 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        task              = await context.render_variable(self.config.task) if self.config.task is not None else None
-        max_output_length = await context.render_variable(self.config.max_output_length) if self.config.max_output_length is not None else None
-        chunk_length      = await context.render_variable(self.config.chunk_length) if self.config.chunk_length is not None else None
+        task              = await context.render_variable(self.config.task)
+        max_output_length = await context.render_variable(self.config.max_output_length)
+        chunk_length      = await context.render_variable(self.config.chunk_length)
 
         generation_params: Dict[str, Any] = await self._resolve_generation_params(context)
 

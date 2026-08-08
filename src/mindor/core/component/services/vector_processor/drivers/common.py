@@ -137,13 +137,11 @@ class VectorProcessorAction(ComponentAction):
             }
 
         if method == VectorProcessorActionMethod.THRESHOLD_FILTER:
-            threshold = await context.render_variable(self.config.threshold)
+            threshold = await context.render_scalar(self.config.threshold, float)
             metric    = self._as_ranking_metric(await context.render_variable(self.config.metric))
 
             if threshold is None:
                 raise ValueError("'threshold' must be specified for 'threshold-filter' method")
-
-            threshold = float(threshold)
 
             return {
                 "threshold": threshold,

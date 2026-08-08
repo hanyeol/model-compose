@@ -22,6 +22,7 @@ ModelComponentConfig = Annotated[
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,
         FaceEmbeddingModelComponentConfig,
+        FaceTrackingModelComponentConfig,
         FaceSwapModelComponentConfig,
         TextToSpeechModelComponentConfig,
         SpeechToTextModelComponentConfig,

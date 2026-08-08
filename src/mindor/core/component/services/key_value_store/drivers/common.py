@@ -52,7 +52,7 @@ class KeyValueStoreAction(ComponentAction):
         if method == KeyValueStoreActionMethod.SET:
             key   = await context.render_variable(self.config.key)
             value = await context.render_variable(self.config.value)
-            ttl   = await context.render_variable(self.config.ttl) if self.config.ttl is not None else None
+            ttl   = await context.render_variable(self.config.ttl)
 
             return {
                 "key":   key,

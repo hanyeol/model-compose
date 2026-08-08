@@ -34,11 +34,7 @@ class MusicSourceSeparationTaskAction(ComponentAction):
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._separate_batch(batch_audios, params, context.cancellation_token)
                     for result in batch_results:
-                        if is_direct_output:
-                            yield result
-                        else:
-                            context.register_source("result[]", result, scope=f"stream:{id(result)}")
-                            yield await context.render_variable(self.config.output, scope=f"stream:{id(result)}")
+                        yield result
 
             return _stream_output_generator()
         else:
@@ -54,18 +50,18 @@ class MusicSourceSeparationTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         stems       = await context.render_variable(self.config.params.stems)
-        sample_rate = await context.render_variable(self.config.params.sample_rate)
-        overlap     = await context.render_variable(self.config.params.overlap)
-        shifts      = await context.render_variable(self.config.params.shifts)
+        sample_rate = await context.render_scalar(self.config.params.sample_rate, int)
+        overlap     = await context.render_scalar(self.config.params.overlap, float)
+        shifts      = await context.render_scalar(self.config.params.shifts, int)
 
         if isinstance(stems, str):
             stems = [ stem.strip() for stem in stems.split(",") if stem.strip() ]
 
         return {
             "stems":       list(stems) if stems else [ "vocals" ],
-            "sample_rate": int(sample_rate) if sample_rate is not None else None,
-            "overlap":     float(overlap) if overlap is not None else None,
-            "shifts":      int(shifts) if shifts is not None else None,
+            "sample_rate": sample_rate,
+            "overlap":     overlap,
+            "shifts":      shifts,
         }
 
     @abstractmethod

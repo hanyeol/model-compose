@@ -80,7 +80,7 @@ class SentenceSplitterAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         min_chunk_length = await context.render_variable(self.config.min_chunk_length)
-        max_chunk_length = await context.render_variable(self.config.max_chunk_length) if self.config.max_chunk_length is not None else None
+        max_chunk_length = await context.render_variable(self.config.max_chunk_length)
 
         if min_chunk_length is None or min_chunk_length < 0:
             raise ValueError("'min_chunk_length' must be a non-negative integer")

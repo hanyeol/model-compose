@@ -33,8 +33,8 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        task         = await context.render_variable(self.config.task) if self.config.task is not None else None
-        chunk_length = await context.render_variable(self.config.chunk_length) if self.config.chunk_length is not None else None
+        task         = await context.render_variable(self.config.task)
+        chunk_length = await context.render_scalar(self.config.chunk_length, int)
 
         transcribe_params: Dict[str, Any] = await self._resolve_transcribe_params(context)
         transcribe_params["return_timestamps"] = params["return_timestamps"]
@@ -46,7 +46,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             transcribe_params["task"] = task
 
         if chunk_length is not None:
-            transcribe_params["chunk_length"] = int(chunk_length)
+            transcribe_params["chunk_length"] = chunk_length
 
         # faster-whisper always emits segment start/end; only word-level alignment needs a flag.
         if params["return_timestamps"] and params["timestamp_level"] == "word":
@@ -176,7 +176,11 @@ class FasterWhisperSpeechToTextTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        model = WhisperModel(model_path, device=str(device.type), compute_type=self.config.compute_type)
+        model = WhisperModel(
+            model_path,
+            device=str(device.type),
+            compute_type=self.config.compute_type
+        )
 
         return model, device
 

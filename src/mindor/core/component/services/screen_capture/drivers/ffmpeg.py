@@ -11,6 +11,7 @@ from mindor.dsl.schema.action import (
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.utils.audio import is_audio_only_format
 from mindor.core.utils.shell import kill_process
 from mindor.core.logger import logging
 from ..base import ScreenCaptureService, ScreenCaptureDriver, register_screen_capture_service
@@ -435,7 +436,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             format = encoding.format.lower()
 
             # Audio-only containers pass through untouched.
-            if format in ("aac", "wav", "flac", "mp3", "ogg", "opus", "m4a"):
+            if is_audio_only_format(format):
                 return format
 
             # Video-oriented containers get mapped to a matching audio-only

@@ -41,12 +41,12 @@ class MediaComponentAction(ComponentAction):
     ) -> AudioEncoderParams:
         codec       = await context.render_string(audio.codec)
         bitrate     = await context.render_string(audio.bitrate)
-        sample_rate = await context.render_variable(audio.sample_rate) if audio.sample_rate is not None else None
-        channels    = await context.render_variable(audio.channels)    if audio.channels    is not None else None
+        sample_rate = await context.render_scalar(audio.sample_rate, int)
+        channels    = await context.render_scalar(audio.channels, int)
 
         return AudioEncoderParams(
             codec=codec,
             bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
-            sample_rate=int(sample_rate) if sample_rate is not None else None,
-            channels=int(channels) if channels is not None else None,
+            sample_rate=sample_rate,
+            channels=channels,
         )

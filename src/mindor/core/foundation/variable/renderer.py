@@ -18,7 +18,7 @@ from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
-import re, aiofiles, os
+import re, aiofiles, os, asyncio
 
 class FieldResolver:
     def __init__(self):
@@ -101,6 +101,8 @@ class VariableRenderer:
                 return await self._render_join(value["+"], scope, skip_decode)
             if "*" in value:
                 return await self._render_map(value, scope, skip_decode)
+            if "|" in value:
+                return await self._render_split(value, scope, skip_decode)
             return await self._render_dict(value, scope, skip_decode)
 
         if isinstance(value, (list, tuple)):
@@ -284,16 +286,16 @@ class VariableRenderer:
                 return None
 
             if isinstance(parts[0], (list, tuple)):
-                result: List[Any] = []
+                value: List[Any] = []
                 for part in parts:
-                    result.extend(part)
-                return result
+                    value.extend(part)
+                return value
 
             if isinstance(parts[0], dict):
-                result: Dict[str, Any] = {}
+                value: Dict[str, Any] = {}
                 for part in parts:
-                    result.update(part)
-                return result
+                    value.update(part)
+                return value
 
             if isinstance(parts[0], str):
                 return "".join(parts)
@@ -322,6 +324,86 @@ class VariableRenderer:
             return StreamChunkIterator(_iterate(), is_fragmented=True)
 
         raise TypeError(f"Join `+` source must resolve to a list or iterator, got {type(parts).__name__}")
+
+    async def _render_split(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
+        source = await self._render_element(entries["|"], scope, skip_decode)
+        template = { key: value for key, value in entries.items() if key != "|" }
+
+        if not template:
+            raise ValueError("Split `|` requires a template with at least one output field.")
+
+        if source is None:
+            return { key: [] for key in template }
+
+        if isinstance(source, (list, tuple)):
+            value: Dict[str, List[Any]] = { key: [] for key in template }
+
+            for index, item in enumerate(source):
+                self._item_stack.append(item)
+                self._index_stack.append(index)
+                try:
+                    for key in template:
+                        value[key].append(await self._render_element(template[key], scope, skip_decode))
+                finally:
+                    self._item_stack.pop()
+                    self._index_stack.pop()
+
+            return value
+
+        if isinstance(source, (StreamIterator, AsyncIterable)):
+            source_iterator = source.__aiter__()
+            buffers: Dict[str, List[Any]] = { key: [] for key in template }
+            error: Optional[BaseException] = None
+            advance_lock = asyncio.Lock()
+            exhausted = False
+            index = 0
+
+            async def _advance_for(key: str) -> bool:
+                nonlocal exhausted, error, index
+
+                async with advance_lock:
+                    if buffers[key]:
+                        return True
+                    if exhausted:
+                        return False
+                    if error is not None:
+                        raise error
+
+                    try:
+                        item = await source_iterator.__anext__()
+                    except StopAsyncIteration:
+                        exhausted = True
+                        return False
+                    except BaseException as e:
+                        error = e
+                        raise
+
+                    self._item_stack.append(item)
+                    self._index_stack.append(index)
+                    try:
+                        for key in template:
+                            buffers[key].append(await self._render_element(template[key], scope, skip_decode))
+                    finally:
+                        self._item_stack.pop()
+                        self._index_stack.pop()
+                        index += 1
+
+                    return True
+
+            def _iterate_for(key: str) -> AsyncIterator[Any]:
+                async def _iterate() -> AsyncIterator[Any]:
+                    while True:
+                        if not buffers[key]:
+                            if not await _advance_for(key):
+                                return
+                        yield buffers[key].pop(0)
+                return _iterate()
+
+            is_fragmented = source.is_fragmented if isinstance(source, StreamChunkIterator) else True
+
+            return { key: StreamChunkIterator(_iterate_for(key), is_fragmented=is_fragmented) for key in template }
+
+        raise TypeError(f"Split `|` source must resolve to a list or iterator, got {type(source).__name__}")
 
     async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
         if not isinstance(where, dict):

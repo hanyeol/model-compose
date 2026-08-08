@@ -45,7 +45,7 @@ class TextClassificationTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length     = await context.render_variable(self.config.max_input_length) if self.config.max_input_length is not None else None
+        max_input_length     = await context.render_variable(self.config.max_input_length)
         return_probabilities = await context.render_variable(self.config.return_probabilities)
 
         return {

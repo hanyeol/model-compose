@@ -99,7 +99,7 @@ class HtmlFrameRendererAction(ComponentAction):
         width           = await context.render_scalar(self.config.width, int)
         height          = await context.render_scalar(self.config.height, int)
         ready_timeout   = await context.render_duration(self.config.ready_timeout)
-        filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
+        filename_format = await context.render_variable(self.config.filename_format)
 
         if fps <= 0:
             raise ValueError(f"'fps' must be > 0, got {fps}")

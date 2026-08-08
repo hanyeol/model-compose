@@ -72,7 +72,7 @@ class MemoryDataQueueService(DataQueueService):
         return MemoryDataQueueDequeueIterator(queue)
 
     async def _resolve_session(self, action: DataQueueActionConfig, context: ComponentActionContext) -> str:
-        session = await context.render_variable(action.session) if action.session is not None else None
+        session = await context.render_variable(action.session)
 
         if session:
             return str(session)

@@ -184,7 +184,7 @@ class WebBrowserAction(MediaComponentAction):
             selector  = await context.render_variable(self.config.selector) if self.config.selector else None
             full_page = await context.render_scalar(self.config.full_page, bool)
             format    = await context.render_variable(self.config.format)
-            quality   = await context.render_variable(self.config.quality) if self.config.quality is not None else None
+            quality   = await context.render_variable(self.config.quality)
 
             return await session.screenshot(full_page, selector, format, quality)
 
@@ -203,8 +203,8 @@ class WebBrowserAction(MediaComponentAction):
         if method == WebBrowserActionMethod.CLICK:
             selector = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath    = await context.render_variable(self.config.xpath) if self.config.xpath else None
-            x        = await context.render_variable(self.config.x) if self.config.x is not None else None
-            y        = await context.render_variable(self.config.y) if self.config.y is not None else None
+            x        = await context.render_variable(self.config.x)
+            y        = await context.render_variable(self.config.y)
 
             return await session.click(selector, xpath, x, y, timeout)
 

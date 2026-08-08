@@ -16,6 +16,7 @@ from .object_detection import *
 from .face_detection import *
 from .pose_detection import *
 from .face_embedding import *
+from .face_tracking import *
 from .face_swap import *
 from .text_to_speech import *
 from .speech_to_text import *

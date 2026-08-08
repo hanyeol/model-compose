@@ -125,24 +125,7 @@ class CrisperWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
                 result = self.model.transcribe(waveform, sr=16000, **transcribe_params)
 
                 if return_timestamps:
-                    words = result.words or []
-                    segment: Dict[str, Any] = {
-                        "text":       result.text,
-                        "start_time": float(words[0].start) if words else 0.0,
-                        "end_time":   float(words[-1].end) if words else float(result.duration or 0.0),
-                    }
-
-                    if timestamp_level == "word":
-                        segment["words"] = [
-                            {
-                                "text":       word.word,
-                                "start_time": float(word.start),
-                                "end_time":   float(word.end),
-                            }
-                            for word in words
-                        ]
-
-                    results.append([ segment ])
+                    results.append(self._build_segments(result, timestamp_level))
                 else:
                     results.append(result.text)
 
@@ -165,6 +148,72 @@ class CrisperWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             return streams
 
         return results
+
+    def _build_segments(self, result: Any, timestamp_level: str) -> List[Dict[str, Any]]:
+        # result.chunks is populated on longform (>30s) transcriptions; on
+        # short-form it is None and we fall back to a single segment covering
+        # the whole utterance.
+        chunks = result.chunks or []
+        words  = result.words or []
+
+        if not chunks:
+            return [ self._build_segment(
+                text=result.text,
+                start_time=float(words[0].start) if words else 0.0,
+                end_time=float(words[-1].end) if words else float(result.duration or 0.0),
+                words=words if timestamp_level == "word" else None,
+            ) ]
+
+        segments: List[Dict[str, Any]] = []
+        word_cursor = 0
+        for chunk in chunks:
+            chunk_start = float(chunk.start_sec)
+            chunk_end   = float(chunk.end_sec)
+
+            chunk_words: Optional[List[Any]] = None
+            if timestamp_level == "word":
+                # Words come back as a flat list with global timestamps; partition
+                # them onto chunks by walking in order — cheaper than repeated
+                # scanning and preserves ordering when chunk boundaries fall
+                # mid-word (the word is assigned to the chunk it started in).
+                chunk_words = []
+                while word_cursor < len(words) and float(words[word_cursor].start) < chunk_end:
+                    chunk_words.append(words[word_cursor])
+                    word_cursor += 1
+
+            segments.append(self._build_segment(
+                text=chunk.text,
+                start_time=chunk_start,
+                end_time=chunk_end,
+                words=chunk_words,
+            ))
+
+        return segments
+
+    @staticmethod
+    def _build_segment(
+        text: str,
+        start_time: float,
+        end_time: float,
+        words: Optional[List[Any]],
+    ) -> Dict[str, Any]:
+        segment: Dict[str, Any] = {
+            "text":       text,
+            "start_time": start_time,
+            "end_time":   end_time,
+        }
+
+        if words is not None:
+            segment["words"] = [
+                {
+                    "text":       word.word,
+                    "start_time": float(word.start),
+                    "end_time":   float(word.end),
+                }
+                for word in words
+            ]
+
+        return segment
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
         waveforms: List[np.ndarray] = []

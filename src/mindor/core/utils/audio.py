@@ -34,6 +34,13 @@ _STREAMABLE_AUDIO_FORMATS: Set[str] = {
     "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
 
+# Container formats that carry only an audio stream (no video track). Includes
+# m4a on top of the streamable set — m4a needs seeking to decode but is still
+# audio-only from the container's perspective.
+_AUDIO_ONLY_FORMATS: Set[str] = {
+    "mp3", "wav", "flac", "ogg", "opus", "aac", "m4a",
+}
+
 class AudioBuffer:
     def __init__(self, waveform: np.ndarray, sample_rate: int):
         self.waveform: np.ndarray = waveform
@@ -133,6 +140,10 @@ def decode_pcm_to_waveform(data: bytes, format: str) -> np.ndarray:
 def is_streamable_audio_format(format: Optional[str]) -> bool:
     """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""
     return format in _STREAMABLE_AUDIO_FORMATS or format in _PCM_FORMATS
+
+def is_audio_only_format(format: Optional[str]) -> bool:
+    """True if the container carries only an audio stream (no video track)."""
+    return format in _AUDIO_ONLY_FORMATS
 
 def is_pcm_format(format: str) -> bool:
     """True if `format` names a raw sample layout that np.frombuffer can decode directly."""

@@ -12,4 +12,8 @@ class CustomSpeechToTextTaskService:
             from .fun_asr import FunAsrSpeechToTextTaskService
             return FunAsrSpeechToTextTaskService(id, config, daemon)
 
+        if config.family == SpeechToTextModelFamily.CRISPER_WHISPER:
+            from .crisper_whisper import CrisperWhisperSpeechToTextTaskService
+            return CrisperWhisperSpeechToTextTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -66,7 +66,7 @@ class VideoFrameExtractorAction(ComponentAction):
         start_time      = await context.render_time(self.config.start_time)
         end_time        = await context.render_time(self.config.end_time)
         max_frame_count = await context.render_scalar(self.config.max_frame_count, int)
-        filename_format = await context.render_variable(self.config.filename_format) if self.config.filename_format is not None else None
+        filename_format = await context.render_variable(self.config.filename_format)
 
         if frame_interval < 1:
             raise ValueError(f"'frame_interval' must be >= 1, got {frame_interval}")

@@ -30,7 +30,7 @@ class AudioPlaybackAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sink            = await context.render_variable(self.config.sink)
-        device          = await context.render_variable(self.config.device) if self.config.device is not None else None
+        device          = await context.render_variable(self.config.device)
         volume          = await context.render_scalar(self.config.volume, float)
         duration        = await context.render_time(self.config.duration, None)
         wait_for_finish = await context.render_scalar(self.config.wait_for_finish, bool)

@@ -28,6 +28,7 @@ from .video_encoder import *
 from .video_frame_extractor import *
 from .screen_capture import *
 from .rtmp_publisher import *
+from .media_inspector import *
 from .audio_extractor import *
 from .audio_clipper import *
 from .audio_converter import *

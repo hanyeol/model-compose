@@ -41,52 +41,52 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         pipeline_params.update(await self._resolve_architecture_params(self.architecture, context))
 
-        seed = await context.render_variable(self.config.seed)
+        seed = await context.render_scalar(self.config.seed, int)
 
         params["pipeline"] = pipeline_params
-        params["seed"] = int(seed) if seed is not None else None
+        params["seed"] = seed
 
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
-        width                 = await context.render_variable(self.config.width)
-        height                = await context.render_variable(self.config.height)
-        num_images_per_prompt = await context.render_variable(self.config.num_images_per_prompt)
+        num_inference_steps   = await context.render_scalar(self.config.params.num_inference_steps, int)
+        width                 = await context.render_scalar(self.config.width, int)
+        height                = await context.render_scalar(self.config.height, int)
+        num_images_per_prompt = await context.render_scalar(self.config.num_images_per_prompt, int)
 
         return {
-            "num_inference_steps":   int(num_inference_steps),
-            "width":                 int(width),
-            "height":                int(height),
-            "num_images_per_prompt": int(num_images_per_prompt),
+            "num_inference_steps":   num_inference_steps,
+            "width":                 width,
+            "height":                height,
+            "num_images_per_prompt": num_images_per_prompt,
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
             negative_prompt = await context.render_variable(self.config.negative_prompt)
-            guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
+            guidance_scale  = await context.render_scalar(self.config.params.guidance_scale, float)
 
             return {
                 "negative_prompt": negative_prompt,
-                "guidance_scale":  float(guidance_scale),
+                "guidance_scale":  guidance_scale,
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
-            guidance_scale      = await context.render_variable(self.config.params.guidance_scale)
-            max_sequence_length = await context.render_variable(self.config.params.max_sequence_length)
+            guidance_scale      = await context.render_scalar(self.config.params.guidance_scale, float)
+            max_sequence_length = await context.render_scalar(self.config.params.max_sequence_length, int)
 
             return {
-                "guidance_scale":      float(guidance_scale),
-                "max_sequence_length": int(max_sequence_length),
+                "guidance_scale":      guidance_scale,
+                "max_sequence_length": max_sequence_length,
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
             negative_prompt          = await context.render_variable(self.config.negative_prompt)
-            distilled_guidance_scale = await context.render_variable(self.config.params.distilled_guidance_scale)
+            distilled_guidance_scale = await context.render_scalar(self.config.params.distilled_guidance_scale, float)
 
             return {
                 "negative_prompt":          negative_prompt,
-                "distilled_guidance_scale": float(distilled_guidance_scale),
+                "distilled_guidance_scale": distilled_guidance_scale,
             }
 
         raise ValueError(f"Unknown architecture: {architecture}")
@@ -148,26 +148,26 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         pipeline_params.update(await self._resolve_architecture_params(self.architecture, context))
 
-        seed = await context.render_variable(self.config.seed)
+        seed = await context.render_scalar(self.config.seed, int)
 
         params["pipeline"] = pipeline_params
-        params["seed"] = int(seed) if seed is not None else None
+        params["seed"] = seed
 
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = await context.render_variable(self.config.params.num_inference_steps)
-        width                 = await context.render_variable(self.config.width)
-        height                = await context.render_variable(self.config.height)
-        num_images_per_prompt = await context.render_variable(self.config.num_images_per_prompt)
-        strength              = await context.render_variable(self.config.params.strength)
+        num_inference_steps   = await context.render_scalar(self.config.params.num_inference_steps, int)
+        width                 = await context.render_scalar(self.config.width, int)
+        height                = await context.render_scalar(self.config.height, int)
+        num_images_per_prompt = await context.render_scalar(self.config.num_images_per_prompt, int)
+        strength              = await context.render_scalar(self.config.params.strength, float)
 
         return {
-            "num_inference_steps":   int(num_inference_steps),
-            "width":                 int(width),
-            "height":                int(height),
-            "num_images_per_prompt": int(num_images_per_prompt),
-            "strength":              float(strength),
+            "num_inference_steps":   num_inference_steps,
+            "width":                 width,
+            "height":                height,
+            "num_images_per_prompt": num_images_per_prompt,
+            "strength":              strength,
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:

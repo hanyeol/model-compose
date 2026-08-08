@@ -59,14 +59,14 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
 
     async def _resolve_params(self, method: ModelTokenizerMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == ModelTokenizerMethod.ENCODE:
-            max_length         = await context.render_variable(self.config.max_length)
+            max_length         = await context.render_scalar(self.config.max_length, int)
             padding            = await context.render_variable(self.config.padding)
             truncation         = await context.render_variable(self.config.truncation)
             additional_returns = await context.render_variable(self.config.additional_returns) or []
 
             encode_params: Dict[str, Any] = {}
             if max_length is not None:
-                encode_params["max_length"] = int(max_length)
+                encode_params["max_length"] = max_length
             if padding:
                 encode_params["padding"] = "max_length" if max_length is not None else True
             if truncation:

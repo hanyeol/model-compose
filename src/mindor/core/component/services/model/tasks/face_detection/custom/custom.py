@@ -8,4 +8,8 @@ class CustomFaceDetectionTaskService:
             from .mediapipe import BlazeFaceFaceDetectionTaskService
             return BlazeFaceFaceDetectionTaskService(id, config, daemon)
 
+        if config.family == FaceDetectionModelFamily.INSIGHTFACE:
+            from .insightface import InsightfaceFaceDetectionTaskService
+            return InsightfaceFaceDetectionTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

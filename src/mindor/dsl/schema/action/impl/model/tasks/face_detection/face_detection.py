@@ -3,4 +3,5 @@ from .impl import *
 
 FaceDetectionModelActionConfig = Union[
     BlazeFaceFaceDetectionModelActionConfig,
+    InsightfaceFaceDetectionModelActionConfig,
 ]

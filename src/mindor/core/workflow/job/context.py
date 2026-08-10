@@ -5,6 +5,7 @@ from mindor.core.foundation.variable.image import ImageValueRenderer
 from mindor.core.foundation.variable.audio import AudioValueRenderer
 from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.workflow.context import WorkflowContext
 from PIL import Image as PILImage
 
@@ -16,6 +17,10 @@ class JobContext:
 
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self._renderer: VariableRenderer = VariableRenderer(self.resolve_source)
+
+    @property
+    def cancellation_token(self) -> Optional[CancellationToken]:
+        return self.workflow.cancellation_token if self.workflow else None
 
     def register_source(self, run_id: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(run_id or "__global__", {})[key] = source

@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Union, Literal, Dict, List, Tuple, Set, Annotated, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import ForEachJobConfig
 from mindor.dsl.schema.component import ComponentConfig
@@ -28,6 +28,7 @@ class ForEachJob(Job):
         await self._started(input)
 
         input = await self._before_run(context, None, input)
+        cancellation_token = context.cancellation_token
 
         is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${output}"
@@ -39,11 +40,17 @@ class ForEachJob(Job):
                     for result in batch_results:
                         yield result
 
+                    if cancellation_token is not None and cancellation_token.is_cancelled():
+                        raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
+
             output = _stream_output_generator()
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
                 results.extend(await self._run_batch(batch_items, component, context))
+
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
             output = results[0] if is_single_input else results
 

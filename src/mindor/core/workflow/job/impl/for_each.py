@@ -67,15 +67,18 @@ class ForEachJob(Job):
 
         is_direct_output = not self.config.do.output or self.config.do.output == "${output}"
 
-        context.register_source(run_id, "item", item)
-        input = (await context.render_variable(run_id, self.config.do.input)) if self.config.do.input is not None else item
+        try:
+            context.register_source(run_id, "item", item)
+            input = (await context.render_variable(run_id, self.config.do.input)) if self.config.do.input is not None else item
 
-        output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
-        context.register_source(run_id, "output", output)
+            output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
+            context.register_source(run_id, "output", output)
 
-        logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
+            logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
 
-        return output if is_direct_output else (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal))
+            return output if is_direct_output else (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal))
+        finally:
+            context._sources.pop(run_id, None)
 
     def _create_component(self, id: str, component: Union[ComponentConfig, str]) -> ComponentService:
         return create_component(*self._resolve_component(id, component), self.global_configs, daemon=False)

@@ -227,7 +227,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             face: Dict[str, Any] = {
                 "embedding":    embedding,
-                "bounding_box": [ x1, y1, x2 - x1, y2 - y1 ],
+                "bounding_box": { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 },
                 "score":        float(getattr(detection, "det_score", 0.0)),
             }
 
@@ -264,21 +264,25 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     @staticmethod
     def _crop_face_image(
         image_cv: np.ndarray,
-        bounding_box: List[int],
+        bounding_box: Dict[str, int],
         padding: float,
     ) -> Optional[PILImage.Image]:
-        """Crop the face at its detected bounding box (as `[x, y, w, h]` in the
-        original frame's coordinate system) at the frame's native resolution.
-        `padding` grows the box by that ratio of its own width/height on each
-        side before clipping to the frame; embeddings still use the un-padded
-        box, so this only affects the returned image. Downstream consumers get
-        real pixels they can display, resize, or feed into another detector
-        for a different embedding backbone. Returns None if the bounding box
-        has no valid overlap with the frame (fully off-screen or zero-area)."""
+        """Crop the face at its detected bounding box (as `{x, y, width, height}`
+        in the original frame's coordinate system) at the frame's native
+        resolution. `padding` grows the box by that ratio of its own
+        width/height on each side before clipping to the frame; embeddings
+        still use the un-padded box, so this only affects the returned image.
+        Downstream consumers get real pixels they can display, resize, or feed
+        into another detector for a different embedding backbone. Returns None
+        if the bounding box has no valid overlap with the frame (fully off-
+        screen or zero-area)."""
         import cv2
 
         height, width = image_cv.shape[:2]
-        x, y, w, h = bounding_box
+        x = bounding_box["x"]
+        y = bounding_box["y"]
+        w = bounding_box["width"]
+        h = bounding_box["height"]
 
         if padding > 0.0:
             x -= int(w * padding)
@@ -301,7 +305,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     @staticmethod
     def _filter_faces(faces: List[Dict[str, Any]], min_face_size: int, max_face_count_per_frame: int) -> List[Dict[str, Any]]:
         if min_face_size > 0:
-            faces = [ face for face in faces if min(face["bounding_box"][2], face["bounding_box"][3]) >= min_face_size ]
+            faces = [ face for face in faces if min(face["bounding_box"]["width"], face["bounding_box"]["height"]) >= min_face_size ]
 
         if max_face_count_per_frame > 0 and len(faces) > max_face_count_per_frame:
             faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]

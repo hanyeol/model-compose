@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 
-def keypoints_to_bounding_box(keypoints: List[Dict[str, Any]]) -> Optional[List[int]]:
+def keypoints_to_bounding_box(keypoints: List[Dict[str, Any]]) -> Optional[Dict[str, int]]:
     """Compute an axis-aligned bounding box from visible keypoints.
 
-    Returns `[x, y, width, height]` in pixel coords, or `None` if no keypoint is
-    visible (visibility > 0). A joint is skipped when its visibility is <= 0.
+    Returns `{"x", "y", "width", "height"}` in pixel coords, or `None` if no
+    keypoint is visible (visibility > 0). A joint is skipped when its
+    visibility is <= 0.
     """
     xs: List[int] = []
     ys: List[int] = []
@@ -24,4 +25,4 @@ def keypoints_to_bounding_box(keypoints: List[Dict[str, Any]]) -> Optional[List[
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(ys), max(ys)
 
-    return [ x_min, y_min, x_max - x_min, y_max - y_min ]
+    return { "x": x_min, "y": y_min, "width": x_max - x_min, "height": y_max - y_min }

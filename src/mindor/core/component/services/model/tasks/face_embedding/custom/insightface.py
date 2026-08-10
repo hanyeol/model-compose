@@ -81,7 +81,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
         for detection in detections:
             bounding_box = self._serialize_bounding_box(detection.bbox)
 
-            if min_face_size > 0 and min(bounding_box[2], bounding_box[3]) < min_face_size:
+            if min_face_size > 0 and min(bounding_box["width"], bounding_box["height"]) < min_face_size:
                 continue
 
             embedding = detection.normed_embedding if params["normalize_embeddings"] else detection.embedding
@@ -127,9 +127,10 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
 
         return []
 
-    def _serialize_bounding_box(self, bbox: np.ndarray) -> List[int]:
+    def _serialize_bounding_box(self, bbox: np.ndarray) -> Dict[str, int]:
         x1, y1, x2, y2 = [ int(v) for v in bbox ]
-        return [ x1, y1, x2 - x1, y2 - y1 ]
+
+        return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     def _gender_to_label(self, gender: int) -> str:
         return "male" if gender == 1 else "female"

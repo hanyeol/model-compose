@@ -168,34 +168,33 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
     async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _mosaic() -> PILImage.Image:
-            mode  = params["mode"]
-            x     = params["x"]
-            y     = params["y"]
-            width = params["width"]
-            height = params["height"]
+            mode    = params["mode"]
+            regions = params["regions"]
 
-            if x is None:
-                x, y, width, height = 0, 0, image.width, image.height
-
-            cx1 = max(0, x)
-            cy1 = max(0, y)
-            cx2 = min(image.width, x + width)
-            cy2 = min(image.height, y + height)
-
-            if cx2 <= cx1 or cy2 <= cy1:
-                return image.copy()
-
-            region = image.crop((cx1, cy1, cx2, cy2))
-
-            if mode == MosaicMode.PIXELATE:
-                mosaic = self._mosaic_pixelate(region, params["block_size"])
-            elif mode == MosaicMode.BLUR:
-                mosaic = region.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
-            else:
-                raise ValueError(f"Unsupported mosaic mode: {mode}")
+            if regions is None:
+                regions = [ { "x": 0, "y": 0, "width": image.width, "height": image.height } ]
 
             result = image.copy()
-            result.paste(mosaic, (cx1, cy1))
+
+            for region in regions:
+                cx1 = max(0, region["x"])
+                cy1 = max(0, region["y"])
+                cx2 = min(image.width,  region["x"] + region["width"])
+                cy2 = min(image.height, region["y"] + region["height"])
+
+                if cx2 <= cx1 or cy2 <= cy1:
+                    continue
+
+                crop = result.crop((cx1, cy1, cx2, cy2))
+
+                if mode == MosaicMode.PIXELATE:
+                    mosaic = self._mosaic_pixelate(crop, params["block_size"])
+                elif mode == MosaicMode.BLUR:
+                    mosaic = crop.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+                else:
+                    raise ValueError(f"Unsupported mosaic mode: {mode}")
+
+                result.paste(mosaic, (cx1, cy1))
 
             return result
 

@@ -107,9 +107,10 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
         return keypoints
 
-    def _serialize_bounding_box(self, box_xyxy: np.ndarray) -> List[int]:
+    def _serialize_bounding_box(self, box_xyxy: np.ndarray) -> Dict[str, int]:
         x1, y1, x2, y2 = box_xyxy
-        return [ int(x1), int(y1), int(x2 - x1), int(y2 - y1) ]
+
+        return { "x": int(x1), "y": int(y1), "width": int(x2 - x1), "height": int(y2 - y1) }
 
 class YoloPoseDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

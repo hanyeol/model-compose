@@ -93,7 +93,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
             "height":  height,
         }
 
-    def _serialize_bounding_box(self, box_xyxy: np.ndarray, width: int, height: int, padding: float) -> List[int]:
+    def _serialize_bounding_box(self, box_xyxy: np.ndarray, width: int, height: int, padding: float) -> Dict[str, int]:
         x1, y1, x2, y2 = box_xyxy
 
         if padding > 0.0:
@@ -109,7 +109,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
         x2 = min(width, int(x2))
         y2 = min(height, int(y2))
 
-        return [ x1, y1, x2 - x1, y2 - y1 ]
+        return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
 class YoloObjectDetectionTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

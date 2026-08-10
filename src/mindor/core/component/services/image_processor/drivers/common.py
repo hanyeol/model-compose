@@ -213,10 +213,7 @@ class ImageProcessorAction(ComponentAction):
 
         if method == ImageProcessorActionMethod.MOSAIC:
             mode       = await context.render_variable(self.config.mode)
-            x          = await context.render_scalar(self.config.x, int)
-            y          = await context.render_scalar(self.config.y, int)
-            width      = await context.render_scalar(self.config.width, int)
-            height     = await context.render_scalar(self.config.height, int)
+            region     = await context.render_variable(self.config.region)
             block_size = await context.render_scalar(self.config.block_size, int)
             radius     = await context.render_scalar(self.config.radius, float)
 
@@ -225,9 +222,7 @@ class ImageProcessorAction(ComponentAction):
             except ValueError:
                 raise ValueError(f"Invalid mosaic mode: {mode}")
 
-            region_fields = (x, y, width, height)
-            if any(field is not None for field in region_fields) and not all(field is not None for field in region_fields):
-                raise ValueError("'x', 'y', 'width', and 'height' must all be specified together, or all omitted")
+            regions = self._normalize_mosaic_regions(region) if region is not None else None
 
             if block_size < 1:
                 raise ValueError(f"'block_size' must be >= 1, got {block_size}")
@@ -237,10 +232,7 @@ class ImageProcessorAction(ComponentAction):
 
             return {
                 "mode":       mode,
-                "x":          x,
-                "y":          y,
-                "width":      width,
-                "height":     height,
+                "regions":    regions,
                 "block_size": block_size,
                 "radius":     radius,
             }
@@ -270,6 +262,32 @@ class ImageProcessorAction(ComponentAction):
             }
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
+
+    @staticmethod
+    def _normalize_mosaic_regions(region: Union[Dict[str, float], List[Dict[str, float]]]) -> List[Dict[str, int]]:
+        """Normalize the mosaic `region` field into a list of `{x, y, width, height}`
+        dicts. Accepts a single dict or a list of dicts. Detection outputs
+        like `${result.faces[*].bounding_box}` flow in as a list of dicts."""
+        items = region if isinstance(region, list) else [ region ]
+        regions: List[Dict[str, int]] = []
+
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError(f"'region' must be a dict or list of dicts, got {type(item).__name__}")
+
+            missing = [ key for key in ("x", "y", "width", "height") if key not in item ]
+
+            if missing:
+                raise ValueError(f"'region' is missing required keys: {missing}")
+
+            regions.append({
+                "x":      int(item["x"]),
+                "y":      int(item["y"]),
+                "width":  int(item["width"]),
+                "height": int(item["height"]),
+            })
+
+        return regions
 
     async def _process_batch(
         self,

@@ -72,7 +72,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         }
 
     @staticmethod
-    def _serialize_bounding_box(box: Any, width: int, height: int, padding: float) -> List[int]:
+    def _serialize_bounding_box(box: Any, width: int, height: int, padding: float) -> Dict[str, int]:
         x = int(box.origin_x)
         y = int(box.origin_y)
         w = int(box.width)
@@ -89,7 +89,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         x2 = min(width, x + w)
         y2 = min(height, y + h)
 
-        return [ x1, y1, x2 - x1, y2 - y1 ]
+        return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     def _serialize_landmarks(self, keypoints: List[NormalizedKeypoint], width: int, height: int) -> List[Dict[str, int]]:
         landmarks: List[Dict[str, int]] = []

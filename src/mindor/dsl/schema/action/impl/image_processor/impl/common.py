@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
-from pydantic import Field
+from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
 class ImageProcessorActionMethod(str, Enum):
@@ -53,6 +53,12 @@ class ImageCompressStrategy(str, Enum):
 class MosaicMode(str, Enum):
     PIXELATE = "pixelate"
     BLUR     = "blur"
+
+class ImageRegion(BaseModel):
+    x: Union[int, str] = Field(..., description="X coordinate of the top-left corner.")
+    y: Union[int, str] = Field(..., description="Y coordinate of the top-left corner.")
+    width: Union[int, str] = Field(..., description="Region width in pixels.")
+    height: Union[int, str] = Field(..., description="Region height in pixels.")
 
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
@@ -130,10 +136,7 @@ class ImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
 class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MOSAIC]
     mode: Union[MosaicMode, str] = Field(default=MosaicMode.PIXELATE, description="Mosaic algorithm.")
-    x: Optional[Union[int, str]] = Field(default=None, description="X coordinate of the region to mosaic. Omit to apply to the whole image.")
-    y: Optional[Union[int, str]] = Field(default=None, description="Y coordinate of the region to mosaic. Omit to apply to the whole image.")
-    width: Optional[Union[int, str]] = Field(default=None, description="Region width in pixels. Omit to apply to the whole image.")
-    height: Optional[Union[int, str]] = Field(default=None, description="Region height in pixels. Omit to apply to the whole image.")
+    region: Optional[Union[ImageRegion, List[ImageRegion], str]] = Field(default=None, description="Region(s) to mosaic as a single `{x, y, width, height}` or a list of them. Omit to apply to the whole image.")
     block_size: Union[int, str] = Field(default=16, description="Pixelate block size in pixels. Larger is more pixelated.")
     radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels (used when mode is 'blur').")
 

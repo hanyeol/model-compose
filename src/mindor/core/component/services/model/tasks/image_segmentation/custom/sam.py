@@ -34,7 +34,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
                 width, height = rgb_image.size
 
                 if params["box_prompts"] is not None:
-                    bboxes = [ [ int(x), int(y), int(x + w), int(y + h) ] for x, y, w, h in params["box_prompts"] ]
+                    bboxes = [ [ box["x"], box["y"], box["x"] + box["width"], box["y"] + box["height"] ] for box in params["box_prompts"] ]
                     predictions = self.model.predict(
                         source=rgb_image,
                         bboxes=bboxes,
@@ -111,7 +111,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
 
         return [ 1.0 ] * count
 
-    def _mask_to_bounding_box(self, mask: np.ndarray) -> Optional[List[int]]:
+    def _mask_to_bounding_box(self, mask: np.ndarray) -> Optional[Dict[str, int]]:
         import numpy as np
 
         rows_any = mask.any(axis=1)
@@ -125,7 +125,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
         y1, y2 = int(rows[0]), int(rows[-1])
         x1, x2 = int(cols[0]), int(cols[-1])
 
-        return [ x1, y1, x2 - x1 + 1, y2 - y1 + 1 ]
+        return { "x": x1, "y": y1, "width": x2 - x1 + 1, "height": y2 - y1 + 1 }
 
     def _mask_to_pil_image(self, mask: np.ndarray) -> PILImage.Image:
         return PILImage.fromarray((mask.astype("uint8") * 255), mode="L")

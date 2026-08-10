@@ -59,17 +59,7 @@ class ImageSegmentationTaskAction(ComponentAction):
         if min_area is not None and min_area < 0:
             raise ValueError(f"'min_area' must be >= 0, got {min_area}")
 
-        box_prompts: Optional[List[List[Union[int, float]]]] = None
-
-        if box_prompt is not None:
-            if not isinstance(box_prompt, list):
-                raise ValueError(f"'box_prompt' must be a list, got {type(box_prompt).__name__}")
-
-            box_prompts = box_prompt if box_prompt and isinstance(box_prompt[0], (list, tuple)) else [ box_prompt ]
-
-            for index, box in enumerate(box_prompts):
-                if not isinstance(box, (list, tuple)) or len(box) != 4:
-                    raise ValueError(f"'box_prompt[{index}]' must be a 4-element list [x, y, width, height], got {box!r}")
+        box_prompts = self._normalize_box_prompts(box_prompt) if box_prompt is not None else None
 
         return {
             "box_prompts":       box_prompts,
@@ -78,6 +68,32 @@ class ImageSegmentationTaskAction(ComponentAction):
             "max_segment_count": max_segment_count,
             "return_mask":       return_mask,
         }
+
+    @staticmethod
+    def _normalize_box_prompts(box_prompt: Union[Dict[str, float], List[Dict[str, float]]]) -> List[Dict[str, int]]:
+        """Normalize the `box_prompt` field into a list of `{x, y, width, height}`
+        dicts. Accepts a single dict or a list of dicts. Detection outputs like
+        `${result.faces[*].bounding_box}` flow in as a list of dicts."""
+        items = box_prompt if isinstance(box_prompt, list) else [ box_prompt ]
+        prompts: List[Dict[str, int]] = []
+
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValueError(f"'box_prompt[{index}]' must be a dict, got {type(item).__name__}")
+
+            missing = [ key for key in ("x", "y", "width", "height") if key not in item ]
+
+            if missing:
+                raise ValueError(f"'box_prompt[{index}]' is missing required keys: {missing}")
+
+            prompts.append({
+                "x":      int(item["x"]),
+                "y":      int(item["y"]),
+                "width":  int(item["width"]),
+                "height": int(item["height"]),
+            })
+
+        return prompts
 
     @abstractmethod
     async def _segment_batch(

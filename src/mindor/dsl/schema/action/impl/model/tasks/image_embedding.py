@@ -7,6 +7,6 @@ class ImageEmbeddingParamsConfig(BaseModel):
     normalize: Union[bool, str] = Field(default=True, description="Whether to L2-normalize output embeddings.")
 
 class ImageEmbeddingModelActionConfig(CommonModelActionConfig):
-    image: Union[Union[str, List[str]], str] = Field(..., description="Input image (path, URL, or base64) to embed.")
+    image: Union[str, List[str]] = Field(..., description="Input image (path, URL, or base64) to embed.")
     batch_size: Union[int, str] = Field(default=8, description="Input images per batch.")
     params: ImageEmbeddingParamsConfig = Field(default_factory=ImageEmbeddingParamsConfig, description="Embedding generation parameters.")

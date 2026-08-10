@@ -4,14 +4,16 @@ from ..streaming.media import MediaSource, create_media_source
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
 class MediaValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
+    async def render(
+        self,
+        value: Any
+    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 

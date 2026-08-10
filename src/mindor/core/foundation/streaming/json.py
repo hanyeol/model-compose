@@ -35,6 +35,9 @@ async def decode_json_value(value: Any) -> Any:
     if isinstance(value, (bytes, bytearray)):
         return await decode_json(bytes(value).decode("utf-8"))
 
+    if isinstance(value, (dict, list)):
+        return value
+
     if not isinstance(value, StreamResource):
         value = await resolve_stream_resource(value)
 

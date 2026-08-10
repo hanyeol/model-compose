@@ -4,7 +4,7 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy, ComponentRuntimeWorker
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from mindor.core.runtime.process import ProcessRuntime
 import asyncio
@@ -80,8 +80,8 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         super().__init__(component_id, component_config, global_configs)
 
         self._runtime_config: ProcessRuntimeConfig = component_config.runtime
-        self._start_timeout = parse_duration(self._runtime_config.start_timeout)
-        self._stop_timeout = parse_duration(self._runtime_config.stop_timeout)
+        self._start_timeout = parse_time(self._runtime_config.start_timeout)
+        self._stop_timeout = parse_time(self._runtime_config.stop_timeout)
 
         self._request_queue: Optional[Queue] = None
         self._response_queue: Optional[Queue] = None

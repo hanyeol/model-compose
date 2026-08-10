@@ -41,20 +41,20 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
                         conf=params["min_confidence"],
                         verbose=False,
                     )
-                    results.append(self._serialize(predictions[0], width, height, params, box_prompted=True))
+                    results.append(self._serialize_segmentation_result(predictions[0], width, height, params, box_prompted=True))
                 else:
                     predictions = self.model.predict(
                         source=rgb_image,
                         conf=params["min_confidence"],
                         verbose=False,
                     )
-                    results.append(self._serialize(predictions[0], width, height, params, box_prompted=False))
+                    results.append(self._serialize_segmentation_result(predictions[0], width, height, params, box_prompted=False))
 
             return results
 
         return await self._run_in_executor(_segment)
 
-    def _serialize(
+    def _serialize_segmentation_result(
         self,
         prediction: Results,
         width: int,

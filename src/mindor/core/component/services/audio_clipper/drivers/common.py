@@ -7,9 +7,9 @@ from mindor.dsl.schema.action import AudioClipperActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 

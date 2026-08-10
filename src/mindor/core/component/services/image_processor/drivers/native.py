@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageOverlayAnchor, ImageCompressStrategy
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
@@ -116,6 +116,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
     async def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         def _merge() -> PILImage.Image:
+            anchor     = params["anchor"]
             background = params["background"]
             converted  = [ image.convert("RGBA") for image in images ]
 
@@ -123,9 +124,10 @@ class NativeImageProcessorAction(ImageProcessorAction):
             max_height = max(image.height for image in converted)
             canvas     = PILImage.new("RGBA", (max_width, max_height), background)
 
+            anchor_x, anchor_y = self._resolve_anchor_point(anchor, canvas.size)
+
             for image in converted:
-                offset_x = (max_width  - image.width ) // 2
-                offset_y = (max_height - image.height) // 2
+                offset_x, offset_y = self._resolve_anchor_offset(anchor, anchor_x, anchor_y, image.size)
                 canvas.alpha_composite(image, (offset_x, offset_y))
 
             return canvas
@@ -154,13 +156,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
                 alpha = overlay.split()[3].point(lambda a: int(a * params["opacity"]))
                 overlay.putalpha(alpha)
 
-            if params["anchor"] == ImageOverlayAnchor.CENTER:
-                offset_x = params["x"] - overlay.width  // 2
-                offset_y = params["y"] - overlay.height // 2
-            else:
-                offset_x = params["x"]
-                offset_y = params["y"]
-
+            offset_x, offset_y = self._resolve_anchor_offset(params["anchor"], params["x"], params["y"], overlay.size)
             canvas.alpha_composite(overlay, (offset_x, offset_y))
 
             if image.mode != "RGBA":
@@ -169,6 +165,41 @@ class NativeImageProcessorAction(ImageProcessorAction):
             return canvas
 
         return await self._run_in_executor(_overlay)
+
+    async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _mosaic() -> PILImage.Image:
+            mode  = params["mode"]
+            x     = params["x"]
+            y     = params["y"]
+            width = params["width"]
+            height = params["height"]
+
+            if x is None:
+                x, y, width, height = 0, 0, image.width, image.height
+
+            cx1 = max(0, x)
+            cy1 = max(0, y)
+            cx2 = min(image.width, x + width)
+            cy2 = min(image.height, y + height)
+
+            if cx2 <= cx1 or cy2 <= cy1:
+                return image.copy()
+
+            region = image.crop((cx1, cy1, cx2, cy2))
+
+            if mode == MosaicMode.PIXELATE:
+                mosaic = self._mosaic_pixelate(region, params["block_size"])
+            elif mode == MosaicMode.BLUR:
+                mosaic = region.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+            else:
+                raise ValueError(f"Unsupported mosaic mode: {mode}")
+
+            result = image.copy()
+            result.paste(mosaic, (cx1, cy1))
+
+            return result
+
+        return await self._run_in_executor(_mosaic)
 
     async def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
         def _compress() -> bytes:
@@ -249,49 +280,13 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return canvas
 
-    def _get_size_aspect_fit(
-        self,
-        target_width: int,
-        target_height: int,
-        original_width: int,
-        original_height: int
-    ) -> Tuple[int, int]:
-        aspect_ratio = original_width / original_height
+    def _mosaic_pixelate(self, region: PILImage.Image, block_size: int) -> PILImage.Image:
+        w, h = region.size
+        shrunk_w = max(1, w // block_size)
+        shrunk_h = max(1, h // block_size)
 
-        height = target_height
-        width  = height * aspect_ratio
-
-        if width > target_width:
-            width  = target_width
-            height = width / aspect_ratio
-
-        return (int(width), int(height))
-
-    def _get_size_aspect_fill(
-        self,
-        target_width: int,
-        target_height: int,
-        original_width: int,
-        original_height: int
-    ) -> Tuple[int, int]:
-        aspect_ratio = original_width / original_height
-
-        height = target_height
-        width  = height * aspect_ratio
-
-        if width < target_width:
-            width  = target_width
-            height = width / aspect_ratio
-
-        return (int(width), int(height))
-
-    def _get_center_crop_box(self, image_width: int, image_height: int, target_width: int, target_height: int) -> Tuple[int, int, int, int]:
-        left   = (image_width  - target_width ) // 2
-        top    = (image_height - target_height) // 2
-        right  = left + target_width
-        bottom = top + target_height
-
-        return (left, top, right, bottom)
+        shrunk = region.resize((shrunk_w, shrunk_h), PILImage.Resampling.BILINEAR)
+        return shrunk.resize((w, h), PILImage.Resampling.NEAREST)
 
     def _compress_lossless(self, image: PILImage.Image, params: Dict[str, Any], strip_metadata: bool) -> bytes:
         buffer = io.BytesIO()
@@ -352,6 +347,64 @@ class NativeImageProcessorAction(ImageProcessorAction):
             return None
 
         return f"{min_quality if min_quality is not None else 0}-{max_quality if max_quality is not None else 100}"
+
+    def _resolve_anchor_point(self, anchor: ImagePositionAnchor, size: Tuple[int, int]) -> Tuple[int, int]:
+        width, height = size
+        vertical, horizontal = anchor.value.split("-") if "-" in anchor.value else (anchor.value, anchor.value)
+
+        x = 0 if horizontal == "left" else width  if horizontal == "right"  else width  // 2
+        y = 0 if vertical   == "top"  else height if vertical   == "bottom" else height // 2
+
+        return (x, y)
+
+    def _resolve_anchor_offset(self, anchor: ImagePositionAnchor, x: int, y: int, size: Tuple[int, int]) -> Tuple[int, int]:
+        shift_x, shift_y = self._resolve_anchor_point(anchor, size)
+
+        return (x - shift_x, y - shift_y)
+
+    def _get_size_aspect_fit(
+        self,
+        target_width: int,
+        target_height: int,
+        original_width: int,
+        original_height: int
+    ) -> Tuple[int, int]:
+        aspect_ratio = original_width / original_height
+
+        height = target_height
+        width  = height * aspect_ratio
+
+        if width > target_width:
+            width  = target_width
+            height = width / aspect_ratio
+
+        return (int(width), int(height))
+
+    def _get_size_aspect_fill(
+        self,
+        target_width: int,
+        target_height: int,
+        original_width: int,
+        original_height: int
+    ) -> Tuple[int, int]:
+        aspect_ratio = original_width / original_height
+
+        height = target_height
+        width  = height * aspect_ratio
+
+        if width < target_width:
+            width  = target_width
+            height = width / aspect_ratio
+
+        return (int(width), int(height))
+
+    def _get_center_crop_box(self, image_width: int, image_height: int, target_width: int, target_height: int) -> Tuple[int, int, int, int]:
+        left   = (image_width  - target_width ) // 2
+        top    = (image_height - target_height) // 2
+        right  = left + target_width
+        bottom = top + target_height
+
+        return (left, top, right, bottom)
 
 @register_image_processor_service(ImageProcessorDriver.NATIVE)
 class NativeImageProcessorService(ImageProcessorService):

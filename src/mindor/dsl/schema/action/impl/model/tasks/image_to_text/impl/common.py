@@ -13,7 +13,7 @@ class ImageToTextParamsConfig(BaseModel):
     early_stopping: bool = Field(default=True, description="Whether to stop beam search when all beams finish generating.")
 
 class ImageToTextModelActionConfig(CommonModelActionConfig):
-    image: Union[Union[str, List[str]], str] = Field(..., description="Input image for text generation.")
+    image: Union[str, List[str]] = Field(..., description="Input image for text generation.")
     prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Optional text prompt paired with the input image.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens per input text.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens to generate. None uses the model's configured limit.")

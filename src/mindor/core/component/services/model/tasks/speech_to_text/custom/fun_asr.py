@@ -8,7 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, FunAsrSpeechToTextModelA
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import SpeechToTextTaskAction
@@ -216,7 +216,7 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
             # FunASR expects max_single_segment_time in milliseconds; accept
             # human-readable durations ('30s', '1.5m') from the config side.
             if "max_single_segment_time" in vad_params:
-                vad_params["max_single_segment_time"] = int(parse_duration(vad_params["max_single_segment_time"]) * 1000)
+                vad_params["max_single_segment_time"] = int(parse_time(vad_params["max_single_segment_time"]) * 1000)
             if vad_params:
                 params["vad_kwargs"] = vad_params
 

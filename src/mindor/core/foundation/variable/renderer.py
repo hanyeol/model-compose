@@ -255,8 +255,7 @@ class VariableRenderer:
                         self._index_stack.pop()
                         index += 1
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(source, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=source.is_fragmented)
 

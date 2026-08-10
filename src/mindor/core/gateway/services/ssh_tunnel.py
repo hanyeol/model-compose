@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.gateway import SshTunnelGatewayConfig, SshConnectionConfig, SshAuthConfig
 from mindor.core.utils.transport.ssh_client import SshClient, SshConnectionParams, SshAuthParams, SshKeyfileAuthParams, SshPasswordAuthParams
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from ..base import GatewayService, GatewayType, register_gateway
 import asyncio
@@ -35,8 +35,8 @@ class SshTunnelGateway(GatewayService):
         return port in self.ports
 
     async def _serve(self) -> None:
-        watch_interval = parse_duration(self.config.connection.watch_interval)
-        retry_interval = parse_duration(self.config.connection.retry_interval)
+        watch_interval = parse_time(self.config.connection.watch_interval)
+        retry_interval = parse_time(self.config.connection.retry_interval)
 
         self._shutdown_event = asyncio.Event()
         retry_count = 0
@@ -101,7 +101,7 @@ class SshTunnelGateway(GatewayService):
             host=config.host,
             port=config.port,
             auth=self._build_auth_params(config.auth),
-            keepalive_interval=int(parse_duration(config.keepalive_interval))
+            keepalive_interval=int(parse_time(config.keepalive_interval))
         )
     
     def _build_auth_params(self, config: SshAuthConfig) -> SshAuthParams:

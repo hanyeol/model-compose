@@ -1,7 +1,7 @@
 from typing import Any, Callable, Optional
 from multiprocessing import Process
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 import asyncio, os
 
 class ProcessRuntime:
@@ -51,7 +51,7 @@ class ProcessRuntime:
         if self._subprocess is None:
             return
 
-        stop_timeout = parse_duration(self.config.stop_timeout)
+        stop_timeout = parse_time(self.config.stop_timeout)
         try:
             await self._loop.run_in_executor(
                 None,

@@ -14,6 +14,7 @@ from .common import (
     ImageProcessorConcatActionConfig,
     ImageProcessorMergeActionConfig,
     ImageProcessorOverlayActionConfig,
+    ImageProcessorMosaicActionConfig,
     ImageProcessorCompressActionConfig,
 )
 
@@ -32,6 +33,7 @@ NativeImageProcessorActionConfig = Annotated[
         ImageProcessorConcatActionConfig,
         ImageProcessorMergeActionConfig,
         ImageProcessorOverlayActionConfig,
+        ImageProcessorMosaicActionConfig,
         ImageProcessorCompressActionConfig,
     ],
     Field(discriminator="method")

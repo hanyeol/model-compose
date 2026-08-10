@@ -1,7 +1,7 @@
 from typing import Union, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 import re
 
 _RATE_LIMIT_SHORTHAND_RE = re.compile(
@@ -24,7 +24,7 @@ class RateLimitConfig(BaseModel):
     def validate_positive_duration(cls, value):
         if value is None:
             return value
-        if parse_duration(value) <= 0:
+        if parse_time(value) <= 0:
             raise ValueError("must be a positive duration")
         return value
 

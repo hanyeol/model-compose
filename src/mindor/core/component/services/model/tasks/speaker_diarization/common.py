@@ -5,10 +5,10 @@ from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeakerDiarizationModelActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
@@ -72,8 +72,8 @@ class SpeakerDiarizationTaskAction(ComponentAction):
         num_speakers         = await context.render_scalar(self.config.num_speakers, int)
         min_speakers         = await context.render_scalar(self.config.min_speakers, int)
         max_speakers         = await context.render_scalar(self.config.max_speakers, int)
-        min_segment_duration = await context.render_duration(self.config.params.min_segment_duration)
-        merge_gap            = await context.render_duration(self.config.params.merge_gap)
+        min_segment_duration = await context.render_scalar(self.config.params.min_segment_duration, "time")
+        merge_gap            = await context.render_scalar(self.config.params.merge_gap, "time")
 
         return {
             "num_speakers":         num_speakers,

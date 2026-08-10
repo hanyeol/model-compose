@@ -6,7 +6,7 @@ from mindor.dsl.schema.job.impl.common import JobRetryConfig, JobRetryBackoff, J
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.evaluator.condition import evaluate_condition
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.hook import HookPoint
 from mindor.core.logger import logging
@@ -75,13 +75,13 @@ class Job(ABC):
                 return None
 
     def _resolve_retry_delay(self, attempt: int) -> float:
-        delay = parse_duration(self.config.retry.delay)
+        delay = parse_time(self.config.retry.delay)
 
         if self.config.retry.backoff == JobRetryBackoff.EXPONENTIAL:
             delay = delay * (2 ** (attempt - 1))
 
         if self.config.retry.max_delay is not None:
-            delay = min(delay, parse_duration(self.config.retry.max_delay))
+            delay = min(delay, parse_time(self.config.retry.max_delay))
 
         return max(delay, 0.0)
 

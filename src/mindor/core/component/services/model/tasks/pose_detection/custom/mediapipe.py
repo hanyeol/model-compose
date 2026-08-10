@@ -51,13 +51,13 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
                     height, width = rgb_frame.shape[:2]
 
                     prediction = landmarker.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
-                    results.append(self._serialize(prediction, width, height, params))
+                    results.append(self._serialize_detection_result(prediction, width, height, params))
 
             return results
 
         return await self._run_in_executor(_detect)
 
-    def _serialize(self, prediction: PoseLandmarkerResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_detection_result(self, prediction: PoseLandmarkerResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         # MediaPipe internal field names (pose_landmarks/pose_world_landmarks) stay inside this method.
         # Outward keys are normalized to keypoints / keypoints_3d.
         poses: List[Dict[str, Any]] = []

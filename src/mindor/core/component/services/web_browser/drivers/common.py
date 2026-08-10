@@ -114,7 +114,7 @@ class WebBrowserAction(MediaComponentAction):
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
-        timeout = await context.render_duration(self.config.timeout, self.timeout or 30.0)
+        timeout = await context.render_scalar(self.config.timeout, "time", self.timeout or 30.0)
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
@@ -161,7 +161,7 @@ class WebBrowserAction(MediaComponentAction):
             selector     = await context.render_variable(self.config.selector) if self.config.selector else None
             xpath        = await context.render_variable(self.config.xpath) if self.config.xpath else None
             extract_mode = await context.render_variable(self.config.extract_mode)
-            attribute    = await context.render_string(self.config.attribute)
+            attribute    = await context.render_scalar(self.config.attribute, str)
             multiple     = await context.render_scalar(self.config.multiple, bool)
 
             if selector:
@@ -195,7 +195,7 @@ class WebBrowserAction(MediaComponentAction):
             include_video_track = await context.render_scalar(self.config.include_video_track, bool)
             include_audio_track = await context.render_scalar(self.config.include_audio_track, bool)
             encoding            = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
-            duration            = await context.render_duration(self.config.duration) if self.config.duration else None
+            duration            = await context.render_scalar(self.config.duration, "time") if self.config.duration else None
 
             return await session.capture_video(url, selector, include_video_track, include_audio_track, encoding, duration)
 

@@ -6,14 +6,16 @@ from ..streaming.iterators import StreamIterator, StreamChunkIterator
 import os
 
 class FileValueRenderer:
-    async def render(self, value: Any) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+    async def render(
+        self,
+        value: Any
+    ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 

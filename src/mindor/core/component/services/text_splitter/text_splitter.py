@@ -2,11 +2,11 @@ from typing import Optional, Dict, List, Iterator, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import TextSplitterComponentConfig
 from mindor.dsl.schema.action import ActionConfig, TextSplitterActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.text import TextStreamResource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from mindor.core.logger import logging
 from ...action.base import ComponentAction
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component

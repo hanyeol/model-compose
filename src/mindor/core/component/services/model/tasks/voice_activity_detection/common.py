@@ -5,10 +5,10 @@ from typing import Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VoiceActivityDetectionModelActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
@@ -152,10 +152,10 @@ class VoiceActivityDetectionTaskAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         sample_rate          = await context.render_variable(self.config.sample_rate)
         threshold            = await context.render_variable(self.config.params.threshold)
-        min_speech_duration  = await context.render_duration(self.config.params.min_speech_duration)
-        max_speech_duration  = await context.render_duration(self.config.params.max_speech_duration, None)
-        min_silence_duration = await context.render_duration(self.config.params.min_silence_duration)
-        speech_padding_time  = await context.render_duration(self.config.params.speech_padding_time)
+        min_speech_duration  = await context.render_scalar(self.config.params.min_speech_duration, "time")
+        max_speech_duration  = await context.render_scalar(self.config.params.max_speech_duration, "time", None)
+        min_silence_duration = await context.render_scalar(self.config.params.min_silence_duration, "time")
+        speech_padding_time  = await context.render_scalar(self.config.params.speech_padding_time, "time")
 
         return {
             "sample_rate":          sample_rate,

@@ -4,10 +4,10 @@ from typing import Optional, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SentenceSplitterActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator, TextDecodeIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 

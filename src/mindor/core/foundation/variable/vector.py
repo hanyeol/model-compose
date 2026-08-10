@@ -1,4 +1,4 @@
-from typing import List, Union, Any
+from typing import List, Union, Optional, Any
 from collections.abc import AsyncIterator
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
@@ -11,32 +11,16 @@ class VectorArrayValue:
         self.values: List[VectorValue] = values
 
 class VectorValueRenderer:
-    async def render(self, value: Any) -> Union[VectorValue, List[VectorValue], AsyncIterator[VectorValue]]:
-        if isinstance(value, (StreamIterator, AsyncIterator)):
-            async def _iterate():
-                async for chunk in value:
-                    yield self._render_element(chunk)
-
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
-            if isinstance(value, StreamChunkIterator):
-                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
-
-            return _iterate()
-
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
-            return [ self._render_element(item) for item in value ]
-
-        return self._render_element(value)
-
-    async def render_array(self, value: Any) -> Union[VectorArrayValue, List[VectorArrayValue], AsyncIterator[VectorArrayValue]]:
+    async def render_array(
+        self,
+        value: Any
+    ) -> Optional[Union[VectorArrayValue, List[Optional[VectorArrayValue]], AsyncIterator[Optional[VectorArrayValue]]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield self._render_element_array(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 
@@ -47,20 +31,40 @@ class VectorValueRenderer:
 
         return self._render_element_array(value)
 
-    def _render_element_array(self, value: Any) -> VectorArrayValue:
+    async def render(
+        self,
+        value: Any
+    ) -> Optional[Union[VectorValue, List[Optional[VectorValue]], AsyncIterator[Optional[VectorValue]]]]:
+        if isinstance(value, (StreamIterator, AsyncIterator)):
+            async def _iterate():
+                async for chunk in value:
+                    yield self._render_element(chunk)
+
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
+            return _iterate()
+
+        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
+            return [ self._render_element(item) for item in value ]
+
+        return self._render_element(value)
+
+    def _render_element_array(self, value: Any) -> Optional[VectorArrayValue]:
         if isinstance(value, VectorArrayValue):
             return value
 
         if isinstance(value, (list, tuple)):
-            return VectorArrayValue([ self._render_element(item) for item in value ])
+            return VectorArrayValue([ item for item in (self._render_element(x) for x in value) if item is not None ])
 
-        raise TypeError(f"Cannot render element of type {type(value).__name__} as vector array")
+        return None
 
-    def _render_element(self, value: Any) -> VectorValue:
+    def _render_element(self, value: Any) -> Optional[VectorValue]:
         if isinstance(value, VectorValue):
             return value
 
         if isinstance(value, (list, tuple)):
             return VectorValue(list(value))
 
-        raise TypeError(f"Cannot render element of type {type(value).__name__} as vector")
+        return None

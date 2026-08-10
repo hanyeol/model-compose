@@ -5,9 +5,9 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 

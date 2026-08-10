@@ -6,7 +6,7 @@ from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy, ComponentRuntimeWorker
 from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType, IpcStartPayload
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.virtualenv import VirtualEnvRuntime
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
 import asyncio, os, sys
@@ -60,8 +60,8 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         super().__init__(component_id, component_config, global_configs)
 
         self._runtime_config: VirtualEnvRuntimeConfig = component_config.runtime
-        self._start_timeout = parse_duration(self._runtime_config.start_timeout)
-        self._stop_timeout = parse_duration(self._runtime_config.stop_timeout)
+        self._start_timeout = parse_time(self._runtime_config.start_timeout)
+        self._stop_timeout = parse_time(self._runtime_config.stop_timeout)
 
         self._runtime: Optional[VirtualEnvRuntime] = None
 

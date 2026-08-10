@@ -44,8 +44,8 @@ class FileStoreAction(ComponentAction):
             source              = await context.render_variable(self.config.source)
             content_type        = await context.render_variable(self.config.content_type)
             metadata            = await context.render_variable(self.config.metadata)
-            multipart_threshold = await context.render_size(self.config.multipart_threshold)
-            chunk_size          = await context.render_size(self.config.chunk_size)
+            multipart_threshold = await context.render_scalar(self.config.multipart_threshold, "size")
+            chunk_size          = await context.render_scalar(self.config.chunk_size, "size")
 
             return {
                 "path":                path,
@@ -60,7 +60,7 @@ class FileStoreAction(ComponentAction):
             path       = await context.render_variable(self.config.path)
             save_to    = await context.render_variable(self.config.save_to)
             streaming  = await context.render_variable(self.config.streaming)
-            chunk_size = await context.render_size(self.config.chunk_size)
+            chunk_size = await context.render_scalar(self.config.chunk_size, "size")
 
             return {
                 "path":       path,

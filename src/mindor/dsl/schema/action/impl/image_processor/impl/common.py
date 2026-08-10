@@ -17,6 +17,7 @@ class ImageProcessorActionMethod(str, Enum):
     CONCAT            = "concat"
     MERGE             = "merge"
     OVERLAY           = "overlay"
+    MOSAIC            = "mosaic"
     COMPRESS          = "compress"
 
 class ImageScaleMode(str, Enum):
@@ -33,14 +34,25 @@ class ImageConcatMode(str, Enum):
     VERTICAL   = "vertical"
     GRID       = "grid"
 
-class ImageOverlayAnchor(str, Enum):
-    TOP_LEFT = "top-left"
-    CENTER   = "center"
+class ImagePositionAnchor(str, Enum):
+    TOP_LEFT      = "top-left"
+    TOP_CENTER    = "top-center"
+    TOP_RIGHT     = "top-right"
+    CENTER_LEFT   = "center-left"
+    CENTER        = "center"
+    CENTER_RIGHT  = "center-right"
+    BOTTOM_LEFT   = "bottom-left"
+    BOTTOM_CENTER = "bottom-center"
+    BOTTOM_RIGHT  = "bottom-right"
 
 class ImageCompressStrategy(str, Enum):
     LOSSLESS  = "lossless"
     OPTIMIZED = "optimized"
     QUANTIZED = "quantized"
+
+class MosaicMode(str, Enum):
+    PIXELATE = "pixelate"
+    BLUR     = "blur"
 
 class CommonImageProcessorActionConfig(CommonActionConfig):
     method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
@@ -102,6 +114,7 @@ class ImageProcessorConcatActionConfig(CommonImageProcessorActionConfig):
 
 class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MERGE]
+    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.CENTER, description="Where each image is aligned on the shared canvas.")
     background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
 
 class ImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
@@ -111,8 +124,18 @@ class ImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
     y: Union[int, str] = Field(..., description="Y coordinate to place the overlay on the base image.")
     width: Optional[Union[int, str]] = Field(default=None, description="Resize overlay width in pixels before pasting.")
     height: Optional[Union[int, str]] = Field(default=None, description="Resize overlay height in pixels before pasting.")
-    anchor: Union[ImageOverlayAnchor, str] = Field(default=ImageOverlayAnchor.TOP_LEFT, description="Anchor point for (x, y): 'top-left' or 'center'.")
+    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.TOP_LEFT, description="Which point of the overlay is placed at (x, y).")
     opacity: Union[float, str] = Field(default=1.0, description="Alpha multiplier for the overlay (0.0-1.0).")
+
+class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.MOSAIC]
+    mode: Union[MosaicMode, str] = Field(default=MosaicMode.PIXELATE, description="Mosaic algorithm.")
+    x: Optional[Union[int, str]] = Field(default=None, description="X coordinate of the region to mosaic. Omit to apply to the whole image.")
+    y: Optional[Union[int, str]] = Field(default=None, description="Y coordinate of the region to mosaic. Omit to apply to the whole image.")
+    width: Optional[Union[int, str]] = Field(default=None, description="Region width in pixels. Omit to apply to the whole image.")
+    height: Optional[Union[int, str]] = Field(default=None, description="Region height in pixels. Omit to apply to the whole image.")
+    block_size: Union[int, str] = Field(default=16, description="Pixelate block size in pixels. Larger is more pixelated.")
+    radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels (used when mode is 'blur').")
 
 class ImageProcessorCompressActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.COMPRESS]

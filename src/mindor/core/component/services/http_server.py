@@ -30,8 +30,8 @@ class HttpServerPollingCompletion(HttpServerCompletion):
         body    = await self._resolve_body(context)
         headers = await context.render_variable(self.config.headers)
 
-        interval = await context.render_duration(self.config.interval, 5.0)
-        timeout  = await context.render_duration(self.config.timeout, 300.0)
+        interval = await context.render_scalar(self.config.interval, "time", 5.0)
+        timeout  = await context.render_scalar(self.config.timeout, "time", 300.0)
         deadline = datetime.now(timezone.utc) + timeout
 
         await asyncio.sleep(interval.total_seconds())
@@ -40,7 +40,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
             response, status_code = await client.request(path or "", method, params, body, headers, raise_on_error=False)
             context.register_source("result", response)
 
-            status = await context.render_string(self.config.status)
+            status = await context.render_scalar(self.config.status, str)
             if status:
                 if status in (self.config.success_when or []):
                     return response
@@ -64,7 +64,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
 
 class HttpServerCallbackCompletion(HttpServerCompletion):
     async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
-        callback_id = await context.render_string(self.config.wait_for, "__callback__")
+        callback_id = await context.render_scalar(self.config.wait_for, str, "__callback__")
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         HttpCallbackListener.register_pending_future(callback_id, future)
 

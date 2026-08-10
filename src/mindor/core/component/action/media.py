@@ -1,6 +1,5 @@
 from mindor.dsl.schema.action import VideoAudioEncodingConfig, VideoEncoderConfig, AudioEncoderConfig
 from mindor.core.foundation.media.encoding import VideoEncoderParams, AudioEncoderParams, VideoAudioEncodingParams
-from mindor.core.foundation.variable.bitrate import parse_bitrate
 from ..context import ComponentActionContext
 from .base import ComponentAction
 
@@ -13,7 +12,7 @@ class MediaComponentAction(ComponentAction):
     async def _resolve_encoding_params(
         self, context: ComponentActionContext, encoding: VideoAudioEncodingConfig,
     ) -> VideoAudioEncodingParams:
-        format = await context.render_string(encoding.format)
+        format = await context.render_scalar(encoding.format, str)
 
         return VideoAudioEncodingParams(
             format=format,
@@ -24,29 +23,29 @@ class MediaComponentAction(ComponentAction):
     async def _resolve_video_encoder(
         self, context: ComponentActionContext, video: VideoEncoderConfig,
     ) -> VideoEncoderParams:
-        codec      = await context.render_string(video.codec)
-        bitrate    = await context.render_string(video.bitrate)
-        resolution = await context.render_string(video.resolution)
-        fps        = await context.render_variable(video.fps)        if video.fps        else None
+        codec      = await context.render_scalar(video.codec, str)
+        bitrate    = await context.render_scalar(video.bitrate, "decimal")
+        resolution = await context.render_scalar(video.resolution, str)
+        fps        = await context.render_scalar(video.fps, float)
 
         return VideoEncoderParams(
             codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
+            bitrate=bitrate,
             resolution=resolution,
-            fps=float(fps) if fps is not None else None,
+            fps=fps,
         )
 
     async def _resolve_audio_encoder(
         self, context: ComponentActionContext, audio: AudioEncoderConfig,
     ) -> AudioEncoderParams:
-        codec       = await context.render_string(audio.codec)
-        bitrate     = await context.render_string(audio.bitrate)
+        codec       = await context.render_scalar(audio.codec, str)
+        bitrate     = await context.render_scalar(audio.bitrate, "decimal")
         sample_rate = await context.render_scalar(audio.sample_rate, int)
         channels    = await context.render_scalar(audio.channels, int)
 
         return AudioEncoderParams(
             codec=codec,
-            bitrate=parse_bitrate(bitrate) if bitrate is not None else None,
+            bitrate=bitrate,
             sample_rate=sample_rate,
             channels=channels,
         )

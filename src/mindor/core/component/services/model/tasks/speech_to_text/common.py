@@ -5,10 +5,10 @@ from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SpeechToTextModelActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
@@ -24,7 +24,7 @@ class SpeechToTextTaskAction(ComponentAction):
         audio       = await context.render_audio(self.config.audio)
         batch_size  = await context.render_variable(self.config.batch_size)
         streaming   = await context.render_variable(self.config.streaming)
-        time_offset = await context.render_duration(self.config.time_offset, 0.0)
+        time_offset = await context.render_time(self.config.time_offset, 0.0)
 
         params = await self._resolve_params(context)
 
@@ -33,38 +33,38 @@ class SpeechToTextTaskAction(ComponentAction):
 
         if isinstance(audio, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                async for batch_audios, batch_offsets in BatchSourceIterator((audio, time_offset), batch_size=batch_size or 1):
                     batch_results = await self._transcribe_batch(batch_audios, params, streaming, context.cancellation_token)
-                    for result in batch_results:
+                    for result, offset in zip(batch_results, batch_offsets):
                         if streaming:
-                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                            async def _stream_chunk_generator(result=result, offset=offset, scope=f"stream:{id(result)}"):
                                 async for chunk in result:
                                     if chunk:
-                                        chunk = self._apply_time_offset(chunk, time_offset)
+                                        chunk = self._apply_time_offset(chunk, offset)
                                         context.register_source("result[]", chunk, scope=scope)
                                         yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield self._apply_time_offset(result, time_offset)
+                            yield self._apply_time_offset(result, offset)
 
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+            async for batch_audios, batch_offsets in BatchSourceIterator((audio, time_offset), batch_size=batch_size or 1):
                 batch_results = await self._transcribe_batch(batch_audios, params, streaming, context.cancellation_token)
-                for result in batch_results:
+                for result, offset in zip(batch_results, batch_offsets):
                     if streaming:
-                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
+                        async def _stream_chunk_generator(result=result, offset=offset, scope=f"stream:{id(result)}"):
                             async for chunk in result:
                                 if chunk:
-                                    chunk = self._apply_time_offset(chunk, time_offset)
+                                    chunk = self._apply_time_offset(chunk, offset)
                                     context.register_source("result[]", chunk, scope=scope)
                                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(self._apply_time_offset(result, time_offset))
+                        results.append(self._apply_time_offset(result, offset))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -90,7 +90,7 @@ class SpeechToTextTaskAction(ComponentAction):
         return value
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        language          = await context.render_string(self.config.language)
+        language          = await context.render_scalar(self.config.language, str)
         return_timestamps = await context.render_scalar(self.config.return_timestamps, bool)
         timestamp_level   = await context.render_variable(self.config.timestamp_level)
 

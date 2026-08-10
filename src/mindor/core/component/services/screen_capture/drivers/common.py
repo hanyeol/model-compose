@@ -34,7 +34,7 @@ class ScreenCaptureAction(MediaComponentAction):
         region        = await self._resolve_region(context) if self.config.region is not None else None
         framerate     = await context.render_scalar(self.config.framerate, float)
         encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
-        duration      = await context.render_time(self.config.duration, None)
+        duration      = await context.render_scalar(self.config.duration, "time", None)
 
         if framerate <= 0:
             raise ValueError(f"'framerate' must be > 0, got {framerate}")

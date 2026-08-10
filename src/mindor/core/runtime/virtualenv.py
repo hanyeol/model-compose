@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from mindor.core.utils.locks import FileLock
 from importlib.resources import files
@@ -91,7 +91,7 @@ class VirtualEnvRuntime:
 
     async def stop(self) -> None:
         if self._subprocess:
-            stop_timeout = parse_duration(self.config.stop_timeout)
+            stop_timeout = parse_time(self.config.stop_timeout)
             try:
                 await self._loop.run_in_executor(
                     None,

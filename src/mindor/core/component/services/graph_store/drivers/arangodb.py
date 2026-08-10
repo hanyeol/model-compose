@@ -5,7 +5,7 @@ import re
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig, GraphStoreActionMethod
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
@@ -287,7 +287,7 @@ class ArangoDBGraphStoreService(GraphStoreService):
         url = self.config.url if self.config.url else f"{self.config.protocol}://{self.config.host}:{self.config.port}"
         client = ArangoClient(
             hosts=url,
-            request_timeout=parse_duration(self.config.timeout)
+            request_timeout=parse_time(self.config.timeout)
         )
 
         database = client.db(

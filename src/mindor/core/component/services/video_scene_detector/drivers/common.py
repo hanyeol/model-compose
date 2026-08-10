@@ -4,10 +4,10 @@ from typing import Optional, Dict, List, Union, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -64,8 +64,8 @@ class VideoSceneDetectorAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         detector   = await context.render_variable(self.config.detector) if self.config.detector else None
         threshold  = await context.render_scalar(self.config.threshold, float)
-        start_time = await context.render_time(self.config.start_time)
-        end_time   = await context.render_time(self.config.end_time)
+        start_time = await context.render_scalar(self.config.start_time, "time")
+        end_time   = await context.render_scalar(self.config.end_time, "time")
 
         return {
             "detector":   detector,

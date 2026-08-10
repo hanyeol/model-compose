@@ -39,13 +39,13 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
             for image, prediction in zip(images, predictions):
                 width, height = image.size
-                results.append(self._serialize(prediction, width, height, params))
+                results.append(self._serialize_detection_result(prediction, width, height, params))
 
             return results
 
         return await self._run_in_executor(_detect)
 
-    def _serialize(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_detection_result(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         poses: List[Dict[str, Any]] = []
 
         keypoints_xy   = prediction.keypoints.xy.cpu().numpy()

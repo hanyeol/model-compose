@@ -5,7 +5,7 @@ from typing import Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
@@ -318,7 +318,7 @@ class MilvusVectorStoreService(VectorStoreService):
             user=self.config.user or "",
             password=self.config.password or "",
             db_name=self.config.database or "",
-            timeout=parse_duration(self.config.timeout)
+            timeout=parse_time(self.config.timeout)
         )
 
         await super()._start()

@@ -1,12 +1,11 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import FilterJobConfig
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.evaluator.condition import evaluate_condition, evaluate_where
-from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 
 @register_job(JobType.FILTER)

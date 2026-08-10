@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.media import MediaSource
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
@@ -32,7 +32,7 @@ class AudioPlaybackAction(ComponentAction):
         sink            = await context.render_variable(self.config.sink)
         device          = await context.render_variable(self.config.device)
         volume          = await context.render_scalar(self.config.volume, float)
-        duration        = await context.render_time(self.config.duration, None)
+        duration        = await context.render_scalar(self.config.duration, "time", None)
         wait_for_finish = await context.render_scalar(self.config.wait_for_finish, bool)
 
         return {

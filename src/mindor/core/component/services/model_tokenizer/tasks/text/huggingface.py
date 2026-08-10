@@ -5,9 +5,9 @@ from typing import Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.dsl.schema.action.impl.model_tokenizer.tasks.common import ModelTokenizerMethod
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
+from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
 from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext

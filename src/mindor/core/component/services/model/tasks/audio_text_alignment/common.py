@@ -5,10 +5,10 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioTextAlignmentModelActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
@@ -50,9 +50,9 @@ class AudioTextAlignmentTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        language          = await context.render_string(self.config.language)
-        chunk_length      = await context.render_duration(self.config.chunk_length)
-        chunk_overlap     = await context.render_duration(self.config.chunk_overlap)
+        language          = await context.render_scalar(self.config.language, str)
+        chunk_length      = await context.render_scalar(self.config.chunk_length, "time")
+        chunk_overlap     = await context.render_scalar(self.config.chunk_overlap, "time")
         return_confidence = await context.render_scalar(self.config.return_confidence, bool)
 
         if chunk_overlap >= chunk_length:

@@ -75,14 +75,14 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         if self.device is not None:
             tensor = tensor.to(self.device)
 
-        apply_kwargs: Dict[str, Any] = { "device": self.device }
+        apply_params: Dict[str, Any] = { "device": self.device }
         if params["overlap"] is not None:
-            apply_kwargs["overlap"] = params["overlap"]
+            apply_params["overlap"] = params["overlap"]
         if params["shifts"] is not None:
-            apply_kwargs["shifts"] = params["shifts"]
+            apply_params["shifts"] = params["shifts"]
 
         with torch.no_grad():
-            estimates = apply_model(self.model, tensor, **apply_kwargs)
+            estimates = apply_model(self.model, tensor, **apply_params)
 
         # estimates shape: (batch=1, sources, channels, samples)
         estimates = estimates.squeeze(0).cpu()
@@ -90,7 +90,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         selected_stems = self._resolve_selected_stems(params["stems"])
         output_rate = params["sample_rate"] or self.model_sample_rate
 
-        return self._build_result(estimates, selected_stems, output_rate)
+        return self._build_separation_result(estimates, selected_stems, output_rate)
 
     def _resolve_selected_stems(self, requested: List[str]) -> List[Tuple[str, int]]:
         stem_indices: Dict[str, int] = { name: index for index, name in enumerate(self.model_sources) }
@@ -103,7 +103,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         return selected
 
-    def _build_result(self, estimates: Any, selected: List[Tuple[str, int]], sample_rate: int) -> Any:
+    def _build_separation_result(self, estimates: Any, selected: List[Tuple[str, int]], sample_rate: int) -> Any:
         stems: Dict[str, PcmStreamResource] = {}
 
         for name, index in selected:

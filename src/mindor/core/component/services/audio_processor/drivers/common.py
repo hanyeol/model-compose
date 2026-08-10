@@ -4,10 +4,10 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.audio import encode_waveform_to_pcm, AudioBuffer
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 from ....action.base import ComponentAction
@@ -110,8 +110,8 @@ class AudioProcessorAction(ComponentAction):
         if method == AudioProcessorActionMethod.COMPRESSOR:
             threshold = await context.render_scalar(self.config.threshold, float)
             ratio     = await context.render_scalar(self.config.ratio, float)
-            attack    = await context.render_time(self.config.attack)
-            release   = await context.render_time(self.config.release)
+            attack    = await context.render_scalar(self.config.attack, "time")
+            release   = await context.render_scalar(self.config.release, "time")
 
             return {
                 "threshold": threshold,
@@ -123,8 +123,8 @@ class AudioProcessorAction(ComponentAction):
         if method == AudioProcessorActionMethod.NOISE_GATE:
             threshold = await context.render_scalar(self.config.threshold, float)
             ratio     = await context.render_scalar(self.config.ratio, float)
-            attack    = await context.render_time(self.config.attack)
-            release   = await context.render_time(self.config.release)
+            attack    = await context.render_scalar(self.config.attack, "time")
+            release   = await context.render_scalar(self.config.release, "time")
 
             return {
                 "threshold": threshold,
@@ -152,7 +152,7 @@ class AudioProcessorAction(ComponentAction):
             rate     = await context.render_scalar(self.config.rate, float)
             depth    = await context.render_scalar(self.config.depth, float)
             feedback = await context.render_scalar(self.config.feedback, float)
-            delay    = await context.render_time(self.config.delay)
+            delay    = await context.render_scalar(self.config.delay, "time")
             mix      = await context.render_scalar(self.config.mix, float)
 
             return {
@@ -164,7 +164,7 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.DELAY:
-            time     = await context.render_time(self.config.time)
+            time     = await context.render_scalar(self.config.time, "time")
             feedback = await context.render_scalar(self.config.feedback, float)
             mix      = await context.render_scalar(self.config.mix, float)
 
@@ -235,7 +235,7 @@ class AudioProcessorAction(ComponentAction):
 
             if self.config.mode == AudioProcessorPeakLimitMode.SMOOTH:
                 level   = await context.render_scalar(self.config.level, float)
-                release = await context.render_time(self.config.release)
+                release = await context.render_scalar(self.config.release, "time")
 
                 return {
                     "mode":    AudioProcessorPeakLimitMode.SMOOTH,
@@ -247,7 +247,7 @@ class AudioProcessorAction(ComponentAction):
 
         if method == AudioProcessorActionMethod.TRIM_EDGES:
             threshold = await context.render_scalar(self.config.threshold, float)
-            padding   = await context.render_time(self.config.padding, 0.0)
+            padding   = await context.render_scalar(self.config.padding, "time", 0.0)
 
             return {
                 "threshold": threshold,
@@ -255,11 +255,11 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.TRIM_SILENCE:
-            window               = await context.render_time(self.config.window)
+            window               = await context.render_scalar(self.config.window, "time")
             threshold            = await context.render_scalar(self.config.threshold, float)
-            min_silence          = await context.render_time(self.config.min_silence)
-            max_internal_silence = await context.render_time(self.config.max_internal_silence)
-            fade                 = await context.render_time(self.config.fade)
+            min_silence          = await context.render_scalar(self.config.min_silence, "time")
+            max_internal_silence = await context.render_scalar(self.config.max_internal_silence, "time")
+            fade                 = await context.render_scalar(self.config.fade, "time")
 
             return {
                 "window":               window,
@@ -270,12 +270,12 @@ class AudioProcessorAction(ComponentAction):
             }
 
         if method == AudioProcessorActionMethod.FADE_IN:
-            duration = await context.render_time(self.config.duration)
+            duration = await context.render_scalar(self.config.duration, "time")
 
             return { "duration": duration }
 
         if method == AudioProcessorActionMethod.FADE_OUT:
-            duration = await context.render_time(self.config.duration)
+            duration = await context.render_scalar(self.config.duration, "time")
 
             return { "duration": duration }
 

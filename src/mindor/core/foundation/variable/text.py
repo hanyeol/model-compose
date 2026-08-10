@@ -26,8 +26,7 @@ class TextValueRenderer:
                 async for chunk in value:
                     yield await self._render_element(chunk, collect=collect)
 
-            # Non-fragmented case: preserve the StreamChunkIterator type so
-            # downstream isinstance checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=False)
 

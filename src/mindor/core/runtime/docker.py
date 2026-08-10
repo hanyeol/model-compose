@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from mindor.dsl.schema.containers.docker import DockerBuildConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.foundation.containers.docker import DockerContainerRunner, DockerImageBuilder, DockerContainerOptions
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from .common import ContainerRuntimeBackend
 
 class DockerRuntime(DockerContainerRunner):
@@ -19,7 +19,7 @@ class DockerRuntime(DockerContainerRunner):
         super().__init__(config, options=options, verbose=verbose)
 
     async def stop(self) -> None:
-        await super().stop(timeout=parse_duration(self.config.stop_timeout))
+        await super().stop(timeout=parse_time(self.config.stop_timeout))
 
 class DockerRuntimeBackend(ContainerRuntimeBackend):
     """Docker-backed `ContainerRuntimeBackend`."""

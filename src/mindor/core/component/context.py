@@ -12,7 +12,8 @@ from mindor.core.foundation.variable.media import MediaValueRenderer
 from mindor.core.foundation.variable.file import FileValueRenderer
 from mindor.core.foundation.variable.text import TextValueRenderer
 from mindor.core.foundation.variable.size import parse_size
-from mindor.core.foundation.variable.time import parse_duration, parse_time
+from mindor.core.foundation.variable.time import TimeValueRenderer, parse_time
+from mindor.core.foundation.variable.decimal import parse_decimal
 from mindor.core.foundation.variable.color import parse_color, Color
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue, VectorArrayValue
@@ -26,6 +27,13 @@ if TYPE_CHECKING:
     from mindor.core.workflow.notifiers import ComponentEventNotifier
 
 ScalarT = TypeVar("ScalarT")
+
+_SCALAR_PARSERS: Dict[str, Callable[[Any], Any]] = {
+    "time":     parse_time,
+    "size":     parse_size,
+    "decimal":  parse_decimal,
+    "color":    parse_color,
+}
 
 ComponentEventPayload = Dict[str, Any]
 ComponentEventCallback = Callable[[ComponentEventPayload], Awaitable[None]]
@@ -106,90 +114,113 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any, scope: Optional[str] = None) -> None:
         self.sources.setdefault(scope or "__global__", {})[key] = source
 
-    async def render_variable(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
-        return await self.renderer.render(value, scope, skip_decode=skip_decode) if value is not None else None
+    async def render_variable(
+        self,
+        value: Any,
+        scope: Optional[str] = None,
+        skip_decode: bool = False
+    ) -> Any:
+        if value is not None:
+            return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-    async def render_text(self, value: Any, collect: bool = True) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
+        return None
+
+    async def render_text(
+        self,
+        value: Any,
+        collect: bool = True
+    ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await TextValueRenderer().render(await self.render_variable(value), collect=collect)
 
-    async def render_image(self, value: Any) -> Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]:
+    async def render_image(
+        self,
+        value: Any
+    ) -> Optional[Union[PILImage.Image, List[Optional[PILImage.Image]], AsyncIterator[Optional[PILImage.Image]]]]:
         return await ImageValueRenderer().render(await self.render_variable(value))
 
-    async def render_image_array(self, value: Any) -> Union[ImageArrayValue, List[ImageArrayValue], AsyncIterator[ImageArrayValue]]:
+    async def render_image_array(
+        self,
+        value: Any
+    ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
         return await ImageValueRenderer().render_array(await self.render_variable(value))
 
-    async def render_audio(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render_audio(
+        self,
+        value: Any
+    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         return await AudioValueRenderer().render(await self.render_variable(value))
 
-    async def render_audio_buffer(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[Union[int, Literal["mono"]]] = None) -> Union[AudioBuffer, List[AudioBuffer], AsyncIterator[AudioBuffer]]:
+    async def render_audio_buffer(
+        self,
+        value: Any,
+        sample_rate: Optional[int] = None,
+        channel: Optional[Union[int, Literal["mono"]]] = None
+    ) -> Optional[Union[AudioBuffer, List[Optional[AudioBuffer]], AsyncIterator[Optional[AudioBuffer]]]]:
         return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value))
 
-    async def render_audio_buffer_array(self, value: Any, sample_rate: Optional[int] = None, channel: Optional[Union[int, Literal["mono"]]] = None) -> Union[AudioBufferArrayValue, List[AudioBufferArrayValue], AsyncIterator[AudioBufferArrayValue]]:
+    async def render_audio_buffer_array(
+        self,
+        value: Any,
+        sample_rate: Optional[int] = None,
+        channel: Optional[Union[int, Literal["mono"]]] = None
+    ) -> Optional[Union[AudioBufferArrayValue, List[Optional[AudioBufferArrayValue]], AsyncIterator[Optional[AudioBufferArrayValue]]]]:
         return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value))
 
-    async def render_video(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render_video(
+        self,
+        value: Any
+    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         return await VideoValueRenderer().render(await self.render_variable(value))
 
-    async def render_media(self, value: Any) -> Union[MediaSource, List[MediaSource]]:
+    async def render_media(
+        self,
+        value: Any
+    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         return await MediaValueRenderer().render(await self.render_variable(value))
 
-    async def render_file(self, value: Any) -> Any:
+    async def render_file(
+        self,
+        value: Any
+    ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await FileValueRenderer().render(await self.render_variable(value))
 
-    async def render_vector(self, value: Any) -> Union[VectorValue, List[VectorValue], AsyncIterator[VectorValue]]:
+    async def render_vector(
+        self,
+        value: Any
+    ) -> Optional[Union[VectorValue, List[Optional[VectorValue]], AsyncIterator[Optional[VectorValue]]]]:
         return await VectorValueRenderer().render(await self.render_variable(value))
 
-    async def render_vector_array(self, value: Any) -> Union[VectorArrayValue, List[VectorArrayValue], AsyncIterator[VectorArrayValue]]:
+    async def render_vector_array(
+        self,
+        value: Any
+    ) -> Optional[Union[VectorArrayValue, List[Optional[VectorArrayValue]], AsyncIterator[Optional[VectorArrayValue]]]]:
         return await VectorValueRenderer().render_array(await self.render_variable(value))
 
-    async def render_array(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
+    async def render_array(
+        self,
+        value: Any
+    ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
         return await ArrayValueRenderer().render(await self.render_variable(value))
 
-    async def render_scalar(self, value: Any, cast: Callable[[Any], ScalarT], default: Optional[ScalarT] = None) -> Optional[ScalarT]:
+    async def render_time(
+        self,
+        value: Any,
+        default: Optional[float] = None
+    ) -> Optional[Union[float, List[Optional[float]], AsyncIterator[Optional[float]]]]:
+        return await TimeValueRenderer().render(await self.render_variable(value), default)
+
+    async def render_scalar(
+        self,
+        value: Any,
+        caster: Union[Callable[[Any], ScalarT], Literal["time", "size", "decimal", "color"]],
+        default: Optional[Union[ScalarT, float, int, Color]] = None
+    ) -> Optional[Union[ScalarT, float, int, Color]]:
         value = await self.render_variable(value) if value is not None else None
 
         if value is not None:
-            return cast(value)
-
-        return default
-
-    async def render_string(self, value: Any, default: Optional[str] = None) -> Optional[str]:
-        value = await self.render_variable(value) if value is not None else None
-
-        if value:
-            return value
-
-        return default
-
-    async def render_size(self, value: Any, default: Optional[int] = None) -> Optional[int]:
-        value = await self.render_variable(value) if value is not None else None
-
-        if isinstance(value, (str, int, float)):
-            return parse_size(value)
-
-        return default
-
-    async def render_duration(self, value: Any, default: Optional[float] = None) -> Optional[float]:
-        value = await self.render_variable(value) if value is not None else None
-
-        if value is not None:
-            return parse_duration(value)
-
-        return default
-
-    async def render_time(self, value: Any, default: Optional[float] = None) -> Optional[float]:
-        value = await self.render_variable(value) if value is not None else None
-
-        if value is not None:
-            return parse_time(value)
-
-        return default
-
-    async def render_color(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
-        value = await self.render_variable(value) if value is not None else None
-
-        if isinstance(value, (str, list, tuple)):
-            return parse_color(value)
+            if isinstance(caster, str):
+                return _SCALAR_PARSERS[caster](value)
+            return caster(value)
 
         return default
 

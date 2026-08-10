@@ -10,7 +10,7 @@ class VoiceActivityDetectionParamsConfig(BaseModel):
     speech_padding_time: Union[str, float, int] = Field(default="100ms", description="Padding time (e.g. '100ms', '0.1s') added to both sides of each detected speech chunk.")
 
 class VoiceActivityDetectionModelActionConfig(CommonModelActionConfig):
-    audio: Union[Union[str, List[str]], str] = Field(..., description="Input audio file path, URL, or list of audio inputs.")
+    audio: Union[str, List[str]] = Field(..., description="Input audio file path, URL, or list of audio inputs.")
     sample_rate: Union[int, str] = Field(default=16000, description="Sample rate of the input audio in Hz (16000 or 8000).")
     batch_size: Union[int, str] = Field(default=1, description="Audio inputs per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether to stream detected speech segments as they are confirmed.")

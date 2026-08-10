@@ -43,7 +43,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
             for image, prediction in zip(images, predictions):
                 width, height = image.size
-                results.append(self._serialize(prediction, width, height, params["bounding_box_padding"]))
+                results.append(self._serialize_detection_result(prediction, width, height, params["bounding_box_padding"]))
 
             return results
 
@@ -69,7 +69,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         return class_ids
 
-    def _serialize(self, prediction: Results, width: int, height: int, bounding_box_padding: float) -> Dict[str, Any]:
+    def _serialize_detection_result(self, prediction: Results, width: int, height: int, bounding_box_padding: float) -> Dict[str, Any]:
         objects: List[Dict[str, Any]] = []
 
         if prediction.boxes is not None and len(prediction.boxes) > 0:

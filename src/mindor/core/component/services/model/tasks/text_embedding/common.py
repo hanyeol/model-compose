@@ -5,11 +5,16 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
+
+class TextEmbedding(AtomicList):
+    def __log__(self) -> str:
+        return f"<TextEmbedding dim={len(self)}>"
 
 class TextEmbeddingTaskAction(ComponentAction):
     def __init__(self, config: TextEmbeddingModelActionConfig):
@@ -29,14 +34,14 @@ class TextEmbeddingTaskAction(ComponentAction):
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        yield TextEmbedding(result)
 
             return _stream_output_generator()
         else:
-            results: List[List[float]] = []
+            results: List[TextEmbedding] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_texts, params, context.cancellation_token)
-                results.extend(batch_results)
+                results.extend(TextEmbedding(result) for result in batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

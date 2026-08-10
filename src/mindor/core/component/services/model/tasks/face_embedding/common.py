@@ -5,9 +5,10 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceEmbeddingModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.logger import logging
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
@@ -15,6 +16,10 @@ from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     import torch
+
+class FaceEmbedding(AtomicList):
+    def __log__(self) -> str:
+        return f"<FaceEmbedding dim={len(self)}>"
 
 class FaceEmbeddingTaskAction(ComponentAction):
     def __init__(self, config: FaceEmbeddingModelActionConfig, device: Optional[torch.device]):
@@ -53,11 +58,13 @@ class FaceEmbeddingTaskAction(ComponentAction):
         face_detection       = await context.render_scalar(self.config.params.face_detection, bool)
         alignment            = await context.render_scalar(self.config.params.alignment, bool)
         normalize_embeddings = await context.render_scalar(self.config.params.normalize_embeddings, bool)
+        min_face_size        = await context.render_scalar(self.config.params.min_face_size, int)
 
         return {
             "face_detection":       face_detection,
             "alignment":            alignment,
             "normalize_embeddings": normalize_embeddings,
+            "min_face_size":        min_face_size,
         }
 
     @abstractmethod

@@ -4,7 +4,7 @@ from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
 from mindor.core.logger import logging
 from mindor.core.utils.shell import run_command_foreground
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 import asyncio
 import shutil
 
@@ -76,7 +76,7 @@ class DockerComposeSystem(SystemService):
         if self.config.wait:
             command.append("--wait")
             if self.config.wait_timeout:
-                timeout_seconds = int(parse_duration(self.config.wait_timeout))
+                timeout_seconds = int(parse_time(self.config.wait_timeout))
                 command += [ "--wait-timeout", str(timeout_seconds) ]
 
         return command

@@ -1,6 +1,33 @@
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional, List, Any
+from collections.abc import AsyncIterator
+from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
 Color = Tuple[int, int, int, int]
+
+class ColorValueRenderer:
+    async def render(
+        self,
+        value: Any,
+        default: Optional[Color] = None
+    ) -> Optional[Union[Color, List[Optional[Color]], AsyncIterator[Optional[Color]]]]:
+        if isinstance(value, (StreamIterator, AsyncIterator)):
+            async def _iterate():
+                async for chunk in value:
+                    yield await self._render_element(chunk, default)
+
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
+            if isinstance(value, StreamChunkIterator):
+                return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
+
+            return _iterate()
+
+        return await self._render_element(value, default)
+
+    async def _render_element(self, value: Any, default: Optional[Color] = None) -> Optional[Color]:
+        if isinstance(value, (str, list, tuple)):
+            return parse_color(value)
+
+        return default
 
 def parse_color(value: Union[str, list, tuple]) -> Color:
     if isinstance(value, (list, tuple)):

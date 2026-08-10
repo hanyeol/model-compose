@@ -37,9 +37,10 @@ from mindor.core.controller.errors import (
 from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.variable.atomic import AtomicDict, AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.event_dispatcher import EventDispatcher
 from .streaming import TaskOutputStreamIterator, TaskOutputStreamResource
@@ -544,8 +545,8 @@ class ControllerService(AsyncService):
         await super()._start()
 
     async def _stop(self) -> None:
-        pending_period = parse_duration(self.config.shutdown_pending_period)
-        timeout        = parse_duration(self.config.shutdown_timeout)
+        pending_period = parse_time(self.config.shutdown_pending_period)
+        timeout        = parse_time(self.config.shutdown_timeout)
 
         if pending_period > 0:
             self._shutdown_pending = True
@@ -1127,11 +1128,16 @@ class TaskOutputRenderer:
         - Top-level stream (`StreamResource`, `StreamIterator`, `AsyncIterator`) is
           passed through untouched so streaming consumers (HTTP SSE, WebUI, ...) can
           iterate chunks in real time.
+        - `AtomicDict` / `AtomicList` are treated as opaque leaves so their
+          subclass identity (and hooks like `__log__`) survive the traversal.
         - Top-level `dict` / `list` / `tuple` is traversed recursively; any stream
           leaf is consumed and replaced with a concrete value via `_render_element`.
           `tuple` is normalized to `list`.
         - Any other value is returned as-is.
         """
+        if isinstance(value, (AtomicDict, AtomicList)):
+            return value
+
         if isinstance(value, dict):
             return { key: await self._render_element(value) for key, value in value.items() }
 
@@ -1146,6 +1152,9 @@ class TaskOutputRenderer:
             if isinstance(value, StreamChunkIterator) and value.is_fragmented:
                 return self._join_chunks(chunks)
             return chunks
+
+        if isinstance(value, (AtomicDict, AtomicList)):
+            return value
 
         if isinstance(value, dict):
             return { key: await self._render_element(value) for key, value in value.items() }

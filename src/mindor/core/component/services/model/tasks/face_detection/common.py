@@ -4,10 +4,9 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FaceDetectionModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.logger import logging
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 from PIL import Image as PILImage
@@ -45,15 +44,20 @@ class FaceDetectionTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_confidence   = await context.render_scalar(self.config.params.min_confidence, float)
-        return_landmarks = await context.render_scalar(self.config.return_landmarks, bool)
+        min_confidence       = await context.render_scalar(self.config.params.min_confidence, float)
+        return_landmarks     = await context.render_scalar(self.config.return_landmarks, bool)
+        bounding_box_padding = await context.render_scalar(self.config.bounding_box_padding, float)
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
 
+        if bounding_box_padding < 0.0:
+            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+
         return {
-            "min_confidence":   min_confidence,
-            "return_landmarks": return_landmarks,
+            "min_confidence":       min_confidence,
+            "return_landmarks":     return_landmarks,
+            "bounding_box_padding": bounding_box_padding,
         }
 
     @abstractmethod

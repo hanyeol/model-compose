@@ -1099,9 +1099,7 @@ class GradioWebUIBuilder:
         return re.sub(r"([\\`*_{}\[\]()#+!~])", r"\\\1", value)
 
     def _log_format_payload(self, value: Any) -> Optional[str]:
-        # Values may opt into a compact log representation via __log__(); this
-        # short-circuits verbose JSON dumps for payloads that would otherwise
-        # overwhelm the chatbot panel (e.g. per-frame audio features).
+        # Honor __log__ up front so large payloads collapse to their summary.
         log_repr = getattr(value, "__log__", None)
         if log_repr is not None:
             return log_repr()
@@ -1131,11 +1129,7 @@ class GradioWebUIBuilder:
         return f"```json\n{text}\n```"
 
     def _log_json_value(self, value: Any) -> Any:
-        # Substitute any node opting into a compact log representation via
-        # __log__() before handing the tree to json.dumps. Necessary because
-        # json.dumps treats dict subclasses as plain dicts and never routes
-        # them through the ``default`` hook, so nested AudioSpectrum-style
-        # values would otherwise get dumped in full.
+        # Substitute __log__ nodes ahead of json.dumps — dict/list subclasses skip its default hook.
         log_repr = getattr(value, "__log__", None)
         if log_repr is not None:
             return log_repr()

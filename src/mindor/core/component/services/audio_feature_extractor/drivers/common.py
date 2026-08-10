@@ -6,16 +6,17 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.dsl.schema.action.impl.audio_feature_extractor.impl.common import AudioFeature
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.variable.atomic import AtomicDict
+from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 if TYPE_CHECKING:
     import numpy as np
 
-class AudioSpectrum(dict):
+class AudioSpectrum(AtomicDict):
     def __log__(self) -> str:
         return (
             f"<AudioSpectrum bands={self.get('band_count')} "
@@ -23,7 +24,7 @@ class AudioSpectrum(dict):
             f"duration={self.get('duration', 0.0):.2f}s>"
         )
 
-class AudioWaveform(dict):
+class AudioWaveform(AtomicDict):
     def __log__(self) -> str:
         return (
             f"<AudioWaveform points={self.get('point_count')} "
@@ -92,7 +93,7 @@ class AudioFeatureExtractorAction(ComponentAction):
 
         if feature == AudioFeature.WAVEFORM:
             point_count     = await context.render_scalar(self.config.point_count, int)
-            window_duration = await context.render_duration(self.config.window_duration)
+            window_duration = await context.render_scalar(self.config.window_duration, "time")
             summary_mode    = await context.render_variable(self.config.summary_mode)
             rectify         = await context.render_scalar(self.config.rectify, bool)
 

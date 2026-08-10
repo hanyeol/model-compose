@@ -4,8 +4,8 @@ from .common import CommonActionConfig
 from .media import VideoAudioEncodingConfig
 
 class VideoEncoderActionConfig(CommonActionConfig):
-    video: Optional[Union[str, List[str]]] = Field(default=None, description="Existing video source(s). Mutually exclusive with 'frames'.")
-    frames: Optional[Union[str, List[str]]] = Field(default=None, description="Frame sequence(s) to encode. Mutually exclusive with 'video'.")
+    video: Optional[Union[List[str], str]] = Field(default=None, description="Existing video source(s). Mutually exclusive with 'frames'.")
+    frames: Optional[Union[List[str], str]] = Field(default=None, description="Frame sequence(s) to encode. Mutually exclusive with 'video'.")
     frame_rate: Optional[Union[int, str]] = Field(default=None, description="Frame rate for 'frames' input.")
     audio: Optional[Union[str, List[str]]] = Field(default=None, description="Optional audio source(s) to mux into the output.")
     encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings.")

@@ -5,10 +5,10 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TranscriptCorrectorActionConfig
 from mindor.dsl.schema.action.impl.transcript_corrector.impl.common import TranscriptGranularity
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.array import ArrayValue
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
+from mindor.core.foundation.variable.array import ArrayValue
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 

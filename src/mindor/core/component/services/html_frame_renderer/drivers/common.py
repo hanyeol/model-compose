@@ -6,8 +6,8 @@ from collections.abc import AsyncIterable, AsyncIterator
 from PIL import Image as PILImage
 
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.url import UrlResource
 from ....action.base import ComponentAction
@@ -98,7 +98,7 @@ class HtmlFrameRendererAction(ComponentAction):
         fps             = await context.render_scalar(self.config.fps, float)
         width           = await context.render_scalar(self.config.width, int)
         height          = await context.render_scalar(self.config.height, int)
-        ready_timeout   = await context.render_duration(self.config.ready_timeout)
+        ready_timeout   = await context.render_scalar(self.config.ready_timeout, "time")
         filename_format = await context.render_variable(self.config.filename_format)
 
         if fps <= 0:

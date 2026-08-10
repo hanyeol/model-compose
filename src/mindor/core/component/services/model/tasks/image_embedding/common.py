@@ -5,12 +5,17 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageEmbeddingModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 from PIL import Image as PILImage
+
+class ImageEmbedding(AtomicList):
+    def __log__(self) -> str:
+        return f"<ImageEmbedding dim={len(self)}>"
 
 class ImageEmbeddingTaskAction(ComponentAction):
     def __init__(self, config: ImageEmbeddingModelActionConfig):
@@ -30,14 +35,14 @@ class ImageEmbeddingTaskAction(ComponentAction):
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        yield ImageEmbedding(result)
 
             return _stream_output_generator()
         else:
-            results: List[List[float]] = []
+            results: List[ImageEmbedding] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
-                results.extend(batch_results)
+                results.extend(ImageEmbedding(result) for result in batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

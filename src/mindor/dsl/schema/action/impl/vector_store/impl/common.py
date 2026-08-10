@@ -46,15 +46,15 @@ class CommonVectorStoreActionConfig(CommonActionConfig):
 
 class CommonVectorInsertActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.INSERT]
-    vector: Union[Union[List[float], List[List[float]]], str] = Field(..., description="Vector to insert.")
-    vector_id: Optional[Union[Union[Union[int, str], List[Union[int, str]]], str]] = Field(default=None, description="ID of vector to insert.")
-    metadata: Optional[Union[Union[Dict[str, Any], List[Dict[str, Any]]], str]] = Field(default=None, description="Metadata for vector.")
+    vector: Union[List[float], List[List[float]], str] = Field(..., description="Vector to insert.")
+    vector_id: Optional[Union[Union[int, str], List[Union[int, str]], str]] = Field(default=None, description="ID of vector to insert.")
+    metadata: Optional[Union[Dict[str, Any], List[Dict[str, Any]], str]] = Field(default=None, description="Metadata for vector.")
 
 class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.UPDATE]
-    vector_id: Union[Union[Union[int, str], List[Union[int, str]]], str] = Field(..., description="ID of vector to update.")
-    vector: Optional[Union[Union[List[float], List[List[float]]], str]] = Field(default=None, description="New vector to replace.")
-    metadata: Optional[Union[Union[Dict[str, Any], List[Dict[str, Any]]], str]] = Field(default=None, description="Updated metadata for vector.")
+    vector_id: Union[Union[int, str], List[Union[int, str]], str] = Field(..., description="ID of vector to update.")
+    vector: Optional[Union[List[float], List[List[float]], str]] = Field(default=None, description="New vector to replace.")
+    metadata: Optional[Union[Dict[str, Any], List[Dict[str, Any]], str]] = Field(default=None, description="Updated metadata for vector.")
     insert_if_not_exist: bool = Field(default=True, description="Insert the vector if it doesn't already exist.")
 
 class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
@@ -62,7 +62,7 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     query: Union[List[float], str] = Field(..., description="Query vector for similarity search.")
     top_k: int = Field(default=10, description="Number of top similar vectors to return.")
     metric_type: Optional[str] = Field(default=None, description="Distance metric (L2, IP, COSINE, etc.).")
-    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition]], str]] = Field(default=None, description="Filter conditions applied when searching vectors.")
+    filter: Optional[Union[List[VectorStoreFilterCondition], str]] = Field(default=None, description="Filter conditions applied when searching vectors.")
     output_fields: Optional[List[str]] = Field(default=None, description="Metadata fields to include in search results.")
 
     @model_validator(mode="before")
@@ -74,8 +74,8 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
 
 class CommonVectorDeleteActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.DELETE]
-    vector_id: Union[Union[Union[int, str], List[Union[int, str]]], str] = Field(..., description="ID of vector to remove.")
-    filter: Optional[Union[Union[str, List[VectorStoreFilterCondition], str]]] = Field(default=None, description="Filter conditions determining which vectors to delete.")
+    vector_id: Union[Union[int, str], List[Union[int, str]], str] = Field(..., description="ID of vector to remove.")
+    filter: Optional[Union[List[VectorStoreFilterCondition], str]] = Field(default=None, description="Filter conditions determining which vectors to delete.")
 
     @model_validator(mode="before")
     def inflate_filter(cls, values: Dict[str, Any]):

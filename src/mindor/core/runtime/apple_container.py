@@ -8,7 +8,7 @@ from mindor.core.foundation.containers.apple_container import (
     AppleContainerRunner,
     AppleContainerImageBuilder,
 )
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from .common import ContainerRuntimeBackend
 
 class AppleContainerRuntime(AppleContainerRunner):
@@ -23,7 +23,7 @@ class AppleContainerRuntime(AppleContainerRunner):
         super().__init__(config, options=options, verbose=verbose)
 
     async def stop(self) -> None:
-        await super().stop(timeout=parse_duration(self.config.stop_timeout))
+        await super().stop(timeout=parse_time(self.config.stop_timeout))
 
 class AppleContainerRuntimeBackend(ContainerRuntimeBackend):
     """Apple Container-backed `ContainerRuntimeBackend`."""

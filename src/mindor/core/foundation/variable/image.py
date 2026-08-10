@@ -31,7 +31,10 @@ class ImageArrayValue:
         return [ item async for item in self.source ]
 
 class ImageValueRenderer:
-    async def render_array(self, value: Any) -> Optional[Union[ImageArrayValue, List[ImageArrayValue], AsyncIterator[ImageArrayValue]]]:
+    async def render_array(
+        self,
+        value: Any
+    ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
         # Fragmented streams (e.g. per-html frame streams) represent a single
         # logical image array delivered in pieces — fall through to
         # `_render_element_array` which wraps them into one streaming ImageArrayValue.
@@ -42,8 +45,7 @@ class ImageValueRenderer:
                 async for chunk in value:
                     yield await self._render_element_array(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 
@@ -54,14 +56,16 @@ class ImageValueRenderer:
 
         return await self._render_element_array(value)
 
-    async def render(self, value: Any) -> Optional[Union[PILImage.Image, List[PILImage.Image], AsyncIterator[PILImage.Image]]]:
+    async def render(
+        self,
+        value: Any
+    ) -> Optional[Union[PILImage.Image, List[Optional[PILImage.Image]], AsyncIterator[Optional[PILImage.Image]]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
                     yield await self._render_element(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 

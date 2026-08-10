@@ -45,24 +45,19 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
                     prediction = detector.detect(MPImage(image_format=ImageFormat.SRGB, data=rgb_frame))
 
-                    results.append(self._serialize(prediction, width, height, params))
+                    results.append(self._serialize_detection_result(prediction, width, height, params))
 
             return results
 
         return await self._run_in_executor(_detect)
 
-    def _serialize(self, prediction: FaceDetectorResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_detection_result(self, prediction: FaceDetectorResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         faces: List[Dict[str, Any]] = []
 
         for detection in prediction.detections:
             face: Dict[str, Any] = {
-                "bounding_box": [
-                    int(detection.bounding_box.origin_x),
-                    int(detection.bounding_box.origin_y),
-                    int(detection.bounding_box.width),
-                    int(detection.bounding_box.height),
-                ],
-                "score": float(detection.categories[0].score) if detection.categories else 0.0,
+                "bounding_box": self._serialize_bounding_box(detection.bounding_box, width, height, params["bounding_box_padding"]),
+                "score":        float(detection.categories[0].score) if detection.categories else 0.0,
             }
 
             if params["return_landmarks"] and detection.keypoints:
@@ -75,6 +70,26 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
             "width":  width,
             "height": height,
         }
+
+    @staticmethod
+    def _serialize_bounding_box(box: Any, width: int, height: int, padding: float) -> List[int]:
+        x = int(box.origin_x)
+        y = int(box.origin_y)
+        w = int(box.width)
+        h = int(box.height)
+
+        if padding > 0.0:
+            x -= int(w * padding)
+            y -= int(h * padding)
+            w += int(w * padding * 2)
+            h += int(h * padding * 2)
+
+        x1 = max(0, x)
+        y1 = max(0, y)
+        x2 = min(width, x + w)
+        y2 = min(height, y + h)
+
+        return [ x1, y1, x2 - x1, y2 - y1 ]
 
     def _serialize_landmarks(self, keypoints: List[NormalizedKeypoint], width: int, height: int) -> List[Dict[str, int]]:
         landmarks: List[Dict[str, int]] = []

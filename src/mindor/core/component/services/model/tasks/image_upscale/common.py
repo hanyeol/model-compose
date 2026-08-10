@@ -5,11 +5,11 @@ from typing import Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageUpscaleModelActionConfig, ColorFormat
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.logger import logging
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import compose_with_alpha, has_alpha
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.logger import logging
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 from PIL import Image as PILImage

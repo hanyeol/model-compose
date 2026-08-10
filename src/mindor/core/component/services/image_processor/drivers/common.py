@@ -4,10 +4,10 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImageOverlayAnchor, ImageCompressStrategy
-from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
 from ....action.base import ComponentAction
@@ -149,7 +149,7 @@ class ImageProcessorAction(ComponentAction):
             columns    = await context.render_scalar(self.config.columns, int)
             rows       = await context.render_scalar(self.config.rows, int)
             spacing    = await context.render_scalar(self.config.spacing, int)
-            background = await context.render_color(self.config.background)
+            background = await context.render_scalar(self.config.background, "color")
 
             try:
                 mode = ImageConcatMode(mode)
@@ -165,9 +165,16 @@ class ImageProcessorAction(ComponentAction):
             }
 
         if method == ImageProcessorActionMethod.MERGE:
-            background = await context.render_color(self.config.background)
+            anchor     = await context.render_variable(self.config.anchor)
+            background = await context.render_scalar(self.config.background, "color")
+
+            try:
+                anchor = ImagePositionAnchor(anchor)
+            except ValueError:
+                raise ValueError(f"Invalid anchor: {anchor}")
 
             return {
+                "anchor":     anchor,
                 "background": background,
             }
 
@@ -187,7 +194,7 @@ class ImageProcessorAction(ComponentAction):
                 raise ValueError("'x' and 'y' must be specified for 'overlay' method")
 
             try:
-                anchor = ImageOverlayAnchor(anchor)
+                anchor = ImagePositionAnchor(anchor)
             except ValueError:
                 raise ValueError(f"Invalid overlay anchor: {anchor}")
 
@@ -202,6 +209,40 @@ class ImageProcessorAction(ComponentAction):
                 "height":  height,
                 "anchor":  anchor,
                 "opacity": opacity,
+            }
+
+        if method == ImageProcessorActionMethod.MOSAIC:
+            mode       = await context.render_variable(self.config.mode)
+            x          = await context.render_scalar(self.config.x, int)
+            y          = await context.render_scalar(self.config.y, int)
+            width      = await context.render_scalar(self.config.width, int)
+            height     = await context.render_scalar(self.config.height, int)
+            block_size = await context.render_scalar(self.config.block_size, int)
+            radius     = await context.render_scalar(self.config.radius, float)
+
+            try:
+                mode = MosaicMode(mode)
+            except ValueError:
+                raise ValueError(f"Invalid mosaic mode: {mode}")
+
+            region_fields = (x, y, width, height)
+            if any(field is not None for field in region_fields) and not all(field is not None for field in region_fields):
+                raise ValueError("'x', 'y', 'width', and 'height' must all be specified together, or all omitted")
+
+            if block_size < 1:
+                raise ValueError(f"'block_size' must be >= 1, got {block_size}")
+
+            if radius < 0.0:
+                raise ValueError(f"'radius' must be >= 0.0, got {radius}")
+
+            return {
+                "mode":       mode,
+                "x":          x,
+                "y":          y,
+                "width":      width,
+                "height":     height,
+                "block_size": block_size,
+                "radius":     radius,
             }
 
         if method == ImageProcessorActionMethod.COMPRESS:
@@ -284,6 +325,9 @@ class ImageProcessorAction(ComponentAction):
         if method == ImageProcessorActionMethod.OVERLAY:
             return await self._overlay(image, params)
 
+        if method == ImageProcessorActionMethod.MOSAIC:
+            return await self._mosaic(image, params)
+
         if method == ImageProcessorActionMethod.COMPRESS:
             return await self._compress(image, params)
 
@@ -339,6 +383,10 @@ class ImageProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _overlay(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod

@@ -4,7 +4,7 @@ from mindor.dsl.schema.action import ActionConfig, WebSocketClientActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
 from mindor.core.utils.transport.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import json
@@ -22,7 +22,7 @@ class WebSocketClientAction:
         format    = await context.render_variable(self.config.receive.format)
         collect   = await context.render_variable(self.config.receive.collect)
         streaming = await context.render_variable(self.config.receive.streaming)
-        timeout   = await context.render_duration(self.config.receive.timeout) if self.config.receive.timeout else None
+        timeout   = await context.render_scalar(self.config.receive.timeout, "time") if self.config.receive.timeout else None
 
         if collect and streaming:
             raise ValueError("'collect' and 'streaming' cannot both be set.")
@@ -137,8 +137,8 @@ class WebSocketClientComponent(ComponentService):
     async def _start(self) -> None:
         self.client = WebSocketClient(
             base_url=self.config.base_url,
-            ping_interval=parse_duration(self.config.ping_interval) if self.config.ping_interval else None,
-            ping_timeout=parse_duration(self.config.ping_timeout) if self.config.ping_timeout else None,
+            ping_interval=parse_time(self.config.ping_interval) if self.config.ping_interval else None,
+            ping_timeout=parse_time(self.config.ping_timeout) if self.config.ping_timeout else None,
             additional_headers=self.config.headers or None,
             params=self.config.params or None
         )

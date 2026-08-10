@@ -11,7 +11,7 @@ from mindor.core.component.runtime.common import (
     ComponentRuntimeWorker,
 )
 from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.foundation.containers.apple_container import AppleContainerOptions
 from mindor.core.runtime.apple_container import (
@@ -176,8 +176,8 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs, verbose)
 
-        self._start_timeout = parse_duration(component_config.runtime.start_timeout)
-        self._stop_timeout = parse_duration(component_config.runtime.stop_timeout)
+        self._start_timeout = parse_time(component_config.runtime.start_timeout)
+        self._stop_timeout = parse_time(component_config.runtime.stop_timeout)
 
         self._runtime: Optional[AppleContainerRuntime] = None
 

@@ -4,13 +4,13 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoEncoderActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from PIL import Image as PILImage
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext

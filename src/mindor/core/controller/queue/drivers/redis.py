@@ -6,7 +6,7 @@ from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQ
 from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
 from ..serialize import serialize_input
 from mindor.core.utils.compat.asyncio import async_timeout
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size
 from mindor.core.logger import logging
 import asyncio, json, ulid
@@ -191,7 +191,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
         return self.config.url
 
     def _resolve_timeout(self) -> Optional[float]:
-        timeout = parse_duration(self.config.timeout)
+        timeout = parse_time(self.config.timeout)
         
         if timeout > 0:
             return timeout
@@ -200,7 +200,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
     def _resolve_blob_ttl(self) -> int:
         if self.config.blob_ttl is not None:
-            return int(parse_duration(self.config.blob_ttl))
+            return int(parse_time(self.config.blob_ttl))
 
         return 3600
 

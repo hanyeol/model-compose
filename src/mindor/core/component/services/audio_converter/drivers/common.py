@@ -4,12 +4,12 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioConverterActionConfig
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
-from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
 from ....action.media import MediaComponentAction
 
@@ -46,7 +46,7 @@ class AudioConverterAction(MediaComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        format   = await context.render_string(self.config.format, "wav")
+        format   = await context.render_scalar(self.config.format, str, "wav")
         encoding = await self._resolve_audio_encoder(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
 
         return {

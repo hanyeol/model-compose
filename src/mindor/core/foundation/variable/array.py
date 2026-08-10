@@ -1,4 +1,4 @@
-from typing import List, Union, Any
+from typing import List, Union, Optional, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
@@ -28,7 +28,10 @@ class ArrayValue:
         return [ item async for item in self.source ]
 
 class ArrayValueRenderer:
-    async def render(self, value: Any) -> Union[ArrayValue, List[ArrayValue], AsyncIterator[ArrayValue]]:
+    async def render(
+        self,
+        value: Any
+    ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
         # Fragmented streams represent a single logical array delivered as an
         # element stream — fall through to ``_render_element`` which wraps
         # them into one streaming ArrayValue.
@@ -39,8 +42,7 @@ class ArrayValueRenderer:
                 async for chunk in value:
                     yield self._render_element(chunk)
 
-            # Preserve the StreamChunkIterator type so downstream isinstance
-            # checks still recognize it.
+            # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 
@@ -51,7 +53,7 @@ class ArrayValueRenderer:
 
         return self._render_element(value)
 
-    def _render_element(self, value: Any) -> ArrayValue:
+    def _render_element(self, value: Any) -> Optional[ArrayValue]:
         if isinstance(value, ArrayValue):
             return value
 
@@ -70,4 +72,4 @@ class ArrayValueRenderer:
         if isinstance(value, (list, tuple)):
             return ArrayValue(list(value))
 
-        raise TypeError(f"Cannot render element of type {type(value).__name__} as array")
+        return None

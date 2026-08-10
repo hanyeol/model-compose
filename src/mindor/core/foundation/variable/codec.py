@@ -8,9 +8,10 @@ from ..streaming.resources import StreamResource
 from ..streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingFormat
 from ..streaming.image import ImageStreamResource
 from ..streaming.file import UploadFileStreamResource
+from .atomic import AtomicDict, AtomicList
 from PIL import Image as PILImage
 from starlette.datastructures import UploadFile
-import base64, ulid
+import base64, importlib, ulid
 
 class StreamKind(str, Enum):
     """Wire representation of stream chunk data."""
@@ -85,6 +86,11 @@ class VariableCodec:
         if isinstance(value, (StreamIterator, AsyncIterator, StreamResource)):
             return self._build_stream_variable(value, on_stream_encode)
 
+        # Atomic subclasses (before the generic dict/list branches so their
+        # subclass identity survives the IPC round-trip).
+        if isinstance(value, (AtomicDict, AtomicList)):
+            return self._build_atomic_variable(value, on_stream_encode)
+
         # Containers (after stream checks so that stream classes don't fall through here)
         if isinstance(value, dict):
             return { str(k): self._encode_value(v, on_stream_encode) for k, v in value.items() }
@@ -127,6 +133,29 @@ class VariableCodec:
             on_stream_encode(stream_id, source, kind)
 
         return { "__variable__": variable }
+
+    def _build_atomic_variable(
+        self,
+        value: Union[AtomicDict, AtomicList],
+        on_stream_encode: Optional[StreamEncodeCallback],
+    ) -> Dict[str, Any]:
+        cls = type(value)
+        if isinstance(value, AtomicDict):
+            payload = { str(k): self._encode_value(v, on_stream_encode) for k, v in value.items() }
+            shape = "dict"
+        else:
+            payload = [ self._encode_value(v, on_stream_encode) for v in value ]
+            shape = "list"
+
+        return {
+            "__variable__": {
+                "type": "atomic",
+                "class": cls.__name__,
+                "module": cls.__module__,
+                "shape": shape,
+                "value": payload,
+            }
+        }
 
     def _classify_stream_kind(self, source: Any) -> StreamKind:
         if isinstance(source, StreamEncodingIterator):
@@ -171,4 +200,44 @@ class VariableCodec:
                 raise RuntimeError("on_stream_decode callback is required to decode stream variables")
             return on_stream_decode(variable)
 
+        if variable_type == "atomic":
+            return self._resolve_atomic_variable(variable, on_stream_decode)
+
         raise ValueError(f"Unknown variable type: {variable_type!r}")
+
+    def _resolve_atomic_variable(
+        self,
+        variable: Dict[str, Any],
+        on_stream_decode: Optional[StreamDecodeCallback],
+    ) -> Any:
+        module_name = variable.get("module")
+        class_name = variable.get("class")
+        shape = variable.get("shape")
+        payload = variable.get("value")
+
+        if not isinstance(module_name, str) or not isinstance(class_name, str):
+            raise ValueError("Invalid atomic variable: 'module' and 'class' must be strings")
+
+        # Recursively decode inner values so nested streams/bytes/atomics resolve
+        # back to their native forms before the wrapper class is reconstructed.
+        if shape == "dict" and isinstance(payload, dict):
+            decoded: Any = { k: self._decode_value(v, on_stream_decode) for k, v in payload.items() }
+            expected_base = AtomicDict
+        elif shape == "list" and isinstance(payload, list):
+            decoded = [ self._decode_value(v, on_stream_decode) for v in payload ]
+            expected_base = AtomicList
+        else:
+            raise ValueError(f"Invalid atomic variable: unsupported shape {shape!r}")
+
+        try:
+            module = importlib.import_module(module_name)
+            cls = getattr(module, class_name)
+        except (ImportError, AttributeError):
+            # Wrapper class unavailable on this side — fall back to the plain
+            # container so the payload is still usable (identity/log summary lost).
+            return decoded
+
+        if not (isinstance(cls, type) and issubclass(cls, expected_base)):
+            return decoded
+
+        return cls(decoded)

@@ -254,7 +254,7 @@ class WorkflowRunner:
         self,
         job: Job,
         context: WorkflowContext,
-        counts: Dict[str, int],
+        run_counts: Dict[str, int],
     ) -> asyncio.Task:
         """Enforce max_run_count and create the asyncio.Task running `job`.
 
@@ -262,8 +262,9 @@ class WorkflowRunner:
         Kept as a discrete method so both scheduling sites in `_run_jobs`
         (initial dispatch + routing rewind) share one source of truth.
         """
-        counts[job.id] = counts.get(job.id, 0) + 1
-        if counts[job.id] > job.config.max_run_count:
+        run_counts[job.id] = run_counts.get(job.id, 0) + 1
+
+        if run_counts[job.id] > job.config.max_run_count:
             raise RuntimeError(f"Job '{job.id}' has reached its max_run_count ({job.config.max_run_count}).")
 
         async def on_job_start(input: Any, job_id: str = job.id) -> None:

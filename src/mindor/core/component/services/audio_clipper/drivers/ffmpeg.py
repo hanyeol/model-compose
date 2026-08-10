@@ -11,7 +11,8 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.audio import is_streamable_audio_format
-from mindor.core.utils.ffmpeg import probe_container_format, get_extension_for_muxer
+from mindor.core.utils.ffmpeg.probe import probe_audio
+from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -354,7 +355,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         if extension:
             return extension.lstrip(".").lower()
 
-        return await probe_container_format(input_path)
+        return (await probe_audio(input_path, ("format",)))[0]
 
 @register_audio_clipper_service(AudioClipperDriver.FFMPEG)
 class FFmpegAudioClipperService(AudioClipperService):

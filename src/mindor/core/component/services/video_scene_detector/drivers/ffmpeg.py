@@ -8,13 +8,14 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.shell import run_command, run_subprocess, stream_subprocess
+from mindor.core.utils.ffmpeg.probe import probe_video
+from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
-import asyncio, json, os, re
+import asyncio, os, re
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 
@@ -77,8 +78,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 except FileNotFoundError:
                     pass
 
-        duration   = await self._get_duration(input_path)
-        frame_rate = await self._get_frame_rate(input_path)
+        duration, frame_rate = await probe_video(input_path, ("duration", "frame_rate"))
 
         if streaming:
             return self._stream_scenes(command, duration, frame_rate, _cleanup, cancellation_token)
@@ -271,37 +271,6 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
 
         return spooled_path, True
-
-    async def _get_frame_rate(self, video_path: str) -> float:
-        command = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-select_streams", "v:0", "-show_streams", video_path,
-        ]
-
-        stdout, _, returncode = await run_command(command)
-
-        if returncode != 0:
-            raise RuntimeError(f"ffprobe failed to read frame rate (exit code {returncode})")
-
-        result = json.loads(stdout.decode("utf-8"))
-        frame_rate = result["streams"][0].get("r_frame_rate", "30/1")
-        numerator, denominator = frame_rate.split("/")
-
-        return float(numerator) / float(denominator)
-
-    async def _get_duration(self, video_path: str) -> float:
-        command = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", video_path,
-        ]
-
-        stdout, _, returncode = await run_command(command)
-
-        if returncode != 0:
-            raise RuntimeError(f"ffprobe failed to read duration (exit code {returncode})")
-
-        result = json.loads(stdout.decode("utf-8"))
-        return float(result["format"]["duration"])
 
 @register_video_scene_detector_service(VideoSceneDetectorDriver.FFMPEG)
 class FFmpegVideoSceneDetectorService(VideoSceneDetectorService):

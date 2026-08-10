@@ -12,7 +12,8 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.files import create_temporary_file
 from mindor.core.utils.video import is_streamable_video_format
-from mindor.core.utils.ffmpeg import probe_container_format, get_extension_for_muxer
+from mindor.core.utils.ffmpeg.probe import probe_video
+from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import VideoClipperService, VideoClipperDriver, register_video_clipper_service
@@ -359,7 +360,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         if extension:
             return extension.lstrip(".").lower()
 
-        return await probe_container_format(input_path)
+        return (await probe_video(input_path, ("format",)))[0]
 
 @register_video_clipper_service(VideoClipperDriver.FFMPEG)
 class FFmpegVideoClipperService(VideoClipperService):

@@ -11,13 +11,14 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.utils.ffmpeg import probe_container_format, get_extension_for_muxer
 from mindor.core.utils.files import create_temporary_file
-from mindor.core.utils.shell import run_command, run_subprocess, stream_subprocess
+from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import AudioClipperService, AudioClipperDriver, register_audio_clipper_service
 from ..base import ComponentActionContext
 from .common import AudioClipperAction
-import asyncio, os, json
+import asyncio, os
 
 class FFmpegAudioClipperAction(AudioClipperAction):
     async def _clip_batch(
@@ -154,7 +155,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
         try:
             async for clip in clips:
-                clip_path = create_temporary_file(format)
+                clip_path = create_temporary_file(get_extension_for_muxer(format))
                 clip_paths.append(clip_path)
                 times.append({ "start_time": clip["start_time"], "end_time": clip["end_time"] })
 
@@ -197,7 +198,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg to a temporary file, then return an AudioStreamResource over that file."""
-        output_path = create_temporary_file(format)
+        output_path = create_temporary_file(get_extension_for_muxer(format))
         command = command + [ "-y", output_path ]
 
         # run_subprocess only reacts to asyncio cancellation, but our
@@ -353,26 +354,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         if extension:
             return extension.lstrip(".").lower()
 
-        return await self._probe_format(input_path)
-
-    @staticmethod
-    async def _probe_format(input_path: str) -> str:
-        """Return a container format name usable by ffmpeg -f, via ffprobe."""
-        command = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", input_path,
-        ]
-
-        stdout, _, returncode = await run_command(command)
-
-        if returncode != 0:
-            raise RuntimeError(f"ffprobe failed to detect audio format (exit code {returncode})")
-
-        format_name = json.loads(stdout.decode("utf-8"))["format"]["format_name"]
-
-        # ffprobe returns comma-separated candidates (e.g. "mov,mp4,m4a,3gp,...");
-        # pick the first as the canonical container name.
-        return format_name.split(",")[0].lower()
+        return await probe_container_format(input_path)
 
 @register_audio_clipper_service(AudioClipperDriver.FFMPEG)
 class FFmpegAudioClipperService(AudioClipperService):

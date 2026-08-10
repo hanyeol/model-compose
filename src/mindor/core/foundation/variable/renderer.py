@@ -314,7 +314,7 @@ class VariableRenderer:
                             yield item
                         continue
 
-                    if isinstance(chunk, (str, dict)):
+                    if chunk is not None:
                         yield chunk
                         continue
 

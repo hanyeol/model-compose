@@ -120,6 +120,14 @@ class LocalModelConfig(CommonModelConfig):
     def apply_default_path(self):
         if not self.path and self.url:
             filename = os.path.basename(self.url.endpoint)
+            # For bundled archives the on-disk path names the extracted
+            # directory, not the archive — strip the archive suffix so the
+            # directory name is clean (e.g. `antelopev2.zip` -> `antelopev2`).
+            if self.bundled:
+                for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
+                    if filename.lower().endswith(suffix):
+                        filename = filename[: -len(suffix)]
+                        break
             subdir = self._cache_subdir()
             if subdir:
                 self.path = os.path.join(self.get_cache_dir(), subdir, filename)

@@ -126,6 +126,7 @@ class GradioWebUIBuilder:
                                 fn=_inject_flow_diagram,
                                 inputs=[flow_diagram_injected],
                                 outputs=[flow_diagram_markdown, flow_diagram_injected],
+                                concurrency_limit=None,
                             )
                         else:
                             gr.Markdown(value="_Flow information unavailable._")
@@ -200,7 +201,7 @@ class GradioWebUIBuilder:
                 async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
 
                 while not async_task.done():
-                    if await log_message_history.poll(timeout=0.1, linger=0.2):
+                    if await log_message_history.poll(timeout=0.1, linger=0.3):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -375,7 +376,7 @@ class GradioWebUIBuilder:
                     raise gr.Error(str(e))
 
                 while not async_task.done():
-                    if await log_message_history.poll(timeout=0.1, linger=0.2):
+                    if await log_message_history.poll(timeout=0.1, linger=0.3):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -565,7 +566,8 @@ class GradioWebUIBuilder:
             cancel_button.click(
                 fn=_cancel_workflow,
                 inputs=[ task_state ],
-                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ]
+                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ],
+                concurrency_limit=None,
             )
 
             def _on_media_rendered(task_id, value):

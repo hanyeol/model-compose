@@ -200,7 +200,7 @@ class GradioWebUIBuilder:
                 async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
 
                 while not async_task.done():
-                    if await log_message_history.poll(timeout=0.1):
+                    if await log_message_history.poll(timeout=0.1, linger=0.2):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -375,7 +375,7 @@ class GradioWebUIBuilder:
                     raise gr.Error(str(e))
 
                 while not async_task.done():
-                    if await log_message_history.poll(timeout=0.1):
+                    if await log_message_history.poll(timeout=0.1, linger=0.2):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),

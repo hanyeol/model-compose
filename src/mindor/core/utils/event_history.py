@@ -54,13 +54,16 @@ class EventHistory:
         self._spool_file = None
         self._spool_path = None
 
-    async def poll(self, timeout: float) -> bool:
+    async def poll(self, timeout: float, linger: float = 0.0) -> bool:
         try:
             event = await asyncio.wait_for(self._queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
             return False
 
         self._append(event)
+
+        if linger > 0:
+            await asyncio.sleep(linger)
 
         while not self._queue.empty():
             self._append(self._queue.get_nowait())

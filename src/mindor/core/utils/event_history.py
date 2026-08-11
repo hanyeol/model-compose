@@ -27,9 +27,10 @@ class EventAdaptiveLinger:
         self._seconds = self._MIN_SECONDS
 
 class EventHistory:
-    _MAX_MEMORY_EVENTS = 500
+    _DEFAULT_MAX_MEMORY_EVENT_COUNT = 100
 
-    def __init__(self):
+    def __init__(self, max_memory_event_count: int = _DEFAULT_MAX_MEMORY_EVENT_COUNT):
+        self._max_memory_event_count: int = max_memory_event_count
         self._events: Deque[Any] = deque()
         self._queue: asyncio.Queue = asyncio.Queue()
         self._adaptive_linger: Optional[EventAdaptiveLinger] = None
@@ -114,7 +115,7 @@ class EventHistory:
         self._events.append(event)
         self._total_count += 1
 
-        while len(self._events) > self._MAX_MEMORY_EVENTS:
+        while len(self._events) > self._max_memory_event_count:
             self._spool(self._events.popleft())
 
     def _spool(self, event: Any) -> None:

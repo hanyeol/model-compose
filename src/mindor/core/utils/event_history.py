@@ -30,10 +30,10 @@ class EventHistory:
     _DEFAULT_MAX_MEMORY_EVENT_COUNT = 100
 
     def __init__(self, max_memory_event_count: int = _DEFAULT_MAX_MEMORY_EVENT_COUNT):
-        self._max_memory_event_count: int = max_memory_event_count
         self._events: Deque[Any] = deque()
         self._queue: asyncio.Queue = asyncio.Queue()
         self._adaptive_linger: Optional[EventAdaptiveLinger] = None
+        self._max_memory_event_count: int = max_memory_event_count
         self._spool_path: Optional[str] = None
         self._spool_file = None
         self._total_count: int = 0

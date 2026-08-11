@@ -18,7 +18,7 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
-from mindor.core.utils.event_queue import EventQueue
+from mindor.core.utils.event_history import EventHistory
 from mindor.core.logger import logging
 from PIL import Image as PILImage
 from collections import deque
@@ -88,7 +88,7 @@ class GradioWebUIBuilder:
         component_configs: Dict[str, ComponentConfig],
         runner: Callable[[], ControllerRunner]
     ) -> gr.Column:
-        log_message_queue: EventQueue = EventQueue()
+        log_message_history: EventHistory = EventHistory()
 
         with gr.Column() as section:
             gr.Markdown(f"## **{workflow.title or 'Untitled Workflow'}**")
@@ -174,10 +174,10 @@ class GradioWebUIBuilder:
 
             async def _on_workflow_event(event):
                 for message in self._log_messages_for_event(event):
-                    log_message_queue.put(message)
+                    log_message_history.put(message)
 
             async def _run_workflow(*args):
-                log_message_queue.reset()
+                log_message_history.reset()
 
                 yield [
                     _run_button_running(),
@@ -194,18 +194,18 @@ class GradioWebUIBuilder:
                 async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
 
                 while not async_task.done():
-                    if await log_message_queue.poll(timeout=0.1):
+                    if await log_message_history.poll(timeout=0.1):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
                             task_id,
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in flattened_output_components),
-                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
+                            *log_panel.update(log_message_history.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
-                log_message_queue.drain()
-                log_messages = log_message_queue.get(consume=False)
+                log_message_history.drain()
+                log_messages = log_message_history.get(consume=False)
 
                 if log_messages:
                     yield [
@@ -282,8 +282,8 @@ class GradioWebUIBuilder:
 
                 if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
                     async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -295,8 +295,8 @@ class GradioWebUIBuilder:
 
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         log_done = log_panel.update(log_messages)
 
                     yield [
@@ -320,8 +320,8 @@ class GradioWebUIBuilder:
 
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         log_done = log_panel.update(log_messages)
 
                     wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
@@ -346,7 +346,7 @@ class GradioWebUIBuilder:
                     _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in flattened_output_components),
-                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
+                    *log_panel.update(log_message_history.get(consume=False), self._log_spinner_message("Running...")),
                 ]
 
                 task_id, job_id, run_id = interrupt_point["task_id"], interrupt_point["job_id"], interrupt_point.get("run_id")
@@ -375,7 +375,7 @@ class GradioWebUIBuilder:
                     raise gr.Error(str(e))
 
                 while not async_task.done():
-                    if await log_message_queue.poll(timeout=0.1):
+                    if await log_message_history.poll(timeout=0.1):
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -383,11 +383,11 @@ class GradioWebUIBuilder:
                             _resume_button_running(),
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in flattened_output_components),
-                            *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Running...")),
+                            *log_panel.update(log_message_history.get(consume=False), self._log_spinner_message("Running...")),
                         ]
 
-                log_message_queue.drain()
-                log_messages = log_message_queue.get(consume=False)
+                log_message_history.drain()
+                log_messages = log_message_history.get(consume=False)
 
                 if log_messages:
                     yield [
@@ -470,8 +470,8 @@ class GradioWebUIBuilder:
 
                 if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
                     async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         yield [
                             _run_button_running(),
                             _cancel_button_active(),
@@ -484,8 +484,8 @@ class GradioWebUIBuilder:
 
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         log_done = log_panel.update(log_messages)
 
                     yield [
@@ -510,8 +510,8 @@ class GradioWebUIBuilder:
 
                     if state.status == TaskStatus.STREAMING:
                         state = await runner().wait_for_completion(task_id)
-                        log_message_queue.drain()
-                        log_messages = log_message_queue.get(consume=False)
+                        log_message_history.drain()
+                        log_messages = log_message_history.get(consume=False)
                         log_done = log_panel.update(log_messages)
 
                     wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
@@ -536,7 +536,7 @@ class GradioWebUIBuilder:
                     None,
                     _resume_button_ready(),
                     *self._clear_interrupt_updates(),
-                    *log_panel.update(log_message_queue.get(consume=False), self._log_spinner_message("Cancelling...")),
+                    *log_panel.update(log_message_history.get(consume=False), self._log_spinner_message("Cancelling...")),
                 ]
 
                 if task_id:
@@ -545,8 +545,8 @@ class GradioWebUIBuilder:
                     except Exception as e:
                         logging.warning("Failed to cancel task %s: %s", task_id, e)
 
-                log_message_queue.drain()
-                log_messages = log_message_queue.get(consume=False)
+                log_message_history.drain()
+                log_messages = log_message_history.get(consume=False)
 
                 yield [
                     _run_button_ready(),
@@ -588,7 +588,7 @@ class GradioWebUIBuilder:
                     _run_button_ready(),
                     _cancel_button_inactive(),
                     None,
-                    *log_panel.update(log_message_queue.get(consume=False)),
+                    *log_panel.update(log_message_history.get(consume=False)),
                 ]
 
             for component in media_components:

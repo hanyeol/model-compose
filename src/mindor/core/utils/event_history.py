@@ -1,7 +1,7 @@
 from typing import List, Any
 import asyncio
 
-class EventQueue:
+class EventHistory:
     def __init__(self):
         self._events: List[Any] = []
         self._queue: asyncio.Queue = asyncio.Queue()

@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `face-detection`, `pose-detection`, `face-embedding`, `music-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `music-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -491,19 +491,27 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `face-detection` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (currently `blazeface`) |
-| `model` | string | `__default__` | Path or URL of a MediaPipe `.tflite` model. `__default__` auto-downloads the official BlazeFace short-range model to `~/.cache/models/mediapipe/`. |
+| `family` | string | **required** | Model family: `blazeface` or `insightface` |
+| `model` | string/object | family-dependent | Model source. For `blazeface`, a MediaPipe `.tflite` file (auto-downloads BlazeFace short-range to `~/.cache/models/mediapipe/` when omitted). For `insightface`, a HuggingFace-style identifier or a local path to an InsightFace model pack (auto-downloads `antelopev2` to `~/.cache/models/insightface/` when omitted). |
 
 **Action Fields:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
-| `return_landmarks` | bool | `false` | Include the 6 facial keypoints (eyes, nose, mouth, ears) in the result |
+| `return_landmarks` | bool | `false` | Include facial keypoints in the result (6 for BlazeFace, up to 106 for InsightFace `antelopev2`). |
+| `bounding_box_padding` | float | `0.0` | Grow each returned bounding box by this fraction of its width/height on every side, then clip to the image (e.g. `0.2` = +20%). Useful when downstream consumers crop the box and need extra context (hair, chin). |
 | `batch_size` | int | `1` | Number of images to process per batch |
-| `params.min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0) |
+| `params.min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0). Passed to the InsightFace detector as `det_thresh`. |
 
-**Example:**
+**Family-Specific Fields (`insightface`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.detection_size` | [int, int] | `[640, 640]` | Detector input size in pixels. Larger sizes improve recall on small faces at the cost of throughput. |
+| `params.max_num_faces` | int | `0` | Maximum number of faces returned per image. `0` disables the limit. Applied at detection time (before embedding-style postprocessing). |
+
+**Example — BlazeFace:**
 
 ```yaml
 component:
@@ -517,16 +525,35 @@ component:
     params:
       min_confidence: 0.6
     output:
-      faces: ${result.detections}
+      faces: ${result.faces}
+```
+
+**Example — InsightFace:**
+
+```yaml
+component:
+  type: model
+  task: face-detection
+  driver: custom
+  family: insightface
+  model:
+    provider: local
+  action:
+    image: ${input.image as image}
+    params:
+      min_confidence: 0.5
+      detection_size: [ 960, 960 ]
+    output:
+      faces: ${result.faces}
 ```
 
 **Result Shape:**
 
 ```json
 {
-  "detections": [
+  "faces": [
     {
-      "box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 280 },
       "score": 0.97,
       "landmarks": [{ "x": 123, "y": 45 }, ...]
     }
@@ -537,6 +564,113 @@ component:
 ```
 
 When the input is a list, the action returns a list of result dicts. When the input is an async stream, the action returns an async iterator that yields per-frame result dicts.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `blazeface` | [MediaPipe Tasks (Face Detector)](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) (pip) | Lightweight, optimised for close-up frontal faces (webcam / selfie distance). Fast on CPU but misses profile / small / heavily occluded faces at typical video distances. |
+| `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | SCRFD detector from an InsightFace model pack (e.g. `antelopev2`). Handles small, profile, and off-frontal faces far better than BlazeFace. Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
+
+### Face Tracking
+
+Track faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs the tracker lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `face-tracking` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `insightface`) |
+| `model` | string/object | **required** | Model pack. For `insightface`, either a HuggingFace-style identifier or a local path to an InsightFace model pack directory (e.g. `antelopev2` layout with `.onnx` files). |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image/array | **required** | Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches. |
+| `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
+| `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
+| `return_embedding` | bool | `false` | Include the track's L2-normalized identity centroid embedding in the result. |
+| `return_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects `segment.image`; embeddings and clustering still use the un-padded box. |
+| `batch_size` | int | `1` | Number of frame batches per iteration. |
+| `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
+| `params.min_face_size` | int | `0` | Minimum face bounding box size in pixels. `0` disables the filter. |
+| `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
+| `params.max_face_count_per_frame` | int | `0` | Maximum number of faces to keep per frame. `0` disables the limit. |
+| `params.merge_gap` | float | `0.0` | Merge adjacent segments separated by less than this many seconds. |
+
+**Family-Specific Fields (`insightface`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `return_gender_age` | bool | `false` | Include the track's `gender` and `age` from its highest-scoring frame. Requires a model pack that ships gender/age submodels (e.g. `antelopev2`, `buffalo_l`). |
+| `params.detection_threshold` | float | `0.5` | Face detection confidence threshold passed to the InsightFace detector (0.0 - 1.0). |
+| `params.detection_size` | [int, int] | `[640, 640]` | Detector input size in pixels. Larger sizes improve recall on small faces at the cost of throughput. |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: insightface
+  model:
+    provider: local
+    path: ./.models/antelopev2
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    time_offset: 0.0
+    return_image: true
+    return_embedding: false
+    params:
+      similarity_threshold: 0.4
+      min_face_size: 40
+      min_frame_count: 2
+      merge_gap: 1.0
+    output:
+      tracks: ${result.tracks}
+```
+
+**Result Shape:**
+
+```json
+{
+  "tracks": [
+    {
+      "segments": [
+        { "start_time": "0:00:02.000", "end_time": "0:00:08.500", "duration": "0:00:06.500", "score": 0.94 },
+        { "start_time": "0:00:14.000", "end_time": "0:00:17.000", "duration": "0:00:03.000", "score": 0.88 }
+      ],
+      "frame_count": 21,
+      "score": 0.94,
+      "gender": "female",
+      "age": 32,
+      "embedding": [0.012, -0.045, ...]
+    }
+  ],
+  "frame_count": 40
+}
+```
+
+- `tracks[i].score` is the highest detection confidence across all frames in the track. Useful for ranking or filtering tracks.
+- `tracks[i].segments[j].score` is the detection confidence of the representative frame for that segment (the highest-scoring frame within the segment; the same frame `image` is cropped from when `return_image` is enabled).
+- `tracks[i].embedding` is present only when `return_embedding` is enabled — a 512-d L2-normalized centroid (for antelopev2) suitable for cosine matching against an identity DB or for merging tracks that turn out to be the same person.
+- `tracks[i].segments[j].image` is present only when `return_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's native resolution.
+- `tracks[i].gender` (`"male"` / `"female"`) and `tracks[i].age` (integer) are present only when `return_gender_age` is enabled — taken from the track's highest-scoring frame. Absent if the model pack doesn't ship gender/age submodels.
+- `frame_count` at the top level is the total number of sampled frames analyzed.
+
+When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | Detection + 512-d ArcFace embedding. Requires an InsightFace model pack (e.g. `antelopev2`). Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
 
 ### Pose Detection
 
@@ -705,7 +839,7 @@ component:
       "label": "person",
       "label_id": 0,
       "score": 0.87,
-      "bounding_box": [x, y, width, height]
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 }
     }
   ],
   "width": 1920,
@@ -713,7 +847,7 @@ component:
 }
 ```
 
-`bounding_box` uses top-left origin as `[x, y, width, height]` in pixel coordinates. When `bounding_box_padding > 0`, boxes are expanded before clamping to image bounds. List and async-stream inputs behave the same way as face detection.
+`bounding_box` uses top-left origin as `{x, y, width, height}` in pixel coordinates. When `bounding_box_padding > 0`, boxes are expanded before clamping to image bounds. List and async-stream inputs behave the same way as face detection.
 
 ### Image Segmentation
 
@@ -733,7 +867,7 @@ Generate per-region binary segmentation masks from an image. Supports **automati
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
-| `box_prompt` | `[x, y, w, h]` or `[[x, y, w, h], ...]` | `null` | Bounding-box prompt(s) that constrain segmentation. Accepts a single box or a list of boxes. If omitted, the task runs in automatic mode |
+| `box_prompt` | object or list | `null` | Bounding-box prompt(s) that constrain segmentation as `{x, y, width, height}` (single) or `[{...}, ...]` (multiple). Same shape as detection components' `bounding_box` outputs. If omitted, the task runs in automatic mode |
 | `max_segment_count` | int | `100` | Maximum segments per image (>= 1). Extra segments are dropped after sorting by score |
 | `return_mask` | bool | `true` | Include the per-segment binary mask (grayscale PNG: background `0`, segment `255`) in the result |
 | `batch_size` | int | `1` | Number of images to process per batch |
@@ -780,7 +914,7 @@ jobs:
   "segments": [
     {
       "score": 0.92,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>"
     }
@@ -797,7 +931,7 @@ jobs:
   "segments": [
     {
       "score": 0.87,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>",
       "prompt_index": 0
@@ -808,7 +942,7 @@ jobs:
 }
 ```
 
-- `bounding_box` — `[x, y, width, height]` derived from the returned mask, top-left origin.
+- `bounding_box` — `{x, y, width, height}` derived from the returned mask, top-left origin.
 - `area` — Mask area in pixels.
 - `mask` — Binary mask as a grayscale PNG (omitted when `return_mask: false`).
 - `prompt_index` — Index into the input `box_prompt` list that this segment corresponds to (only in box-prompted mode).

@@ -468,7 +468,7 @@ role:
 
 ```yaml
 content:
-  "*": ${item.blocks}
+  "*": ${item.content}
   "?":
     - input: ${item.type}
       value: text
@@ -557,12 +557,12 @@ headers:
 content:
   "+":
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: text }
       type: text
       text: ${item.text}
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: tool_call }
       type: tool_use
       id: ${item.id}
@@ -583,9 +583,49 @@ content:
 
 ---
 
-## 14.12 실전 예제
+## 14.12 분할 연산자 (`"|"`)
 
-### 14.12.1 OpenAI API 호출
+`"|"` 키는 `"*"`의 역연산입니다. 소스 리스트(또는 스트림)를 받아 각 요소를 여러 개의 병렬 출력 컬렉션으로 팬아웃하며, 템플릿 필드마다 하나씩 만듭니다. 하나의 소스를 요소별로 재구성된 리스트가 아니라 여러 개의 독립된 레인으로 투영하고 싶을 때 사용합니다.
+
+### 14.12.1 기본 분할
+
+```yaml
+xs_ys:
+  "|": ${points}
+  xs: ${item.x}
+  ys: ${item.y}
+# points = [{x:1,y:2},{x:3,y:4}] 이면
+# 결과: { xs: [1, 3], ys: [2, 4] }
+```
+
+템플릿 내부에서 `${item}`과 `${index}`는 현재 소스 요소와 그 위치를 가리키며, 스코프 규칙은 `"*"`과 동일합니다.
+
+### 14.12.2 스트림 분할
+
+소스가 스트림으로 해석되면 각 출력 필드는 자체 스트림이 됩니다. 소비자는 레인들을 독립적으로 또는 동시에 읽을 수 있으며, 값은 원본 스트림이 진행되는 순서대로 생성됩니다.
+
+```yaml
+# events 스트림: [{level: info, msg: ...}, {level: error, msg: ...}, ...]
+lanes:
+  "|": ${events}
+  levels: ${item.level}
+  messages: ${item.msg}
+# 결과: { levels: <스트림>, messages: <스트림> }
+```
+
+### 14.12.3 규칙
+
+- **템플릿 필수.** `{ "|": ${src} }`처럼 다른 키가 없으면 `ValueError`. 출력 필드가 없는 분할은 의미가 없습니다.
+- **소스는 리스트, 튜플, 또는 스트림이어야 합니다.** 그 외 타입은 `TypeError`. `None`이면 선언된 각 필드에 대해 빈 컬렉션을 반환합니다.
+- **각 원소에 대해 필드는 순차 렌더링됩니다** — 한 필드 렌더링이 느리면 그 원소에 한해 다른 레인들도 지연됩니다. 필드 템플릿은 가볍게 유지하고, 무거운 작업은 상위 잡에 두세요.
+- **스트림은 하나의 소스를 공유합니다.** 모든 출력 레인은 같은 이터레이터를 내부 락으로 조율하며 소스를 정확히 한 번만 순회합니다. 뒤처진 레인의 값은 소비될 때까지 버퍼링됩니다.
+- `"|"`는 `"*"` 및 `"+"`와 조합할 수 있습니다 — 분할된 레인을 중간 단계 없이 다운스트림 맵이나 조인에 바로 넘길 수 있습니다.
+
+---
+
+## 14.13 실전 예제
+
+### 14.13.1 OpenAI API 호출
 
 ```yaml
 body:
@@ -599,7 +639,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.12.2 이미지 처리 파이프라인
+### 14.13.2 이미지 처리 파이프라인
 
 ```yaml
 jobs:
@@ -617,7 +657,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.12.3 스트리밍 응답
+### 14.13.3 스트리밍 응답
 
 ```yaml
 workflow:
@@ -632,7 +672,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.12.4 벡터 검색 결과 포맷
+### 14.13.4 벡터 검색 결과 포맷
 
 ```yaml
 component:
@@ -642,7 +682,7 @@ component:
 # 결과: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.12.5 조건부 기본값
+### 14.13.5 조건부 기본값
 
 ```yaml
 component:

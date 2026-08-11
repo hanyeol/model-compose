@@ -28,7 +28,7 @@ component:
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `agent` |
 | `tools` | array | `[]` | List of workflow IDs to use as tools |
-| `max_iteration_count` | integer | `10` | Maximum number of ReAct loop iterations |
+| `max_iteration_count` | integer | `32` | Maximum number of ReAct loop iterations |
 | `actions` | array | `[]` | List of agent actions |
 
 ### Action Configuration

@@ -13,14 +13,14 @@ The canonical representation of a chat message inside model-compose. All agent c
 ```python
 {
     "role": "system" | "user" | "assistant" | "tool",
-    "blocks": [Block, ...]
+    "content": [Block, ...]
 }
 ```
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `role` | string | One of `system`, `user`, `assistant`, `tool`. Role names in provider payloads may differ (e.g. Gemini's `model` for assistant) — adapters handle the rename. |
-| `blocks` | list of Block | Ordered content of the message. Never a string, even for text-only messages. |
+| `content` | list of Block | Ordered content of the message. Always a list of typed blocks, never a bare string — even for text-only messages. |
 
 Every block has a `type` field that discriminates the union. Unknown types are ignored by the adapter (forward-compatible).
 
@@ -69,7 +69,7 @@ Not yet emitted by any built-in adapter, but the shape is reserved:
 
 ## Rules
 
-1. **`blocks` is always a list.** Never elide to a string, even for a single text block. Consumers can rely on the list shape.
+1. **`content` is always a list of blocks.** Never elide to a string, even for a single text block. Consumers can rely on the list shape.
 2. **`is_error` is present only when true.** Success case omits the field entirely.
 3. **`tool_call.arguments` is a dict.** Adapters parse JSON on the way in, serialize on the way out.
 4. **`tool_call.id` must be unique within a conversation** and referenced by exactly one `tool_result.id`. For providers without native tool-call IDs (Gemini), the adapter assigns one and maintains the linkage internally.
@@ -86,9 +86,9 @@ The following mappings are performed by adapters. Users do not write these — t
 | `role: user` | `{role: user, content: str \| [parts]}` | `{role: user, content: [blocks]}` | `{role: user, parts: [...]}` |
 | `role: assistant` | `{role: assistant, content, tool_calls}` | `{role: assistant, content: [blocks]}` | `{role: model, parts: [...]}` |
 | `role: tool` | `{role: tool, tool_call_id, content}` (one per result) | `{role: user, content: [{type: tool_result, ...}]}` | `{role: user, parts: [{functionResponse}, ...]}` |
-| `blocks[type=text]` | `content` (str) or `{type: text, text}` | `{type: text, text}` | `{text}` |
-| `blocks[type=tool_call]` | `tool_calls[].function.{name, arguments: JSON str}` | `{type: tool_use, id, name, input}` | `{functionCall: {name, args}}` |
-| `blocks[type=tool_result]` | `role: tool` message | `{type: tool_result, tool_use_id, content, is_error}` | `{functionResponse: {name, response}}` |
+| `content[type=text]` | `content` (str) or `{type: text, text}` | `{type: text, text}` | `{text}` |
+| `content[type=tool_call]` | `tool_calls[].function.{name, arguments: JSON str}` | `{type: tool_use, id, name, input}` | `{functionCall: {name, args}}` |
+| `content[type=tool_result]` | `role: tool` message | `{type: tool_result, tool_use_id, content, is_error}` | `{functionResponse: {name, response}}` |
 | `tool_call.arguments` (dict) | JSON string (`json.dumps`) | dict (`input`) | dict (`args`) |
 | `tool_call.id` | `call_*` string | `toolu_*` string | (none — adapter maintains internal linkage) |
 
@@ -98,8 +98,8 @@ The following mappings are performed by adapters. Users do not write these — t
 
 ```python
 [
-  { "role": "user",      "blocks": [{"type": "text", "text": "What time is it in Seoul?"}] },
-  { "role": "assistant", "blocks": [{"type": "text", "text": "It is 3:14 PM in Seoul."}] }
+  { "role": "user",      "content": [{"type": "text", "text": "What time is it in Seoul?"}] },
+  { "role": "assistant", "content": [{"type": "text", "text": "It is 3:14 PM in Seoul."}] }
 ]
 ```
 
@@ -107,18 +107,18 @@ The following mappings are performed by adapters. Users do not write these — t
 
 ```python
 [
-  { "role": "user", "blocks": [{"type": "text", "text": "Compare weather in SF and Tokyo."}] },
+  { "role": "user", "content": [{"type": "text", "text": "Compare weather in SF and Tokyo."}] },
   {
     "role": "assistant",
-    "blocks": [
+    "content": [
       { "type": "text", "text": "Let me check both cities." },
       { "type": "tool_call", "id": "a", "name": "get_weather", "arguments": {"city": "SF"} },
       { "type": "tool_call", "id": "b", "name": "get_weather", "arguments": {"city": "Tokyo"} }
     ]
   },
-  { "role": "tool", "blocks": [{"type": "tool_result", "id": "a", "content": "{\"temp_c\": 15, \"cond\": \"foggy\"}"}] },
-  { "role": "tool", "blocks": [{"type": "tool_result", "id": "b", "content": "{\"temp_c\": 22, \"cond\": \"clear\"}"}] },
-  { "role": "assistant", "blocks": [{"type": "text", "text": "SF is 15 °C and foggy; Tokyo is 22 °C and clear."}] }
+  { "role": "tool", "content": [{"type": "tool_result", "id": "a", "content": "{\"temp_c\": 15, \"cond\": \"foggy\"}"}] },
+  { "role": "tool", "content": [{"type": "tool_result", "id": "b", "content": "{\"temp_c\": 22, \"cond\": \"clear\"}"}] },
+  { "role": "assistant", "content": [{"type": "text", "text": "SF is 15 °C and foggy; Tokyo is 22 °C and clear."}] }
 ]
 ```
 
@@ -127,11 +127,95 @@ The following mappings are performed by adapters. Users do not write these — t
 ```python
 {
   "role": "tool",
-  "blocks": [
+  "content": [
     { "type": "tool_result", "id": "a", "content": "TimeoutError: upstream took too long", "is_error": true }
   ]
 }
 ```
+
+## Model Component Contract
+
+The agent component sends canonical messages to its `model.component` and expects a **canonical assistant message** back. The user's `model.output` mapping is responsible for translating each provider's response shape into the canonical form.
+
+Minimum contract for `model.output`:
+
+```yaml
+role: assistant
+content:
+  - { type: text, text: "..." }                                # 0 or 1
+  - { type: tool_call, id: ..., name: ..., arguments: {...} }  # 0 or more
+```
+
+The agent inspects `content[*].type == "tool_call"` to decide whether to continue the tool loop or return. `text` blocks with no `tool_call` blocks terminate the loop.
+
+### OpenAI Chat Completions → canonical
+
+```yaml
+output:
+  role: assistant
+  content:
+    "+":
+      - "?":
+          input: ${response.choices[0].message.content}
+          operator: neq
+          value: null
+          if_true:
+            - type: text
+              text: ${response.choices[0].message.content}
+      - "*": ${response.choices[0].message.tool_calls}
+        type: tool_call
+        id: ${item.id}
+        name: ${item.function.name}
+        arguments: ${item.function.arguments as json}
+```
+
+Notes: OpenAI serializes `arguments` as a JSON string; the `as json` cast parses it to a dict as the canonical requires. `content` is `null` when the assistant only calls tools; the `?` branch drops the text block in that case.
+
+### Anthropic Messages → canonical
+
+```yaml
+output:
+  role: assistant
+  content:
+    "*": ${response.content}
+    "?":
+      - input: ${item.type}
+        value: text
+        if_true: { type: text, text: ${item.text} }
+      - input: ${item.type}
+        value: tool_use
+        if_true:
+          type: tool_call
+          id: ${item.id}
+          name: ${item.name}
+          arguments: ${item.input}
+```
+
+Anthropic returns content blocks directly under `response.content`; the mapping just relabels `tool_use` → `tool_call` and passes `input` through as `arguments` (already a dict).
+
+### Google Gemini → canonical
+
+```yaml
+output:
+  role: assistant
+  content:
+    "*": ${response.candidates[0].content.parts}
+    "?":
+      - input: ${item.text}
+        operator: neq
+        value: null
+        if_true: { type: text, text: ${item.text} }
+      - input: ${item.functionCall}
+        operator: neq
+        value: null
+        if_true:
+          type: tool_call
+          id: ""
+          name: ${item.functionCall.name}
+          arguments: ${item.functionCall.args}
+```
+
+Gemini has no native tool-call IDs; leave `id` blank and the agent's tool-result linkage stays positional within the turn.
 
 ## Provider-Specific Sidecar (reserved)
 

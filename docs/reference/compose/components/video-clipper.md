@@ -32,6 +32,7 @@ component:
 | `video` | string \| string[] | **required** | Video source(s) — file path, URL, or interpolated variable (e.g. `${input.video as video}`) |
 | `span` | object \| object[] \| string | **required** | One or more time spans to clip out of each video source. A single span object yields a single clip; a list yields one clip per span. |
 | `merge` | boolean \| string | `false` | If true, concatenate all clips per source into a single video; otherwise return a list of clips. |
+| `return_timestamp` | boolean \| string | `false` | If true, each clip carries its source span alongside the video (see [Output Format](#output-format)). |
 | `batch_size` | integer \| string | `null` | Number of input sources per batch. When unset, all sources are processed together. |
 
 ### Span Object
@@ -73,6 +74,18 @@ Behavior depends on `span` and `merge`:
 | List of objects | `true` | A single video clip (all spans concatenated) |
 
 When multiple video sources are supplied via `video: [...]`, results are returned as a list of the above per source.
+
+### With `return_timestamp: true`
+
+Each clip is wrapped in an object that carries the source span, so downstream jobs can recover per-input positions:
+
+| `span` | `merge` | Output shape per source |
+|--------|---------|-------------------------|
+| Single object | any | `{ video, start_time, end_time }` |
+| List of objects | `false` | List of `{ video, start_time, end_time }` (one per span) |
+| List of objects | `true` | `{ video, times: [{ start_time, end_time }, ...] }` where `times` lists all covered spans |
+
+When the resolved span list is empty, the per-clip form yields `null` and the merged form yields `{ video: null, times: [] }`.
 
 ## Multiple Actions Configuration
 

@@ -468,7 +468,7 @@ role:
 
 ```yaml
 content:
-  "*": ${item.blocks}
+  "*": ${item.content}
   "?":
     - input: ${item.type}
       value: text
@@ -557,12 +557,12 @@ headers:
 content:
   "+":
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: text }
       type: text
       text: ${item.text}
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: tool_call }
       type: tool_use
       id: ${item.id}
@@ -583,9 +583,49 @@ content:
 
 ---
 
-## 14.12 实用示例
+## 14.12 拆分运算符 (`"|"`)
 
-### 14.12.1 OpenAI API 调用
+`"|"` 键是 `"*"` 的逆运算：它接收一个源列表（或流），并将每个元素扇出到多个并行的输出集合中，每个模板字段对应一个。当你需要把单一源投射到几个独立的通道，而不是逐元素成形的列表时使用。
+
+### 14.12.1 基本拆分
+
+```yaml
+xs_ys:
+  "|": ${points}
+  xs: ${item.x}
+  ys: ${item.y}
+# 若 points = [{x:1,y:2},{x:3,y:4}]
+# 结果: { xs: [1, 3], ys: [2, 4] }
+```
+
+在模板中，`${item}` 和 `${index}` 指向当前源元素及其位置，作用域规则与 `"*"` 相同。
+
+### 14.12.2 拆分流
+
+当源解析为流时，每个输出字段都会成为独立的流。消费者可以独立或并发地消耗各通道；值按底层流推进的顺序产生。
+
+```yaml
+# events 流: [{level: info, msg: ...}, {level: error, msg: ...}, ...]
+lanes:
+  "|": ${events}
+  levels: ${item.level}
+  messages: ${item.msg}
+# 结果: { levels: <流>, messages: <流> }
+```
+
+### 14.12.3 规则
+
+- **必须提供模板。** `{ "|": ${src} }` 没有其他键会抛出 `ValueError`。没有输出字段的拆分没有意义。
+- **源必须是列表、元组或流。** 其他类型抛出 `TypeError`。`None` 会为每个声明的字段返回空集合。
+- **每个元素的字段按顺序渲染** — 某个字段渲染较慢时，同一元素的其他通道也会被延迟。请保持字段模板轻量，将重活放在上游作业中。
+- **流共享同一源。** 所有输出通道从同一迭代器拉取，通过内部锁协调；源恰好被遍历一次。落后的通道会缓冲值直到被消耗。
+- `"|"` 可与 `"*"` 和 `"+"` 组合 — 拆分后的通道可以直接喂给下游的 map 或 join，无需中间步骤。
+
+---
+
+## 14.13 实用示例
+
+### 14.13.1 OpenAI API 调用
 
 ```yaml
 body:
@@ -599,7 +639,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.12.2 图像处理流水线
+### 14.13.2 图像处理流水线
 
 ```yaml
 jobs:
@@ -617,7 +657,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.12.3 流式响应
+### 14.13.3 流式响应
 
 ```yaml
 workflow:
@@ -632,7 +672,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.12.4 向量搜索结果格式
+### 14.13.4 向量搜索结果格式
 
 ```yaml
 component:
@@ -642,7 +682,7 @@ component:
 # 结果: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.12.5 条件默认值
+### 14.13.5 条件默认值
 
 ```yaml
 component:

@@ -246,7 +246,11 @@ This document outlines the structure of the model-compose user guide.
   - 14.11.1 [Basic Forms](./14-variable-binding.md#14111-basic-forms)
   - 14.11.2 [Composing with Map Expressions](./14-variable-binding.md#14112-composing-with-map-expressions)
   - 14.11.3 [Rules](./14-variable-binding.md#14113-rules)
-- 14.12 [Practical Examples](./14-variable-binding.md#1412-practical-examples)
+- 14.12 [Split Operator (`"|"`)](./14-variable-binding.md#1412-split-operator-)
+  - 14.12.1 [Basic Split](./14-variable-binding.md#14121-basic-split)
+  - 14.12.2 [Splitting a Stream](./14-variable-binding.md#14122-splitting-a-stream)
+  - 14.12.3 [Rules](./14-variable-binding.md#14123-rules)
+- 14.13 [Practical Examples](./14-variable-binding.md#1413-practical-examples)
 
 ## 15. [System Integration](./15-system-integration.md)
 - 15.1 [Listener Overview](./15-system-integration.md#151-listener-overview)

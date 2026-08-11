@@ -32,6 +32,7 @@ component:
 | `audio` | string \| string[] | **required** | Audio source(s) — file path, URL, or interpolated variable (e.g. `${input.audio as audio}`) |
 | `span` | object \| object[] \| string | **required** | One or more time spans to clip out of each audio source. A single span object yields a single clip; a list yields one clip per span. |
 | `merge` | boolean \| string | `false` | If true, concatenate all clips per source into a single audio; otherwise return a list of clips. |
+| `return_timestamp` | boolean \| string | `false` | If true, each clip carries its source span alongside the audio (see [Output Format](#output-format)). |
 | `batch_size` | integer \| string | `null` | Number of input sources per batch. When unset, all sources are processed together. |
 
 ### Span Object
@@ -73,6 +74,18 @@ Behavior depends on `span` and `merge`:
 | List of objects | `true` | A single audio clip (all spans concatenated) |
 
 When multiple audio sources are supplied via `audio: [...]`, results are returned as a list of the above per source.
+
+### With `return_timestamp: true`
+
+Each clip is wrapped in an object that carries the source span, so downstream jobs can recover per-input positions:
+
+| `span` | `merge` | Output shape per source |
+|--------|---------|-------------------------|
+| Single object | any | `{ audio, start_time, end_time }` |
+| List of objects | `false` | List of `{ audio, start_time, end_time }` (one per span) |
+| List of objects | `true` | `{ audio, times: [{ start_time, end_time }, ...] }` where `times` lists all covered spans |
+
+When the resolved span list is empty, the per-clip form yields `null` and the merged form yields `{ audio: null, times: [] }`.
 
 ## Multiple Actions Configuration
 

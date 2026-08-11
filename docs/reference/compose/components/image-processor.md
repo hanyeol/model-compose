@@ -31,7 +31,7 @@ All image processor actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `compress` |
+| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `overlay`, `mosaic`, `compress` |
 | `image` | string / array | **required** | Input image(s) — a single image (file path, base64 string, or variable reference) or a list of images |
 | `batch_size` | integer / string | `null` | Number of input images to process in a single batch |
 | `output` | any | `null` | Output variable mapping |
@@ -293,6 +293,7 @@ component:
       - ${input.base}
       - ${input.overlay_a}
       - ${input.overlay_b}
+    anchor: center
     background: "#00000000"
     output: ${output}
 ```
@@ -301,9 +302,76 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `anchor` | string | `center` | Where each image is aligned on the shared canvas. One of `top-left`, `top-center`, `top-right`, `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`, `bottom-right`. |
 | `background` | string / RGBA | `"#00000000"` | Background color of the output canvas (hex string or `[r, g, b, a]` tuple) |
 
-`merge` alpha-composites each input in order onto a canvas sized to fit the union of all inputs, whereas `concat` tiles inputs edge-to-edge without overlap.
+`merge` alpha-composites each input in order onto a canvas sized to fit the union of all inputs, aligning each image at `anchor`. `concat` tiles inputs edge-to-edge without overlap.
+
+### Overlay
+
+Paste one overlay image onto the base image at an explicit position. Unlike `merge` (which centers all inputs on a shared canvas) and `concat` (which tiles inputs), `overlay` places a single overlay at a caller-supplied `(x, y)`, optionally resizing and adjusting opacity. The base image size and color mode are preserved.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: overlay
+    image: ${input.base}
+    overlay: ${input.logo}
+    x: 20
+    y: 20
+    width: 120
+    opacity: 0.8
+    output: ${output}
+```
+
+**Overlay Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `overlay` | string | **required** | Overlay image (file path, base64 string, or variable reference). Must resolve to a single image. |
+| `x` | integer | **required** | X coordinate of the anchor point on the base image. |
+| `y` | integer | **required** | Y coordinate of the anchor point on the base image. |
+| `width` | integer | `null` | Resize overlay width in pixels before pasting. If only one of `width`/`height` is set, the other is derived from the overlay's native aspect ratio. When both are set, the overlay is resized to exactly `(width, height)` and may be distorted. |
+| `height` | integer | `null` | Resize overlay height in pixels before pasting. |
+| `anchor` | string | `top-left` | Which point of the overlay is placed at `(x, y)`. One of `top-left`, `top-center`, `top-right`, `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`, `bottom-right`. |
+| `opacity` | number | `1.0` | Alpha multiplier for the overlay (0.0 = fully transparent, 1.0 = as-is). |
+
+Overlays whose bounding box extends past the base image are clipped naturally (no error). The base image's color mode is preserved: an RGB base returns RGB, an RGBA base returns RGBA. As with other single-image methods, `image` accepts a single image, a list, or a stream — `overlay` and the placement parameters are then applied to every base image.
+
+### Mosaic
+
+Obscure one or more rectangular regions of an image (or the whole image) with a mosaic effect. Typical use is redacting faces or license plates — pipe `face-detection` / `face-tracking` bounding boxes straight in.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: mosaic
+    image: ${input.image}
+    mode: pixelate
+    # Pipe a detection component's bounding boxes directly. Each box is
+    # `{x, y, width, height}` matching the mosaic region shape.
+    region: ${jobs.detect.output.faces[*].bounding_box}
+    block_size: 16
+    output: ${output}
+```
+
+**Mosaic Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | string | `pixelate` | Algorithm: `pixelate` (block-based downsample) or `blur` (Gaussian blur) |
+| `region` | object or list | `null` | Region(s) to mosaic as `{x, y, width, height}` (single) or `[{...}, ...]` (multiple). Omit to apply the mosaic to the whole image. |
+| `block_size` | integer | `16` | Absolute pixelate block size in pixels (larger = more pixelated). Used when `mode` is `pixelate`. Mutually exclusive with `block_scale`. Applied when neither is specified. |
+| `block_scale` | number | `null` | Pixelate block size relative to each region's shorter side, in `(0.0, 1.0]`. Adapts automatically to region size — small faces get a proportionally finer block than large ones. Prefer this over `block_size` when regions vary widely in size (e.g. face bounding boxes at different distances). Used when `mode` is `pixelate`. Mutually exclusive with `block_size`. |
+| `min_block_size` | integer | `8` | Minimum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so tiny regions still get a visible mosaic instead of a 1–2 pixel block that looks nearly untouched. |
+| `max_block_size` | integer | `32` | Maximum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so large regions do not turn into a handful of oversized blocks that look like pixel art. |
+| `radius` | number | `8.0` | Blur radius in pixels. Used when `mode` is `blur`. |
+
+`block_size` and `block_scale` are mutually exclusive; setting both raises a validation error. When neither is set, `block_size: 16` is applied — a sensible fixed default matching FFmpeg's `pixelize` filter. For workflows where regions vary widely in size (e.g. face bounding boxes at different distances), set `block_scale` instead so the mosaic strength stays visually consistent across regions. `min_block_size` and `max_block_size` clamp `block_scale`'s output — the effective block size is `min(max_block_size, max(min_block_size, round(shorter_side * block_scale)))`.
+
+Each region shares the same `{x, y, width, height}` shape used by detection components' `bounding_box` outputs. Regions that extend past the image are clipped naturally. When multiple regions overlap, later regions mosaic the already-mosaicked pixels of earlier ones (so overlapping faces stay redacted).
 
 ### Compress
 

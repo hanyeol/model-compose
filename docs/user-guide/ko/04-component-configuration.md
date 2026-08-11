@@ -43,6 +43,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `audio-converter` | 오디오 변환 | 오디오 트랜스코딩/포맷 변환 (코덱, 샘플레이트, 채널 등) |
 | `audio-feature-extractor` | 오디오 특징 추출 | 시각화용 프레임별 스펙트럼 밴드 / 파형 포인트 |
 | `audio-clipper` | 오디오 구간 클리핑 | ffmpeg 스트림 카피로 오디오에서 하나 이상의 시간 범위를 무손실로 잘라내기 |
+| `media-inspector` | 미디어 메타데이터 조회 | ffprobe 또는 exiftool로 디코딩 없이 코덱·재생시간·해상도·EXIF/GPS 등 조회 |
 | `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
 | `web-browser` | 브라우저 자동화 | Chrome DevTools Protocol을 통한 브라우저 제어 |
 | `screen-capture` | 로컬 화면·오디오 캡처 | 데스크탑/영역/시스템·마이크 오디오를 연속 인코딩 스트림으로 방출 |
@@ -74,6 +75,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 비디오 인코딩 (프레임 → 비디오, 또는 재인코딩) → `video-encoder`
 - 비디오 / 오디오 클리핑 (무손실 시간 범위 잘라내기) → `video-clipper` / `audio-clipper`
 - 오디오 특징 추출 (시각화용 스펙트럼 / 파형) → `audio-feature-extractor`
+- 미디어 메타데이터 조회 (코덱, 재생시간, EXIF/GPS 등) → `media-inspector`
 - 웹 스크래핑 → `web-scraper`
 
 **브라우저 자동화**

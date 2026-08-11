@@ -468,7 +468,7 @@ role:
 
 ```yaml
 content:
-  "*": ${item.blocks}
+  "*": ${item.content}
   "?":
     - input: ${item.type}
       value: text
@@ -557,12 +557,12 @@ Common use case: run several `"*"` maps over the same source and concatenate the
 content:
   "+":
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: text }
       type: text
       text: ${item.text}
     - "*":
-        input: ${item.blocks}
+        input: ${item.content}
         where: { input: ${item.type}, value: tool_call }
       type: tool_use
       id: ${item.id}
@@ -583,9 +583,49 @@ content:
 
 ---
 
-## 14.12 Practical Examples
+## 14.12 Split Operator (`"|"`)
 
-### 14.12.1 OpenAI API Call
+The `"|"` key is the inverse of `"*"`: it takes a source list (or stream) and fans each element out across multiple parallel output collections, one per template field. Use it when you need to project a single source into several independent lanes rather than one shaped-per-element list.
+
+### 14.12.1 Basic Split
+
+```yaml
+xs_ys:
+  "|": ${points}
+  xs: ${item.x}
+  ys: ${item.y}
+# Given points = [{x:1,y:2},{x:3,y:4}]
+# Result: { xs: [1, 3], ys: [2, 4] }
+```
+
+Within the template, `${item}` and `${index}` refer to the current source element and its position — the same scope rules as `"*"`.
+
+### 14.12.2 Splitting a Stream
+
+When the source resolves to a stream, each output field becomes its own stream. Consumers may drain the lanes independently or concurrently; values are produced in source order as the underlying stream advances.
+
+```yaml
+# events stream: [{level: info, msg: ...}, {level: error, msg: ...}, ...]
+lanes:
+  "|": ${events}
+  levels: ${item.level}
+  messages: ${item.msg}
+# Result: { levels: <stream>, messages: <stream> }
+```
+
+### 14.12.3 Rules
+
+- **Template required.** `{ "|": ${src} }` with no other keys raises `ValueError`. Splitting without output fields has no meaning.
+- **Source must be a list, tuple, or stream.** Anything else raises `TypeError`. `None` yields empty collections for every declared field.
+- **Fields render sequentially per element** — a slow field renderer delays the other lanes for that same element. Keep field templates lightweight; put heavy work in upstream jobs.
+- **Streams share one source.** Every output lane pulls from the same underlying iterator, coordinated by an internal lock; the source is iterated exactly once. Lanes that fall behind buffer values until they are consumed.
+- `"|"` composes with `"*"` and `"+"` — a split lane can feed a downstream map or join without an intermediate step.
+
+---
+
+## 14.13 Practical Examples
+
+### 14.13.1 OpenAI API Call
 
 ```yaml
 body:
@@ -599,7 +639,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.12.2 Image Processing Pipeline
+### 14.13.2 Image Processing Pipeline
 
 ```yaml
 jobs:
@@ -617,7 +657,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.12.3 Streaming Response
+### 14.13.3 Streaming Response
 
 ```yaml
 workflow:
@@ -632,7 +672,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.12.4 Vector Search Result Format
+### 14.13.4 Vector Search Result Format
 
 ```yaml
 component:
@@ -642,7 +682,7 @@ component:
 # Result: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.12.5 Conditional Default Values
+### 14.13.5 Conditional Default Values
 
 ```yaml
 component:

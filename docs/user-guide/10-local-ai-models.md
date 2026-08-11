@@ -262,6 +262,7 @@ model-compose supports the following task types:
 | `object-detection` | Object detection | Detect objects with class labels and bounding boxes |
 | `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
 | `face-embedding` | Face embedding | Face recognition, comparison |
+| `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
 | `music-generation` | Music generation | Audio/music synthesis |
 
 ### 10.3.1 text-generation
@@ -707,7 +708,32 @@ component:
     image: ${input.image as image}
 ```
 
-### 10.3.14 object-detection
+### 10.3.14 face-tracking
+
+Tracks faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Uses InsightFace.
+
+```yaml
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: insightface
+  model:
+    provider: local
+    path: ./.models/antelopev2
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    return_image: true
+    params:
+      similarity_threshold: 0.4
+      min_frame_count: 2
+      merge_gap: 1.0
+```
+
+Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
+
+### 10.3.15 object-detection
 
 Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
 
@@ -727,7 +753,7 @@ component:
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
 
-### 10.3.15 image-segmentation
+### 10.3.16 image-segmentation
 
 Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
 

@@ -183,7 +183,7 @@ For a video with 30 detected scenes where the target person appears in 4 of them
       "scene": { "start_time": "00:00:12.500", "end_time": "00:00:18.200" },
       "score": 0.72,
       "timestamp": 14.0,
-      "bounding_box": [420, 180, 560, 340]
+      "bounding_box": { "x": 420, "y": 180, "width": 560, "height": 340 }
     },
     ...
   ],

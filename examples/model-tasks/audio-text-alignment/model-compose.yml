@@ -20,7 +20,7 @@ component:
   task: audio-text-alignment
   driver: huggingface
   architecture: wav2vec2
-  model: facebook/wav2vec2-base-960h
+  model: kresnik/wav2vec2-large-xlsr-korean
   device: mps
   max_concurrent_count: 1
   action:

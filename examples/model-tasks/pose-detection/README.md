@@ -161,7 +161,7 @@ graph TD
 | `result.height` | int | Height of the analyzed image in pixels |
 
 Each pose entry:
-- `bounding_box`: `[x, y, width, height]` in pixel coordinates, derived from visible keypoints
+- `bounding_box`: `{x, y, width, height}` in pixel coordinates, derived from visible keypoints
 - `keypoints`: 33 entries with `x`, `y` (pixel coordinates), `z` (relative depth), `visibility`, `presence`
 - `keypoints_3d` *(optional)*: same shape as `keypoints`, in real-world meters (hip-centered)
 - `segmentation_mask` *(optional)*: PNG-encoded grayscale mask

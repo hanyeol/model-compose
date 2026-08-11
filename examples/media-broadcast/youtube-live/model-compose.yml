@@ -16,11 +16,10 @@ workflows:
     title: Enqueue a video for broadcast
     description: |
       Re-encode a single video source into an MPEG-TS byte stream and
-      push it onto the `video-queue`. Optionally attach an override
-      audio track that will replace the video's built-in audio at
-      broadcast time. Run this workflow (via HTTP or the webui) each
-      time you want to add a video to the broadcast queue. Leave
-      `broadcast-live` running to stream each queued video to YouTube
+      push it onto the `media-queue` paired with its (optional)
+      override audio track. Run this workflow (via HTTP or the webui)
+      each time you want to add a video to the broadcast queue. Leave
+      `broadcast-live` running to stream each queued item to YouTube
       Live back-to-back.
 
       Because the encoder emits a streamable MPEG-TS instead of a
@@ -32,46 +31,40 @@ workflows:
         input:
           video: ${input.video as video}
 
-      - id: publish-video
-        component: video-queue
+      - id: publish
+        component: media-queue
         action: enqueue
-        input: ${jobs.encode.output}
+        input:
+          video: ${jobs.encode.output}
+          audio: ${input.audio as audio}
         depends_on: [ encode ]
 
-      - id: publish-audio
-        component: audio-queue
-        action: enqueue
-        input: ${input.audio as audio}
-
-  # Consumer: long-running workflow that reads video references from
-  # the queue and pushes them to YouTube Live via RTMP. Because
-  # rtmp-publisher accepts an AsyncIterator on its `video` field, the
-  # dequeue stream feeds it directly and videos are broadcast in
-  # sequence (each publish blocks until the video finishes).
+  # Consumer: long-running workflow that reads media references from
+  # the queue and pushes them to YouTube Live via RTMP. Each queue
+  # item bundles a video and audio stream together; the `"|"` split
+  # operator fans the dequeue stream into two parallel per-field
+  # streams that the rtmp-publisher accepts directly.
   #
   # Runs until cancelled — cancel the workflow to stop the broadcast.
   - id: broadcast-live
     title: Broadcast queued videos to YouTube Live
     description: |
-      Continuously dequeue video references and stream each one to
-      YouTube Live over RTMP. Start this once and leave it running;
-      use the runs API or the webui to cancel it when done. Requires
-      YOUTUBE_STREAM_KEY in the environment (see .env.sample).
+      Continuously dequeue paired video+audio items and stream each
+      one to YouTube Live over RTMP. Start this once and leave it
+      running; use the runs API or the webui to cancel it when done.
+      Requires YOUTUBE_STREAM_KEY in the environment (see .env.sample).
     jobs:
-      - id: subscribe-video
-        component: video-queue
-        action: dequeue
-
-      - id: subscribe-audio
-        component: audio-queue
+      - id: subscribe
+        component: media-queue
         action: dequeue
 
       - id: broadcast
         component: publisher
         input:
-          video: ${jobs.subscribe-video.output}
-          audio: ${jobs.subscribe-audio.output}
-        depends_on: [ subscribe-video, subscribe-audio ]
+          "|": ${jobs.subscribe.output}
+          video: ${item.video}
+          audio: ${item.audio}
+        depends_on: [ subscribe ]
 
 components:
   # Video encoder that re-encodes each input to MPEG-TS in streaming
@@ -95,23 +88,11 @@ components:
           codec: aac
           bitrate: 160k
 
-  # In-process queues shared between the producer and consumer
-  # workflows. Video and audio are kept in separate queues so their
-  # streams stay paired positionally (Nth video ↔ Nth audio) — each
-  # publish appends one item per queue and the consumer sees them
-  # in FIFO order.
-  - id: video-queue
-    type: data-queue
-    driver: memory
-    max_size: 100
-    actions:
-      - id: enqueue
-        method: enqueue
-        item: ${input}
-      - id: dequeue
-        method: dequeue
-
-  - id: audio-queue
+  # Single in-process queue shared between the producer and consumer
+  # workflows. Each queue item is a `{video, audio}` dict, so the pair
+  # travels together and stays aligned without any positional
+  # coordination between separate queues.
+  - id: media-queue
     type: data-queue
     driver: memory
     max_size: 100

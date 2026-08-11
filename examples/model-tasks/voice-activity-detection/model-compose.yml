@@ -28,6 +28,6 @@ component:
     params:
       threshold: ${input.threshold | 0.5}
       min_speech_duration: ${input.min_speech_duration | 250ms}
+      max_speech_duration: ${input.max_speech_duration | 30s}
       min_silence_duration: ${input.min_silence_duration | 500ms}
       speech_padding_time: ${input.speech_padding_time | 100ms}
-

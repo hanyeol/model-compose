@@ -13,7 +13,7 @@ workflow:
   job:
     input: ${input}
     output:
-      transcription: ${output as text}
+      transcription: ${output as json}
 
 component:
   type: model
@@ -27,4 +27,5 @@ component:
     audio: ${input.audio as audio}
     language: ${input.language}
     task: ${input.task as select/transcribe,translate | transcribe}
+    return_timestamps: true
     max_output_length: 444

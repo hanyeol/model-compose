@@ -10,21 +10,39 @@ controller:
 workflow:
   title: Music Source Separation
   description: Extract the vocal stem from a music track using a local Demucs v4 model.
-  job:
-    input: ${input}
-    output: ${output as audio/wav}
+  jobs:
+    - id: convert
+      component: audio-converter
+      input: ${input}
+      output: ${output as audio/wav}
 
-component:
-  type: model
-  task: music-source-separation
-  driver: custom
-  family: demucs
-  model: htdemucs_ft
-  device: cpu   # switch to 'cuda' on NVIDIA GPUs; MPS is unsupported for htdemucs_ft (see README)
-  max_concurrent_count: 1
-  action:
-    audio: ${input.audio as audio}
-    params:
-      stems: [ vocals ]
-      overlap: ${input.overlap | 0.25}
-      shifts: ${input.shifts | 1}
+    - id: separate
+      component: separator
+      input:
+        audio: ${jobs.convert.output}
+        overlap: ${input.overlap as number | 0.25}
+        shifts: ${input.shifts as integer | 1}
+      output: ${output as audio/wav}
+      depends_on: [ convert ]
+
+components:
+  - id: audio-converter
+    type: audio-converter
+    action:
+      audio: ${input.audio as audio}
+      format: wav
+
+  - id: separator
+    type: model
+    task: music-source-separation
+    driver: custom
+    family: demucs
+    model: htdemucs_ft
+    device: cpu   # switch to 'cuda' on NVIDIA GPUs; MPS is unsupported for htdemucs_ft (see README)
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio as audio}
+      params:
+        stems: [ vocals ]
+        overlap: ${input.overlap | 0.25}
+        shifts: ${input.shifts | 1}

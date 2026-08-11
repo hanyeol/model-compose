@@ -1,0 +1,92 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Face Tracking
+  description: |
+    Sample frames from an uploaded video at a fixed interval, run InsightFace
+    face tracking across the sampled sequence, and return a per-person
+    segment report — one entry per detected identity with the timecoded
+    segments in which they appear on screen.
+
+    Pipeline:
+      1. Extract frames from the video with ffmpeg at a fixed interval and
+         stream them out as bare images (the extractor's per-chunk dict is
+         projected down to the `image` field before leaving the component).
+      2. Feed the frame stream into face-tracking as a single input. Frame-
+         level detections are clustered by cosine similarity so the same
+         person stays grouped into a single track across frames. The tracker consumes
+         the stream lazily — no full-video buffering.
+      3. Emit `{tracks, frame_count}` — each track carrying its segments
+         in H:MM:SS.mmm timecode form.
+  jobs:
+    - id: frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval | 15}
+
+    - id: track
+      component: face-tracker
+      depends_on: [ frames ]
+      input:
+        frames: ${jobs.frames.output}
+        frame_rate: ${input.sampled_frame_rate | 2.0}
+        similarity_threshold: ${input.similarity_threshold | 0.4}
+        min_frame_count: ${input.min_frame_count | 2}
+        merge_gap: ${input.merge_gap | 1.0}
+        bounding_box_padding: ${input.bounding_box_padding | 0.2}
+        return_image: ${input.return_image as boolean | true}
+        return_embedding: ${input.return_embedding as boolean | false}
+        return_gender_age: ${input.return_gender_age as boolean | false}
+      output:
+        tracks: ${output.tracks}
+        # Flatten all per-segment face crops across every track into a single
+        # gallery-ready list. `tracks[*].segments[*].image` produces a nested
+        # list ([[img, img], [img], ...]) and `+` concatenates it into a flat
+        # sequence downstream consumers can render or process directly.
+        images:
+          "+": ${output.tracks[*].segments[*].image}
+  output:
+    tracks: ${jobs.track.output.tracks as json}
+    images: ${jobs.track.output.images as image[]}
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+      output: ${result[].image}
+
+  - id: face-tracker
+    type: model
+    task: face-tracking
+    driver: custom
+    family: insightface
+    max_concurrent_count: 1
+    model:
+      provider: local
+      path: ./.models/antelopev2
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      time_offset: 0.0
+      return_image: ${input.return_image}
+      return_embedding: ${input.return_embedding}
+      return_gender_age: ${input.return_gender_age}
+      bounding_box_padding: ${input.bounding_box_padding}
+      params:
+        similarity_threshold: ${input.similarity_threshold}
+        min_face_size: 40
+        min_frame_count: ${input.min_frame_count}
+        merge_gap: ${input.merge_gap}
+        max_face_count_per_frame: 0

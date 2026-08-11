@@ -52,12 +52,12 @@ Unlike cloud-based vision APIs, running SAM locally provides:
    # Single box
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [100, 100, 300, 400]}'
+     -F 'input={"image": "@image", "box_prompt": {"x": 100, "y": 100, "width": 300, "height": 400}}'
 
    # Multiple boxes
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [[100, 100, 300, 400], [500, 200, 250, 250]]}'
+     -F 'input={"image": "@image", "box_prompt": [{"x": 100, "y": 100, "width": 300, "height": 400}, {"x": 500, "y": 200, "width": 250, "height": 250}]}'
    ```
 
    **Using Web UI:**
@@ -74,7 +74,7 @@ Unlike cloud-based vision APIs, running SAM locally provides:
   "segments": [
     {
       "score": 0.92,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>"
     }
@@ -90,7 +90,7 @@ Unlike cloud-based vision APIs, running SAM locally provides:
   "segments": [
     {
       "score": 0.87,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>",
       "prompt_index": 0
@@ -102,7 +102,7 @@ Unlike cloud-based vision APIs, running SAM locally provides:
 ```
 
 - `score` — Segment confidence (SAM's stability estimate).
-- `bounding_box` — `[x, y, width, height]` derived from the mask, top-left origin.
+- `bounding_box` — `{x, y, width, height}` derived from the mask, top-left origin.
 - `area` — Mask area in pixels.
 - `mask` — Binary mask as a PNG (omitted when `return_mask: false`).
 - `prompt_index` — Index of the input `box_prompt` this segment corresponds to (only in box-prompted mode).
@@ -143,7 +143,7 @@ Available Ultralytics SAM checkpoints: `sam_b.pt`, `sam_l.pt`, `sam2_t.pt`, `sam
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `image` | image | (required) | Input image |
-| `box_prompt` | `[x, y, w, h]` or `[[x, y, w, h], ...]` | `null` | Box prompt(s). If omitted, runs in automatic mode |
+| `box_prompt` | object or list | `null` | Box prompt(s) as `{x, y, width, height}` (single) or `[{...}, ...]` (multiple). If omitted, runs in automatic mode |
 | `max_segment_count` | int | `100` | Maximum segments per image |
 | `return_mask` | bool | `true` | Return per-segment binary mask as PNG |
 | `params.min_confidence` | float | `0.5` | Minimum segment confidence |

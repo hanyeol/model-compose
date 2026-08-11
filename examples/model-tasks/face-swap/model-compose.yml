@@ -29,4 +29,5 @@ component:
     target_image: ${input.target_image as image}
     swap_all_faces: ${input.swap_all_faces as boolean | true}
     face_index: ${input.face_index as integer | 0}
-    detection_threshold: ${input.detection_threshold | 0.5}
+    params:
+      detection_threshold: ${input.detection_threshold | 0.5}

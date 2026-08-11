@@ -52,12 +52,12 @@
    # 단일 박스
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [100, 100, 300, 400]}'
+     -F 'input={"image": "@image", "box_prompt": {"x": 100, "y": 100, "width": 300, "height": 400}}'
 
    # 여러 박스
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [[100, 100, 300, 400], [500, 200, 250, 250]]}'
+     -F 'input={"image": "@image", "box_prompt": [{"x": 100, "y": 100, "width": 300, "height": 400}, {"x": 500, "y": 200, "width": 250, "height": 250}]}'
    ```
 
    **웹 UI 사용:**
@@ -74,7 +74,7 @@
   "segments": [
     {
       "score": 0.92,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>"
     }
@@ -90,7 +90,7 @@
   "segments": [
     {
       "score": 0.87,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>",
       "prompt_index": 0
@@ -102,7 +102,7 @@
 ```
 
 - `score` — 세그먼트 신뢰도 (SAM의 안정성 추정값).
-- `bounding_box` — 마스크에서 파생된 `[x, y, width, height]`, 좌상단 원점.
+- `bounding_box` — 마스크에서 파생된 `{x, y, width, height}`, 좌상단 원점.
 - `area` — 픽셀 단위 마스크 면적.
 - `mask` — PNG 형식의 이진 마스크 (`return_mask: false`일 때는 생략).
 - `prompt_index` — 이 세그먼트가 대응하는 입력 `box_prompt`의 인덱스 (박스 프롬프트 모드에서만).
@@ -143,7 +143,7 @@ model:
 | 매개변수 | 유형 | 기본값 | 설명 |
 |---|---|---|---|
 | `image` | image | (필수) | 입력 이미지 |
-| `box_prompt` | `[x, y, w, h]` 또는 `[[x, y, w, h], ...]` | `null` | 박스 프롬프트. 생략하면 자동 모드로 실행 |
+| `box_prompt` | object 또는 list | `null` | 박스 프롬프트 — `{x, y, width, height}` (단일) 또는 그 리스트. 생략하면 자동 모드로 실행 |
 | `max_segment_count` | int | `100` | 이미지당 최대 세그먼트 수 |
 | `return_mask` | bool | `true` | 세그먼트별 이진 마스크를 PNG로 반환 |
 | `params.min_confidence` | float | `0.5` | 세그먼트 최소 신뢰도 |

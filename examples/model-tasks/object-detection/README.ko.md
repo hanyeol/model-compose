@@ -68,7 +68,7 @@
       "label": "person",
       "label_id": 0,
       "score": 0.87,
-      "bounding_box": [x, y, width, height]
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 }
     }
   ],
   "width": 1920,
@@ -79,7 +79,7 @@
 - `label` — `model.names`의 사람이 읽을 수 있는 클래스 이름.
 - `label_id` — 모델이 보고하는 정수 클래스 인덱스.
 - `score` — `[0, 1]` 범위의 감지 신뢰도.
-- `bounding_box` — 좌측 상단 원점 기준의 픽셀 단위 `[x, y, width, height]`.
+- `bounding_box` — 좌측 상단 원점 기준의 픽셀 단위 `{x, y, width, height}`.
 
 ## 사용자 정의 모델 사용
 

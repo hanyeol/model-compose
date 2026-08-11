@@ -1,0 +1,36 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech to Text (CrisperWhisper 2.0)
+  description: Verbatim transcription with precise word-level timestamps using CrisperWhisper 2.0.
+  job:
+    input: ${input}
+    output:
+      transcription: ${output as json}
+
+component:
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: crisper-whisper
+  model: large            # shorthand for nyralabs/CrisperWhisper2.0_large; also 'turbo', 'medium', 'small', or full HF id
+  backend: auto           # 'auto' uses ct2 (fast) when the ctranslate2-crisperwhisper fork is installed (Linux x86_64 + NVIDIA); otherwise 'transformers' (portable)
+  compute_type: auto      # 'auto' picks float16 on cuda/mps, int8 on cpu; override with float16 / int8 / int8_float16 / float32
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    language: ${input.language | en}
+    mode: ${input.mode as select/verbatim,intended | verbatim}
+    return_timestamps: true
+    timestamp_level: word
+    longform_strategy: continuation
+    hallucination_mitigation: true
+    temperature_fallback: true

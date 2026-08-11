@@ -19,7 +19,7 @@ workflow:
   jobs:
     # 1. Stash the uploaded video on the local file-store so the audio
     #    branch and each per-segment clip can independently re-read it.
-    #    StreamResource is single-use, so without this step the raw upload
+    #    The raw upload stream is single-use, so without this step it
     #    would be consumed by whichever job read it first.
     - id: store
       component: storage

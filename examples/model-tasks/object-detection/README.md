@@ -68,7 +68,7 @@ Unlike cloud-based vision APIs, running YOLO locally provides:
       "label": "person",
       "label_id": 0,
       "score": 0.87,
-      "bounding_box": [x, y, width, height]
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 }
     }
   ],
   "width": 1920,
@@ -79,7 +79,7 @@ Unlike cloud-based vision APIs, running YOLO locally provides:
 - `label` — Human-readable class name from `model.names`.
 - `label_id` — Integer class index as reported by the model.
 - `score` — Detection confidence in `[0, 1]`.
-- `bounding_box` — `[x, y, width, height]` in pixels, top-left origin.
+- `bounding_box` — `{x, y, width, height}` in pixels, top-left origin.
 
 ## Using a Custom Model
 

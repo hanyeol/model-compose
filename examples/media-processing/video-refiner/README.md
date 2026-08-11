@@ -6,7 +6,7 @@ This example chains **file-store**, **`audio-extractor`**, **Silero VAD**, and *
 
 The workflow runs four jobs, all connected as a streaming pipeline:
 
-1. **`store`** — Stashes the uploaded video on a local `file-store` so both the audio branch and each per-segment clip can independently re-read it. `StreamResource` is single-use, so without this step the raw upload would be consumed by whichever job read it first.
+1. **`store`** — Stashes the uploaded video on a local `file-store` so both the audio branch and each per-segment clip can independently re-read it. The raw upload stream is single-use, so without this step it would be consumed by whichever job read it first.
 2. **`extract`** — Rips the audio track out of the stored video with `audio-extractor` (ffmpeg). The audio flows into VAD directly.
 3. **`detect`** — Runs Silero VAD in **streaming mode** (`streaming: true`) so each speech segment is emitted as `{start_time, end_time, confidence}` the moment it is confirmed, without waiting for the full audio to be analysed.
 4. **`refine`** — Fans the VAD segment stream out into `(video, span)` pairs using the `"|"` split operator, and feeds each pair into `video-clipper`. For every incoming segment the clipper re-opens the stored video, seeks to `[start_time, end_time]`, and emits a lossless clip. Clips are yielded one at a time as they finish.
@@ -218,4 +218,4 @@ Add a job that takes each streamed clip and runs it through a `speech-to-text` m
 2. **Words clipped at clip boundaries**: Increase `speech_padding_time` (e.g. `200ms`).
 3. **`ffmpeg` not found**: Install ffmpeg (and ffprobe) and ensure both are on `PATH`.
 4. **Storage directory permission error**: Ensure the process can write to `./storage/`. Change `storage.base_path` in `model-compose.yml` if you need a different location.
-5. **`StreamResource` already consumed error**: This example writes the upload to file-store first specifically to avoid that. If you customize the workflow to skip the `store` job, remember that `${input.video}` can only be consumed once — download it to disk (via `save_to`) or persist it through `file-store` before fanning out.
+5. **"Upload stream already consumed" error**: This example writes the upload to file-store first specifically to avoid that. If you customize the workflow to skip the `store` job, remember that `${input.video}` can only be consumed once — download it to disk (via `save_to`) or persist it through `file-store` before fanning out.

@@ -98,6 +98,15 @@ workflows:
       input: ${input}
       output: ${output as image;base64}
 
+  - id: overlay
+    title: Overlay Image
+    description: Paste an overlay image onto the base image at a specified position
+    job:
+      component: image-processor
+      action: overlay
+      input: ${input}
+      output: ${output as image;base64}
+
 components:
   - id: image-processor
     type: image-processor
@@ -165,4 +174,16 @@ components:
         method: adjust-saturation
         image: ${input.image as image}
         factor: ${input.factor as number | 1.0}
+        output: ${result as base64}
+
+      - id: overlay
+        method: overlay
+        image: ${input.image as image}
+        overlay: ${input.overlay as image}
+        x: ${input.x as integer | 0}
+        y: ${input.y as integer | 0}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+        anchor: ${input.anchor as select/top-left,top-center,top-right,center-left,center,center-right,bottom-left,bottom-center,bottom-right | top-left}
+        opacity: ${input.opacity as number | 1.0}
         output: ${result as base64}

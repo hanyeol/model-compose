@@ -6,7 +6,7 @@
 
 네 개의 job이 하나의 스트리밍 파이프라인으로 연결됩니다:
 
-1. **`store`** — 업로드된 비디오를 로컬 `file-store`에 저장. 오디오 추출과 각 segment별 클리핑이 원본 비디오를 독립적으로 다시 읽을 수 있도록 준비. `StreamResource`는 single-use이므로 이 단계 없이는 처음 읽는 job이 원본 스트림을 다 소비해버립니다.
+1. **`store`** — 업로드된 비디오를 로컬 `file-store`에 저장. 오디오 추출과 각 segment별 클리핑이 원본 비디오를 독립적으로 다시 읽을 수 있도록 준비. 업로드된 원본 스트림은 single-use이므로 이 단계 없이는 처음 읽는 job이 스트림을 다 소비해버립니다.
 2. **`extract`** — 저장된 비디오에서 `audio-extractor`(ffmpeg)로 오디오 트랙을 추출. 오디오는 그대로 VAD로 흘러갑니다.
 3. **`detect`** — Silero VAD를 **스트리밍 모드**(`streaming: true`)로 실행. 각 speech segment가 확정되는 즉시 `{start_time, end_time, confidence}` 형태로 방출되어, 전체 오디오 분석이 끝날 때까지 기다리지 않습니다.
 4. **`refine`** — `"|"` split 연산자로 VAD segment 스트림을 `(video, span)` 쌍으로 fan-out해 `video-clipper`에 전달. 도착한 segment마다 clipper가 저장된 비디오를 다시 열어 `[start_time, end_time]`으로 seek하여 무손실 클립을 방출합니다. 클립은 완성되는 대로 하나씩 스트림으로 나옵니다.
@@ -217,4 +217,4 @@ components:
 2. **클립 경계에서 단어가 잘림**: `speech_padding_time` 증가(예: `200ms`).
 3. **`ffmpeg` not found**: ffmpeg(및 ffprobe) 설치 후 `PATH`에 등록되어 있는지 확인.
 4. **스토리지 디렉터리 권한 오류**: `./storage/`에 프로세스가 쓸 수 있는지 확인. 다른 위치가 필요하면 `model-compose.yml`의 `storage.base_path`를 변경하세요.
-5. **`StreamResource` already consumed 에러**: 이 예제는 그 문제를 피하기 위해 업로드를 먼저 file-store에 저장합니다. `store` job을 생략하도록 커스터마이징하는 경우 `${input.video}`는 한 번만 소비 가능하다는 점을 기억하세요 - 디스크에 저장(`save_to`)하거나 fan-out 전에 `file-store`로 영속화해야 합니다.
+5. **"업로드 스트림이 이미 소비됨" 에러**: 이 예제는 그 문제를 피하기 위해 업로드를 먼저 file-store에 저장합니다. `store` job을 생략하도록 커스터마이징하는 경우 `${input.video}`는 한 번만 소비 가능하다는 점을 기억하세요 - 디스크에 저장(`save_to`)하거나 fan-out 전에 `file-store`로 영속화해야 합니다.

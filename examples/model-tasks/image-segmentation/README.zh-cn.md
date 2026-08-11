@@ -52,12 +52,12 @@
    # 单个框
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [100, 100, 300, 400]}'
+     -F 'input={"image": "@image", "box_prompt": {"x": 100, "y": 100, "width": 300, "height": 400}}'
 
    # 多个框
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F 'input={"image": "@image", "box_prompt": [[100, 100, 300, 400], [500, 200, 250, 250]]}'
+     -F 'input={"image": "@image", "box_prompt": [{"x": 100, "y": 100, "width": 300, "height": 400}, {"x": 500, "y": 200, "width": 250, "height": 250}]}'
    ```
 
    **使用 Web UI：**
@@ -74,7 +74,7 @@
   "segments": [
     {
       "score": 0.92,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>"
     }
@@ -90,7 +90,7 @@
   "segments": [
     {
       "score": 0.87,
-      "bounding_box": [x, y, width, height],
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 },
       "area": 12345,
       "mask": "<PNG>",
       "prompt_index": 0
@@ -102,7 +102,7 @@
 ```
 
 - `score` — 分割置信度（SAM 的稳定性估计）。
-- `bounding_box` — 从掩码派生的 `[x, y, width, height]`，原点在左上角。
+- `bounding_box` — 从掩码派生的 `{x, y, width, height}`，原点在左上角。
 - `area` — 掩码面积（像素）。
 - `mask` — 以 PNG 表示的二值掩码（`return_mask: false` 时省略）。
 - `prompt_index` — 此分割对应的输入 `box_prompt` 索引（仅框提示模式）。
@@ -143,7 +143,7 @@ model:
 | 参数 | 类型 | 默认值 | 描述 |
 |---|---|---|---|
 | `image` | image | （必需） | 输入图像 |
-| `box_prompt` | `[x, y, w, h]` 或 `[[x, y, w, h], ...]` | `null` | 框提示。省略时以自动模式运行 |
+| `box_prompt` | object 或 list | `null` | 框提示 — `{x, y, width, height}`（单个）或它们的列表。省略时以自动模式运行 |
 | `max_segment_count` | int | `100` | 每张图像的最大分割数 |
 | `return_mask` | bool | `true` | 以 PNG 返回每个分割的二值掩码 |
 | `params.min_confidence` | float | `0.5` | 最小分割置信度 |

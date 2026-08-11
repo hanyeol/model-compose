@@ -1,0 +1,202 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # ---------------- Main workflow: redact faces in a video ----------------
+  - id: face-mosaic
+    default: true
+    title: Face Mosaic
+    description: |
+      Redact every face in a video by pixelating (or blurring) each detected
+      face bounding box, then reassemble the redacted frames back into an mp4
+      with the original audio track preserved.
+
+      The pipeline runs end-to-end in streaming mode so memory stays bounded
+      regardless of clip length: frames flow one-by-one from the extractor
+      into per-frame detect + mosaic, and each redacted frame is handed
+      directly to ffmpeg's encoder without materialising the full frame set.
+    jobs:
+      # 1. Stash the uploaded video on the local file-store so the audio
+      #    branch and the frame extractor can independently re-read it
+      #    (the raw upload stream is single-use).
+      - id: store
+        component: storage
+        input:
+          path: uploads/${context.task_id}
+          source: ${input.video as video}
+
+      # 2. Split the audio track out of the stored video (preserved unchanged).
+      - id: extract-audio
+        component: audio-extractor
+        input:
+          source: ${jobs.store.output.url as video;url}
+        depends_on: [ store ]
+
+      # 3. Stream frames out of the stored video. `streaming: true` emits
+      #    frames as ffmpeg decodes them, without buffering the whole video.
+      - id: extract-frames
+        component: frame-extractor
+        input:
+          video: ${jobs.store.output.url as video;url}
+          frame_interval: 1
+        depends_on: [ store ]
+
+      # 4. For each frame, run detect + mosaic. Because the input is a stream
+      #    the for-each output is also a stream — mosaicked frames flow
+      #    lazily into the encoder below. `batch_size` bounds how many
+      #    frames run detect concurrently.
+      - id: mosaic-faces
+        type: for-each
+        input: ${jobs.extract-frames.output}
+        batch_size: 4
+        depends_on: [ extract-frames ]
+        do:
+          component: mosaic-faces-in-frame
+          input:
+            image: ${item.image}
+            mode: ${input.mode as select/pixelate,blur | pixelate}
+            block_scale: ${input.block_scale as number | 0.1}
+            radius: ${input.radius as number | 8.0}
+            min_confidence: ${input.min_confidence as number | 0.5}
+
+      # 5. Reassemble the mosaicked frame stream + the original audio into mp4.
+      #    The encoder pulls frames from the stream as ffmpeg is ready for
+      #    them, so no full-video buffering happens at this stage either.
+      - id: encode-video
+        component: encoder
+        input:
+          # The for-each above emits a stream where each chunk is a single
+          # PIL image. The encoder expects an image-array input (one array
+          # per video), so wrap the stream with `+` — the renderer treats
+          # `+` as "flatten these chunks into one continuous image array
+          # stream" so ffmpeg pulls frames one by one without materialising
+          # the full list.
+          frames:
+            "+": ${jobs.mosaic-faces.output}
+          frame_rate: ${input.frame_rate as number | 30}
+          audio: ${jobs.extract-audio.output}
+        depends_on: [ extract-audio, mosaic-faces ]
+
+    output:
+      video: ${jobs.encode-video.output as video}
+
+  # ---------------- Sub-workflow: mosaic every face in one frame ----------------
+  # A private workflow so the main for-each can call detect + mosaic as if
+  # it were one component.
+  - id: mosaic-faces-in-frame
+    private: true
+    jobs:
+      - id: detect
+        component: face-detector
+        input:
+          image: ${input.image}
+          min_confidence: ${input.min_confidence}
+
+      # face-detection returns `{faces: [{bounding_box: {x,y,width,height},
+      # score, ...}], width, height}`. `faces[*].bounding_box` is a list of
+      # `{x,y,width,height}` dicts, which mosaic's `region` accepts directly.
+      - id: mosaic
+        component: mosaic
+        input:
+          image: ${input.image}
+          region: ${jobs.detect.output.faces[*].bounding_box}
+          mode: ${input.mode}
+          block_scale: ${input.block_scale}
+          radius: ${input.radius}
+        depends_on: [ detect ]
+
+    output: ${jobs.mosaic.output as image}
+
+components:
+  # Local file-store used as a scratch area for the uploaded video. On S3
+  # or GCS you would swap the driver.
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./storage
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+
+  # ---- Split audio track out (mp3 by default) ----
+  - id: audio-extractor
+    type: audio-extractor
+    driver: ffmpeg
+    action:
+      source: ${input.source}
+      format: mp3
+
+  # ---- Stream every frame at native fps ----
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+
+  # ---- Face detector (InsightFace antelopev2) ----
+  # antelopev2 is downloaded automatically on first run (no `path` or `url`
+  # needed — the LocalModelConfig applies its default). Chosen over
+  # BlazeFace because it holds up on non-frontal and small faces, which is
+  # what a redaction workflow needs.
+  - id: face-detector
+    type: model
+    task: face-detection
+    driver: custom
+    family: insightface
+    max_concurrent_count: 1
+    model:
+      provider: local
+    action:
+      image: ${input.image as image}
+      params:
+        min_confidence: ${input.min_confidence}
+
+  # ---- Mosaic each face bounding box in a single pass per frame ----
+  - id: mosaic
+    type: image-processor
+    driver: native
+    action:
+      method: mosaic
+      image: ${input.image as image}
+      region: ${input.region}
+      mode: ${input.mode}
+      block_scale: ${input.block_scale}
+      radius: ${input.radius}
+
+  # ---- Wrapper so the main workflow can call the per-frame sub-workflow ----
+  - id: mosaic-faces-in-frame
+    type: workflow
+    action:
+      workflow: mosaic-faces-in-frame
+      input:
+        image: ${input.image}
+        mode: ${input.mode}
+        block_scale: ${input.block_scale}
+        radius: ${input.radius}
+        min_confidence: ${input.min_confidence}
+
+  # ---- Reassemble mosaicked frames + original audio into an mp4 ----
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames as image}
+      frame_rate: ${input.frame_rate}
+      audio: ${input.audio}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 8M
+        audio:
+          codec: aac
+          bitrate: 192k

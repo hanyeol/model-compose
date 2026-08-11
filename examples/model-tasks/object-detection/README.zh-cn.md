@@ -68,7 +68,7 @@
       "label": "person",
       "label_id": 0,
       "score": 0.87,
-      "bounding_box": [x, y, width, height]
+      "bounding_box": { "x": 320, "y": 180, "width": 220, "height": 460 }
     }
   ],
   "width": 1920,
@@ -79,7 +79,7 @@
 - `label` — 来自 `model.names` 的人类可读类别名称。
 - `label_id` — 模型报告的整数类别索引。
 - `score` — `[0, 1]` 范围内的检测置信度。
-- `bounding_box` — 以左上角为原点的像素单位 `[x, y, width, height]`。
+- `bounding_box` — 以左上角为原点的像素单位 `{x, y, width, height}`。
 
 ## 使用自定义模型
 

@@ -20,6 +20,12 @@ component:
   task: face-embedding
   max_concurrent_count: 1
   family: insightface
-  model: ./.models/antelopev2
+  # The antelopev2 archive is fetched into `path` on first run and extracted
+  # in-place; subsequent runs reuse the extracted directory.
+  model:
+    provider: local
+    path: ./.models/antelopev2
+    url: https://github.com/deepinsight/insightface/releases/download/v0.7/antelopev2.zip
+    bundled: true
   action:
     image: ${input.face_image as image}

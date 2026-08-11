@@ -6,7 +6,7 @@
 
 四个 job 组成一个流式管道：
 
-1. **`store`** — 将上传的视频存入本地 `file-store`，以便音频分支和每个分段裁剪都能独立地重新读取。`StreamResource` 是一次性的，若无此步骤原始上传流会被最先读取的 job 消耗掉。
+1. **`store`** — 将上传的视频存入本地 `file-store`，以便音频分支和每个分段裁剪都能独立地重新读取。上传的原始流是一次性的，若无此步骤原始上传流会被最先读取的 job 消耗掉。
 2. **`extract`** — 通过 `audio-extractor`（ffmpeg）从已存储的视频中提取音频轨道，音频流直接送入 VAD。
 3. **`detect`** — 以**流式模式**（`streaming: true`）运行 Silero VAD：每个语音片段在确认的瞬间即以 `{start_time, end_time, confidence}` 形式发出，无需等待完整音频分析完成。
 4. **`refine`** — 使用 `"|"` split 操作符将 VAD 分段流 fan-out 为 `(video, span)` 对，逐对送入 `video-clipper`。每收到一个分段，clipper 就重新打开已存储的视频，seek 到 `[start_time, end_time]`，并发出一个无损片段。片段完成一个就流式输出一个。
@@ -217,4 +217,4 @@ components:
 2. **片段边界处词被切**：增大 `speech_padding_time`（如 `200ms`）。
 3. **`ffmpeg` not found**：安装 ffmpeg（及 ffprobe），并确保两者在 `PATH` 中。
 4. **存储目录权限错误**：确保进程可写入 `./storage/`。若需不同位置，请修改 `model-compose.yml` 中的 `storage.base_path`。
-5. **`StreamResource` already consumed 错误**：本示例通过先将上传写入 file-store 来避免此问题。若自定义省略 `store` job，请注意 `${input.video}` 只能消耗一次 —— 需先保存到磁盘（`save_to`）或通过 `file-store` 持久化后再 fan-out。
+5. **"上传流已被消耗"错误**：本示例通过先将上传写入 file-store 来避免此问题。若自定义省略 `store` job，请注意 `${input.video}` 只能消耗一次 —— 需先保存到磁盘（`save_to`）或通过 `file-store` 持久化后再 fan-out。

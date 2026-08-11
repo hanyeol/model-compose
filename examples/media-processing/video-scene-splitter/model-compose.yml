@@ -1,0 +1,76 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Split Video Into Per-Scene Files
+  description: |
+    Detect scene boundaries in a video and save each scene as its own
+    file under ./output/scenes. Scenes stream out of the detector, flow
+    into the clipper as spans (also streaming), and each resulting clip
+    is written to disk by a for-each over the file-store.
+  jobs:
+    - id: detect-scenes
+      component: scene-detector
+      input:
+        video: ${input.video as video}
+        threshold: ${input.threshold as number | 27.0}
+
+    # Clipper receives the scene stream directly as its `span` input and
+    # yields one clip per scene. `return_timestamp: true` attaches each
+    # scene's start/end times so we can name the output files by span.
+    - id: clip-scenes
+      component: clipper
+      input:
+        video: ${input.video as video}
+        spans: ${jobs.detect-scenes.output}
+      depends_on: [ detect-scenes ]
+
+    - id: save-scenes
+      type: for-each
+      input: ${jobs.clip-scenes.output}
+      do:
+        component: storage
+        input:
+          # Name each file by the scene's start/end times so files sort
+          # in temporal order and each name is self-describing.
+          path: scene_${item.start_time as integer}-${item.end_time as integer}.mp4
+          source: ${item.video as video/mp4}
+      output: ${output as stream/json}
+      depends_on: [ clip-scenes ]
+
+components:
+  - id: scene-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    action:
+      video: ${input.video}
+      detector: adaptive
+      threshold: ${input.threshold}
+      # Emit scenes one-by-one so the clipper can start cutting the
+      # earliest scenes while later ones are still being detected.
+      streaming: true
+
+  - id: clipper
+    type: video-clipper
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      span: ${input.spans}
+      # Carry each scene's start/end times through to the file namer.
+      return_timestamp: true
+
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./output/scenes
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+    output: ${result.path}

@@ -8,24 +8,18 @@ controller:
     port: 8081
 
 workflow:
-  title: Speech to Text with Reference Correction
+  title: Speech to Text with VAD Pre-Segmentation
   description: |
     Detect speech regions with Silero VAD, clip them out of the source
-    audio, transcribe each clip with Whisper, and align the STT
-    segments against a known reference script — all in a single
-    streaming pipeline. Recognition typos are replaced with the
-    reference wording while timestamps derived from the audio are
-    preserved, so the output is ready to serve as subtitles or a
-    corrected transcript.
-
-    Pre-segmenting with VAD keeps each Whisper run under its 30 s
-    window; the audio-clipper attaches each clip's VAD start time as
-    metadata (`return_timestamp: true`); a for-each job runs Whisper
-    with `time_offset` set from that clip start, so each returned
-    segment already carries an absolute timestamp in the original
-    audio. The for-each's `+` operator flattens per-clip segment
-    streams into one continuous stream that the corrector consumes
-    incrementally as segments arrive.
+    audio, and transcribe each clip with Whisper — all in a single
+    streaming pipeline. VAD emits segments as they are confirmed; the
+    audio-clipper consumes that stream to produce `{audio, start_time,
+    end_time}` clips (via `return_timestamp: true`); a for-each job
+    runs Whisper on each clip and passes the clip's VAD start time as
+    STT's `time_offset`, so each returned segment carries an absolute
+    timestamp in the original audio. The workflow output uses the
+    `+` operator to lazily flatten the per-clip segment streams into
+    one continuous segment stream.
   jobs:
     - id: detect
       component: vad
@@ -60,13 +54,7 @@ workflow:
         "+": ${output}
       depends_on: [ clip ]
 
-    - id: correct
-      component: corrector
-      input:
-        transcript: ${jobs.transcribe.output}
-        reference: ${input.reference as text}
-      output: ${output}
-      depends_on: [ transcribe ]
+  output: ${jobs.transcribe.output as stream/json}
 
 components:
   # Silero VAD in streaming mode: emits { start_time, end_time,
@@ -130,17 +118,3 @@ components:
         no_speech_threshold: 0.2         # default 0.6 — skip only when very confidently silent
         log_prob_threshold: -2.5         # default -1.0 — keep lower-confidence segments
         compression_ratio_threshold: 3.0 # default 2.4 — allow more repetition before flagging as hallucination
-
-  - id: corrector
-    type: transcript-corrector
-    action:
-      transcript: ${input.transcript}
-      reference: ${input.reference}
-      # Word-level alignment works for space-delimited scripts (English,
-      # Korean, most European languages). Switch to 'character' for CJK
-      # without whitespace.
-      granularity: word
-      # Skip segments whose best reference span match is below this
-      # similarity — leaves obvious mis-recognitions untouched instead of
-      # forcing a wrong replacement.
-      match_threshold: 0.5
